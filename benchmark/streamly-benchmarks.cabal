@@ -69,10 +69,23 @@ flag use-prelude
 -------------------------------------------------------------------------------
 
 common default-extensions
+    default-language: Haskell2010
+
+    -- GHC2024 may include more extensions than we are actually using, see the
+    -- full list below. We enable this to ensure that we are able to compile
+    -- with this i.e. there is no interference by other extensions.
+    if impl(ghc >= 9.10)
+      default-language: GHC2024
+
+    if impl(ghc >= 9.2) && impl(ghc < 9.10)
+      default-language: GHC2021
+
+    if impl(ghc >= 8.10)
+      default-extensions: StandaloneKindSignatures
+
+    -- In GHC 2024
     default-extensions:
         BangPatterns
-        CApiFFI
-        CPP
         ConstraintKinds
         DeriveDataTypeable
         DeriveGeneric
@@ -84,29 +97,20 @@ common default-extensions
         InstanceSigs
         KindSignatures
         LambdaCase
-        MagicHash
         MultiParamTypeClasses
-        PatternSynonyms
         RankNTypes
-        RecordWildCards
         ScopedTypeVariables
         TupleSections
         TypeApplications
-        TypeFamilies
         TypeOperators
-        ViewPatterns
 
-        -- MonoLocalBinds, enabled by TypeFamilies, causes performance
-        -- regressions. Disable it. This must come after TypeFamilies,
-        -- otherwise TypeFamilies will enable it again.
-        NoMonoLocalBinds
-
-        -- UndecidableInstances -- Does not show any perf impact
-        -- UnboxedTuples        -- interferes with (#.)
+        -- Not in GHC2024
+        CPP
+        MagicHash
+        RecordWildCards
 
 common compile-options
     import: default-extensions
-    default-language: Haskell2010
 
     if flag(use-streamly-core)
       cpp-options:    -DUSE_STREAMLY_CORE
@@ -229,7 +233,7 @@ library
 common bench-options
   import: compile-options, optimization-options, bench-depends
   include-dirs: .
-  ghc-options: -rtsopts
+  ghc-options: -rtsopts -with-rtsopts "-t"
   if flag(limit-build-mem)
     ghc-options: +RTS -M512M -RTS
   build-depends: streamly-benchmarks == 0.0.0
@@ -239,7 +243,7 @@ common bench-options-threaded
   import: compile-options, optimization-options, bench-depends
   -- -threaded and -N2 is important because some GC and space leak issues
   -- trigger only with these options.
-  ghc-options: -threaded -rtsopts -with-rtsopts "-N2"
+  ghc-options: -threaded -rtsopts -with-rtsopts "-t -N2"
   if flag(limit-build-mem)
     ghc-options: +RTS -M512M -RTS
   build-depends: streamly-benchmarks == 0.0.0
@@ -313,6 +317,10 @@ benchmark Data.Fold.Window
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data/Fold
   main-is: Window.hs
+  -- MonoLocalBinds increases the memory requirement from 400MB to 1000MB,
+  -- observed on macOS.
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M1000M -RTS
 
 benchmark Data.MutArray
   import: bench-options

@@ -164,6 +164,9 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Foldable (Foldable(foldl'), fold, foldr)
 import Data.Function (fix)
 import Data.Functor.Identity (Identity(..))
+#if __GLASGOW_HASKELL__ >= 810
+import Data.Kind (Type)
+#endif
 import Data.Maybe (fromMaybe)
 import Data.Semigroup (Endo(..))
 import GHC.Exts (IsList(..), IsString(..), oneShot)
@@ -233,12 +236,18 @@ mkStream
 mkStream = MkStream
 
 -- | A terminal function that has no continuation to follow.
+#if __GLASGOW_HASKELL__ >= 810
+type StopK :: (Type -> Type) -> Type
+#endif
 type StopK m = forall r. m r -> m r
 
 -- | A monadic continuation, it is a function that yields a value of type "a"
 -- and calls the argument (a -> m r) as a continuation with that value. We can
 -- also think of it as a callback with a handler (a -> m r).  Category
 -- theorists call it a codensity type, a special type of right kan extension.
+#if __GLASGOW_HASKELL__ >= 810
+type YieldK :: (Type -> Type) -> Type -> Type
+#endif
 type YieldK m a = forall r. (a -> m r) -> m r
 
 _wrapM :: Monad m => m a -> YieldK m a

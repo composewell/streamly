@@ -1604,8 +1604,7 @@ classifySessionsOf = classifySessionsBy 1 False
 --
 -- /Pre-release/
 {-# INLINE splitInnerBy #-}
-splitInnerBy
-    :: (IsStream t, Monad m)
+splitInnerBy :: forall t m (f :: Type -> Type) a. (IsStream t, Monad m)
     => (f a -> m (f a, Maybe (f a)))  -- splitter
     -> (f a -> f a -> m (f a))        -- joiner
     -> t m (f a)
@@ -1618,8 +1617,8 @@ splitInnerBy splitter joiner xs =
 --
 -- /Pre-release/
 {-# INLINE splitInnerBySuffix #-}
-splitInnerBySuffix
-    :: (IsStream t, Monad m, Eq (f a), Monoid (f a))
+splitInnerBySuffix :: forall t m (f :: Type -> Type) a.
+    (IsStream t, Monad m, Eq (f a), Monoid (f a))
     => (f a -> m (f a, Maybe (f a)))  -- splitter
     -> (f a -> f a -> m (f a))        -- joiner
     -> t m (f a)

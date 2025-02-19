@@ -172,6 +172,9 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Foldable (Foldable(foldl'), fold, foldr)
 import Data.Functor (($>))
 import Data.Functor.Identity (Identity(..))
+#if __GLASGOW_HASKELL__ >= 810
+import Data.Kind (Type)
+#endif
 import Data.Maybe (fromMaybe)
 import Data.Semigroup (Endo(..))
 import Fusion.Plugin.Types (Fuse(..))
@@ -1837,6 +1840,9 @@ foldIterateBfs = undefined
 
 -- s = stream state, fs = fold state
 {-# ANN type FoldManyPost Fuse #-}
+#if __GLASGOW_HASKELL__ >= 810
+type FoldManyPost :: Type -> Type -> Type -> Type -> Type
+#endif
 data FoldManyPost s fs b a
     = FoldManyPostStart s
     | FoldManyPostLoop s fs
@@ -1918,6 +1924,9 @@ foldManySepBy :: -- Monad m =>
 foldManySepBy _f1 _f2 = undefined
 
 {-# ANN type FoldMany Fuse #-}
+#if __GLASGOW_HASKELL__ >= 810
+type FoldMany :: Type -> Type -> Type -> Type -> Type
+#endif
 data FoldMany s fs b a
     = FoldManyStart s
     | FoldManyFirst fs s

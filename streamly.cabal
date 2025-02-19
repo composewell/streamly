@@ -242,8 +242,6 @@ flag use-unliftio
 -------------------------------------------------------------------------------
 
 common compile-options
-    default-language: Haskell2010
-
     if os(darwin)
       cpp-options:    -DCABAL_OS_DARWIN
 
@@ -297,6 +295,22 @@ common compile-options
       cpp-options: -DUSE_UNLIFTIO
 
 common default-extensions
+    default-language: Haskell2010
+
+    -- GHC2024 may include more extensions than we are actually using, see the
+    -- full list below. We enable this to ensure that we are able to compile
+    -- with this i.e. there is no interference by other extensions.
+    if impl(ghc >= 9.10)
+      default-language: GHC2024
+
+    if impl(ghc >= 9.2) && impl(ghc < 9.10)
+      default-language: GHC2021
+
+    if impl(ghc >= 8.10)
+      default-extensions:
+        StandaloneKindSignatures
+
+    -- In GHC 2024
     default-extensions:
         BangPatterns
         ConstraintKinds
@@ -309,6 +323,7 @@ common default-extensions
         GeneralizedNewtypeDeriving
         InstanceSigs
         KindSignatures
+        LambdaCase
         MultiParamTypeClasses
         RankNTypes
         ScopedTypeVariables
@@ -316,21 +331,30 @@ common default-extensions
         TypeApplications
         TypeOperators
 
-        -- Not GHC2021
+    -- Not in GHC2024
+    default-extensions:
         CApiFFI
         CPP
-        LambdaCase
         MagicHash
         RecordWildCards
 
         -- TypeFamilies -- required by IsHashMap type class
-        -- MonoLocalBinds, enabled by TypeFamilies, causes performance
-        -- regressions. Disable it. This must come after TypeFamilies,
-        -- otherwise TypeFamilies will enable it again.
+
+        -- MonoLocalBinds, enabled by TypeFamilies and GHC2024, was
+        -- once found to cause runtime performance regressions which
+        -- does not seem to be the case anymore, but need more testing
+        -- to confirm.  It is confirmed that it requires more memory
+        -- for compilation at least in some cases (Data.Fold.Window
+        -- benchmark on GHC-9.10.1 macOS).  Disabling this must come
+        -- after TypeFamilies, otherwise TypeFamilies will enable it
+        -- again.
         -- NoMonoLocalBinds
 
         -- UndecidableInstances -- Does not show any perf impact
         -- UnboxedTuples        -- interferes with (#.)
+
+    if impl(ghc >= 8.6)
+      default-extensions: QuantifiedConstraints
 
 common optimization-options
   if flag(opt)
@@ -363,9 +387,6 @@ common lib-options
 
 library
     import: lib-options
-
-    if impl(ghc >= 8.6)
-      default-extensions: QuantifiedConstraints
 
     include-dirs:
           src

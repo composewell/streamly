@@ -95,6 +95,7 @@ where
 
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
+import Data.Kind (Type)
 import Data.Word (Word8)
 import System.IO (Handle, openFile, IOMode(..), hClose)
 import Prelude hiding (read)
@@ -204,7 +205,7 @@ usingFile3 = UF.bracketIO before after
 -- /Pre-release/
 --
 {-# INLINABLE putChunk #-}
-putChunk :: FilePath -> Array a -> IO ()
+putChunk :: forall (a :: Type). FilePath -> Array a -> IO ()
 putChunk file arr = SIO.withFile file WriteMode (`FH.putChunk` arr)
 
 -- | append an array to a file.
@@ -212,7 +213,7 @@ putChunk file arr = SIO.withFile file WriteMode (`FH.putChunk` arr)
 -- /Pre-release/
 --
 {-# INLINABLE writeAppendArray #-}
-writeAppendArray :: FilePath -> Array a -> IO ()
+writeAppendArray :: forall (a :: Type). FilePath -> Array a -> IO ()
 writeAppendArray file arr = SIO.withFile file AppendMode (`FH.putChunk` arr)
 
 -------------------------------------------------------------------------------
@@ -369,7 +370,7 @@ readShared = undefined
 -------------------------------------------------------------------------------
 
 {-# INLINE fromChunksMode #-}
-fromChunksMode :: (MonadIO m, MonadCatch m)
+fromChunksMode :: forall m (a :: Type). (MonadIO m, MonadCatch m)
     => IOMode -> FilePath -> Stream m (Array a) -> m ()
 fromChunksMode mode file xs = S.fold drain $
     withFile file mode (\h -> S.mapM (FH.putChunk h) xs)
@@ -379,7 +380,7 @@ fromChunksMode mode file xs = S.fold drain $
 -- /Pre-release/
 --
 {-# INLINE fromChunks #-}
-fromChunks :: (MonadIO m, MonadCatch m)
+fromChunks :: forall m (a :: Type). (MonadIO m, MonadCatch m)
     => FilePath -> Stream m (Array a) -> m ()
 fromChunks = fromChunksMode WriteMode
 
@@ -431,7 +432,7 @@ write = toHandleWith A.defaultChunkSize
 --
 -- /Pre-release/
 {-# INLINE writeChunks #-}
-writeChunks :: (MonadIO m, MonadCatch m)
+writeChunks :: forall m (a :: Type). (MonadIO m, MonadCatch m)
     => FilePath -> Fold m (Array a) ()
 writeChunks path = Fold step initial extract final
     where
@@ -487,7 +488,7 @@ write = writeWith defaultChunkSize
 -- /Pre-release/
 --
 {-# INLINE writeAppendChunks #-}
-writeAppendChunks :: (MonadIO m, MonadCatch m)
+writeAppendChunks :: forall m (a :: Type). (MonadIO m, MonadCatch m)
     => FilePath -> Stream m (Array a) -> m ()
 writeAppendChunks = fromChunksMode AppendMode
 

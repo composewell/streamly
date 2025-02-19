@@ -121,6 +121,7 @@ where
 import Control.Exception (assert)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Function ((&))
+import Data.Kind (Type)
 import Data.Maybe (isNothing, fromJust)
 import Data.Word (Word8)
 import Streamly.Internal.Data.Unbox (Unbox)
@@ -373,7 +374,7 @@ read = A.concat . readChunks
 -- | Write an 'Array' to a file handle.
 --
 {-# INLINABLE putChunk #-}
-putChunk :: MonadIO m => Handle -> Array a -> m ()
+putChunk :: forall m (a :: Type). MonadIO m => Handle -> Array a -> m ()
 putChunk _ arr | byteLength arr == 0 = return ()
 putChunk h arr = A.unsafePinnedAsPtr arr $ \ptr byteLen ->
     liftIO $ hPutBuf h ptr byteLen
@@ -392,7 +393,8 @@ putChunk h arr = A.unsafePinnedAsPtr arr $ \ptr byteLen ->
 -- >>> putChunks h = Stream.fold (Fold.drainBy (Handle.putChunk h))
 --
 {-# INLINE putChunks #-}
-putChunks :: MonadIO m => Handle -> Stream m (Array a) -> m ()
+putChunks :: forall m (a :: Type). MonadIO m =>
+    Handle -> Stream m (Array a) -> m ()
 putChunks h = S.fold (FL.drainMapM (putChunk h))
 
 -- XXX AS.compact can be written idiomatically in terms of foldMany, just like
@@ -437,14 +439,14 @@ putBytes = putBytesWith defaultChunkSize
 -- writeChunks h = Fold.drainBy (Handle.putChunk h)
 --
 {-# INLINE writeChunks #-}
-writeChunks :: MonadIO m => Handle -> Fold m (Array a) ()
+writeChunks :: forall m (a :: Type). MonadIO m => Handle -> Fold m (Array a) ()
 writeChunks h = FL.drainMapM (putChunk h)
 
 -- | Like writeChunks but uses the experimental 'Refold' API.
 --
 -- /Internal/
 {-# INLINE chunkWriter #-}
-chunkWriter :: MonadIO m => Refold m Handle (Array a) ()
+chunkWriter :: forall m (a :: Type). MonadIO m => Refold m Handle (Array a) ()
 chunkWriter = Refold.drainBy putChunk
 
 -- | @writeChunksWith bufsize handle@ writes a stream of arrays

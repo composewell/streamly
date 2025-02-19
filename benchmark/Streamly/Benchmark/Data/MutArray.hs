@@ -22,6 +22,9 @@
 import Control.DeepSeq (NFData(..))
 import Control.Monad.IO.Class (MonadIO)
 import Data.Functor ((<&>))
+#if __GLASGOW_HASKELL__ >= 810
+import Data.Kind (Type)
+#endif
 import System.Random (randomRIO)
 import Prelude
     ( IO
@@ -52,6 +55,9 @@ import qualified Streamly.Internal.Data.Stream as Stream
 import Test.Tasty.Bench
 import Streamly.Benchmark.Common hiding (benchPureSrc)
 
+#if __GLASGOW_HASKELL__ >= 810
+type Stream :: Type -> Type
+#endif
 type Stream = MutArray
 
 instance NFData (MutArray a) where

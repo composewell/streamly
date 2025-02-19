@@ -36,6 +36,9 @@ where
 -- import Control.Arrow (Arrow(..))
 import Control.Category (Category(..))
 import Data.Functor ((<&>))
+#if __GLASGOW_HASKELL__ >= 810
+import Data.Kind (Type)
+#endif
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Scanr (Scanr(..))
@@ -146,6 +149,9 @@ instance Functor m => Functor (Pipe m a) where
 -------------------------------------------------------------------------------
 
 {-# ANN type ComposeConsume Fuse #-}
+#if __GLASGOW_HASKELL__ >= 810
+type ComposeConsume :: Type -> Type -> Type -> Type
+#endif
 data ComposeConsume csL psL csR =
       ComposeConsume csL csR
 
@@ -614,6 +620,9 @@ filter f = filterM (return Prelude.. f)
 -- that.
 
 {-# ANN type FromFoldConsume Fuse #-}
+#if __GLASGOW_HASKELL__ >= 810
+type FromFoldConsume :: Type -> Type -> Type
+#endif
 data FromFoldConsume s x = FoldConsumeInit | FoldConsumeGo s
 
 {-# ANN type FromFoldProduce Fuse #-}

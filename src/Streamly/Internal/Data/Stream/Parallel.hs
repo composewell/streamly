@@ -61,6 +61,9 @@ import Control.Monad.State.Class (MonadState(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
 #endif
 import Data.Functor (void)
+#if __GLASGOW_HASKELL__ >= 810
+import Data.Kind (Type)
+#endif
 import Data.IORef (readIORef, writeIORef)
 import Data.Maybe (fromJust)
 
@@ -362,6 +365,9 @@ tapAsyncK f m = K.mkStream $ \st yld sng stp -> do
     K.foldStreamShared st yld sng stp
         $ Stream.toStreamK (SVar.teeToSVar sv $ Stream.fromStreamK m)
 
+#if __GLASGOW_HASKELL__ >= 810
+type TapState :: Type -> Type -> Type -> Type
+#endif
 data TapState fs st a = TapInit | Tapping !fs st | TapDone st
 
 -- | Like 'tapAsync' but uses a 'Fold' instead of a fold function.

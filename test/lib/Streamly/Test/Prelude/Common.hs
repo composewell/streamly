@@ -1,3 +1,4 @@
+{-# Language NoMonoLocalBinds #-}
 {-# OPTIONS_GHC -Wno-deprecations #-}
 -- XXX We are using head/tail at one place
 #if __GLASGOW_HASKELL__ >= 908

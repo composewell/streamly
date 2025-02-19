@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE NoMonoLocalBinds #-}
 -- |
 -- Module      : Streamly.Internal.Data.Parser
 -- Copyright   : (c) 2020 Composewell Technologies

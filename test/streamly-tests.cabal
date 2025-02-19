@@ -50,8 +50,6 @@ flag use-streamly-core
 -------------------------------------------------------------------------------
 
 common compile-options
-    default-language: Haskell2010
-
     if os(darwin)
       cpp-options:    -DCABAL_OS_DARWIN
 
@@ -74,7 +72,6 @@ common compile-options
                       -Wnoncanonical-monad-instances
                       -Wmissing-export-lists
                       -Rghc-timing
-                      -with-rtsopts "-t"
 
     if flag(has-llvm)
       ghc-options: -fllvm
@@ -93,10 +90,23 @@ common compile-options
       cpp-options: -DINCLUDE_FLAKY_TESTS
 
 common default-extensions
+    default-language: Haskell2010
+
+    -- GHC2024 may include more extensions than we are actually using, see the
+    -- full list below. We enable this to ensure that we are able to compile
+    -- with this i.e. there is no interference by other extensions.
+    if impl(ghc >= 9.10)
+      default-language: GHC2024
+
+    if impl(ghc >= 9.2) && impl(ghc < 9.10)
+      default-language: GHC2021
+
+    if impl(ghc >= 8.10)
+      default-extensions: StandaloneKindSignatures
+
+    -- In GHC 2024
     default-extensions:
         BangPatterns
-        CApiFFI
-        CPP
         ConstraintKinds
         DeriveDataTypeable
         DeriveGeneric
@@ -108,23 +118,17 @@ common default-extensions
         InstanceSigs
         KindSignatures
         LambdaCase
-        MagicHash
         MultiParamTypeClasses
-        PatternSynonyms
         RankNTypes
-        RecordWildCards
         ScopedTypeVariables
         TupleSections
-        TypeFamilies
-        ViewPatterns
 
-        -- MonoLocalBinds, enabled by TypeFamilies, causes performance
-        -- regressions. Disable it. This must come after TypeFamilies,
-        -- otherwise TypeFamilies will enable it again.
+        -- Not in GHC2024
+        CPP
+        MagicHash
+        PatternSynonyms
+        RecordWildCards
         NoMonoLocalBinds
-
-        -- UndecidableInstances -- Does not show any perf impact
-        -- UnboxedTuples        -- interferes with (#.)
 
 common threading-options
   ghc-options:  -threaded
@@ -197,7 +201,10 @@ library
 common test-options
   import: lib-options
         , threading-options
-  ghc-options: -rtsopts -fno-ignore-asserts
+  ghc-options:
+    -rtsopts
+    -with-rtsopts "-t"
+    -fno-ignore-asserts
   include-dirs: .
   build-depends: streamly-tests
 
@@ -211,6 +218,7 @@ common always-optimized
                -fmax-worker-args=16
                -fspec-constr-recursive=16
                -rtsopts
+               -with-rtsopts "-t"
                -fno-ignore-asserts
   if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
     ghc-options: -fplugin Fusion.Plugin

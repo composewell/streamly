@@ -113,7 +113,7 @@ toSVar sv m = do
 
 -- | Pull a stream from an SVar.
 {-# NOINLINE fromStreamVar #-}
-fromStreamVar :: MonadAsync m => SVar K.Stream m a -> K.Stream m a
+fromStreamVar :: forall m a. MonadAsync m => SVar K.Stream m a -> K.Stream m a
 fromStreamVar sv = K.mkStream $ \st yld sng stp -> do
     list <- readOutputQ sv
     -- Reversing the output is important to guarantee that we process the
@@ -123,6 +123,7 @@ fromStreamVar sv = K.mkStream $ \st yld sng stp -> do
 
     where
 
+    allDone :: forall r. m r -> m r
     allDone stp = do
         when (svarInspectMode sv) $ do
             t <- liftIO $ getTime Monotonic

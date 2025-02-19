@@ -33,6 +33,9 @@ import Control.Exception (fromException)
 import Control.Monad (when)
 import Control.Monad.Catch (throwM, MonadThrow)
 import Control.Monad.IO.Class (MonadIO(liftIO))
+#if __GLASGOW_HASKELL__ >= 810
+import Data.Kind (Type)
+#endif
 import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef)
 import Data.Maybe (isNothing)
 import Streamly.Internal.Control.Concurrent
@@ -262,6 +265,9 @@ fromChannelK chan =
 fromChannel :: MonadAsync m => Channel m a -> Stream m a
 fromChannel = Stream.fromStreamK . fromChannelK
 
+#if __GLASGOW_HASKELL__ >= 810
+type FromSVarState :: Type -> (Type -> Type) -> Type -> Type
+#endif
 data FromSVarState t m a =
       FromSVarInit
     | FromSVarRead (Channel m a)

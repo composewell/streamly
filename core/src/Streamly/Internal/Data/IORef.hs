@@ -39,6 +39,9 @@ where
 #include "inline.hs"
 
 import Control.Monad.IO.Class (MonadIO(..))
+#if __GLASGOW_HASKELL__ >= 810
+import Data.Kind (Type)
+#endif
 import Data.Proxy (Proxy(..))
 import Streamly.Internal.Data.MutByteArray.Type (MutByteArray)
 import Streamly.Internal.Data.Unbox (Unbox(..), sizeOf)
@@ -47,6 +50,9 @@ import qualified Streamly.Internal.Data.MutByteArray.Type as MBA
 import qualified Streamly.Internal.Data.Stream.Type as D
 
 -- | An 'IORef' holds a single 'Unbox'-able value.
+#if __GLASGOW_HASKELL__ >= 810
+type IORef :: Type -> Type
+#endif
 newtype IORef a = IORef MutByteArray
 
 -- | Create a new 'IORef'.

@@ -5,6 +5,9 @@
 #include "Streamly/Benchmark/Data/Array/CommonImports.hs"
 
 import Control.DeepSeq (deepseq)
+#if __GLASGOW_HASKELL__ >= 810
+import Data.Kind (Type)
+#endif
 
 import qualified Streamly.Internal.Data.Array as IA
 import qualified GHC.Exts as GHC
@@ -12,6 +15,9 @@ import qualified GHC.Exts as GHC
 -- import qualified Streamly.Data.Array as A
 import qualified Streamly.Internal.Data.Array as A
 
+#if __GLASGOW_HASKELL__ >= 810
+type Stream :: Type -> Type
+#endif
 type Stream = A.Array
 
 #include "Streamly/Benchmark/Data/Array/Common.hs"
