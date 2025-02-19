@@ -51,14 +51,14 @@ High level stream operations including concurrent, time and lifted functions:
 
 File system path representation:
 
-| Module                            | Type          | Description                                                        |
-|-----------------------------------|---------------|--------------------------------------------------------------------|
-| Streamly.FileSystem.Path          | Path          | Untyped path for the current OS type                               |
-| Streamly.FileSystem.Path.FileDir  | File a, Dir a | Typed path with File, Dir distinction                              |
-| Streamly.FileSystem.Path.LocSeg   | Loc a, Seg a  | Typed path with absolute and relative distinction                  |
-| Streamly.FileSystem.Path.Typed    |               | Fully typed path with file, dir, absolute and relative distinction |
-| Streamly.FileSystem.PosixPath.*   |               | Posix specific path modules                                        |
-| Streamly.FileSystem.WindowsPath.* |               | Windows specific path modules                                      |
+| Module                            | Type               | Description                                                    |
+|-----------------------------------|--------------------|----------------------------------------------------------------|
+| Streamly.FileSystem.Path          | Path               | Untyped path for the current OS type                           |
+| Streamly.FileSystem.Path.Node     | File a, Dir a      | Typed path with File, Dir distinction                          |
+| Streamly.FileSystem.Path.Seg      | Rooted a, Branch a | Typed path with rooted and branch distinction                  |
+| Streamly.FileSystem.Path.SegNode  |                    | Fully typed path with file, dir, rooted and branch distinction |
+| Streamly.FileSystem.PosixPath.*   |                    | Posix specific path modules                                    |
+| Streamly.FileSystem.WindowsPath.* |                    | Windows specific path modules                                  |
 
 Console and file system operations:
 
