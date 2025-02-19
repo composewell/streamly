@@ -129,7 +129,7 @@ extra-source-files:
     test/Streamly/Test/FileSystem/Event/Darwin.hs
     test/Streamly/Test/FileSystem/Event/Windows.hs
     test/Streamly/Test/FileSystem/Event/Linux.hs
-    test/Streamly/Test/FileSystem/Handle.hs
+    test/Streamly/Test/FileSystem/*.hs
     test/Streamly/Test/Network/Socket.hs
     test/Streamly/Test/Network/Inet/TCP.hs
     test/Streamly/Test/Prelude.hs
