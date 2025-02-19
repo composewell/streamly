@@ -44,8 +44,8 @@ jobs:
         Data.Unbox
         Data.Unbox.Derive.TH
         Data.Unfold
-        FileSystem.Handle
         FileSystem.DirIO
+        FileSystem.Handle
         Unicode.Parser
         Unicode.Stream
       CI_FIELDS: allocated
