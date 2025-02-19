@@ -174,7 +174,6 @@ extra-doc-files:
     docs/User/Tutorials/*.md
     docs/User/Tutorials/*.link
     docs/User/HowTo/*.md
-    docs/User/HowTo/*.link
     docs/User/HowTo/*.svg
     docs/User/Explanatory/*.md
     docs/User/Explanatory/streaming-pradigms.rst
