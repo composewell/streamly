@@ -95,7 +95,7 @@ significant way:
   * Gabriella Gonzalez ([foldl](https://hackage.haskell.org/package/foldl))
   * Alberto G. Corona ([transient](https://hackage.haskell.org/package/transient))
 
-Please see the [`credits`](/docs/User/Projectd/Credits.md) directory for a full
+Please see the [`credits`](/docs/User/Project/Credits.md) directory for a full
 list of contributors, credits and licenses.
 
 ## Licensing
