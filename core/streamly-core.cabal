@@ -221,11 +221,14 @@ common default-extensions
     -- GHC2024 may include more extensions than we are actually using, see the
     -- full list below. We enable this to ensure that we are able to compile
     -- with this i.e. there is no interference by other extensions.
-    if impl(ghc >= 9.10)
-      default-language: GHC2024
 
-    if impl(ghc >= 9.2) && impl(ghc < 9.10)
-      default-language: GHC2021
+    -- Don't enforce GHC2024 and GHC2021 but We can support the build with them.
+
+    -- if impl(ghc >= 9.10)
+    --   default-language: GHC2024
+
+    -- if impl(ghc >= 9.2) && impl(ghc < 9.10)
+    --   default-language: GHC2021
 
     if impl(ghc >= 8.10)
       default-extensions: StandaloneKindSignatures
