@@ -453,6 +453,18 @@ test-suite FileSystem.Handle
   if flag(use-streamly-core)
     buildable: False
 
+test-suite FileSystem.DirIO
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/FileSystem/DirIO.hs
+  if flag(use-streamly-core)
+    buildable: False
+  build-depends:
+      bench-test-lib
+  -- Fix this test-suite for Windows
+  if os(windows)
+    buildable: False
+
 test-suite Network.Inet.TCP
   import: lib-options
   type: exitcode-stdio-1.0
