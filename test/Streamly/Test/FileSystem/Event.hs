@@ -14,12 +14,15 @@ module Streamly.Test.FileSystem.Event (main) where
 import qualified Streamly.Internal.FileSystem.Event as Event
 import Streamly.Test.FileSystem.Event.Common
 
+tempPrefix :: String
+tempPrefix = "fsevent_common"
+
 moduleName :: String
 moduleName = "FileSystem.Event"
 
 main :: IO ()
 main = do
-    let run = runTests moduleName "non-recursive" Event.watch
+    let run = runTests tempPrefix moduleName "non-recursive" Event.watch
     run DirType commonTests
     run
 #if defined(CABAL_OS_DARWIN)

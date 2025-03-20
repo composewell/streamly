@@ -16,6 +16,9 @@ import Streamly.Test.FileSystem.Event.Common
 moduleName :: String
 moduleName = "FileSystem.Event.Windows"
 
+tempPrefix :: String
+tempPrefix = "fsevent_windows"
+
 -- TODO Test isModified event for parent directories when a file is created or
 -- deleted.
 
@@ -33,7 +36,7 @@ main = do
         -- ++ dirDelete "" (\dir -> [(dir, Event.isDeleted)])
 
     let w = Event.watchWith (Event.setAllEvents True)
-        run = runTests moduleName "non-recursive" w
+        run = runTests tempPrefix moduleName "non-recursive" w
 
     run DirType regularRootTests
     run SymLinkOrigPath commonTests
@@ -47,7 +50,7 @@ main = do
 
     let recw = Event.watchWith
                 (Event.setAllEvents True . Event.setRecursiveMode True)
-        runRec = runTests moduleName "recursive" recw
+        runRec = runTests tempPrefix moduleName "recursive" recw
 
     runRec DirType (regularRootTests ++ recTests)
     runRec SymLinkOrigPath (commonTests ++ recTests)
