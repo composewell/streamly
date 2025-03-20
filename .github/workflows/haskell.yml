@@ -143,18 +143,5 @@ jobs:
             rm cabal.project
             cd "$SUBDIR"
           fi
-          echo
-          echo "------------file systems--------------"
-          case `uname` in
-            Linux)
-              df -T
-              echo "-----------"
-              cat /proc/mounts ;;
-            Darwin)
-              df -Y ;;
-            *) die "Unknown OS [$os]" ;;
-          esac
-          echo "--------------------------------------"
-          echo
           bash -c "$PACKCHECK $BUILD"
         fi
