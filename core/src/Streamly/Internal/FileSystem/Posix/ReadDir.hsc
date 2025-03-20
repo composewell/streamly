@@ -273,71 +273,63 @@ isMetaDir dname = do
                 then return True
                 else return False
 
-data GStatRes
-    = GSIsMetaDir
-    | GSIsRegDir
-    | GSIsNotDir
-    | GSIgnoreError Errno
+data EntryType = EntryIsDir | EntryIsNotDir | EntryIgnored
 
-{-# NOINLINE gstatDname #-}
-gstatDname
-    :: ReadOptions -> PosixPath -> Ptr CChar -> IO GStatRes
-gstatDname conf parent dname = do
-    isMeta <- liftIO $ isMetaDir dname
-    if isMeta
-    then pure GSIsMetaDir
-    else do
-        -- XXX We can create a pinned array right here since the next call pins
-        -- it anyway.
-        path <- appendCString parent dname
-        Array.asCStringUnsafe (Path.toChunk path) $ \cStr -> do
-            res <- stat (_followSymlinks conf) cStr
-            case res of
-                Right mode -> pure $
-                    if (mode == s_IFDIR)
-                    then GSIsRegDir
-                    else GSIsNotDir
-                Left errno -> do
-                    if errno == eNOENT
-                    then unless (_ignoreNonExistingFiles conf) $
-                             throwErrno (errMsg path)
-                    else if errno == eACCES
-                    then unless (_ignoreInAccessibleFiles conf) $
-                             throwErrno (errMsg path)
-                    else if errno == eLOOP
-                    then unless (_ignoreSymlinkLoopErrors conf) $
-                             throwErrno (errMsg path)
-                    else throwErrno (errMsg path)
-                    pure $ GSIgnoreError errno
+{-# NOINLINE statEntryType #-}
+statEntryType
+    :: ReadOptions -> PosixPath -> Ptr CChar -> IO EntryType
+statEntryType conf parent dname = do
+    -- XXX We can create a pinned array right here since the next call pins
+    -- it anyway.
+    path <- appendCString parent dname
+    Array.asCStringUnsafe (Path.toChunk path) $ \cStr -> do
+        res <- stat (_followSymlinks conf) cStr
+        case res of
+            Right mode -> pure $
+                if (mode == s_IFDIR)
+                then EntryIsDir
+                else EntryIsNotDir
+            Left errno -> do
+                if errno == eNOENT
+                then unless (_ignoreNonExistingFiles conf) $
+                         throwErrno (errMsg path)
+                else if errno == eACCES
+                then unless (_ignoreInAccessibleFiles conf) $
+                         throwErrno (errMsg path)
+                else if errno == eLOOP
+                then unless (_ignoreSymlinkLoopErrors conf) $
+                         throwErrno (errMsg path)
+                else throwErrno (errMsg path)
+                pure $ EntryIgnored
     where
+
     errMsg path =
         let pathStr = Path.toString_ path
-         in "statDname: " ++ pathStr
+         in "statEntryType: " ++ pathStr
 
--- | Checks if dname is a directory and additionaly returns if dname is a meta
--- directory.
-{-# INLINE checkDirStatus #-}
-checkDirStatus
+-- | Checks if dname is a directory, not dir or should be ignored.
+{-# INLINE getEntryType #-}
+getEntryType
     :: ReadOptions
-    -> PosixPath -> Ptr CChar -> #{type unsigned char} -> IO GStatRes
+    -> PosixPath -> Ptr CChar -> #{type unsigned char} -> IO EntryType
+getEntryType conf parent dname dtype = do
+    let needStat =
 #ifdef FORCE_LSTAT_READDIR
-checkDirStatus conf parent dname _ =
-    gstatDname conf parent dname
+            True
 #else
-checkDirStatus conf parent dname dtype =
-    if dtype == (#const DT_DIR)
-    then do
-        isMeta <- liftIO $ isMetaDir dname
-        pure $ if isMeta then GSIsMetaDir else GSIsRegDir
-    else if dtype == (#const DT_LNK)
-         then
-             if _followSymlinks conf
-             then gstatDname conf parent dname
-             else pure GSIsNotDir
-         else if dtype /= #const DT_UNKNOWN
-              then pure GSIsNotDir
-              else gstatDname conf parent dname
+            (dtype == (#const DT_LNK) && _followSymlinks conf)
+                || dtype == #const DT_UNKNOWN
 #endif
+
+    if dtype /= (#const DT_DIR) && not needStat
+    then pure EntryIsNotDir
+    else do
+        isMeta <- liftIO $ isMetaDir dname
+        if isMeta
+        then pure EntryIgnored
+        else if dtype == (#const DT_DIR)
+        then pure EntryIsDir
+        else statEntryType conf parent dname
 
 -------------------------------------------------------------------------------
 -- streaming reads
@@ -376,12 +368,11 @@ readDirStreamEither confMod (curdir, (DirStream dirp)) = loop
         -- fromPtrN, but it is not straightforward because the reclen is
         -- padded to 8-byte boundary.
         name <- Array.fromCString (castPtr dname)
-        gsRes <- checkDirStatus conf curdir dname dtype
-        case gsRes of
-            GSIsRegDir -> return (Just (Left (mkPath name)))
-            GSIsNotDir -> return (Just (Right (mkPath name)))
-            -- Loop if it's a meta directory or an error that we can ignore
-            _ -> loop
+        etype <- getEntryType conf curdir dname dtype
+        case etype of
+            EntryIsDir -> return (Just (Left (mkPath name)))
+            EntryIsNotDir -> return (Just (Right (mkPath name)))
+            EntryIgnored -> loop
     else do
         errno <- getErrno
         if (errno == eINTR)
@@ -515,9 +506,9 @@ readEitherChunks confMod alldirs =
             dtype :: #{type unsigned char} <-
                 liftIO $ #{peek struct dirent, d_type} dentPtr
 
-            gsRes <- liftIO $ checkDirStatus conf curdir dname dtype
-            case gsRes of
-                GSIsRegDir -> do
+            etype <- liftIO $ getEntryType conf curdir dname dtype
+            case etype of
+                EntryIsDir -> do
                      path <- liftIO $ appendCString curdir dname
                      let dirs1 = path : dirs
                          ndirs1 = ndirs + 1
@@ -526,7 +517,7 @@ readEitherChunks confMod alldirs =
                             (ChunkStreamLoop curdir xs dirp [] 0 files nfiles)
                          else return $ Skip
                             (ChunkStreamLoop curdir xs dirp dirs1 ndirs1 files nfiles)
-                GSIsNotDir -> do
+                EntryIsNotDir -> do
                  path <- liftIO $ appendCString curdir dname
                  let files1 = path : files
                      nfiles1 = nfiles + 1
@@ -535,8 +526,7 @@ readEitherChunks confMod alldirs =
                         (ChunkStreamLoop curdir xs dirp dirs ndirs [] 0)
                      else return $ Skip
                         (ChunkStreamLoop curdir xs dirp dirs ndirs files1 nfiles1)
-                -- Loop if it's a meta directory or an error that we can ignore
-                _ -> return $ Skip st
+                EntryIgnored -> return $ Skip st
         else do
             errno <- liftIO getErrno
             if (errno == eINTR)
@@ -684,9 +674,9 @@ readEitherByteChunks confMod alldirs =
             -- because it has a StreamK in the middle.
             -- Keep the file check first as it is more likely
 
-            gsRes <- liftIO $ checkDirStatus conf curdir dname dtype
-            case gsRes of
-                GSIsNotDir -> do
+            etype <- liftIO $ getEntryType conf curdir dname dtype
+            case etype of
+                EntryIsNotDir -> do
                     r <- copyToBuf mbarr pos curdir dname
                     case r of
                         Just pos1 ->
@@ -703,7 +693,7 @@ readEitherByteChunks confMod alldirs =
                             else
                                 return $ Skip
                                     (ChunkStreamByteLoopPending dname curdir xs dirp mbarr pos)
-                GSIsRegDir -> do
+                EntryIsDir -> do
                     path <- liftIO $ appendCString curdir dname
                     let dirs1 = path : dirs
                         ndirs1 = ndirs + 1
@@ -718,8 +708,7 @@ readEitherByteChunks confMod alldirs =
                             -- otherwise skip.
                             return $ Yield (Left dirs1)
                                 (ChunkStreamByteLoopPending dname curdir xs dirp mbarr pos)
-                -- Loop if it's a meta directory or an error that we can ignore
-                _ ->  return $ Skip st
+                EntryIgnored ->  return $ Skip st
           else do
             errno <- liftIO getErrno
             if (errno == eINTR)
@@ -843,9 +832,9 @@ readEitherByteChunksAt confMod (ppath, alldirs) =
                 liftIO $ #{peek struct dirent, d_type} dentPtr
 
             -- Keep the file check first as it is more likely
-            gsRes <- liftIO $ checkDirStatus conf curdir dname dtype
-            case gsRes of
-                GSIsNotDir -> do
+            etype <- liftIO $ getEntryType conf curdir dname dtype
+            case etype of
+                EntryIsNotDir -> do
                     r <- copyToBuf mbarr pos curdir dname
                     case r of
                         Just pos1 ->
@@ -856,7 +845,7 @@ readEitherByteChunksAt confMod (ppath, alldirs) =
                             return $ Skip
                                 (ByteChunksAtRealloc
                                     dname pfd dirp curdir xs dirs ndirs mbarr pos)
-                GSIsRegDir -> do
+                EntryIsDir -> do
                     arr <- Array.fromCString (castPtr dname)
                     let path = Path.unsafeFromChunk arr
                     let dirs1 = path : dirs
@@ -882,8 +871,7 @@ readEitherByteChunksAt confMod (ppath, alldirs) =
                             return $ Skip
                                 (ByteChunksAtRealloc
                                     dname pfd dirp curdir xs dirs1 ndirs1 mbarr pos)
-                -- Loop if it's a meta directory or an error that we can ignore
-                _ ->  return $ Skip st
+                EntryIgnored ->  return $ Skip st
         else do
             errno <- liftIO getErrno
             if (errno == eINTR)
