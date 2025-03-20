@@ -186,6 +186,7 @@ jobs:
             ignore_error: false
           - name: 9.2.8
             ghc_version: 9.2.8
+            ghcup_ghc_options: "-u https://s3.ap-south-1.amazonaws.com/downloads.portal.composewell.com/ghc/ghc-9.2.8-x86_64-unknown-linux.tar.xz"
             runner: ubuntu-latest
             build: cabal
             cabal_project: cabal.project
