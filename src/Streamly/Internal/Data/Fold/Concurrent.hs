@@ -401,7 +401,7 @@ parDistributeScan cfg getFolds (Stream sstep state) =
                 then do
                     liftIO $ takeMVar db
                     return $ Skip (ScanDrain q db running)
-                else return $ Yield outputs (ScanDrain q db running)
+                else return $ Yield outputs ScanStop
     step _ ScanStop = return Stop
 
 {-# ANN type DemuxState Fuse #-}

@@ -510,10 +510,12 @@ sendToWorker_ chan a = go
                     (inputItemDoorBell chan)
                     (ChildYield a)
         else do
-            error "sendToWorker_: No space available in the buffer"
+            -- XXX: Is there a reason for us to error out here instead of
+            -- blocking?
+            -- error "sendToWorker_: No space available in the buffer"
             -- Block for space
-            -- () <- liftIO $ takeMVar (inputSpaceDoorBell chan)
-            -- go
+            () <- liftIO $ takeMVar (inputSpaceDoorBell chan)
+            go
 
 -- XXX Cleanup the fold if the stream is interrupted. Add a GC hook.
 
