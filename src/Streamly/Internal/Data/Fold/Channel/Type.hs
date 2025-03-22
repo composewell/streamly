@@ -428,12 +428,8 @@ scanToChannelRaw chan (Scanl step initial extract final) =
                 -- We don't end the fold here so it can drain any input in the
                 -- input buffer.
                 --
-                -- As a consequence this thread is kept alive until the stream
-                -- ends.
-                --
-                -- One way to schedule a stop is: Producer can choose to send a
-                -- special event to stop this fold. That way the responsibility
-                -- of the deadlock is on the producer.
+                -- The caller should send a ChildStopChannel to the fold again
+                -- after the fold is done to complete this scan.
                 --
                 void (sendYieldToDriver chan b)
                 pure $ Fold.Partial SCRDrain
@@ -444,6 +440,7 @@ scanToChannelRaw chan (Scanl step initial extract final) =
                 Fold.Partial s -> extract s
                 Fold.Done b0 -> pure b0
         Fold.Done <$> void (sendYieldToDriver chan b)
+    step1 SCRDrain ChildStopChannel = pure $ Fold.Done ()
     step1 SCRDrain _ = pure $ Fold.Partial SCRDrain
     step1 _ _ = error "scanToChannelRaw: Unsupported constructor"
 
@@ -481,7 +478,7 @@ newChannelWithScan outq outqDBell modifier f = do
 
     {-# NOINLINE work #-}
     work chan =
-        D.drain $ D.scanl (scanToChannelRaw chan f) $ fromInputQueueRaw chan
+        D.drain $ D.scanl (scanToChannelRaw chan f) $  fromInputQueueRaw chan
 
 {-# INLINABLE newChannel #-}
 {-# SPECIALIZE newChannel ::
