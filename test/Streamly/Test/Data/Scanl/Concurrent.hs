@@ -43,13 +43,14 @@ parDistributeScanTest :: (Stream.Config -> Stream.Config) -> IO ()
 parDistributeScanTest concOpts = do
     ref <- newIORef [evenScan, oddScan]
     let gen = atomicModifyIORef' ref (\xs -> ([], xs))
-        inpStream = Stream.enumerateFromTo 1 10_000
+        inpList = [1..1_000]
+        inpStream = Stream.fromList inpList
     res1 <-
         Scanl.parDistributeScan concOpts gen inpStream
             & Stream.concatMap Stream.fromList
             & Stream.catMaybes
             & Stream.fold Fold.toList
-    sort res1 `shouldBe` [1..9999]
+    sort res1 `shouldBe` inpList
 
 main :: IO ()
 main = hspec

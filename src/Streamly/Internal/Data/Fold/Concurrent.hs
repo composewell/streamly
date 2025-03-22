@@ -340,6 +340,7 @@ parDistributeScan cfg getFolds (Stream sstep state) =
                     FoldDone tid b ->
                         let ch = filter (\(_, t) -> t /= tid) chans
                          in processOutputs ch xs (b:done)
+                    -- Why is the FoldPartial case undefined?
                     FoldPartial _ -> undefined
 
     collectOutputs qref chans = do
