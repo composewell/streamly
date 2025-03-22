@@ -28,7 +28,8 @@ import Streamly.Internal.Data.Scanl (Scanl(..))
 import Streamly.Internal.Data.Stream (Stream(..), Step(..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
-
+import qualified Streamly.Data.Fold as Fold
+import qualified Streamly.Data.Stream as Stream
 import qualified Data.Map.Strict as Map
 
 import Streamly.Internal.Data.Fold.Channel.Type
@@ -166,6 +167,11 @@ parDistributeScan cfg getFolds (Stream sstep state) =
 
     where
 
+    spanChans tid =
+        Fold.tee
+            (Fold.filter (\(_, t) -> t /= tid) Fold.toList)
+            (Fold.filter (\(_, t) -> t == tid) Fold.toList)
+
     -- XXX can be written as a fold
     processOutputs chans events done = do
         case events of
@@ -177,9 +183,11 @@ parDistributeScan cfg getFolds (Stream sstep state) =
                         liftIO $ mapM_ (`throwTo` ThreadAbort) (fmap snd chans)
                         mapM_ cleanup (fmap fst chans)
                         liftIO $ throwM ex
-                    FoldDone tid b ->
-                        let ch = filter (\(_, t) -> t /= tid) chans
-                         in processOutputs ch xs (b:done)
+                    FoldDone tid b -> do
+                        (ch, chToClose) <-
+                            Stream.fold (spanChans tid) (Stream.fromList chans)
+                        Prelude.mapM_ (finalize . fst) chToClose
+                        processOutputs ch xs (b:done)
                     FoldPartial b ->
                          processOutputs chans xs (b:done)
 

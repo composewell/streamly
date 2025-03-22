@@ -340,6 +340,7 @@ parDistributeScan cfg getFolds (Stream sstep state) =
                     FoldDone tid b ->
                         let ch = filter (\(_, t) -> t /= tid) chans
                          in processOutputs ch xs (b:done)
+                    -- Why is the FoldPartial case undefined?
                     FoldPartial _ -> undefined
 
     collectOutputs qref chans = do
@@ -368,6 +369,9 @@ parDistributeScan cfg getFolds (Stream sstep state) =
         res <- sstep (adaptState gst) st
         next <- case res of
             Yield x s -> do
+                -- UDPATE: forever block does not occur anymore as
+                -- "scanToChannelRaw" is not a terminating fold anymore.
+                --
                 -- XXX We might block forever if some folds are already
                 -- done but we have not read the output queue yet. To
                 -- avoid that we have to either (1) precheck if space
@@ -401,7 +405,7 @@ parDistributeScan cfg getFolds (Stream sstep state) =
                 then do
                     liftIO $ takeMVar db
                     return $ Skip (ScanDrain q db running)
-                else return $ Yield outputs (ScanDrain q db running)
+                else return $ Yield outputs ScanStop
     step _ ScanStop = return Stop
 
 {-# ANN type DemuxState Fuse #-}

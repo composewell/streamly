@@ -304,6 +304,14 @@ test-suite Data.RingArray
   main-is: Streamly/Test/Data/RingArray.hs
   ghc-options: -main-is Streamly.Test.Data.RingArray.main
 
+test-suite Data.Scanl.Concurrent
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/Scanl/Concurrent.hs
+  ghc-options: -main-is Streamly.Test.Data.Scanl.Concurrent.main
+  if flag(use-streamly-core)
+    buildable: False
+
 -- XXX Rename to MutByteArray
 test-suite Data.Serialize
   import: test-options
