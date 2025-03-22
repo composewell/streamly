@@ -369,6 +369,9 @@ parDistributeScan cfg getFolds (Stream sstep state) =
         res <- sstep (adaptState gst) st
         next <- case res of
             Yield x s -> do
+                -- UDPATE: forever block does not occur anymore as
+                -- "scanToChannelRaw" is not a terminating fold anymore.
+                --
                 -- XXX We might block forever if some folds are already
                 -- done but we have not read the output queue yet. To
                 -- avoid that we have to either (1) precheck if space

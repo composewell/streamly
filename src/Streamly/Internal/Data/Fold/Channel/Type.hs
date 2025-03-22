@@ -394,6 +394,7 @@ _scanToChannel chan (Scanl step initial extract final) =
 data SendChannelRaw s a
     = SCREmptyBuffer s
     | SCRBuffered s a
+    | SCRDrain
 
 {-# INLINE scanToChannelRaw #-}
 scanToChannelRaw ::
@@ -423,8 +424,19 @@ scanToChannelRaw chan (Scanl step initial extract final) =
                 b <- extract s
                 void $ sendPartialToDriver chan b
                 return $ Fold.Partial (SCRBuffered s (ChildYield x1))
-            Fold.Done b ->
-                Fold.Done <$> void (sendYieldToDriver chan b)
+            Fold.Done b -> do
+                -- We don't end the fold here so it can drain any input in the
+                -- input buffer.
+                --
+                -- As a consequence this thread is kept alive until the stream
+                -- ends.
+                --
+                -- One way to schedule a stop is: Producer can choose to send a
+                -- special event to stop this fold. That way the responsibility
+                -- of the deadlock is on the producer.
+                --
+                void (sendYieldToDriver chan b)
+                pure $ Fold.Partial SCRDrain
     step1 (SCRBuffered st (ChildYield x)) ChildStopChannel = do
         r <- step st x
         b <-
@@ -432,6 +444,7 @@ scanToChannelRaw chan (Scanl step initial extract final) =
                 Fold.Partial s -> extract s
                 Fold.Done b0 -> pure b0
         Fold.Done <$> void (sendYieldToDriver chan b)
+    step1 SCRDrain _ = pure $ Fold.Partial SCRDrain
     step1 _ _ = error "scanToChannelRaw: Unsupported constructor"
 
     extract1 _ = return ()
@@ -441,6 +454,7 @@ scanToChannelRaw chan (Scanl step initial extract final) =
     -- XXX We are losing the input here.
     -- XXX Should we consume the input and finalize it instead?
     final1 (SCRBuffered st _val) = void (final st)
+    final1 SCRDrain = pure ()
 
 {-# INLINABLE newChannelWithScan #-}
 {-# SPECIALIZE newChannelWithScan ::

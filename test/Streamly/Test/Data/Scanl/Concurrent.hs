@@ -39,11 +39,27 @@ oddScan =
     Scanl.filtering odd
         & Scanl.lmapM (\x -> threadDelay 100 >> pure x)
 
-parDistributeScanTest :: (Stream.Config -> Stream.Config) -> IO ()
-parDistributeScanTest concOpts = do
-    ref <- newIORef [evenScan, oddScan]
+parDistributeScanTestScanEnd :: (Stream.Config -> Stream.Config) -> IO ()
+parDistributeScanTestScanEnd concOpts = do
+    let streamLen = 1000
+        evenLen = 100
+    ref <- newIORef [Scanl.take evenLen evenScan, oddScan]
     let gen = atomicModifyIORef' ref (\xs -> ([], xs))
         inpList = [1..1_000]
+        inpStream = Stream.fromList inpList
+    res1 <-
+        Scanl.parDistributeScan concOpts gen inpStream
+            & Stream.concatMap Stream.fromList
+            & Stream.catMaybes
+            & Stream.fold Fold.toList
+    sort res1 `shouldBe` [1..evenLen] ++ filter odd [(evenLen+1)..streamLen]
+
+parDistributeScanTestStreamEnd :: (Stream.Config -> Stream.Config) -> IO ()
+parDistributeScanTestStreamEnd concOpts = do
+    let streamLen = 1000
+    ref <- newIORef [evenScan, oddScan]
+    let gen = atomicModifyIORef' ref (\xs -> ([], xs))
+        inpList = [1..streamLen]
         inpStream = Stream.fromList inpList
     res1 <-
         Scanl.parDistributeScan concOpts gen inpStream
@@ -59,5 +75,7 @@ main = hspec
   $ modifyMaxSuccess (const 10)
 #endif
   $ describe moduleName $ do
-        it "parDistributeScan (maxBuffer 1)"
-            $ parDistributeScanTest (Stream.maxBuffer 1)
+        it "parDistributeScan (stream end) (maxBuffer 1)"
+            $ parDistributeScanTestStreamEnd (Stream.maxBuffer 1)
+        it "parDistributeScan (scan end)"
+            $ parDistributeScanTestScanEnd (Stream.maxBuffer 1)
