@@ -89,6 +89,7 @@ parTeeWith cfg f c1 c2 = Scanl step initial extract final
                         liftIO $ throwM ex
                     FoldDone _tid b -> return (Left b)
                     FoldPartial b -> return (Right b)
+                    FoldEOF _ -> error "parTeeWith: FoldEOF cannot occur here"
             _ -> error "parTeeWith: not expecting more than one msg in q"
 
     processResponses ch1 ch2 r1 r2 =
@@ -145,12 +146,18 @@ data ScanState s q db f =
 -- XXX We can use a one way mailbox type abstraction instead of using an IORef
 -- for adding new folds dynamically.
 
--- | Evaluate a stream and scan its outputs using zero or more dynamically
--- generated parallel scans. It checks for any new folds at each input
--- generation step. Any new fold is added to the list of folds which are
--- currently running. If there are no folds available, the input is discarded.
--- If a fold completes its output is emitted in the output of the scan. The
--- outputs of the parallel scans are merged in the output stream.
+-- | Evaluate a stream and scan its outputs using zero or more parallel scans,
+-- which can be generated dynamically. It takes an action for producing new
+-- scans which is run before processing each input. The list of scans produced
+-- is added to the currently running scans. If you do not want the same scan
+-- added every time then the action should generate it only once (see the
+-- example below). If there are no scans available, the input is discarded. The
+-- outputs of all the scans are merged in the output stream.
+--
+-- If the input buffer (see maxBuffer) is limited then a scan may block until
+-- space becomes available in the input buffer. If a scan blocks then input is
+-- not provided to any of the scans, input is distributed to scans only when
+-- all scans have input buffer available.
 --
 -- >>> import Data.IORef
 -- >>> ref <- newIORef [Scanl.take 5 Scanl.sum, Scanl.take 5 Scanl.length :: Scanl.Scanl IO Int Int]
@@ -180,6 +187,9 @@ parDistributeScan cfg getFolds (Stream sstep state) =
                     FoldDone tid b ->
                         let ch = filter (\(_, t) -> t /= tid) chans
                          in processOutputs ch xs (b:done)
+                    FoldEOF tid -> do
+                        let ch = filter (\(_, t) -> t /= tid) chans
+                         in processOutputs ch xs done
                     FoldPartial b ->
                          processOutputs chans xs (b:done)
 
@@ -209,20 +219,8 @@ parDistributeScan cfg getFolds (Stream sstep state) =
         res <- sstep (adaptState gst) st
         next <- case res of
             Yield x s -> do
-                -- XXX We might block forever if some folds are already
-                -- done but we have not read the output queue yet. To
-                -- avoid that we have to either (1) precheck if space
-                -- is available in the input queues of all folds so
-                -- that this does not block, or (2) we have to use a
-                -- non-blocking read and track progress so that we can
-                -- restart from where we left.
-                --
-                -- If there is no space available then we should block
-                -- on doorbell db or inputSpaceDoorBell of the relevant
-                -- channel. To avoid deadlock the output space can be
-                -- kept unlimited. However, the blocking will delay the
-                -- processing of outputs. We should yield the outputs
-                -- before blocking.
+                -- XXX The blocking will delay the processing of outputs.
+                -- Should we yield the outputs before blocking?
                 Prelude.mapM_ (`sendToWorker_` x) (fmap fst running)
                 return $ ScanGo s q db running
             Skip s -> do
@@ -305,6 +303,10 @@ parDemuxScan cfg getKey getFold (Stream sstep state) =
                     FoldDone _tid o@(k, _) ->
                         let ch = Map.delete k keyToChan
                          in processOutputs ch xs (o:done)
+                    FoldEOF tid ->
+                        let chans = Map.toList keyToChan
+                            ch = filter (\(_, (_, t)) -> t /= tid) chans
+                         in processOutputs (Map.fromList ch) xs done
                     FoldPartial b ->
                          processOutputs keyToChan xs (b:done)
 
