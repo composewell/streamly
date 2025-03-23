@@ -45,6 +45,7 @@ import Data.List (intersperse)
 import Streamly.Internal.Control.Concurrent
     (MonadAsync, MonadRunInIO, askRunInIO)
 import Streamly.Internal.Control.ForkLifted (doForkWith)
+import Streamly.Internal.Data.Atomics (writeBarrier)
 import Streamly.Internal.Data.Fold (Fold(..))
 import Streamly.Internal.Data.Scanl (Scanl(..))
 import Streamly.Internal.Data.Channel.Dispatcher (dumpSVarStats)
@@ -66,6 +67,7 @@ data OutEvent b =
       FoldException ThreadId SomeException
     | FoldPartial b
     | FoldDone ThreadId b
+    | FoldEOF ThreadId
 
 -- | The fold driver thread queues the input of the fold in the 'inputQueue'
 -- The driver rings the doorbell when the queue transitions from empty to
@@ -107,6 +109,7 @@ data Channel m a b = Channel
     --
     -- [LOCKING] Infrequent, MVar.
     , inputItemDoorBell :: MVar ()
+    , closedForInput :: IORef Bool
 
     -- | Doorbell to tell the driver that there is now space available in the
     -- 'inputQueue' and more items can be queued.
@@ -212,6 +215,11 @@ sendPartialToDriver :: MonadIO m => Channel m a b -> b -> m ()
 sendPartialToDriver sv res = liftIO $ do
     void $ sendToDriver sv (FoldPartial res)
 
+sendEOFToDriver :: MonadIO m => Channel m a b -> m ()
+sendEOFToDriver sv = liftIO $ do
+    tid <- myThreadId
+    void $ sendToDriver sv (FoldEOF tid)
+
 {-# NOINLINE sendExceptionToDriver #-}
 sendExceptionToDriver :: Channel m a b -> SomeException -> IO ()
 sendExceptionToDriver sv e = do
@@ -281,6 +289,7 @@ mkNewChannelWith outQRev outQMvRev cfg = do
     outQ <- newIORef ([], 0)
     outQMv <- newEmptyMVar
     bufferMv <- newEmptyMVar
+    ref <- newIORef False
 
     stats <- newSVarStats
     tid <- myThreadId
@@ -292,6 +301,7 @@ mkNewChannelWith outQRev outQMvRev cfg = do
             , outputQueue = outQRev
             , outputDoorBell = outQMvRev
             , inputSpaceDoorBell = bufferMv
+            , closedForInput = ref
             , maxInputBuffer   = getMaxBuffer cfg
             , readInputQ      = liftIO $ fmap fst (readInputQWithDB sv)
             , svarRef          = Nothing
@@ -330,10 +340,12 @@ newChannelWith outq outqDBell modifier f = do
         let f1 = Fold.rmapM (void . sendYieldToDriver chan) f
          in D.fold f1 $ fromInputQueue chan
 
+-- | Returns True if the fold terminated due to completion and False when due
+-- to end-of-stream.
 {-# INLINE scanToChannel #-}
-scanToChannel :: MonadIO m => Channel m a b -> Scanl m a b -> Scanl m a ()
+scanToChannel :: MonadIO m => Channel m a b -> Scanl m a b -> Fold m a Bool
 scanToChannel chan (Scanl step initial extract final) =
-    Scanl step1 initial1 extract1 final1
+    Fold step1 initial1 extract1 final1
 
     where
 
@@ -344,8 +356,9 @@ scanToChannel chan (Scanl step initial extract final) =
                 b <- extract s
                 void $ sendPartialToDriver chan b
                 return $ Fold.Partial s
-            Fold.Done b ->
-                Fold.Done <$> void (sendYieldToDriver chan b)
+            Fold.Done b -> do
+                sendYieldToDriver chan b
+                return $ Fold.Done True
 
     step1 st x = do
         r <- step st x
@@ -354,13 +367,16 @@ scanToChannel chan (Scanl step initial extract final) =
                 b <- extract s
                 void $ sendPartialToDriver chan b
                 return $ Fold.Partial s
-            Fold.Done b ->
-                Fold.Done <$> void (sendYieldToDriver chan b)
+            Fold.Done b -> do
+                sendYieldToDriver chan b
+                return $ Fold.Done True
 
-    extract1 _ = return ()
+    extract1 _ = error "extract: not supported by folds"
 
     -- XXX Should we not discard the result?
-    final1 st = void (final st)
+    final1 st = do
+        void (final st)
+        return False
 
 {-# INLINABLE newChannelWithScan #-}
 {-# SPECIALIZE newChannelWithScan ::
@@ -386,7 +402,15 @@ newChannelWithScan outq outqDBell modifier f = do
     where
 
     {-# NOINLINE work #-}
-    work chan = D.drain $ D.scanl (scanToChannel chan f) $ fromInputQueue chan
+    work chan = do
+        completed <- D.fold (scanToChannel chan f) (fromInputQueue chan)
+        -- We check for only one item in the outputqueue, for example in
+        -- parTeeWith, multiple messages can make that complicated. Therefore,
+        -- we first check if we already sent a FoldDone.
+        when (not completed) $ sendEOFToDriver chan
+        liftIO $ writeIORef (closedForInput chan) True
+        liftIO writeBarrier
+        void $ liftIO $ tryPutMVar (inputSpaceDoorBell chan) ()
 
 {-# INLINABLE newChannel #-}
 {-# SPECIALIZE newChannel ::
@@ -441,7 +465,10 @@ checkFoldStatus sv = do
         case ev of
             FoldException _ e -> throwM e
             FoldDone _ b -> return (Just b)
-            FoldPartial _ -> undefined
+            FoldPartial _ ->
+                error "checkFoldStatus: FoldPartial can occur only for scans"
+            FoldEOF _ ->
+                error "checkFoldStatus: FoldEOF can occur only for scans"
 
 {-# INLINE isBufferAvailable #-}
 isBufferAvailable :: MonadIO m => Channel m a b -> m Bool
@@ -510,10 +537,10 @@ sendToWorker_ chan a = go
                     (inputItemDoorBell chan)
                     (ChildYield a)
         else do
-            error "sendToWorker_: No space available in the buffer"
             -- Block for space
-            -- () <- liftIO $ takeMVar (inputSpaceDoorBell chan)
-            -- go
+            () <- liftIO $ takeMVar (inputSpaceDoorBell chan)
+            closed <- liftIO $ readIORef (closedForInput chan)
+            when (not closed) go
 
 -- XXX Cleanup the fold if the stream is interrupted. Add a GC hook.
 

@@ -340,7 +340,11 @@ parDistributeScan cfg getFolds (Stream sstep state) =
                     FoldDone tid b ->
                         let ch = filter (\(_, t) -> t /= tid) chans
                          in processOutputs ch xs (b:done)
-                    FoldPartial _ -> undefined
+                    FoldPartial _ ->
+                        error "parDistributeScan: cannot occur for folds"
+                    FoldEOF _ ->
+                        error
+                            "parDistributeScan: FoldEOF cannot occur for folds"
 
     collectOutputs qref chans = do
         (_, n) <- liftIO $ readIORef qref
@@ -464,7 +468,10 @@ parDemuxScan cfg getKey getFold (Stream sstep state) =
                     FoldDone _tid o@(k, _) ->
                         let ch = Map.delete k keyToChan
                          in processOutputs ch xs (o:done)
-                    FoldPartial _ -> undefined
+                    FoldPartial _ ->
+                        error "parDemuxScan: cannot occur for folds"
+                    FoldEOF _ ->
+                        error "parDemuxScan: FoldEOF cannot occur for folds"
 
     collectOutputs qref keyToChan = do
         (_, n) <- liftIO $ readIORef qref
