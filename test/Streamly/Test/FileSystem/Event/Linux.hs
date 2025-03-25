@@ -12,7 +12,7 @@ module Streamly.Test.FileSystem.Event.Linux (main) where
 
 import Streamly.Internal.FileSystem.Event.Linux (Event)
 -- #if __GLASGOW_HASKELL__ == 902
-#if 1
+#if 0
 import qualified Data.List as List
 #endif
 import qualified Streamly.Internal.FileSystem.Event.Linux as Event
@@ -113,7 +113,7 @@ main = do
     let w = Event.watchWith (Event.setAllEvents True)
         run = runTests moduleName "non-recursive" w
 
-#if 1
+#if 0
     let failingTests =
             [ "File deleted (file1)"
             , "File modified (file1)"
@@ -122,13 +122,13 @@ main = do
 #endif
 
     run DirType
-#if 1
+#if 0
         $ filter (\(desc, _, _, _) -> desc `List.notElem` failingTests)
 #endif
         regTests
 
     run SymLinkOrigPath
-#if 1
+#if 0
         $ filter (\(desc, _, _, _) -> desc `List.notElem` failingTests)
 #endif
         symTests
@@ -186,7 +186,7 @@ main = do
     --      uncaught exception: IOException of type ResourceBusy
     --      /tmp/fsevent_dir-a5bd0df64c44ab27/watch-root/file: openFile: resource busy (file is locked)
 
-#if 1
+#if 0
     let failingRecTests = failingTests ++
             [ "File created (subdir/file)"
             , "File deleted (subdir/file1)"
@@ -196,13 +196,13 @@ main = do
 #endif
 
     runRec DirType
-#if 1
+#if 0
         $ filter (\(desc, _, _, _) -> desc `List.notElem` failingRecTests)
 #endif
         recRegTests
 
     runRec SymLinkOrigPath
-#if 1
+#if 0
         $ filter (\(desc, _, _, _) -> desc `List.notElem` failingRecTests)
 #endif
         recSymTests
