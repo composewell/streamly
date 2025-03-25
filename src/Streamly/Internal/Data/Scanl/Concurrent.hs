@@ -345,20 +345,6 @@ parDemuxScan cfg getKey getFold (Stream sstep state) =
                             r@(chan, _) <- newChannelWithScan q db cfg (fmap (k,) fld)
                             return (Map.insert k r keyToChan1, chan)
                         Just (chan, _) -> return (keyToChan1, chan)
-                -- XXX We might block forever if some folds are already
-                -- done but we have not read the output queue yet. To
-                -- avoid that we have to either (1) precheck if space
-                -- is available in the input queues of all folds so
-                -- that this does not block, or (2) we have to use a
-                -- non-blocking read and track progress so that we can
-                -- restart from where we left.
-                --
-                -- If there is no space available then we should block
-                -- on doorbell db or inputSpaceDoorBell of the relevant
-                -- channel. To avoid deadlock the output space can be
-                -- kept unlimited. However, the blocking will delay the
-                -- processing of outputs. We should yield the outputs
-                -- before blocking.
                 sendToWorker_ ch x
                 return $ DemuxGo s q db keyToChan2
             Skip s ->
