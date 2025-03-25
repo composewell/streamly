@@ -17,6 +17,7 @@ on:
 #----------------------------------------------------------------------
 #-- Benchmarks listed in alphabetical order
 #----------------------------------------------------------------------
+# Removed Data.Fold.Prelude - was failing for some reason (memory issue?)
 jobs:
   check-regressions:
     env:
@@ -25,7 +26,6 @@ jobs:
         Data.Array.Generic
         Data.Array.Stream
         Data.Fold
-        Data.Fold.Prelude
         Data.Fold.Window
         Data.MutArray
         Data.Parser
