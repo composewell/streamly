@@ -25,7 +25,6 @@ jobs:
         Data.Array.Generic
         Data.Array.Stream
         Data.Fold
-        Data.Fold.Prelude
         Data.Fold.Window
         Data.MutArray
         Data.Parser
