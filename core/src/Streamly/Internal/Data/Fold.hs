@@ -22,11 +22,13 @@ module Streamly.Internal.Data.Fold
     , module Streamly.Internal.Data.Fold.Combinators
     , module Streamly.Internal.Data.Fold.Container
     , module Streamly.Internal.Data.Fold.Window
+    , module Streamly.Internal.Data.Fold.Exception
     )
 where
 
 import Streamly.Internal.Data.Fold.Combinators
 import Streamly.Internal.Data.Fold.Container
+import Streamly.Internal.Data.Fold.Exception
 import Streamly.Internal.Data.Fold.Tee
 import Streamly.Internal.Data.Fold.Type
 import Streamly.Internal.Data.Fold.Window

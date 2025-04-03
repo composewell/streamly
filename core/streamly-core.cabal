@@ -507,6 +507,7 @@ library
                     , Streamly.Internal.Data.Fold.Type
                     , Streamly.Internal.Data.Fold.Combinators
                     , Streamly.Internal.Data.Fold.Container
+                    , Streamly.Internal.Data.Fold.Exception
                     , Streamly.Internal.Data.Fold.Tee
                     , Streamly.Internal.Data.Fold.Window
 
