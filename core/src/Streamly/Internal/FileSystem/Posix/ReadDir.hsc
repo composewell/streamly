@@ -643,30 +643,29 @@ readEitherByteChunks confMod alldirs =
 
     copyToBuf dstArr pos dirPath name = do
         nameLen <- fmap fromIntegral (liftIO $ c_strlen name)
-        let PosixPath (Array dirArr start end) = dirPath
-            dirLen = end - start
+        -- We know it is already pinned.
+        MutByteArray.unsafeAsPtr dstArr (\ptr -> liftIO $ do
             -- XXX We may need to decode and encode the path if the
             -- output encoding differs from fs encoding.
-            --
-            -- Account for separator and newline bytes.
-            byteCount = dirLen + nameLen + 2
-        if pos + byteCount <= bufSize
-        then do
-            -- XXX append a path separator to a dir path
-            -- We know it is already pinned.
-            MutByteArray.unsafeAsPtr dstArr (\ptr -> liftIO $ do
-                MutByteArray.unsafePutSlice  dirArr start dstArr pos dirLen
-                let ptr1 = ptr `plusPtr` (pos + dirLen)
-                    separator = 47 :: Word8
-                poke ptr1 separator
-                let ptr2 = ptr1 `plusPtr` 1
-                _ <- c_memcpy ptr2 (castPtr name) (fromIntegral nameLen)
-                let ptr3 = ptr2 `plusPtr` nameLen
-                    newline = 10 :: Word8
-                poke ptr3 newline
-                )
-            return (Just (pos + byteCount))
-        else return Nothing
+            let PosixPath (Array dirArr start end) = dirPath
+                dirLen = end - start
+                endDir = pos + dirLen
+                endPos = endDir + nameLen + 2 -- sep + newline
+                sepOff = ptr `plusPtr` endDir -- separator offset
+                nameOff = sepOff `plusPtr` 1  -- file name offset
+                nlOff = nameOff `plusPtr` nameLen -- newline offset
+                separator = 47 :: Word8
+                newline = 10 :: Word8
+            if (endPos < bufSize)
+            then do
+                -- XXX We can keep a trailing separator on the dir itself.
+                MutByteArray.unsafePutSlice dirArr start dstArr pos dirLen
+                poke sepOff separator
+                _ <- c_memcpy nameOff (castPtr name) (fromIntegral nameLen)
+                poke nlOff newline
+                return (Just endPos)
+            else return Nothing
+            )
 
     step _ ChunkStreamByteInit = do
         mbarr <- liftIO $ MutByteArray.new' bufSize
