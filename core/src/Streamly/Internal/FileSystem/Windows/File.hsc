@@ -44,7 +44,7 @@ import System.Win32 as Win32 hiding (createFile, failIfWithRetry)
 
 -- XXX Note for i386, stdcall is needed instead of ccall, see Win32
 -- package/windows_cconv.h. We support only x86_64 for now.
-foreign import ccall unsafe "windows.h CreateFileW"
+foreign import capi unsafe "windows.h CreateFileW"
   c_CreateFile :: LPCTSTR -> AccessMode -> ShareMode -> LPSECURITY_ATTRIBUTES -> CreateMode -> FileAttributeOrFlag -> HANDLE -> IO HANDLE
 
 -- | like failIf, but retried on sharing violations. This is necessary for many

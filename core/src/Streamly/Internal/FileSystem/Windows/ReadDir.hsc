@@ -73,26 +73,26 @@ type HANDLE = Ptr ()
 
 -- XXX Note for i386, stdcall is needed instead of ccall, see Win32
 -- package/windows_cconv.h. We support only x86_64 for now.
-foreign import ccall unsafe "windows.h FindFirstFileW"
+foreign import capi unsafe "windows.h FindFirstFileW"
   c_FindFirstFileW :: LPCTSTR -> Ptr WIN32_FIND_DATA -> IO HANDLE
 
-foreign import ccall unsafe "windows.h FindNextFileW"
+foreign import capi unsafe "windows.h FindNextFileW"
   c_FindNextFileW :: HANDLE -> Ptr WIN32_FIND_DATA -> IO BOOL
 
-foreign import ccall unsafe "windows.h FindClose"
+foreign import capi unsafe "windows.h FindClose"
   c_FindClose :: HANDLE -> IO BOOL
 
-foreign import ccall unsafe "windows.h GetLastError"
+foreign import capi unsafe "windows.h GetLastError"
   getLastError :: IO ErrCode
 
-foreign import ccall unsafe "windows.h LocalFree"
+foreign import capi unsafe "windows.h LocalFree"
   localFree :: Ptr a -> IO (Ptr a)
 
 ------------------------------------------------------------------------------
 -- Haskell C APIs
 ------------------------------------------------------------------------------
 
-foreign import ccall unsafe "maperrno_func" -- in base/cbits/Win32Utils.c
+foreign import capi unsafe "maperrno_func" -- in base/cbits/Win32Utils.c
   c_maperrno_func :: ErrCode -> IO Errno
 
 ------------------------------------------------------------------------------
@@ -103,10 +103,10 @@ foreign import ccall unsafe "maperrno_func" -- in base/cbits/Win32Utils.c
 -- now. Once we replace these we can remove dependency on Win32. We can
 -- possibly implement these in Haskell by directly calling the Windows API.
 
-foreign import ccall unsafe "getErrorMessage"
+foreign import capi unsafe "getErrorMessage"
   getErrorMessage :: DWORD -> IO (Ptr CWchar)
 
-foreign import ccall unsafe "castUINTPtrToPtr"
+foreign import capi unsafe "castUINTPtrToPtr"
   castUINTPtrToPtr :: UINT_PTR -> Ptr a
 
 failWith :: String -> ErrCode -> IO a
