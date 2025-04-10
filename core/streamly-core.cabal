@@ -433,7 +433,6 @@ library
                      , Streamly.Internal.FileSystem.Posix.File
                      , Streamly.Internal.FileSystem.Posix.ReadDir
                      , Streamly.Internal.FileSystem.Windows.ReadDir
-                     , Streamly.Internal.FileSystem.Posix.File
                      , Streamly.Internal.FileSystem.Windows.File
 
                     -- RingArray Arrays
