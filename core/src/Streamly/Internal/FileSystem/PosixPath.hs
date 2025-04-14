@@ -76,8 +76,11 @@ module Streamly.Internal.FileSystem.OS_PATH
     , toChars
     , toChars_
     , toString
-    -- , toCString
-    -- , toW16CString
+#ifndef IS_WINDOWS
+    , asCString
+#else
+    , asCWString
+#endif
     , toString_
     , showRaw
 
@@ -128,12 +131,15 @@ import Data.Word (Word16)
 #endif
 #ifndef IS_WINDOWS
 import Foreign.C (CString)
+#else
+import Foreign.C (CWString)
 #endif
 import Language.Haskell.TH.Syntax (lift)
 import Streamly.Internal.Data.Array (Array(..))
 import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.FileSystem.Path.Common (mkQ, EqCfg(..), eqCfg)
 
+import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.FileSystem.Path.Common as Common
 import qualified Streamly.Internal.Unicode.Stream as Unicode
@@ -381,6 +387,16 @@ readRaw = fromJust . fromChunk . read
 instance Show OS_PATH where
     show (OS_PATH x) = show x
 -}
+
+#ifndef IS_WINDOWS
+{-# INLINE asCString #-}
+asCString :: OS_PATH -> (CString -> IO a) -> IO a
+asCString p = Array.asCStringUnsafe (toChunk p)
+#else
+{-# INLINE asCWString #-}
+asCWString :: OS_PATH -> (CWString -> IO a) -> IO a
+asCWString p = Array.asCWString (toChunk p)
+#endif
 
 ------------------------------------------------------------------------------
 -- Operations on Path

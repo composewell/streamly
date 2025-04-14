@@ -33,7 +33,6 @@ import GHC.IO.Handle.FD (fdToHandle)
 import System.Posix.Types (Fd(..), CMode(..), FileMode)
 import Streamly.Internal.FileSystem.Posix.Errno (throwErrnoPathIfMinus1Retry)
 
-import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.FileSystem.PosixPath as Path
 -- import qualified GHC.IO.FD as FD
 
@@ -124,9 +123,6 @@ openFdAtWith_ OpenFlags{..} fdMay path how =
 
     all_flags = creat_f .|. flags .|. open_mode
 
-withFilePath :: PosixPath -> (CString -> IO a) -> IO a
-withFilePath p = Array.asCStringUnsafe (Path.toChunk p)
-
 -- | Open a file relative to an optional directory file descriptor.
 --
 -- {-# INLINE openFdAtWith #-}
@@ -137,7 +133,7 @@ openFdAtWith ::
     -> OpenMode -- ^ Read-only, read-write or write-only
     -> IO Fd
 openFdAtWith flags fdMay name how =
-   withFilePath name $ \str -> do
+   Path.asCString name $ \str -> do
      throwErrnoPathIfMinus1Retry "openFdAt" name
         $ openFdAtWith_ flags fdMay str how
 
