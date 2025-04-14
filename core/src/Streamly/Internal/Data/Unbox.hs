@@ -42,6 +42,7 @@ module Streamly.Internal.Data.Unbox
     ) where
 
 #include "MachDeps.h"
+#include "HsBaseConfig.h"
 #include "ArrayMacros.h"
 
 import Control.Monad (void, when)
@@ -51,6 +52,7 @@ import Data.Functor.Const (Const(..))
 import Data.Functor.Identity (Identity(..))
 import Data.Kind (Type)
 import Data.Proxy (Proxy (..))
+import Foreign.C.Types (CChar(..), CWchar(..))
 import Foreign.Ptr (IntPtr(..), WordPtr(..))
 import GHC.Base (IO(..))
 import GHC.Fingerprint.Type (Fingerprint(..))
@@ -445,6 +447,11 @@ DERIVE_WRAPPED_UNBOX(Unbox a =>,(Identity a),Identity,a)
 DERIVE_WRAPPED_UNBOX(Unbox a =>,(Down a),Down,a)
 #endif
 DERIVE_WRAPPED_UNBOX(Unbox a =>,(Const a b),Const,a)
+
+-- XXX Add more CTypes
+DERIVE_WRAPPED_UNBOX(,CChar,CChar,HTYPE_CHAR)
+DERIVE_WRAPPED_UNBOX(,CWchar,CWchar,HTYPE_WCHAR_T)
+
 DERIVE_BINARY_UNBOX(forall a. Unbox a =>,(Complex a),(:+),a)
 DERIVE_BINARY_UNBOX(forall a. Unbox a =>,(Ratio a),(:%),a)
 DERIVE_BINARY_UNBOX(,Fingerprint,Fingerprint,Word64)

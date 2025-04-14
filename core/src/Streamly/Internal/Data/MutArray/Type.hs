@@ -44,7 +44,9 @@ module Streamly.Internal.Data.MutArray.Type
     , cast
     , unsafeCast
     , asBytes
-    , unsafeAsPtr
+    , unsafeAsPtr -- XXX asPtr
+    , asCString
+    , asCWString
 
     -- ** Construction
     , empty
@@ -466,8 +468,9 @@ import Data.Char (ord)
 import Data.Functor.Identity (Identity(..))
 import Data.Proxy (Proxy(..))
 import Data.Word (Word8, Word16)
-import Foreign.C.Types (CSize(..))
-import Foreign.Ptr (plusPtr)
+import Foreign.C.String (CString, CWString)
+import Foreign.C.Types (CSize(..), CChar, CWchar)
+import Foreign.Ptr (plusPtr, castPtr)
 import Streamly.Internal.Data.MutByteArray.Type
     ( MutByteArray(..)
     , PinnedState(..)
@@ -3568,6 +3571,28 @@ unsafeCreateWithPtr' cap pop = do
         "unsafeCreateWithPtr': length > capacity, "
              ++ "length = " ++ show len ++ ", "
              ++ "capacity = " ++ show cap
+
+asCString :: MutArray a -> (CString -> IO b) -> IO b
+asCString arr act = do
+    let pinned = isPinned arr
+        req = byteLength arr + SIZE_OF(CChar)
+    arr1 <-
+        if byteCapacity arr < req || not pinned
+        then reallocExplicitAs Pinned 1 req arr
+        else return arr
+    arr2 :: MutArray CChar <- snocUnsafe (unsafeCast arr1) (0 :: CChar)
+    unsafeAsPtr arr2 $ \ptr _ -> act (castPtr ptr)
+
+asCWString :: MutArray a -> (CWString -> IO b) -> IO b
+asCWString arr act = do
+    let pinned = isPinned arr
+        req = byteLength arr + SIZE_OF(CWchar)
+    arr1 <-
+        if byteCapacity arr < req || not pinned
+        then reallocExplicitAs Pinned 1 req arr
+        else return arr
+    arr2 :: MutArray CWchar <- snocUnsafe (unsafeCast arr1) (0 :: CWchar)
+    unsafeAsPtr arr2 $ \ptr _ -> act (castPtr ptr)
 
 -------------------------------------------------------------------------------
 -- Equality

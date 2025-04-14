@@ -43,7 +43,8 @@ module Streamly.Internal.Data.Array
     , cast
     , asBytes
     , unsafeCast
-    , asCStringUnsafe
+    , asCStringUnsafe -- XXX asCString
+    , asCWString
 
     -- * Subarrays
     -- , sliceOffLen
@@ -114,8 +115,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity(..))
 import Data.Proxy (Proxy(..))
 import Data.Word (Word8)
-import Foreign.C.String (CString)
-import Foreign.Ptr (castPtr)
+import Foreign.C.String (CString, CWString)
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Unbox (Unbox(..))
 import Prelude hiding (length, null, last, map, (!!), read, concat)
@@ -424,9 +424,8 @@ cast arr =
         then Nothing
         else Just $ unsafeCast arr
 
--- | Convert an array of any type into a null terminated CString Ptr.  If the
--- array is unpinned it is first converted to a pinned array which requires a
--- copy.
+-- | Convert an array of any element type into a null terminated CString Ptr.
+-- The array is copied to pinned memory.
 --
 -- /Unsafe/
 --
@@ -435,10 +434,19 @@ cast arr =
 -- /Pre-release/
 --
 asCStringUnsafe :: Array a -> (CString -> IO b) -> IO b
-asCStringUnsafe arr act = do
-    let arr1 = asBytes arr <> fromList [0]
-    -- unsafePinnedAsPtr makes sure the array is pinned
-    unsafePinnedAsPtr arr1 $ \ptr _ -> act (castPtr ptr)
+asCStringUnsafe arr = MA.asCString (unsafeThaw arr)
+
+-- | Convert an array of any element type into a null terminated CWString Ptr.
+-- The array is copied to pinned memory.
+--
+-- /Unsafe/
+--
+-- /O(n) Time: (creates a copy of the array)/
+--
+-- /Pre-release/
+--
+asCWString :: Array a -> (CWString -> IO b) -> IO b
+asCWString arr = MA.asCWString (unsafeThaw arr)
 
 -------------------------------------------------------------------------------
 -- Folds
