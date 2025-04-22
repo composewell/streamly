@@ -425,15 +425,14 @@ library
                      , Streamly.Internal.FileSystem.WindowsPath.SegNode
 
                      , Streamly.Internal.FileSystem.Handle
-                     , Streamly.Internal.FileSystem.File
-                     , Streamly.Internal.FileSystem.FileIO
-                     , Streamly.Internal.FileSystem.File.Utils
-                     , Streamly.Internal.FileSystem.DirIO
+                     , Streamly.Internal.FileSystem.File.Common
                      , Streamly.Internal.FileSystem.Posix.Errno
                      , Streamly.Internal.FileSystem.Posix.File
                      , Streamly.Internal.FileSystem.Posix.ReadDir
                      , Streamly.Internal.FileSystem.Windows.ReadDir
                      , Streamly.Internal.FileSystem.Windows.File
+                     , Streamly.Internal.FileSystem.FileIO
+                     , Streamly.Internal.FileSystem.DirIO
 
                     -- RingArray Arrays
                      , Streamly.Internal.Data.RingArray
@@ -490,6 +489,7 @@ library
                      , Streamly.Unicode.String
 
                     -- Deprecated in 0.3.0
+                     , Streamly.Internal.FileSystem.File
                      , Streamly.Internal.FileSystem.Dir
                      , Streamly.FileSystem.Dir
 

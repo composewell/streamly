@@ -1,4 +1,4 @@
-module Streamly.Internal.FileSystem.File.Utils
+module Streamly.Internal.FileSystem.File.Common
     ( withFile
     , openFile
     ) where

@@ -90,7 +90,7 @@ import Streamly.Internal.FileSystem.PosixPath (PosixPath)
 import System.IO (IOMode(..), Handle)
 import System.Posix.Types (Fd(..), CMode(..))
 
-import qualified Streamly.Internal.FileSystem.File.Utils as File
+import qualified Streamly.Internal.FileSystem.File.Common as File
 import qualified Streamly.Internal.FileSystem.PosixPath as Path
 
 -- We want to remain close to the Posix C API. A function based API to set and

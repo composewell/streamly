@@ -30,7 +30,7 @@ import GHC.IO.Handle.FD (fdToHandle')
 #include <fcntl.h>
 #endif
 
-import qualified Streamly.Internal.FileSystem.File.Utils as File
+import qualified Streamly.Internal.FileSystem.File.Common as File
 import qualified Streamly.Internal.FileSystem.WindowsPath as Path
 
 import Data.Bits
