@@ -98,6 +98,8 @@ import qualified Streamly.Internal.FileSystem.PosixPath as Path
 -- not require explicit mapping from Haskell ADT to C types, we can dirctly
 -- manipulate the C type.
 
+#include <fcntl.h>
+
 -------------------------------------------------------------------------------
 -- Create mode
 -------------------------------------------------------------------------------
@@ -105,7 +107,7 @@ import qualified Streamly.Internal.FileSystem.PosixPath as Path
 -- | Open flags, see posix open system call man page.
 newtype FileMode = FileMode CMode
 
-#define MK_MODE_API(name1,name2,x) \
+##define MK_MODE_API(name1,name2,x) \
 {-# INLINE name1 #-}; \
 name1 :: FileMode -> FileMode; \
 name1 (FileMode mode) = FileMode (x .|. mode); \
@@ -113,8 +115,7 @@ name1 (FileMode mode) = FileMode (x .|. mode); \
 name2 :: FileMode -> FileMode; \
 name2 (FileMode mode) = FileMode (x .&. complement mode)
 
--- XXX Linux man page says, posix leaves them unspecified
--- XXX ensure compatibility across BSD and Mac
+{-
 #define S_ISUID  0004000
 #define S_ISGID  0002000
 #define S_ISVTX  0001000
@@ -134,9 +135,8 @@ name2 (FileMode mode) = FileMode (x .&. complement mode)
 #define S_IWOTH 00002
 #define S_IXOTH 00001
 
--- XXX Use definitions from headers, though these are standard for posix
--- s_IRWXU :: CMode
--- s_IRWXU = #{const S_IRWXU}
+#define AT_FDCWD (-100)
+-}
 
 MK_MODE_API(setSuid,clrSuid,S_ISUID)
 MK_MODE_API(setSgid,clrSgid,S_ISGID)
@@ -168,24 +168,18 @@ defaultCreateMode = FileMode 0o666
 -- | Open flags, see posix open system call man page.
 newtype OpenFlags = OpenFlags CInt
 
-#define MK_FLAG_API(name,x) \
+##define MK_FLAG_API(name,x) \
 {-# INLINE name #-}; \
 name :: OpenFlags -> OpenFlags; \
 name (OpenFlags flags) = OpenFlags (flags .|. x)
 
--- XXX Use definitions from headers or base?
-{-
 -- foreign import ccall unsafe "HsBase.h __hscore_o_rdonly" o_RDONLY :: CInt
-o_APPEND :: CInt
-s_APPEND  = #{const O_APPEND}
--}
-
 -- These affect the first two bits in flags.
-MK_FLAG_API(setReadOnly,0)
-MK_FLAG_API(setWriteOnly,1)
-MK_FLAG_API(setReadWrite,2)
+MK_FLAG_API(setReadOnly,#{const O_RDONLY})
+MK_FLAG_API(setWriteOnly,#{const O_WRONLY})
+MK_FLAG_API(setReadWrite,#{const O_RDWR})
 
-#define MK_BOOL_FLAG_API(name,x) \
+##define MK_BOOL_FLAG_API(name,x) \
 {-# INLINE name #-}; \
 name :: Bool -> OpenFlags -> OpenFlags; \
 name True (OpenFlags flags) = OpenFlags (flags .|. x); \
@@ -193,17 +187,17 @@ name False (OpenFlags flags) = OpenFlags (flags .&. complement x)
 
 -- setCreat is internal only, do not export this. This is automatically set
 -- when create mode is passed, otherwise cleared.
-MK_BOOL_FLAG_API(setCreat,64)
+MK_BOOL_FLAG_API(setCreat,#{const O_CREAT})
 
-MK_BOOL_FLAG_API(setExcl,128)
-MK_BOOL_FLAG_API(setNoCtty,256)
-MK_BOOL_FLAG_API(setTrunc,512)
-MK_BOOL_FLAG_API(setAppend,1024)
-MK_BOOL_FLAG_API(setNonBlock,2048)
-MK_BOOL_FLAG_API(setDirectory,65536)
-MK_BOOL_FLAG_API(setNoFollow,131072)
-MK_BOOL_FLAG_API(setCloExec,524288)
-MK_BOOL_FLAG_API(setSync,1052672)
+MK_BOOL_FLAG_API(setExcl,#{const O_EXCL})
+MK_BOOL_FLAG_API(setNoCtty,#{const O_NOCTTY})
+MK_BOOL_FLAG_API(setTrunc,#{const O_TRUNC})
+MK_BOOL_FLAG_API(setAppend,#{const O_APPEND})
+MK_BOOL_FLAG_API(setNonBlock,#{const O_NONBLOCK})
+MK_BOOL_FLAG_API(setDirectory,#{const O_DIRECTORY})
+MK_BOOL_FLAG_API(setNoFollow,#{const O_NOFOLLOW})
+MK_BOOL_FLAG_API(setCloExec,#{const O_CLOEXEC})
+MK_BOOL_FLAG_API(setSync,#{const O_SYNC})
 
 -- | Default values for the 'OpenFlags'.
 --
@@ -220,9 +214,6 @@ defaultOpenFlags = OpenFlags 0
 foreign import capi unsafe "fcntl.h openat"
    c_openat :: CInt -> CString -> CInt -> CMode -> IO CInt
 
-#define AT_FDCWD (-100)
--- atFdCwd = #(const AT_FDCWD)
-
 -- | Open and optionally create (when create mode is specified) a file relative
 -- to an optional directory file descriptor. If directory fd is not specified
 -- then opens relative to the current directory.
@@ -238,7 +229,7 @@ openAtCString fdMay path flags cmode =
 
     where
 
-    c_fd = maybe AT_FDCWD (\ (Fd fd) -> fd) fdMay
+    c_fd = maybe (#{const AT_FDCWD}) (\ (Fd fd) -> fd) fdMay
     FileMode mode = maybe defaultCreateMode id cmode
     OpenFlags flags1 = maybe flags (\_ -> setCreat True flags) cmode
 
