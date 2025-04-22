@@ -58,7 +58,7 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.FileSystem.Path (Path)
 import Streamly.Internal.FileSystem.Posix.Errno (throwErrnoPathIfNullRetry)
 import Streamly.Internal.FileSystem.Posix.File
-    (OpenMode(..), open, openAt, close)
+    (defaultOpenFlags, openAt, close)
 import Streamly.Internal.FileSystem.PosixPath (PosixPath(..))
 import System.Posix.Types (Fd(..), CMode)
 
@@ -244,7 +244,10 @@ openDirStream p =
 -- DirStream the fd will be closed.
 openDirStreamAt :: Fd -> PosixPath -> IO DirStream
 openDirStreamAt fd p = do
-    fd1 <- openAt (Just fd) p ReadOnly
+    -- XXX can pass O_DIRECTORY here, is O_NONBLOCK useful for dirs?
+    -- Note this fd is not automatically closed, we have to take care of
+    -- exceptions and closing the fd.
+    fd1 <- openAt (Just fd) p defaultOpenFlags Nothing
     -- liftIO $ putStrLn $ "opened: " ++ show fd1
     dirp <- throwErrnoPathIfNullRetry "openDirStreamAt" p
         $ c_fdopendir (fromIntegral fd1)
@@ -861,7 +864,9 @@ readEitherByteChunksAt confMod (ppath, alldirs) =
         else return Nothing
 
     step _ ByteChunksAtInit0 = do
-        pfd <- liftIO $ open ppath ReadOnly
+        -- Note this fd is not automatically closed, we have to take care of
+        -- exceptions and closing the fd.
+        pfd <- liftIO $ openAt Nothing ppath defaultOpenFlags Nothing
         mbarr <- liftIO $ MutByteArray.new' bufSize
         return $ Skip (ByteChunksAtInit pfd alldirs mbarr 0)
 

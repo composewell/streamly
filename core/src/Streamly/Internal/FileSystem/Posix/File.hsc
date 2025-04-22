@@ -1,19 +1,67 @@
 module Streamly.Internal.FileSystem.Posix.File
     (
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
+
+    -- * File open flags
       OpenFlags (..)
-    , OpenMode (..)
     , defaultOpenFlags
 
-    -- * Fd based Low Level
-    , openAtWith
-    , openAt
-    , open
-    , close
+    -- * File status flags
+    , setAppend
+    , setNonBlock
+    , setSync
 
-    -- -- * Posix Fd based openFile
-    -- , openFileFdWith
-    -- , openFileFd
+    -- * File creation flags
+    , setCloExec
+    , setDirectory
+    , setExcl
+    , setNoCtty
+    , setNoFollow
+    -- setTmpFile
+    , setTrunc
+
+    -- * File create mode
+    , defaultCreateMode
+
+    -- ** User Permissions
+    , setUr
+    , setUw
+    , setUx
+
+    , clrUr
+    , clrUw
+    , clrUx
+
+    -- ** Group Permissions
+    , setGr
+    , setGw
+    , setGx
+
+    , clrGr
+    , clrGw
+    , clrGx
+
+    -- ** Other Permissions
+    , setOr
+    , setOw
+    , setOx
+
+    , clrOr
+    , clrOw
+    , clrOx
+
+    -- ** Status bits
+    , setSuid
+    , setSgid
+    , setSticky
+
+    , clrSuid
+    , clrSgid
+    , clrSticky
+
+    -- * Fd based Low Level
+    , openAt
+    , close
 
     -- * Handle based
     , openFile
@@ -32,7 +80,7 @@ module Streamly.Internal.FileSystem.Posix.File
 -- Imports
 -------------------------------------------------------------------------------
 
-import Data.Bits ((.|.))
+import Data.Bits ((.|.), (.&.), complement)
 import Foreign.C.Error (throwErrnoIfMinus1_)
 import Foreign.C.String (CString)
 import Foreign.C.Types (CInt(..))
@@ -40,142 +88,203 @@ import GHC.IO.Handle.FD (fdToHandle)
 import Streamly.Internal.FileSystem.Posix.Errno (throwErrnoPathIfMinus1Retry)
 import Streamly.Internal.FileSystem.PosixPath (PosixPath)
 import System.IO (IOMode(..), Handle)
-import System.Posix.Types (Fd(..), CMode(..), FileMode)
+import System.Posix.Types (Fd(..), CMode(..))
 
 import qualified Streamly.Internal.FileSystem.File.Utils as File
 import qualified Streamly.Internal.FileSystem.PosixPath as Path
 
--------------------------------------------------------------------------------
--- Flags
--------------------------------------------------------------------------------
+-- We want to remain close to the Posix C API. A function based API to set and
+-- clear the modes is simple, type safe and directly mirrors the C API. It does
+-- not require explicit mapping from Haskell ADT to C types, we can dirctly
+-- manipulate the C type.
 
--- | Open mode, see Posix open system call man page.
-data OpenMode =
-      ReadOnly -- ^ O_RDONLY
-    | WriteOnly -- ^ O_WRONLY
-    | ReadWrite -- ^ O_RDWR
-    deriving (Read, Show, Eq, Ord)
+-------------------------------------------------------------------------------
+-- Create mode
+-------------------------------------------------------------------------------
 
 -- | Open flags, see posix open system call man page.
-data OpenFlags =
- OpenFlags {
-    append    :: Bool,           -- ^ O_APPEND
-    exclusive :: Bool,           -- ^ O_EXCL, Result is undefined if 'creat' is 'Nothing'.
-    noctty    :: Bool,           -- ^ O_NOCTTY
-    nonBlock  :: Bool,           -- ^ O_NONBLOCK
-    trunc     :: Bool,           -- ^ O_TRUNC
-    nofollow  :: Bool,           -- ^ O_NOFOLLOW
-    creat     :: Maybe FileMode, -- ^ O_CREAT
-    cloexec   :: Bool,           -- ^ O_CLOEXEC
-    directory :: Bool,           -- ^ O_DIRECTORY
-    sync      :: Bool            -- ^ O_SYNC
- }
- deriving (Read, Show, Eq, Ord)
+newtype FileMode = FileMode CMode
+
+#define MK_MODE_API(name1,name2,x) \
+{-# INLINE name1 #-}; \
+name1 :: FileMode -> FileMode; \
+name1 (FileMode mode) = FileMode (x .|. mode); \
+{-# INLINE name2 #-}; \
+name2 :: FileMode -> FileMode; \
+name2 (FileMode mode) = FileMode (x .&. complement mode)
+
+-- XXX Linux man page says, posix leaves them unspecified
+-- XXX ensure compatibility across BSD and Mac
+#define S_ISUID  0004000
+#define S_ISGID  0002000
+#define S_ISVTX  0001000
+
+#define S_IRWXU 00700
+#define S_IRUSR 00400
+#define S_IWUSR 00200
+#define S_IXUSR 00100
+
+#define S_IRWXG 00070
+#define S_IRGRP 00040
+#define S_IWGRP 00020
+#define S_IXGRP 00010
+
+#define S_IRWXO 00007
+#define S_IROTH 00004
+#define S_IWOTH 00002
+#define S_IXOTH 00001
+
+-- XXX Use definitions from headers, though these are standard for posix
+-- s_IRWXU :: CMode
+-- s_IRWXU = #{const S_IRWXU}
+
+MK_MODE_API(setSuid,clrSuid,S_ISUID)
+MK_MODE_API(setSgid,clrSgid,S_ISGID)
+MK_MODE_API(setSticky,clrSticky,S_ISVTX)
+
+-- MK_MODE_API(setUrwx,clrUrwx,S_IRWXU)
+MK_MODE_API(setUr,clrUr,S_IRUSR)
+MK_MODE_API(setUw,clrUw,S_IWUSR)
+MK_MODE_API(setUx,clrUx,S_IXUSR)
+
+-- MK_MODE_API(setGrwx,clrGrwx,S_IRWXU)
+MK_MODE_API(setGr,clrGr,S_IRUSR)
+MK_MODE_API(setGw,clrGw,S_IWUSR)
+MK_MODE_API(setGx,clrGx,S_IXUSR)
+
+-- MK_MODE_API(setOrwx,clrOrwx,S_IRWXU)
+MK_MODE_API(setOr,clrOr,S_IRUSR)
+MK_MODE_API(setOw,clrOw,S_IWUSR)
+MK_MODE_API(setOx,clrOx,S_IXUSR)
+
+-- Uses the same default mode as openFileWith in base
+defaultCreateMode :: FileMode
+defaultCreateMode = FileMode 0o666
+
+-------------------------------------------------------------------------------
+-- Open Flags
+-------------------------------------------------------------------------------
+
+-- | Open flags, see posix open system call man page.
+newtype OpenFlags = OpenFlags CInt
+
+#define MK_FLAG_API(name,x) \
+{-# INLINE name #-}; \
+name :: OpenFlags -> OpenFlags; \
+name (OpenFlags flags) = OpenFlags (flags .|. x)
+
+-- XXX Use definitions from headers or base?
+{-
+-- foreign import ccall unsafe "HsBase.h __hscore_o_rdonly" o_RDONLY :: CInt
+o_APPEND :: CInt
+s_APPEND  = #{const O_APPEND}
+-}
+
+-- These affect the first two bits in flags.
+MK_FLAG_API(setReadOnly,0)
+MK_FLAG_API(setWriteOnly,1)
+MK_FLAG_API(setReadWrite,2)
+
+#define MK_BOOL_FLAG_API(name,x) \
+{-# INLINE name #-}; \
+name :: Bool -> OpenFlags -> OpenFlags; \
+name True (OpenFlags flags) = OpenFlags (flags .|. x); \
+name False (OpenFlags flags) = OpenFlags (flags .&. complement x)
+
+-- setCreat is internal only, do not export this. This is automatically set
+-- when create mode is passed, otherwise cleared.
+MK_BOOL_FLAG_API(setCreat,64)
+
+MK_BOOL_FLAG_API(setExcl,128)
+MK_BOOL_FLAG_API(setNoCtty,256)
+MK_BOOL_FLAG_API(setTrunc,512)
+MK_BOOL_FLAG_API(setAppend,1024)
+MK_BOOL_FLAG_API(setNonBlock,2048)
+MK_BOOL_FLAG_API(setDirectory,65536)
+MK_BOOL_FLAG_API(setNoFollow,131072)
+MK_BOOL_FLAG_API(setCloExec,524288)
+MK_BOOL_FLAG_API(setSync,1052672)
 
 -- | Default values for the 'OpenFlags'.
 --
+-- By default a 0 value is used, no flag is set. See the open system call man
+-- page.
 defaultOpenFlags :: OpenFlags
-defaultOpenFlags =
-    OpenFlags
-    { append    = False
-    , exclusive = False
-    , noctty    = True
-    , nonBlock  = True
-    , trunc     = False
-    , nofollow  = False
-    , creat     = Nothing
-    , cloexec   = False
-    , directory = False
-    , sync      = False
-    }
+defaultOpenFlags = OpenFlags 0
 
 -------------------------------------------------------------------------------
 -- Low level (fd returning) file opening APIs
 -------------------------------------------------------------------------------
 
+-- XXX Should we use interruptible open as in base openFile?
 foreign import capi unsafe "fcntl.h openat"
    c_openat :: CInt -> CString -> CInt -> CMode -> IO CInt
 
--- | Open and optionally create a file relative to an optional
--- directory file descriptor.
--- {-# INLINE openFdAtWith_ #-}
-openAtWith_ ::
-       OpenFlags -- ^ Append, exclusive, etc.
-    -> Maybe Fd -- ^ Optional directory file descriptor
+#define AT_FDCWD (-100)
+-- atFdCwd = #(const AT_FDCWD)
+
+-- | Open and optionally create (when create mode is specified) a file relative
+-- to an optional directory file descriptor. If directory fd is not specified
+-- then opens relative to the current directory.
+-- {-# INLINE openAtCString #-}
+openAtCString ::
+       Maybe Fd -- ^ Optional directory file descriptor
     -> CString -- ^ Pathname to open
-    -> OpenMode -- ^ Read-only, read-write or write-only
+    -> OpenFlags -- ^ Append, exclusive, etc.
+    -> Maybe FileMode -- ^ Create mode
     -> IO Fd
-openAtWith_ OpenFlags{..} fdMay path how =
-    Fd <$> c_openat c_fd path all_flags mode_w
+openAtCString fdMay path flags cmode =
+    Fd <$> c_openat c_fd path flags1 mode
 
     where
 
-    c_fd = maybe (-100) (\ (Fd fd) -> fd) fdMay
-
-    flags =
-       (if append       then 1024    else 0) .|.
-       (if exclusive    then 128     else 0) .|.
-       (if noctty       then 256     else 0) .|.
-       (if nonBlock     then 2048    else 0) .|.
-       (if trunc        then 512     else 0) .|.
-       (if nofollow     then 131072  else 0) .|.
-       (if cloexec      then 524288  else 0) .|.
-       (if directory    then 65536   else 0) .|.
-       (if sync         then 1052672 else 0)
-
-    open_mode =
-        case how of
-            ReadOnly  -> 0
-            WriteOnly -> 1
-            ReadWrite -> 2
-
-    (creat_f, mode_w) =
-        case creat of
-            Nothing -> (0, 0)
-            Just x  -> (64, x)
-
-    all_flags = creat_f .|. flags .|. open_mode
+    c_fd = maybe AT_FDCWD (\ (Fd fd) -> fd) fdMay
+    FileMode mode = maybe defaultCreateMode id cmode
+    OpenFlags flags1 = maybe flags (\_ -> setCreat True flags) cmode
 
 -- | Open a file relative to an optional directory file descriptor.
 --
--- {-# INLINE openAtWith #-}
-openAtWith ::
-       OpenFlags -- ^ Append, exclusive, truncate, etc.
-    -> Maybe Fd -- ^ Optional directory file descriptor
-    -> PosixPath -- ^ Pathname to open
-    -> OpenMode -- ^ Read-only, read-write or write-only
-    -> IO Fd
-openAtWith flags fdMay name how =
-   Path.asCString name $ \str -> do
-     throwErrnoPathIfMinus1Retry "openAtWith" name
-        $ openAtWith_ flags fdMay str how
-
+-- Note: In Haskell, using an fd directly for IO may be problematic as blocking
+-- file system operations on the file might block the capability and GC for
+-- "unsafe" calls. "safe" calls may be more expensive. Also, you may have to
+-- synchronize concurrent access via multiple threads.
+--
 {-# INLINE openAt #-}
-openAt :: Maybe Fd -> PosixPath -> OpenMode -> IO Fd
-openAt = openAtWith defaultOpenFlags
+openAt ::
+       Maybe Fd -- ^ Optional directory file descriptor
+    -> PosixPath -- ^ Pathname to open
+    -> OpenFlags -- ^ Append, exclusive, truncate, etc.
+    -> Maybe FileMode -- ^ Create mode
+    -> IO Fd
+openAt fdMay path flags cmode =
+   Path.asCString path $ \cstr -> do
+     throwErrnoPathIfMinus1Retry "openAt" path
+        $ openAtCString fdMay cstr flags cmode
 
--- Note using an fd directly for IO may be problematic as direct blocking file
--- system operations on the file might block the capability and GC for "unsafe"
--- calls. "safe" calls may be more expensive. Also, you may have to synchronize
--- concurrent access via multiple threads.
-{-# INLINE open #-}
-open :: PosixPath -> OpenMode -> IO Fd
-open = openAt Nothing
 
 -- | Open a regular file, return an Fd.
+--
+-- Sets O_NOCTTY, O_NONBLOCK flags to be compatible with the base openFile
+-- behavior. O_NOCTTY affects opening of terminal special files and O_NONBLOCK
+-- affects fifo special files, and mandatory locking.
+--
 openFileFdWith :: OpenFlags -> PosixPath -> IOMode -> IO Fd
-openFileFdWith oflags fp iomode = do
+openFileFdWith oflags path iomode = do
     case iomode of
-        ReadMode -> open1 ReadOnly  oflags
-        WriteMode -> open1 WriteOnly oflags {trunc = True, creat = cflag}
-        AppendMode -> open1 WriteOnly oflags {append = True, creat = cflag}
-        ReadWriteMode -> open1 ReadWrite oflags {creat = cflag}
+        ReadMode -> open1 (setReadOnly oflags1) Nothing
+        WriteMode ->
+            open1 (setWriteOnly oflags1) (Just defaultCreateMode)
+        AppendMode ->
+            open1
+                ((setAppend True . setWriteOnly) oflags1)
+                (Just defaultCreateMode)
+        ReadWriteMode ->
+            open1 (setReadWrite oflags) (Just defaultCreateMode)
 
     where
 
-    -- Use Nothing to open existing file only
-    cflag = Just 0o666
-    open1 mode flags = openAtWith flags Nothing fp mode
+    oflags1 = setNoCtty True $ setNonBlock True oflags
+    open1 = openAt Nothing path
 
 openFileFd :: PosixPath -> IOMode -> IO Fd
 openFileFd = openFileFdWith defaultOpenFlags
