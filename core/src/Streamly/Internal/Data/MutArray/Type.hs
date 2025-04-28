@@ -80,7 +80,7 @@ module Streamly.Internal.Data.MutArray.Type
     , ArrayUnsafe (..)
 
     -- With allocator, of capacity
-    , unsafeCreateOfWith -- XXX unsafeCreateWithOf
+    , unsafeCreateWithOf -- XXX unsafeCreateWithOf
     , createWithOf -- create alloc with
 
     , unsafeCreateOf
@@ -2515,13 +2515,13 @@ appendCString arr (Ptr addr) = appendCString# arr addr
 -- | Like 'unsafeCreateOf' but takes a new array allocator @alloc size@
 -- function as argument.
 --
--- >>> unsafeCreateOfWith alloc n = MutArray.unsafeAppendN (alloc n) n
+-- >>> unsafeCreateWithOf alloc n = MutArray.unsafeAppendN (alloc n) n
 --
 -- /Pre-release/
-{-# INLINE_NORMAL unsafeCreateOfWith #-}
-unsafeCreateOfWith :: forall m a. (MonadIO m, Unbox a)
+{-# INLINE_NORMAL unsafeCreateWithOf #-}
+unsafeCreateWithOf :: forall m a. (MonadIO m, Unbox a)
     => (Int -> m (MutArray a)) -> Int -> Fold m a (MutArray a)
-unsafeCreateOfWith alloc n = fromArrayUnsafe <$> FL.foldlM' step initial
+unsafeCreateWithOf alloc n = fromArrayUnsafe <$> FL.foldlM' step initial
 
     where
 
@@ -2532,16 +2532,16 @@ unsafeCreateOfWith alloc n = fromArrayUnsafe <$> FL.foldlM' step initial
         return
           $ ArrayUnsafe contents start (INDEX_NEXT(end,a))
 
-{-# DEPRECATED writeNWithUnsafe "Please use unsafeCreateOfWith instead." #-}
+{-# DEPRECATED writeNWithUnsafe "Please use unsafeCreateWithOf instead." #-}
 {-# INLINE writeNWithUnsafe #-}
 writeNWithUnsafe :: forall m a. (MonadIO m, Unbox a)
     => (Int -> m (MutArray a)) -> Int -> Fold m a (MutArray a)
-writeNWithUnsafe = unsafeCreateOfWith
+writeNWithUnsafe = unsafeCreateWithOf
 
 {-# INLINE_NORMAL writeNUnsafeAs #-}
 writeNUnsafeAs :: forall m a. (MonadIO m, Unbox a)
     => PinnedState -> Int -> Fold m a (MutArray a)
-writeNUnsafeAs ps = unsafeCreateOfWith (newAs ps)
+writeNUnsafeAs ps = unsafeCreateWithOf (newAs ps)
 
 -- | Like 'createOf' but does not check the array bounds when writing. The fold
 -- driver must not call the step function more than 'n' times otherwise it will
@@ -2549,7 +2549,7 @@ writeNUnsafeAs ps = unsafeCreateOfWith (newAs ps)
 -- conditional in the step function blocks fusion causing 10x performance
 -- slowdown.
 --
--- >>> unsafeCreateOf = MutArray.unsafeCreateOfWith MutArray.emptyOf
+-- >>> unsafeCreateOf = MutArray.unsafeCreateWithOf MutArray.emptyOf
 --
 {-# INLINE_NORMAL unsafeCreateOf #-}
 unsafeCreateOf :: forall m a. (MonadIO m, Unbox a)
@@ -2582,13 +2582,13 @@ pinnedWriteNUnsafe = unsafeCreateOf'
 --
 -- The array capacity is guranteed to be at least @n@.
 --
--- >>> createWithOf alloc n = Fold.take n (MutArray.unsafeCreateOfWith alloc n)
+-- >>> createWithOf alloc n = Fold.take n (MutArray.unsafeCreateWithOf alloc n)
 -- >>> createWithOf alloc n = MutArray.appendN (alloc n) n
 --
 {-# INLINE_NORMAL createWithOf #-}
 createOfWith, createWithOf :: forall m a. (MonadIO m, Unbox a)
     => (Int -> m (MutArray a)) -> Int -> Fold m a (MutArray a)
-createWithOf alloc n = FL.take n (unsafeCreateOfWith alloc n)
+createWithOf alloc n = FL.take n (unsafeCreateWithOf alloc n)
 
 {-# DEPRECATED writeNWith "Please use createWithOf instead." #-}
 {-# INLINE writeNWith #-}
@@ -2639,7 +2639,7 @@ pinnedWriteN ::
     -> Fold m a (MutArray a)
 pinnedWriteN = createOf'
 
--- | Like unsafeCreateOfWith but writes the array in reverse order.
+-- | Like unsafeCreateWithOf but writes the array in reverse order.
 --
 -- /Internal/
 {-# INLINE_NORMAL writeRevNWithUnsafe #-}
