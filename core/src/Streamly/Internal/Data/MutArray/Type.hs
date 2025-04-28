@@ -50,6 +50,7 @@ module Streamly.Internal.Data.MutArray.Type
 
     -- ** Construction
     , empty
+ -- , singleton
 
     -- *** New
     -- | New arrays are always empty arrays with some reserve capacity to
@@ -60,19 +61,50 @@ module Streamly.Internal.Data.MutArray.Type
 
     -- *** Slicing
     -- | Get a subarray without copying
+
+    -- Element agnostic.
     , unsafeSliceOffLen
     , sliceOffLen
+
+    -- Counting from the beginning
+    -- We use the name "break" for splitting into two parts. And the word
+    -- "split" for splitting into possibly more than two.
     , unsafeBreakAt
-    , breakAt
+    , breakAt -- called splitAt in lists
+ -- , take
+ -- , drop
+ -- , uncons
+ -- , tail
+
+    -- Counting from the end
+ -- , revBreakAt
+ -- , takeEnd
+ -- , dropEnd
+ -- , unsnoc
+ -- , init
+
+    -- Element aware
+    -- search from the beginning
     , breakEndByWord8_
     , breakEndBy
     , breakEndBy_
+ -- , breakBeginBy -- called break in lists
+ -- , breakSpan -- called span in lists
+ -- , breakBeginBySeq -- called breakOn in text
+ -- , breakSepBy_
+    , dropWhile
+ -- , takeWhile
+ -- , stripPrefix
+
+    -- search from the end
     , revBreakEndBy
     , revBreakEndBy_
-    -- , breakSepBy_
+ -- , revBreakBeginBy -- called breakOnEnd in text
+    , revDropWhile -- dropWhileEnd
+ -- , takeWhileEnd
+ -- , stripSuffix
+
     , dropAround
-    , dropWhile
-    , revDropWhile
 
     -- *** Stream Folds
     -- | Note: create is just appending to an empty array. So keep the names
@@ -80,7 +112,7 @@ module Streamly.Internal.Data.MutArray.Type
     , ArrayUnsafe (..)
 
     -- With allocator, of capacity
-    , unsafeCreateWithOf -- XXX unsafeCreateWithOf
+    , unsafeCreateWithOf
     , createWithOf -- create alloc with
 
     , unsafeCreateOf
@@ -142,13 +174,25 @@ module Streamly.Internal.Data.MutArray.Type
     -- ** Reading
 
     -- *** Indexing
+ -- , head
     , getIndex
     , unsafeGetIndex
     , unsafeGetIndexRev
     -- , getFromThenTo
+ -- , last
     , getIndexRev -- getRevIndex?
     , indexReader
     , indexReaderWith
+
+    -- -- *** Searching
+    -- See the Data.Array module as well
+    -- , binarySearch
+    -- , findIndicesOf
+    -- , getIndicesOf
+    -- , indexFinder
+    -- , findIndexOf
+    -- , find
+    -- , elem
 
     -- *** To Streams
     , read
@@ -174,6 +218,8 @@ module Streamly.Internal.Data.MutArray.Type
 
     -- ** Size and Capacity
     -- *** Size
+ -- , null
+ -- , compareLength
     , length
     , byteLength
 
@@ -219,6 +265,7 @@ module Streamly.Internal.Data.MutArray.Type
     , mergeBy
     , bubble
     , rangeBy
+ -- , filter
 
     -- ** Growing and Shrinking
     -- | Arrays grow only at the end, though technically it is possible to
@@ -331,7 +378,10 @@ module Streamly.Internal.Data.MutArray.Type
     -- Note: some splitting APIs are in MutArray.hs
     , splitEndBy_
     , splitEndBy
-    -- , splitSepBy_
+ -- , splitSepBy_
+ -- , splitSepBySeq
+ -- , splitGroupBy
+ -- , splitWordsBy
 
     -- *** Concat
     -- | Append the arrays in a stream to form a stream of elements.
@@ -339,6 +389,7 @@ module Streamly.Internal.Data.MutArray.Type
     -- , concatSepBy
     -- , concatEndBy
     -- , concatEndByLn -- unlines - concat a byte chunk stream using newline byte separator
+    -- , concatWordsBy
     , concatWith -- internal
     , concatRev
     , concatRevWith -- internal
@@ -1987,11 +2038,9 @@ concatWith liftio (D.Stream step state) = D.Stream step' (OuterLoop state)
         !x <- liftio $ peekAt p contents
         return $ D.Yield x (InnerLoop st contents (INDEX_NEXT(p,a)) end)
 
--- | Use the "reader" unfold instead.
+-- | Same as the following but may be more efficient due to better fusion:
 --
--- @concat = unfoldMany reader@
---
--- We can try this if there are any fusion issues in the unfold.
+-- >>> concat = Stream.unfoldEach MutArray.reader
 --
 {-# INLINE_NORMAL concat #-}
 concat :: forall m a. (MonadIO m, Unbox a)
