@@ -31,10 +31,13 @@ module Streamly.Data.Fold.Prelude
     , inspect
 
     -- ** Combinators
-    , parEval
+    , parBuffered
 
     -- * Container Related
     , toHashMapIO
+
+    -- ** Deprecated
+    , parEval
     )
 where
 
