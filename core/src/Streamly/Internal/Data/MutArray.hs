@@ -21,7 +21,7 @@ module Streamly.Internal.Data.MutArray
     , indexerFromLen
     , splitterFromLen
     -- , splitFromLen
-    -- , slicesOf
+    -- , splitChunksOf
     , compactMax
     , compactMax'
     , compactSepByByte_
@@ -80,7 +80,7 @@ import qualified Streamly.Internal.Data.Fold.Type as Fold
 -- import qualified Streamly.Internal.Data.Stream.Transform as Stream
 import qualified Streamly.Internal.Data.Unfold as Unfold
 
-import Prelude hiding (foldr, length, read, splitAt)
+import Prelude hiding (foldr, length, read)
 import Streamly.Internal.Data.MutArray.Type
 
 -- | Generate a stream of array slice descriptors ((index, len)) of specified
