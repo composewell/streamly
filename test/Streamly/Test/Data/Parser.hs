@@ -121,7 +121,7 @@ parserFail producer consumer =
     property $
         case runIdentity $ consumer (Fail.fail err) (producer [0 :: Int]) of
             Right _ -> False
-            Left (ParseError e) -> err == e
+            Left (ParseError _ e) -> err == e
     where
     err = "Testing MonadFail.fail."
 
@@ -1321,8 +1321,6 @@ TODO:
 Add sanity tests for
 - Producer.parse
 - Producer.parseMany
-- Stream.parseMany
-- Stream.parseIterate
 -}
 
 sanityParseBreak :: [Move] -> SpecWith ()

@@ -1187,9 +1187,9 @@ parseDBreak
 parseDBreak (PR.Parser pstep initial extract) stream = do
     res <- initial
     case res of
-        PR.IPartial s -> goStream stream [] s
+        PR.IPartial s -> goStream stream [] s 0
         PR.IDone b -> return (Right b, stream)
-        PR.IError err -> return (Left (ParseError err), stream)
+        PR.IError err -> return (Left (ParseError 0 err), stream)
 
     where
 
@@ -1199,41 +1199,41 @@ parseDBreak (PR.Parser pstep initial extract) stream = do
     -- XXX currently we are using a dumb list based approach for backtracking
     -- buffer. This can be replaced by a sliding/ring buffer using Data.Array.
     -- That will allow us more efficient random back and forth movement.
-    goStream st buf !pst =
+    goStream st buf !pst i =
         let stop = do
                 r <- extract pst
                 case r of
                     PR.Error err -> do
                         let src = Prelude.reverse buf
-                        return (Left (ParseError err), fromList src)
+                        return (Left (ParseError i err), fromList src)
                     PR.Done n b -> do
                         assertM(n <= length buf)
                         let src0 = Prelude.take n buf
                             src  = Prelude.reverse src0
                         return (Right b, fromList src)
                     PR.Partial _ _ -> error "Bug: parseBreak: Partial in extract"
-                    PR.Continue 0 s -> goStream nil buf s
+                    PR.Continue 0 s -> goStream nil buf s i
                     PR.Continue n s -> do
                         assertM(n <= length buf)
                         let (src0, buf1) = splitAt n buf
                             src = Prelude.reverse src0
-                        goBuf nil buf1 src s
+                        goBuf nil buf1 src s (i - n)
             single x = yieldk x nil
             yieldk x r = do
                 res <- pstep pst x
                 case res of
-                    PR.Partial 0 s -> goStream r [] s
+                    PR.Partial 0 s -> goStream r [] s (i + 1)
                     PR.Partial n s -> do
                         assertM(n <= length (x:buf))
                         let src0 = Prelude.take n (x:buf)
                             src  = Prelude.reverse src0
-                        goBuf r [] src s
-                    PR.Continue 0 s -> goStream r (x:buf) s
+                        goBuf r [] src s (i + 1 - n)
+                    PR.Continue 0 s -> goStream r (x:buf) s (i + 1)
                     PR.Continue n s -> do
                         assertM(n <= length (x:buf))
                         let (src0, buf1) = splitAt n (x:buf)
                             src = Prelude.reverse src0
-                        goBuf r buf1 src s
+                        goBuf r buf1 src s (i + 1 - n)
                     PR.Done 0 b -> return (Right b, r)
                     PR.Done n b -> do
                         assertM(n <= length (x:buf))
@@ -1242,25 +1242,25 @@ parseDBreak (PR.Parser pstep initial extract) stream = do
                         return (Right b, append (fromList src) r)
                     PR.Error err -> do
                         let src = Prelude.reverse (x:buf)
-                        return (Left (ParseError err), append (fromList src) r)
+                        return (Left (ParseError (i + 1) err), append (fromList src) r)
          in foldStream defState yieldk single stop st
 
-    goBuf st buf [] !pst = goStream st buf pst
-    goBuf st buf (x:xs) !pst = do
+    goBuf st buf [] !pst i = goStream st buf pst i
+    goBuf st buf (x:xs) !pst i = do
         pRes <- pstep pst x
         case pRes of
-            PR.Partial 0 s -> goBuf st [] xs s
+            PR.Partial 0 s -> goBuf st [] xs s (i + 1)
             PR.Partial n s -> do
                 assert (n <= length (x:buf)) (return ())
                 let src0 = Prelude.take n (x:buf)
                     src  = Prelude.reverse src0 ++ xs
-                goBuf st [] src s
-            PR.Continue 0 s -> goBuf st (x:buf) xs s
+                goBuf st [] src s (i + 1 - n)
+            PR.Continue 0 s -> goBuf st (x:buf) xs s (i + 1)
             PR.Continue n s -> do
                 assert (n <= length (x:buf)) (return ())
                 let (src0, buf1) = splitAt n (x:buf)
                     src  = Prelude.reverse src0 ++ xs
-                goBuf st buf1 src s
+                goBuf st buf1 src s (i + 1 - n)
             PR.Done n b -> do
                 assert (n <= length (x:buf)) (return ())
                 let src0 = Prelude.take n (x:buf)
@@ -1268,7 +1268,7 @@ parseDBreak (PR.Parser pstep initial extract) stream = do
                 return (Right b, append (fromList src) st)
             PR.Error err -> do
                 let src = Prelude.reverse buf ++ x:xs
-                return (Left (ParseError err), append (fromList src) st)
+                return (Left (ParseError (i + 1) err), append (fromList src) st)
 
 -- Using ParserD or ParserK on StreamK may not make much difference. We should
 -- perhaps use only chunked parsing on StreamK. We can always convert a stream
@@ -1331,31 +1331,31 @@ parseBreakChunks
     -> m (Either ParseError b, StreamK m (Array a))
 parseBreakChunks parser input = do
     let parserk = ParserK.runParser parser parserDone 0 0
-     in go [] parserk input
+     in go 0 [] parserk input
 
     where
 
     {-# INLINE goStop #-}
-    goStop backBuf parserk = do
+    goStop absPos backBuf parserk = do
         pRes <- parserk ParserK.None
         case pRes of
             -- If we stop in an alternative, it will try calling the next
             -- parser, the next parser may call initial returning Partial and
             -- then immediately we have to call extract on it.
             ParserK.Partial 0 cont1 ->
-                 go [] cont1 nil
+                 go absPos [] cont1 nil
             ParserK.Partial n cont1 -> do
                 let n1 = negate n
                 assertM(n1 >= 0 && n1 <= sum (Prelude.map Array.length backBuf))
                 let (s1, backBuf1) = backTrack n1 backBuf nil
-                 in go backBuf1 cont1 s1
+                 in go (absPos + n) backBuf1 cont1 s1
             ParserK.Continue 0 cont1 ->
-                go backBuf cont1 nil
+                go absPos backBuf cont1 nil
             ParserK.Continue n cont1 -> do
                 let n1 = negate n
                 assertM(n1 >= 0 && n1 <= sum (Prelude.map Array.length backBuf))
                 let (s1, backBuf1) = backTrack n1 backBuf nil
-                 in go backBuf1 cont1 s1
+                 in go (absPos + n) backBuf1 cont1 s1
             ParserK.Done 0 b ->
                 return (Right b, nil)
             ParserK.Done n b -> do
@@ -1363,60 +1363,60 @@ parseBreakChunks parser input = do
                 assertM(n1 >= 0 && n1 <= sum (Prelude.map Array.length backBuf))
                 let (s1, _) = backTrack n1 backBuf nil
                  in return (Right b, s1)
-            ParserK.Error _ err -> do
+            ParserK.Error n err -> do
                 let (s1, _) = backTrack maxBound backBuf nil
-                return (Left (ParseError err), s1)
+                return (Left (ParseError (absPos + n) err), s1)
 
     seekErr n len =
         error $ "parseBreak: Partial: forward seek not implemented n = "
             ++ show n ++ " len = " ++ show len
 
-    yieldk backBuf parserk arr stream = do
+    yieldk absPos backBuf parserk arr stream = do
         pRes <- parserk (ParserK.Chunk arr)
         let len = Array.length arr
         case pRes of
             ParserK.Partial n cont1 ->
                 case compare n len of
-                    EQ -> go [] cont1 stream
+                    EQ -> go (absPos + n) [] cont1 stream
                     LT -> do
                         if n >= 0
-                        then yieldk [] cont1 arr stream
+                        then yieldk (absPos + n) [] cont1 arr stream
                         else do
                             let n1 = negate n
                                 bufLen = sum (Prelude.map Array.length backBuf)
                                 s = cons arr stream
                             assertM(n1 >= 0 && n1 <= bufLen)
                             let (s1, _) = backTrack n1 backBuf s
-                            go [] cont1 s1
+                            go (absPos + n) [] cont1 s1
                     GT -> seekErr n len
             ParserK.Continue n cont1 ->
                 case compare n len of
-                    EQ -> go (arr:backBuf) cont1 stream
+                    EQ -> go (absPos + n) (arr:backBuf) cont1 stream
                     LT -> do
                         if n >= 0
-                        then yieldk backBuf cont1 arr stream
+                        then yieldk (absPos + n) backBuf cont1 arr stream
                         else do
                             let n1 = negate n
                                 bufLen = sum (Prelude.map Array.length backBuf)
                                 s = cons arr stream
                             assertM(n1 >= 0 && n1 <= bufLen)
                             let (s1, backBuf1) = backTrack n1 backBuf s
-                            go backBuf1 cont1 s1
+                            go (absPos + n) backBuf1 cont1 s1
                     GT -> seekErr n len
             ParserK.Done n b -> do
                 let n1 = len - n
                 assertM(n1 <= sum (Prelude.map Array.length (arr:backBuf)))
                 let (s1, _) = backTrack n1 (arr:backBuf) stream
                  in return (Right b, s1)
-            ParserK.Error _ err -> do
+            ParserK.Error n err -> do
                 let (s1, _) = backTrack maxBound (arr:backBuf) stream
-                return (Left (ParseError err), s1)
+                return (Left (ParseError (absPos + n + 1) err), s1)
 
-    go backBuf parserk stream = do
-        let stop = goStop backBuf parserk
-            single a = yieldk backBuf parserk a nil
+    go absPos backBuf parserk stream = do
+        let stop = goStop absPos backBuf parserk
+            single a = yieldk absPos backBuf parserk a nil
          in foldStream
-                defState (yieldk backBuf parserk) single stop stream
+                defState (yieldk absPos backBuf parserk) single stop stream
 
 {-# INLINE parseChunks #-}
 parseChunks :: (Monad m, Unbox a) =>
@@ -1450,35 +1450,36 @@ parseBreak
     -> m (Either ParseError b, StreamK m a)
 parseBreak parser input = do
     let parserk = ParserK.runParser parser parserDone 0 0
-     in go [] parserk input
+     in go 0 [] parserk input
 
     where
 
     {-# INLINE goStop #-}
     goStop
-        :: [a]
+        :: Int
+        -> [a]
         -> (ParserK.Input a -> m (ParserK.Step a m b))
         -> m (Either ParseError b, StreamK m a)
-    goStop backBuf parserk = do
+    goStop absPos backBuf parserk = do
         pRes <- parserk ParserK.None
         case pRes of
             -- If we stop in an alternative, it will try calling the next
             -- parser, the next parser may call initial returning Partial and
             -- then immediately we have to call extract on it.
             ParserK.Partial 0 cont1 ->
-                 go [] cont1 nil
+                 go absPos [] cont1 nil
             ParserK.Partial n cont1 -> do
                 let n1 = negate n
                 assertM(n1 >= 0 && n1 <= length backBuf)
                 let (s1, backBuf1) = backTrackSingular n1 backBuf nil
-                 in go backBuf1 cont1 s1
+                 in go (absPos + n) backBuf1 cont1 s1
             ParserK.Continue 0 cont1 ->
-                go backBuf cont1 nil
+                go absPos backBuf cont1 nil
             ParserK.Continue n cont1 -> do
                 let n1 = negate n
                 assertM(n1 >= 0 && n1 <= length backBuf)
                 let (s1, backBuf1) = backTrackSingular n1 backBuf nil
-                 in go backBuf1 cont1 s1
+                 in go (absPos + n) backBuf1 cont1 s1
             ParserK.Done 0 b ->
                 return (Right b, nil)
             ParserK.Done n b -> do
@@ -1486,27 +1487,28 @@ parseBreak parser input = do
                 assertM(n1 >= 0 && n1 <= length backBuf)
                 let (s1, _) = backTrackSingular n1 backBuf nil
                  in return (Right b, s1)
-            ParserK.Error _ err ->
+            ParserK.Error n err ->
                 let strm = fromList (Prelude.reverse backBuf)
-                 in return (Left (ParseError err), strm)
+                 in return (Left (ParseError (absPos + n) err), strm)
 
     seekErr n =
         error $ "parseBreak: Partial: forward seek not implemented n = "
             ++ show n
 
     yieldk
-        :: [a]
+        :: Int
+        -> [a]
         -> (ParserK.Input a -> m (ParserK.Step a m b))
         -> a
         -> StreamK m a
         -> m (Either ParseError b, StreamK m a)
-    yieldk backBuf parserk element stream = do
+    yieldk absPos backBuf parserk element stream = do
         pRes <- parserk (ParserK.Chunk element)
         -- NOTE: factoring out "cons element stream" in a let statement here
         -- cause big alloc regression.
         case pRes of
-            ParserK.Partial 1 cont1 -> go [] cont1 stream
-            ParserK.Partial 0 cont1 -> go [] cont1 (cons element stream)
+            ParserK.Partial 1 cont1 -> go (absPos + 1) [] cont1 stream
+            ParserK.Partial 0 cont1 -> go absPos [] cont1 (cons element stream)
             ParserK.Partial n _ | n > 1 -> seekErr n
             ParserK.Partial n cont1 -> do -- n < 0 case
                 let n1 = negate n
@@ -1514,10 +1516,10 @@ parseBreak parser input = do
                     s = cons element stream
                 assertM(n1 >= 0 && n1 <= bufLen)
                 let (s1, _) = backTrackSingular n1 backBuf s
-                go [] cont1 s1
-            ParserK.Continue 1 cont1 -> go (element:backBuf) cont1 stream
+                go (absPos + n) [] cont1 s1
+            ParserK.Continue 1 cont1 -> go (absPos + 1) (element:backBuf) cont1 stream
             ParserK.Continue 0 cont1 ->
-                go backBuf cont1 (cons element stream)
+                go absPos backBuf cont1 (cons element stream)
             ParserK.Continue n _ | n > 1 -> seekErr n
             ParserK.Continue n cont1 -> do
                 let n1 = negate n
@@ -1525,7 +1527,7 @@ parseBreak parser input = do
                     s = cons element stream
                 assertM(n1 >= 0 && n1 <= bufLen)
                 let (s1, backBuf1) = backTrackSingular n1 backBuf s
-                go backBuf1 cont1 s1
+                go (absPos + n) backBuf1 cont1 s1
             ParserK.Done 1 b -> pure (Right b, stream)
             ParserK.Done 0 b -> pure (Right b, cons element stream)
             ParserK.Done n _ | n > 1 -> seekErr n
@@ -1536,23 +1538,24 @@ parseBreak parser input = do
                 assertM(n1 >= 0 && n1 <= bufLen)
                 let (s1, _) = backTrackSingular n1 backBuf s
                 pure (Right b, s1)
-            ParserK.Error _ err ->
+            ParserK.Error n err ->
                 let strm =
                         append
                             (fromList (Prelude.reverse backBuf))
                             (cons element stream)
-                 in return (Left (ParseError err), strm)
+                 in return (Left (ParseError (absPos + n + 1) err), strm)
 
     go
-        :: [a]
+        :: Int
+        -> [a]
         -> (ParserK.Input a -> m (ParserK.Step a m b))
         -> StreamK m a
         -> m (Either ParseError b, StreamK m a)
-    go backBuf parserk stream = do
-        let stop = goStop backBuf parserk
-            single a = yieldk backBuf parserk a nil
+    go absPos backBuf parserk stream = do
+        let stop = goStop absPos backBuf parserk
+            single a = yieldk absPos backBuf parserk a nil
          in foldStream
-                defState (yieldk backBuf parserk) single stop stream
+                defState (yieldk absPos backBuf parserk) single stop stream
 
 -- | Run a 'ParserK' over a 'StreamK'. Please use 'parseChunks' where possible,
 -- for better performance.
@@ -1597,36 +1600,37 @@ parseBreakChunksGeneric
     -> m (Either ParseError b, StreamK m (GenArr.Array a))
 parseBreakChunksGeneric parser input = do
     let parserk = ParserK.runParser parser parserDone 0 0
-     in go [] parserk input
+     in go 0 [] parserk input
 
     where
 
     {-# INLINE goStop #-}
     goStop
-        :: [GenArr.Array a]
+        :: Int
+        -> [GenArr.Array a]
         -> (ParserK.Input (GenArr.Array a)
                 -> m (ParserK.Step (GenArr.Array a) m b))
         -> m (Either ParseError b, StreamK m (GenArr.Array a))
-    goStop backBuf parserk = do
+    goStop absPos backBuf parserk = do
         pRes <- parserk ParserK.None
         case pRes of
             -- If we stop in an alternative, it will try calling the next
             -- parser, the next parser may call initial returning Partial and
             -- then immediately we have to call extract on it.
             ParserK.Partial 0 cont1 ->
-                 go [] cont1 nil
+                 go absPos [] cont1 nil
             ParserK.Partial n cont1 -> do
                 let n1 = negate n
                 assertM(n1 >= 0 && n1 <= sum (Prelude.map GenArr.length backBuf))
                 let (s1, backBuf1) = backTrackGenericChunks n1 backBuf nil
-                 in go backBuf1 cont1 s1
+                 in go (absPos + n) backBuf1 cont1 s1
             ParserK.Continue 0 cont1 ->
-                go backBuf cont1 nil
+                go absPos backBuf cont1 nil
             ParserK.Continue n cont1 -> do
                 let n1 = negate n
                 assertM(n1 >= 0 && n1 <= sum (Prelude.map GenArr.length backBuf))
                 let (s1, backBuf1) = backTrackGenericChunks n1 backBuf nil
-                 in go backBuf1 cont1 s1
+                 in go (absPos + n) backBuf1 cont1 s1
             ParserK.Done 0 b ->
                 return (Right b, nil)
             ParserK.Done n b -> do
@@ -1634,76 +1638,78 @@ parseBreakChunksGeneric parser input = do
                 assertM(n1 >= 0 && n1 <= sum (Prelude.map GenArr.length backBuf))
                 let (s1, _) = backTrackGenericChunks n1 backBuf nil
                  in return (Right b, s1)
-            ParserK.Error _ err ->
+            ParserK.Error n err ->
                 let strm = fromList (Prelude.reverse backBuf)
-                 in return (Left (ParseError err), strm)
+                 in return (Left (ParseError (absPos + n) err), strm)
 
     seekErr n len =
         error $ "parseBreak: Partial: forward seek not implemented n = "
             ++ show n ++ " len = " ++ show len
 
     yieldk
-        :: [GenArr.Array a]
+        :: Int
+        -> [GenArr.Array a]
         -> (ParserK.Input (GenArr.Array a)
                 -> m (ParserK.Step (GenArr.Array a) m b))
         -> GenArr.Array a
         -> StreamK m (GenArr.Array a)
         -> m (Either ParseError b, StreamK m (GenArr.Array a))
-    yieldk backBuf parserk arr stream = do
+    yieldk absPos backBuf parserk arr stream = do
         pRes <- parserk (ParserK.Chunk arr)
         let len = GenArr.length arr
         case pRes of
             ParserK.Partial n cont1 ->
                 case compare n len of
-                    EQ -> go [] cont1 stream
+                    EQ -> go (absPos + n) [] cont1 stream
                     LT -> do
                         if n >= 0
-                        then yieldk [] cont1 arr stream
+                        then yieldk (absPos + n) [] cont1 arr stream
                         else do
                             let n1 = negate n
                                 bufLen = sum (Prelude.map GenArr.length backBuf)
                                 s = cons arr stream
                             assertM(n1 >= 0 && n1 <= bufLen)
                             let (s1, _) = backTrackGenericChunks n1 backBuf s
-                            go [] cont1 s1
+                            go (absPos + n) [] cont1 s1
                     GT -> seekErr n len
             ParserK.Continue n cont1 ->
                 case compare n len of
-                    EQ -> go (arr:backBuf) cont1 stream
+                    EQ -> go (absPos + n) (arr:backBuf) cont1 stream
                     LT -> do
                         if n >= 0
-                        then yieldk backBuf cont1 arr stream
+                        then yieldk (absPos + n) backBuf cont1 arr stream
                         else do
                             let n1 = negate n
                                 bufLen = sum (Prelude.map GenArr.length backBuf)
                                 s = cons arr stream
                             assertM(n1 >= 0 && n1 <= bufLen)
                             let (s1, backBuf1) = backTrackGenericChunks n1 backBuf s
-                            go backBuf1 cont1 s1
+                            go (absPos + n) backBuf1 cont1 s1
                     GT -> seekErr n len
             ParserK.Done n b -> do
                 let n1 = len - n
                 assertM(n1 <= sum (Prelude.map GenArr.length (arr:backBuf)))
                 let (s1, _) = backTrackGenericChunks n1 (arr:backBuf) stream
                  in return (Right b, s1)
-            ParserK.Error _ err ->
+            ParserK.Error n err ->
                 let strm =
                         append
                             (fromList (Prelude.reverse backBuf))
                             (cons arr stream)
-                 in return (Left (ParseError err), strm)
+                 in return (Left (ParseError (absPos + n + 1) err), strm)
 
     go
-        :: [GenArr.Array a]
+        :: Int
+        -> [GenArr.Array a]
         -> (ParserK.Input (GenArr.Array a)
                 -> m (ParserK.Step (GenArr.Array a) m b))
         -> StreamK m (GenArr.Array a)
         -> m (Either ParseError b, StreamK m (GenArr.Array a))
-    go backBuf parserk stream = do
-        let stop = goStop backBuf parserk
-            single a = yieldk backBuf parserk a nil
+    go absPos backBuf parserk stream = do
+        let stop = goStop absPos backBuf parserk
+            single a = yieldk absPos backBuf parserk a nil
          in foldStream
-                defState (yieldk backBuf parserk) single stop stream
+                defState (yieldk absPos backBuf parserk) single stop stream
 
 {-# INLINE parseChunksGeneric #-}
 parseChunksGeneric ::
