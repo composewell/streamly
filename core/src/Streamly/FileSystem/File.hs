@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 -- |
 -- Module      : Streamly.FileSystem.File
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -19,9 +21,10 @@
 -- the handle based APIs as there is no possibility of a file descriptor
 -- leakage.
 --
--- >>> import qualified Streamly.FileSystem.File as File
+-- >> import qualified Streamly.FileSystem.File as File
 --
 module Streamly.FileSystem.File
+{-# DEPRECATED "Please use \"Streamly.FileSystem.FileIO\" instead." #-}
     (
     -- * Streaming IO
     -- | Stream data to or from a file or device sequentially.  When reading,

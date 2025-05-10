@@ -4,52 +4,50 @@
 
 ### Breaking Changes
 
-* Functions in internal (mut)array modules now explicitly use `IO` callback
-  instead of a lifted callback.
+### Enhancements
 
-### General Changes
-
-* FileSystem.Dir module has been deprecated and replaced by FileSystem.DirIO.
-  The new module uses the Streamly `Path` type for representing file paths.
-  Please note that the directory read APIs in the new module do not follow
-  symlinks by default.
-* The `FileSystem.Event.*` modules have been deprecated in favor of the
-  [streamly-fsevents](https://github.com/composewell/streamly-fsevents) package.
 * Add several concurrent combinators for folds in `Streamly.Data.Fold.Prelude`.
 * Split the `Fold` type in two, `Fold` and `Scanl`. `Streamly.Data.Scanl`
   module is added for the new `Scanl` type.
-* Add a `Path` type for representing file system paths, following modules are
-  added:
+* Add `Streamly.FileSystem.DirIO` and `Streamly.FileSystem.FileIO`
+  modules. These new module replace `Streamly.FileSystem.Dir`,
+  `Streamly.FileSystem.File` modules which have been deprecated.  The
+  new modules have the same API as old ones except that they use
+  the streamly native `Path` type instead of `FilePath` for path
+  representation. The DirIO module API takes an additional ReadOptions
+  argument to modify the behavior.  Please note that the directory read
+  APIs in the new module do not follow symlinks by default.
+* Add a `Path` type and some type wrappers for flexibly typed file
+  system paths, following modules are added:
   - Streamly.FileSystem.Path
-  - Streamly.FileSystem.Path.LocSeg
-  - Streamly.FileSystem.Path.FileDir
-  - Streamly.FileSystem.Path.Typed
+  - Streamly.FileSystem.Path.Node
+  - Streamly.FileSystem.Path.Seg
+  - Streamly.FileSystem.Path.SegNode
 * Remove the `Storable` constraint from the following functions:
   - Streamly.Data.Stream.isInfixOf
   - Streamly.Data.Array.writeLastN
-* `Streamly.FileSystem.Dir` module is deprecated and replaced by
-  `Streamly.FileSystem.DirIO` module. The new module has exact same
-  APIs except that it uses the streamly native `Path` type instead
-  of `FilePath` for path representation. The new implementation is
-  significantly faster.
 
-### Internal API Changes
+### Deprecations and API changes
 
-* Remove the `Storable` constraint from several functions involving the ring
-  buffer.
-* `Streamly.Internal.Data.IORef` is a new module exposing `IORef` and friends.
-
-### API Renaming
-
+* `Streamly.FileSystem.Dir`, `Streamly.FileSystem.File` modules have
+  been deprecated.
 * Rename `writeN`-like APIs to `createOf`-like in Array modules.
 * Rename `new`-like APIs to `emptyOf`-like in Array modules.
 * In the Fold module `indexGeneric`, `lengthGeneric`, and `foldlM1'` to
    `genericIndex`, `genericLength`, and `foldl1M'` respectively.
 
-### Deprecations and API changes
-
 See [0.2.2-0.3.0 API Changelog](/core/docs/ApiChangelogs/0.2.2-0.3.0.txt) for a
 full list of deprecations, additions, and changes to the function signatures.
+
+### Internal API Changes
+
+* Functions in internal (mut)array modules now explicitly use
+  `IO` callback instead of a lifted callback.
+* The internal `FileSystem.Event.*` modules have been deprecated in favor of the
+  [streamly-fsevents](https://github.com/composewell/streamly-fsevents) package.
+* Remove the `Storable` constraint from several functions involving the ring
+  buffer.
+* `Streamly.Internal.Data.IORef` is a new module exposing `IORef` and friends.
 
 ## 0.2.2 (Jan 2024)
 

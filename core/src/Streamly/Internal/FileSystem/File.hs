@@ -20,6 +20,7 @@
 --
 
 module Streamly.Internal.FileSystem.File
+{-# DEPRECATED "Please use \"Streamly.Internal.FileSystem.FileIO\" instead." #-}
     (
     -- * Streaming IO
     -- | Stream data to or from a file or device sequentially.  When reading,
