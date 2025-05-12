@@ -45,8 +45,11 @@ module Streamly.Internal.FileSystem.OS_PATH
 
     -- * Validation
     , validatePath
-    , validatePath'
     , isValidPath
+#ifdef IS_WINDOWS
+    , validatePath'
+    , isValidPath'
+#endif
 
     -- * Construction
     , fromChunk
@@ -153,12 +156,22 @@ import Streamly.Internal.Data.Path
 {- $setup
 >>> :m
 >>> :set -XQuasiQuotes
+>>> import Data.Maybe (fromJust)
 >>> import qualified Streamly.Data.Stream as Stream
 
 For APIs that have not been released yet.
 
 >>> import Streamly.Internal.FileSystem.PosixPath (PosixPath, path)
+>>> import qualified Streamly.Internal.Data.Array as Array
 >>> import qualified Streamly.Internal.FileSystem.PosixPath as Path
+>>> import qualified Streamly.Unicode.Stream as Unicode
+
+>>> import Data.Either (Either, isLeft)
+>>> import Control.Exception (SomeException, evaluate, try)
+
+>>> rawFromString = Array.fromPureStream . Unicode.encodeUtf8' . Stream.fromList
+>>> pack = fromJust . Path.fromString
+>>> fails action = (try (evaluate action) :: IO (Either SomeException String)) >>= return . isLeft
 -}
 
 -- Path must not contain null char as system calls treat the path as a null
@@ -210,29 +223,49 @@ adapt p = fromPath (toPath p :: OS_PATH)
 -- Path parsing utilities
 ------------------------------------------------------------------------------
 
--- XXX rather have a dropEmptySegments?
-
--- | If the path is @//@ the result is @/@. If it is @a//@ then the result is
--- @a@.
+-- | If the path is @//@ the result is @/@. If it is @dir//@ then the result is
+-- @dir@. On Windows "c:" and "c:/" are different paths, therefore, we do not
+-- drop the trailing separator from "c:/".
+--
+-- Note that a path with trailing separators may implicitly be considered as a
+-- directory by some applications. So dropping it may change the dir nature of
+-- the path.
+--
+-- >>> f a = Path.toString $ Path.dropTrailingSeparators (pack a)
+-- >>> f "./"
+-- "."
+--
 {-# INLINE dropTrailingSeparators #-}
 dropTrailingSeparators :: OS_PATH -> OS_PATH
 dropTrailingSeparators (OS_PATH arr) =
     OS_PATH (Common.dropTrailingSeparators Common.OS_NAME arr)
 
-validatePath :: MonadThrow m => OS_PATH -> m ()
-validatePath (OS_PATH a) = Common.validatePath Common.OS_NAME a
+-- | Throws an exception if the path is not valid. See 'isValidPath' for the
+-- list of validations.
+#ifndef IS_WINDOWS
+validatePath :: MonadThrow m => Array Word8 -> m ()
+#else
+validatePath :: MonadThrow m => Array Word16 -> m ()
+#endif
+validatePath = Common.validatePath Common.OS_NAME
 
-isValidPath :: OS_PATH -> Bool
-isValidPath (OS_PATH a) = Common.isValidPath Common.OS_NAME a
+#ifndef IS_WINDOWS
+-- | Check if the filepath is valid i.e. does the operating system or the file
+-- system allow such a path in listing or creating files?
+--
+-- >>> isValid = Path.isValidPath . rawFromString
+--
+-- >>> isValid ""
+-- False
+-- >>> isValid "\0"
+-- False
+--
+isValidPath :: Array Word8 -> Bool
+isValidPath = Common.isValidPath Common.OS_NAME
+#endif
 
 -- Note: CPP gets confused by the prime suffix, so we have to put the CPP
 -- macros on the next line to get it to work.
-
-validatePath' :: MonadThrow m =>
-    OS_PATH -> m ()
-validatePath'
-    (OS_PATH a) = Common.validatePath'
-        Common.OS_NAME a
 
 ------------------------------------------------------------------------------
 -- Construction
@@ -243,8 +276,9 @@ validatePath'
 -- been using it consistently in streamly. We use "bytes" for a stream of
 -- bytes.
 
--- | /Unsafe/: The user is responsible to make sure that the cases mentioned in
--- OS_PATH are satisfied.
+-- | /Unsafe/: The user is responsible to make sure that the failure cases
+-- mentioned in 'fromChunk' cannot occur.
+--
 {-# INLINE unsafeFromChunk #-}
 unsafeFromChunk :: IsPath OS_PATH a => Array Word8 -> a
 unsafeFromChunk =
@@ -256,34 +290,40 @@ unsafeFromChunk =
 
 -- XXX mkPath?
 
--- | See 'fromChars' for failure cases.
+-- | Convert a byte array into a Path:
+--
+-- * Throws 'InvalidPath' if 'isValidPath' fails on the path.
+-- * On Windows, throws 'InvalidPath' if the array length is not aligned on two
+-- byte boundary.
 --
 fromChunk :: (MonadThrow m, IsPath OS_PATH a) => Array Word8 -> m a
 fromChunk arr = Common.fromChunk Common.OS_NAME arr >>= fromPath . OS_PATH
 
 -- XXX Should be a Fold instead?
 
--- | Encode a Unicode string to OS_PATH using strict CODEC_NAME encoding. Fails with
--- 'InvalidPath' exception if:
+-- | Encode a Unicode character stream to OS_PATH using strict CODEC_NAME encoding.
 --
--- * the stream is empty, should have at least one char
--- * the stream contains null characters
--- * the stream contains invalid unicode characters
-#if defined(IS_WINDOWS)
--- * the path starts with more than 2 separators
--- * the root drive or share name and the path is separated by more than one separators
--- * the path contains special characters not allowed in paths
--- * the path contains special file names not allowed in paths
-#endif
+-- * Throws 'InvalidPath' if 'isValidPath' fails on the path
+-- * Fails if the stream contains invalid unicode characters
+--
+-- We do not sanitize the path i.e. we do not remove duplicate separators,
+-- redundant @.@ segments, trailing separators etc because that would require
+-- unnecessary checks and modifications to the path which may not be used ever
+-- for any useful purpose, it is only needed for path equality and can be done
+-- during the equality check.
+--
+-- On Windows it accepts a share root even if a path does not follow it.
 --
 -- Unicode normalization is not done. If normalization is needed the user can
--- normalize it and use the fromChunk API.
+-- normalize it and then use the 'fromChunk' API.
 {-# INLINE fromChars #-}
 fromChars :: (MonadThrow m, IsPath OS_PATH a) => Stream Identity Char -> m a
 fromChars s =
     Common.fromChars Common.OS_NAME Unicode.UNICODE_ENCODER s
         >>= fromPath . OS_PATH
 
+-- | Like 'fromString' but does not perform any validations mentioned under
+-- 'isValidPath'. Fails only if unicode encoding fails.
 unsafeFromString :: IsPath OS_PATH a => [Char] -> a
 unsafeFromString =
 #ifndef DEBUG
@@ -295,7 +335,8 @@ unsafeFromString =
     fromJust . fromString
 #endif
 
--- | See fromChars.
+-- | Convert astring to OS_PATH. See 'fromChars' for failure cases and
+-- semantics.
 --
 -- >>> fromString = Path.fromChars . Stream.fromList
 --
@@ -315,7 +356,8 @@ liftPath :: OS_PATH -> Q Exp
 liftPath p =
     [| unsafeFromString $(lift $ toString p) :: OS_PATH |]
 
--- | Generates a Haskell expression of type OS_PATH from a String.
+-- | Generates a Haskell expression of type OS_PATH from a String. Equivalent
+-- to using 'fromString' on the string passed.
 --
 pathE :: String -> Q Exp
 pathE = either (error . show) liftPath . fromString
@@ -329,7 +371,8 @@ pathE = either (error . show) liftPath . fromString
 -- for free. Interpolated vars if any have to be of appropriate type depending
 -- on the context so that we can splice them safely.
 
--- | Generates a OS_PATH type from a quoted literal.
+-- | Generates a OS_PATH type from a quoted literal. Equivalent to using
+-- 'fromString' on the static literal.
 --
 -- >>> Path.toString ([path|/usr/bin|] :: PosixPath)
 -- "/usr/bin"
@@ -366,15 +409,39 @@ toChars_ p =
 toString :: IsPath OS_PATH a => a -> [Char]
 toString = runIdentity . Stream.toList . toChars
 
--- | Decode the path to a Unicode string using strict CODEC_NAME decoding.
+-- | Decode the path to a Unicode string using lax CODEC_NAME decoding.
 toString_ :: IsPath OS_PATH a => a -> [Char]
 toString_ = runIdentity . Stream.toList . toChars_
 
+-- | Show the path as raw characters without any specific decoding.
+--
+-- See also: 'readRaw'.
+--
 showRaw :: IsPath OS_PATH a => a -> [Char]
 showRaw p =
     let (OS_PATH arr) =
             toPath p in show arr
 
+#ifndef IS_WINDOWS
+-- | Read a raw array as a path type.
+--
+-- >>> readRaw = fromJust . Path.fromChunk . read
+--
+-- >>> arr <- Stream.fold Array.create $ Unicode.encodeUtf8 $ Stream.fromList "hello"
+-- >>> Path.showRaw $ (Path.readRaw $ show arr :: Path.PosixPath)
+-- "fromList [104,101,108,108,111]"
+--
+-- See also: 'showRaw'.
+#else
+-- | Read a raw array as a path type.
+--
+-- >> readRaw = fromJust . Path.fromChunk . read
+--
+-- >> arr <- Stream.fold Array.create $ Unicode.encodeUtf16LE $ Stream.fromList "hello"
+-- >> Path.showRaw $ (Path.readRaw $ show arr :: Path.WindowsPath)
+--
+-- See also: 'showRaw'.
+#endif
 readRaw :: IsPath OS_PATH a => [Char] -> a
 readRaw = fromJust . fromChunk . read
 
@@ -389,10 +456,14 @@ instance Show OS_PATH where
 -}
 
 #ifndef IS_WINDOWS
+-- | Use the path as a pinned CString. Useful for using a PosixPath in
+-- system calls on Posix.
 {-# INLINE asCString #-}
 asCString :: OS_PATH -> (CString -> IO a) -> IO a
 asCString p = Array.asCStringUnsafe (toChunk p)
 #else
+-- | Use the path as a pinned CWString. Useful for using a WindowsPath in
+-- system calls on Windows.
 {-# INLINE asCWString #-}
 asCWString :: OS_PATH -> (CWString -> IO a) -> IO a
 asCWString p = Array.asCWString (toChunk p)
@@ -402,39 +473,40 @@ asCWString p = Array.asCWString (toChunk p)
 -- Operations on Path
 ------------------------------------------------------------------------------
 
-#ifdef IS_WINDOWS
--- | A path that is attached to a root. "C:\" is considered an absolute root
--- and "." as a dynamic root. ".." is not considered a root, "../x" or "x/y"
--- are not rooted paths.
+#ifndef IS_WINDOWS
+-- | A path that is attached to a root e.g. "\/x" or ".\/x" are rooted paths.
+-- "\/" is considered an absolute root and "." as a dynamic root. ".." is not
+-- considered a root, "..\/x" or "x\/y" are not rooted paths.
 --
--- Absolute locations:
+-- >>> isRooted = Path.isRooted . pack
 --
--- * @C:\\@ local drive
--- * @\\\\server\\@ UNC server
--- * @\\\\?\\C:\\@ Long UNC local drive
--- * @\\\\?\\UNC\\@ Long UNC remote server
--- * @\\\\.\\@ DOS local device namespace
--- * @\\\\??\\@ DOS global namespace
+-- >>> isRooted "/"
+-- True
+-- >>> isRooted "/x"
+-- True
+-- >>> isRooted "."
+-- True
+-- >>> isRooted "./x"
+-- True
 --
--- Relative locations:
---
--- * @\\@ relative to current drive root
--- * @.\\@ relative to current directory
--- * @C:file@ relative to current directory in drive
-#else
--- | A path that is attached to a root e.g. "/x" or "./x" are rooted paths. "/"
--- is considered an absolute root and "." as a dynamic root. ".." is not
--- considered a root, "../x" or "x/y" are not rooted paths.
---
--- * An absolute rooted path: @/@ starting from file system root
--- * A dynamic rooted path: @./@ relative to current directory
-#endif
 isRooted :: OS_PATH -> Bool
 isRooted (OS_PATH arr) = Common.isRooted Common.OS_NAME arr
+#endif
 
 -- | A path that is not attached to a root e.g. @a\/b\/c@ or @..\/b\/c@.
 --
 -- >>> isBranch = not . Path.isRooted
+--
+-- >>> isBranch = Path.isBranch . pack
+--
+-- >>> isBranch "x"
+-- True
+-- >>> isBranch "x/y"
+-- True
+-- >>> isBranch ".."
+-- True
+-- >>> isBranch "../x"
+-- True
 --
 isBranch :: OS_PATH -> Bool
 isBranch = not . isRooted
@@ -442,6 +514,20 @@ isBranch = not . isRooted
 -- XXX This can be generalized to an Array intersperse operation
 -- XXX This can work on a polymorphic IsPath type.
 
+-- | Like 'append' but does not check if any of the path is empty or if the
+-- second path is rooted.
+--
+-- >>> append a b = Path.toString $ Path.unsafeAppend (pack a) (pack b)
+--
+-- >>> append "x" "y"
+-- "x/y"
+-- >>> append "x/" "y"
+-- "x/y"
+-- >>> append "x" "/y"
+-- "x/y"
+-- >>> append "x/" "/y"
+-- "x/y"
+--
 {-# INLINE unsafeAppend #-}
 unsafeAppend :: OS_PATH -> OS_PATH -> OS_PATH
 unsafeAppend (OS_PATH a) (OS_PATH b) =
@@ -452,13 +538,19 @@ unsafeAppend (OS_PATH a) (OS_PATH b) =
 -- XXX Should we fail if the first path does not have a trailing separator i.e.
 -- it is not a directory?
 
+#ifndef IS_WINDOWS
 -- | Append a OS_PATH to another. Fails if the second path refers to a rooted
--- path and not a branch. Use 'unsafeAppend' to avoid failure if you know it is
--- ok to append the path or use the typesafe "Streamly.FileSystem.OS_PATH.Seg"
--- module.
+-- path. Use 'unsafeAppend' to avoid failure if you know it is ok to append the
+-- path or use the typesafe Streamly.FileSystem.OS_PATH.Seg module.
 --
--- >>> Path.toString $ Path.append [path|/usr|] [path|bin|]
+-- >>> f a b = Path.toString $ Path.append a b
+--
+-- >>> f [path|/usr|] [path|bin|]
 -- "/usr/bin"
+-- >>> f [path|/usr/|] [path|bin|]
+-- "/usr/bin"
+-- >>> fails (f [path|/usr|] [path|/bin|])
+-- True
 --
 append :: OS_PATH -> OS_PATH -> OS_PATH
 append (OS_PATH a) (OS_PATH b) =
@@ -469,6 +561,11 @@ append (OS_PATH a) (OS_PATH b) =
 -- | A stricter version of 'append' which requires the first path to be a
 -- directory like path i.e. with a trailing separator.
 --
+-- >>> f a b = Path.toString $ Path.append' a b
+--
+-- >>> fails $ f [path|/usr|] [path|bin|]
+-- True
+--
 append' ::
     OS_PATH -> OS_PATH -> OS_PATH
 append'
@@ -476,25 +573,24 @@ append'
     OS_PATH
         $ Common.append'
             Common.OS_NAME (Common.toString Unicode.UNICODE_DECODER) a b
+#endif
 
 -- XXX This can be pure, like append.
 -- XXX add appendW16CString for Windows?
 
 #ifndef IS_WINDOWS
--- | Append a separator and a CString to the Array.
+-- | Append a separator and a CString to the Array. This is like 'unsafeAppend'
+-- but always inserts a separator between the two paths even if the first path
+-- has a trailing separator or second path has a leading separator.
 --
--- TODO: This always appends a separator and does not perform any other
--- checks like append.
 appendCString :: OS_PATH -> CString -> IO OS_PATH
 appendCString (OS_PATH a) str =
     fmap OS_PATH
         $ Common.appendCString
             Common.OS_NAME a str
 
--- | Append a separator and a CString to the Array.
+-- | Like 'appendCString' but creates a pinned path.
 --
--- TODO: This always appends a separator and does not perform any other
--- checks like append.
 appendCString' ::
     OS_PATH -> CString -> IO OS_PATH
 appendCString'
@@ -508,39 +604,429 @@ appendCString'
 -- Splitting path
 ------------------------------------------------------------------------------
 
+#ifndef IS_WINDOWS
+-- | If a path is rooted then separate the root and the remaining path,
+-- otherwise root is returned as empty. If the path is rooted then the non-root
+-- part is guaranteed to not start with a separator.
+--
+-- >>> toList (a,b) = (Path.toString a, Path.toString b)
+-- >>> split = toList . Path.splitRoot . pack
+--
+-- >>> split "/"
+-- ("/","")
+--
+-- >>> split "."
+-- (".","")
+--
+-- >>> split "./"
+-- ("./","")
+--
+-- >>> split "/home"
+-- ("/","home")
+--
+-- >>> split "//"
+-- ("//","")
+--
+-- >>> split "./home"
+-- ("./","home")
+--
+-- >>> split "home"
+-- ("","home")
+--
 splitRoot :: OS_PATH -> (OS_PATH, OS_PATH)
 splitRoot (OS_PATH a) =
     bimap OS_PATH OS_PATH $ Common.splitRoot Common.OS_NAME a
 
+-- | Split the path components keeping separators between path components
+-- attached to the dir part. Redundant separators are removed, only the first
+-- one is kept. Separators are not added either e.g. "." and ".." may not have
+-- trailing separators if the original path does not.
+--
+-- >>> split = Stream.toList . fmap Path.toString . Path.splitPath . pack
+--
+-- >>> split "."
+-- ["."]
+--
+-- >>> split "././"
+-- ["./"]
+--
+-- >>> split "./a/b/."
+-- ["./","a/","b/"]
+--
+-- >>> split ".."
+-- [".."]
+--
+-- >>> split "../"
+-- ["../"]
+--
+-- >>> split "a/.."
+-- ["a/",".."]
+--
+-- >>> split "/"
+-- ["/"]
+--
+-- >>> split "//"
+-- ["/"]
+--
+-- >>> split "/x"
+-- ["/","x"]
+--
+-- >>> split "/./x/"
+-- ["/","x/"]
+--
+-- >>> split "/x/./y"
+-- ["/","x/","y"]
+--
+-- >>> split "/x/../y"
+-- ["/","x/","../","y"]
+--
+-- >>> split "/x///y"
+-- ["/","x/","y"]
+--
+-- >>> split "/x/\\y"
+-- ["/","x/","\\y"]
+--
 {-# INLINE splitPath #-}
 splitPath :: Monad m => OS_PATH -> Stream m OS_PATH
 splitPath (OS_PATH a) = fmap OS_PATH $ Common.splitPath Common.OS_NAME a
 
+-- | Split a path into components separated by the path separator. "."
+-- components in the path are ignored except when in the leading position.
+-- Trailing separators in non-root components are dropped.
+--
+-- >>> split = Stream.toList . fmap Path.toString . Path.splitPath_ . pack
+--
+-- >>> split "."
+-- ["."]
+--
+-- >>> split "././"
+-- ["."]
+--
+-- >>> split ".//"
+-- ["."]
+--
+-- >>> split "//"
+-- ["/"]
+--
+-- >>> split "//x/y/"
+-- ["/","x","y"]
+--
+-- >>> split "./a"
+-- [".","a"]
+--
+-- >>> split "a/."
+-- ["a"]
+--
+-- >>> split "/"
+-- ["/"]
+--
+-- >>> split "/x"
+-- ["/","x"]
+--
+-- >>> split "/./x/"
+-- ["/","x"]
+--
+-- >>> split "/x/./y"
+-- ["/","x","y"]
+--
+-- >>> split "/x/../y"
+-- ["/","x","..","y"]
+--
+-- >>> split "/x///y"
+-- ["/","x","y"]
+--
+-- >>> split "/x/\\y"
+-- ["/","x","\\y"]
+--
 {-# INLINE splitPath_ #-}
 splitPath_ :: Monad m => OS_PATH -> Stream m OS_PATH
 splitPath_ (OS_PATH a) = fmap OS_PATH $ Common.splitPath_ Common.OS_NAME a
+#endif
 
+-- | Split a multi-component path into (dir, file) if its last component can be
+-- a file i.e.:
+--
+-- * the path does not end with a separator
+-- * the path does not end with a . or .. component
+--
+-- Split a single component into ("", path) if it can be a file i.e. it is not
+-- a path root, "." or "..".
+--
+-- If the path cannot be a file then (path, "") is returned.
+--
+-- >>> toList (a,b) = (Path.toString a, Path.toString b)
+-- >>> split = toList . Path.splitFile . pack
+--
+-- >>> split "/"
+-- ("/","")
+--
+-- >>> split "."
+-- (".","")
+--
+-- >>> split "/."
+-- ("/.","")
+--
+-- >>> split ".."
+-- ("..","")
+--
+-- >>> split "//"
+-- ("//","")
+--
+-- >>> split "/home"
+-- ("/","home")
+--
+-- >>> split "./home"
+-- ("./","home")
+--
+-- >>> split "home"
+-- ("","home")
+--
+-- >>> split "x/"
+-- ("x/","")
+--
+-- >>> split "x/y"
+-- ("x/","y")
+--
+-- >>> split "x//y"
+-- ("x//","y")
+--
+-- >>> split "x/./y"
+-- ("x/./","y")
 splitFile :: OS_PATH -> (OS_PATH, OS_PATH)
 splitFile (OS_PATH a) =
     bimap OS_PATH OS_PATH $ Common.splitFile Common.OS_NAME a
 
+#ifndef IS_WINDOWS
+-- | For the purposes of this function a file is considered to have an
+-- extension if the file name can be broken down into a non-empty filename
+-- followed by an extension separator (usually ".") followed by a non-empty
+-- extension with at least one character other than the extension separator
+-- characters. The shortest suffix obtained by this rule, starting with the
+-- extension separator is returned as the extension and the remaining prefix
+-- part as the filename.
+--
+-- A directory name does not have an extension.
+--
+-- >>> toList (a,b) = (Path.toString a, Path.toString b)
+-- >>> split = toList . Path.splitExtension . pack
+--
+-- >>> split "/"
+-- ("/","")
+--
+-- >>> split "."
+-- (".","")
+--
+-- >>> split ".."
+-- ("..","")
+--
+-- >>> split "x"
+-- ("x","")
+--
+-- >>> split "/x"
+-- ("/x","")
+--
+-- >>> split "x/"
+-- ("x/","")
+--
+-- >>> split "./x"
+-- ("./x","")
+--
+-- >>> split "x/."
+-- ("x/.","")
+--
+-- >>> split "x/y."
+-- ("x/y.","")
+--
+-- >>> split "/x.y"
+-- ("/x",".y")
+--
+-- >>> split "/x.y." -- XXX should it be .y.?
+-- ("/x.y.","")
+--
+-- >>> split "/x.y.." -- XXX should it be .y..?
+-- ("/x.y..","")
+--
+-- >>> split "x/.y"
+-- ("x/.y","")
+--
+-- >>> split ".x"
+-- (".x","")
+--
+-- >>> split "x."
+-- ("x.","")
+--
+-- >>> split ".x.y"
+-- (".x",".y")
+--
+-- >>> split "x/y.z"
+-- ("x/y",".z")
+--
+-- >>> split "x.y.z"
+-- ("x.y",".z")
+--
+-- >>> split "x..y"
+-- ("x.",".y")
+--
+-- >>> split "..."
+-- ("...","")
+--
+-- >>> split "..x"
+-- (".",".x")
+--
+-- >>> split "...x"
+-- ("..",".x")
+--
+-- >>> split "x/y.z/"
+-- ("x/y.z/","")
+--
+-- >>> split "x/y"
+-- ("x/y","")
+--
 splitExtension :: OS_PATH -> (OS_PATH, OS_PATH)
 splitExtension (OS_PATH a) =
     bimap OS_PATH OS_PATH $ Common.splitExtension Common.OS_NAME a
+#endif
 
 ------------------------------------------------------------------------------
 -- Path equality
 ------------------------------------------------------------------------------
 
+#ifndef IS_WINDOWS
+-- | Checks two paths for logical equality. It performs some normalizations on
+-- the paths before comparing them, specifically it drops redundant path
+-- separators between path segments and redundant "\/.\/" components between
+-- segments.
+--
+-- Equality semantics followed by this routine are listed below. If it returns
+-- equal then the paths are definitely equal, if it returns unequal then the
+-- paths may still be equal using some relaxed equality criterion.
+--
+-- * paths with a leading "." and without a leading "." e.g. ".\/x\/y"
+-- and "x\/y" are treated as unequal. The first one is a dynamically rooted path
+-- and the second one is a free path segment.
+--
+-- * An absolute path and a path relative to "." may be equal depending on the
+-- meaning of ".", however this routine treats them as unequal.
+--
+-- * Two paths starting with a leading "." may not actually be equal even if
+-- they are literally equal. We return unequal even though they may be equal
+-- sometimes.
+--
+-- * Two paths having ".." components may be equal after processing the ".."
+-- components even if we determined them to be unequal. However, if we
+-- determined them to be equal then they must be equal.
+--
+-- * A path with a trailing slash and a path without are treated as unequal
+-- e.g. "x" is not the same as "x\/". The latter is a directory.
+--
+-- In short, for strict equality both the paths must be absolute or both must
+-- be path segments without a leading root component (e.g. x\/y). Also, both
+-- must be files or both must be directories.
+--
+-- >>> :{
+--  eq a b = Path.eqPath (pack a) (pack b)
+-- :}
+--
+-- >>> eq "/x"  "//x"
+-- True
+--
+-- >>> eq "x//y"  "x/y"
+-- True
+--
+-- >>> eq "x/./y"  "x/y"
+-- True
+--
+-- >>> eq "./x"  "x"
+-- False
+--
+-- >>> eq "x/"  "x"
+-- False
+--
+-- >>> eq "x"  "x"
+-- True
+--
+-- >>> eq "x"  "X"
+-- False
+--
+-- >>> eq ".."  ".."
+-- True
+--
+-- >>> eq "."  "."
+-- False
+--
+-- >>> eq "./x"  "./x"
+-- False
+--
 eqPath :: OS_PATH -> OS_PATH -> Bool
 eqPath (OS_PATH a) (OS_PATH b) =
     Common.eqPath Unicode.UNICODE_DECODER
         Common.OS_NAME a b
 
+-- | Like 'eqPath' but we can control the equality options.
+--
+-- >>> :{
+--  cfg = Path.eqCfg
+--      { Path.ignoreTrailingSeparators = True
+--      , Path.allowRelativeEquality = True
+--      }
+--  eq a b = Path.eqPathWith cfg (pack a) (pack b)
+-- :}
+--
+-- >>> eq "."  "."
+-- True
+--
+-- >>> eq "./"  ".//"
+-- True
+--
+-- >>> eq "./x"  "./x"
+-- True
+--
+-- >>> eq "./x"  "x"
+-- True
+--
+-- >>> eq "x/"  "x"
+-- True
+--
+-- >>> eq "x/"  "X"
+-- False
+--
+-- >>> eq "x//y"  "x/y"
+-- True
+--
+-- >>> eq "x/./y"  "x/y"
+-- True
+--
+-- >>> eq "x"  "x"
+-- True
+--
 eqPathWith :: EqCfg -> OS_PATH -> OS_PATH -> Bool
 eqPathWith cfg (OS_PATH a) (OS_PATH b) =
     Common.eqPathWith Unicode.UNICODE_DECODER
         Common.OS_NAME cfg a b
+#endif
 
+-- | Check two paths for byte level equality. This is the most strict path
+-- equality check.
+--
+-- >>> eqPath a b = Path.eqPathBytes (pack a) (pack b)
+--
+-- >>> eqPath "x//y"  "x//y"
+-- True
+--
+-- >>> eqPath "x//y"  "x/y"
+-- False
+--
+-- >>> eqPath "x/./y"  "x/y"
+-- False
+--
+-- >>> eqPath "x\\y" "x/y"
+-- False
+--
+-- >>> eqPath "./file"  "file"
+-- False
+--
+-- >>> eqPath "file/"  "file"
+-- False
+--
 eqPathBytes :: OS_PATH -> OS_PATH -> Bool
 eqPathBytes (OS_PATH a) (OS_PATH b) = Common.eqPathBytes a b

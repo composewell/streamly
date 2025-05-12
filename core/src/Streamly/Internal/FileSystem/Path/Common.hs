@@ -259,18 +259,6 @@ compactTrailingBy p arr =
         then arr
         else fst $ Array.unsafeBreakAt (len - n + 1) arr
 
--- | If the path is @//@ the result is @/@. If it is @a//@ then the result is
--- @a@. On Windows "c:" and "c:/" are different paths, therefore, we do not
--- drop the trailing separator from "c:/".
---
--- Note that a path with trailing separators may implicitly be considered as a
--- directory by some applications. So dropping it may change the dir nature of
--- the path.
---
--- >>> f a = unpackPosix $ Common.dropTrailingSeparators Common.Posix (packPosix a)
--- >>> f "./"
--- "."
---
 {-# INLINE dropTrailingSeparators #-}
 dropTrailingSeparators :: (Unbox a, Integral a) => OS -> Array a -> Array a
 dropTrailingSeparators os =
@@ -426,62 +414,6 @@ isAbsolute Windows arr =
 -- leave this to the programmer. In typed paths we can allow "./x" in segments.
 -- XXX Empty path can be taken to mean "." except in case of UNC paths
 
--- | Any path that starts with a separator, @./@ or a drive prefix is a rooted
--- path.
---
--- Rooted paths on Posix and Windows,
--- * @/...@ a path starting with a separator
--- * @.@ current dir
--- * @./...@ a location relative to current dir
---
--- Rooted paths on Windows:
--- * @C:@ local drive cur dir location
--- * @C:a\\b@ local drive relative to cur dir location
--- * @C:\\@ local drive absolute location
--- * @\\@ local path relative to current drive
--- * @\\\\share\\@ UNC network location
--- * @\\\\?\\C:\\@ Long UNC local path
--- * @\\\\?\\UNC\\@ Long UNC server location
--- * @\\\\.\\@ DOS local device namespace
--- * @\\\\??\\@ DOS global namespace
---
--- >>> fPosix = Common.isRooted Common.Posix . packPosix
--- >>> fWin = Common.isRooted Common.Windows . packPosix
---
--- >>> fPosix "/"
--- True
--- >>> fPosix "/x"
--- True
--- >>> fPosix "."
--- True
--- >>> fPosix "./x"
--- True
--- >>> fPosix ".."
--- False
--- >>> fPosix "../x"
--- False
---
--- >>> fWin "/"
--- True
--- >>> fWin "/x"
--- True
--- >>> fWin "."
--- True
--- >>> fWin "./x"
--- True
--- >>> fWin ".."
--- False
--- >>> fWin "../x"
--- False
--- >>> fWin "c:"
--- True
--- >>> fWin "c:x"
--- True
--- >>> fWin "c:/"
--- True
--- >>> fWin "//x/y"
--- True
---
 isRooted :: (Unbox a, Integral a) => OS -> Array a -> Bool
 isRooted Posix a =
     hasLeadingSeparator Posix a
@@ -664,49 +596,6 @@ unsafeSplitUNC arr =
 -- avoid an empty path.
 -- XXX Should we keep the trailing separator in the directory components?
 
--- | If a path is rooted then separate the root and the remaining path
--- otherwise root is returned as empty. If the path is rooted then the non-root
--- part is guaranteed to not start with a separator.
---
--- >>> toListPosix (a,b) = (unpackPosix a, unpackPosix b)
--- >>> splitPosix = toListPosix . Common.splitRoot Common.Posix . packPosix
--- >>> toListWin (a,b) = (unpackWindows a, unpackWindows b)
--- >>> splitWin = toListWin . Common.splitRoot Common.Windows . packWindows
---
--- >>> splitPosix "/"
--- ("/","")
---
--- >>> splitPosix "."
--- (".","")
---
--- >>> splitPosix "./"
--- ("./","")
---
--- >>> splitPosix "/home"
--- ("/","home")
---
--- >>> splitPosix "//"
--- ("//","")
---
--- >>> splitPosix "./home"
--- ("./","home")
---
--- >>> splitPosix "home"
--- ("","home")
---
--- >>> splitWin "c:"
--- ("c:","")
---
--- >>> splitWin "c:/"
--- ("c:/","")
---
--- >>> splitWin "//"
--- ("//","")
---
--- >>> splitWin "//x/y"
--- ("//x/","y")
---
---
 {-# INLINE splitRoot #-}
 splitRoot :: (Unbox a, Integral a) => OS -> Array a -> (Array a, Array a)
 -- NOTE: validatePath depends on splitRoot splitting the path without removing
@@ -812,155 +701,12 @@ splitPathUsing withSep os arr =
         then compactTrailingBy (isSeparator os . wordToChar) root
         else dropTrailingSeparators os root
 
--- | Split a path into components separated by the path separator. "."
--- components in the path are ignored except when in the leading position.
--- Trailing separators in non-root components are dropped.
---
--- >>> :{
---  splitPosix = Stream.toList . fmap unpackPosix . Common.splitPath_ Common.Posix . packPosix
---  splitWin = Stream.toList . fmap unpackWindows . Common.splitPath_ Common.Windows . packWindows
--- :}
---
--- >>> splitPosix "."
--- ["."]
---
--- >>> splitPosix "././"
--- ["."]
---
--- >>> splitPosix ".//"
--- ["."]
---
--- >>> splitWin "c:x"
--- ["c:","x"]
---
--- >>> splitWin "c:/" -- Note, c:/ is not the same as c:
--- ["c:/"]
---
--- >>> splitWin "c:/x"
--- ["c:/","x"]
---
--- >>> splitPosix "//"
--- ["/"]
---
--- >>> splitPosix "//x/y/"
--- ["/","x","y"]
---
--- >>> splitWin "//x/y/"
--- ["//x","y"]
---
--- >>> splitPosix "./a"
--- [".","a"]
---
--- >>> splitWin "./a"
--- [".","a"]
---
--- >>> splitWin "c:./a"
--- ["c:","a"]
---
--- >>> splitPosix "a/."
--- ["a"]
---
--- >>> splitWin "a/."
--- ["a"]
---
--- >>> splitPosix "/"
--- ["/"]
---
--- >>> splitPosix "/x"
--- ["/","x"]
---
--- >>> splitWin "/x"
--- ["/","x"]
---
--- >>> splitPosix "/./x/"
--- ["/","x"]
---
--- >>> splitPosix "/x/./y"
--- ["/","x","y"]
---
--- >>> splitPosix "/x/../y"
--- ["/","x","..","y"]
---
--- >>> splitPosix "/x///y"
--- ["/","x","y"]
---
--- >>> splitPosix "/x/\\y"
--- ["/","x","\\y"]
---
--- >>> splitWin "/x/\\y"
--- ["/","x","y"]
---
--- >>> splitWin "\\x/\\y"
--- ["\\","x","y"]
---
 {-# INLINE splitPath_ #-}
 splitPath_
     :: (Unbox a, Integral a, Monad m)
     => OS -> Array a -> Stream m (Array a)
 splitPath_ = splitPathUsing False
 
--- | Split the path components keeping separators between path components
--- attached to the dir part. Redundant separators are removed, only the first
--- one is kept, but separators are not changed to the default on Windows.
--- Separators are not added either e.g. "." and ".." may not have trailing
--- separators if the original path does not.
---
--- >>> :{
---  splitPosix = Stream.toList . fmap unpackPosix . Common.splitPath Common.Posix . packPosix
---  splitWin = Stream.toList . fmap unpackWindows . Common.splitPath Common.Windows . packWindows
--- :}
---
--- >>> splitPosix "."
--- ["."]
---
--- >>> splitPosix "././"
--- ["./"]
---
--- >>> splitPosix "./a/b/."
--- ["./","a/","b/"]
---
--- >>> splitPosix ".."
--- [".."]
---
--- >>> splitPosix "../"
--- ["../"]
---
--- >>> splitPosix "a/.."
--- ["a/",".."]
---
--- >>> splitPosix "/"
--- ["/"]
---
--- >>> splitPosix "//"
--- ["/"]
---
--- >>> splitPosix "/x"
--- ["/","x"]
---
--- >>> splitWin "/x"
--- ["/","x"]
---
--- >>> splitPosix "/./x/"
--- ["/","x/"]
---
--- >>> splitPosix "/x/./y"
--- ["/","x/","y"]
---
--- >>> splitPosix "/x/../y"
--- ["/","x/","../","y"]
---
--- >>> splitPosix "/x///y"
--- ["/","x/","y"]
---
--- >>> splitPosix "/x/\\y"
--- ["/","x/","\\y"]
---
--- >>> splitWin "/x/\\y"
--- ["/","x/","y"]
---
--- >>> splitWin "\\x/\\y" -- this is not valid, multiple seps after share?
--- ["\\","x/","y"]
---
 {-# INLINE splitPath #-}
 splitPath
     :: (Unbox a, Integral a, Monad m)
@@ -1017,55 +763,6 @@ validateFile os arr = do
                 $ throwM $ InvalidPath "A drive root is not a valid file name"
         Posix -> pure ()
 
--- | Split a multi-component path into (dir, file) if its last component can be
--- a file i.e.:
---
--- * the path does not end with a separator
--- * the path does not end with a . or .. component
---
--- Split a single component into ("", path) if it can be a file i.e. it is not
--- a path root, "." or "..".
---
--- If the path cannot be a file then (path, "") is returned.
---
--- >>> toList (a,b) = (unpackPosix a, unpackPosix b)
--- >>> splitPosix = toList . Common.splitFile Common.Posix . packPosix
---
--- >>> splitPosix "/"
--- ("/","")
---
--- >>> splitPosix "."
--- (".","")
---
--- >>> splitPosix "/."
--- ("/.","")
---
--- >>> splitPosix ".."
--- ("..","")
---
--- >>> splitPosix "//"
--- ("//","")
---
--- >>> splitPosix "/home"
--- ("/","home")
---
--- >>> splitPosix "./home"
--- ("./","home")
---
--- >>> splitPosix "home"
--- ("","home")
---
--- >>> splitPosix "x/"
--- ("x/","")
---
--- >>> splitPosix "x/y"
--- ("x/","y")
---
--- >>> splitPosix "x//y"
--- ("x//","y")
---
--- >>> splitPosix "x/./y"
--- ("x/./","y")
 {-# INLINE splitFile #-}
 splitFile :: (Unbox a, Integral a) => OS -> Array a -> (Array a, Array a)
 splitFile os arr =
@@ -1205,105 +902,6 @@ splitExtensionBy c os arr =
         then res
         else (arr, Array.empty)
 
--- | For the purposes of this function a file is considered to have an
--- extension if the file name can be broken down into a non-empty filename
--- followed by an extension separator (usually ".") followed by a non-empty
--- extension with at least one character other than the extension separator
--- characters. The shortest suffix obtained by this rule, starting with the
--- extension separator is returned as the extension and the remaining prefix
--- part as the filename.
---
--- A directory name does not have an extension.
---
--- Note: On Windows we cannot create a file named "prn." or "prn..". Thus it
--- considers anything starting with and including the first "." as the
--- extension and the part before it as the filename. Our definition considers
--- "prn." as a filename without an extension.
-
--- >>> toList (a,b) = (unpackPosix a, unpackPosix b)
--- >>> splitPosix = toList . Common.splitExtension Common.Posix . packPosix
---
--- >>> toListWin (a,b) = (unpackWindows a, unpackWindows b)
--- >>> splitWin = toListWin . Common.splitExtension Common.Windows . packWindows
---
--- >>> splitPosix "/"
--- ("/","")
---
--- >>> splitPosix "."
--- (".","")
---
--- >>> splitPosix ".."
--- ("..","")
---
--- >>> splitPosix "x"
--- ("x","")
---
--- >>> splitPosix "/x"
--- ("/x","")
---
--- >>> splitPosix "x/"
--- ("x/","")
---
--- >>> splitPosix "./x"
--- ("./x","")
---
--- >>> splitPosix "x/."
--- ("x/.","")
---
--- >>> splitPosix "x/y."
--- ("x/y.","")
---
--- >>> splitPosix "/x.y"
--- ("/x",".y")
---
--- >>> splitPosix "/x.y."
--- ("/x",".y.")
---
--- >>> splitPosix "/x.y.."
--- ("/x",".y..")
---
--- >>> splitPosix "x/.y"
--- ("x/.y","")
---
--- >>> splitPosix ".x"
--- (".x","")
---
--- >>> splitPosix "x."
--- ("x.","")
---
--- >>> splitPosix ".x.y"
--- (".x",".y")
---
--- >>> splitPosix "x/y.z"
--- ("x/y",".z")
---
--- >>> splitPosix "x.y.z"
--- ("x.y",".z")
---
--- >>> splitPosix "x..y"
--- ("x.",".y")
---
--- >>> splitPosix "..."
--- ("...","")
---
--- >>> splitPosix "..x"
--- (".",".x")
---
--- >>> splitPosix "...x"
--- ("..",".x")
---
--- >>> splitPosix "x/y.z/"
--- ("x/y.z/","")
---
--- >>> splitPosix "x/y"
--- ("x/y","")
---
--- >>> splitWin "x:y"
--- ("x:y","")
---
--- >>> splitWin "x:.y"
--- ("x:.y","")
---
 {-# INLINE splitExtension #-}
 splitExtension :: (Unbox a, Integral a) => OS -> Array a -> (Array a, Array a)
 splitExtension = splitExtensionBy extensionWord
@@ -1563,136 +1161,6 @@ validatePath = validatePathWith True
 validatePath' :: (MonadThrow m, Integral a, Unbox a) => OS -> Array a -> m ()
 validatePath' = validatePathWith False
 
--- Note: We can use powershell for testing path validity.
--- "//share/x" works in powershell.
--- But mixed forward and backward slashes do not work, it is treated as a path
--- relative to current drive e.g. "\\/share/x" is treated as "C:/share/x".
---
--- XXX Note: Windows may have case sensitive behavior depending on the file
--- system being used. Does it impact any of the case insensitive validations
--- below?
-
--- | Check if the filepath is valid i.e. does the operating system or the file
--- system allow such a path in listing or creating files?
---
--- >>> isValidPosix = Common.isValidPath Common.Posix . packPosix
--- >>> isValidWin = Common.isValidPath Common.Windows . packWindows
---
--- Posix and Windows:
---
--- >>> isValidPosix ""
--- False
--- >>> isValidPosix "\0"
--- False
--- >>> isValidWin ""
--- False
--- >>> isValidWin "\0"
--- False
---
--- Windows invalid characters:
---
--- >>> isValidWin "c::"
--- False
--- >>> isValidWin "c:\\x:y"
--- False
--- >>> isValidWin "x*"
--- False
--- >>> isValidWin "x\ty"
--- False
---
--- Windows invalid path components:
---
--- >>> isValidWin "pRn.txt"
--- False
--- >>> isValidWin " pRn .txt"
--- False
--- >>> isValidWin "c:\\x\\pRn"
--- False
--- >>> isValidWin "c:\\x\\pRn.txt"
--- False
--- >>> isValidWin "c:\\pRn\\x"
--- False
--- >>> isValidWin "c:\\ pRn \\x"
--- False
--- >>> isValidWin "pRn.x.txt"
--- False
---
--- Windows drive root validations:
---
--- isValidWin "c:"
--- True
--- isValidWin "c:a\\b"
--- True
--- isValidWin "c:\\"
--- True
--- >>> isValidWin "c:\\\\"
--- False
--- >>> isValidWin "c:\\/"
--- False
--- >>> isValidWin "c:\\\\x"
--- False
--- >>> isValidWin "c:\\/x"
--- False
--- >>> isValidWin "\\/x/y"
--- True
---
--- Windows share path validations:
---
--- >>> isValidWin "\\"
--- True
--- >>> isValidWin "\\\\"
--- False
--- >>> isValidWin "\\\\\\"
--- False
--- >>> isValidWin "\\\\x"
--- False
--- >>> isValidWin "\\\\x\\"
--- True
--- >>> isValidWin "\\\\x\\y"
--- True
--- >>> isValidWin "//x/y"
--- True
--- >>> isValidWin "\\\\prn\\y"
--- False
--- >>> isValidWin "\\\\x\\\\"
--- False
--- >>> isValidWin "\\\\x\\\\x"
--- False
--- >>> isValidWin "\\\\\\x"
--- False
-
--- Windows short UNC path validations:
---
--- >>> isValidWin "\\\\?\\c:"
--- False
--- >>> isValidWin "\\\\?\\c:\\"
--- True
--- >>> isValidWin "\\\\?\\c:x"
--- False
--- >>> isValidWin "\\\\?\\c:\\\\" -- XXX validate this
--- False
--- >>> isValidWin "\\\\?\\c:\\x"
--- True
--- >>> isValidWin "\\\\?\\c:\\\\\\"
--- False
--- >>> isValidWin "\\\\?\\c:\\\\x"
--- False
---
--- Windows long UNC path validations:
---
--- >>> isValidWin "\\\\?\\UnC\\x" -- UnC treated as share name
--- True
--- >>> isValidWin "\\\\?\\UNC\\x"
--- True
--- >>> isValidWin "\\\\?\\UNC\\c:\\x"
--- True
---
--- DOS local/global device namespace
---
--- >>> isValidWin "\\\\.\\x"
--- True
--- >>> isValidWin "\\\\??\\x"
--- True
 {-# INLINE isValidPath #-}
 isValidPath :: (Integral a, Unbox a) => OS -> Array a -> Bool
 isValidPath os path =
@@ -1716,23 +1184,10 @@ isValidPath' os path =
         Nothing -> False
         Just _ -> True
 
--- A chunk is essentially an untyped Array i.e. Array Word8.  We can either use
--- the term ByteArray for that or just Chunk. The latter is shorter and we have
--- been using it consistently in streamly. We use "bytes" for a stream of
--- bytes.
-
--- | /Unsafe/: The user is responsible to maintain the invariants mentioned in
--- the definition of the 'Path' type. On Windows, the array passed must be a
--- multiple of 2 bytes as the underlying representation uses 'Word16'.
 {-# INLINE unsafeFromChunk #-}
 unsafeFromChunk :: Array Word8 -> Array a
 unsafeFromChunk = Array.unsafeCast
 
--- | On Posix it may fail if the byte array contains null characters. On
--- Windows the array passed must be a multiple of 2 bytes as the underlying
--- representation uses 'Word16'.
---
--- Throws 'InvalidPath'.
 {-# INLINE fromChunk #-}
 fromChunk :: forall m a. (MonadThrow m, Unbox a, Integral a) =>
     OS -> Array Word8 -> m (Array a)
@@ -1762,15 +1217,6 @@ unsafeFromChars encode s =
     let n = runIdentity $ Stream.fold Fold.length s
      in Array.fromPureStreamN n (encode s)
 
--- | Note: We do not sanitize the path i.e. remove duplicate separators, .
--- segments, trailing separator etc because that would require unnecessary
--- checks and modifications to the path which may not be used ever for any
--- useful purpose, it is only needed for path equality and can be done during
--- the equality check. If normalization is desired users can do it explicitly.
---
--- fromChars should accept both - just root or path. Otherwise we will need a
--- separate type for Root.
---
 -- XXX Writing a custom fold for parsing a Posix path may be better for
 -- efficient bulk parsing when needed. We need the same code to validate a
 -- Chunk where we do not need to create an array.
@@ -1821,8 +1267,6 @@ mkQ f =
 foreign import ccall unsafe "string.h strlen" c_strlen_pinned
     :: Addr# -> IO CSize
 
--- | Append a separator and a CString to the Array.
---
 {-# INLINE appendCStringWith #-}
 appendCStringWith ::
        (Int -> IO (MutArray Word8))
@@ -1842,14 +1286,10 @@ appendCStringWith create os a b@(Ptr addrB#) = do
         MutArray.unsafeAppendPtrN arr2 (castPtr b) lenB
     return (Array.unsafeFreeze arr3)
 
--- | Append a separator and a CString to the Array.
---
 {-# INLINE appendCString #-}
 appendCString :: OS -> Array Word8 -> CString -> IO (Array Word8)
 appendCString = appendCStringWith MutArray.emptyOf
 
--- | Like 'appendCString' but create a pinned Array.
---
 {-# INLINE appendCString' #-}
 appendCString' :: OS -> Array Word8 -> CString -> IO (Array Word8)
 appendCString' = appendCStringWith MutArray.emptyOf'
@@ -1889,114 +1329,16 @@ withAppendCheck os toStr arr f =
     then error $ "append: cannot append a rooted path " ++ toStr arr
     else f
 
--- | Does not check if any of the path is empty or if the second path is
--- absolute.
---
--- >>> appendPosix a b = unpackPosix $ Common.unsafeAppend Common.Posix (Common.toString Unicode.decodeUtf8) (packPosix a) (packPosix b)
--- >>> appendWin a b = unpackWindows $ Common.unsafeAppend Common.Windows (Common.toString Unicode.decodeUtf16le') (packWindows a) (packWindows b)
---
--- >>> appendPosix "x" "y"
--- "x/y"
--- >>> appendPosix "x/" "y"
--- "x/y"
--- >>> appendPosix "x" "/y"
--- "x/y"
--- >>> appendPosix "x/" "/y"
--- "x/y"
---
 {-# INLINE unsafeAppend #-}
 unsafeAppend :: (Unbox a, Integral a) =>
     OS -> (Array a -> String) -> Array a -> Array a -> Array a
 unsafeAppend os _toStr = doAppend os
 
--- | Note that append joins two paths using a separator between the paths.
---
--- On Windows, joining a drive "c:" with "x" does not add a separator between
--- the two because "c:x" is different from "c:/x". Note "c:" and "/x" are both
--- rooted paths, therefore, append cannot be used to join them. You will need
--- to use dropRoot on the second path before joining them. Similarly for
--- joining "//x/" and "/y".
---
--- >>> import Data.Either (Either, isLeft)
--- >>> import Control.Exception (SomeException, evaluate, try)
---
--- >>> appendPosix a b = unpackPosix $ Common.append Common.Posix (Common.toString Unicode.decodeUtf8) (packPosix a) (packPosix b)
--- >>> appendWin a b = unpackWindows $ Common.append Common.Windows (Common.toString Unicode.decodeUtf16le') (packWindows a) (packWindows b)
--- >>> failPosix a b = (try (evaluate (appendPosix a b)) :: IO (Either SomeException String)) >>= return . isLeft
--- >>> failWin a b = (try (evaluate (appendWin a b)) :: IO (Either SomeException String)) >>= return . isLeft
---
--- >>> appendPosix "x" "y"
--- "x/y"
--- >>> appendPosix "x/" "y"
--- "x/y"
--- >>> failPosix "x" "/"
--- True
---
--- >>> appendWin "x" "y"
--- "x\\y"
--- >>> appendWin "x/" "y"
--- "x/y"
--- >>> appendWin "c:" "x"
--- "c:x"
--- >>> appendWin "c:/" "x"
--- "c:/x"
--- >>> appendWin "//x" "y"
--- "//x\\y"
--- >>> appendWin "//x/" "y"
--- "//x/y"
---
--- >>> failWin "c:" "/"
--- True
--- >>> failWin "c:" "/x"
--- True
--- >>> failWin "c:/" "/x"
--- True
--- >>> failWin "//x/" "/y"
--- True
 {-# INLINE append #-}
 append :: (Unbox a, Integral a) =>
     OS -> (Array a -> String) -> Array a -> Array a -> Array a
 append os toStr a b = withAppendCheck os toStr b (doAppend os a b)
 
--- | A stricter version of append which requires the first path to be a
--- directory like path i.e. with a trailing separator.
---
--- >>> import Data.Either (Either, isLeft)
--- >>> import Control.Exception (SomeException, evaluate, try)
---
--- >>> appendPosix a b = unpackPosix $ Common.append' Common.Posix (Common.toString Unicode.decodeUtf8) (packPosix a) (packPosix b)
--- >>> appendWin a b = unpackWindows $ Common.append' Common.Windows (Common.toString Unicode.decodeUtf16le') (packWindows a) (packWindows b)
--- >>> failPosix a b = (try (evaluate (appendPosix a b)) :: IO (Either SomeException String)) >>= return . isLeft
--- >>> failWin a b = (try (evaluate (appendWin a b)) :: IO (Either SomeException String)) >>= return . isLeft
---
--- >>> failPosix "x" "y"
--- True
--- >>> appendPosix "x/" "y"
--- "x/y"
--- >>> failPosix "x" "/"
--- True
---
--- >>> failWin "x" "y"
--- True
--- >>> appendWin "x/" "y"
--- "x/y"
--- >>> appendWin "c:" "x"
--- "c:x"
--- >>> appendWin "c:/" "x"
--- "c:/x"
--- >>> failWin "//x" "y"
--- True
--- >>> appendWin "//x/" "y"
--- "//x/y"
---
--- >>> failWin "c:" "/"
--- True
--- >>> failWin "c:" "/x"
--- True
--- >>> failWin "c:/" "/x"
--- True
--- >>> failWin "//x/" "/y"
--- True
 {-# INLINE append' #-}
 append' :: (Unbox a, Integral a) =>
     OS -> (Array a -> String) -> Array a -> Array a -> Array a
@@ -2034,35 +1376,10 @@ unsafeJoinPaths os =
 -- Equality
 ------------------------------------------------------------------------------
 
--- | Check two paths for byte level equality. This is the most strict path
--- equality check.
---
--- >>> :{
---  eqPath a b = Common.eqPathBytes (packPosix a) (packPosix b)
--- :}
---
--- >>> eqPath "x//y"  "x//y"
--- True
---
--- >>> eqPath "x//y"  "x/y"
--- False
---
--- >>> eqPath "x/./y"  "x/y"
--- False
---
--- >>> eqPath "x\\y" "x/y"
--- False
---
--- >>> eqPath "./file"  "file"
--- False
---
--- >>> eqPath "file/"  "file"
--- False
---
 eqPathBytes :: Array a -> Array a -> Bool
 eqPathBytes = Array.byteEq
 
--- On posix even macOs can have case insensitive comparison. On Windows also
+-- On posix macOs can have case insensitive comparison. On Windows also
 -- case sensitive behavior may depend on the file system being used.
 
 -- Use eq prefix?
@@ -2072,17 +1389,27 @@ eqPathBytes = Array.byteEq
 -- control the strictness.
 data EqCfg =
     EqCfg
-    { ignoreTrailingSeparators :: Bool -- ^ Allows "x/" == "x"
-    , ignoreCase :: Bool               -- ^ Allows "x" == "X"
+    { ignoreTrailingSeparators :: Bool -- ^ Allows "x\/" == "x"
+    , ignoreCase :: Bool               -- ^ Allows "x" == \"X\"
     , allowRelativeEquality :: Bool
-    -- ^ A leading dot is ignored, thus "./x" == "./x" and "./x" == "x".
-    -- On Windows allows "/x" == /x" and "C:x == C:x"
+    -- ^ A leading dot is ignored, thus ".\/x" == ".\/x" and ".\/x" == "x".
+    -- On Windows allows "\/x" == \/x" and "C:x == C:x"
 
-    -- , resolveParentReferences -- "x/../y" == "y"
-    -- , noIgnoreRedundantSeparators -- "x//y" /= "x/y"
-    -- , noIgnoreRedundantDot -- "x/./" /= "x"
+    -- , resolveParentReferences -- "x\/..\/y" == "y"
+    -- , noIgnoreRedundantSeparators -- "x\/\/y" \/= "x\/y"
+    -- , noIgnoreRedundantDot -- "x\/.\/" \/= "x"
     }
 
+-- | Default equality check configuration.
+--
+-- > :{
+-- > eqCfg = EqCfg
+-- >     { ignoreTrailingSeparators = False
+-- >     , ignoreCase = False
+-- >     , allowRelativeEquality = False
+-- >     }
+-- > :}
+--
 eqCfg :: EqCfg
 eqCfg = EqCfg
     { ignoreTrailingSeparators = False
@@ -2196,66 +1523,6 @@ eqComponentsWith ignCase decoder os a b =
 -- inlining the function we can use two copies one for allowRelativeEquality
 -- True and other for False and so on for other values of PathEq.
 
--- | Like eqPath but we can control the equality options.
---
--- >>> :{
---  cfg = Common.eqCfg {Common.ignoreTrailingSeparators = True, Common.allowRelativeEquality = True}
---  eq a b = Common.eqPathWith Unicode.decodeUtf8' Common.Posix cfg (packPosix a) (packPosix b)
--- :}
---
--- >>> eq "."  "."
--- True
---
--- >>> eq "./"  ".//"
--- True
---
--- >>> eq "./x"  "./x"
--- True
---
--- >>> eq "./x"  "x"
--- True
---
--- >>> eq "x/"  "x"
--- True
---
--- >>> eq "x/"  "X"
--- False
---
--- >>> eq "x//y"  "x/y"
--- True
---
--- >>> eq "x/./y"  "x/y"
--- True
---
--- >>> eq "x"  "x"
--- True
---
--- >>> :{
---  cfg = Common.eqCfg {Common.ignoreTrailingSeparators = True, Common.ignoreCase = True, Common.allowRelativeEquality = True}
---  eq a b = Common.eqPathWith Unicode.decodeUtf16le' Common.Windows cfg (packWindows a) (packWindows b)
--- :}
---
--- >>> eq "./x"  "x"
--- True
---
--- >>> eq "X/"  "x"
--- True
---
--- >>> eq "C:x"  "c:X"
--- True
---
--- >>> eq ".\\x"  "./X"
--- True
---
--- >>> eq "x//y"  "x/y"
--- True
---
--- >>> eq "x/./y"  "x/y"
--- True
---
--- >>> eq "x"  "x"
--- True
---
 {-# INLINE eqPathWith #-}
 eqPathWith :: (Unbox a, Integral a) =>
     (Stream Identity a -> Stream Identity Char)
@@ -2283,90 +1550,6 @@ eqPathWith decoder os EqCfg{..} a b =
         && eqTrailingSep
         && eqComponentsWith ignoreCase decoder os stemA stemB
 
--- | Checks two paths for logical equality. It performs some normalizations on
--- the paths before comparing them, specifically it drops redundant path
--- separators between path segments and redundant "/./" components between
--- segments. On Windows it replaces forward slash path separators by
--- backslashes.
---
--- Equality semantics followed by this routine are listed below. If it returns
--- equal then the paths are definitely equal, if it returns unequal then the
--- paths may still be equal using some relaxed equality criterion.
---
--- * paths with a leading "." and without a leading "." e.g. "./x/y"
--- and "x/y" are treated as unequal. The first one is a dynamically rooted path
--- and the second one is a free path segment.
---
--- * An absolute path and a path relative to "." may be equal depending on the
--- meaning of ".", however this routine treats them as unequal.
---
--- * Two paths starting with a leading "." may not actually be equal even if
--- they are literally equal. We return unequal even though they may be equal
--- sometimes.
---
--- * Two paths having ".." components may be equal after processing the ".."
--- components even if we determined them to be unequal. However, if we
--- determined them to be equal then they must be equal.
---
--- * A path with a trailing slash and a path without are treated as unequal
--- e.g. "x" is not the same as "x/". The latter is a directory.
---
--- * On Windows comparison is case sensitive.
---
--- In short, for strict equality both the paths must be absolute or both must
--- be path segments without a leading root component (e.g. x/y). Also, both
--- must be files or both must be directories.
---
--- >>> :{
---  eqPosix a b = Common.eqPath Unicode.decodeUtf8' Common.Posix (packPosix a) (packPosix b)
---  eqWindows a b = Common.eqPath Unicode.decodeUtf16le' Common.Windows (packWindows a) (packWindows b)
--- :}
---
--- >>> eqPosix "/x"  "//x"
--- True
---
--- >>> eqPosix "x//y"  "x/y"
--- True
---
--- >>> eqPosix "x/./y"  "x/y"
--- True
---
--- >>> eqWindows "x\\y" "x/y"
--- True
---
--- >>> eqPosix "./x"  "x"
--- False
---
--- >>> eqPosix "x/"  "x"
--- False
---
--- >>> eqPosix "x"  "x"
--- True
---
--- >>> eqPosix "x"  "X"
--- False
---
--- >>> eqWindows "x"  "X"
--- False
---
--- >>> eqWindows "c:"  "C:"
--- False
---
--- >>> eqPosix ".."  ".."
--- True
---
--- >>> eqPosix "."  "."
--- False
---
--- >>> eqWindows "c:"  "c:"
--- False
---
--- >>> eqPosix "./x"  "./x"
--- False
---
--- >>> eqWindows "c:x"  "c:x"
--- False
---
 {-# INLINE eqPath #-}
 eqPath :: (Unbox a, Integral a) =>
     (Stream Identity a -> Stream Identity Char)

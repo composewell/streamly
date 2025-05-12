@@ -5,81 +5,77 @@
 -- Maintainer  : streamly@composewell.com
 -- Portability : GHC
 --
--- File system paths with flexible (gradual) typing, extensible,
+-- File system paths supporting flexible (gradual) typing; extensible,
 -- high-performance, preserving the OS and filesystem encoding.
 --
--- /Flexible/: you can choose the level of type safety you want. 'Path' is the
--- basic path type which can represent a file, directory, absolute or relative
--- path with no restrictions. Depending on how much type safety you want, you
--- can choose appropriate type wrappers or a combination of those to wrap the
--- 'Path' type.
+-- /Flexible typing/: you can choose the level of type safety you want. 'Path'
+-- is the basic path type which can represent a file, directory, absolute or
+-- relative path with no restrictions. Depending on how much type safety you
+-- want, you can choose appropriate type wrappers or a combination of those to
+-- wrap the 'Path' type in stricter types.
 --
 -- = Rooted Paths vs Branches
 --
--- For the safety of the path append operation we make the distinction of
--- rooted paths vs branches. A path that starts from some implicit or
--- explicit root in the file system is a rooted path, for example, @\/usr\/bin@
--- is a rooted path starting from an explicit file system root directory @/@.
--- Similarly, @.\/bin@ is a path with an implicit root, this path is hanging
--- from the current directory. A path that is not rooted is called a branch
--- e.g. @local\/bin@ is a branch.
+-- To ensure the safety of the append operation, we distinguish between
+-- rooted paths and branch-type paths. A path that starts from an explicit or
+-- implicit root in the file system is called a rooted path. For example,
+-- @\/usr\/bin@ is a rooted path starting from the explicit root directory @/@.
+-- Similarly, @.\/bin@ is rooted implicitly, hanging from the current directory.
+-- A path that is not rooted is called a branch; for example, @local\/bin@ is a
+-- branch.
 --
--- This distinction affords safety to the path append operation. We can always
--- append a branch to a rooted path or to another branch. However, it does
--- not make sense to append a rooted path to another rooted path. The default
+-- This distinction ensures the safety of the path append operation. You can
+-- always append a branch to a rooted path or to another branch. However,
+-- it does not make sense to append one rooted path to another. The default
 -- append operation in the Path module checks for this and fails if the
--- operation is incorrect. However, the programmer can force it by using the
--- unsafe version of the append operation. You can also drop the root
--- explicitly and use the safe append operation.
+-- operation is invalid. However, the programmer can force it using the
+-- unsafe append operation. Alternatively, you can drop the root explicitly
+-- and use the safe append.
 --
--- The "Streamly.FileSystem.Path.Seg" module provides explicit typing of path
--- segments e.g. rooted paths vs branches. Rooted paths are represented by the
--- @Rooted Path@ type and branches are represented by the @Branch Path@ type.
--- If you use the 'Path' type then append can fail if you try to append a
--- rooted path to another path, but if you use @Rooted Path@ and @Branch Path@
--- types then append can never fail at run time as the types would not allow it
--- at compile time.
+-- The "Streamly.FileSystem.Path.Seg" module provides explicit types for path
+-- segments, distinguishing rooted paths from branches. Rooted paths use the
+-- @Rooted Path@ type, and branches use the @Branch Path@ type. If you use the
+-- generic 'Path' type, append may fail at run time if you attempt to append
+-- a rooted path to another rooted path. In contrast, using the @Rooted Path@
+-- and @Branch Path@ types guarantees compile-time safety, preventing such errors.
 --
--- = Absolute vs Relative Rooted Paths
+-- Since we distinguish between rooted and branch-type paths, a separate
+-- distinction between absolute and relative paths is not required. Both are
+-- considered rooted paths, and all rooted paths are protected from invalid
+-- append operations. Only branch-type paths can be appended.
 --
--- Rooted paths can be absolute or relative. Absolute paths have an absolute
--- root e.g. @\/usr\/bin@. Relative paths have a dynamic or relative root e.g.
--- @.\/local\/bin@, or @.@, in these cases the root is current directory which
--- is not absolute but can change dynamically. Note that there is no type level
--- distinction for absolute and relative paths. The append operation requires a
--- distinction between Rooted and Branch only.
+-- = File vs. Directory Paths
 --
--- = File vs Directory Paths
+-- Independent of the rooted or branch distinction, you can also make a
+-- type-level distinction between file and directory nodes using the
+-- "Streamly.FileSystem.Path.Node" module. The type @File Path@ represents a
+-- file, whereas @Dir Path@ represents a directory. This distinction provides
+-- safety against appending to file type paths — append operations are not
+-- allowed on paths of type 'File'.
 --
--- Independent of the rooted or branch distinction you can also make a type
--- level distinction between file and directory type nodes using the
--- "Streamly.FileSystem.Path.Node" module. @File Path@ type represents a file
--- whereas @Dir Path@ represents a directory. This distinction provides safety
--- against appending a path to a file. Append operation does not allow
--- appending to 'File' types.
---
--- By default a path with a trailing separator is implicitly considered a
--- directory path. However, the absence of a trailing separator does not convey
--- any information, it could either be a directory or a file. Thus the append
--- operation allows appending to even paths that do not have a trailing
--- separator. However, when creating a typed path of 'File' type the conversion
--- fails unless we explicitly drop the trailing separator.
+-- By default, a path with a trailing separator is implicitly considered a
+-- directory path. However, the absence of a trailing separator does not
+-- indicate whether the path is a file or a directory — it could be either.
+-- Therefore, when using the @Path@ type, the append operation allows appending
+-- to paths even if they lack a trailing separator. However, when creating a
+-- typed path of type 'File', the conversion fails unless the trailing
+-- separator is explicitly removed.
 --
 -- = Flexible Typing
 --
--- You can use the 'Rooted', 'Branch' or 'Dir', 'File' types independent of
--- each other by using only the required module. If you want both types of
--- distinctions then you can use them together as well using the
--- "Streamly.FileSystem.Path.SegNode" module.  For example, the @Rooted (Dir
--- Path)@ represents a rooted path which is a directory. You can only append to
--- a path that has 'Dir' in it and you can only append a 'Branch' type.
+-- You can use the 'Rooted', 'Branch', 'Dir', and 'File' types independently by
+-- importing only the required modules. If you want both types of distinctions,
+-- you can use them together via the "Streamly.FileSystem.Path.SegNode" module.
+-- For example, @Rooted (Dir Path)@ represents a rooted path that is a
+-- directory. You can append other paths only to paths that have a 'Dir' type,
+-- and only a path of type 'Branch' can be appended.
 --
--- You can choose to use just the basic 'Path' type or any combination of safer
--- types. You can upgrade or downgrade the safety by converting types using the
--- @adapt@ operation. Whenever a less restrictive path type is converted to a
--- more restrictive path type, the conversion involves run-time checks and it
--- may fail. However, a more restrictive path type can be freely converted to a
--- less restrictive one.
+-- You may choose to use the basic 'Path' type or any combination of the safer
+-- types. You can upgrade or downgrade the safety level by converting between
+-- types using the @adapt@ operation. When converting from a less restrictive
+-- type to a more restrictive one, run-time checks are performed, and the
+-- conversion may fail. However, converting from a more restrictive type to a
+-- less restrictive one is always allowed.
 --
 -- = Extensibility
 --
