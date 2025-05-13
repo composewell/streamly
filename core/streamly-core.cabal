@@ -478,7 +478,7 @@ library
                      , Streamly.Data.StreamK
                      , Streamly.Data.Unfold
                      , Streamly.FileSystem.DirIO
-                     , Streamly.FileSystem.File
+                     , Streamly.FileSystem.FileIO
                      , Streamly.FileSystem.Handle
                      , Streamly.FileSystem.Path
                      , Streamly.FileSystem.Path.Seg
@@ -492,6 +492,7 @@ library
                      , Streamly.Internal.FileSystem.File
                      , Streamly.Internal.FileSystem.Dir
                      , Streamly.FileSystem.Dir
+                     , Streamly.FileSystem.File
 
                     -- Deprecated in 0.2.0
                      , Streamly.Internal.Data.MutArray.Stream
