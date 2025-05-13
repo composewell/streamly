@@ -99,13 +99,15 @@ ignoreNonExisting x opts = opts {_ignoreNonExistingFiles = x}
 ignoreInAccessible :: Bool -> ReadOptions -> ReadOptions
 ignoreInAccessible x opts = opts {_ignoreInAccessibleFiles = x}
 
+-- NOTE: The defaultReadOptions emulate the behaviour of "find".
+--
 defaultReadOptions :: ReadOptions
 defaultReadOptions =
     ReadOptions
     { _followSymlinks = False
-    , _ignoreSymlinkLoopErrors = True
-    , _ignoreNonExistingFiles = True
-    , _ignoreInAccessibleFiles = True
+    , _ignoreSymlinkLoopErrors = False
+    , _ignoreNonExistingFiles = False
+    , _ignoreInAccessibleFiles = False
     }
 
 -- | Minimal read without any metadata.
