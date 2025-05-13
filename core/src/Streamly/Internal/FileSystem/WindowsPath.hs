@@ -19,7 +19,6 @@ For APIs that have not been released yet.
 >>> import Data.Either (Either, isLeft)
 >>> import Control.Exception (SomeException, evaluate, try)
 
->>> rawFromString = Array.fromPureStream . Unicode.encodeUtf16le' . Stream.fromList
 >>> pack = fromJust . Path.fromString
 >>> fails action = (try (evaluate action) :: IO (Either SomeException String)) >>= return . isLeft
 -}
@@ -36,7 +35,7 @@ For APIs that have not been released yet.
 -- | Check if the filepath is valid i.e. does the operating system or the file
 -- system allow such a path in listing or creating files?
 --
--- >>> isValid = Path.isValidPath . rawFromString
+-- >>> isValid = Path.isValidPath . Path.rawFromString
 --
 -- >>> isValid ""
 -- False
@@ -163,7 +162,7 @@ isValidPath' = Common.isValidPath' Common.Windows
 --
 -- >>> readRaw = fromJust . Path.fromChunk . read
 --
--- >>> arr :: Array Word16 = rawFromString "hello"
+-- >>> arr :: Array Word16 = Path.rawFromString "hello"
 -- >>> Path.showRaw $ (Path.readRaw $ show arr :: Path.WindowsPath)
 -- "fromList [104,101,108,108,111]"
 --

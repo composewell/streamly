@@ -56,6 +56,7 @@ module Streamly.Internal.FileSystem.OS_PATH
     , unsafeFromChunk
     , fromChars
     , fromString
+    , rawFromString
     , unsafeFromString
     -- , fromCString#
     -- , fromW16CString#
@@ -169,7 +170,6 @@ For APIs that have not been released yet.
 >>> import Data.Either (Either, isLeft)
 >>> import Control.Exception (SomeException, evaluate, try)
 
->>> rawFromString = Array.fromPureStream . Unicode.encodeUtf8' . Stream.fromList
 >>> pack = fromJust . Path.fromString
 >>> fails action = (try (evaluate action) :: IO (Either SomeException String)) >>= return . isLeft
 -}
@@ -253,7 +253,7 @@ validatePath = Common.validatePath Common.OS_NAME
 -- | Check if the filepath is valid i.e. does the operating system or the file
 -- system allow such a path in listing or creating files?
 --
--- >>> isValid = Path.isValidPath . rawFromString
+-- >>> isValid = Path.isValidPath . Path.rawFromString
 --
 -- >>> isValid ""
 -- False
@@ -327,6 +327,17 @@ fromChars s =
     Common.fromChars Common.OS_NAME Unicode.UNICODE_ENCODER s
         >>= fromPath . OS_PATH
 
+-- | Create a raw path i.e. an array representing the path. Note that the path
+-- is not validated, therefore, it may not be valid according to 'isValidPath'.
+#ifndef IS_WINDOWS
+rawFromString :: [Char] -> Array Word8
+#else
+rawFromString :: [Char] -> Array Word16
+#endif
+rawFromString =
+      Common.unsafeFromChars Unicode.UNICODE_ENCODER
+    . Stream.fromList
+
 -- | Like 'fromString' but does not perform any validations mentioned under
 -- 'isValidPath'. Fails only if unicode encoding fails.
 unsafeFromString :: IsPath OS_PATH a => [Char] -> a
@@ -334,8 +345,7 @@ unsafeFromString =
 #ifndef DEBUG
       unsafeFromPath
     . OS_PATH
-    . Common.unsafeFromChars Unicode.UNICODE_ENCODER
-    . Stream.fromList
+    . rawFromString
 #else
     fromJust . fromString
 #endif
@@ -432,7 +442,7 @@ showRaw p =
 --
 -- >>> readRaw = fromJust . Path.fromChunk . read
 --
--- >>> arr = rawFromString "hello"
+-- >>> arr = Path.rawFromString "hello"
 -- >>> Path.showRaw $ (Path.readRaw $ show arr :: Path.PosixPath)
 -- "fromList [104,101,108,108,111]"
 --
