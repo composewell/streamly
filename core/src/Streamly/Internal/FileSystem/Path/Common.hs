@@ -1185,15 +1185,16 @@ isValidPath' os path =
         Just _ -> True
 
 {-# INLINE unsafeFromChunk #-}
-unsafeFromChunk :: Array Word8 -> Array a
-unsafeFromChunk = Array.unsafeCast
+unsafeFromChunk :: Array a -> Array a
+unsafeFromChunk = id
 
 {-# INLINE fromChunk #-}
 fromChunk :: forall m a. (MonadThrow m, Unbox a, Integral a) =>
-    OS -> Array Word8 -> m (Array a)
-fromChunk Posix arr =
+    OS -> Array a -> m (Array a)
+fromChunk os arr = validatePath os arr >> pure arr
+{-
     let arr1 = Array.unsafeCast arr :: Array a
-     in validatePath Posix arr1 >> pure arr1
+     in validatePath os arr1 >> pure arr1
 fromChunk Windows arr =
     case Array.cast arr of
         Nothing ->
@@ -1202,6 +1203,7 @@ fromChunk Windows arr =
                 $ "Encoded path length " ++ show (Array.byteLength arr)
                     ++ " is not a multiple of 16-bit."
         Just x -> validatePath Windows x >> pure x
+-}
 
 -- | Convert 'Path' to an array of bytes.
 {-# INLINE toChunk #-}

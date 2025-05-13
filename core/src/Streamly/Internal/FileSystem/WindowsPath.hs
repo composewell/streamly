@@ -5,11 +5,13 @@
 >>> :m
 >>> :set -XQuasiQuotes
 >>> import Data.Maybe (fromJust)
+>>> import Data.Word (Word16)
 >>> import qualified Streamly.Data.Stream as Stream
 
 For APIs that have not been released yet.
 
 >>> import Streamly.Internal.FileSystem.WindowsPath (WindowsPath, path)
+>>> import Streamly.Internal.Data.Array (Array)
 >>> import qualified Streamly.Internal.Data.Array as Array
 >>> import qualified Streamly.Internal.FileSystem.WindowsPath as Path
 >>> import qualified Streamly.Internal.Unicode.Stream as Unicode
@@ -17,7 +19,7 @@ For APIs that have not been released yet.
 >>> import Data.Either (Either, isLeft)
 >>> import Control.Exception (SomeException, evaluate, try)
 
->>> rawFromString = Array.fromPureStream . Unicode.encodeUtf8' . Stream.fromList
+>>> rawFromString = Array.fromPureStream . Unicode.encodeUtf16le' . Stream.fromList
 >>> pack = fromJust . Path.fromString
 >>> fails action = (try (evaluate action) :: IO (Either SomeException String)) >>= return . isLeft
 -}
@@ -34,7 +36,6 @@ For APIs that have not been released yet.
 -- | Check if the filepath is valid i.e. does the operating system or the file
 -- system allow such a path in listing or creating files?
 --
--- >>> rawFromString = Array.fromPureStream . Unicode.encodeUtf16le' . Stream.fromList
 -- >>> isValid = Path.isValidPath . rawFromString
 --
 -- >>> isValid ""
@@ -157,6 +158,18 @@ validatePath' = Common.validatePath' Common.Windows
 -- | Like 'isValidPath' but more strict, see validatePath' for differences.
 isValidPath' :: Array Word16 -> Bool
 isValidPath' = Common.isValidPath' Common.Windows
+
+-- | Read a raw array of Word16 as a path type.
+--
+-- >>> readRaw = fromJust . Path.fromChunk . read
+--
+-- >>> arr :: Array Word16 = rawFromString "hello"
+-- >>> Path.showRaw $ (Path.readRaw $ show arr :: Path.WindowsPath)
+-- "fromList [104,101,108,108,111]"
+--
+-- See also: 'showRaw'.
+readRaw :: IsPath OS_PATH a => [Char] -> a
+readRaw = fromJust . fromChunk . read
 
 -- | A path that is attached to a root. "C:\\" is considered an absolute root
 -- and "." as a dynamic root. ".." is not considered a root, "..\/x" or "x\/y"

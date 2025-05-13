@@ -276,11 +276,15 @@ isValidPath = Common.isValidPath Common.OS_NAME
 -- been using it consistently in streamly. We use "bytes" for a stream of
 -- bytes.
 
--- | /Unsafe/: The user is responsible to make sure that the failure cases
--- mentioned in 'fromChunk' cannot occur.
+-- | /Unsafe/: The user is responsible to make sure that the path is valid as
+-- per 'isValidPath'.
 --
 {-# INLINE unsafeFromChunk #-}
+#ifndef IS_WINDOWS
 unsafeFromChunk :: IsPath OS_PATH a => Array Word8 -> a
+#else
+unsafeFromChunk :: IsPath OS_PATH a => Array Word16 -> a
+#endif
 unsafeFromChunk =
 #ifndef DEBUG
     unsafeFromPath . OS_PATH . Common.unsafeFromChunk
@@ -290,13 +294,14 @@ unsafeFromChunk =
 
 -- XXX mkPath?
 
--- | Convert a byte array into a Path:
+-- | Convert a byte array into a Path.
+-- Throws 'InvalidPath' if 'isValidPath' fails on the path.
 --
--- * Throws 'InvalidPath' if 'isValidPath' fails on the path.
--- * On Windows, throws 'InvalidPath' if the array length is not aligned on two
--- byte boundary.
---
+#ifndef IS_WINDOWS
 fromChunk :: (MonadThrow m, IsPath OS_PATH a) => Array Word8 -> m a
+#else
+fromChunk :: (MonadThrow m, IsPath OS_PATH a) => Array Word16 -> m a
+#endif
 fromChunk arr = Common.fromChunk Common.OS_NAME arr >>= fromPath . OS_PATH
 
 -- XXX Should be a Fold instead?
@@ -423,27 +428,18 @@ showRaw p =
             toPath p in show arr
 
 #ifndef IS_WINDOWS
--- | Read a raw array as a path type.
+-- | Parse a raw array of bytes as a path type.
 --
 -- >>> readRaw = fromJust . Path.fromChunk . read
 --
--- >>> arr <- Stream.fold Array.create $ Unicode.encodeUtf8 $ Stream.fromList "hello"
+-- >>> arr = rawFromString "hello"
 -- >>> Path.showRaw $ (Path.readRaw $ show arr :: Path.PosixPath)
 -- "fromList [104,101,108,108,111]"
 --
 -- See also: 'showRaw'.
-#else
--- | Read a raw array as a path type.
---
--- >> readRaw = fromJust . Path.fromChunk . read
---
--- >> arr <- Stream.fold Array.create $ Unicode.encodeUtf16LE $ Stream.fromList "hello"
--- >> Path.showRaw $ (Path.readRaw $ show arr :: Path.WindowsPath)
---
--- See also: 'showRaw'.
-#endif
 readRaw :: IsPath OS_PATH a => [Char] -> a
 readRaw = fromJust . fromChunk . read
+#endif
 
 -- We cannot show decoded path in the Show instance as it may not always
 -- succeed and it depends on the encoding which we may not even know. The

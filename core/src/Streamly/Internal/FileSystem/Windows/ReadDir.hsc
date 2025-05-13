@@ -32,7 +32,6 @@ import Data.Char (ord, isSpace)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Foreign.C (CInt(..), CWchar(..), Errno(..), errnoToIOError, peekCWString)
 import Numeric (showHex)
-import Streamly.Internal.Data.Array (Array(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Stream (Step(..))
 import Streamly.Internal.FileSystem.Path (Path)
@@ -207,9 +206,6 @@ readDirStreamEither _ (DirStream (h, ref, fdata)) =
 
     where
 
-    mkPath :: Array Word8 -> WindowsPath
-    mkPath = Path.unsafeFromChunk
-
     processEntry ptr = do
         let dname = #{ptr WIN32_FIND_DATAW, cFileName} ptr
         dattrs :: #{type DWORD} <-
@@ -220,8 +216,8 @@ readDirStreamEither _ (DirStream (h, ref, fdata)) =
             isMeta <- isMetaDir dname
             if isMeta
             then findNext ptr
-            else return (Just (Left (mkPath (Array.unsafeCast name))))
-        else return (Just (Right (mkPath (Array.unsafeCast name))))
+            else return (Just (Left (Path.unsafeFromChunk name)))
+        else return (Just (Right (Path.unsafeFromChunk name)))
 
     findNext ptr = do
         retval <- liftIO $ c_FindNextFileW h ptr
