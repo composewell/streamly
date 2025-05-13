@@ -222,8 +222,8 @@ distinction, file vs dir distinction or all four.
 The relevant modules in streamly are:
 
 * `Streamly.Console.Stdio`
-* `Streamly.FileSystem.Dir`
-* `Streamly.FileSystem.File`
+* `Streamly.FileSystem.DirIO`
+* `Streamly.FileSystem.FileIO`
 * `Streamly.FileSystem.Handle`
 * `Streamly.Internal.FileSystem.Event`
 * `Streamly.Internal.FileSystem.Event.Linux`
@@ -232,12 +232,12 @@ The relevant modules in streamly are:
 
 | Package               | Streamly Module                            |
 |-----------------------|--------------------------------------------|
-| base/System.IO        | Streamly.FileSystem.File,Handle            |
+| base/System.IO        | Streamly.FileSystem.FileIO,Handle          |
 | filepath              | Streamly.FileSystem.Path                   |
 | path                  | Streamly.Internal.FileSystem.Path.LocSeg   |
 | path                  | Streamly.Internal.FileSystem.Path.FileDir  |
 | path                  | Streamly.Internal.FileSystem.Path.Typed    |
-| directory             | Streamly.FileSystem.Dir                    |
+| directory             | Streamly.FileSystem.DirIO                  |
 | fsnotify              | Streamly.Internal.FileSystem.Event         |
 | fsnotify              | Streamly.Internal.FileSystem.Event.Windows |
 | hinotify              | Streamly.Internal.FileSystem.Event.Linux   |

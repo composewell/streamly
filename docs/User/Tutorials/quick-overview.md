@@ -70,7 +70,7 @@ import Data.Function ((&))
 
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Data.Stream as Stream
-import qualified Streamly.FileSystem.File as File
+import qualified Streamly.FileSystem.FileIO as File
 
 wcb :: String -> IO Int
 wcb file =
