@@ -5,6 +5,13 @@
 -- Maintainer  : streamly@composewell.com
 -- Portability : GHC
 --
+-- Use 'Rooted' or 'Branch' path segment type annotations as well as 'File' and
+-- 'Dir' node type annotations on the same path for the safety of path append
+-- operation. A Rooted path cannot be appended to other paths, and you canno
+-- append a path to a 'File' type path.
+--
+-- See the overview in the "Streamly.FileSystem.Path" module for more details.
+--
 
 module Streamly.FileSystem.Path.SegNode
     (
