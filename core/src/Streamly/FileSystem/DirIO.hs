@@ -14,8 +14,20 @@
 
 module Streamly.FileSystem.DirIO
     (
+    -- * Configuration
+#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
+    -- | Only the default ReadOptions are supported for Windows. Please use "id"
+    -- as the configuration modifier.
+      ReadOptions
+#else
+      ReadOptions
+    , followSymlinks
+    , ignoreNonExisting
+    , ignoreLoopErrors
+    , ignoreInAccessible
+#endif
     -- * Streams
-      read
+    , read
     , readEither
     )
 where
