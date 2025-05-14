@@ -217,16 +217,49 @@ readRaw = fromJust . fromChunk . read
 isRooted :: OS_PATH -> Bool
 isRooted (OS_PATH arr) = Common.isRooted Common.OS_NAME arr
 
+-- | Like 'append' but does not check if any of the path is empty or if the
+-- second path is rooted.
+--
+-- >>> f a b = Path.toString $ Path.unsafeAppend (pack a) (pack b)
+--
+-- >>> f "x" "y"
+-- "x\\y"
+-- >>> f "x/" "y"
+-- "x/y"
+-- >>> f "x" "/y"
+-- "x/y"
+-- >>> f "x/" "/y"
+-- "x/y"
+--
+-- Note "c:" and "/x" are both rooted paths, therefore, 'append' cannot be used
+-- to join them. Similarly for joining "//x/" and "/y". For these cases use
+-- 'unsafeAppend'. 'unsafeAppend' can be used as a replacement for the
+-- joinDrive function from the filepath package.
+--
+-- >>> f "c:" "/x"
+-- "c:/x"
+-- >>> f "//x/" "/y"
+-- "//x/y"
+--
+{-# INLINE unsafeAppend #-}
+unsafeAppend :: OS_PATH -> OS_PATH -> OS_PATH
+unsafeAppend (OS_PATH a) (OS_PATH b) =
+    OS_PATH
+        $ Common.unsafeAppend
+            Common.OS_NAME (Common.toString Unicode.UNICODE_DECODER) a b
+
 -- | Append a OS_PATH to another. Fails if the second path refers to a rooted
--- path. Use 'unsafeAppend' to avoid failure if you know it is ok to append the
--- path or use the typesafe Streamly.FileSystem.OS_PATH.Seg module.
+-- path. If you want to avoid runtime failure use the typesafe
+-- Streamly.FileSystem.OS_PATH.Seg module. Use 'unsafeAppend' to avoid failure
+-- if you know it is ok to append the path.
 --
 -- Usually, append joins two paths using a separator between the paths. On
 -- Windows, joining a drive "c:" with path "x" does not add a separator between
--- the two because "c:x" is different from "c:/x". Note "c:" and "/x" are both
--- rooted paths, therefore, append cannot be used to join them. You will need
--- to use dropRoot on the second path before joining them. Similarly for
--- joining "//x/" and "/y".
+-- the two because "c:x" is different from "c:/x".
+--
+-- Note "c:" and "/x" are both rooted paths, therefore, append cannot be used
+-- to join them. Similarly for joining "//x/" and "/y". For these cases use
+-- 'unsafeAppend'.
 --
 -- >>> f a b = Path.toString $ Path.append a b
 --

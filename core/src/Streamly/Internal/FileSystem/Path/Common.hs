@@ -78,6 +78,7 @@ module Streamly.Internal.FileSystem.Path.Common
     -- * Extensions
     , extensionWord
     , splitExtension
+    , splitExtensionBy
  -- , addExtension
 
     -- * Equality
@@ -1316,6 +1317,9 @@ doAppend os a b = unsafePerformIO $ do
                 && not (os == Windows && lastA == charToWord ':')
             then MutArray.unsafeSnoc arr1 (charToWord (primarySeparator os))
             else pure arr1
+    -- Note: if the last char on the first array is ":" and first char on the
+    -- second array is "/" then we cannot drop the "/". We drop only if both
+    -- are separators excluding ":".
     let arrB =
             if sepA && sepB
             then snd $ Array.unsafeBreakAt 1 b

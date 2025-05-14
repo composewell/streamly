@@ -33,6 +33,23 @@
 -- path is that it maps the characters SEPARATORS and @.@ to WORD_TYPE
 -- representing their ASCII values. Operations are provided to encode and
 -- decode using CODEC_NAME encoding.
+--
+-- This module has APIs that are equivalent to or can emulate all or most of
+-- the filepath package APIs. It has some differences from the filepath
+-- package:
+--
+-- * The default Path type it self affords considerable safety regarding the
+-- distinction of rooted or non-rooted paths, it also allows distinguishing
+-- directory and file paths.
+-- * It is designed to provide flexible typing to provide compile time safety
+-- for rooted/non-rooted paths and file/dir paths. The Path type is just part
+-- of that typed path ecosystem. Though the default Path type itself should be
+-- enough for most cases.
+-- * It leverages the streamly array module for most of the heavy lifting,
+-- it is a thin wrapper on top of that, improving maintainability as well as
+-- providing better performance. We can have pinned and unpinned paths, also
+-- provide lower level operations for certain cases to interact more
+-- efficinetly with low level code.
 
 module Streamly.Internal.FileSystem.OS_PATH
     (
@@ -59,7 +76,7 @@ module Streamly.Internal.FileSystem.OS_PATH
     , rawFromString
     , unsafeFromString
     -- , fromCString#
-    -- , fromW16CString#
+    -- , fromCWString#
     , readRaw
 
     -- * Statically Verified String Literals
@@ -88,33 +105,52 @@ module Streamly.Internal.FileSystem.OS_PATH
     , toString_
     , showRaw
 
-    -- * Separators
-    -- Do we need to export the separator functions? They are not essential if
-    -- operations to split and combine paths are provided. If someone wants to
-    -- work on paths at low level then they know what they are.
+    -- -- * Separators
+    -- Do we need to export the separator char functions? They are not
+    -- essential if operations to split and combine paths are provided. If
+    -- someone wants to work on paths at low level then they know what they
+    -- are.
     -- , isPrimarySeparator
     -- , isSeparator
-    , dropTrailingSeparators
 
-    -- * Tests
+    -- * Dir or non-dir paths
+    --
+    -- XXX These are unstable APIs. We may change them such that the trailing
+    -- separators are not removed or added if the path is a root/drive.
+    -- Therefore, the meaning of these would be just to change the directory
+    -- status of the path, if any, and nothing else. We may want to change the
+    -- names accordingly. Also see the Node module implementation for code
+    -- reuse.
+
+    , dropTrailingSeparators
+    , hasTrailingSeparator
+    , addTrailingSeparator
+
+    -- * Path Segment Types
     , isRooted
     , isBranch
 
     -- * Joining
-    , unsafeAppend
-    , append
-    , append'
+    , addString
+ -- , concat
+    , unsafeAppend -- XXX unsafeExtend
 #ifndef IS_WINDOWS
-    , appendCString
+    , appendCString -- XXX extendByCString
     , appendCString'
 #endif
+    , append -- XXX rename to "extend" to emphasize asymmetric nature?
+    , append' -- XXX rename to extendDir, to avoid pinned confusion?
+    , unsafeJoinPaths
 
     -- * Splitting
+    -- | Note: you can use 'unsafeAppend' as a replacement for the joinDrive
+    -- function in the filepath package.
     , splitRoot
     , splitPath
     , splitPath_
     , splitFile
     , splitExtension
+    , addExtension
 
     -- * Equality
     , eqPath
@@ -122,6 +158,7 @@ module Streamly.Internal.FileSystem.OS_PATH
     , eqCfg
     , eqPathWith
     , eqPathBytes
+    , normalize
     )
 where
 
@@ -223,22 +260,47 @@ adapt p = fromPath (toPath p :: OS_PATH)
 -- Path parsing utilities
 ------------------------------------------------------------------------------
 
--- | If the path is @//@ the result is @/@. If it is @dir//@ then the result is
--- @dir@. On Windows "c:" and "c:/" are different paths, therefore, we do not
--- drop the trailing separator from "c:/".
+-- | Drop all trailing separators from a path. This can potentially convert an
+-- implicit dir path to a non-dir.
 --
--- Note that a path with trailing separators may implicitly be considered as a
--- directory by some applications. So dropping it may change the dir nature of
--- the path.
+-- Normally, if the path is @dir//@ then the result is @dir@; there are a few
+-- special cases though:
+--
+-- * If the path is @\/\/@ then the result is @\/@.
+-- * On Windows, if the path is "C:\/\/" then the result is "C:\/" because "C:"
+-- has a different meaning.
 --
 -- >>> f a = Path.toString $ Path.dropTrailingSeparators (pack a)
 -- >>> f "./"
 -- "."
+-- >>> f "//"
+-- "/"
 --
 {-# INLINE dropTrailingSeparators #-}
 dropTrailingSeparators :: OS_PATH -> OS_PATH
 dropTrailingSeparators (OS_PATH arr) =
     OS_PATH (Common.dropTrailingSeparators Common.OS_NAME arr)
+
+-- | Returns True if the path has a trailing separator. This means the path is
+-- implicitly a dir type path.
+{-# INLINE hasTrailingSeparator #-}
+hasTrailingSeparator :: OS_PATH -> Bool
+hasTrailingSeparator (OS_PATH arr) =
+    Common.hasTrailingSeparator Common.OS_NAME arr
+
+-- | Add a trailing path separator if it does not have one.
+-- Note that this will make it an implicit dir type path.
+--
+-- Note that on Windows adding a separator to "C:" makes it "C:\\" which has a
+-- different meaning.
+--
+{-# INLINE addTrailingSeparator #-}
+addTrailingSeparator :: OS_PATH -> OS_PATH
+addTrailingSeparator p = unsafeAppend p sep
+
+    where
+
+    sep = fromJust $ fromString [Common.primarySeparator Common.OS_NAME]
 
 -- | Throws an exception if the path is not valid. See 'isValidPath' for the
 -- list of validations.
@@ -350,13 +412,22 @@ unsafeFromString =
     fromJust . fromString
 #endif
 
--- | Convert astring to OS_PATH. See 'fromChars' for failure cases and
+-- | Convert a string to OS_PATH. See 'fromChars' for failure cases and
 -- semantics.
 --
 -- >>> fromString = Path.fromChars . Stream.fromList
 --
 fromString :: (MonadThrow m, IsPath OS_PATH a) => [Char] -> m a
 fromString = fromChars . Stream.fromList
+
+-- | Concatenate a string to an existing path.
+--
+--  Throws an error if the resulting path is not a valid path as per
+--  'isValidPath'.
+--
+-- /Unimplemented/
+addString :: OS_PATH -> [Char] -> OS_PATH
+addString (OS_PATH _a) = undefined
 
 ------------------------------------------------------------------------------
 -- Statically Verified Strings
@@ -517,21 +588,19 @@ isRooted (OS_PATH arr) = Common.isRooted Common.OS_NAME arr
 isBranch :: OS_PATH -> Bool
 isBranch = not . isRooted
 
--- XXX This can be generalized to an Array intersperse operation
--- XXX This can work on a polymorphic IsPath type.
-
+#ifndef IS_WINDOWS
 -- | Like 'append' but does not check if any of the path is empty or if the
 -- second path is rooted.
 --
--- >>> append a b = Path.toString $ Path.unsafeAppend (pack a) (pack b)
+-- >>> f a b = Path.toString $ Path.unsafeAppend (pack a) (pack b)
 --
--- >>> append "x" "y"
+-- >>> f "x" "y"
 -- "x/y"
--- >>> append "x/" "y"
+-- >>> f "x/" "y"
 -- "x/y"
--- >>> append "x" "/y"
+-- >>> f "x" "/y"
 -- "x/y"
--- >>> append "x/" "/y"
+-- >>> f "x/" "/y"
 -- "x/y"
 --
 {-# INLINE unsafeAppend #-}
@@ -541,13 +610,12 @@ unsafeAppend (OS_PATH a) (OS_PATH b) =
         $ Common.unsafeAppend
             Common.OS_NAME (Common.toString Unicode.UNICODE_DECODER) a b
 
--- XXX Should we fail if the first path does not have a trailing separator i.e.
--- it is not a directory?
+-- XXX rename it to extend or combine?
 
-#ifndef IS_WINDOWS
 -- | Append a OS_PATH to another. Fails if the second path refers to a rooted
--- path. Use 'unsafeAppend' to avoid failure if you know it is ok to append the
--- path or use the typesafe Streamly.FileSystem.OS_PATH.Seg module.
+-- path. If you want to avoid runtime failure use the typesafe
+-- Streamly.FileSystem.OS_PATH.Seg module. Use 'unsafeAppend' to avoid failure
+-- if you know it is ok to append the path.
 --
 -- >>> f a b = Path.toString $ Path.append a b
 --
@@ -582,7 +650,7 @@ append'
 #endif
 
 -- XXX This can be pure, like append.
--- XXX add appendW16CString for Windows?
+-- XXX add appendCWString for Windows?
 
 #ifndef IS_WINDOWS
 -- | Append a separator and a CString to the Array. This is like 'unsafeAppend'
@@ -606,6 +674,17 @@ appendCString'
             Common.OS_NAME a str
 #endif
 
+-- See unsafeJoinPaths in the Common path module, we need to avoid MonadIo from
+-- that to implement this.
+
+-- | Join paths by path separator. Does not check if the paths being appended
+-- are rooted or branches. Note that splitting and joining may not give exactly
+-- the original path but an equivalent path.
+--
+-- /Unimplemented/
+unsafeJoinPaths :: [OS_PATH] -> OS_PATH
+unsafeJoinPaths = undefined
+
 ------------------------------------------------------------------------------
 -- Splitting path
 ------------------------------------------------------------------------------
@@ -614,6 +693,16 @@ appendCString'
 -- | If a path is rooted then separate the root and the remaining path,
 -- otherwise root is returned as empty. If the path is rooted then the non-root
 -- part is guaranteed to not start with a separator.
+--
+-- Some filepath package equivalent idioms:
+--
+-- >>> splitDrive = Path.splitRoot
+-- >>> joinDrive = Path.unsafeAppend
+-- >>> takeDrive = fst . Path.splitRoot
+-- >>> dropDrive = snd . Path.splitRoot
+--
+-- >> hasDrive = not . null . takeDrive -- TODO
+-- >> isDrive = null . dropDrive -- TODO
 --
 -- >>> toList (a,b) = (Path.toString a, Path.toString b)
 -- >>> split = toList . Path.splitRoot . pack
@@ -760,6 +849,15 @@ splitPath_ (OS_PATH a) = fmap OS_PATH $ Common.splitPath_ Common.OS_NAME a
 --
 -- If the path cannot be a file then (path, "") is returned.
 --
+-- Some filepath package equivalent idioms:
+--
+-- >>> takeFileName = snd . Path.splitFile -- Posix basename
+-- >>> takeBaseName = fst . Path.splitExtension . snd . Path.splitFile
+-- >>> dropFileName = fst . Path.splitFile
+-- >>> takeDirectory = fst . Path.splitFile
+-- >>> replaceFileName p x = Path.append (takeDirectory p) x
+-- >>> replaceDirectory p x = Path.append x (takeFileName p)
+--
 -- >>> toList (a,b) = (Path.toString a, Path.toString b)
 -- >>> split = toList . Path.splitFile . pack
 --
@@ -803,15 +901,30 @@ splitFile (OS_PATH a) =
     bimap OS_PATH OS_PATH $ Common.splitFile Common.OS_NAME a
 
 #ifndef IS_WINDOWS
--- | For the purposes of this function a file is considered to have an
--- extension if the file name can be broken down into a non-empty filename
--- followed by an extension separator (usually ".") followed by a non-empty
--- extension with at least one character other than the extension separator
--- characters. The shortest suffix obtained by this rule, starting with the
--- extension separator is returned as the extension and the remaining prefix
+-- Note: In the cases of "x.y." and "x.y.." we return no extension rather
+-- than ".y." or ".y.." as extensions. That is they considered to have no
+-- extension.
+
+-- | A file name is considered to have an extension if the file name can be
+-- split into a non-empty filename followed by the extension separator "."
+-- followed by a non-empty extension with at least one character in addition to
+-- the extension separator.
+-- The shortest suffix obtained by this rule, starting with the
+-- extension separator, is returned as the extension and the remaining prefix
 -- part as the filename.
 --
 -- A directory name does not have an extension.
+--
+-- Other extension related operations can be implemented using this API:
+--
+-- >>> takeExtension = snd . Path.splitExtension
+-- >>> dropExtension = fst . Path.splitExtension
+--
+-- >> hasExtension = not . null . takeExtension -- TODO
+--
+-- If you want a @splitExtensions@, you can splitExtension until the extension
+-- returned is empty. @dropExtensions@, @isExtensionOf@ can be implemented
+-- similarly.
 --
 -- >>> toList (a,b) = (Path.toString a, Path.toString b)
 -- >>> split = toList . Path.splitExtension . pack
@@ -846,10 +959,10 @@ splitFile (OS_PATH a) =
 -- >>> split "/x.y"
 -- ("/x",".y")
 --
--- >>> split "/x.y." -- XXX should it be .y.?
+-- >>> split "/x.y."
 -- ("/x.y.","")
 --
--- >>> split "/x.y.." -- XXX should it be .y..?
+-- >>> split "/x.y.."
 -- ("/x.y..","")
 --
 -- >>> split "x/.y"
@@ -892,6 +1005,16 @@ splitExtension :: OS_PATH -> (OS_PATH, OS_PATH)
 splitExtension (OS_PATH a) =
     bimap OS_PATH OS_PATH $ Common.splitExtension Common.OS_NAME a
 #endif
+
+-- | Add an extension to a file path. If a non-empty extension does not start
+-- with a leading dot then a dot is inserted, otherwise the extension is
+-- concatenated with the path.
+--
+-- It is an error to add an extension to a path with a trailing separator.
+--
+-- /Unimplemented/
+addExtension :: OS_PATH -> OS_PATH -> OS_PATH
+addExtension (OS_PATH _a) = undefined
 
 ------------------------------------------------------------------------------
 -- Path equality
@@ -1036,3 +1159,11 @@ eqPathWith cfg (OS_PATH a) (OS_PATH b) =
 --
 eqPathBytes :: OS_PATH -> OS_PATH -> Bool
 eqPathBytes (OS_PATH a) (OS_PATH b) = Common.eqPathBytes a b
+
+-- | Convert the path to an equivalent but standard format for reliable
+-- comparison. This can be implemented if required. Usually, the equality
+-- operations should be enough and this may not be needed.
+--
+-- /Unimplemented/
+normalize :: EqCfg -> OS_PATH -> OS_PATH
+normalize _cfg (OS_PATH _a) = undefined
