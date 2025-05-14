@@ -32,17 +32,17 @@
 --
 -- == Using ParserK
 --
--- All the parsers from the "Streamly.Data.Parser" module can be adapted to
--- ParserK using the 'Streamly.Data.ParserK.adaptC',
--- 'Streamly.Internal.Data.ParserK.adapt', and
--- 'Streamly.Internal.Data.ParserK.adaptCG' combinators.
+-- All the parsers from the "Streamly.Data.Parser" module can be converted to
+-- ParserK using the 'Streamly.Data.Array.parserK',
+-- 'Streamly.Internal.Data.ParserK.parserK', and
+-- 'Streamly.Internal.Data.Array.Generic.parserK' combinators.
 --
--- 'Streamly.Data.StreamK.parseChunks' runs a parser on a stream of unboxed
+-- 'Streamly.Data.Array.parse' runs a parser on a stream of unboxed
 -- arrays, this is the preferred and most efficient way to parse chunked input.
--- The more general 'Streamly.Data.StreamK.parseBreakChunks' function returns
+-- The more general 'Streamly.Data.Array.parseBreak' function returns
 -- the remaining stream as well along with the parse result. There are
--- 'Streamly.Internal.Data.StreamK.parseChunksGeneric',
--- 'Streamly.Internal.Data.StreamK.parseBreakChunksGeneric' as well to run
+-- 'Streamly.Internal.Data.Array.Generic.parse',
+-- 'Streamly.Internal.Data.Array.Generic.parseBreak' as well to run
 -- parsers on boxed arrays. 'Streamly.Internal.Data.StreamK.parse',
 -- 'Streamly.Internal.Data.StreamK.parseBreak' run parsers on a stream of
 -- individual elements instead of stream of arrays.
@@ -58,7 +58,7 @@
 -- >>> digits p1 p2 = ((:) <$> p1 <*> ((:) <$> p2 <*> pure []))
 -- >>> :{
 -- backtracking :: Monad m => ParserK Char m String
--- backtracking = ParserK.adapt $
+-- backtracking = ParserK.parserK $
 --     digits (Parser.satisfy isDigit) (Parser.satisfy isAlpha)
 --     <|>
 --     digits (Parser.satisfy isAlpha) (Parser.satisfy isDigit)
@@ -75,11 +75,11 @@
 -- >>> :{
 -- lookbehind :: Monad m => ParserK Char m String
 -- lookbehind = do
---     x1 <- ParserK.adapt $
+--     x1 <- ParserK.parserK $
 --              Digit <$> Parser.satisfy isDigit
 --          <|> Alpha <$> Parser.satisfy isAlpha
 --     -- Note: the parse depends on what we parsed already
---     x2 <- ParserK.adapt $
+--     x2 <- ParserK.parserK $
 --           case x1 of
 --              Digit _ -> Parser.satisfy isAlpha
 --              Alpha _ -> Parser.satisfy isDigit
@@ -106,9 +106,7 @@ module Streamly.Data.ParserK
 
     -- * Parsers
     -- ** Conversions
-    , adapt
-    , adaptC
-    , adaptCG
+    , parserK
     -- , toParser
 
     -- ** Without Input
@@ -119,6 +117,9 @@ module Streamly.Data.ParserK
     -- * Deprecated
     , fromFold
     , fromParser
+    , adapt
+    , adaptC
+    , adaptCG
     )
 
 where
@@ -128,18 +129,19 @@ import Streamly.Internal.Data.Fold (Fold)
 import Streamly.Internal.Data.Unbox (Unbox)
 import Streamly.Internal.Data.Array (Array)
 import qualified Streamly.Internal.Data.Parser as ParserD
+import qualified Streamly.Internal.Data.Array as Array
 
-import Streamly.Internal.Data.ParserK.Type
+import Streamly.Internal.Data.ParserK
 
 #include "DocTestDataParserK.hs"
 
-{-# DEPRECATED fromFold "Please use \"ParserK.adaptC . Parser.fromFold\" instead." #-}
+{-# DEPRECATED fromFold "Please use \"Array.parserK . Parser.fromFold\" instead." #-}
 {-# INLINE fromFold #-}
 fromFold :: (MonadIO m, Unbox a) => Fold m a b -> ParserK (Array a) m b
-fromFold = adaptC . ParserD.fromFold
+fromFold = Array.parserK . ParserD.fromFold
 
-{-# DEPRECATED fromParser "Please use \"adaptC\" instead." #-}
+{-# DEPRECATED fromParser "Please use \"Array.parserK\" instead." #-}
 {-# INLINE fromParser #-}
 fromParser ::
        (MonadIO m, Unbox a) => ParserD.Parser a m b -> ParserK (Array a) m b
-fromParser = adaptC
+fromParser = Array.parserK

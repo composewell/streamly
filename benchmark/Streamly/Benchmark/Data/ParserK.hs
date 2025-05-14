@@ -5,9 +5,9 @@
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 
--- BENCH_CHUNKED             -> adaptC
--- BENCH_CHUNKED_GENERIC     -> adaptCG
--- BENCH_SINGULAR            -> adapt
+-- BENCH_CHUNKED             -> parse from Array stream
+-- BENCH_CHUNKED_GENERIC     -> parse from Generic Array stream
+-- BENCH_SINGULAR            -> parse from single element stream
 
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -24,11 +24,9 @@ import Control.Monad.IO.Class (MonadIO)
 import Data.Foldable (asum)
 #ifdef BENCH_CHUNKED
 import Streamly.Data.Array (Array, Unbox)
-import qualified Streamly.Internal.Data.Array as Array (chunksOf)
 #endif
 #ifdef BENCH_CHUNKED_GENERIC
 import Streamly.Data.Array.Generic (Array)
-import qualified Streamly.Internal.Data.Array.Generic as GenArr (chunksOf)
 #endif
 import Streamly.Internal.Data.Fold (Fold(..))
 import Streamly.Data.StreamK (StreamK)
@@ -48,6 +46,11 @@ import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Data.Parser as PRD
 import qualified Streamly.Internal.Data.ParserK as PR
 import qualified Streamly.Internal.Data.StreamK as StreamK
+#ifdef BENCH_CHUNKED
+import qualified Streamly.Internal.Data.Array as Array
+#elif defined(BENCH_CHUNKED_GENERIC)
+import qualified Streamly.Internal.Data.Array.Generic as GenArr
+#endif
 
 import Test.Tasty.Bench
 import Streamly.Benchmark.Common
@@ -58,8 +61,8 @@ import Streamly.Benchmark.Common
 
 #ifdef BENCH_CHUNKED
 
-#define PARSE_OP StreamK.parseChunks
-#define FROM_PARSER adaptC
+#define PARSE_OP Array.parse
+#define FROM_PARSER Array.parserK
 #define INPUT (Array a)
 #define PARSE_ELEM (Array Int)
 #define CONSTRAINT_IO (MonadIO m, Unbox a)
@@ -70,8 +73,8 @@ import Streamly.Benchmark.Common
 
 #ifdef BENCH_CHUNKED_GENERIC
 
-#define PARSE_OP StreamK.parseChunksGeneric
-#define FROM_PARSER adaptCG
+#define PARSE_OP GenArr.parse
+#define FROM_PARSER GenArr.parserK
 #define INPUT (Array a)
 #define PARSE_ELEM (Array Int)
 #define CONSTRAINT_IO (MonadIO m)
@@ -83,7 +86,7 @@ import Streamly.Benchmark.Common
 #ifdef BENCH_SINGULAR
 
 #define PARSE_OP StreamK.parse
-#define FROM_PARSER adapt
+#define FROM_PARSER PR.parserK
 #define INPUT a
 #define PARSE_ELEM Int
 #define CONSTRAINT_IO (MonadIO m)
@@ -136,18 +139,18 @@ one value = PARSE_OP p
     where
 
     p = do
-        m <- PR.FROM_PARSER (PRD.fromFold FL.one)
+        m <- FROM_PARSER (PRD.fromFold FL.one)
         case m of
           Just i -> if i >= value then pure m else p
           Nothing -> pure Nothing
 
 {-# INLINE satisfy #-}
 satisfy :: CONSTRAINT_IO => (a -> Bool) -> PR.ParserK INPUT m a
-satisfy = PR.FROM_PARSER . PRD.satisfy
+satisfy = FROM_PARSER . PRD.satisfy
 
 {-# INLINE takeWhile #-}
 takeWhile :: CONSTRAINT_IO => (a -> Bool) -> PR.ParserK INPUT m ()
-takeWhile p = PR.FROM_PARSER $ PRD.takeWhile p FL.drain
+takeWhile p = FROM_PARSER $ PRD.takeWhile p FL.drain
 
 {-# INLINE takeWhileK #-}
 takeWhileK :: MonadIO m =>
@@ -240,7 +243,7 @@ takeWhileFailD predicate (Fold fstep finitial _ ffinal) =
 {-# INLINE takeWhileFail #-}
 takeWhileFail :: CONSTRAINT =>
     (a -> Bool) -> Fold m a b -> PR.ParserK INPUT m b
-takeWhileFail p f = PR.FROM_PARSER (takeWhileFailD p f)
+takeWhileFail p f = FROM_PARSER (takeWhileFailD p f)
 
 {-# INLINE alt2 #-}
 alt2 :: MonadIO m

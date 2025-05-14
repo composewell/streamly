@@ -124,8 +124,6 @@ module Streamly.Data.StreamK
     -- ** Parsing
     , parse
     , parseBreak
-    , parseBreakChunks
-    , parseChunks
 
     -- * Transformation
     , mapM
@@ -186,6 +184,10 @@ module Streamly.Data.StreamK
     -- | Please note that 'Stream' type does not observe any exceptions from
     -- the consumer of the stream whereas 'StreamK' does.
     , bracketIO
+
+    -- * Deprecated
+    , parseBreakChunks
+    , parseChunks
     )
 where
 

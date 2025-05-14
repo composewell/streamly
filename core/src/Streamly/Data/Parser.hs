@@ -68,20 +68,23 @@
 -- >>> import Control.Applicative ((<|>))
 --
 -- >>> :{
--- >>> p :: Monad m => Parser Char m String
--- >>> p = Parser.satisfy (== '(') *> p <|> Parser.fromFold Fold.toList
+-- >>> p, p1, p2 :: Monad m => Parser Char m String
+-- >>> p1 = Parser.satisfy (== '(') *> p
+-- >>> p2 = Parser.fromFold Fold.toList
+-- >>> p = p1 <|> p2
 -- >>> :}
 --
 -- Use ParserK when recursive use is required:
 --
--- >>> import Streamly.Data.ParserK (ParserK)
+-- >>> import Streamly.Data.ParserK (ParserK, parserK)
 -- >>> import qualified Streamly.Data.StreamK as StreamK
 -- >>> import qualified Streamly.Internal.Data.StreamK as StreamK (parse)
--- >>> import qualified Streamly.Internal.Data.ParserK as ParserK (adapt)
 --
 -- >>> :{
--- >>> p :: Monad m => ParserK Char m String
--- >>> p = ParserK.adapt (Parser.satisfy (== '(')) *> p <|> ParserK.adapt (Parser.fromFold Fold.toList)
+-- >>> p, p1, p2 :: Monad m => ParserK Char m String
+-- >>> p1 = parserK (Parser.satisfy (== '(')) *> p
+-- >>> p2 = parserK (Parser.fromFold Fold.toList)
+-- >>> p = p1 <|> p2
 -- >>> :}
 --
 -- >>> StreamK.parse p $ StreamK.fromStream $ Stream.fromList "hello"

@@ -77,6 +77,7 @@ module Streamly.Internal.Data.StreamK.Type
     -- ** From Containers
     , fromFoldable
     , fromFoldableM
+    , Streamly.Internal.Data.StreamK.Type.fromList
 
     -- ** Cyclic
     , mfix
@@ -1090,13 +1091,13 @@ instance Show a => Show (StreamK Identity a) where
 instance Read a => Read (StreamK Identity a) where
     readPrec = parens $ prec 10 $ do
         Ident "fromList" <- lexP
-        fromList <$> readPrec
+        GHC.Exts.fromList <$> readPrec
 
     readListPrec = readListPrecDefault
 
 instance (a ~ Char) => IsString (StreamK Identity a) where
     {-# INLINE fromString #-}
-    fromString = fromList
+    fromString = GHC.Exts.fromList
 
 -------------------------------------------------------------------------------
 -- Foldable
@@ -2023,6 +2024,10 @@ fromFoldable = Prelude.foldr cons nil
 {-# INLINE fromFoldableM #-}
 fromFoldableM :: (Foldable f, Monad m) => f (m a) -> StreamK m a
 fromFoldableM = Prelude.foldr consM nil
+
+{-# INLINE fromList #-}
+fromList :: [a] -> StreamK m a
+fromList = fromFoldable
 
 -------------------------------------------------------------------------------
 -- Deconstruction

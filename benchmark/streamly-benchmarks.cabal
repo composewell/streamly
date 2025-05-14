@@ -349,7 +349,6 @@ benchmark Data.Parser
     else
       ghc-options: +RTS -M2500M -RTS
 
--- XXX This is chunked?
 benchmark Data.ParserK
   import: bench-options
   type: exitcode-stdio-1.0

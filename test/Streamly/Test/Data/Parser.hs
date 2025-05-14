@@ -1375,13 +1375,13 @@ runParserTC :: (Unbox a, Monad m) => TestMode -> ParserTestCase a m b c -> c
 runParserTC tm runner =
     case tm of
         TMParserStream -> runner S.fromList S.parse
-        TMParserKStreamK -> runner K.fromList (K.parse . PK.adapt)
+        TMParserKStreamK -> runner K.fromList (K.parse . PK.parserK)
         TMParserKStreamKChunks ->
-            runner (producerChunks A.fromList) (K.parseChunks . PK.adaptC)
+            runner (producerChunks A.fromList) (A.parse . A.parserK)
         TMParserKStreamKChunksGeneric ->
             runner
                 (producerChunks GA.fromList)
-                (K.parseChunksGeneric . PK.adaptCG)
+                (GA.parse . GA.parserK)
 
     where
     cSize = 50

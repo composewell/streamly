@@ -45,6 +45,11 @@ module Streamly.Internal.Data.Array.Generic
     , unsafeSliceOffLen
     , dropAround
 
+    -- * Parsing Stream of Arrays
+    , parserK
+    , parse
+    , parseBreak
+
     -- * Deprecated
     , strip
     , getIndexUnsafe
@@ -57,29 +62,40 @@ module Streamly.Internal.Data.Array.Generic
 where
 
 #include "inline.hs"
+#include "assert.hs"
 #include "deprecation.h"
 
 import Control.Monad (replicateM)
 import Control.Monad.IO.Class (MonadIO)
+import Data.Foldable (sum)
 import Data.Functor.Identity (Identity(..))
 import Data.Word (Word8)
 import GHC.Base (MutableArray#, RealWorld)
 import GHC.Exts (Addr#)
+import GHC.Types (SPEC(..))
 import GHC.IO (unsafePerformIO)
 import Text.Read (readPrec)
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
+import Streamly.Internal.Data.Parser (ParseError(..))
+import Streamly.Internal.Data.ParserK.Type
+    (ParserK, ParseResult(..), Input(..), Step(..))
 import Streamly.Internal.Data.Stream.Type (Stream)
+import Streamly.Internal.Data.StreamK.Type (StreamK)
+import Streamly.Internal.Data.SVar.Type (defState)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
 
-import qualified Streamly.Internal.Data.MutArray.Generic as MArray
 import qualified Streamly.Internal.Data.Fold.Type as FL
+import qualified Streamly.Internal.Data.MutArray.Generic as MArray
+import qualified Streamly.Internal.Data.Parser.Type as ParserD
+import qualified Streamly.Internal.Data.ParserK.Type as ParserK
 import qualified Streamly.Internal.Data.Producer.Type as Producer
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.RingArray.Generic as RB
 import qualified Streamly.Internal.Data.Stream.Type as D
 import qualified Streamly.Internal.Data.Stream.Generate as D
+import qualified Streamly.Internal.Data.StreamK.Type as StreamK
 import qualified Text.ParserCombinators.ReadPrec as ReadPrec
 
 import Prelude hiding (Foldable(..), read)
@@ -362,3 +378,280 @@ RENAME(strip,dropAround)
 RENAME(getSliceUnsafe,unsafeSliceOffLen)
 RENAME(unsafeGetSlice,unsafeSliceOffLen)
 RENAME(getIndexUnsafe,unsafeGetIndex)
+
+-------------------------------------------------------------------------------
+-- ParserK Chunked Generic
+-------------------------------------------------------------------------------
+
+{-# INLINE backTrackGenericChunks #-}
+backTrackGenericChunks ::
+       Int
+    -> [Array a]
+    -> StreamK m (Array a)
+    -> (StreamK m (Array a), [Array a])
+backTrackGenericChunks = go
+
+    where
+
+    go _ [] stream = (stream, [])
+    go n xs stream | n <= 0 = (stream, xs)
+    go n (x:xs) stream =
+        let len = length x
+        in if n > len
+           then go (n - len) xs (StreamK.cons x stream)
+           else if n == len
+           then (StreamK.cons x stream, xs)
+           else let arr1 = unsafeSliceOffLen (len - n) n x
+                    arr2 = unsafeSliceOffLen 0 (len - n) x
+                 in (StreamK.cons arr1 stream, arr2:xs)
+
+{-# INLINE_NORMAL parseBreak #-}
+parseBreak
+    :: forall m a b. Monad m
+    => ParserK.ParserK (Array a) m b
+    -> StreamK m (Array a)
+    -> m (Either ParseError b, StreamK m (Array a))
+parseBreak parser input = do
+    let parserk = ParserK.runParser parser ParserK.parserDone 0 0
+     in go [] parserk input
+
+    where
+
+    {-# INLINE goStop #-}
+    goStop
+        :: [Array a]
+        -> (ParserK.Input (Array a)
+                -> m (ParserK.Step (Array a) m b))
+        -> m (Either ParseError b, StreamK m (Array a))
+    goStop backBuf parserk = do
+        pRes <- parserk ParserK.None
+        case pRes of
+            -- If we stop in an alternative, it will try calling the next
+            -- parser, the next parser may call initial returning Partial and
+            -- then immediately we have to call extract on it.
+            ParserK.Partial 0 cont1 ->
+                 go [] cont1 StreamK.nil
+            ParserK.Partial n cont1 -> do
+                let n1 = negate n
+                assertM(n1 >= 0 && n1 <= sum (Prelude.map length backBuf))
+                let (s1, backBuf1) = backTrackGenericChunks n1 backBuf StreamK.nil
+                 in go backBuf1 cont1 s1
+            ParserK.Continue 0 cont1 ->
+                go backBuf cont1 StreamK.nil
+            ParserK.Continue n cont1 -> do
+                let n1 = negate n
+                assertM(n1 >= 0 && n1 <= sum (Prelude.map length backBuf))
+                let (s1, backBuf1) = backTrackGenericChunks n1 backBuf StreamK.nil
+                 in go backBuf1 cont1 s1
+            ParserK.Done 0 b ->
+                return (Right b, StreamK.nil)
+            ParserK.Done n b -> do
+                let n1 = negate n
+                assertM(n1 >= 0 && n1 <= sum (Prelude.map length backBuf))
+                let (s1, _) = backTrackGenericChunks n1 backBuf StreamK.nil
+                 in return (Right b, s1)
+            ParserK.Error _ err ->
+                let strm = StreamK.fromList (Prelude.reverse backBuf)
+                 in return (Left (ParseError err), strm)
+
+    seekErr n len =
+        error $ "parseBreak: Partial: forward seek not implemented n = "
+            ++ show n ++ " len = " ++ show len
+
+    yieldk
+        :: [Array a]
+        -> (ParserK.Input (Array a)
+                -> m (ParserK.Step (Array a) m b))
+        -> Array a
+        -> StreamK m (Array a)
+        -> m (Either ParseError b, StreamK m (Array a))
+    yieldk backBuf parserk arr stream = do
+        pRes <- parserk (ParserK.Chunk arr)
+        let len = length arr
+        case pRes of
+            ParserK.Partial n cont1 ->
+                case compare n len of
+                    EQ -> go [] cont1 stream
+                    LT -> do
+                        if n >= 0
+                        then yieldk [] cont1 arr stream
+                        else do
+                            let n1 = negate n
+                                bufLen = sum (Prelude.map length backBuf)
+                                s = StreamK.cons arr stream
+                            assertM(n1 >= 0 && n1 <= bufLen)
+                            let (s1, _) = backTrackGenericChunks n1 backBuf s
+                            go [] cont1 s1
+                    GT -> seekErr n len
+            ParserK.Continue n cont1 ->
+                case compare n len of
+                    EQ -> go (arr:backBuf) cont1 stream
+                    LT -> do
+                        if n >= 0
+                        then yieldk backBuf cont1 arr stream
+                        else do
+                            let n1 = negate n
+                                bufLen = sum (Prelude.map length backBuf)
+                                s = StreamK.cons arr stream
+                            assertM(n1 >= 0 && n1 <= bufLen)
+                            let (s1, backBuf1) = backTrackGenericChunks n1 backBuf s
+                            go backBuf1 cont1 s1
+                    GT -> seekErr n len
+            ParserK.Done n b -> do
+                let n1 = len - n
+                assertM(n1 <= sum (Prelude.map length (arr:backBuf)))
+                let (s1, _) = backTrackGenericChunks n1 (arr:backBuf) stream
+                 in return (Right b, s1)
+            ParserK.Error _ err ->
+                let strm =
+                        StreamK.append
+                            (StreamK.fromList (Prelude.reverse backBuf))
+                            (StreamK.cons arr stream)
+                 in return (Left (ParseError err), strm)
+
+    go
+        :: [Array a]
+        -> (ParserK.Input (Array a)
+                -> m (ParserK.Step (Array a) m b))
+        -> StreamK m (Array a)
+        -> m (Either ParseError b, StreamK m (Array a))
+    go backBuf parserk stream = do
+        let stop = goStop backBuf parserk
+            single a = yieldk backBuf parserk a StreamK.nil
+         in StreamK.foldStream
+                defState (yieldk backBuf parserk) single stop stream
+
+{-# INLINE parse #-}
+parse ::
+       (Monad m)
+    => ParserK.ParserK (Array a) m b
+    -> StreamK m (Array a)
+    -> m (Either ParseError b)
+parse f = fmap fst . parseBreak f
+
+--------------------------------------------------------------------------------
+-- Convert Parser to Parserk on Generic Arrays
+--------------------------------------------------------------------------------
+
+{-# INLINE adaptCGWith #-}
+adaptCGWith
+    :: forall m a s b r. (Monad m)
+    => (s -> a -> m (ParserD.Step s b))
+    -> m (ParserD.Initial s b)
+    -> (s -> m (ParserD.Step s b))
+    -> (ParseResult b -> Int -> Input (Array a) -> m (Step (Array a) m r))
+    -> Int
+    -> Int
+    -> Input (Array a)
+    -> m (Step (Array a) m r)
+adaptCGWith pstep initial extract cont !offset0 !usedCount !input = do
+    res <- initial
+    case res of
+        ParserD.IPartial pst -> do
+            case input of
+                Chunk arr -> parseContChunk usedCount offset0 pst arr
+                None -> parseContNothing usedCount pst
+        ParserD.IDone b -> cont (Success offset0 b) usedCount input
+        ParserD.IError err -> cont (Failure offset0 err) usedCount input
+
+    where
+
+    {-# NOINLINE parseContChunk #-}
+    parseContChunk !count !offset !state arr@(Array contents start end) = do
+         if offset >= 0
+         then go SPEC (start + offset) state
+         else return $ Continue offset (parseCont count state)
+
+        where
+
+        {-# INLINE onDone #-}
+        onDone n b =
+            assert (n <= length arr)
+                (cont (Success n b) (count + n - offset) (Chunk arr))
+
+        {-# INLINE callParseCont #-}
+        callParseCont constr n pst1 =
+            assert (n < 0 || n >= length arr)
+                (return $ constr n (parseCont (count + n - offset) pst1))
+
+        {-# INLINE onPartial #-}
+        onPartial = callParseCont Partial
+
+        {-# INLINE onContinue #-}
+        onContinue = callParseCont Continue
+
+        {-# INLINE onError #-}
+        onError n err =
+            cont (Failure n err) (count + n - offset) (Chunk arr)
+
+        {-# INLINE onBack #-}
+        onBack offset1 constr pst = do
+            let pos = offset1 - start
+             in if pos >= 0
+                then go SPEC offset1 pst
+                else constr pos pst
+
+        go !_ !cur !pst | cur >= end =
+            onContinue (end - start)  pst
+        go !_ !cur !pst = do
+            let !x = unsafeInlineIO $ MArray.unsafeGetIndexWith contents cur
+            pRes <- pstep pst x
+            let next = cur + 1
+                back n = next - n
+                curOff = cur - start
+                nextOff = next - start
+            -- The "n" here is stream position index wrt the array start, and
+            -- not the backtrack count as returned by byte stream parsers.
+            case pRes of
+                ParserD.Done 0 b ->
+                    onDone nextOff b
+                ParserD.Done 1 b ->
+                    onDone curOff b
+                ParserD.Done n b ->
+                    onDone (back n - start) b
+                ParserD.Partial 0 pst1 ->
+                    go SPEC next pst1
+                ParserD.Partial 1 pst1 ->
+                    go SPEC cur pst1
+                ParserD.Partial n pst1 ->
+                    onBack (back n) onPartial pst1
+                ParserD.Continue 0 pst1 ->
+                    go SPEC next pst1
+                ParserD.Continue 1 pst1 ->
+                    go SPEC cur pst1
+                ParserD.Continue n pst1 ->
+                    onBack (back n) onContinue pst1
+                ParserD.Error err ->
+                    onError curOff err
+
+    {-# NOINLINE parseContNothing #-}
+    parseContNothing !count !pst = do
+        r <- extract pst
+        case r of
+            -- IMPORTANT: the n here is from the byte stream parser, that means
+            -- it is the backtrack element count and not the stream position
+            -- index into the current input array.
+            ParserD.Done n b ->
+                assert (n >= 0)
+                    (cont (Success (- n) b) (count - n) None)
+            ParserD.Continue n pst1 ->
+                assert (n >= 0)
+                    (return $ Continue (- n) (parseCont (count - n) pst1))
+            ParserD.Error err ->
+                -- XXX It is called only when there is no input arr. So using 0
+                -- as the position is correct?
+                cont (Failure 0 err) count None
+            ParserD.Partial _ _ -> error "Bug: adaptCGWith Partial unreachable"
+
+    {-# INLINE parseCont #-}
+    parseCont !cnt !pst (Chunk arr) = parseContChunk cnt 0 pst arr
+    parseCont !cnt !pst None = parseContNothing cnt pst
+
+-- | Convert a 'Parser' to 'ParserK' working on generic Array stream.
+--
+-- /Pre-release/
+--
+{-# INLINE_LATE parserK #-}
+parserK :: Monad m => ParserD.Parser a m b -> ParserK (Array a) m b
+parserK (ParserD.Parser step initial extract) =
+    ParserK.MkParser $ adaptCGWith step initial extract

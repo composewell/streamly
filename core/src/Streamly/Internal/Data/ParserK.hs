@@ -10,7 +10,30 @@
 module Streamly.Internal.Data.ParserK
     (
       module Streamly.Internal.Data.ParserK.Type
+
+    -- * Deprecated
+    , adaptC
+    , adaptCG
     )
 where
 
+import Streamly.Internal.Data.Parser (Parser)
+import Streamly.Internal.Data.Array (Array)
+import Streamly.Internal.Data.Unbox (Unbox)
 import Streamly.Internal.Data.ParserK.Type
+
+import qualified Streamly.Internal.Data.Array as Array
+import qualified Streamly.Internal.Data.Array.Generic as GenArray
+
+#include "inline.hs"
+
+{-# DEPRECATED adaptC "Use Streamly.Data.Array.parserK" #-}
+{-# INLINE_LATE adaptC #-}
+adaptC :: (Monad m, Unbox a) => Parser a m b -> ParserK (Array a) m b
+adaptC = Array.parserK
+
+{-# DEPRECATED adaptCG "Use Streamly.Data.Array.Generic.parserK" #-}
+{-# INLINE_LATE adaptCG #-}
+adaptCG ::
+       Monad m => Parser a m b -> ParserK (GenArray.Array a) m b
+adaptCG = GenArray.parserK

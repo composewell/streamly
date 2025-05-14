@@ -112,6 +112,8 @@ cradle:
               component: "test:Data.List"
             - path: "./test/Streamly/Test/Data/Parser.hs"
               component: "test:Data.Parser"
+            - path: "./test/Streamly/Test/Data/ParserK.hs"
+              component: "test:Data.ParserK"
             - path: "./test/Streamly/Test/Data/Stream/Concurrent.hs"
               component: "test:Data.Stream.Concurrent"
             - path: "./test/Streamly/Test/Data/Stream/Common.hs"

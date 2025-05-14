@@ -27,18 +27,22 @@ module Streamly.Internal.Data.ParserK.Type
     , Input (..)
     , ParseResult (..)
     , ParserK (..)
-    , adaptC
-    , adapt
-    , adaptCG
+    , parserK
     , toParser -- XXX unParserK, unK, unPK
     , fromPure
     , fromEffect
     , die
+
+    , parserDone
+
+    -- * Deprecated
+    , adapt
     )
 where
 
 #include "ArrayMacros.h"
 #include "assert.hs"
+#include "deprecation.h"
 #include "inline.hs"
 
 #if !MIN_VERSION_base(4,18,0)
@@ -48,18 +52,9 @@ import Control.Applicative (Alternative(..))
 import Control.Monad (MonadPlus(..), ap)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 -- import Control.Monad.Trans.Class (MonadTrans(lift))
-import Data.Proxy (Proxy(..))
 import GHC.Types (SPEC(..))
-import Streamly.Internal.Data.Array.Type (Array(..))
-import Streamly.Internal.Data.Unbox (Unbox(..))
-import Streamly.Internal.System.IO (unsafeInlineIO)
 
 import qualified Control.Monad.Fail as Fail
-import qualified Streamly.Internal.Data.Array.Type as Array
-import qualified Streamly.Internal.Data.MutArray.Generic as GenArr
-    ( unsafeGetIndexWith
-    )
-import qualified Streamly.Internal.Data.Array.Generic as GenArr
 import qualified Streamly.Internal.Data.Parser.Type as ParserD
 
 -------------------------------------------------------------------------------
@@ -368,150 +363,8 @@ instance MonadTrans (ParserK a) where
     lift = fromEffect
 -}
 
--------------------------------------------------------------------------------
--- Convert ParserD to ParserK
--------------------------------------------------------------------------------
-
 --------------------------------------------------------------------------------
--- Chunked
---------------------------------------------------------------------------------
-
-{-# INLINE adaptCWith #-}
-adaptCWith
-    :: forall m a s b r. (Monad m, Unbox a)
-    => (s -> a -> m (ParserD.Step s b))
-    -> m (ParserD.Initial s b)
-    -> (s -> m (ParserD.Step s b))
-    -> (ParseResult b -> Int -> Input (Array a) -> m (Step (Array a) m r))
-    -> Int
-    -> Int
-    -> Input (Array a)
-    -> m (Step (Array a) m r)
-adaptCWith pstep initial extract cont !offset0 !usedCount !input = do
-    res <- initial
-    case res of
-        ParserD.IPartial pst -> do
-            case input of
-                Chunk arr -> parseContChunk usedCount offset0 pst arr
-                None -> parseContNothing usedCount pst
-        ParserD.IDone b -> cont (Success offset0 b) usedCount input
-        ParserD.IError err -> cont (Failure offset0 err) usedCount input
-
-    where
-
-    -- XXX We can maintain an absolute position instead of relative that will
-    -- help in reporting of error location in the stream.
-    {-# NOINLINE parseContChunk #-}
-    parseContChunk !count !offset !state arr@(Array contents start end) = do
-         if offset >= 0
-         then go SPEC (start + offset * SIZE_OF(a)) state
-         else return $ Continue offset (parseCont count state)
-
-        where
-
-        {-# INLINE onDone #-}
-        onDone n b =
-            assert (n <= Array.length arr)
-                (cont (Success n b) (count + n - offset) (Chunk arr))
-
-        {-# INLINE callParseCont #-}
-        callParseCont constr n pst1 =
-            assert (n < 0 || n >= Array.length arr)
-                (return $ constr n (parseCont (count + n - offset) pst1))
-
-        {-# INLINE onPartial #-}
-        onPartial = callParseCont Partial
-
-        {-# INLINE onContinue #-}
-        onContinue = callParseCont Continue
-
-        {-# INLINE onError #-}
-        onError n err =
-            cont (Failure n err) (count + n - offset) (Chunk arr)
-
-        {-# INLINE onBack #-}
-        onBack offset1 elemSize constr pst = do
-            let pos = offset1 - start
-             in if pos >= 0
-                then go SPEC offset1 pst
-                else constr (pos `div` elemSize) pst
-
-        -- Note: div may be expensive but the alternative is to maintain an element
-        -- offset in addition to a byte offset or just the element offset and use
-        -- multiplication to get the byte offset every time, both these options
-        -- turned out to be more expensive than using div.
-        go !_ !cur !pst | cur >= end =
-            onContinue ((end - start) `div` SIZE_OF(a))  pst
-        go !_ !cur !pst = do
-            let !x = unsafeInlineIO $ peekAt cur contents
-            pRes <- pstep pst x
-            let elemSize = SIZE_OF(a)
-                next = INDEX_NEXT(cur,a)
-                back n = next - n * elemSize
-                curOff = (cur - start) `div` elemSize
-                nextOff = (next - start) `div` elemSize
-            -- The "n" here is stream position index wrt the array start, and
-            -- not the backtrack count as returned by byte stream parsers.
-            case pRes of
-                ParserD.Done 0 b ->
-                    onDone nextOff b
-                ParserD.Done 1 b ->
-                    onDone curOff b
-                ParserD.Done n b ->
-                    onDone ((back n - start) `div` elemSize) b
-                ParserD.Partial 0 pst1 ->
-                    go SPEC next pst1
-                ParserD.Partial 1 pst1 ->
-                    go SPEC cur pst1
-                ParserD.Partial n pst1 ->
-                    onBack (back n) elemSize onPartial pst1
-                ParserD.Continue 0 pst1 ->
-                    go SPEC next pst1
-                ParserD.Continue 1 pst1 ->
-                    go SPEC cur pst1
-                ParserD.Continue n pst1 ->
-                    onBack (back n) elemSize onContinue pst1
-                ParserD.Error err ->
-                    onError curOff err
-
-    {-# NOINLINE parseContNothing #-}
-    parseContNothing !count !pst = do
-        r <- extract pst
-        case r of
-            -- IMPORTANT: the n here is from the byte stream parser, that means
-            -- it is the backtrack element count and not the stream position
-            -- index into the current input array.
-            ParserD.Done n b ->
-                assert (n >= 0)
-                    (cont (Success (- n) b) (count - n) None)
-            ParserD.Continue n pst1 ->
-                assert (n >= 0)
-                    (return $ Continue (- n) (parseCont (count - n) pst1))
-            ParserD.Error err ->
-                -- XXX It is called only when there is no input arr. So using 0
-                -- as the position is correct?
-                cont (Failure 0 err) count None
-            ParserD.Partial _ _ -> error "Bug: adaptCWith Partial unreachable"
-
-    -- XXX Maybe we can use two separate continuations instead of using
-    -- Just/Nothing cases here. That may help in avoiding the parseContJust
-    -- function call.
-    {-# INLINE parseCont #-}
-    parseCont !cnt !pst (Chunk arr) = parseContChunk cnt 0 pst arr
-    parseCont !cnt !pst None = parseContNothing cnt pst
-
--- | Convert an element 'Parser' to a chunked 'ParserK'. A chunked parser is
--- more efficient than an element parser.
---
--- /Pre-release/
---
-{-# INLINE_LATE adaptC #-}
-adaptC :: (Monad m, Unbox a) => ParserD.Parser a m b -> ParserK (Array a) m b
-adaptC (ParserD.Parser step initial extract) =
-    MkParser $ adaptCWith step initial extract
-
---------------------------------------------------------------------------------
--- Singular
+-- Make a ParserK from Parser
 --------------------------------------------------------------------------------
 
 {-# INLINE adaptWith #-}
@@ -614,139 +467,12 @@ adaptWith pstep initial extract cont !relPos !usedCount !input = do
 --
 -- /Pre-release/
 --
-{-# INLINE_LATE adapt #-}
-adapt :: Monad m => ParserD.Parser a m b -> ParserK a m b
-adapt (ParserD.Parser step initial extract) =
+{-# INLINE_LATE parserK #-}
+parserK, adapt :: Monad m => ParserD.Parser a m b -> ParserK a m b
+parserK (ParserD.Parser step initial extract) =
     MkParser $ adaptWith step initial extract
 
---------------------------------------------------------------------------------
--- Chunked Generic
---------------------------------------------------------------------------------
-
-{-# INLINE adaptCGWith #-}
-adaptCGWith
-    :: forall m a s b r. (Monad m)
-    => (s -> a -> m (ParserD.Step s b))
-    -> m (ParserD.Initial s b)
-    -> (s -> m (ParserD.Step s b))
-    -> (ParseResult b -> Int -> Input (GenArr.Array a) -> m (Step (GenArr.Array a) m r))
-    -> Int
-    -> Int
-    -> Input (GenArr.Array a)
-    -> m (Step (GenArr.Array a) m r)
-adaptCGWith pstep initial extract cont !offset0 !usedCount !input = do
-    res <- initial
-    case res of
-        ParserD.IPartial pst -> do
-            case input of
-                Chunk arr -> parseContChunk usedCount offset0 pst arr
-                None -> parseContNothing usedCount pst
-        ParserD.IDone b -> cont (Success offset0 b) usedCount input
-        ParserD.IError err -> cont (Failure offset0 err) usedCount input
-
-    where
-
-    {-# NOINLINE parseContChunk #-}
-    parseContChunk !count !offset !state arr@(GenArr.Array contents start end) = do
-         if offset >= 0
-         then go SPEC (start + offset) state
-         else return $ Continue offset (parseCont count state)
-
-        where
-
-        {-# INLINE onDone #-}
-        onDone n b =
-            assert (n <= GenArr.length arr)
-                (cont (Success n b) (count + n - offset) (Chunk arr))
-
-        {-# INLINE callParseCont #-}
-        callParseCont constr n pst1 =
-            assert (n < 0 || n >= GenArr.length arr)
-                (return $ constr n (parseCont (count + n - offset) pst1))
-
-        {-# INLINE onPartial #-}
-        onPartial = callParseCont Partial
-
-        {-# INLINE onContinue #-}
-        onContinue = callParseCont Continue
-
-        {-# INLINE onError #-}
-        onError n err =
-            cont (Failure n err) (count + n - offset) (Chunk arr)
-
-        {-# INLINE onBack #-}
-        onBack offset1 constr pst = do
-            let pos = offset1 - start
-             in if pos >= 0
-                then go SPEC offset1 pst
-                else constr pos pst
-
-        go !_ !cur !pst | cur >= end =
-            onContinue (end - start)  pst
-        go !_ !cur !pst = do
-            let !x = unsafeInlineIO $ GenArr.unsafeGetIndexWith contents cur
-            pRes <- pstep pst x
-            let next = cur + 1
-                back n = next - n
-                curOff = cur - start
-                nextOff = next - start
-            -- The "n" here is stream position index wrt the array start, and
-            -- not the backtrack count as returned by byte stream parsers.
-            case pRes of
-                ParserD.Done 0 b ->
-                    onDone nextOff b
-                ParserD.Done 1 b ->
-                    onDone curOff b
-                ParserD.Done n b ->
-                    onDone (back n - start) b
-                ParserD.Partial 0 pst1 ->
-                    go SPEC next pst1
-                ParserD.Partial 1 pst1 ->
-                    go SPEC cur pst1
-                ParserD.Partial n pst1 ->
-                    onBack (back n) onPartial pst1
-                ParserD.Continue 0 pst1 ->
-                    go SPEC next pst1
-                ParserD.Continue 1 pst1 ->
-                    go SPEC cur pst1
-                ParserD.Continue n pst1 ->
-                    onBack (back n) onContinue pst1
-                ParserD.Error err ->
-                    onError curOff err
-
-    {-# NOINLINE parseContNothing #-}
-    parseContNothing !count !pst = do
-        r <- extract pst
-        case r of
-            -- IMPORTANT: the n here is from the byte stream parser, that means
-            -- it is the backtrack element count and not the stream position
-            -- index into the current input array.
-            ParserD.Done n b ->
-                assert (n >= 0)
-                    (cont (Success (- n) b) (count - n) None)
-            ParserD.Continue n pst1 ->
-                assert (n >= 0)
-                    (return $ Continue (- n) (parseCont (count - n) pst1))
-            ParserD.Error err ->
-                -- XXX It is called only when there is no input arr. So using 0
-                -- as the position is correct?
-                cont (Failure 0 err) count None
-            ParserD.Partial _ _ -> error "Bug: adaptCGWith Partial unreachable"
-
-    {-# INLINE parseCont #-}
-    parseCont !cnt !pst (Chunk arr) = parseContChunk cnt 0 pst arr
-    parseCont !cnt !pst None = parseContNothing cnt pst
-
--- | A generic 'adaptC'. Similar to 'adaptC' but is not constrained to 'Unbox'
--- types.
---
--- /Pre-release/
---
-{-# INLINE_LATE adaptCG #-}
-adaptCG ::
-       Monad m => ParserD.Parser a m b -> ParserK (GenArr.Array a) m b
-adaptCG (ParserD.Parser step initial extract) =
-    MkParser $ adaptCGWith step initial extract
+RENAME(adapt,parserK)
 
 -------------------------------------------------------------------------------
 -- Convert CPS style 'Parser' to direct style 'D.Parser'
@@ -754,13 +480,10 @@ adaptCG (ParserD.Parser step initial extract) =
 
 -- | A continuation to extract the result when a CPS parser is done.
 {-# INLINE parserDone #-}
-parserDone :: Monad m => ParseResult b -> Int -> Input a -> m (Step a m b)
-parserDone (Success n b) _ _ = do
-    assertM(n <= 1)
-    return $ Done n b
-parserDone (Failure n e) _ _ = do
-    assertM(n <= 1)
-    return $ Error n e
+parserDone :: Applicative m =>
+    ParseResult b -> Int -> Input a -> m (Step a m b)
+parserDone (Success n b) _ _ = assert(n <= 1) `seq` pure (Done n b)
+parserDone (Failure n e) _ _ = assert(n <= 1) `seq` pure (Error n e)
 
 -- XXX Note that this works only for single element parsers and not for Array
 -- input parsers. The asserts will fail for array parsers.
@@ -797,6 +520,6 @@ toParser parser = ParserD.Parser step initial extract
                 assert (n <= 0) (return $ ParserD.Continue (negate n) cont1)
 
 {-# RULES "fromParser/toParser fusion" [2]
-    forall s. toParser (adapt s) = s #-}
+    forall s. toParser (parserK s) = s #-}
 {-# RULES "toParser/fromParser fusion" [2]
-    forall s. adapt (toParser s) = s #-}
+    forall s. parserK (toParser s) = s #-}
