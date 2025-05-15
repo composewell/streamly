@@ -28,7 +28,6 @@ module Streamly.Internal.FileSystem.Path.Common
     , mkQ
 
     -- * Elimination
-    , toChunk
     , toString
     , toChars
 
@@ -1205,11 +1204,6 @@ fromChunk Windows arr =
                     ++ " is not a multiple of 16-bit."
         Just x -> validatePath Windows x >> pure x
 -}
-
--- | Convert 'Path' to an array of bytes.
-{-# INLINE toChunk #-}
-toChunk :: Array a -> Array Word8
-toChunk = Array.asBytes
 
 {-# INLINE unsafeFromChars #-}
 unsafeFromChars :: (Unbox a) =>

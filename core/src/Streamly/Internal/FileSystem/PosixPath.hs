@@ -166,13 +166,11 @@ import Control.Monad.Catch (MonadThrow(..))
 import Data.Bifunctor (bimap)
 import Data.Functor.Identity (Identity(..))
 import Data.Maybe (fromJust)
-import Data.Word (Word8)
-#if defined(IS_WINDOWS)
-import Data.Word (Word16)
-#endif
 #ifndef IS_WINDOWS
+import Data.Word (Word8)
 import Foreign.C (CString)
 #else
+import Data.Word (Word16)
 import Foreign.C (CWString)
 #endif
 import Language.Haskell.TH.Syntax (lift)
@@ -304,11 +302,7 @@ addTrailingSeparator p = unsafeAppend p sep
 
 -- | Throws an exception if the path is not valid. See 'isValidPath' for the
 -- list of validations.
-#ifndef IS_WINDOWS
-validatePath :: MonadThrow m => Array Word8 -> m ()
-#else
-validatePath :: MonadThrow m => Array Word16 -> m ()
-#endif
+validatePath :: MonadThrow m => Array WORD_TYPE -> m ()
 validatePath = Common.validatePath Common.OS_NAME
 
 #ifndef IS_WINDOWS
@@ -322,7 +316,7 @@ validatePath = Common.validatePath Common.OS_NAME
 -- >>> isValid "\0"
 -- False
 --
-isValidPath :: Array Word8 -> Bool
+isValidPath :: Array WORD_TYPE -> Bool
 isValidPath = Common.isValidPath Common.OS_NAME
 #endif
 
@@ -342,11 +336,7 @@ isValidPath = Common.isValidPath Common.OS_NAME
 -- per 'isValidPath'.
 --
 {-# INLINE unsafeFromChunk #-}
-#ifndef IS_WINDOWS
-unsafeFromChunk :: IsPath OS_PATH a => Array Word8 -> a
-#else
-unsafeFromChunk :: IsPath OS_PATH a => Array Word16 -> a
-#endif
+unsafeFromChunk :: IsPath OS_PATH a => Array WORD_TYPE -> a
 unsafeFromChunk =
 #ifndef DEBUG
     unsafeFromPath . OS_PATH . Common.unsafeFromChunk
@@ -359,11 +349,7 @@ unsafeFromChunk =
 -- | Convert a byte array into a Path.
 -- Throws 'InvalidPath' if 'isValidPath' fails on the path.
 --
-#ifndef IS_WINDOWS
-fromChunk :: (MonadThrow m, IsPath OS_PATH a) => Array Word8 -> m a
-#else
-fromChunk :: (MonadThrow m, IsPath OS_PATH a) => Array Word16 -> m a
-#endif
+fromChunk :: (MonadThrow m, IsPath OS_PATH a) => Array WORD_TYPE -> m a
 fromChunk arr = Common.fromChunk Common.OS_NAME arr >>= fromPath . OS_PATH
 
 -- XXX Should be a Fold instead?
@@ -391,11 +377,7 @@ fromChars s =
 
 -- | Create a raw path i.e. an array representing the path. Note that the path
 -- is not validated, therefore, it may not be valid according to 'isValidPath'.
-#ifndef IS_WINDOWS
-rawFromString :: [Char] -> Array Word8
-#else
-rawFromString :: [Char] -> Array Word16
-#endif
+rawFromString :: [Char] -> Array WORD_TYPE
 rawFromString =
       Common.unsafeFromChars Unicode.UNICODE_ENCODER
     . Stream.fromList
@@ -472,9 +454,9 @@ path = mkQ pathE
 
 -- XXX unPath?
 
--- | Convert the path to an array of bytes.
-toChunk :: IsPath OS_PATH a => a -> Array Word8
-toChunk p = let OS_PATH arr = toPath p in Common.toChunk arr
+-- | Convert the path to an array.
+toChunk :: IsPath OS_PATH a => a -> Array WORD_TYPE
+toChunk p = let OS_PATH arr = toPath p in arr
 
 -- | Decode the path to a stream of Unicode chars using strict CODEC_NAME decoding.
 {-# INLINE toChars #-}

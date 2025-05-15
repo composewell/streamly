@@ -165,7 +165,7 @@ listDirChunkedWith
     -> [Char] -> Stream IO Word8
 listDirChunkedWith act inp = do
      Stream.unfoldEachEndBy 10 Array.reader
-        $ fmap Path.toChunk
+        $ fmap (Array.asBytes . Path.toChunk)
         $ Stream.unfoldEach Unfold.fromList
         $ fmap (either id id)
         $ act
@@ -177,7 +177,7 @@ listDirWith
     -> [Char] -> Stream IO Word8
 listDirWith act inp = do
      Stream.unfoldEachEndBy 10 Array.reader
-        $ fmap (Path.toChunk . either id id)
+        $ fmap (Array.asBytes . Path.toChunk . either id id)
         $ act
         $ Stream.fromPure (Left (fromJust $ Path.fromString inp))
 
