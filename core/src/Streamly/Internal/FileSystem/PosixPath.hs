@@ -149,7 +149,9 @@ module Streamly.Internal.FileSystem.OS_PATH
     , splitPath
     , splitPath_
     , splitFile
+
     , splitExtension
+    , dropExtension
     , addExtension
 
     -- * Equality
@@ -192,7 +194,7 @@ import Streamly.Internal.Data.Path
 {- $setup
 >>> :m
 >>> :set -XQuasiQuotes
->>> import Data.Maybe (fromJust)
+>>> import Data.Maybe (fromJust, isJust)
 >>> import qualified Streamly.Data.Stream as Stream
 
 For APIs that have not been released yet.
@@ -834,7 +836,7 @@ splitPath_ (OS_PATH a) = fmap OS_PATH $ Common.splitPath_ Common.OS_NAME a
 -- Some filepath package equivalent idioms:
 --
 -- >>> takeFileName = snd . Path.splitFile -- Posix basename
--- >>> takeBaseName = fst . Path.splitExtension . snd . Path.splitFile
+-- >>> takeBaseName = Path.dropExtension . snd . Path.splitFile
 -- >>> dropFileName = fst . Path.splitFile
 -- >>> takeDirectory = fst . Path.splitFile
 -- >>> replaceFileName p x = Path.append (takeDirectory p) x
@@ -887,7 +889,10 @@ splitFile (OS_PATH a) =
 -- than ".y." or ".y.." as extensions. That is they considered to have no
 -- extension.
 
--- | A file name is considered to have an extension if the file name can be
+-- | Returns @Just(filename, extension)@ if an extension is present otherwise
+-- returns 'Nothing'.
+--
+-- A file name is considered to have an extension if the file name can be
 -- split into a non-empty filename followed by the extension separator "."
 -- followed by a non-empty extension with at least one character in addition to
 -- the extension separator.
@@ -899,94 +904,97 @@ splitFile (OS_PATH a) =
 --
 -- Other extension related operations can be implemented using this API:
 --
--- >>> takeExtension = snd . Path.splitExtension
--- >>> dropExtension = fst . Path.splitExtension
+-- >>> takeExtension = fmap snd . Path.splitExtension
+-- >>> hasExtension = isJust . Path.splitExtension
 --
--- >> hasExtension = not . null . takeExtension -- TODO
---
--- If you want a @splitExtensions@, you can splitExtension until the extension
--- returned is empty. @dropExtensions@, @isExtensionOf@ can be implemented
--- similarly.
+-- If you want a @splitExtensions@, you can use splitExtension until the
+-- extension returned is Nothing. @dropExtensions@, @isExtensionOf@ can be
+-- implemented similarly.
 --
 -- >>> toList (a,b) = (Path.toString a, Path.toString b)
--- >>> split = toList . Path.splitExtension . pack
+-- >>> split = fmap toList . Path.splitExtension . pack
 --
 -- >>> split "/"
--- ("/","")
+-- Nothing
 --
 -- >>> split "."
--- (".","")
+-- Nothing
 --
 -- >>> split ".."
--- ("..","")
+-- Nothing
 --
 -- >>> split "x"
--- ("x","")
+-- Nothing
 --
 -- >>> split "/x"
--- ("/x","")
+-- Nothing
 --
 -- >>> split "x/"
--- ("x/","")
+-- Nothing
 --
 -- >>> split "./x"
--- ("./x","")
+-- Nothing
 --
 -- >>> split "x/."
--- ("x/.","")
+-- Nothing
 --
 -- >>> split "x/y."
--- ("x/y.","")
+-- Nothing
 --
 -- >>> split "/x.y"
--- ("/x",".y")
+-- Just ("/x",".y")
 --
 -- >>> split "/x.y."
--- ("/x.y.","")
+-- Nothing
 --
 -- >>> split "/x.y.."
--- ("/x.y..","")
+-- Nothing
 --
 -- >>> split "x/.y"
--- ("x/.y","")
+-- Nothing
 --
 -- >>> split ".x"
--- (".x","")
+-- Nothing
 --
 -- >>> split "x."
--- ("x.","")
+-- Nothing
 --
 -- >>> split ".x.y"
--- (".x",".y")
+-- Just (".x",".y")
 --
 -- >>> split "x/y.z"
--- ("x/y",".z")
+-- Just ("x/y",".z")
 --
 -- >>> split "x.y.z"
--- ("x.y",".z")
+-- Just ("x.y",".z")
 --
 -- >>> split "x..y"
--- ("x.",".y")
+-- Just ("x.",".y")
 --
 -- >>> split "..."
--- ("...","")
+-- Nothing
 --
 -- >>> split "..x"
--- (".",".x")
+-- Just (".",".x")
 --
 -- >>> split "...x"
--- ("..",".x")
+-- Just ("..",".x")
 --
 -- >>> split "x/y.z/"
--- ("x/y.z/","")
+-- Nothing
 --
 -- >>> split "x/y"
--- ("x/y","")
+-- Nothing
 --
-splitExtension :: OS_PATH -> (OS_PATH, OS_PATH)
+splitExtension :: OS_PATH -> Maybe (OS_PATH, OS_PATH)
 splitExtension (OS_PATH a) =
-    bimap OS_PATH OS_PATH $ Common.splitExtension Common.OS_NAME a
+    fmap (bimap OS_PATH OS_PATH) $ Common.splitExtension Common.OS_NAME a
 #endif
+
+-- | Drop the extension of a file if it has one.
+dropExtension :: OS_PATH -> OS_PATH
+dropExtension orig@(OS_PATH a) =
+    maybe orig (OS_PATH . fst) $ Common.splitExtension Common.OS_NAME a
 
 -- | Add an extension to a file path. If a non-empty extension does not start
 -- with a leading dot then a dot is inserted, otherwise the extension is

@@ -868,7 +868,7 @@ splitDir _os _arr = undefined
 -- | Like split extension but we can specify the extension char to be used.
 {-# INLINE splitExtensionBy #-}
 splitExtensionBy :: (Unbox a, Integral a) =>
-    a -> OS -> Array a -> (Array a, Array a)
+    a -> OS -> Array a -> Maybe (Array a, Array a)
 splitExtensionBy c os arr =
     let p x = x == c || isSeparatorWord os x
         -- XXX Use Array.revBreakEndBy_
@@ -899,11 +899,11 @@ splitExtensionBy c os arr =
             -- On Windows if base is 'c:.' or a UNC path ending in '/c:.' then
             -- it is a dot file, no extension.
             && not (os == Windows && baseLast == charToWord ':')
-        then res
-        else (arr, Array.empty)
+        then Just res
+        else Nothing
 
 {-# INLINE splitExtension #-}
-splitExtension :: (Unbox a, Integral a) => OS -> Array a -> (Array a, Array a)
+splitExtension :: (Unbox a, Integral a) => OS -> Array a -> Maybe (Array a, Array a)
 splitExtension = splitExtensionBy extensionWord
 
 {-

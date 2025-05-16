@@ -474,14 +474,14 @@ splitPath (OS_PATH a) = fmap OS_PATH $ Common.splitPath Common.OS_NAME a
 -- "prn." as a filename without an extension.
 --
 -- >>> toList (a,b) = (Path.toString a, Path.toString b)
--- >>> split = toList . Path.splitExtension . pack
+-- >>> split = fmap toList . Path.splitExtension . pack
 --
 -- >>> split "x:y"
--- ("x:y","")
+-- Nothing
 --
 -- >>> split "x:.y"
--- ("x:.y","")
+-- Nothing
 --
-splitExtension :: OS_PATH -> (OS_PATH, OS_PATH)
+splitExtension :: OS_PATH -> Maybe (OS_PATH, OS_PATH)
 splitExtension (OS_PATH a) =
-    bimap OS_PATH OS_PATH $ Common.splitExtension Common.OS_NAME a
+    fmap (bimap OS_PATH OS_PATH) $ Common.splitExtension Common.OS_NAME a
