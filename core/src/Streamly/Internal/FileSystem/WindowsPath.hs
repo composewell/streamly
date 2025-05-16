@@ -385,24 +385,29 @@ eqPath (OS_PATH a) (OS_PATH b) =
 -- See "Streamly.Internal.FileSystem.PosixPath" module for common examples. We
 -- provide some Windows specific examples here.
 --
--- >>> toList (a,b) = (Path.toString a, Path.toString b)
--- >>> split = toList . Path.splitRoot . pack
+-- >>> toList (a,b) = (Path.toString a, fmap Path.toString b)
+-- >>> split = fmap toList . Path.splitRoot . pack
 --
 -- >>> split "c:"
--- ("c:","")
+-- Just ("c:",Nothing)
 --
 -- >>> split "c:/"
--- ("c:/","")
+-- Just ("c:/",Nothing)
 --
 -- >>> split "//x/"
--- ("//x/","")
+-- Just ("//x/",Nothing)
 --
 -- >>> split "//x/y"
--- ("//x/","y")
+-- Just ("//x/",Just "y")
 --
-splitRoot :: OS_PATH -> (OS_PATH, OS_PATH)
-splitRoot (OS_PATH a) =
-    bimap OS_PATH OS_PATH $ Common.splitRoot Common.OS_NAME a
+splitRoot :: OS_PATH -> Maybe (OS_PATH, Maybe OS_PATH)
+splitRoot (OS_PATH x) =
+    let (a,b) = Common.splitRoot Common.OS_NAME x
+     in if Array.null a
+        then Nothing
+        else if Array.null b
+        then Just (OS_PATH a, Nothing)
+        else Just (OS_PATH a, Just (OS_PATH b))
 
 -- | Split a path into components separated by the path separator. "."
 -- components in the path are ignored except when in the leading position.

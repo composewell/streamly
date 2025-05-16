@@ -194,7 +194,7 @@ import Streamly.Internal.Data.Path
 {- $setup
 >>> :m
 >>> :set -XQuasiQuotes
->>> import Data.Maybe (fromJust, isJust)
+>>> import Data.Maybe (fromJust, isNothing, isJust)
 >>> import qualified Streamly.Data.Stream as Stream
 
 For APIs that have not been released yet.
@@ -675,46 +675,50 @@ unsafeJoinPaths = undefined
 
 #ifndef IS_WINDOWS
 -- | If a path is rooted then separate the root and the remaining path,
--- otherwise root is returned as empty. If the path is rooted then the non-root
--- part is guaranteed to not start with a separator.
+-- otherwise return 'Nothing'. If the path is rooted then the non-root
+-- part is guaranteed to NOT start with a separator.
 --
 -- Some filepath package equivalent idioms:
 --
 -- >>> splitDrive = Path.splitRoot
 -- >>> joinDrive = Path.unsafeAppend
--- >>> takeDrive = fst . Path.splitRoot
--- >>> dropDrive = snd . Path.splitRoot
+-- >>> takeDrive = fmap fst . Path.splitRoot
+-- >>> dropDrive x = Path.splitRoot x >>= snd
+-- >>> hasDrive = isJust . Path.splitRoot
+-- >>> isDrive = isNothing . dropDrive
 --
--- >> hasDrive = not . null . takeDrive -- TODO
--- >> isDrive = null . dropDrive -- TODO
---
--- >>> toList (a,b) = (Path.toString a, Path.toString b)
--- >>> split = toList . Path.splitRoot . pack
+-- >>> toList (a,b) = (Path.toString a, fmap Path.toString b)
+-- >>> split = fmap toList . Path.splitRoot . pack
 --
 -- >>> split "/"
--- ("/","")
+-- Just ("/",Nothing)
 --
 -- >>> split "."
--- (".","")
+-- Just (".",Nothing)
 --
 -- >>> split "./"
--- ("./","")
+-- Just ("./",Nothing)
 --
 -- >>> split "/home"
--- ("/","home")
+-- Just ("/",Just "home")
 --
 -- >>> split "//"
--- ("//","")
+-- Just ("//",Nothing)
 --
 -- >>> split "./home"
--- ("./","home")
+-- Just ("./",Just "home")
 --
 -- >>> split "home"
--- ("","home")
+-- Nothing
 --
-splitRoot :: OS_PATH -> (OS_PATH, OS_PATH)
-splitRoot (OS_PATH a) =
-    bimap OS_PATH OS_PATH $ Common.splitRoot Common.OS_NAME a
+splitRoot :: OS_PATH -> Maybe (OS_PATH, Maybe OS_PATH)
+splitRoot (OS_PATH x) =
+    let (a,b) = Common.splitRoot Common.OS_NAME x
+     in if Array.null a
+        then Nothing
+        else if Array.null b
+        then Just (OS_PATH a, Nothing)
+        else Just (OS_PATH a, Just (OS_PATH b))
 
 -- | Split the path components keeping separators between path components
 -- attached to the dir part. Redundant separators are removed, only the first
