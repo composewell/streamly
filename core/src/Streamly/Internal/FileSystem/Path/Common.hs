@@ -764,7 +764,8 @@ validateFile os arr = do
         Posix -> pure ()
 
 {-# INLINE splitFile #-}
-splitFile :: (Unbox a, Integral a) => OS -> Array a -> (Array a, Array a)
+splitFile :: (Unbox a, Integral a) =>
+    OS -> Array a -> Maybe (Maybe (Array a), Array a)
 splitFile os arr =
     let p x =
             if os == Windows
@@ -789,9 +790,9 @@ splitFile os arr =
                 && fileSecond == charToWord '.')
         then
             if baseLen <= 0
-            then (Array.empty, arr)
-            else (Array.unsafeSliceOffLen 0 baseLen base, file) -- "/"
-        else (arr, Array.empty)
+            then Just (Nothing, arr)
+            else Just (Just $ Array.unsafeSliceOffLen 0 baseLen base, file) -- "/"
+        else Nothing
 
 -- | Split a multi-component path into (dir, last component). If the path has a
 -- single component and it is a root then return (path, "") otherwise return

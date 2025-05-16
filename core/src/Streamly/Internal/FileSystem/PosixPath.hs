@@ -822,67 +822,65 @@ splitPath_ :: Monad m => OS_PATH -> Stream m OS_PATH
 splitPath_ (OS_PATH a) = fmap OS_PATH $ Common.splitPath_ Common.OS_NAME a
 #endif
 
--- | Split a multi-component path into (dir, file) if its last component can be
--- a file i.e.:
+-- | If the path does not look like a directory then return @Just (Maybe dir,
+-- file)@ otherwise return 'Nothing'. The path is not a directory if:
 --
 -- * the path does not end with a separator
 -- * the path does not end with a . or .. component
 --
--- Split a single component into ("", path) if it can be a file i.e. it is not
--- a path root, "." or "..".
---
--- If the path cannot be a file then (path, "") is returned.
+-- Splits a single component path into @Just (Nothing, path)@ if it does not
+-- look like a dir.
 --
 -- Some filepath package equivalent idioms:
 --
--- >>> takeFileName = snd . Path.splitFile -- Posix basename
--- >>> takeBaseName = Path.dropExtension . snd . Path.splitFile
--- >>> dropFileName = fst . Path.splitFile
--- >>> takeDirectory = fst . Path.splitFile
--- >>> replaceFileName p x = Path.append (takeDirectory p) x
--- >>> replaceDirectory p x = Path.append x (takeFileName p)
+-- >>> takeFileName = fmap snd . Path.splitFile
+-- >>> takeBaseName = fmap Path.dropExtension . takeFileName
+-- >>> dropFileName x = Path.splitFile x >>= fst
+-- >>> takeDirectory x = Path.splitFile x >>= fst
+-- >>> replaceFileName p x = fmap (flip Path.append x) (takeDirectory p)
+-- >>> replaceDirectory p x = fmap (flip Path.append x) (takeFileName p)
 --
--- >>> toList (a,b) = (Path.toString a, Path.toString b)
--- >>> split = toList . Path.splitFile . pack
+-- >>> toList (a,b) = (fmap Path.toString a, Path.toString b)
+-- >>> split = fmap toList . Path.splitFile . pack
 --
 -- >>> split "/"
--- ("/","")
+-- Nothing
 --
 -- >>> split "."
--- (".","")
+-- Nothing
 --
 -- >>> split "/."
--- ("/.","")
+-- Nothing
 --
 -- >>> split ".."
--- ("..","")
+-- Nothing
 --
 -- >>> split "//"
--- ("//","")
+-- Nothing
 --
 -- >>> split "/home"
--- ("/","home")
+-- Just (Just "/","home")
 --
 -- >>> split "./home"
--- ("./","home")
+-- Just (Just "./","home")
 --
 -- >>> split "home"
--- ("","home")
+-- Just (Nothing,"home")
 --
 -- >>> split "x/"
--- ("x/","")
+-- Nothing
 --
 -- >>> split "x/y"
--- ("x/","y")
+-- Just (Just "x/","y")
 --
 -- >>> split "x//y"
--- ("x//","y")
+-- Just (Just "x//","y")
 --
 -- >>> split "x/./y"
--- ("x/./","y")
-splitFile :: OS_PATH -> (OS_PATH, OS_PATH)
+-- Just (Just "x/./","y")
+splitFile :: OS_PATH -> Maybe (Maybe OS_PATH, OS_PATH)
 splitFile (OS_PATH a) =
-    bimap OS_PATH OS_PATH $ Common.splitFile Common.OS_NAME a
+    fmap (bimap (fmap OS_PATH) OS_PATH) $ Common.splitFile Common.OS_NAME a
 
 #ifndef IS_WINDOWS
 -- Note: In the cases of "x.y." and "x.y.." we return no extension rather
