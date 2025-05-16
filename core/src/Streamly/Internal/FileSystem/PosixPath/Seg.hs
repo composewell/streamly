@@ -47,7 +47,7 @@ module Streamly.Internal.FileSystem.OS_PATH.Seg
     , brE
 
     -- * Operations
-    , append
+    , extend
     )
 where
 
@@ -156,15 +156,16 @@ br = mkQ brE
 
 -- | Append a 'Branch' type path to a 'Rooted' path or 'Branch' path.
 --
--- >>> Path.toString (Seg.append [rt|/usr|] [br|bin|] :: Rooted PosixPath)
+-- >>> Path.toString (Seg.extend [rt|/usr|] [br|bin|] :: Rooted PosixPath)
 -- "/usr/bin"
--- >>> Path.toString (Seg.append [br|usr|] [br|bin|] :: Branch PosixPath)
+-- >>> Path.toString (Seg.extend [br|usr|] [br|bin|] :: Branch PosixPath)
 -- "usr/bin"
 --
-{-# INLINE append #-}
-append ::
+{-# INLINE extend #-}
+extend ::
     (
       IsSeg (a OS_PATH)
     , IsPath OS_PATH (a OS_PATH)
     ) => a OS_PATH -> Branch OS_PATH -> a OS_PATH
-append a (Branch c) = unsafeFromPath $ OsPath.unsafeAppend (toPath a) (toPath c)
+extend a (Branch c) =
+    unsafeFromPath $ OsPath.unsafeExtend (toPath a) (toPath c)

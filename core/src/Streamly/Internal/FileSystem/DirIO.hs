@@ -314,7 +314,7 @@ toStreamWithBufferOf chunkSize h = AS.concat $ toChunksWithBufferOf chunkSize h
 eitherReaderPaths ::(MonadIO m, MonadCatch m) => (ReadOptions -> ReadOptions) ->
     Unfold m Path (Either Path Path)
 eitherReaderPaths f =
-    let (</>) = Path.append
+    let (</>) = Path.extend
      in UF.mapM2 (\dir -> return . bimap (dir </>) (dir </>)) (eitherReader f)
 
 --
@@ -359,7 +359,7 @@ readEither f = S.unfold (eitherReader f)
 readEitherPaths :: (MonadIO m, MonadCatch m) => (ReadOptions -> ReadOptions) ->
     Path -> Stream m (Either Path Path)
 readEitherPaths f dir =
-    let (</>) = Path.append
+    let (</>) = Path.extend
      in fmap (bimap (dir </>) (dir </>)) $ readEither f dir
 
 #if defined(mingw32_HOST_OS) || defined(__MINGW32__)

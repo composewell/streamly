@@ -931,7 +931,7 @@ readEitherByteChunksAt confMod (ppath, alldirs) =
                             {-
                             if ndirs > 64
                             then do
-                                let fpath = Path.unsafeAppend ppath curdir
+                                let fpath = Path.unsafeExtend ppath curdir
                                 return $ Yield
                                     (Left (fpath, dirs1))
                                     (ByteChunksAtLoop pfd dirp curdir xs [] 0 mbarr pos1)
@@ -961,7 +961,7 @@ readEitherByteChunksAt confMod (ppath, alldirs) =
                     -- help parallelize more in IO bound case.
                     if ndirs > 0
                     then do
-                        let fpath = Path.unsafeAppend ppath curdir
+                        let fpath = Path.unsafeExtend ppath curdir
                         return $ Yield
                             (Left (fpath, dirs))
                             (ByteChunksAtInit pfd xs mbarr pos)

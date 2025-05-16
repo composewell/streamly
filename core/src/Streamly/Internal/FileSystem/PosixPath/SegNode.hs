@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
--- For constraints on "append"
+-- For constraints on "extend"
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -40,7 +40,7 @@ module Streamly.Internal.FileSystem.OS_PATH.SegNode
     , brfileE
 
     -- * Operations
-    , append
+    , extend
     )
 where
 
@@ -245,39 +245,39 @@ brfile = mkQ brfileE
 -- If the second path does not have 'File' or 'Dir' information then the return
 -- type too cannot have it.
 --
--- >> Path.toString (SegNode.append [rtdir|/usr|] [br|bin|] :: Rooted PosixPath)
+-- >> Path.toString (SegNode.extend [rtdir|/usr|] [br|bin|] :: Rooted PosixPath)
 -- "/usr/bin"
--- >> Path.toString (SegNode.append [brdir|usr|] [br|bin|] :: Branch PosixPath)
+-- >> Path.toString (SegNode.extend [brdir|usr|] [br|bin|] :: Branch PosixPath)
 -- "usr/bin"
 --
--- >> Path.toString (SegNode.append [rt|/usr|] [br|bin|] :: Rooted PosixPath)
+-- >> Path.toString (SegNode.extend [rt|/usr|] [br|bin|] :: Rooted PosixPath)
 -- "/usr/bin"
--- >> Path.toString (SegNode.append [br|usr|] [br|bin|] :: Branch PosixPath)
+-- >> Path.toString (SegNode.extend [br|usr|] [br|bin|] :: Branch PosixPath)
 -- "usr/bin"
 --
 -- If the second path has 'File' or 'Dir' information then the return type
 -- also has it.
 --
--- >> Path.toString (SegNode.append [rt|/usr|] [brdir|bin|] :: Rooted (Dir PosixPath))
+-- >> Path.toString (SegNode.extend [rt|/usr|] [brdir|bin|] :: Rooted (Dir PosixPath))
 -- "/usr/bin"
--- >> Path.toString (SegNode.append [rt|/usr|] [brfile|bin|] :: Rooted (File PosixPath))
+-- >> Path.toString (SegNode.extend [rt|/usr|] [brfile|bin|] :: Rooted (File PosixPath))
 -- "/usr/bin"
--- >> Path.toString (SegNode.append [br|usr|] [brdir|bin|] :: Branch (Dir PosixPath))
+-- >> Path.toString (SegNode.extend [br|usr|] [brdir|bin|] :: Branch (Dir PosixPath))
 -- "usr/bin"
--- >> Path.toString (SegNode.append [br|usr|] [brfile|bin|] :: Branch (File PosixPath))
+-- >> Path.toString (SegNode.extend [br|usr|] [brfile|bin|] :: Branch (File PosixPath))
 -- "usr/bin"
 --
 -- Type error cases:
 --
--- >> SegNode.append [dir|/usr|] [br|bin|] -- first arg must be Rooted/Branch
--- >> SegNode.append [file|/usr|] [br|bin|] -- first arg must be Rooted/Branch
--- >> SegNode.append [rtfile|/usr|] [br|bin|] -- first arg must be a dir
--- >> SegNode.append [rt|/usr|] [rt|/bin|] -- second arg must be seg
--- >> SegNode.append [rt|/usr|] [dir|bin|] -- second arg must be seg
--- >> SegNode.append [rt|/usr|] [file|bin|] -- second arg must be seg
+-- >> SegNode.extend [dir|/usr|] [br|bin|] -- first arg must be Rooted/Branch
+-- >> SegNode.extend [file|/usr|] [br|bin|] -- first arg must be Rooted/Branch
+-- >> SegNode.extend [rtfile|/usr|] [br|bin|] -- first arg must be a dir
+-- >> SegNode.extend [rt|/usr|] [rt|/bin|] -- second arg must be seg
+-- >> SegNode.extend [rt|/usr|] [dir|bin|] -- second arg must be seg
+-- >> SegNode.extend [rt|/usr|] [file|bin|] -- second arg must be seg
 --
-{-# INLINE append #-}
-append ::
+{-# INLINE extend #-}
+extend ::
     (
       IsSeg (a b)
     , HasDir (a b)
@@ -285,26 +285,26 @@ append ::
     , IsPath OS_PATH c
     , IsPath OS_PATH (a c)
     ) => a b -> Branch c -> a c
-append a (Branch c) = unsafeFromPath $ OS_NAME.unsafeAppend (toPath a) (toPath c)
+extend a (Branch c) = unsafeFromPath $ OS_NAME.unsafeExtend (toPath a) (toPath c)
 -}
 
 -- | Append a branch type path to a directory.
 --
--- >>> Path.toString (SegNode.append [rtdir|/usr|] [brdir|bin|] :: Rooted (Dir PosixPath))
+-- >>> Path.toString (SegNode.extend [rtdir|/usr|] [brdir|bin|] :: Rooted (Dir PosixPath))
 -- "/usr/bin"
--- >>> Path.toString (SegNode.append [rtdir|/usr|] [brfile|bin|] :: Rooted (File PosixPath))
+-- >>> Path.toString (SegNode.extend [rtdir|/usr|] [brfile|bin|] :: Rooted (File PosixPath))
 -- "/usr/bin"
--- >>> Path.toString (SegNode.append [brdir|usr|] [brdir|bin|] :: Branch (Dir PosixPath))
+-- >>> Path.toString (SegNode.extend [brdir|usr|] [brdir|bin|] :: Branch (Dir PosixPath))
 -- "usr/bin"
--- >>> Path.toString (SegNode.append [brdir|usr|] [brfile|bin|] :: Branch (File PosixPath))
+-- >>> Path.toString (SegNode.extend [brdir|usr|] [brfile|bin|] :: Branch (File PosixPath))
 -- "usr/bin"
 --
-{-# INLINE append #-}
-append ::
+{-# INLINE extend #-}
+extend ::
     (
       IsPath OS_PATH (a (Dir OS_PATH))
     , IsPath OS_PATH (b OS_PATH)
     , IsPath OS_PATH (a (b OS_PATH))
     ) => a (Dir OS_PATH) -> Branch (b OS_PATH) -> a (b OS_PATH)
-append p1 (Branch p2) =
-    unsafeFromPath $ OsPath.unsafeAppend (toPath p1) (toPath p2)
+extend p1 (Branch p2) =
+    unsafeFromPath $ OsPath.unsafeExtend (toPath p1) (toPath p2)

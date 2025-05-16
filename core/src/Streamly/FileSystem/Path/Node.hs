@@ -30,7 +30,7 @@ module Streamly.FileSystem.Path.Node
     , fileE
 
     -- * Operations
-    , append
+    , extend
     )
 where
 

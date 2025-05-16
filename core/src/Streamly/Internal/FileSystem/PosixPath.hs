@@ -133,17 +133,17 @@ module Streamly.Internal.FileSystem.OS_PATH
     -- * Joining
     , addString
  -- , concat
-    , unsafeAppend -- XXX unsafeExtend
+    , unsafeExtend
 #ifndef IS_WINDOWS
-    , appendCString -- XXX extendByCString
-    , appendCString'
+    , extendByCString
+    , extendByCString'
 #endif
-    , append -- XXX rename to "extend" to emphasize asymmetric nature?
-    , append' -- XXX rename to extendDir, to avoid pinned confusion?
+    , extend
+    , extendDir
     , unsafeJoinPaths
 
     -- * Splitting
-    -- | Note: you can use 'unsafeAppend' as a replacement for the joinDrive
+    -- | Note: you can use 'unsafeExtend' as a replacement for the joinDrive
     -- function in the filepath package.
     , splitRoot
     , splitPath
@@ -299,7 +299,7 @@ hasTrailingSeparator (OS_PATH arr) =
 --
 {-# INLINE addTrailingSeparator #-}
 addTrailingSeparator :: OS_PATH -> OS_PATH
-addTrailingSeparator p = unsafeAppend p sep
+addTrailingSeparator p = unsafeExtend p sep
 
     where
 
@@ -576,10 +576,9 @@ isBranch :: OS_PATH -> Bool
 isBranch = not . isRooted
 
 #ifndef IS_WINDOWS
--- | Like 'append' but does not check if any of the path is empty or if the
--- second path is rooted.
+-- | Like 'extend' but does not check if the second path is rooted.
 --
--- >>> f a b = Path.toString $ Path.unsafeAppend (pack a) (pack b)
+-- >>> f a b = Path.toString $ Path.unsafeExtend (pack a) (pack b)
 --
 -- >>> f "x" "y"
 -- "x/y"
@@ -590,21 +589,19 @@ isBranch = not . isRooted
 -- >>> f "x/" "/y"
 -- "x/y"
 --
-{-# INLINE unsafeAppend #-}
-unsafeAppend :: OS_PATH -> OS_PATH -> OS_PATH
-unsafeAppend (OS_PATH a) (OS_PATH b) =
+{-# INLINE unsafeExtend #-}
+unsafeExtend :: OS_PATH -> OS_PATH -> OS_PATH
+unsafeExtend (OS_PATH a) (OS_PATH b) =
     OS_PATH
         $ Common.unsafeAppend
             Common.OS_NAME (Common.toString Unicode.UNICODE_DECODER) a b
 
--- XXX rename it to extend or combine?
-
--- | Append a OS_PATH to another. Fails if the second path refers to a rooted
--- path. If you want to avoid runtime failure use the typesafe
--- Streamly.FileSystem.OS_PATH.Seg module. Use 'unsafeAppend' to avoid failure
--- if you know it is ok to append the path.
+-- | Extend an OS_PATH by appending another one to it. Fails if the second path
+-- refers to a rooted path. If you want to avoid runtime failure use the
+-- typesafe Streamly.FileSystem.OS_PATH.Seg module. Use 'unsafeExtend' to avoid
+-- failure if you know it is ok to append the path.
 --
--- >>> f a b = Path.toString $ Path.append a b
+-- >>> f a b = Path.toString $ Path.extend a b
 --
 -- >>> f [path|/usr|] [path|bin|]
 -- "/usr/bin"
@@ -613,23 +610,23 @@ unsafeAppend (OS_PATH a) (OS_PATH b) =
 -- >>> fails (f [path|/usr|] [path|/bin|])
 -- True
 --
-append :: OS_PATH -> OS_PATH -> OS_PATH
-append (OS_PATH a) (OS_PATH b) =
+extend :: OS_PATH -> OS_PATH -> OS_PATH
+extend (OS_PATH a) (OS_PATH b) =
     OS_PATH
         $ Common.append
             Common.OS_NAME (Common.toString Unicode.UNICODE_DECODER) a b
 
--- | A stricter version of 'append' which requires the first path to be a
+-- | A stricter version of 'extend' which requires the first path to be a
 -- directory like path i.e. with a trailing separator.
 --
--- >>> f a b = Path.toString $ Path.append' a b
+-- >>> f a b = Path.toString $ Path.extendDir a b
 --
 -- >>> fails $ f [path|/usr|] [path|bin|]
 -- True
 --
-append' ::
+extendDir ::
     OS_PATH -> OS_PATH -> OS_PATH
-append'
+extendDir
     (OS_PATH a) (OS_PATH b) =
     OS_PATH
         $ Common.append'
@@ -640,21 +637,21 @@ append'
 -- XXX add appendCWString for Windows?
 
 #ifndef IS_WINDOWS
--- | Append a separator and a CString to the Array. This is like 'unsafeAppend'
+-- | Append a separator and a CString to the Array. This is like 'unsafeExtend'
 -- but always inserts a separator between the two paths even if the first path
 -- has a trailing separator or second path has a leading separator.
 --
-appendCString :: OS_PATH -> CString -> IO OS_PATH
-appendCString (OS_PATH a) str =
+extendByCString :: OS_PATH -> CString -> IO OS_PATH
+extendByCString (OS_PATH a) str =
     fmap OS_PATH
         $ Common.appendCString
             Common.OS_NAME a str
 
 -- | Like 'appendCString' but creates a pinned path.
 --
-appendCString' ::
+extendByCString' ::
     OS_PATH -> CString -> IO OS_PATH
-appendCString'
+extendByCString'
     (OS_PATH a) str =
     fmap OS_PATH
         $ Common.appendCString'
@@ -684,7 +681,7 @@ unsafeJoinPaths = undefined
 -- Some filepath package equivalent idioms:
 --
 -- >>> splitDrive = Path.splitRoot
--- >>> joinDrive = Path.unsafeAppend
+-- >>> joinDrive = Path.unsafeExtend
 -- >>> takeDrive = fmap fst . Path.splitRoot
 -- >>> dropDrive x = Path.splitRoot x >>= snd
 -- >>> hasDrive = isJust . Path.splitRoot
@@ -844,8 +841,8 @@ splitPath_ (OS_PATH a) = fmap OS_PATH $ Common.splitPath_ Common.OS_NAME a
 -- >>> takeBaseName = fmap Path.dropExtension . takeFileName
 -- >>> dropFileName x = Path.splitFile x >>= fst
 -- >>> takeDirectory x = Path.splitFile x >>= fst
--- >>> replaceFileName p x = fmap (flip Path.append x) (takeDirectory p)
--- >>> replaceDirectory p x = fmap (flip Path.append x) (takeFileName p)
+-- >>> replaceFileName p x = fmap (flip Path.extend x) (takeDirectory p)
+-- >>> replaceDirectory p x = fmap (flip Path.extend x) (takeFileName p)
 --
 -- >>> toList (a,b) = (fmap Path.toString a, Path.toString b)
 -- >>> split = fmap toList . Path.splitFile . pack

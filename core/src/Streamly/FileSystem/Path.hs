@@ -125,7 +125,7 @@ module Streamly.FileSystem.Path
     , isBranch
 
     -- * Combinators
-    , append
+    , extend
     )
 where
 

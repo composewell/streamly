@@ -30,7 +30,7 @@ module Streamly.FileSystem.Path.SegNode
     , brfileE
 
     -- * Operations
-    , append
+    , extend
     )
 where
 

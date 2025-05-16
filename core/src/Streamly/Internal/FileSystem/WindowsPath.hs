@@ -219,10 +219,10 @@ readRaw = fromJust . fromChunk . read
 isRooted :: OS_PATH -> Bool
 isRooted (OS_PATH arr) = Common.isRooted Common.OS_NAME arr
 
--- | Like 'append' but does not check if any of the path is empty or if the
+-- | Like 'extend' but does not check if any of the path is empty or if the
 -- second path is rooted.
 --
--- >>> f a b = Path.toString $ Path.unsafeAppend (pack a) (pack b)
+-- >>> f a b = Path.toString $ Path.unsafeExtend (pack a) (pack b)
 --
 -- >>> f "x" "y"
 -- "x\\y"
@@ -233,9 +233,9 @@ isRooted (OS_PATH arr) = Common.isRooted Common.OS_NAME arr
 -- >>> f "x/" "/y"
 -- "x/y"
 --
--- Note "c:" and "/x" are both rooted paths, therefore, 'append' cannot be used
+-- Note "c:" and "/x" are both rooted paths, therefore, 'extend' cannot be used
 -- to join them. Similarly for joining "//x/" and "/y". For these cases use
--- 'unsafeAppend'. 'unsafeAppend' can be used as a replacement for the
+-- 'unsafeExtend'. 'unsafeExtend' can be used as a replacement for the
 -- joinDrive function from the filepath package.
 --
 -- >>> f "c:" "/x"
@@ -243,27 +243,27 @@ isRooted (OS_PATH arr) = Common.isRooted Common.OS_NAME arr
 -- >>> f "//x/" "/y"
 -- "//x/y"
 --
-{-# INLINE unsafeAppend #-}
-unsafeAppend :: OS_PATH -> OS_PATH -> OS_PATH
-unsafeAppend (OS_PATH a) (OS_PATH b) =
+{-# INLINE unsafeExtend #-}
+unsafeExtend :: OS_PATH -> OS_PATH -> OS_PATH
+unsafeExtend (OS_PATH a) (OS_PATH b) =
     OS_PATH
         $ Common.unsafeAppend
             Common.OS_NAME (Common.toString Unicode.UNICODE_DECODER) a b
 
 -- | Append a OS_PATH to another. Fails if the second path refers to a rooted
 -- path. If you want to avoid runtime failure use the typesafe
--- Streamly.FileSystem.OS_PATH.Seg module. Use 'unsafeAppend' to avoid failure
+-- Streamly.FileSystem.OS_PATH.Seg module. Use 'unsafeExtend' to avoid failure
 -- if you know it is ok to append the path.
 --
 -- Usually, append joins two paths using a separator between the paths. On
 -- Windows, joining a drive "c:" with path "x" does not add a separator between
 -- the two because "c:x" is different from "c:/x".
 --
--- Note "c:" and "/x" are both rooted paths, therefore, append cannot be used
+-- Note "c:" and "/x" are both rooted paths, therefore, 'extend' cannot be used
 -- to join them. Similarly for joining "//x/" and "/y". For these cases use
--- 'unsafeAppend'.
+-- 'unsafeExtend'.
 --
--- >>> f a b = Path.toString $ Path.append a b
+-- >>> f a b = Path.toString $ Path.extend a b
 --
 -- >>> f [path|x|] [path|y|]
 -- "x\\y"
@@ -284,23 +284,23 @@ unsafeAppend (OS_PATH a) (OS_PATH b) =
 -- True
 -- >>> fails $ f [path|//x/|] [path|/y|]
 -- True
-append :: OS_PATH -> OS_PATH -> OS_PATH
-append (OS_PATH a) (OS_PATH b) =
+extend :: OS_PATH -> OS_PATH -> OS_PATH
+extend (OS_PATH a) (OS_PATH b) =
     OS_PATH
         $ Common.append
             Common.OS_NAME (Common.toString Unicode.UNICODE_DECODER) a b
 
--- | A stricter version of 'append' which requires the first path to be a
+-- | A stricter version of 'extend' which requires the first path to be a
 -- directory like path i.e. with a trailing separator.
 --
--- >>> f a b = Path.toString $ Path.append' a b
+-- >>> f a b = Path.toString $ Path.extendDir a b
 --
 -- >>> fails $ f [path|x|] [path|y|]
 -- True
 --
-append' ::
+extendDir ::
     OS_PATH -> OS_PATH -> OS_PATH
-append'
+extendDir
     (OS_PATH a) (OS_PATH b) =
     OS_PATH
         $ Common.append'
