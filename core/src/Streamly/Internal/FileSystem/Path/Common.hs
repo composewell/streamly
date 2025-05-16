@@ -718,7 +718,7 @@ splitPath = splitPathUsing True
 -- /Unimplemented/
 {-# INLINE splitHead #-}
 splitHead :: -- (Unbox a, Integral a) =>
-    OS -> Array a -> (Array a, Array a)
+    OS -> Array a -> (Array a, Maybe (Array a))
 splitHead _os _arr = undefined
 
 -- | Split the last non-empty path component.
@@ -726,7 +726,7 @@ splitHead _os _arr = undefined
 -- /Unimplemented/
 {-# INLINE splitTail #-}
 splitTail :: -- (Unbox a, Integral a) =>
-    OS -> Array a -> (Array a, Array a)
+    OS -> Array a -> (Maybe (Array a), Array a)
 splitTail _os _arr = undefined
 
 ------------------------------------------------------------------------------

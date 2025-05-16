@@ -150,6 +150,9 @@ module Streamly.Internal.FileSystem.OS_PATH
     , splitPath_
     , splitFile
 
+    , splitFirst
+    , splitLast
+
     , splitExtension
     , dropExtension
     , addExtension
@@ -885,6 +888,25 @@ splitPath_ (OS_PATH a) = fmap OS_PATH $ Common.splitPath_ Common.OS_NAME a
 splitFile :: OS_PATH -> Maybe (Maybe OS_PATH, OS_PATH)
 splitFile (OS_PATH a) =
     fmap (bimap (fmap OS_PATH) OS_PATH) $ Common.splitFile Common.OS_NAME a
+
+-- | Split the path into the first component and rest of the path. Treats the
+-- entire root or share name, if present, as the first component.
+--
+-- /Unimplemented/
+splitFirst :: OS_PATH -> (OS_PATH, Maybe OS_PATH)
+splitFirst (OS_PATH a) =
+    bimap OS_PATH (fmap OS_PATH) $ Common.splitHead Common.OS_NAME a
+
+-- | Split the path into the last component and rest of the path. Treats the
+-- entire root or share name, if present, as the first component.
+--
+-- >>> basename = snd . Path.splitLast -- Posix basename
+-- >>> dirname = fst . Path.splitLast -- Posix dirname
+--
+-- /Unimplemented/
+splitLast :: OS_PATH -> (Maybe OS_PATH, OS_PATH)
+splitLast (OS_PATH a) =
+    bimap (fmap OS_PATH) OS_PATH $ Common.splitTail Common.OS_NAME a
 
 #ifndef IS_WINDOWS
 -- Note: In the cases of "x.y." and "x.y.." we return no extension rather
