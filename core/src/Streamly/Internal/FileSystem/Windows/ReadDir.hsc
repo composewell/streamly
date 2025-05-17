@@ -156,7 +156,7 @@ newtype DirStream =
 
 openDirStream :: WindowsPath -> IO DirStream
 openDirStream p = do
-    let path = Path.unsafeAppend p $ Path.unsafeFromString "*"
+    let path = Path.unsafeExtend p $ Path.unsafeFromString "*"
     fp_finddata <- mallocForeignPtrBytes (# const sizeof(WIN32_FIND_DATAW) )
     withForeignPtr fp_finddata $ \dataPtr -> do
         handle <-
