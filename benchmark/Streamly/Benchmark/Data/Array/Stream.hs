@@ -234,7 +234,7 @@ drainWhile p = Parser.takeWhile p Fold.drain
 
 {-# INLINE fold #-}
 fold :: Stream IO (Array.Array Int) -> IO ()
-fold s = void $ Array.foldBreakChunksK Fold.drain $ StreamK.fromStream s
+fold s = void $ Array.foldBreak Fold.drain $ StreamK.fromStream s
 
 {-# INLINE parse #-}
 parse :: Int -> Stream IO (Array.Array Int) -> IO ()
@@ -244,7 +244,7 @@ parse value s =
 {-# INLINE foldBreak #-}
 foldBreak :: StreamK IO (Array.Array Int) -> IO ()
 foldBreak s = do
-    (r, s1) <- Array.foldBreakChunksK Fold.one s
+    (r, s1) <- Array.foldBreak Fold.one s
     when (isJust r) $ foldBreak s1
 
 {-# INLINE parseBreak #-}

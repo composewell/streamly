@@ -73,7 +73,7 @@ module Streamly.Internal.Data.Array
     -- * Parsing Stream of Arrays
     , foldBreakChunks -- Uses Stream, bad perf on break
     , foldChunks
-    , foldBreakChunksK -- XXX rename to foldBreak
+    , foldBreak
     , parseBreakChunksK -- XXX uses Parser. parseBreak is better?
     , parserK
     , parseBreak
@@ -105,6 +105,7 @@ module Streamly.Internal.Data.Array
     , compactOnByteSuffix
     , splitOn
     , fold
+    , foldBreakChunksK
     )
 where
 
@@ -721,14 +722,14 @@ foldChunks f s = fmap fst (foldBreakChunks f s)
 --
 -- We can compare perf and remove this one or define it in terms of that.
 --
-foldBreakChunksK :: forall m a b. (MonadIO m, Unbox a) =>
+foldBreak, foldBreakChunksK :: forall m a b. (MonadIO m, Unbox a) =>
     Fold m a b -> StreamK m (Array a) -> m (b, StreamK m (Array a))
 {-
 foldBreakChunksK f s =
       fmap (first (fromRight undefined))
     $ StreamK.parseBreakChunks (ParserK.adaptC (Parser.fromFold f)) s
 -}
-foldBreakChunksK (Fold fstep initial _ final) stream = do
+foldBreak (Fold fstep initial _ final) stream = do
     res <- initial
     case res of
         Fold.Partial fs -> go fs stream
@@ -757,6 +758,8 @@ foldBreakChunksK (Fold fstep initial _ final) stream = do
                 let arr = Array contents next end
                 return $! (b, StreamK.cons arr st)
             Fold.Partial fs1 -> goArray fs1 st fp next
+
+RENAME(foldBreakChunksK,foldBreak)
 
 {-
 -- This can be generalized to any type provided it can be unfolded to a stream
