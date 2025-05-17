@@ -9,7 +9,9 @@
 module Streamly.Internal.Data.Scanl.Concurrent
     (
       parTeeWith
+    , parDistributeScanM
     , parDistributeScan
+    , parDemuxScanM
     , parDemuxScan
     )
 where
@@ -19,7 +21,7 @@ where
 import Control.Concurrent (newEmptyMVar, takeMVar, throwTo)
 import Control.Monad.Catch (throwM)
 import Control.Monad.IO.Class (MonadIO(liftIO))
-import Data.IORef (newIORef, readIORef)
+import Data.IORef (newIORef, readIORef, atomicModifyIORef)
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS)
@@ -30,6 +32,7 @@ import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
 
 import qualified Data.Map.Strict as Map
+import qualified Streamly.Internal.Data.Stream as Stream
 
 import Streamly.Internal.Data.Fold.Channel.Type
 import Streamly.Internal.Data.Channel.Types
@@ -162,13 +165,13 @@ data ScanState s q db f =
 -- >>> import Data.IORef
 -- >>> ref <- newIORef [Scanl.take 5 Scanl.sum, Scanl.take 5 Scanl.length :: Scanl.Scanl IO Int Int]
 -- >>> gen = atomicModifyIORef ref (\xs -> ([], xs))
--- >>> Stream.toList $ Scanl.parDistributeScan id gen (Stream.enumerateFromTo 1 10)
+-- >>> Stream.toList $ Scanl.parDistributeScanM id gen (Stream.enumerateFromTo 1 10)
 -- ...
 --
-{-# INLINE parDistributeScan #-}
-parDistributeScan :: MonadAsync m =>
+{-# INLINE parDistributeScanM #-}
+parDistributeScanM :: MonadAsync m =>
     (Config -> Config) -> m [Scanl m a b] -> Stream m a -> Stream m [b]
-parDistributeScan cfg getFolds (Stream sstep state) =
+parDistributeScanM cfg getFolds (Stream sstep state) =
     Stream step ScanInit
 
     where
@@ -243,6 +246,20 @@ parDistributeScan cfg getFolds (Stream sstep state) =
                 else return $ Yield outputs (ScanDrain q db running)
     step _ ScanStop = return Stop
 
+-- | Like 'parDistributeScanM' but takes a list of static scans.
+--
+-- >>> xs = [Scanl.take 5 Scanl.sum, Scanl.take 5 Scanl.length :: Scanl.Scanl IO Int Int]
+-- >>> Stream.toList $ Scanl.parDistributeScan id xs (Stream.enumerateFromTo 1 10)
+-- ...
+{-# INLINE parDistributeScan #-}
+parDistributeScan :: MonadAsync m =>
+    (Config -> Config) -> [Scanl m a b] -> Stream m a -> Stream m [b]
+parDistributeScan cfg getFolds stream =
+    Stream.concatEffect $ do
+        ref <- liftIO $ newIORef getFolds
+        let action = liftIO $ atomicModifyIORef ref (\xs -> ([], xs))
+        return $ parDistributeScanM cfg action stream
+
 {-# ANN type DemuxState Fuse #-}
 data DemuxState s q db f =
       DemuxInit
@@ -273,17 +290,17 @@ data DemuxState s q db f =
 -- >>> getScan k = return (fromJust $ Map.lookup k kv)
 -- >>> getKey x = if even x then "even" else "odd"
 -- >>> input = Stream.enumerateFromTo 1 10
--- >>> Stream.toList $ Scanl.parDemuxScan id getKey getScan input
+-- >>> Stream.toList $ Scanl.parDemuxScanM id getKey getScan input
 -- ...
 --
-{-# INLINE parDemuxScan #-}
-parDemuxScan :: (MonadAsync m, Ord k) =>
+{-# INLINE parDemuxScanM #-}
+parDemuxScanM :: (MonadAsync m, Ord k) =>
        (Config -> Config)
     -> (a -> k)
     -> (k -> m (Scanl m a b))
     -> Stream m a
     -> Stream m [(k, b)]
-parDemuxScan cfg getKey getFold (Stream sstep state) =
+parDemuxScanM cfg getKey getFold (Stream sstep state) =
     Stream step DemuxInit
 
     where
@@ -368,3 +385,14 @@ parDemuxScan cfg getKey getFold (Stream sstep state) =
                 return $ Skip (DemuxDrain q db keyToChan1)
             else return $ Yield outputs (DemuxDrain q db keyToChan1)
     step _ DemuxStop = return Stop
+
+-- | Like 'parDemuxScanM' but the key to scan mapping is static/pure instead of
+-- monadic.
+{-# INLINE parDemuxScan #-}
+parDemuxScan :: (MonadAsync m, Ord k) =>
+       (Config -> Config)
+    -> (a -> k)
+    -> (k -> Scanl m a b)
+    -> Stream m a
+    -> Stream m [(k, b)]
+parDemuxScan cfg getKey getFold = parDemuxScanM cfg getKey (pure . getFold)

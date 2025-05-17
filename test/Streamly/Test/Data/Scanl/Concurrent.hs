@@ -47,7 +47,7 @@ parDistributeScan_ScanEnd concOpts = do
         inpList = [1..streamLen]
         inpStream = Stream.fromList inpList
     res1 <-
-        Scanl.parDistributeScan concOpts gen inpStream
+        Scanl.parDistributeScanM concOpts gen inpStream
             & Stream.concatMap Stream.fromList
             & Stream.catMaybes
             & Stream.fold Fold.toList
@@ -65,7 +65,7 @@ parDemuxScan_ScanEnd concOpts = do
         inpList = [1..streamLen]
         inpStream = Stream.fromList inpList
     res <-
-        Scanl.parDemuxScan concOpts demuxer gen inpStream
+        Scanl.parDemuxScanM concOpts demuxer gen inpStream
             & Stream.concatMap Stream.fromList
             & fmap (\x -> (fst x,) <$> snd x)
             & Stream.catMaybes
@@ -81,7 +81,7 @@ parDistributeScan_StreamEnd concOpts = do
         inpList = [1..streamLen]
         inpStream = Stream.fromList inpList
     res1 <-
-        Scanl.parDistributeScan concOpts gen inpStream
+        Scanl.parDistributeScanM concOpts gen inpStream
             & Stream.concatMap Stream.fromList
             & Stream.catMaybes
             & Stream.fold Fold.toList
@@ -95,7 +95,7 @@ parDemuxScan_StreamEnd concOpts = do
         inpList = [1..streamLen]
         inpStream = Stream.fromList inpList
     res <-
-        Scanl.parDemuxScan concOpts demuxer gen inpStream
+        Scanl.parDemuxScanM concOpts demuxer gen inpStream
             & Stream.concatMap Stream.fromList
             & fmap (\x -> (fst x,) <$> snd x)
             & Stream.catMaybes
@@ -110,11 +110,11 @@ main = hspec
   $ modifyMaxSuccess (const 10)
 #endif
   $ describe moduleName $ do
-        it "parDistributeScan (stream end) (maxBuffer 1)"
+        it "parDistributeScanM (stream end) (maxBuffer 1)"
             $ parDistributeScan_StreamEnd (Scanl.maxBuffer 1)
-        it "parDistributeScan (scan end) (maxBuffer 1)"
+        it "parDistributeScanM (scan end) (maxBuffer 1)"
             $ parDistributeScan_ScanEnd (Scanl.maxBuffer 1)
-        it "parDemuxScan (stream end) (maxBuffer 1)"
+        it "parDemuxScanM (stream end) (maxBuffer 1)"
             $ parDemuxScan_StreamEnd (Scanl.maxBuffer 1)
-        it "parDemuxScan (scan end) (maxBuffer 1)"
+        it "parDemuxScanM (scan end) (maxBuffer 1)"
             $ parDemuxScan_ScanEnd (Scanl.maxBuffer 1)

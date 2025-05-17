@@ -39,11 +39,11 @@ mkBench name f =
 -- Benchmarks
 --------------------------------------------------------------------------------
 
-parDistributeScan :: Int -> Seed -> IO ()
-parDistributeScan len seed = do
+parDistributeScanM :: Int -> Seed -> IO ()
+parDistributeScanM len seed = do
     ref <- newIORef [Scanl.latest]
     let gen = atomicModifyIORef ref (\xs -> ([], xs))
-    Scanl.parDistributeScan id gen (source len seed)
+    Scanl.parDistributeScanM id gen (source len seed)
         & Stream.fold Fold.drain
 
 --------------------------------------------------------------------------------
@@ -53,7 +53,7 @@ parDistributeScan len seed = do
 o_1_space_scans :: Int -> [Benchmark]
 o_1_space_scans numElements =
     [ bgroup "scan"
-        [ mkBench "parDistributeScan" (parDistributeScan numElements)
+        [ mkBench "parDistributeScanM" (parDistributeScanM numElements)
         ]
     ]
 
