@@ -70,8 +70,9 @@ import Streamly.Data.Array (Unbox)
 import Streamly.Internal.Data.Array (Array)
 import Streamly.Internal.Data.Fold (Fold (..))
 import Streamly.Internal.Data.IsMap (IsMap(..))
-import Streamly.Internal.Data.Channel.Types (Rate, rate)
+import Streamly.Internal.Data.Channel.Types (Rate)
 import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Internal.Data.Stream.Channel.Type (rate)
 import Streamly.Internal.Data.Time.Units
     ( AbsTime
     , MilliSecond64(..)

@@ -18,7 +18,6 @@ import Test.Hspec as H
 
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Data.Stream as Stream
-import qualified Streamly.Data.Stream.Prelude as Stream
 import qualified Streamly.Internal.Data.Scanl as Scanl
 import qualified Streamly.Internal.Data.Scanl.Prelude as Scanl
 
@@ -39,7 +38,7 @@ oddScan =
     Scanl.filtering odd
         & Scanl.lmapM (\x -> threadDelay 100 >> pure x)
 
-parDistributeScan_ScanEnd :: (Stream.Config -> Stream.Config) -> IO ()
+parDistributeScan_ScanEnd :: (Scanl.Config -> Scanl.Config) -> IO ()
 parDistributeScan_ScanEnd concOpts = do
     let streamLen = 10000
         evenLen = 100
@@ -54,7 +53,7 @@ parDistributeScan_ScanEnd concOpts = do
             & Stream.fold Fold.toList
     sort res1 `shouldBe` [1..evenLen] ++ filter odd [(evenLen+1)..streamLen]
 
-parDemuxScan_ScanEnd :: (Stream.Config -> Stream.Config) -> IO ()
+parDemuxScan_ScanEnd :: (Scanl.Config -> Scanl.Config) -> IO ()
 parDemuxScan_ScanEnd concOpts = do
     let streamLen = 10000
         evenLen = 100
@@ -74,7 +73,7 @@ parDemuxScan_ScanEnd concOpts = do
     map snd (filter fst res) `shouldBe` take evenLen [2, 4 ..]
     map snd (filter (not . fst) res) `shouldBe` filter odd [1..streamLen]
 
-parDistributeScan_StreamEnd :: (Stream.Config -> Stream.Config) -> IO ()
+parDistributeScan_StreamEnd :: (Scanl.Config -> Scanl.Config) -> IO ()
 parDistributeScan_StreamEnd concOpts = do
     let streamLen = 10000
     ref <- newIORef [evenScan, oddScan]
@@ -88,7 +87,7 @@ parDistributeScan_StreamEnd concOpts = do
             & Stream.fold Fold.toList
     sort res1 `shouldBe` inpList
 
-parDemuxScan_StreamEnd :: (Stream.Config -> Stream.Config) -> IO ()
+parDemuxScan_StreamEnd :: (Scanl.Config -> Scanl.Config) -> IO ()
 parDemuxScan_StreamEnd concOpts = do
     let streamLen = 10000
         demuxer i = even (i :: Int)
@@ -112,10 +111,10 @@ main = hspec
 #endif
   $ describe moduleName $ do
         it "parDistributeScan (stream end) (maxBuffer 1)"
-            $ parDistributeScan_StreamEnd (Stream.maxBuffer 1)
+            $ parDistributeScan_StreamEnd (Scanl.maxBuffer 1)
         it "parDistributeScan (scan end) (maxBuffer 1)"
-            $ parDistributeScan_ScanEnd (Stream.maxBuffer 1)
+            $ parDistributeScan_ScanEnd (Scanl.maxBuffer 1)
         it "parDemuxScan (stream end) (maxBuffer 1)"
-            $ parDemuxScan_StreamEnd (Stream.maxBuffer 1)
+            $ parDemuxScan_StreamEnd (Scanl.maxBuffer 1)
         it "parDemuxScan (scan end) (maxBuffer 1)"
-            $ parDemuxScan_ScanEnd (Stream.maxBuffer 1)
+            $ parDemuxScan_ScanEnd (Scanl.maxBuffer 1)

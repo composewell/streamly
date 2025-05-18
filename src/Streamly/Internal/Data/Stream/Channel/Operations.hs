@@ -48,7 +48,7 @@ import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.StreamK as K
 
-import Streamly.Internal.Data.Channel.Types hiding (inspect)
+import Streamly.Internal.Data.Channel.Types
 import Streamly.Internal.Data.Stream.Channel.Dispatcher
 import Streamly.Internal.Data.Stream.Channel.Type hiding (inspect)
 

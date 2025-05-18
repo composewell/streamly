@@ -91,10 +91,6 @@ import Streamly.Internal.Control.ForkLifted (forkManaged)
 import Streamly.Internal.Data.Channel.Dispatcher (modifyThread)
 import Streamly.Internal.Data.Channel.Worker (sendEvent)
 import Streamly.Internal.Data.Stream (Stream, Step(..))
-import Streamly.Internal.Data.Stream.Channel
-    ( Channel(..), newChannel, fromChannel, toChannelK, withChannelK
-    , withChannel, shutdown, chanConcatMapK
-    )
 
 import qualified Streamly.Internal.Data.IORef as Unboxed
 import qualified Streamly.Internal.Data.Stream as Stream
@@ -103,6 +99,7 @@ import qualified Streamly.Internal.Data.StreamK as K
 
 import Prelude hiding (mapM, sequence, concat, concatMap, zipWith)
 import Streamly.Internal.Data.Channel.Types
+import Streamly.Internal.Data.Stream.Channel
 
 -- $setup
 --

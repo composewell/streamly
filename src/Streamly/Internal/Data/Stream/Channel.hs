@@ -44,6 +44,10 @@ import Streamly.Internal.Data.Stream.Channel.Interleave
 import Streamly.Internal.Data.Stream.Channel.Dispatcher
 import Streamly.Internal.Data.Stream.Channel.Consumer
 
+-------------------------------------------------------------------------------
+--  Channel allocation
+-------------------------------------------------------------------------------
+
 -- | Create a new concurrent stream evaluation channel. The monad
 -- state used to run the stream actions is captured from the call site of
 -- newChannel.

@@ -14,6 +14,7 @@ module Streamly.Internal.Data.Fold.Channel.Type
 
     -- ** Configuration
     , Config
+    , defaultConfig
     , maxBuffer
     , boundThreads
     , inspect
@@ -140,6 +141,94 @@ data Channel m a b = Channel
     , svarInspectMode :: Bool
     , svarCreator :: ThreadId
     }
+
+-------------------------------------------------------------------------------
+-- Config
+-------------------------------------------------------------------------------
+
+-- | An abstract type for specifying the configuration parameters of a
+-- 'Channel'. Use @Config -> Config@ modifier functions to modify the default
+-- configuration. See the individual modifier documentation for default values.
+--
+data Config = Config
+    {
+      _bufferHigh :: Limit
+    , _inspect    :: Bool
+    , _bound :: Bool
+    }
+
+-------------------------------------------------------------------------------
+-- State defaults and reset
+-------------------------------------------------------------------------------
+
+defaultMaxBuffer :: Limit
+defaultMaxBuffer = Limited magicMaxBuffer
+
+-- | The fields prefixed by an _ are not to be accessed or updated directly but
+-- via smart accessor APIs. Use get/set routines instead of directly accessing
+-- the Config fields
+defaultConfig :: Config
+defaultConfig = Config
+    {
+      _bufferHigh = defaultMaxBuffer
+    , _inspect = False
+    , _bound = False
+    }
+
+-------------------------------------------------------------------------------
+-- Smart get/set routines for State
+-------------------------------------------------------------------------------
+
+-- | Specify the maximum size of the buffer for storing the results from
+-- concurrent computations. If the buffer becomes full we stop spawning more
+-- concurrent tasks until there is space in the buffer.
+-- A value of 0 resets the buffer size to default, a negative value means
+-- there is no limit. The default value is 1500.
+--
+-- CAUTION! using an unbounded 'maxBuffer' value (i.e. a negative value)
+-- coupled with an unbounded 'maxThreads' value is a recipe for disaster in
+-- presence of infinite streams, or very large streams.  Especially, it must
+-- not be used when 'pure' is used in 'ZipAsyncM' streams as 'pure' in
+-- applicative zip streams generates an infinite stream causing unbounded
+-- concurrent generation with no limit on the buffer or threads.
+--
+maxBuffer :: Int -> Config -> Config
+maxBuffer n st =
+    st { _bufferHigh =
+            if n < 0
+            then Unlimited
+            else if n == 0
+                 then defaultMaxBuffer
+                 else Limited (fromIntegral n)
+       }
+
+getMaxBuffer :: Config -> Limit
+getMaxBuffer = _bufferHigh
+
+-- | Print debug information about the 'Channel' when the stream ends. When the
+-- stream does not end normally, the channel debug information is printed when
+-- the channel is garbage collected. If you are expecting but not seeing the
+-- debug info try adding a 'performMajorGC' before the program ends.
+--
+inspect :: Bool -> Config -> Config
+inspect flag st = st { _inspect = flag }
+
+getInspectMode :: Config -> Bool
+getInspectMode = _inspect
+
+-- | Spawn bound threads (i.e., spawn threads using 'forkOS' instead of
+-- 'forkIO'). The default value is 'False'.
+--
+-- Currently, this only takes effect only for concurrent folds.
+boundThreads :: Bool -> Config -> Config
+boundThreads flag st = st { _bound = flag }
+
+getBound :: Config -> Bool
+getBound = _bound
+
+-------------------------------------------------------------------------------
+-- Inspection
+-------------------------------------------------------------------------------
 
 -- | Dump the channel stats for diagnostics. Used when 'inspect' option is
 -- enabled.
