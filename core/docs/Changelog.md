@@ -6,6 +6,9 @@
 
 ### Enhancements
 
+* Add APIs for prompt cleanup of allocated resources as well as cleanup of
+  concurrent threads. You can choose to use guaranteed prompt cleanup over GC
+  based cleanup by using the new APIs.
 * Add several new concurrent combinators for folds in
   `Streamly.Data.Fold.Prelude`.
 * Add `Streamly.Data.Scanl` module is added for the new `Scanl` type. Composable
