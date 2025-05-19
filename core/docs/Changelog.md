@@ -21,9 +21,18 @@
 
 ### Enhancements
 
-* Add several concurrent combinators for folds in `Streamly.Data.Fold.Prelude`.
-* Split the `Fold` type in two, `Fold` and `Scanl`. `Streamly.Data.Scanl`
-  module is added for the new `Scanl` type.
+* Add several new concurrent combinators for folds in
+  `Streamly.Data.Fold.Prelude`.
+* Add `Streamly.Data.Scanl` module is added for the new `Scanl` type. Composable
+  scans can be used to split streams into multiple streams, process them
+  independently (concurrently too) and merge the results. The `Fold` type has
+  been split in two types, `Fold` and `Scanl`.
+* Add a `Path` type and some type wrappers for flexibly typed file
+  system paths, following modules are added:
+  - Streamly.FileSystem.Path
+  - Streamly.FileSystem.Path.Node
+  - Streamly.FileSystem.Path.Seg
+  - Streamly.FileSystem.Path.SegNode
 * Add `Streamly.FileSystem.DirIO` and `Streamly.FileSystem.FileIO`
   modules. These new module replace `Streamly.FileSystem.Dir`,
   `Streamly.FileSystem.File` modules which have been deprecated.  The
@@ -32,12 +41,6 @@
   representation. The DirIO module API takes an additional ReadOptions
   argument to modify the behavior.  Please note that the directory read
   APIs in the new module do not follow symlinks by default.
-* Add a `Path` type and some type wrappers for flexibly typed file
-  system paths, following modules are added:
-  - Streamly.FileSystem.Path
-  - Streamly.FileSystem.Path.Node
-  - Streamly.FileSystem.Path.Seg
-  - Streamly.FileSystem.Path.SegNode
 * Remove the `Storable` constraint from the following functions:
   - Streamly.Data.Stream.isInfixOf
   - Streamly.Data.Array.writeLastN
