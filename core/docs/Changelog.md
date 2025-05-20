@@ -19,6 +19,10 @@
     If the `n` returned by these constructors is used in making some decisions,
     that will have to be modified accordingly. See the docs for more details.
 
+* Concurrent streams and folds now use separate types for concurrency
+  config. If you are importing the `Config` type from an incorrect module,
+  you will have to fix that.
+
 ### Enhancements
 
 * Add several new concurrent combinators for folds in
