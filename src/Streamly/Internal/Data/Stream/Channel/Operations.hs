@@ -171,6 +171,8 @@ fromChannelRaw sv = K.MkStream $ \st yld sng stp -> do
             ChildYield a -> yld a rest
             ChildStopChannel -> do
                 liftIO (cleanupSVar (workerThreads sv))
+                -- XXX drain all threads before stopping?
+                -- XXX We can use a config option to drain or abort.
                 cleanup >> stp
             ChildStop tid e -> do
                 accountThread sv tid
@@ -188,6 +190,8 @@ fromChannelRaw sv = K.MkStream $ \st yld sng stp -> do
                                 -- K.foldStream st yld sng stp rest
                             Nothing -> do
                                 liftIO (cleanupSVar (workerThreads sv))
+                                -- XXX Should we wait for all threads to abort
+                                -- before throwing the exception?
                                 cleanup >> throwM ex
 
 #ifdef INSPECTION
@@ -214,16 +218,20 @@ inspect $ hasNoTypeClassesExcept 'fromChannelRaw
 -- XXX Add an option to block the consumer rather than stopping the stream if
 -- the work queue gets over.
 
-chanCleanupOnGc :: Channel m a -> IO ()
-chanCleanupOnGc chan = do
+chanCleanup :: String -> Channel m a -> IO ()
+chanCleanup reason chan = do
     when (svarInspectMode chan) $ do
         r <- liftIO $ readIORef (svarStopTime (svarStats chan))
         when (isNothing r) $
-            printSVar (dumpChannel chan) "Channel Garbage Collected"
+            printSVar (dumpChannel chan) reason
     cleanupSVar (workerThreads chan)
     -- If there are any other channels referenced by this channel a GC will
     -- prompt them to be cleaned up quickly.
     when (svarInspectMode chan) performMajorGC
+
+chanCleanupOnGc :: Channel m a -> IO ()
+chanCleanupOnGc chan =
+    chanCleanup "Channel Garbage Collected" chan
 
 -- | Draw a stream from a concurrent channel. The stream consists of the
 -- evaluated values from the input streams that were enqueued on the channel
@@ -247,11 +255,15 @@ chanCleanupOnGc chan = do
 --
 -- CAUTION! This API must not be called more than once on a channel.
 {-# INLINE fromChannelK #-}
-fromChannelK :: MonadAsync m => Channel m a -> K.StreamK m a
-fromChannelK chan =
+fromChannelK :: MonadAsync m => Maybe (IO () -> IO ()) -> Channel m a -> K.StreamK m a
+fromChannelK register chan =
     K.mkStream $ \st yld sng stp -> do
         ref <- liftIO $ newIORef ()
         _ <- liftIO $ mkWeakIORef ref (chanCleanupOnGc chan)
+        let msg = "Channel cleanup via registered handler"
+        case register of
+            Nothing -> return ()
+            Just f -> liftIO $ f (chanCleanup msg chan)
 
         startChannel chan
         -- We pass a copy of sv to fromStreamVar, so that we know that it has
@@ -263,7 +275,8 @@ fromChannelK chan =
 -- | A wrapper over 'fromChannelK' for 'Stream' type.
 {-# INLINE fromChannel #-}
 fromChannel :: MonadAsync m => Channel m a -> Stream m a
-fromChannel = Stream.fromStreamK . fromChannelK
+-- XXX Pass the cleanup registration function to fromChannelK
+fromChannel = Stream.fromStreamK . fromChannelK Nothing
 
 #if __GLASGOW_HASKELL__ >= 810
 type FromSVarState :: Type -> (Type -> Type) -> Type -> Type

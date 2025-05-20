@@ -475,3 +475,4 @@ cleanupSVar workerSet = do
     Prelude.mapM_ (`throwTo` ThreadAbort)
           -- (Prelude.filter (/= self) $ Set.toList workers)
           (Set.toList workers)
+    writeIORef workerSet Set.empty

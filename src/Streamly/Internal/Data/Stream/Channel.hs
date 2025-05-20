@@ -76,7 +76,8 @@ withChannelK modifier input evaluator = K.concatEffect action
     action = do
         chan <- newChannel modifier
         toChannelK chan (evaluator chan input)
-        return $ fromChannelK chan
+        let cfg = modifier defaultConfig
+        return $ fromChannelK (getCleanup cfg) chan
 
 -- | A wrapper over 'withChannelK', converts 'Stream' to 'StreamK' and invokes
 -- 'withChannelK'.
