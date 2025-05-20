@@ -44,6 +44,10 @@ module Streamly.Internal.Data.Stream.Channel.Type
     -- *** Diagnostics
     , inspect
 
+    -- *** Resource cleanup
+    , addCleanup
+    , clearCleanup
+
     -- *** Get config
     , getMaxBuffer
     , getMaxThreads
@@ -54,6 +58,7 @@ module Streamly.Internal.Data.Stream.Channel.Type
     , getOrdered
     , getStopWhen
     , getInterleaved
+    , getCleanup
 
     -- ** Sending Worker Events
     , yieldWith
@@ -314,6 +319,18 @@ data Config = Config
     , _ordered :: Bool
     , _interleaved :: Bool
     , _bound :: Bool
+
+    -- XXX We can also use resource-t to release the channel. But that will
+    -- require a MonadResource constraint. It is a bigger change, we can plan
+    -- in future. With MonadResource, runResourceT will have to be called to
+    -- create a scope. Here we have an option to use prompt release or GC
+    -- release, but there are chances of missing a prompt release when the
+    -- option is provided to the programmer instead of always enforcing it.
+    --
+    -- We could store Channel m a, here instead of a deallocation function, if
+    -- we make the Config type as "Config m a". That way we can also share
+    -- channels across multiple computations.
+    , _release :: Maybe (IO () -> IO ())
     }
 
 -------------------------------------------------------------------------------
@@ -342,6 +359,7 @@ defaultConfig = Config
     , _ordered = False
     , _interleaved = False
     , _bound = False
+    , _release = Nothing
     }
 
 -------------------------------------------------------------------------------
@@ -534,6 +552,19 @@ boundThreads flag st = st { _bound = flag }
 
 _getBound :: Config -> Bool
 _getBound = _bound
+
+-- | Specify a function that registers a resource relase function. The resource
+-- release function can be called on exception or when the stream pipeline has
+-- finished to promptly release the channel instead of waiting for GC.
+addCleanup :: (IO () -> IO ()) -> Config -> Config
+addCleanup ref cfg = cfg { _release = Just ref }
+
+-- | Clear the resource release registration function.
+clearCleanup :: Config -> Config
+clearCleanup cfg = cfg { _release = Nothing }
+
+getCleanup :: Config -> Maybe (IO () -> IO ())
+getCleanup = _release
 
 -------------------------------------------------------------------------------
 -- Initialization

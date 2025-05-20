@@ -20,6 +20,8 @@ module Streamly.Internal.Data.Stream.Exception
     , bracketUnsafe
     , bracketIO3
     , bracketIO
+    , cleanupIO
+    , cleanupEffectIO
 
     -- * Exceptions
     , onException
@@ -33,6 +35,8 @@ where
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Exception (Exception, SomeException, mask_)
 import Control.Monad.Catch (MonadCatch)
+import Data.Foldable (sequenceA_)
+import Data.IORef (newIORef, readIORef, atomicModifyIORef)
 import GHC.Exts (inline)
 import Streamly.Internal.Data.IOFinalizer
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
@@ -346,6 +350,27 @@ bracketIO3 bef aft onExc onGC =
         onGC
         (inline MC.try)
 
+-- | Run a monadic effect supplying it with a function to register cleanup
+-- actions that are automatically invoked on exception or after the effect
+-- function is done.
+{-# INLINE cleanupEffectIO #-}
+cleanupEffectIO :: (MonadIO m, MonadCatch m) =>
+    ((IO () -> IO ()) -> m ()) -> m ()
+cleanupEffectIO action = do
+    ref <- liftIO $ newIORef []
+    -- XXX use mask or MC.finally?
+    action (register ref) `MC.onException` aft ref
+    aft ref
+
+    where
+
+    aft ref = liftIO $ do
+        xs <- readIORef ref
+        sequenceA_ xs
+
+    register ref f =
+        atomicModifyIORef ref (\xs -> (f : xs, ()))
+
 -- | Run the alloc action @IO b@ with async exceptions disabled but keeping
 -- blocking operations interruptible (see 'Control.Exception.mask').  Use the
 -- output @b@ of the IO action as input to the function @b -> Stream m a@ to
@@ -379,6 +404,27 @@ bracketIO3 bef aft onExc onGC =
 bracketIO :: (MonadIO m, MonadCatch m)
     => IO b -> (b -> IO c) -> (b -> Stream m a) -> Stream m a
 bracketIO bef aft = bracketIO3 bef aft aft aft
+
+-- | Run a stream supplying it a function to register cleanup actions which are
+-- automatically called on exception or when the stream is done.
+{-# INLINE cleanupIO #-}
+cleanupIO :: (MonadIO m, MonadCatch m) =>
+    ((IO () -> IO ()) -> Stream m a) -> Stream m a
+cleanupIO action = do
+    bracketIO bef aft (\(_, reg) -> action reg)
+
+    where
+
+    bef = do
+        ref <- liftIO $ newIORef []
+        return (ref, register ref)
+
+    aft (ref, _) = liftIO $ do
+        xs <- readIORef ref
+        sequenceA_ xs
+
+    register ref f =
+        atomicModifyIORef ref (\xs -> (f : xs, ()))
 
 data BracketState s v = BracketInit | BracketRun s v
 
