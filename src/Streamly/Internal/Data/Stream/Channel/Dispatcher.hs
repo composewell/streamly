@@ -82,12 +82,14 @@ forkWorker yieldMax sv = do
     -- modifyThread which performs a toggle rather than adding or deleting.
     --
     -- XXX We can use addThread or modThread based on eager flag.
-    doFork (workLoop sv winfo) (svarMrun sv) exception >>= modThread
+    -- tid <- liftIO myThreadId
+    -- liftIO $ putStrLn $ "Dispatcher thread: " ++ show tid
+    doFork (workLoop sv winfo) (svarMrun sv) exHandler >>= modThread
 
     where
 
     modThread = modifyThread (workerThreads sv) (outputDoorBell sv)
-    exception = sendException (outputQueue sv) (outputDoorBell sv)
+    exHandler = sendException (outputQueue sv) (outputDoorBell sv)
 
 -- | Determine the maximum number of workers required based on 'maxWorkerLimit'
 -- and 'remainingWork'.
