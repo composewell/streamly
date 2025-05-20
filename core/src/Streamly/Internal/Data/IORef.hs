@@ -32,11 +32,16 @@ module Streamly.Internal.Data.IORef
 
     -- Read
     , readIORef
+    , pollGenericIORef
+    , pollIORefInt
+
+    -- Deprecated
     , pollIntIORef
     )
 where
 
 #include "inline.hs"
+#include "deprecation.h"
 
 import Control.Monad.IO.Class (MonadIO(..))
 #if __GLASGOW_HASKELL__ >= 810
@@ -88,20 +93,30 @@ modifyIORef' var g = do
   x <- readIORef var
   writeIORef var (g x)
 
--- | Generate a stream by continuously reading the IORef.
---
--- This operation reads the IORef without any synchronization. It can be
--- assumed to be atomic because the IORef (MutableByteArray) is always aligned
--- to Int boundaries, we are assuming that compiler uses single instructions to
--- access the memory. It may read stale values though until caches are
--- synchronised in a multiprocessor architecture.
---
--- /Pre-release/
-{-# INLINE_NORMAL pollIntIORef #-}
-pollIntIORef :: (MonadIO m, Unbox a) => IORef a -> D.Stream m a
-pollIntIORef var = D.Stream step ()
+-- | Internal, do not use.
+{-# INLINE_NORMAL pollGenericIORef #-}
+pollGenericIORef :: (MonadIO m, Unbox a) => IORef a -> D.Stream m a
+pollGenericIORef var = D.Stream step ()
 
     where
 
     {-# INLINE_LATE step #-}
     step _ () = liftIO (readIORef var) >>= \x -> return $ D.Yield x ()
+
+{-# DEPRECATED pollIntIORef "Use pollIORefInt instead." #-}
+{-# INLINE_NORMAL pollIntIORef #-}
+pollIntIORef :: (MonadIO m, Unbox a) => IORef a -> D.Stream m a
+pollIntIORef = pollGenericIORef
+
+-- | Generate a stream by continuously reading the IORef.
+--
+-- This operation reads the IORef without any synchronization. It can be
+-- assumed to be atomic because the size fits into machine register size. We
+-- are assuming that compiler uses single instructions to access the memory. It
+-- may read stale values though until caches are synchronised in a
+-- multiprocessor architecture.
+--
+-- /Pre-release/
+{-# INLINE_NORMAL pollIORefInt #-}
+pollIORefInt :: MonadIO m => IORef Int -> D.Stream m Int
+pollIORefInt = pollGenericIORef

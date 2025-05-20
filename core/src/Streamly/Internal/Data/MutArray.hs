@@ -402,7 +402,7 @@ type IORef = IORef.IORef
 
 {-# DEPRECATED pollIntIORef "Use pollIntIORef from MutByteArray module." #-}
 pollIntIORef :: (MonadIO m, Unbox a) => IORef a -> Stream m a
-pollIntIORef = IORef.pollIntIORef
+pollIntIORef = IORef.pollGenericIORef
 
 {-# DEPRECATED newIORef "Use newIORef from MutByteArray module." #-}
 newIORef :: forall a. Unbox a => a -> IO (IORef a)
