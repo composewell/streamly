@@ -4,6 +4,10 @@
 
 ### Breaking Changes
 
+* Concurrent streams and folds now use separate type concurrency
+  config. If you are importing the `Config` type from an incorrect module,
+  you will have to fix that.
+
 ### Enhancements
 
 * Add several new concurrent combinators for folds in
