@@ -156,7 +156,7 @@ fromChannelRaw sv = K.MkStream $ \st yld sng stp -> do
         when (svarInspectMode sv) $ liftIO $ do
             t <- getTime Monotonic
             writeIORef (svarStopTime (svarStats sv)) (Just t)
-            printSVar (dumpChannel sv) "SVar Done"
+            printSVar (dumpChannel sv) "Channel Done"
 
     {-# INLINE processEvents #-}
     processEvents [] = K.MkStream $ \st yld sng stp -> do
@@ -170,9 +170,7 @@ fromChannelRaw sv = K.MkStream $ \st yld sng stp -> do
         case ev of
             ChildYield a -> yld a rest
             ChildStopChannel -> do
-                liftIO (cleanupSVar (workerThreads sv))
-                -- XXX drain all threads before stopping?
-                -- XXX We can use a config option to drain or abort.
+                liftIO $ cleanupChan sv
                 cleanup >> stp
             ChildStop tid e -> do
                 accountThread sv tid
@@ -186,10 +184,10 @@ fromChannelRaw sv = K.MkStream $ \st yld sng stp -> do
                                 -- get it unless it is thrown from inside a
                                 -- worker thread or by someone else to our
                                 -- thread.
-                                error "processEvents: got ThreadAbort"
+                                error $ "processEvents: got ThreadAbort for tid " ++ show tid
                                 -- K.foldStream st yld sng stp rest
                             Nothing -> do
-                                liftIO (cleanupSVar (workerThreads sv))
+                                liftIO $ cleanupChan sv
                                 -- XXX Should we wait for all threads to abort
                                 -- before throwing the exception?
                                 cleanup >> throwM ex
@@ -224,13 +222,13 @@ chanCleanup reason chan = do
         r <- liftIO $ readIORef (svarStopTime (svarStats chan))
         when (isNothing r) $
             printSVar (dumpChannel chan) reason
-    cleanupSVar (workerThreads chan)
+    liftIO $ cleanupChan chan
     -- If there are any other channels referenced by this channel a GC will
     -- prompt them to be cleaned up quickly.
     when (svarInspectMode chan) performMajorGC
 
 chanCleanupOnGc :: Channel m a -> IO ()
-chanCleanupOnGc = chanCleanup "Channel Garbage Collected"
+chanCleanupOnGc = chanCleanup "Channel cleanup via GC"
 
 -- | Draw a stream from a concurrent channel. The stream consists of the
 -- evaluated values from the input streams that were enqueued on the channel
@@ -254,20 +252,26 @@ chanCleanupOnGc = chanCleanup "Channel Garbage Collected"
 --
 -- CAUTION! This API must not be called more than once on a channel.
 {-# INLINE fromChannelK #-}
-fromChannelK :: MonadAsync m => Maybe (IO () -> IO ()) -> Channel m a -> K.StreamK m a
+fromChannelK :: MonadAsync m =>
+    Maybe (IO () -> IO ()) -> Channel m a -> K.StreamK m a
 fromChannelK register chan =
+    -- Note: when an explicit cleanup handler registration is used, we still
+    -- install a GC based cleanup handler, in case the explicit cleanup handler
+    -- is not called by the user we will still clean it up when it is garbage
+    -- collected.
     K.mkStream $ \st yld sng stp -> do
         ref <- liftIO $ newIORef ()
         _ <- liftIO $ mkWeakIORef ref (chanCleanupOnGc chan)
-        let msg = "Channel cleanup via registered handler"
+        let msg = "Channel cleanup via explicit handler"
         case register of
             Nothing -> return ()
             Just f -> liftIO $ f (chanCleanup msg chan)
 
         startChannel chan
-        -- We pass a copy of sv to fromStreamVar, so that we know that it has
-        -- no other references, when that copy gets garbage collected "ref"
-        -- will get garbage collected and our hook will be called.
+        -- We pass a copy of chan to fromChannelRaw, with svarRef set to ref,
+        -- so that we know that it has no other references, when that copy gets
+        -- garbage collected "ref" will get garbage collected and our hook will
+        -- be called.
         K.foldStreamShared st yld sng stp $
             fromChannelRaw chan{svarRef = Just ref}
 
@@ -310,7 +314,7 @@ _fromChannelD svar = D.Stream step FromSVarInit
                 r <- liftIO $ readIORef (svarStopTime (svarStats svar))
                 when (isNothing r) $
                     printSVar (dumpChannel svar) "SVar Garbage Collected"
-            cleanupSVar (workerThreads svar)
+            liftIO $ cleanupChan svar
             -- If there are any SVars referenced by this SVar a GC will prompt
             -- them to be cleaned up quickly.
             when (svarInspectMode svar) performMajorGC
@@ -332,7 +336,7 @@ _fromChannelD svar = D.Stream step FromSVarInit
         case ev of
             ChildYield a -> return $ D.Yield a (FromSVarLoop sv es)
             ChildStopChannel -> do
-                liftIO (cleanupSVar (workerThreads sv))
+                liftIO $ cleanupChan sv
                 return $ D.Skip (FromSVarDone sv)
             ChildStop tid e -> do
                 accountThread sv tid
@@ -343,7 +347,7 @@ _fromChannelD svar = D.Stream step FromSVarInit
                             Just ThreadAbort ->
                                 return $ D.Skip (FromSVarLoop sv es)
                             Nothing -> do
-                                liftIO (cleanupSVar (workerThreads sv))
+                                liftIO $ cleanupChan sv
                                 throwM ex
 
     step _ (FromSVarDone sv) = do

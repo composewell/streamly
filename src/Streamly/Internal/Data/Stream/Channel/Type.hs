@@ -66,28 +66,33 @@ module Streamly.Internal.Data.Stream.Channel.Type
     , exceptionWith
     , shutdown
 
+    -- ** Cleanup
+    , cleanupChan
+
     -- ** Diagnostics
     , dumpChannel
     )
 where
 
-import Control.Concurrent (ThreadId)
+import Control.Concurrent (ThreadId, throwTo, takeMVar)
 import Control.Concurrent.MVar (MVar)
 import Control.Exception (SomeException(..))
-import Control.Monad (void)
+import Control.Monad (void, when)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Int (Int64)
-import Data.IORef (IORef, newIORef)
+import Data.IORef (IORef, newIORef, readIORef, atomicModifyIORef)
 import Data.List (intersperse)
 import Data.Set (Set)
 import Streamly.Internal.Control.Concurrent (RunInIO)
-import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS_)
+import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS)
 import Streamly.Internal.Data.Channel.Dispatcher (dumpSVarStats)
 import Streamly.Internal.Data.Channel.Worker
     (sendYield, sendStop, sendEvent, sendException)
 import Streamly.Internal.Data.StreamK (StreamK)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units (NanoSecond64(..))
+
+import qualified Data.Set as Set
 
 import Streamly.Internal.Data.Channel.Types
 
@@ -156,6 +161,9 @@ data Channel m a = Channel
     -- [LOCKING] Infrequently locked. Used only when the 'outputQueue'
     -- transitions from empty to non-empty, or a work item is queued by a
     -- worker to the work queue and 'doorBellOnWorkQ' is set by the event loop.
+    --
+    -- We also use this for workerCount decrement, we wait on this during
+    -- cleanup. So any workerCount decrement must send a doorBell.
     , outputDoorBell :: MVar ()
 
     -- XXX Can we use IO instead of m here?
@@ -206,8 +214,11 @@ data Channel m a = Channel
     -- | This is a hook which is invoked whenever the tail of the stream is
     -- re-enqueued on the work queue. Normally, this is set to a noop. When
     -- 'eager' option is enabled this is set to an unconditional worker
-    -- dispatch function. This ensures that we eagerly sends a worker as long
+    -- dispatch function. This ensures that we eagerly send a worker as long
     -- as there is work to do.
+    --
+    -- NOTE that this is called from a worker context, therefore we should
+    -- consider appropriate locking semantics.
     , eagerDispatch :: m ()
 
     -- | Enqueue a stream for evaluation on the channel. The first element of
@@ -232,6 +243,8 @@ data Channel m a = Channel
     -- information and communicate it to the channel.
     , workLoop :: Maybe WorkerInfo -> m ()
 
+    , channelStopped :: IORef Bool
+
     ---------------------------------------------------------------------------
     -- Worker thread accounting
     ---------------------------------------------------------------------------
@@ -245,7 +258,12 @@ data Channel m a = Channel
     -- when a worker is dispatched, and removed whenever the event processing
     -- loop receives a 'ChildStop' event.
     --
-    -- [LOCKING] Updated unlocked, only by the event loop thread.
+    -- [LOCKING] Normally, this is updated only by the event loop thread, but
+    -- in case of eager dispatch (done in worker context) it is updated by a
+    -- worker. So reads from the event loop should be mindful of that.
+    -- Updates to this must be async signal safe because we rely on it for
+    -- cleanup and cleanup may leave unfinished threads if a thread is forked
+    -- but this is not updated.
     , workerThreads :: IORef (Set ThreadId)
 
     -- | Total number of active worker threads.
@@ -253,7 +271,9 @@ data Channel m a = Channel
     -- [LOCKING] Updated locked, by the event loop thread when dispatching a
     -- worker and by a worker thread when the thread stops. This is read
     -- without lock at several places where we want to rely on an approximate
-    -- value.
+    -- value. Updates to this must be async signal safe because we rely on it
+    -- for cleanup and cleanup may hang and leave unfinished threads if this is
+    -- not correct.
     , workerCount :: IORef Int
 
     -- XXX Can we use IO instead of m here?
@@ -284,6 +304,8 @@ data Channel m a = Channel
     , svarInspectMode :: Bool
     -- | threadId of the thread that created the channel
     , svarCreator :: ThreadId
+
+    -- XXX Add a map of dispatcher thread to worker thread.
     }
 
 -------------------------------------------------------------------------------
@@ -717,7 +739,10 @@ stopWith winfo chan =
 {-# INLINE exceptionWith #-}
 exceptionWith :: Maybe WorkerInfo -> Channel m a -> SomeException -> IO ()
 exceptionWith _winfo chan =
-    sendException (outputQueue chan) (outputDoorBell chan)
+    sendException
+        (workerCount chan)
+        (outputQueue chan)
+        (outputDoorBell chan)
 
 -- | Send a 'ChildStopChannel' event to shutdown the channel. Upon receiving
 -- the event the event processing loop kills all the registered worker threads
@@ -725,7 +750,6 @@ exceptionWith _winfo chan =
 {-# INLINABLE shutdown #-}
 shutdown :: MonadIO m => Channel m a -> m ()
 shutdown chan = liftIO $ do
-    atomicModifyIORefCAS_ (workerCount chan) $ \n -> n - 1
     void
         $ sendEvent
             (outputQueue chan)
@@ -751,3 +775,51 @@ dumpChannel sv = do
         , dumpSVarStats (svarInspectMode sv) (yieldRateInfo sv) (svarStats sv)
         ]
     return $ concat xs
+
+-------------------------------------------------------------------------------
+-- Cleanup
+-------------------------------------------------------------------------------
+
+-- | Never called from a worker thread.
+cleanupChan :: Channel m a -> IO ()
+cleanupChan chan = do
+    stopped <- atomicModifyIORef (channelStopped chan) (\x -> (True,x))
+    when (not stopped) $ do
+        -- putStrLn "cleanupChan: START"
+        go
+        -- putStrLn "cleanupChan: DONE"
+
+    where
+
+    go = do
+        -- Empty the queue so that any new results put the doorbell MVar
+        _ <- readOutputQBasic (outputQueue chan)
+        cnt <- readIORef (workerCount chan)
+        -- Note that the workerSet may not have the threadIds of those workers
+        -- which are in the process of dispatch but not yet dispatched. To
+        -- ensure that we have aborted all the workers we need to wait until
+        -- the worker count drops down to zero, until then we need to watch the
+        -- workerset and send ThreadAbort if we find any ThreadId in it. As of
+        -- now, this can only happen in the eagerDispatch case as we can
+        -- dispatch workers from workers in that case.
+        workers <-
+            atomicModifyIORefCAS (workerThreads chan) (\x -> (Set.empty,x))
+        -- self <- myThreadId
+        Prelude.mapM_ (`throwTo` ThreadAbort)
+              -- (Prelude.filter (/= self) $ Set.toList workers)
+              (Set.toList workers)
+        {-
+        let setSize = Set.size workers
+        putStrLn $ "cleanupChan: thread count: " ++ show cnt
+                ++ " workerSet size: " ++ show setSize
+        -}
+        when (cnt /= 0) $ do
+            {-
+                withDiagMVar
+                    (svarInspectMode chan)
+                    (dumpChannel chan)
+                    "cleanupChan"
+                $ -}
+            takeMVar (outputDoorBell chan)
+            -- threadDelay 10000
+            go

@@ -62,9 +62,6 @@ module Streamly.Internal.Data.Channel.Types
     , StopWhen (..)
     , magicMaxBuffer
 
-    -- ** Cleanup
-    , cleanupSVar
-
     -- ** Diagnostics
     , dumpCreator
     , dumpOutputQ
@@ -78,7 +75,7 @@ module Streamly.Internal.Data.Channel.Types
     )
 where
 
-import Control.Concurrent (ThreadId, throwTo, MVar, tryReadMVar)
+import Control.Concurrent (ThreadId, MVar, tryReadMVar)
 import Control.Concurrent.MVar (tryPutMVar)
 import Control.Exception
     ( SomeException(..), Exception, catches, throwIO, Handler(..)
@@ -86,13 +83,10 @@ import Control.Exception
 import Control.Monad (void, when)
 import Data.Int (Int64)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
-import Data.Set (Set)
 import Streamly.Internal.Data.Atomics
     (atomicModifyIORefCAS, atomicModifyIORefCAS_, storeLoadBarrier)
 import Streamly.Internal.Data.Time.Units (AbsTime, NanoSecond64(..))
 import System.IO (hPutStrLn, stderr)
-
-import qualified Data.Set as Set
 
 ------------------------------------------------------------------------------
 -- Common types
@@ -462,17 +456,3 @@ printSVar :: IO String -> String -> IO ()
 printSVar dump how = do
     svInfo <- dump
     hPutStrLn stderr $ "\n" <> how <> "\n" <> svInfo
-
--------------------------------------------------------------------------------
--- Cleanup
--------------------------------------------------------------------------------
-
--- | Never called from a worker thread.
-cleanupSVar :: IORef (Set ThreadId) -> IO ()
-cleanupSVar workerSet = do
-    workers <- readIORef workerSet
-    -- self <- myThreadId
-    Prelude.mapM_ (`throwTo` ThreadAbort)
-          -- (Prelude.filter (/= self) $ Set.toList workers)
-          (Set.toList workers)
-    writeIORef workerSet Set.empty

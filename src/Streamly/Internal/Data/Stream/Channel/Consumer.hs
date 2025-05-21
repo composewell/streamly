@@ -20,7 +20,6 @@ where
 import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.IORef (readIORef)
-import Streamly.Internal.Control.Concurrent (MonadRunInIO)
 
 import Streamly.Internal.Data.Channel.Dispatcher
 import Streamly.Internal.Data.Channel.Types
@@ -42,7 +41,7 @@ readOutputQChan sv = do
 -- there is at least one outstanding worker.
 --
 -- To be used as 'readOutputQ' function for the channel.
-readOutputQBounded :: MonadRunInIO m => Bool -> Channel m a -> m [ChildEvent a]
+readOutputQBounded :: MonadIO m => Bool -> Channel m a -> m [ChildEvent a]
 readOutputQBounded eagerEval sv = do
     (list, len) <- liftIO $ readOutputQChan sv
     -- When there is no output seen we dispatch more workers to help
@@ -75,7 +74,7 @@ readOutputQBounded eagerEval sv = do
 --
 -- To be used as 'readOutputQ' function for the channel when rate control is
 -- on.
-readOutputQPaced :: MonadRunInIO m => Channel m a -> m [ChildEvent a]
+readOutputQPaced :: MonadIO m => Channel m a -> m [ChildEvent a]
 readOutputQPaced sv = do
     (list, len) <- liftIO $ readOutputQChan sv
     if len <= 0
@@ -98,7 +97,7 @@ readOutputQPaced sv = do
 --
 -- To be used as 'postProcess' function for the channel when rate control is
 -- enabled.
-postProcessPaced :: MonadRunInIO m => Channel m a -> m Bool
+postProcessPaced :: MonadIO m => Channel m a -> m Bool
 postProcessPaced sv = do
     workersDone <- allThreadsDone (workerThreads sv)
     -- XXX If during consumption we figure out we are getting delayed then we
@@ -120,7 +119,7 @@ postProcessPaced sv = do
 -- | If there is work to do ensure that we have at least one worker disptached.
 --
 -- To be used as 'postProcess' function for the channel.
-postProcessBounded :: MonadRunInIO m => Channel m a -> m Bool
+postProcessBounded :: MonadIO m => Channel m a -> m Bool
 postProcessBounded sv = do
     workersDone <- allThreadsDone (workerThreads sv)
     -- There may still be work pending even if there are no workers pending
