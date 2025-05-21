@@ -32,7 +32,8 @@ import Control.Exception (assert)
 import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.IORef (IORef, modifyIORef, readIORef, writeIORef)
-import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS, writeBarrier)
+import Streamly.Internal.Data.Atomics
+    (atomicModifyIORefCAS, writeBarrier, atomicModifyIORefCAS_)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units
        ( AbsTime, NanoSecond64(..), diffAbsTime64, showNanoSecond64
@@ -214,8 +215,8 @@ dumpSVarStats inspecting rateInfo ss = do
     stopTime <- readIORef (svarStopTime ss)
     let stopReason =
             case stopTime of
-                Nothing -> "on GC"
-                Just _ -> "normal"
+                Nothing -> "stream abandoned"
+                Just _ -> "stream finished"
     (svarCnt, svarGainLossCnt, svarLat, interval) <- case rateInfo of
         Nothing -> return (0, 0, 0, 0)
         Just yinfo -> do
@@ -277,7 +278,7 @@ dumpSVarStats inspecting rateInfo ss = do
 {-# NOINLINE addThread #-}
 addThread :: MonadIO m => IORef (Set ThreadId) -> ThreadId -> m ()
 addThread workerSet tid =
-    liftIO $ modifyIORef workerSet (S.insert tid)
+    liftIO $ atomicModifyIORefCAS_ workerSet (S.insert tid)
 
 -- This is cheaper than modifyThread because we do not have to send a
 -- outputDoorBell This can make a difference when more workers are being
@@ -285,7 +286,7 @@ addThread workerSet tid =
 {-# INLINE delThread #-}
 delThread :: MonadIO m => IORef (Set ThreadId) -> ThreadId -> m ()
 delThread workerSet tid =
-    liftIO $ modifyIORef workerSet (S.delete tid)
+    liftIO $ atomicModifyIORefCAS_ workerSet (S.delete tid)
 
 -- If present then delete else add. This takes care of out of order add and
 -- delete i.e. a delete arriving before we even added a thread.

@@ -84,7 +84,7 @@ workLoopLIFO qref sv winfo = run
     run = do
         work <- dequeue qref
         case work of
-            Nothing -> liftIO $ stopWith winfo sv
+            Nothing -> return ()
             Just (RunInIO runin, m) -> process runin m
 
     process runin m = do
@@ -105,7 +105,7 @@ workLoopLIFO qref sv winfo = run
         res <- restoreM r
         case res of
             Continue -> run
-            Suspend -> liftIO $ stopWith winfo sv
+            Suspend -> return ()
 
         where
 
@@ -143,8 +143,9 @@ workLoopLIFOLimited qref sv winfo = run
 
     run = do
         work <- dequeue qref
+        {- HLINT ignore "Use forM_" -}
         case work of
-            Nothing -> liftIO $ stopWith winfo sv
+            Nothing -> return ()
             Just item -> process item
 
     process item@(RunInIO runin, m) = do
@@ -167,13 +168,12 @@ workLoopLIFOLimited qref sv winfo = run
             res <- restoreM r
             case res of
                 Continue -> run
-                Suspend -> liftIO $ stopWith winfo sv
+                Suspend -> return ()
         -- Avoid any side effects, undo the yield limit decrement if we
         -- never yielded anything.
         else liftIO $ do
             enqueueLIFO sv qref item
             incrementYieldLimit (remainingWork sv)
-            stopWith winfo sv
 
         where
 
@@ -497,11 +497,6 @@ preStopCheck sv heap =
                     if beyondRate then stopping else continue
         else stopping
 
-abortExecution :: Channel m a -> Maybe WorkerInfo -> IO ()
-abortExecution sv winfo = do
-    incrementYieldLimit (remainingWork sv)
-    stopWith winfo sv
-
 -- XXX In absence of a "noyield" primitive (i.e. do not pre-empt inside a
 -- critical section) from GHC RTS, we have a difficult problem. Assume we have
 -- a 100,000 threads producing output and queuing it to the heap for
@@ -580,7 +575,6 @@ processHeap q heap sv winfo entry sno stopping = loopHeap sno entry
             liftIO $ do
                 requeueOnHeapTop heap ent seqNo
                 incrementYieldLimit (remainingWork sv)
-                stopWith winfo sv
 
     processWorkQueue prevSeqNo = do
         yieldLimitOk <- liftIO $ decrementYieldLimit (remainingWork sv)
@@ -588,24 +582,24 @@ processHeap q heap sv winfo entry sno stopping = loopHeap sno entry
         then do
             work <- dequeueAhead q
             case work of
-                Nothing -> liftIO $ stopWith winfo sv
+                Nothing -> return ()
                 Just (m, seqNo) -> do
                     if seqNo == prevSeqNo + 1
                     then processWithToken q heap sv winfo m seqNo
                     else processWithoutToken q heap sv winfo m seqNo
-        else liftIO $ abortExecution sv winfo
+        else liftIO $ incrementYieldLimit (remainingWork sv)
 
     nextHeap prevSeqNo = do
         res <- liftIO $ dequeueFromHeapSeq heap (prevSeqNo + 1)
         case res of
             Ready (Entry seqNo hent) -> loopHeap seqNo hent
-            Clearing -> liftIO $ stopWith winfo sv
+            Clearing -> return ()
             Waiting _ ->
                 if stopping
                 then do
                     r <- liftIO $ preStopCheck sv heap
                     if r
-                    then liftIO $ stopWith winfo sv
+                    then return ()
                     else processWorkQueue prevSeqNo
                 else inline processWorkQueue prevSeqNo
 
@@ -643,7 +637,6 @@ processHeap q heap sv winfo entry sno stopping = loopHeap sno entry
                     then liftIO $ do
                         -- put the entry back in the heap and stop
                         requeueOnHeapTop heap (Entry seqNo ent) seqNo
-                        stopWith winfo sv
                     else go
                 else go
             AheadEntryStream (RunInIO runin, Nothing, r) -> do
@@ -660,7 +653,6 @@ processHeap q heap sv winfo entry sno stopping = loopHeap sno entry
                     then liftIO $ do
                         -- put the entry back in the heap and stop
                         requeueOnHeapTop heap (Entry seqNo ent) seqNo
-                        stopWith winfo sv
                     else go
                 else go
 
@@ -677,7 +669,7 @@ drainHeap q heap sv winfo = do
     case r of
         Ready (Entry seqNo hent) ->
             processHeap q heap sv winfo hent seqNo True
-        _ -> liftIO $ stopWith winfo sv
+        _ -> return ()
 
 data HeapStatus = HContinue | HStop
 
@@ -902,7 +894,7 @@ workLoopAhead q heap sv winfo = do
         case r of
             Ready (Entry seqNo hent) ->
                 processHeap q heap sv winfo hent seqNo False
-            Clearing -> liftIO $ stopWith winfo sv
+            Clearing -> return ()
             Waiting _ -> do
                 -- Before we execute the next item from the work queue we check
                 -- if we are beyond the yield limit. It is better to check the
@@ -925,12 +917,12 @@ workLoopAhead q heap sv winfo = do
                 then do
                     work <- dequeueAhead q
                     case work of
-                        Nothing -> liftIO $ stopWith winfo sv
+                        Nothing -> return ()
                         Just (m, seqNo) -> do
                             if seqNo == 0
                             then processWithToken q heap sv winfo m seqNo
                             else processWithoutToken q heap sv winfo m seqNo
-                else liftIO $ abortExecution sv winfo
+                else liftIO $ incrementYieldLimit (remainingWork sv)
 
 -------------------------------------------------------------------------------
 -- SVar creation
@@ -967,6 +959,7 @@ getLifoSVar mrun cfg = do
         case getYieldLimit cfg of
             Nothing -> return Nothing
             Just x -> Just <$> newIORef x
+    stopRef <- newIORef False
     rateInfo <- newRateInfo cfg
 
     stats <- newSVarStats
@@ -1015,6 +1008,7 @@ getLifoSVar mrun cfg = do
                 if inOrder
                 then workLoopAhead aheadQ outH sv
                 else wloop q sv
+            , channelStopped = stopRef
             , enqueue =
                     if inOrder
                     then enqueueAhead sv aheadQ

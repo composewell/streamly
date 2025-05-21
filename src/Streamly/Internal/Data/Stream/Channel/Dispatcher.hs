@@ -22,15 +22,16 @@ module Streamly.Internal.Data.Stream.Channel.Dispatcher
     )
 where
 
-import Control.Concurrent (takeMVar, threadDelay)
-import Control.Exception (assert)
+import Control.Concurrent (takeMVar, threadDelay, forkOS)
+import Control.Exception (assert, catch, mask)
 import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.Maybe (fromJust, fromMaybe)
 import Data.IORef (modifyIORef, newIORef, readIORef, writeIORef)
-import Streamly.Internal.Control.Concurrent (MonadRunInIO)
-import Streamly.Internal.Control.ForkLifted (doFork)
-import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS_, storeLoadBarrier)
+import Streamly.Internal.Control.Concurrent (RunInIO(..))
+import Streamly.Internal.Control.ForkIO (rawForkIO)
+import Streamly.Internal.Data.Atomics
+    (atomicModifyIORefCAS_, storeLoadBarrier)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units
        (MicroSecond64(..), diffAbsTime64, fromRelTime64, toRelTime64)
@@ -44,17 +45,59 @@ import Streamly.Internal.Data.Stream.Channel.Type
 -- Dispatching workers
 -------------------------------------------------------------------------------
 
+-- XXX The old code passed the action and exception handler inside this and
+-- only did a fork here. When we passed the channel and added the workerCount
+-- update under the mask, many concurrent benchmarks regressed, some
+-- drastically improved as well. We did an experiment to directly put this fork
+-- code in forkWorker and just push the worker count update inside the mask and
+-- that itself caused the entire regression. Also the memory consumption in
+-- ConcurrentEager.toNullAp benchmark doubled from 300MB to 600 MB So something
+-- fishy going on here which needs to be investigated.
+--
+{-# INLINE doFork #-}
+doFork :: Bool -> Channel m a -> Maybe WorkerInfo -> IO ()
+doFork bound chan winfo =
+    mask $ \restore -> do
+            liftIO $ atomicModifyIORefCAS_ (workerCount chan) $ \n -> n + 1
+            when (svarInspectMode chan)
+                $ recordMaxWorkers (workerCount chan) (svarStats chan)
+            let frk =
+                    if bound
+                    then forkOS
+                    else rawForkIO
+                (RunInIO mrun) = svarMrun chan
+                act = do
+                        restore $ void $ mrun (workLoop chan winfo)
+                        stopWith winfo chan
+            tid <- frk $ catch act (exceptionWith winfo chan)
+            -- In case of lazy dispatch we dispatch workers only from the
+            -- consumer thread. In that case it is ok to use addThread here as
+            -- it is guaranteed that the thread will be added to the workerSet
+            -- before the thread STOP event is processed, because we do both of
+            -- these actions in the same consumer thread. However, in case of
+            -- eager dispatch we may dispatch workers from workers, in which
+            -- case the thread Stop even may get processed before the addThread
+            -- occurs, so in that case we have to use modifyThread which
+            -- performs a toggle rather than adding or deleting.
+            --
+            -- XXX We can use addThread or modThread based on eager flag.
+            -- XXX Update the dispatcher-to-worker threadId map for debugging
+            -- tid <- liftIO myThreadId
+            -- liftIO $ putStrLn $ "Dispatcher thread: " ++ show tid
+            modThread tid
+
+    where
+
+    modThread = modifyThread (workerThreads chan) (outputDoorBell chan)
+
 -- | Low level API to create a worker. Forks a thread which executes the
--- 'workLoop' of the channel.
+-- 'workLoop' of the channel. It does not fork only if the channel is stopped.
 {-# NOINLINE forkWorker #-}
-forkWorker :: MonadRunInIO m =>
+forkWorker :: MonadIO m =>
        Count -- ^ max yield limit for the worker
     -> Channel m a
     -> m ()
 forkWorker yieldMax sv = do
-    liftIO $ atomicModifyIORefCAS_ (workerCount sv) $ \n -> n + 1
-    when (svarInspectMode sv)
-        $ recordMaxWorkers (workerCount sv) (svarStats sv)
     -- This allocation matters when significant number of workers are being
     -- sent. We allocate it only when needed.
     --
@@ -72,24 +115,9 @@ forkWorker yieldMax sv = do
                     , workerYieldCount = cntRef
                     , workerLatencyStart = lat
                     }
-    -- In case of lazy dispatch we dispatch workers only from the consumer
-    -- thread. In that case it is ok to use addThread here as it is guaranteed
-    -- that the thread will be added to the workerSet before the thread STOP
-    -- event is processed, because we do both of these actions in the same
-    -- consumer thread. However, in case of eager dispatch we may dispatch
-    -- workers from workers, in which case the thread Stop even may get
-    -- processed before the addThread occurs, so in that case we have to use
-    -- modifyThread which performs a toggle rather than adding or deleting.
-    --
-    -- XXX We can use addThread or modThread based on eager flag.
-    -- tid <- liftIO myThreadId
-    -- liftIO $ putStrLn $ "Dispatcher thread: " ++ show tid
-    doFork (workLoop sv winfo) (svarMrun sv) exHandler >>= modThread
 
-    where
-
-    modThread = modifyThread (workerThreads sv) (outputDoorBell sv)
-    exHandler = sendException (outputQueue sv) (outputDoorBell sv)
+    stopped <- liftIO $ readIORef (channelStopped sv)
+    when (not stopped) $ liftIO $ doFork False sv winfo
 
 -- | Determine the maximum number of workers required based on 'maxWorkerLimit'
 -- and 'remainingWork'.
@@ -160,7 +188,7 @@ checkMaxBuffer active sv = do
 --
 -- In all other cases a worker is guaranteed to be dispatched.
 --
-dispatchWorker :: MonadRunInIO m =>
+dispatchWorker :: MonadIO m =>
        Count -- ^ max yield limit for the worker
     -> Channel m a
     -> m Bool -- ^ can dispatch more workers
@@ -218,7 +246,7 @@ dispatchWorker yieldCount sv = do
 -- It guarantees that if there is no outstanding worker and there is work
 -- pending then it dispatches a worker though it may block for some time before
 -- it does that depending on the rate goal.
-dispatchWorkerPaced :: MonadRunInIO m =>
+dispatchWorkerPaced :: MonadIO m =>
        Channel m a
     -> m Bool -- ^ True means can dispatch more
 dispatchWorkerPaced sv = do
@@ -444,7 +472,7 @@ dispatchAllWait eagerEval delay dispatch sv = go
 -- | Start the evaluation of the channel's work queue by kicking off a worker.
 -- Note: Work queue must not be empty otherwise the worker will exit without
 -- doing anything.
-startChannel :: MonadRunInIO m =>
+startChannel :: MonadIO m =>
     Channel m a -> m ()
 startChannel chan = do
     case yieldRateInfo chan of
