@@ -404,6 +404,12 @@ benchmark Data.Scanl.Window
   hs-source-dirs: Streamly/Benchmark/Data/Scanl
   main-is: Window.hs
 
+benchmark Data.Scanl.Concurrent
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data/Scanl
+  main-is: Concurrent.hs
+
 -- XXX Should be renamed to MutByteArray
 benchmark Data.Serialize
   import: bench-options
