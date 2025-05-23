@@ -1218,24 +1218,27 @@ adaptCWith pstep initial extract cont !offset0 !usedCount !input = do
             -- The "n" here is stream position index wrt the array start, and
             -- not the backtrack count as returned by byte stream parsers.
             case pRes of
-                ParserD.Done 0 b ->
+                ParserD.SDone 1 b ->
                     onDone nextOff b
-                ParserD.Done 1 b ->
+                ParserD.SDone 0 b ->
                     onDone curOff b
-                ParserD.Done n b ->
-                    onDone ((back n - start) `div` elemSize) b
-                ParserD.Partial 0 pst1 ->
+                ParserD.SDone m b ->
+                    let n = 1 - m
+                     in onDone ((back n - start) `div` elemSize) b
+                ParserD.SPartial 1 pst1 ->
                     go SPEC next pst1
-                ParserD.Partial 1 pst1 ->
+                ParserD.SPartial 0 pst1 ->
                     go SPEC cur pst1
-                ParserD.Partial n pst1 ->
-                    onBack (back n) elemSize onPartial pst1
-                ParserD.Continue 0 pst1 ->
+                ParserD.SPartial m pst1 ->
+                    let n = 1 - m
+                     in onBack (back n) elemSize onPartial pst1
+                ParserD.SContinue 1 pst1 ->
                     go SPEC next pst1
-                ParserD.Continue 1 pst1 ->
+                ParserD.SContinue 0 pst1 ->
                     go SPEC cur pst1
-                ParserD.Continue n pst1 ->
-                    onBack (back n) elemSize onContinue pst1
+                ParserD.SContinue m pst1 ->
+                    let n = 1 - m
+                     in onBack (back n) elemSize onContinue pst1
                 ParserD.Error err ->
                     onError curOff err
 
@@ -1246,17 +1249,19 @@ adaptCWith pstep initial extract cont !offset0 !usedCount !input = do
             -- IMPORTANT: the n here is from the byte stream parser, that means
             -- it is the backtrack element count and not the stream position
             -- index into the current input array.
-            ParserD.Done n b ->
-                assert (n >= 0)
-                    (cont (Success (- n) b) (count - n) None)
-            ParserD.Continue n pst1 ->
-                assert (n >= 0)
-                    (return $ Continue (- n) (parseCont (count - n) pst1))
+            ParserD.SDone m b ->
+                let n = 1 - m
+                 in assert (n >= 0)
+                        (cont (Success (- n) b) (count - n) None)
+            ParserD.SContinue m pst1 ->
+                let n = 1 - m
+                 in assert (n >= 0)
+                        (return $ Continue (- n) (parseCont (count - n) pst1))
             ParserD.Error err ->
                 -- XXX It is called only when there is no input arr. So using 0
                 -- as the position is correct?
                 cont (Failure 0 err) count None
-            ParserD.Partial _ _ -> error "Bug: adaptCWith Partial unreachable"
+            ParserD.SPartial _ _ -> error "Bug: adaptCWith Partial unreachable"
 
     -- XXX Maybe we can use two separate continuations instead of using
     -- Just/Nothing cases here. That may help in avoiding the parseContJust
