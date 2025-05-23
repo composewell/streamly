@@ -306,15 +306,41 @@ extendDir
         $ Common.append'
             Common.OS_NAME (Common.toString Unicode.UNICODE_DECODER) a b
 
--- | Like 'eqPath' but we can control the equality options.
+-- | See the eqPath documentation in the
+-- "Streamly.Internal.FileSystem.PosixPath" module for details.
+--
+-- On Windows the following is different:
+--
+-- * paths are normalized by replacing forward slash path separators by
+-- backslashes.
+-- * the comparison is case sensitive.
 --
 -- >>> :{
---  cfg = Path.eqCfg
---      { Path.ignoreTrailingSeparators = True
---      , Path.ignoreCase = True
---      , Path.allowRelativeEquality = True
---      }
---  eq a b = Path.eqPathWith cfg (pack a) (pack b)
+--  eq a b = Path.eqPath id (pack a) (pack b)
+-- :}
+--
+-- The cases that are different from Posix:
+--
+-- >>> eq "x\\y" "x/y"
+-- True
+--
+-- >>> eq "x"  "X"
+-- False
+--
+-- >>> eq "c:"  "C:"
+-- False
+--
+-- >>> eq "c:"  "c:"
+-- False
+--
+-- >>> eq "c:x"  "c:x"
+-- False
+--
+-- >>> :{
+--  cfg = Path.ignoreTrailingSeparators True
+--      . Path.ignoreCase True
+--      . Path.allowRelativeEquality True
+--  eq a b = Path.eqPath cfg (pack a) (pack b)
 -- :}
 --
 -- >>> eq "./x"  "x"
@@ -338,45 +364,10 @@ extendDir
 -- >>> eq "x"  "x"
 -- True
 --
-eqPathWith :: EqCfg -> OS_PATH -> OS_PATH -> Bool
-eqPathWith cfg (OS_PATH a) (OS_PATH b) =
-    Common.eqPathWith Unicode.UNICODE_DECODER
-        Common.OS_NAME cfg a b
-
--- | See the eqPath documentation in the
--- "Streamly.Internal.FileSystem.PosixPath" module for details.
---
--- On Windows the following is different:
---
--- * paths are normalized by replacing forward slash path separators by
--- backslashes.
--- * the comparison is case sensitive.
---
--- >>> :{
---  eq a b = Path.eqPath (pack a) (pack b)
--- :}
---
--- The cases that are different from Posix:
---
--- >>> eq "x\\y" "x/y"
--- True
---
--- >>> eq "x"  "X"
--- False
---
--- >>> eq "c:"  "C:"
--- False
---
--- >>> eq "c:"  "c:"
--- False
---
--- >>> eq "c:x"  "c:x"
--- False
---
-eqPath :: OS_PATH -> OS_PATH -> Bool
-eqPath (OS_PATH a) (OS_PATH b) =
+eqPath :: (EqCfg -> EqCfg) -> OS_PATH -> OS_PATH -> Bool
+eqPath cfg (OS_PATH a) (OS_PATH b) =
     Common.eqPath Unicode.UNICODE_DECODER
-        Common.OS_NAME a b
+        Common.OS_NAME cfg a b
 
 -- | If a path is rooted then separate the root and the remaining path,
 -- otherwise root is returned as empty. If the path is rooted then the non-root
