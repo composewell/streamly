@@ -423,18 +423,20 @@ sendStop workerCount rateInfo q bell workerInfo = do
           workerStopUpdate winfo rinfo
       _ ->
           return ()
-    myThreadId >>= \tid ->
-        void $ sendEvent q bell (ChildStop tid Nothing)
+    tid <- myThreadId
+    void $ sendEvent q bell (ChildStop tid Nothing)
 
 -- XXX Shouldn't we perform a workerStopUpdate even in this case?
 
 -- | Add a 'ChildStop' event with exception to the channel's output queue.
 {-# NOINLINE sendException #-}
 sendException ::
-       IORef ([ChildEvent a], Int) -- ^ Queue where the exception event is added
+       IORef Int -- ^ Channel's current worker count
+    -> IORef ([ChildEvent a], Int) -- ^ Queue where the event is added
     -> MVar () -- ^ Door bell to ring
     -> SomeException -- ^ The exception to send
     -> IO ()
-sendException q bell e = do
+sendException workerCount q bell e = do
+    atomicModifyIORefCAS_ workerCount $ \n -> n - 1
     tid <- myThreadId
     void $ sendEvent q bell (ChildStop tid (Just e))

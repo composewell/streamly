@@ -18,7 +18,8 @@ where
 import Control.Concurrent (ThreadId, forkIO, forkOS)
 import Control.Exception (SomeException(..), catch, mask)
 import Data.Functor (void)
-import Streamly.Internal.Control.Concurrent (MonadRunInIO, RunInIO(..), withRunInIO, withRunInIONoRestore)
+import Streamly.Internal.Control.Concurrent
+    (MonadRunInIO, RunInIO(..), withRunInIO, withRunInIONoRestore)
 import Streamly.Internal.Control.ForkIO (rawForkIO, forkManagedWith)
 
 -- | Fork a thread to run the given computation, installing the provided
@@ -47,9 +48,8 @@ doForkWith :: MonadRunInIO m
 doForkWith bound action (RunInIO mrun) exHandler =
     withRunInIO $ \run ->
         mask $ \restore -> do
-                tid <- (if bound then forkOS else rawForkIO) $
-                    catch (restore $ void $ mrun action)
-                          exHandler
+                let frk = if bound then forkOS else rawForkIO
+                tid <- frk $ catch (restore $ void $ mrun action) exHandler
                 run (return tid)
 
 -- | 'fork' lifted to any monad with 'MonadBaseControl IO m' capability.
