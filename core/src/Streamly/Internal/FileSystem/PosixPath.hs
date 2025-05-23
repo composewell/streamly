@@ -158,10 +158,11 @@ module Streamly.Internal.FileSystem.OS_PATH
     , addExtension
 
     -- * Equality
+    , EqCfg
+    , Common.ignoreTrailingSeparators
+    , Common.ignoreCase
+    , Common.allowRelativeEquality
     , eqPath
-    , EqCfg(..)
-    , eqCfg
-    , eqPathWith
     , eqPathBytes
     , normalize
     )
@@ -181,7 +182,7 @@ import Foreign.C (CWString)
 import Language.Haskell.TH.Syntax (lift)
 import Streamly.Internal.Data.Array (Array(..))
 import Streamly.Internal.Data.Stream (Stream)
-import Streamly.Internal.FileSystem.Path.Common (mkQ, EqCfg(..), eqCfg)
+import Streamly.Internal.FileSystem.Path.Common (mkQ, EqCfg)
 
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Stream as Stream
@@ -1032,10 +1033,14 @@ addExtension (OS_PATH _a) = undefined
 ------------------------------------------------------------------------------
 
 #ifndef IS_WINDOWS
--- | Checks two paths for logical equality. It performs some normalizations on
--- the paths before comparing them, specifically it drops redundant path
--- separators between path segments and redundant "\/.\/" components between
--- segments.
+-- | Checks two paths for logical equality. This function can take a
+-- configuration modifier to change the notion of equality. The default
+-- configuration denoted by @id@ has behaviour defined below. The default
+-- configuration is can be seen in the documentation of "EqCfg".
+--
+-- It performs some normalizations on the paths before comparing them,
+-- specifically it drops redundant path separators between path segments and
+-- redundant "\/.\/" components between segments.
 --
 -- Equality semantics followed by this routine are listed below. If it returns
 -- equal then the paths are definitely equal, if it returns unequal then the
@@ -1064,7 +1069,7 @@ addExtension (OS_PATH _a) = undefined
 -- must be files or both must be directories.
 --
 -- >>> :{
---  eq a b = Path.eqPath (pack a) (pack b)
+--  eq a b = Path.eqPath id (pack a) (pack b)
 -- :}
 --
 -- >>> eq "/x"  "//x"
@@ -1097,19 +1102,13 @@ addExtension (OS_PATH _a) = undefined
 -- >>> eq "./x"  "./x"
 -- False
 --
-eqPath :: OS_PATH -> OS_PATH -> Bool
-eqPath (OS_PATH a) (OS_PATH b) =
-    Common.eqPath Unicode.UNICODE_DECODER
-        Common.OS_NAME a b
-
--- | Like 'eqPath' but we can control the equality options.
+-- We can change the configuration using the available config modifiers.
 --
 -- >>> :{
---  cfg = Path.eqCfg
---      { Path.ignoreTrailingSeparators = True
---      , Path.allowRelativeEquality = True
---      }
---  eq a b = Path.eqPathWith cfg (pack a) (pack b)
+--  cfg =
+--        Path.ignoreTrailingSeparators = True
+--      . Path.allowRelativeEquality = True
+--  eq a b = Path.eqPath cfg (pack a) (pack b)
 -- :}
 --
 -- >>> eq "."  "."
@@ -1139,9 +1138,9 @@ eqPath (OS_PATH a) (OS_PATH b) =
 -- >>> eq "x"  "x"
 -- True
 --
-eqPathWith :: EqCfg -> OS_PATH -> OS_PATH -> Bool
-eqPathWith cfg (OS_PATH a) (OS_PATH b) =
-    Common.eqPathWith Unicode.UNICODE_DECODER
+eqPath :: (EqCfg -> EqCfg) -> OS_PATH -> OS_PATH -> Bool
+eqPath cfg (OS_PATH a) (OS_PATH b) =
+    Common.eqPath Unicode.UNICODE_DECODER
         Common.OS_NAME cfg a b
 #endif
 
