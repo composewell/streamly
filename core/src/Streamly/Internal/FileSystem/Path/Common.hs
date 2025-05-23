@@ -85,9 +85,10 @@ module Streamly.Internal.FileSystem.Path.Common
     , normalizeSeparators
  -- , normalize -- separators and /./ components (split/combine)
     , eqPathBytes
-    , EqCfg(..)
-    , eqCfg
-    , eqPathWith
+    , EqCfg
+    , ignoreTrailingSeparators
+    , ignoreCase
+    , allowRelativeEquality
     , eqPath
  -- , commonPrefix -- common prefix of two paths
  -- , eqPrefix -- common prefix is equal to first path
@@ -146,6 +147,7 @@ import qualified Streamly.Internal.Unicode.Stream as Unicode
 >>> import qualified Streamly.Internal.Data.Array as Array
 >>> import qualified Streamly.Internal.FileSystem.Path.Common as Common
 >>> import qualified Streamly.Internal.Unicode.Stream as Unicode
+>>> import Streamly.Internal.FileSystem.Path.Common (ignoreTrailingSeparators, allowRelativeEquality, ignoreCase)
 
 >>> packPosix = unsafePerformIO . Stream.fold Array.create . Unicode.encodeUtf8' . Stream.fromList
 >>> unpackPosix = runIdentity . Stream.toList . Unicode.decodeUtf8' . Array.read
@@ -1388,11 +1390,19 @@ eqPathBytes = Array.byteEq
 -- | Options for path comparison operation. By default path comparison uses a
 -- strict criteria for equality. The following options are provided to
 -- control the strictness.
+--
+-- The default configuration is as follows:
+-- >>> :{
+-- defaultMod = ignoreTrailingSeparators False
+--            . ignoreCase False
+--            . allowRelativeEquality False
+-- :}
+--
 data EqCfg =
     EqCfg
-    { ignoreTrailingSeparators :: Bool -- ^ Allows "x\/" == "x"
-    , ignoreCase :: Bool               -- ^ Allows "x" == \"X\"
-    , allowRelativeEquality :: Bool
+    { _ignoreTrailingSeparators :: Bool -- ^ Allows "x\/" == "x"
+    , _ignoreCase :: Bool               -- ^ Allows "x" == \"X\"
+    , _allowRelativeEquality :: Bool
     -- ^ A leading dot is ignored, thus ".\/x" == ".\/x" and ".\/x" == "x".
     -- On Windows allows "\/x" == \/x" and "C:x == C:x"
 
@@ -1413,10 +1423,20 @@ data EqCfg =
 --
 eqCfg :: EqCfg
 eqCfg = EqCfg
-    { ignoreTrailingSeparators = False
-    , ignoreCase = False
-    , allowRelativeEquality = False
+    { _ignoreTrailingSeparators = False
+    , _ignoreCase = False
+    , _allowRelativeEquality = False
     }
+
+ignoreTrailingSeparators :: Bool -> EqCfg -> EqCfg
+ignoreTrailingSeparators val conf = conf { _ignoreTrailingSeparators = val }
+
+ignoreCase :: Bool -> EqCfg -> EqCfg
+ignoreCase val conf = conf { _ignoreCase = val }
+
+allowRelativeEquality :: Bool -> EqCfg -> EqCfg
+allowRelativeEquality val conf = conf { _allowRelativeEquality = val }
+
 
 data PosixRoot = PosixRootAbs | PosixRootRel deriving Eq
 
@@ -1521,38 +1541,34 @@ eqComponentsWith ignCase decoder os a b =
                 Array.byteEq (splitPath_ os a) (splitPath_ os b)
 
 -- XXX can we do something like SpecConstr for such functions e.g. without
--- inlining the function we can use two copies one for allowRelativeEquality
+-- inlining the function we can use two copies one for _allowRelativeEquality
 -- True and other for False and so on for other values of PathEq.
 
-{-# INLINE eqPathWith #-}
-eqPathWith :: (Unbox a, Integral a) =>
+{-# INLINE eqPath #-}
+eqPath :: (Unbox a, Integral a) =>
     (Stream Identity a -> Stream Identity Char)
-    -> OS -> EqCfg -> Array a -> Array a -> Bool
-eqPathWith decoder os EqCfg{..} a b =
+    -> OS -> (EqCfg -> EqCfg) -> Array a -> Array a -> Bool
+eqPath decoder os configMod a b =
     let (rootA, stemA) = splitRoot os a
         (rootB, stemB) = splitRoot os b
 
         eqRelative =
-               if allowRelativeEquality
-               then eqRootLax ignoreCase os rootA rootB
+               if _allowRelativeEquality
+               then eqRootLax _ignoreCase os rootA rootB
                else (not (isRootRelative os rootA)
                     && not (isRootRelative os rootB))
-                    && eqRootStrict ignoreCase os rootA rootB
+                    && eqRootStrict _ignoreCase os rootA rootB
 
         -- XXX If one ends in a "." and the other ends in ./ (and same for ".."
         -- and "../") then they can be equal. We can append a slash in these two
         -- cases before comparing.
         eqTrailingSep =
-            ignoreTrailingSeparators
+            _ignoreTrailingSeparators
                 || hasTrailingSeparator os a == hasTrailingSeparator os b
 
      in
            eqRelative
         && eqTrailingSep
-        && eqComponentsWith ignoreCase decoder os stemA stemB
-
-{-# INLINE eqPath #-}
-eqPath :: (Unbox a, Integral a) =>
-    (Stream Identity a -> Stream Identity Char)
-        -> OS -> Array a -> Array a -> Bool
-eqPath decoder os = eqPathWith decoder os eqCfg
+        && eqComponentsWith _ignoreCase decoder os stemA stemB
+     where
+     EqCfg {..} = configMod eqCfg
