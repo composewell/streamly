@@ -1048,28 +1048,31 @@ parseBreak parser input = do
             -- If we stop in an alternative, it will try calling the next
             -- parser, the next parser may call initial returning Partial and
             -- then immediately we have to call extract on it.
-            ParserK.Partial 0 cont1 ->
+            ParserK.SPartial (-1) cont1 ->
                  go [] cont1 StreamK.nil
-            ParserK.Partial n cont1 -> do
-                let n1 = negate n
+            ParserK.SPartial m cont1 -> do
+                let n = m + 1
+                    n1 = negate n
                 assertM(n1 >= 0 && n1 <= sum (Prelude.map length backBuf))
                 let (s1, backBuf1) = backTrack n1 backBuf StreamK.nil
                  in go backBuf1 cont1 s1
-            ParserK.Continue 0 cont1 ->
+            ParserK.SContinue (-1) cont1 ->
                 go backBuf cont1 StreamK.nil
-            ParserK.Continue n cont1 -> do
-                let n1 = negate n
+            ParserK.SContinue m cont1 -> do
+                let n = m + 1
+                    n1 = negate n
                 assertM(n1 >= 0 && n1 <= sum (Prelude.map length backBuf))
                 let (s1, backBuf1) = backTrack n1 backBuf StreamK.nil
                  in go backBuf1 cont1 s1
-            ParserK.Done 0 b ->
+            ParserK.SDone (-1) b ->
                 return (Right b, StreamK.nil)
-            ParserK.Done n b -> do
-                let n1 = negate n
+            ParserK.SDone m b -> do
+                let n = m + 1
+                    n1 = negate n
                 assertM(n1 >= 0 && n1 <= sum (Prelude.map length backBuf))
                 let (s1, _) = backTrack n1 backBuf StreamK.nil
                  in return (Right b, s1)
-            ParserK.Error _ err -> do
+            ParserK.SError _ err -> do
                 let (s1, _) = backTrack maxBound backBuf StreamK.nil
                 return (Left (ParseError err), s1)
 
@@ -1081,7 +1084,8 @@ parseBreak parser input = do
         pRes <- parserk (ParserK.Chunk arr)
         let len = length arr
         case pRes of
-            ParserK.Partial n cont1 ->
+            ParserK.SPartial m cont1 -> do
+                let n = m + 1
                 case compare n len of
                     EQ -> go [] cont1 stream
                     LT -> do
@@ -1095,7 +1099,8 @@ parseBreak parser input = do
                             let (s1, _) = backTrack n1 backBuf s
                             go [] cont1 s1
                     GT -> seekErr n len
-            ParserK.Continue n cont1 ->
+            ParserK.SContinue m cont1 -> do
+                let n = m + 1
                 case compare n len of
                     EQ -> go (arr:backBuf) cont1 stream
                     LT -> do
@@ -1109,12 +1114,13 @@ parseBreak parser input = do
                             let (s1, backBuf1) = backTrack n1 backBuf s
                             go backBuf1 cont1 s1
                     GT -> seekErr n len
-            ParserK.Done n b -> do
-                let n1 = len - n
+            ParserK.SDone m b -> do
+                let n = m + 1
+                    n1 = len - n
                 assertM(n1 <= sum (Prelude.map length (arr:backBuf)))
                 let (s1, _) = backTrack n1 (arr:backBuf) stream
                  in return (Right b, s1)
-            ParserK.Error _ err -> do
+            ParserK.SError _ err -> do
                 let (s1, _) = backTrack maxBound (arr:backBuf) stream
                 return (Left (ParseError err), s1)
 

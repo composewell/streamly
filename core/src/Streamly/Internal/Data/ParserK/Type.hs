@@ -1,3 +1,5 @@
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ViewPatterns #-}
 -- |
 -- Module      : Streamly.Internal.Data.Parser.ParserK.Type
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -23,7 +25,7 @@
 
 module Streamly.Internal.Data.ParserK.Type
     (
-      Step (..)
+      Step(Partial, Continue, Done, Error, SPartial, SContinue, SDone, SError)
     , Input (..)
     , ParseResult (..)
     , ParserK (..)
@@ -121,12 +123,40 @@ type StepParser a m r = Input a -> m (Step a m r)
 -- /Pre-release/
 --
 data Step a m r =
-    -- The Int is the current stream position index wrt to the start of the
-    -- array.
-      Done !Int r
-    | Partial !Int (StepParser a m r)
-    | Continue !Int (StepParser a m r)
-    | Error !Int String
+      SDone !Int r
+    | SPartial !Int (StepParser a m r)
+    | SContinue !Int (StepParser a m r)
+    | SError !Int String
+
+--------------------------------------------------------------------------------
+-- Custom Patterns
+--------------------------------------------------------------------------------
+
+incrIndex :: Step a m r -> Step a m r
+incrIndex (SPartial i s) = SPartial (i + 1) s
+incrIndex (SContinue i s) = SContinue (i + 1) s
+incrIndex (SDone i b) = SDone (i + 1) b
+incrIndex (SError i s) = SError (i + 1) s
+
+pattern Partial :: Int -> StepParser a m r -> Step a m r
+pattern Partial i s <- (incrIndex -> SPartial i s)
+    where Partial i s = SPartial (i - 1) s
+
+pattern Continue :: Int -> StepParser a m r -> Step a m r
+pattern Continue i s <- (incrIndex -> SContinue i s)
+    where Continue i s = SContinue (i - 1) s
+
+pattern Done :: Int -> r -> Step a m r
+pattern Done i b <- (incrIndex -> SDone i b)
+    where Done i b = SDone (i - 1) b
+
+pattern Error :: Int -> String -> Step a m r
+pattern Error i b <- (incrIndex -> SError i b)
+    where Error i b = SError (i - 1) b
+
+--------------------------------------------------------------------------------
+-- Code
+--------------------------------------------------------------------------------
 
 instance Functor m => Functor (Step a m) where
     fmap f (Done n r) = Done n (f r)
