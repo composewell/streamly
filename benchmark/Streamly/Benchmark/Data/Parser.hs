@@ -364,11 +364,11 @@ takeWhileFail predicate (Fold fstep finitial _ ffinal) =
             fres <- fstep s a
             return
                 $ case fres of
-                      Fold.Partial s1 -> Partial 0 s1
-                      Fold.Done b -> Done 0 b
+                      Fold.Partial s1 -> SPartial 1 s1
+                      Fold.Done b -> SDone 1 b
         else return $ Error "fail"
 
-    extract s = fmap (Done 0) (ffinal s)
+    extract s = fmap (SDone 1) (ffinal s)
 
 {-# INLINE alt2 #-}
 alt2 :: Monad m
