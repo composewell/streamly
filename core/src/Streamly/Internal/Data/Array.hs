@@ -1220,7 +1220,7 @@ adaptCWith pstep initial extract cont !offset0 !usedCount !input = do
             pRes <- pstep pst x
             let elemSize = SIZE_OF(a)
                 next = INDEX_NEXT(cur,a)
-                back n = next - n * elemSize
+                move n = cur + n * elemSize
                 curOff = (cur - start) `div` elemSize
                 nextOff = (next - start) `div` elemSize
             -- The "n" here is stream position index wrt the array start, and
@@ -1230,23 +1230,20 @@ adaptCWith pstep initial extract cont !offset0 !usedCount !input = do
                     onDone nextOff b
                 ParserD.SDone 0 b ->
                     onDone curOff b
-                ParserD.SDone m b ->
-                    let n = 1 - m
-                     in onDone ((back n - start) `div` elemSize) b
+                ParserD.SDone n b ->
+                    onDone ((move n - start) `div` elemSize) b
                 ParserD.SPartial 1 pst1 ->
                     go SPEC next pst1
                 ParserD.SPartial 0 pst1 ->
                     go SPEC cur pst1
-                ParserD.SPartial m pst1 ->
-                    let n = 1 - m
-                     in onBack (back n) elemSize onPartial pst1
+                ParserD.SPartial n pst1 ->
+                    onBack (move n) elemSize onPartial pst1
                 ParserD.SContinue 1 pst1 ->
                     go SPEC next pst1
                 ParserD.SContinue 0 pst1 ->
                     go SPEC cur pst1
-                ParserD.SContinue m pst1 ->
-                    let n = 1 - m
-                     in onBack (back n) elemSize onContinue pst1
+                ParserD.SContinue n pst1 ->
+                    onBack (move n) elemSize onContinue pst1
                 ParserD.Error err ->
                     onError curOff err
 
@@ -1257,14 +1254,11 @@ adaptCWith pstep initial extract cont !offset0 !usedCount !input = do
             -- IMPORTANT: the n here is from the byte stream parser, that means
             -- it is the backtrack element count and not the stream position
             -- index into the current input array.
-            ParserD.SDone m b ->
-                let n = 1 - m
-                 in assert (n >= 0)
-                        (cont (Success (- n) b) (count - n) None)
-            ParserD.SContinue m pst1 ->
-                let n = 1 - m
-                 in assert (n >= 0)
-                        (return $ Continue (- n) (parseCont (count - n) pst1))
+            ParserD.SDone n b ->
+                assert (n <= 1) (cont (Success (n - 1) b) (count + n - 1) None)
+            ParserD.SContinue n pst1 ->
+                assert (n <= 1)
+                    (return $ Continue (n - 1) (parseCont (count + n - 1) pst1))
             ParserD.Error err ->
                 -- XXX It is called only when there is no input arr. So using 0
                 -- as the position is correct?
