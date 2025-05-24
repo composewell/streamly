@@ -597,33 +597,32 @@ adaptCGWith pstep initial extract cont !offset0 !usedCount !input = do
             let !x = unsafeInlineIO $ MArray.unsafeGetIndexWith contents cur
             pRes <- pstep pst x
             let next = cur + 1
-                back n = next - n
+                -- XXX Change this to moveOff and remove curOff and nextOff
+                move n = cur + n
                 curOff = cur - start
                 nextOff = next - start
-            -- The "n" here is stream position index wrt the array start, and
-            -- not the backtrack count as returned by byte stream parsers.
+            -- The "n" here is how many items have been consumed by the parser
+            -- from the array i.e. which is the same as the stream position
+            -- index wrt the array start.
             case pRes of
                 ParserD.SDone 1 b ->
                     onDone nextOff b
                 ParserD.SDone 0 b ->
                     onDone curOff b
-                ParserD.SDone m b ->
-                    let n = 1 - m
-                     in onDone (back n - start) b
+                ParserD.SDone n b ->
+                    onDone (move n - start) b
                 ParserD.SPartial 1 pst1 ->
                     go SPEC next pst1
                 ParserD.SPartial 0 pst1 ->
                     go SPEC cur pst1
-                ParserD.SPartial m pst1 ->
-                    let n = 1 - m
-                     in onBack (back n) onPartial pst1
+                ParserD.SPartial n pst1 ->
+                    onBack (move n) onPartial pst1
                 ParserD.SContinue 1 pst1 ->
                     go SPEC next pst1
                 ParserD.SContinue 0 pst1 ->
                     go SPEC cur pst1
-                ParserD.SContinue m pst1 ->
-                    let n = 1 - m
-                     in onBack (back n) onContinue pst1
+                ParserD.SContinue n pst1 ->
+                    onBack (move n) onContinue pst1
                 ParserD.Error err ->
                     onError curOff err
 
@@ -634,14 +633,15 @@ adaptCGWith pstep initial extract cont !offset0 !usedCount !input = do
             -- IMPORTANT: the n here is from the byte stream parser, that means
             -- it is the backtrack element count and not the stream position
             -- index into the current input array.
-            ParserD.SDone m b ->
-                let n = 1 - m
-                 in assert (n >= 0)
-                        (cont (Success (- n) b) (count - n) None)
-            ParserD.SContinue m pst1 ->
-                let n = 1 - m
-                 in assert (n >= 0)
-                        (return $ Continue (- n) (parseCont (count - n) pst1))
+            -- XXX in extract we do not supply any input. So 0 means stay put.
+            -- So extract will usually be different than step, because step has
+            -- an input it would usually return Done 1, and extract would
+            -- always be Done 0.
+            ParserD.SDone n b ->
+                assert (n <= 1) (cont (Success (n - 1) b) (count + n - 1) None)
+            ParserD.SContinue n pst1 ->
+                assert (n <= 1)
+                    (return $ Continue (n - 1) (parseCont (count + n - 1) pst1))
             ParserD.Error err ->
                 -- XXX It is called only when there is no input arr. So using 0
                 -- as the position is correct?
