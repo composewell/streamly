@@ -238,7 +238,7 @@ takeWhileFailD predicate (Fold fstep finitial _ ffinal) =
                       Fold.Done b -> SDone 1 b
         else return $ Error "fail"
 
-    extract s = fmap (SDone 1) (ffinal s)
+    extract s = fmap (SDone 0) (ffinal s)
 
 {-# INLINE takeWhileFail #-}
 takeWhileFail :: CONSTRAINT =>

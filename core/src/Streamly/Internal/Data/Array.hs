@@ -74,7 +74,7 @@ module Streamly.Internal.Data.Array
     , foldBreakChunks -- Uses Stream, bad perf on break
     , foldChunks
     , foldBreak
-    , parseBreakChunksK -- XXX uses Parser. parseBreak is better?
+    -- , parseBreakChunksK -- XXX uses Parser. parseBreak is better?
     , parserK
     , parseBreak
     , parse
@@ -128,7 +128,7 @@ import Prelude hiding (length, null, last, map, (!!), read, concat)
 import Streamly.Internal.Data.MutByteArray.Type (PinnedState(..), MutByteArray)
 import Streamly.Internal.Data.Serialize.Type (Serialize)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.Parser (Parser(..), Initial(..), ParseError(..))
+import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.ParserK.Type
     (ParserK, ParseResult(..), Input(..), Step(..))
 import Streamly.Internal.Data.Stream (Stream(..))
@@ -143,7 +143,6 @@ import qualified Streamly.Internal.Data.Serialize.Type as Serialize
 import qualified Streamly.Internal.Data.MutByteArray.Type as MBA
 import qualified Streamly.Internal.Data.MutArray as MA
 import qualified Streamly.Internal.Data.RingArray as RB
-import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.Parser.Type as ParserD
 import qualified Streamly.Internal.Data.ParserK.Type as ParserK
 import qualified Streamly.Internal.Data.Stream as D
@@ -844,7 +843,6 @@ parseBreakD
                     str = D.cons arr0 (D.cons arr1 (D.Stream step s))
                 return (b, str)
             PR.Error err -> throwM $ ParseError err
--}
 
 -- | Parse an array stream using the supplied 'Parser'.  Returns the parse
 -- result and the unconsumed stream. Throws 'ParseError' if the parse fails.
@@ -862,7 +860,6 @@ parseBreakChunksK ::
     => Parser a m b
     -> StreamK m (Array a)
     -> m (Either ParseError b, StreamK m (Array a))
--- parseBreakStreamK p = StreamK.parseBreakChunks (ParserK.adaptC p)
 parseBreakChunksK (Parser pstep initial extract) stream = do
     res <- initial
     case res of
@@ -942,34 +939,34 @@ parseBreakChunksK (Parser pstep initial extract) stream = do
         pRes <- pstep pst x
         let next = INDEX_NEXT(cur,a)
         case pRes of
-            Parser.SPartial 1 s ->
+            Parser.SPartial 0 s ->
                  goExtract s [] (Array contents next end)
             Parser.SPartial m s -> do
-                assertM(m <= 1)
-                let n = 1 - m
+                assertM(m <= 0)
+                let n = negate m
                 assert (n <= Prelude.length (x:backBuf)) (return ())
                 let src0 = Prelude.take n (x:backBuf)
                     arr0 = fromListN n (Prelude.reverse src0)
                     arr1 = Array contents next end
                     src = arr0 <> arr1
                 goExtract s [] src
-            Parser.SContinue 1 s ->
+            Parser.SContinue 0 s ->
                 goExtract s backBuf (Array contents next end)
             Parser.SContinue m s -> do
-                assertM(m <= 1)
-                let n = 1 - m
+                assertM(m <= 0)
+                let n = negate m
                 assert (n <= Prelude.length (x:backBuf)) (return ())
                 let (src0, buf1) = Prelude.splitAt n (x:backBuf)
                     arr0 = fromListN n (Prelude.reverse src0)
                     arr1 = Array contents next end
                     src = arr0 <> arr1
                 goExtract s buf1 src
-            Parser.SDone 1 b -> do
+            Parser.SDone 0 b -> do
                 let arr = Array contents next end
                 return (Right b, StreamK.fromPure arr)
             Parser.SDone m b -> do
-                assertM(m <= 1)
-                let n = 1 - m
+                assertM(m <= 0)
+                let n = negate m
                 assert (n <= Prelude.length backBuf) (return ())
                 let src0 = Prelude.take n (x:backBuf)
                     -- XXX Use fromListRevN once implemented
@@ -991,20 +988,20 @@ parseBreakChunksK (Parser pstep initial extract) stream = do
         pRes <- extract pst
         case pRes of
             Parser.SPartial _ _ -> error "Bug: parseBreak: Partial in extract"
-            Parser.SContinue 1 s ->
+            Parser.SContinue 0 s ->
                 goStop s backBuf
             Parser.SContinue m s -> do
-                assertM(m <= 1)
-                let n = 1 - m
+                assertM(m <= 0)
+                let n = negate m
                 assert (n <= Prelude.length backBuf) (return ())
                 let (src0, buf1) = Prelude.splitAt n backBuf
                     arr = fromListN n (Prelude.reverse src0)
                 goExtract s buf1 arr
-            Parser.SDone 1 b ->
+            Parser.SDone 0 b ->
                 return (Right b, StreamK.nil)
             Parser.SDone m b -> do
-                assertM(m <= 1)
-                let n = 1 - m
+                assertM(m <= 0)
+                let n = negate m
                 assert (n <= Prelude.length backBuf) (return ())
                 let src0 = Prelude.take n backBuf
                     -- XXX Use fromListRevN once implemented
@@ -1015,22 +1012,26 @@ parseBreakChunksK (Parser pstep initial extract) stream = do
                 let n = Prelude.length backBuf
                     arr0 = fromListN n (Prelude.reverse backBuf)
                 return (Left (ParseError err), StreamK.fromPure arr0)
+-}
 
 -- The backracking buffer consists of arrays in the most-recent-first order. We
 -- want to take a total of n array elements from this buffer. Note: when we
 -- have to take an array partially, we must take the last part of the array.
-{-# INLINE backTrack #-}
-backTrack :: forall m a. Unbox a =>
+{-# INLINE backtrack #-}
+backtrack :: forall m a. Unbox a =>
        Int
     -> [Array a]
     -> StreamK m (Array a)
     -> (StreamK m (Array a), [Array a])
-backTrack = go
+backtrack count buf inp
+  | count < 0 = seekOver count
+  -- XXX this is handled at the call site, so we can assert that here.
+  | count == 0 = (inp, buf)
+  | otherwise = go count buf inp
 
     where
 
-    go _ [] stream = (stream, [])
-    go n xs stream | n <= 0 = (stream, xs)
+    go n [] _ = seekUnder count n
     go n (x:xs) stream =
         let len = length x
         in if n > len
@@ -1042,6 +1043,18 @@ backTrack = go
                     arr1 = Array contents start1 end
                     arr2 = Array contents start start1
                  in (StreamK.cons arr1 stream, arr2:xs)
+
+    seekOver x =
+        error $ "Array.parseBreak: bug in parser, seeking ["
+            ++ show (negate x)
+            ++ "] elements in future"
+
+    seekUnder x y =
+        error $ "Array.parseBreak: bug in parser, backtracking ["
+            ++ show x
+            ++ "] elements. Goes ["
+            ++ show y
+            ++ "] elements beyond backtrack buffer"
 
 -- | Run a 'ParserK' over a 'StreamK' of Arrays and return the parse result and
 -- the remaining Stream.
@@ -1069,24 +1082,24 @@ parseBreak parser input = do
             ParserK.Partial n cont1 -> do
                 let n1 = negate n
                 assertM(n1 >= 0 && n1 <= sum (Prelude.map length backBuf))
-                let (s1, backBuf1) = backTrack n1 backBuf StreamK.nil
+                let (s1, backBuf1) = backtrack n1 backBuf StreamK.nil
                  in go backBuf1 cont1 s1
             ParserK.Continue 0 cont1 ->
                 go backBuf cont1 StreamK.nil
             ParserK.Continue n cont1 -> do
                 let n1 = negate n
                 assertM(n1 >= 0 && n1 <= sum (Prelude.map length backBuf))
-                let (s1, backBuf1) = backTrack n1 backBuf StreamK.nil
+                let (s1, backBuf1) = backtrack n1 backBuf StreamK.nil
                  in go backBuf1 cont1 s1
             ParserK.Done 0 b ->
                 return (Right b, StreamK.nil)
             ParserK.Done n b -> do
                 let n1 = negate n
                 assertM(n1 >= 0 && n1 <= sum (Prelude.map length backBuf))
-                let (s1, _) = backTrack n1 backBuf StreamK.nil
+                let (s1, _) = backtrack n1 backBuf StreamK.nil
                  in return (Right b, s1)
             ParserK.Error _ err -> do
-                let (s1, _) = backTrack maxBound backBuf StreamK.nil
+                let s1 = Prelude.foldl (flip StreamK.cons) StreamK.nil backBuf
                 return (Left (ParseError err), s1)
 
     seekErr n len =
@@ -1108,7 +1121,7 @@ parseBreak parser input = do
                                 bufLen = sum (Prelude.map length backBuf)
                                 s = StreamK.cons arr stream
                             assertM(n1 >= 0 && n1 <= bufLen)
-                            let (s1, _) = backTrack n1 backBuf s
+                            let (s1, _) = backtrack n1 backBuf s
                             go [] cont1 s1
                     GT -> seekErr n len
             ParserK.Continue n cont1 ->
@@ -1122,16 +1135,16 @@ parseBreak parser input = do
                                 bufLen = sum (Prelude.map length backBuf)
                                 s = StreamK.cons arr stream
                             assertM(n1 >= 0 && n1 <= bufLen)
-                            let (s1, backBuf1) = backTrack n1 backBuf s
+                            let (s1, backBuf1) = backtrack n1 backBuf s
                             go backBuf1 cont1 s1
                     GT -> seekErr n len
             ParserK.Done n b -> do
                 let n1 = len - n
                 assertM(n1 <= sum (Prelude.map length (arr:backBuf)))
-                let (s1, _) = backTrack n1 (arr:backBuf) stream
+                let (s1, _) = backtrack n1 (arr:backBuf) stream
                  in return (Right b, s1)
             ParserK.Error _ err -> do
-                let (s1, _) = backTrack maxBound (arr:backBuf) stream
+                let s1 = Prelude.foldl (flip StreamK.cons) stream (arr:backBuf)
                 return (Left (ParseError err), s1)
 
     go backBuf parserk stream = do
@@ -1251,14 +1264,11 @@ adaptCWith pstep initial extract cont !offset0 !usedCount !input = do
     parseContNothing !count !pst = do
         r <- extract pst
         case r of
-            -- IMPORTANT: the n here is from the byte stream parser, that means
-            -- it is the backtrack element count and not the stream position
-            -- index into the current input array.
             ParserD.SDone n b ->
-                assert (n <= 1) (cont (Success (n - 1) b) (count + n - 1) None)
+                assert (n <= 0) (cont (Success n b) (count + n) None)
             ParserD.SContinue n pst1 ->
-                assert (n <= 1)
-                    (return $ Continue (n - 1) (parseCont (count + n - 1) pst1))
+                assert (n <= 0)
+                    (return $ Continue n (parseCont (count + n) pst1))
             ParserD.Error err ->
                 -- XXX It is called only when there is no input arr. So using 0
                 -- as the position is correct?

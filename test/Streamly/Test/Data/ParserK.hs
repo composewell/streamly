@@ -108,6 +108,7 @@ sanityParseBreak jumps = it (show jumps) $ do
         StreamK.parseBreak (ParserK.parserK (jumpParser jumps))
             $ StreamK.fromList tape
     lst <- StreamK.toList rest
+    putStrLn $ show (val, lst)
     (val, lst) `shouldBe` (expectedResult jumps tape)
 
 sanityParseBreakChunks :: [Move] -> H.SpecWith ()

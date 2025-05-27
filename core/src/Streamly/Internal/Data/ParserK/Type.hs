@@ -444,17 +444,12 @@ adaptWith pstep initial extract cont !relPos !usedCount !input = do
     parseContNothing !count !pst = do
         r <- extract pst
         case r of
-            -- IMPORTANT: the n here is from the byte stream parser, that means
-            -- it is the backtrack element count and not the stream position
-            -- index into the current input chunk.
-            ParserD.SDone m b ->
-                let n = 1 - m
-                 in assert (n >= 0)
-                        (cont (Success (- n) b) (count - n) None)
-            ParserD.SContinue m pst1 ->
-                let n = 1 - m
-                 in assert (n >= 0)
-                        (return $ Continue (- n) (parseCont (count - n) pst1))
+            ParserD.SDone n b ->
+                assert (n <= 0)
+                    (cont (Success n b) (count + n) None)
+            ParserD.SContinue n pst1 ->
+                assert (n <= 0)
+                    (return $ Continue n (parseCont (count + n) pst1))
             ParserD.Error err ->
                 -- XXX It is called only when there is no input chunk. So using
                 -- 0 as the position is correct?
@@ -487,8 +482,12 @@ RENAME(adapt,parserK)
 {-# INLINE parserDone #-}
 parserDone :: Applicative m =>
     ParseResult b -> Int -> Input a -> m (Step a m b)
-parserDone (Success n b) _ _ = assert(n <= 1) `seq` pure (Done n b)
-parserDone (Failure n e) _ _ = assert(n <= 1) `seq` pure (Error n e)
+parserDone (Success n b) _ _ =
+    -- trace ("parserDone Success n: " ++ show n) $
+        assert(n <= 1) `seq` pure (Done n b)
+parserDone (Failure n e) _ _ =
+    -- trace ("parserDone Failure n: " ++ show n) $
+        assert(n <= 1) `seq` pure (Error n e)
 
 -- XXX Note that this works only for single element parsers and not for Array
 -- input parsers. The asserts will fail for array parsers.
@@ -516,13 +515,11 @@ toParser parser = ParserD.Parser step initial extract
     extract cont = do
         r <- cont None
         case r of
-            -- This is extract so no input has been given, therefore, the
-            -- translation here is (n + 1) rather than n.
-            Done n b ->  assert (n <= 0) (return $ ParserD.SDone (n + 1) b)
+            Done n b ->  assert (n <= 0) (return $ ParserD.SDone n b)
             Error _ e -> return $ ParserD.Error e
             Partial _ cont1 -> extract cont1
             Continue n cont1 ->
-                assert (n <= 0) (return $ ParserD.SContinue (n + 1) cont1)
+                assert (n <= 0) (return $ ParserD.SContinue n cont1)
 
 {-# RULES "fromParser/toParser fusion" [2]
     forall s. toParser (parserK s) = s #-}

@@ -211,24 +211,24 @@ parse
     goExtract !_ buf (List (x:xs)) !pst = do
         pRes <- pstep pst x
         case pRes of
-            SPartial 1 pst1 ->
+            SPartial 0 pst1 ->
                 goExtract SPEC (List []) (List xs) pst1
             SPartial m pst1 -> do
-                let n = 1 - m
+                let n = (- m)
                 assert (n <= length (x:getList buf)) (return ())
                 let src0 = Prelude.take n (x:getList buf)
                     src  = Prelude.reverse src0 ++ xs
                 goExtract SPEC (List []) (List src) pst1
-            SContinue 1 pst1 ->
+            SContinue 0 pst1 ->
                 goExtract SPEC (List (x:getList buf)) (List xs) pst1
             SContinue m pst1 -> do
-                let n = 1 - m
+                let n = (- m)
                 assert (n <= length (x:getList buf)) (return ())
                 let (src0, buf1) = splitAt n (x:getList buf)
                     src  = Prelude.reverse src0 ++ xs
                 goExtract SPEC (List buf1) (List src) pst1
             SDone m b -> do
-                let n = 1 - m
+                let n = (- m)
                 assert (n <= length (x:getList buf)) (return ())
                 let src0 = Prelude.take n (x:getList buf)
                     src  = Prelude.reverse src0
@@ -246,17 +246,17 @@ parse
         pRes <- extract pst
         case pRes of
             SPartial _ _ -> error "Bug: parseD: Partial in extract"
-            SContinue 1 pst1 ->
+            SContinue 0 pst1 ->
                 goStop buf pst1
             SContinue m pst1 -> do
-                let n = 1 - m
+                let n = (- m)
                 assert (n <= length (getList buf)) (return ())
                 let (src0, buf1) = splitAt n (getList buf)
                     src = Prelude.reverse src0
                 goExtract SPEC (List buf1) (List src) pst1
-            SDone 1 b -> return (Right b, source Nothing)
+            SDone 0 b -> return (Right b, source Nothing)
             SDone m b -> do
-                let n = 1 - m
+                let n = (- m)
                 assert (n <= length (getList buf)) (return ())
                 let src0 = Prelude.take n (getList buf)
                     src  = Prelude.reverse src0

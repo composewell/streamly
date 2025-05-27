@@ -182,7 +182,8 @@ module Streamly.Internal.Data.Parser.Type
       Initial (..)
     -- (..) does not seem to export patterns yet the compiler complains it does.
     , Step(Partial, Continue, Done, SPartial, SContinue, SDone, Error)
-    , extractStep
+    -- , extractStep
+    , mapCount
     , bimapOverrideCount
     , Parser (..)
     , ParseError (..)
@@ -308,25 +309,31 @@ instance Functor (Initial s) where
 -- to get a result. If the parser returns 'SDone' then the parser can no longer
 -- take any more input.
 --
--- The first argument of `SPartial`, `Scontinue` and `SDone` is an integer
--- representing adjustment to the current stream position. The stream position
--- is adjusted by that amount and the next step would use an input from the new
--- position. If n is positive we go forward in the stream, if it is negative we
--- go backward. If it is 0 we stay put at the same position and the same input
--- is used for the next step.
+-- The @n@ in @SPartial n@, @Scontinue n@ and @SDone n@ is an integer
+-- representing the number of elements consumed by the parser. If the current
+-- input item is consumed then n is 1, if the current input item is rejected
+-- then n is 0. If @n@ is less than 0 then the parser backtracks by n elements
+-- prior to the current element before processing next input. If @n@ is greater
+-- than 1 then it skips n elements in the stream (skipping is currently not
+-- supported) including the current element.
+-- Essentially, if the input stream position was @pos@ before processing the
+-- current element then the new stream position after processing the element
+-- would be @pos + n@.
 --
--- If the result is 'SContinue', the parser driver retains the input in a
--- backtracking buffer, in case of failure the parser can backtrack up to the
--- length of the backtracking buffer. Whenever the result is `SPartial` the
--- current backtracking buffer is released i.e. we cannot backtrack beyond this
--- point in the stream. The parser must ensure that the backtrack position is
--- always within the bounds of the backtracking buffer.
+-- If the parser result is 'SContinue', the parser driver retains the input in
+-- a backtracking buffer, in case of failure the parser can backtrack maximum
+-- up to the length of the backtracking buffer. Whenever the result is
+-- `SPartial` the current backtracking buffer is discarded; this means that we
+-- cannot backtrack beyond the currrent position in the stream. The parser must
+-- ensure that the backtrack position is always within the bounds of the
+-- backtracking buffer, otherwise a runtime error will occur.
 --
--- If parser is not yet done, we can use the @extract@ operation on the @state@
--- of the parser to extract a result. If the parser has not yet yielded a
--- result, @extract@ fails with a 'ParseError' exception. If the parser yielded
--- a 'Partial' result in the past then the latest partial result is returned.
--- Therefore, if a parser yields a partial result once it cannot fail later on.
+-- If the parser is not yet done, we can use the @extract@ operation on the
+-- @state@ of the parser to extract a result. If the parser never yielded a
+-- result in the past, @extract@ fails with a 'ParseError' exception. If the
+-- parser yielded a 'Partial' result in the past then the latest partial result
+-- is returned. Therefore, if a parser yields a partial result once then it
+-- cannot fail later on.
 --
 -- /Pre-release/
 --
@@ -374,17 +381,17 @@ negateDirection (SContinue i s) = SContinue (1 - i) s
 negateDirection (SDone i b) = SDone (1 - i) b
 negateDirection (Error s) = Error s
 
-{-# DEPRECATED Partial "Please use @SPartial (1 - n)@ instead of @Partial n@" #-}
+{-# DEPRECATED Partial "Use @SPartial (1 - n)@ instead of @Partial n@" #-}
 pattern Partial :: Int -> s -> Step s b
 pattern Partial i s <- (negateDirection -> SPartial i s)
     where Partial i s = SPartial (1 - i) s
 
-{-# DEPRECATED Continue "Please use @SContinue (1 - n)@ instead of @Continue n@" #-}
+{-# DEPRECATED Continue "Replace @Continue n@ with @SContinue (1 - n)@ in parser step and with @SContinue (-n)@ in parser extract" #-}
 pattern Continue :: Int -> s -> Step s b
 pattern Continue i s <- (negateDirection -> SContinue i s)
     where Continue i s = SContinue (1 - i) s
 
-{-# DEPRECATED Done "Please use @SDone (1 - n)@ instead of @Done n@" #-}
+{-# DEPRECATED Done "Replace @Done n@ with @SDone (1 - n)@ in parser step and with @SDone (-n)@ in parser extract" #-}
 pattern Done :: Int -> b -> Step s b
 pattern Done i b <- (negateDirection -> SDone i b)
     where Done i b = SDone (1 - i) b
@@ -417,6 +424,7 @@ instance Functor (Step s) where
     {-# INLINE fmap #-}
     fmap = second
 
+{-
 {-# INLINE assertStepCount #-}
 assertStepCount :: Int -> Step s b -> Step s b
 assertStepCount i step =
@@ -430,12 +438,32 @@ assertStepCount i step =
 --
 {-# INLINE extractStep #-}
 extractStep :: Monad m => (s -> m (Step s1 b)) -> Step s b -> m (Step s1 b)
-extractStep f res =
+extractStep pextract res =
     case res of
+    {-
         SPartial n s1 -> assertStepCount n <$> f s1
         SDone n b -> return $ SDone n b
         SContinue n s1 -> assertStepCount n <$> f s1
         Error err -> return $ Error err
+        -}
+        SPartial 1 s1 -> pextract s1
+        SPartial _ _ -> return res
+        SContinue 1 s1 -> pextract s1
+        SContinue _ _ -> return res
+        SDone n b -> return $ SDone n b
+        Error err -> return $ Error err
+        -}
+
+-- | Map a function over the count.
+--
+{-# INLINE mapCount #-}
+mapCount :: (Int -> Int) -> Step s b -> Step s b
+mapCount f res =
+    case res of
+        SPartial n s -> SPartial (f n) s
+        SDone n b -> SDone (f n) b
+        SContinue n s -> SContinue (f n) s
+        Error err -> Error err
 
 -- | Map a monadic function over the result @b@ in @Step s b@.
 --
@@ -994,12 +1022,12 @@ alt (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
                 res <- initialR
                 return
                     $ case res of
-                          IPartial rR -> SContinue (1 - cnt) (AltParseR rR)
-                          IDone b -> SDone (1 - cnt) b
+                          IPartial rR -> SContinue (- cnt) (AltParseR rR)
+                          IDone b -> SDone (- cnt) b
                           IError err -> Error err
             SPartial _ _ -> error "Bug: alt: extractL 'Partial'"
             SContinue n s -> do
-                assertM(n == 1 - cnt)
+                assertM(n == (- cnt))
                 return $ SContinue n (AltParseL 0 s)
 
 {-# ANN type Fused3 Fuse #-}
@@ -1039,35 +1067,35 @@ splitMany (Parser step1 initial1 extract1) (Fold fstep finitial _ ffinal) =
     {-# INLINE step #-}
     step (Fused3 st cnt fs) a = do
         r <- step1 st a
-        let cnt1 = cnt + 1
         case r of
             SPartial n s -> do
-                assertM(cnt1 >= 1 - n)
-                return $ SContinue n (Fused3 s (cnt1 + n - 1) fs)
+                assertM(cnt + n >= 0)
+                return $ SContinue n (Fused3 s (cnt + n) fs)
             SContinue n s -> do
-                assertM(cnt1 >= 1 - n)
-                return $ SContinue n (Fused3 s (cnt1 + n - 1) fs)
+                assertM(cnt + n >= 0)
+                return $ SContinue n (Fused3 s (cnt + n) fs)
             SDone n b -> do
-                assertM(cnt1 >= 1 - n)
+                assertM(cnt + n >= 0)
                 fstep fs b >>= handleCollect (SPartial n) (SDone n)
             Error _ -> do
                 xs <- ffinal fs
-                return $ SDone (1 - cnt) xs
+                -- XXX review, need a test for this
+                return $ SDone (- cnt) xs
 
-    extract (Fused3 _ 0 fs) = fmap (SDone 1) (ffinal fs)
+    extract (Fused3 _ 0 fs) = fmap (SDone 0) (ffinal fs)
     extract (Fused3 s cnt fs) = do
         r <- extract1 s
         case r of
-            Error _ -> fmap (SDone (1 - cnt)) (ffinal fs)
+            Error _ -> fmap (SDone (- cnt)) (ffinal fs)
             SDone n b -> do
-                assertM(1 - n <= cnt)
+                assertM((- n) <= cnt)
                 fs1 <- fstep fs b
                 case fs1 of
                     FL.Partial s1 -> fmap (SDone n) (ffinal s1)
                     FL.Done b1 -> return (SDone n b1)
             SPartial _ _ -> error "splitMany: SPartial in extract"
             SContinue n s1 -> do
-                assertM(1 - n == cnt)
+                assertM((- n) == cnt)
                 return (SContinue n (Fused3 s1 0 fs))
 
 -- | Like splitMany, but inner fold emits an output at the end even if no input
@@ -1103,34 +1131,33 @@ splitManyPost (Parser step1 initial1 extract1) (Fold fstep finitial _ ffinal) =
     {-# INLINE step #-}
     step (Fused3 st cnt fs) a = do
         r <- step1 st a
-        let cnt1 = cnt + 1
         case r of
             SPartial n s -> do
-                assertM(cnt1 >= 1 - n)
-                return $ SContinue n (Fused3 s (cnt1 + n - 1) fs)
+                assertM(cnt + n >= 0)
+                return $ SContinue n (Fused3 s (cnt + n) fs)
             SContinue n s -> do
-                assertM(cnt1 >= 1 - n)
-                return $ SContinue n (Fused3 s (cnt1 + n - 1) fs)
+                assertM(cnt + n >= 0)
+                return $ SContinue n (Fused3 s (cnt + n) fs)
             SDone n b -> do
-                assertM(cnt1 >= 1 - n)
+                assertM(cnt + n >= 0)
                 fstep fs b >>= handleCollect (SPartial n) (SDone n)
             Error _ -> do
                 xs <- ffinal fs
-                return $ SDone (1 - cnt1) xs
+                return $ SDone (- cnt) xs
 
     extract (Fused3 s cnt fs) = do
         r <- extract1 s
         case r of
-            Error _ -> fmap (SDone (1 - cnt)) (ffinal fs)
+            Error _ -> fmap (SDone (- cnt)) (ffinal fs)
             SDone n b -> do
-                assertM(1 - n <= cnt)
+                assertM((- n) <= cnt)
                 fs1 <- fstep fs b
                 case fs1 of
                     FL.Partial s1 -> fmap (SDone n) (ffinal s1)
                     FL.Done b1 -> return (SDone n b1)
             SPartial _ _ -> error "splitMany: SPartial in extract"
             SContinue n s1 -> do
-                assertM(1 - n == cnt)
+                assertM((- n) == cnt)
                 return (SContinue n (Fused3 s1 0 fs))
 
 -- | See documentation of 'Streamly.Internal.Data.Parser.some'.
@@ -1180,60 +1207,58 @@ splitSome (Parser step1 initial1 extract1) (Fold fstep finitial _ ffinal) =
     step (Fused3 st cnt (Left fs)) a = do
         r <- step1 st a
         -- In the Left state, count is used only for the assert
-        let cnt1 = cnt + 1
         case r of
             SPartial n s -> do
-                assertM(cnt1 >= 1 - n)
-                return $ SContinue n (Fused3 s (cnt1 + n - 1) (Left fs))
+                assertM(cnt + n >= 0)
+                return $ SContinue n (Fused3 s (cnt + n) (Left fs))
             SContinue n s -> do
-                assertM(cnt1 >= 1 - n)
-                return $ SContinue n (Fused3 s (cnt1 + n - 1) (Left fs))
+                assertM(cnt + n >= 0)
+                return $ SContinue n (Fused3 s (cnt + n) (Left fs))
             SDone n b -> do
-                assertM(cnt1 >= 1 - n)
+                assertM(cnt + n >= 0)
                 fstep fs b >>= handleCollect (SPartial n) (SDone n)
             Error err -> return $ Error err
     step (Fused3 st cnt (Right fs)) a = do
         r <- step1 st a
-        let cnt1 = cnt + 1
         case r of
             SPartial n s -> do
-                assertM(cnt1 >= 1 - n)
-                return $ SPartial n (Fused3 s (cnt1 + n - 1) (Right fs))
+                assertM(cnt + n >= 0)
+                return $ SPartial n (Fused3 s (cnt + n) (Right fs))
             SContinue n s -> do
-                assertM(cnt1 >= 1 - n)
-                return $ SContinue n (Fused3 s (cnt1 + n - 1) (Right fs))
+                assertM(cnt + n >= 0)
+                return $ SContinue n (Fused3 s (cnt + n) (Right fs))
             SDone n b -> do
-                assertM(cnt1 >= 1 - n)
+                assertM(cnt + n >= 0)
                 fstep fs b >>= handleCollect (SPartial n) (SDone n)
-            Error _ -> SDone (1 - cnt1) <$> ffinal fs
+            Error _ -> SDone (- cnt) <$> ffinal fs
 
     extract (Fused3 s cnt (Left fs)) = do
         r <- extract1 s
         case r of
             Error err -> return (Error err)
             SDone n b -> do
-                assertM(1 - n <= cnt)
+                assertM((- n) <= cnt)
                 fs1 <- fstep fs b
                 case fs1 of
                     FL.Partial s1 -> fmap (SDone n) (ffinal s1)
                     FL.Done b1 -> return (SDone n b1)
             SPartial _ _ -> error "splitSome: SPartial in extract"
             SContinue n s1 -> do
-                assertM(1 - n == cnt)
+                assertM((- n) == cnt)
                 return (SContinue n (Fused3 s1 0 (Left fs)))
     extract (Fused3 s cnt (Right fs)) = do
         r <- extract1 s
         case r of
-            Error _ -> fmap (SDone (1 - cnt)) (ffinal fs)
+            Error _ -> fmap (SDone (- cnt)) (ffinal fs)
             SDone n b -> do
-                assertM(1 - n <= cnt)
+                assertM((- n) <= cnt)
                 fs1 <- fstep fs b
                 case fs1 of
                     FL.Partial s1 -> fmap (SDone n) (ffinal s1)
                     FL.Done b1 -> return (SDone n b1)
             SPartial _ _ -> error "splitSome: SPartial in extract"
             SContinue n s1 -> do
-                assertM(1 - n == cnt)
+                assertM((- n) == cnt)
                 return (SContinue n (Fused3 s1 0 (Right fs)))
 
 -- | A parser that always fails with an error message without consuming

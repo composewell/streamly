@@ -205,13 +205,14 @@ import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser as PRD
 import qualified Streamly.Internal.Data.RingArray as RB
 import qualified Streamly.Internal.Data.Stream.Generate as Stream
+import qualified Streamly.Internal.Data.Stream.Type as Stream
 import qualified Streamly.Internal.Data.Unfold.Type as Unfold
 
 import Streamly.Internal.Data.Stream.Transform
     (intersperse, intersperseEndByM)
-import Streamly.Internal.Data.Stream.Type
+import Streamly.Internal.Data.Stream.Type hiding (splitAt)
 
-import Prelude hiding (concatMap, mapM, zipWith)
+import Prelude hiding (concatMap, mapM, zipWith, splitAt)
 
 #include "DocTestDataStream.hs"
 
@@ -1594,6 +1595,9 @@ parseMany (PRD.Parser pstep initial extract) (Stream step state) =
 
     where
 
+    {-# INLINE splitAt #-}
+    splitAt = Stream.splitAt "Data.StreamK.parseMany"
+
     {-# INLINE_LATE stepOuter #-}
     -- Buffer is empty, get the first element from the stream, initialize the
     -- fold and then go to stream processing loop.
@@ -1780,19 +1784,19 @@ parseMany (PRD.Parser pstep initial extract) (Stream step state) =
         pRes <- extract pst
         case pRes of
             PR.SPartial _ _ -> error "Bug: parseMany: Partial in extract"
-            PR.SContinue 1 pst1 ->
+            PR.SContinue 0 pst1 ->
                 return $ Skip $ ParseChunksStop buf pst1
             PR.SContinue m pst1 -> do
-                let n = 1 - m
+                let n = (- m)
                 assert (n <= length buf) (return ())
                 let (src0, buf1) = splitAt n buf
                     src  = Prelude.reverse src0
                 return $ Skip $ ParseChunksExtract src buf1 pst1
-            PR.SDone 1 b -> do
+            PR.SDone 0 b -> do
                 return $ Skip $
                     ParseChunksYield (Right b) (ParseChunksInitLeftOver [])
             PR.SDone m b -> do
-                let n = 1 - m
+                let n = (- m)
                 assert (n <= length buf) (return ())
                 let src = Prelude.reverse (Prelude.take n buf)
                 return $ Skip $
@@ -1889,6 +1893,9 @@ parseIterate func seed (Stream step state) =
     Stream stepOuter (ConcatParseInit [] state (func seed))
 
     where
+
+    {-# INLINE splitAt #-}
+    splitAt = Stream.splitAt "Data.StreamK.parseIterate"
 
     {-# INLINE_LATE stepOuter #-}
     -- Buffer is empty, go to stream processing loop
@@ -2062,19 +2069,19 @@ parseIterate func seed (Stream step state) =
         pRes <- extract pst
         case pRes of
             PR.SPartial _ _ -> error "Bug: parseIterate: Partial in extract"
-            PR.SContinue 1 pst1 ->
+            PR.SContinue 0 pst1 ->
                 return $ Skip $ ConcatParseStop buf pstep pst1 extract
             PR.SContinue m pst1 -> do
-                let n = 1 - m
+                let n = (- m)
                 assert (n <= length buf) (return ())
                 let (src0, buf1) = splitAt n buf
                     src  = Prelude.reverse src0
                 return $ Skip $ ConcatParseExtract src buf1 pstep pst1 extract
-            PR.SDone 1 b -> do
+            PR.SDone 0 b -> do
                 return $ Skip $
                     ConcatParseYield (Right b) (ConcatParseInitLeftOver [])
             PR.SDone m b -> do
-                let n = 1 - m
+                let n = (- m)
                 assert (n <= length buf) (return ())
                 let src = Prelude.reverse (Prelude.take n buf)
                 return $ Skip $

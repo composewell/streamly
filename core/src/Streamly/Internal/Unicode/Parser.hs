@@ -410,16 +410,16 @@ number =  Parser (\s a -> return $ step s a) initial (return . extract)
     {-# INLINE extract #-}
     extract SPInitial = Error $ exitSPInitial "end of input"
     extract (SPSign _) = Error $ exitSPSign "end of input"
-    extract (SPAfterSign mult num) = SDone 1 $ exitSPAfterSign mult num
-    extract (SPDot mult num) = SDone 0 $ exitSPAfterSign mult num
+    extract (SPAfterSign mult num) = SDone 0 $ exitSPAfterSign mult num
+    extract (SPDot mult num) = SDone (-1) $ exitSPAfterSign mult num
     extract (SPAfterDot mult num decimalPlaces) =
-        SDone 1 $ exitSPAfterDot mult num decimalPlaces
-    extract (SPExponent mult num decimalPlaces) =
         SDone 0 $ exitSPAfterDot mult num decimalPlaces
-    extract (SPExponentWithSign mult num decimalPlaces _) =
+    extract (SPExponent mult num decimalPlaces) =
         SDone (-1) $ exitSPAfterDot mult num decimalPlaces
+    extract (SPExponentWithSign mult num decimalPlaces _) =
+        SDone (-2) $ exitSPAfterDot mult num decimalPlaces
     extract (SPAfterExponent mult num decimalPlaces powerMult powerNum) =
-        SDone 1 $ exitSPAfterExponent mult num decimalPlaces powerMult powerNum
+        SDone 0 $ exitSPAfterExponent mult num decimalPlaces powerMult powerNum
 
 type MantissaInt = Int
 type OverflowPower = Int
@@ -548,16 +548,16 @@ doubleParser =  Parser (\s a -> return $ step s a) initial (return . extract)
     {-# INLINE extract #-}
     extract DPInitial = Error $ exitDPInitial "end of input"
     extract (DPSign _) = Error $ exitDPSign "end of input"
-    extract (DPAfterSign mult num opow) = SDone 1 $ exitDPAfterSign mult num opow
-    extract (DPDot mult num opow) = SDone 0 $ exitDPAfterSign mult num opow
+    extract (DPAfterSign mult num opow) = SDone 0 $ exitDPAfterSign mult num opow
+    extract (DPDot mult num opow) = SDone (-1) $ exitDPAfterSign mult num opow
     extract (DPAfterDot mult num opow) =
-        SDone 1 $ exitDPAfterDot mult num opow
-    extract (DPExponent mult num opow) =
         SDone 0 $ exitDPAfterDot mult num opow
-    extract (DPExponentWithSign mult num opow _) =
+    extract (DPExponent mult num opow) =
         SDone (-1) $ exitDPAfterDot mult num opow
+    extract (DPExponentWithSign mult num opow _) =
+        SDone (-2) $ exitDPAfterDot mult num opow
     extract (DPAfterExponent mult num opow powerMult powerNum) =
-        SDone 1 $ exitDPAfterExponent mult num opow powerMult powerNum
+        SDone 0 $ exitDPAfterExponent mult num opow powerMult powerNum
 
 -- XXX We can have a `realFloat` parser instead to parse any RealFloat value.
 -- And a integral parser to read any integral value.
