@@ -294,8 +294,7 @@ parseBreak ::
 parseBreak p s =
     fmap fromStreamD <$> parseBreakD (PRD.fromParserK p) (toStreamD s)
 -}
-parseBreak = Array.parseBreakChunksK
--- parseBreak p = K.parseBreakChunks (ParserK.adaptC p)
+parseBreak p = Array.parseBreak (Array.parserK p)
 
 -------------------------------------------------------------------------------
 -- Elimination - Running Array Folds and parsers

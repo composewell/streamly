@@ -77,6 +77,7 @@ import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser as PRD
+import qualified Streamly.Internal.Data.Stream.Type as Stream
 import qualified Streamly.Internal.Data.Stream.Generate as StreamD
 import qualified Streamly.Internal.Data.Stream.Nesting as Nesting
 import qualified Streamly.Internal.Data.Stream.Transform as StreamD
@@ -85,7 +86,7 @@ import Prelude hiding
        ( Foldable(..), all, any, head, last, lookup, mapM, mapM_
        , notElem, splitAt, init, tail, (!!))
 import Data.Foldable (length)
-import Streamly.Internal.Data.Stream.Type
+import Streamly.Internal.Data.Stream.Type hiding (splitAt)
 
 #include "DocTestDataStream.hs"
 
@@ -108,22 +109,6 @@ foldr1 f m = do
 ------------------------------------------------------------------------------
 -- Parsers
 ------------------------------------------------------------------------------
-
--- Inlined definition. Without the inline "serially/parser/take" benchmark
--- degrades and parseMany does not fuse. Even using "inline" at the callsite
--- does not help.
-{-# INLINE splitAt #-}
-splitAt :: Int -> [a] -> ([a],[a])
-splitAt n ls
-  | n <= 0 = ([], ls)
-  | otherwise          = splitAt' n ls
-    where
-        splitAt' :: Int -> [a] -> ([a], [a])
-        splitAt' _  []     = ([], [])
-        splitAt' 1  (x:xs) = ([x], xs)
-        splitAt' m  (x:xs) = (x:xs', xs'')
-          where
-            (xs', xs'') = splitAt' (m - 1) xs
 
 -- GHC parser does not accept {-# ANN type [] NoSpecConstr #-}, so we need
 -- to make a newtype.
@@ -179,6 +164,9 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
         PRD.IError err -> return (Left (ParseError err), stream)
 
     where
+
+    {-# INLINE splitAt #-}
+    splitAt = Stream.splitAt "Data.Stream.parseBreak"
 
     -- "buf" contains last few items in the stream that we may have to
     -- backtrack to.
@@ -331,16 +319,16 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
         pRes <- extract pst
         case pRes of
             PR.SPartial _ _ -> error "Bug: parseBreak: Partial in extract"
-            PR.SContinue 1 pst1 -> goStop SPEC buf pst1
+            PR.SContinue 0 pst1 -> goStop SPEC buf pst1
             PR.SContinue m pst1 -> do
-                let n = 1 - m
+                let n = (- m)
                 assert (n <= length (getList buf)) (return ())
                 let (src0, buf1) = splitAt n (getList buf)
                     src = Prelude.reverse src0
                 goExtract SPEC (List buf1) (List src) pst1
-            PR.SDone 1 b -> return (Right b, StreamD.nil)
+            PR.SDone 0 b -> return (Right b, StreamD.nil)
             PR.SDone m b -> do
-                let n = 1 - m
+                let n = (- m)
                 assert (n <= length (getList buf)) (return ())
                 let src0 = Prelude.take n (getList buf)
                     src  = Prelude.reverse src0

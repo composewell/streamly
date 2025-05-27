@@ -1337,6 +1337,7 @@ sanityParseDBreak jumps = it (show jumps) $ do
     lst <- K.toList rest
     (val, lst) `shouldBe` (expectedResult jumps tape)
 
+{-
 sanityParseBreakChunksK :: [Move] -> SpecWith ()
 sanityParseBreakChunksK jumps = it (show jumps) $ do
     (val, rest) <-
@@ -1344,6 +1345,7 @@ sanityParseBreakChunksK jumps = it (show jumps) $ do
             $ K.fromList $ Prelude.map A.fromList chunkedTape
     lst <- Prelude.map A.toList <$> K.toList rest
     (val, concat lst) `shouldBe` (expectedResult jumps tape)
+-}
 
 sanityParseMany :: [Move] -> SpecWith ()
 sanityParseMany jumps = it (show jumps) $ do
@@ -1477,13 +1479,21 @@ mainCommon ptt = do
 
 main :: IO ()
 main =
+{-
+    let predicate = (==0)
+        prsr = P.many (P.satisfy (const True)) FL.toList
+    S.fold FL.toList
+        $ S.catRights
+        $ SI.parseMany2 (P.takeEndBy predicate prsr) $ S.fromList [0 :: Int]
+    return ()
+    -}
   hspec $
   H.parallel $
   modifyMaxSuccess (const maxTestCount) $ do
   describe moduleName $ do
     parserSanityTests "Stream.parseBreak" sanityParseBreak
     parserSanityTests "StreamK.parseDBreak" sanityParseDBreak
-    parserSanityTests "A.sanityParseBreakChunksK" sanityParseBreakChunksK
+    -- parserSanityTests "A.sanityParseBreakChunksK" sanityParseBreakChunksK
     parserSanityTests "Stream.parseMany" sanityParseMany
     parserSanityTests "Stream.parseIterate" sanityParseIterate
     describe "Stream parsing" $ do

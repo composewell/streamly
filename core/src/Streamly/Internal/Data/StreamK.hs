@@ -1153,20 +1153,6 @@ withCatchError m h =
 -- Parsing
 -------------------------------------------------------------------------------
 
--- Inlined definition.
-{-# INLINE splitAt #-}
-splitAt :: Int -> [a] -> ([a],[a])
-splitAt n ls
-  | n <= 0 = ([], ls)
-  | otherwise          = splitAt' n ls
-    where
-        splitAt' :: Int -> [a] -> ([a], [a])
-        splitAt' _  []     = ([], [])
-        splitAt' 1  (x:xs) = ([x], xs)
-        splitAt' m  (x:xs) = (x:xs', xs'')
-          where
-            (xs', xs'') = splitAt' (m - 1) xs
-
 -- | Run a 'Parser' over a stream and return rest of the Stream.
 {-# INLINE_NORMAL parseDBreak #-}
 parseDBreak
@@ -1183,6 +1169,9 @@ parseDBreak (PR.Parser pstep initial extract) stream = do
 
     where
 
+    {-# INLINE splitAt #-}
+    splitAt = Stream.splitAt "Data.StreamK.parseDBreak"
+
     -- "buf" contains last few items in the stream that we may have to
     -- backtrack to.
     --
@@ -1197,15 +1186,15 @@ parseDBreak (PR.Parser pstep initial extract) stream = do
                         let src = Prelude.reverse buf
                         return (Left (ParseError err), fromList src)
                     PR.SDone m b -> do
-                        let n = 1 - m
+                        let n = (- m)
                         assertM(n <= length buf)
                         let src0 = Prelude.take n buf
                             src  = Prelude.reverse src0
                         return (Right b, fromList src)
                     PR.SPartial _ _ -> error "Bug: parseBreak: Partial in extract"
-                    PR.SContinue 1 s -> goStream nil buf s
+                    PR.SContinue 0 s -> goStream nil buf s
                     PR.SContinue m s -> do
-                        let n = 1 - m
+                        let n = (- m)
                         assertM(n <= length buf)
                         let (src0, buf1) = splitAt n buf
                             src = Prelude.reverse src0
@@ -1306,19 +1295,6 @@ parseChunks = Array.parse
 -- ParserK Singular
 -------------------------------------------------------------------------------
 
-{-# INLINE backTrackSingular #-}
-backTrackSingular :: Int -> [a] -> StreamK m a -> (StreamK m a, [a])
-backTrackSingular = go
-
-    where
-
-    go _ [] stream = (stream, [])
-    go n xs stream | n <= 0 = (stream, xs)
-    go n xs stream =
-        let (appendBuf, newBTBuf) = splitAt n xs
-         in (append (fromList (Prelude.reverse appendBuf)) stream, newBTBuf)
-
-
 -- | Similar to 'parseBreak' but works on singular elements.
 --
 {-# INLINE_NORMAL parseBreak #-}
@@ -1332,6 +1308,12 @@ parseBreak parser input = do
      in go [] parserk input
 
     where
+
+    {-# INLINE backtrack #-}
+    -- backtrack :: Int -> [a] -> StreamK m a -> (StreamK m a, [a])
+    backtrack n xs stream =
+        let (pre, post) = Stream.splitAt "Data.StreamK.parseBreak" n xs
+         in (append (fromList (Prelude.reverse pre)) stream, post)
 
     {-# INLINE goStop #-}
     goStop
@@ -1349,29 +1331,25 @@ parseBreak parser input = do
             ParserK.Partial n cont1 -> do
                 let n1 = negate n
                 assertM(n1 >= 0 && n1 <= length backBuf)
-                let (s1, backBuf1) = backTrackSingular n1 backBuf nil
+                let (s1, backBuf1) = backtrack n1 backBuf nil
                  in go backBuf1 cont1 s1
             ParserK.Continue 0 cont1 ->
                 go backBuf cont1 nil
             ParserK.Continue n cont1 -> do
                 let n1 = negate n
                 assertM(n1 >= 0 && n1 <= length backBuf)
-                let (s1, backBuf1) = backTrackSingular n1 backBuf nil
+                let (s1, backBuf1) = backtrack n1 backBuf nil
                  in go backBuf1 cont1 s1
             ParserK.Done 0 b ->
                 return (Right b, nil)
             ParserK.Done n b -> do
                 let n1 = negate n
                 assertM(n1 >= 0 && n1 <= length backBuf)
-                let (s1, _) = backTrackSingular n1 backBuf nil
+                let (s1, _) = backtrack n1 backBuf nil
                  in return (Right b, s1)
             ParserK.Error _ err ->
                 let strm = fromList (Prelude.reverse backBuf)
                  in return (Left (ParseError err), strm)
-
-    seekErr n =
-        error $ "parseBreak: Partial: forward seek not implemented n = "
-            ++ show n
 
     yieldk
         :: [a]
@@ -1386,34 +1364,31 @@ parseBreak parser input = do
         case pRes of
             ParserK.Partial 1 cont1 -> go [] cont1 stream
             ParserK.Partial 0 cont1 -> go [] cont1 (cons element stream)
-            ParserK.Partial n _ | n > 1 -> seekErr n
             ParserK.Partial n cont1 -> do -- n < 0 case
                 let n1 = negate n
                     bufLen = length backBuf
                     s = cons element stream
                 assertM(n1 >= 0 && n1 <= bufLen)
-                let (s1, _) = backTrackSingular n1 backBuf s
+                let (s1, _) = backtrack n1 backBuf s
                 go [] cont1 s1
             ParserK.Continue 1 cont1 -> go (element:backBuf) cont1 stream
             ParserK.Continue 0 cont1 ->
                 go backBuf cont1 (cons element stream)
-            ParserK.Continue n _ | n > 1 -> seekErr n
             ParserK.Continue n cont1 -> do
                 let n1 = negate n
                     bufLen = length backBuf
                     s = cons element stream
                 assertM(n1 >= 0 && n1 <= bufLen)
-                let (s1, backBuf1) = backTrackSingular n1 backBuf s
+                let (s1, backBuf1) = backtrack n1 backBuf s
                 go backBuf1 cont1 s1
             ParserK.Done 1 b -> pure (Right b, stream)
             ParserK.Done 0 b -> pure (Right b, cons element stream)
-            ParserK.Done n _ | n > 1 -> seekErr n
             ParserK.Done n b -> do
                 let n1 = negate n
                     bufLen = length backBuf
                     s = cons element stream
                 assertM(n1 >= 0 && n1 <= bufLen)
-                let (s1, _) = backTrackSingular n1 backBuf s
+                let (s1, _) = backtrack n1 backBuf s
                 pure (Right b, s1)
             ParserK.Error _ err ->
                 let strm =
