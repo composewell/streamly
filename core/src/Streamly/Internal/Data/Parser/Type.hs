@@ -252,6 +252,10 @@ import Prelude hiding (concatMap, filter)
 -- where the processing in intiial is just a sepcial case of step, see
 -- takeBetween for example.
 
+-- XXX IPartial indicates that the parser has a default result and cannot fail.
+-- Such parsers should rather be written as Parslets? We should use IContinue
+-- in initial.
+
 -- | The type of a 'Parser''s initial action.
 --
 -- /Internal/
@@ -296,38 +300,45 @@ instance Functor (Initial s) where
 
 -- | The return type of a 'Parser' step.
 --
--- The parser driver feeds the input stream to the parser one element at a
--- time, representing a parse 'Step'. If the step result is 'SPartial' then a
--- parse result is available, we can extract the result and feed more input to
--- the parser. If the result is 'SContinue', we must feed more input in order
--- to get a result. If the parser returns 'SDone' then the parser can no longer
--- take any more input.
+-- /Result types/: The parser driver feeds the input stream to the parser one
+-- element at a time, representing a parse 'Step'. If the step result
+-- 'SPartial' indicates that a parse result is available and the parser can
+-- accept more input, we can extract the result using the parser's extract
+-- function and feed more input to the parser. If the result is 'SContinue', we
+-- must feed more input in order to get a result. If the parser returns 'SDone'
+-- then a result is available and the parser can no longer take any more input.
 --
--- The @n@ in @SPartial n@, @Scontinue n@ and @SDone n@ is an integer
--- representing the number of elements consumed by the parser. If the current
--- input item is consumed then n is 1, if the current input item is rejected
--- then n is 0. If @n@ is less than 0 then the parser backtracks by n elements
--- prior to the current element before processing next input. If @n@ is greater
--- than 1 then it skips n elements in the stream (skipping is currently not
--- supported) including the current element.
+-- /Stream position/: The @n@ in @SPartial n@, @Scontinue n@ and @SDone n@ is a
+-- count by which we adjust the current stream position after this step. If the
+-- count is positive we move forward in the stream, if it is 0 then we stay
+-- where we are, if it is negative then we move backward in the stream.
 -- Essentially, if the input stream position was @pos@ before processing the
 -- current element then the new stream position after processing the element
 -- would be @pos + n@.
 --
--- If the parser result is 'SContinue', the parser driver retains the input in
--- a backtracking buffer, in case of failure the parser can backtrack maximum
--- up to the length of the backtracking buffer. Whenever the result is
--- `SPartial` the current backtracking buffer is discarded; this means that we
--- cannot backtrack beyond the currrent position in the stream. The parser must
--- ensure that the backtrack position is always within the bounds of the
--- backtracking buffer, otherwise a runtime error will occur.
+-- We can also think of this count as the number of items consumed by the
+-- parser. If the current input item is consumed then n is 1, if the current
+-- input item should be presented to the next parser step then n is 0. If @n@
+-- is less than 0 then the parser backtracks by n elements before the current
+-- element before the next parsing step is invoked. @n@ is not allowed to be
+-- greater than 1 in the regular stream parsers, but it can be more than 1 in
+-- an array parser because it can consume more than one elements from the
+-- array.
 --
--- If the parser is not yet done, we can use the @extract@ operation on the
--- @state@ of the parser to extract a result. If the parser never yielded a
--- result in the past, @extract@ fails with a 'ParseError' exception. If the
--- parser yielded a 'Partial' result in the past then the latest partial result
--- is returned. Therefore, if a parser yields a partial result once then it
--- cannot fail later on.
+-- /Backtracking/: If the parser result is 'SContinue', the parser driver
+-- retains the input in a backtracking buffer, in case of failure the parser
+-- can backtrack maximum up to the length of the backtracking buffer. Whenever
+-- the result is `SPartial` the current backtracking buffer is discarded; this
+-- means that we cannot backtrack beyond the currrent position in the stream.
+-- The parser must ensure that the backtrack position is always within the
+-- bounds of the backtracking buffer, otherwise a runtime error will occur.
+--
+-- /Failure/: If the parser is not yet done, we can use the @extract@ operation
+-- on the @state@ of the parser to extract a result. If the parser never
+-- yielded a result in the past, @extract@ fails with a 'ParseError' exception.
+-- If the parser yielded a 'Partial' result in the past then extract returns
+-- the latest partial result. Therefore, if a parser yields a partial result
+-- once then it cannot fail later on.
 --
 -- /Pre-release/
 --
