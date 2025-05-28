@@ -104,25 +104,31 @@ import qualified Streamly.Internal.Data.Parser.Type as ParserD
 -- XXX Rename Chunk to Some.
 data Input a = None | Chunk a
 
--- XXX Step should be renamed to StepResult.
--- XXX and StepParser should be just Step.
+-- Note: Step should ideally be called StepResult and StepParser should be just
+-- Step, but then it will not be consistent with Parser/Stream.
 
--- | A parsing function that parses a single input.
+-- Using "Input" in runParser is not necessary but it avoids making
+-- one more function call to get the input. This could be helpful
+-- for cases where we process just one element per call.
+
+-- | A parsing function that parses a single input object.
 type StepParser a m r = Input a -> m (Step a m r)
 
 -- | The intermediate result of running a parser step. The parser driver may
--- stop with a final result, pause with a continuation to resume, or fail with
--- an error.
+-- (1) stop with a final result ('Done') with no more inputs to be accepted,
+-- (2) generate an intermediate result ('Partial') and accept more inputs, (3)
+-- generate no result but wait for more input ('Continue'), (4) or fail with an
+-- error ('Error').
 --
--- See ParserD docs. This is the same as the ParserD Step except that it uses a
--- continuation in Partial and Continue constructors instead of a state in case
--- of ParserD.
+-- The Int is a count by which the current stream position should be adjusted
+-- before calling the next parsing step.
+--
+-- See the documentation of 'Streamly.Data.Parser.Step' for more details, this
+-- has the same semantics.
 --
 -- /Pre-release/
 --
 data Step a m r =
-    -- The Int is the current stream position index wrt to the start of the
-    -- array.
       Done !Int r
     | Partial !Int (StepParser a m r)
     | Continue !Int (StepParser a m r)
@@ -160,40 +166,48 @@ instance Functor ParseResult where
 --
 -- Use Step itself in place of ParseResult.
 
--- | A continuation passing style parser representation. A continuation of
--- 'Step's, each step passes a state and a parse result to the next 'Step'. The
--- resulting 'Step' may carry a continuation that consumes input 'a' and
--- results in another 'Step'. Essentially, the continuation may either consume
--- input without a result or return a result with no further input to be
--- consumed.
+-- | A continuation passing style parser representation. A parser is a
+-- continuation of 'Step's, each step passes a state and a parse result to the
+-- next 'Step'. The resulting 'Step' may carry a continuation that consumes
+-- input 'a' and results in another 'Step'. Essentially, the continuation may
+-- either consume input without a result or return a result with no further
+-- input to be consumed.
+--
+-- The first argument of runParser is a continuation to be invoked after the
+-- parser is done, it is of the following shape:
+--
+-- >> ParseResult b -> Int -> StepParser a m r
+--
+-- First argument of the continuation is the 'ParseResult'. The current stream
+-- position is carried as part of the 'Success' or 'Failure' constructors of
+-- 'ParseResult'. The second argument of the continuation is a count of the
+-- elements used in the current alterantive of an alternative composition, if
+-- the alternative fails we need to backtrack by this amount before invoking
+-- the next alternative.
+--
+-- The second argument of runParser is the incoming stream position adjustment.
+-- The parser needs to adjust the current position of the stream by this amount
+-- before consuming any input. A positive value means move forward by that much
+-- in the stream and a negative value means backward. See the 'Step' and
+-- 'Streamly.Data.Parser.Step' documentation for more details.
+--
+-- The third argument is the incoming cumulative used element count for the
+-- current alternative, same as described for the continuation above.
 --
 newtype ParserK a m b = MkParser
     { runParser :: forall r.
-           -- Using "Input" in runParser is not necessary but it avoids making
-           -- one more function call to get the input. This could be helpful
-           -- for cases where we process just one element per call.
-           --
            -- Do not eta reduce the applications of this continuation.
-           --
-           -- The current stream position index is carried as part of 'Success'
-           -- constructor of 'ParseResult'. The second argument is the used
-           -- elem count.
+           -- Continuation to be invoked after the parser is done
            (ParseResult b -> Int -> StepParser a m r)
            -- XXX Maintain and pass the original position in the stream. that
            -- way we can also report better errors. Use a Context structure for
            -- passing the state.
-
-           -- Stream position index wrt to the current input array start. If
-           -- negative then backtracking is required before using the array.
-           -- The parser should use "Continue -n" in this case if it needs to
-           -- consume input. Negative value cannot be beyond the current
-           -- backtrack buffer. Positive value cannot be beyond array length.
-           -- If the parser needs to advance beyond the array length it should
-           -- use "Continue +n".
+           --
+           -- stream position adjustment before the parser starts.
         -> Int
-           -- used elem count, a count of elements consumed by the parser. If
-           -- an Alternative fails we need to backtrack by this amount.
+           -- initial used count for the current alternative.
         -> Int
+            -- final parse result, when the last continuation is done.
         -> StepParser a m r
     }
 
@@ -422,6 +436,8 @@ adaptWith pstep initial extract cont !relPos !usedCount !input = do
                 ParserD.SPartial 1 pst1 ->
                     pure $ Partial 1 (parseCont (count + 1) pst1)
                 ParserD.SPartial 0 pst1 ->
+                    -- XXX if we recurse we are not dropping backtrack buffer
+                    -- on partial.
                     -- XXX recurse or call the driver?
                     go SPEC pst1
                 ParserD.SPartial m pst1 -> -- n > 0
