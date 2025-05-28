@@ -7,10 +7,13 @@ module Main (main) where
 
 import Control.Applicative ((<|>))
 import Control.Exception (displayException, try, evaluate, SomeException)
+import Control.Monad.IO.Class (MonadIO)
 import Data.Char (isSpace)
 import Data.Foldable (for_)
 import Data.Word (Word8, Word32, Word64)
+import Streamly.Internal.Data.Fold (Fold(..))
 import Streamly.Internal.Data.MutByteArray (Unbox)
+import Streamly.Internal.Data.Parser (Parser(..), Step(..), Initial(..))
 import Streamly.Test.Common (listEquals, checkListEqual, chooseInt)
 import Streamly.Internal.Data.Parser (ParseError(..))
 import Test.QuickCheck
@@ -771,6 +774,56 @@ altEOF2 producer consumer =
             Right x -> x == [51]
             Left _ -> False
 
+{-# INLINE takeWhileFailD #-}
+takeWhileFailD :: Monad m => (a -> Bool) -> Fold m a b -> Parser a m b
+takeWhileFailD predicate (Fold fstep finitial _ ffinal) =
+    Parser step initial extract
+
+    where
+
+    initial = do
+        res <- finitial
+        return $ case res of
+            FL.Partial s -> IPartial s
+            FL.Done b -> IDone b
+
+    step s a =
+        if predicate a
+        then do
+            fres <- fstep s a
+            return
+                $ case fres of
+                      FL.Partial s1 -> SContinue 1 s1
+                      FL.Done b -> SDone 1 b
+        else return $ Error "fail"
+
+    extract s = fmap (SDone 0) (ffinal s)
+
+{-# INLINE takeWhileFail #-}
+takeWhileFail :: MonadIO m =>
+    (a -> Bool) -> Fold m a b -> PK.ParserK a m b
+takeWhileFail p f = PK.parserK (takeWhileFailD p f)
+
+{-# INLINE takeWhileK #-}
+takeWhileK :: MonadIO m => (a -> Bool) -> PK.ParserK a m [a]
+takeWhileK p = PK.parserK $ P.takeWhile p FL.toList
+
+{-# INLINE alt2 #-}
+alt2 :: MonadIO m => K.StreamK m Int -> m (Either ParseError [Int])
+alt2 =
+    K.parse
+        (   takeWhileFail (<= 5) FL.toList
+        <|> takeWhileK (<= 7)
+        )
+
+{-# INLINE altD #-}
+altD :: MonadIO m => S.Stream m Int -> m (Either P.ParseError [Int])
+altD =
+    S.parse
+        (   takeWhileFailD (<= 5) FL.toList
+        <|> P.takeWhile (<= 7) FL.toList
+        )
+
 monad :: ParserTestCase Int (PropertyM IO) ([Int], [Int]) Property
 monad producer consumer =
     forAll (listOf (chooseAny :: Gen Int)) $ \ list1 ->
@@ -1478,59 +1531,64 @@ mainCommon ptt = do
     runParserTC ptt takeProperties
 
 main :: IO ()
-main =
-{-
-    let predicate = (==0)
-        prsr = P.many (P.satisfy (const True)) FL.toList
-    S.fold FL.toList
-        $ S.catRights
-        $ SI.parseMany2 (P.takeEndBy predicate prsr) $ S.fromList [0 :: Int]
-    return ()
-    -}
+main = do
+  -- TODO: convert this test to the same format as other tests.
+  r <- alt2 (K.fromList [1..20])
+  case r of
+    Right x | x == [1..7] -> putStrLn "K.Alt parse successful"
+    Right x -> error $ "K.Alt parse got incorrect output " ++ show x
+    _ -> error $ "K.Alt parse failed"
+
+  r1 <- altD (S.fromList [1..20])
+  case r1 of
+    Right x | x == [1..7] -> putStrLn "Alt parse successful"
+    Right x -> error $ "Alt parse got incorrect output " ++ show x
+    _ -> error $ "Alt parse failed"
+
   hspec $
-  H.parallel $
-  modifyMaxSuccess (const maxTestCount) $ do
-  describe moduleName $ do
-    parserSanityTests "Stream.parseBreak" sanityParseBreak
-    parserSanityTests "StreamK.parseDBreak" sanityParseDBreak
-    -- parserSanityTests "A.sanityParseBreakChunksK" sanityParseBreakChunksK
-    parserSanityTests "Stream.parseMany" sanityParseMany
-    parserSanityTests "Stream.parseIterate" sanityParseIterate
-    describe "Stream parsing" $ do
-        prop "parseMany" parseMany
-        prop "parseMany2Events" parseMany2Events
-        prop "parseUnfold" parseUnfold
-        prop "parserSequence" parserSequence
+      H.parallel $
+      modifyMaxSuccess (const maxTestCount) $ do
+      describe moduleName $ do
+        parserSanityTests "Stream.parseBreak" sanityParseBreak
+        parserSanityTests "StreamK.parseDBreak" sanityParseDBreak
+        -- parserSanityTests "A.sanityParseBreakChunksK" sanityParseBreakChunksK
+        parserSanityTests "Stream.parseMany" sanityParseMany
+        parserSanityTests "Stream.parseIterate" sanityParseIterate
+        describe "Stream parsing" $ do
+            prop "parseMany" parseMany
+            prop "parseMany2Events" parseMany2Events
+            prop "parseUnfold" parseUnfold
+            prop "parserSequence" parserSequence
 
-    describe "test for sequence parser" $ do
-        parseManyWordQuotedBy
-        prop "P.many == S.parseMany" manyEqParseMany
-        prop "takeEndBy2" takeEndBy2
+        describe "test for sequence parser" $ do
+            parseManyWordQuotedBy
+            prop "P.many == S.parseMany" manyEqParseMany
+            prop "takeEndBy2" takeEndBy2
 
-    describe "quotedWordTest" $ do
-        it "Single quote test" $ do
-           quotedWordTest "'hello\\\\\"world'" ["hello\\\\\"world"]
-           quotedWordTest "'hello\\'" ["hello\\"]
-        it "Double quote test" $ do
-           quotedWordTest
-               "\"hello\\\"\\\\w\\'orld\""
-               ["hello\"\\w\\'orld"]
+        describe "quotedWordTest" $ do
+            it "Single quote test" $ do
+               quotedWordTest "'hello\\\\\"world'" ["hello\\\\\"world"]
+               quotedWordTest "'hello\\'" ["hello\\"]
+            it "Double quote test" $ do
+               quotedWordTest
+                   "\"hello\\\"\\\\w\\'orld\""
+                   ["hello\"\\w\\'orld"]
 
-    -- We keep Parser and ParserK tests in the same (Parser) executable for 2
-    -- reasons:
-    -- 1. We almost always write Parser tests hence we prioritize Parser over
-    --    ParserK
-    -- 2. This results in minimal compilation overhead compared to duplicating
-    --    or keeping the common part in the library.
-    --    2.1. Duplication will result in compilation of this code twice
-    --    2.2. Keeping the common part in the library will compile the Parser
-    --         code even when it's not necessary. For example, if we are running
-    --         non-parser test suites.
-    --
-    -- One problem is that this module becomes very big for compilation. We can
-    -- break this further and keep them as a part of "other-modules" in
-    -- Test.Parser test-suite.
-    mainCommon TMParserStream
-    mainCommon TMParserKStreamKChunks
-    mainCommon TMParserKStreamK
-    mainCommon TMParserKStreamKChunksGeneric
+        -- We keep Parser and ParserK tests in the same (Parser) executable for 2
+        -- reasons:
+        -- 1. We almost always write Parser tests hence we prioritize Parser over
+        --    ParserK
+        -- 2. This results in minimal compilation overhead compared to duplicating
+        --    or keeping the common part in the library.
+        --    2.1. Duplication will result in compilation of this code twice
+        --    2.2. Keeping the common part in the library will compile the Parser
+        --         code even when it's not necessary. For example, if we are running
+        --         non-parser test suites.
+        --
+        -- One problem is that this module becomes very big for compilation. We can
+        -- break this further and keep them as a part of "other-modules" in
+        -- Test.Parser test-suite.
+        mainCommon TMParserStream
+        mainCommon TMParserKStreamKChunks
+        mainCommon TMParserKStreamK
+        mainCommon TMParserKStreamKChunksGeneric

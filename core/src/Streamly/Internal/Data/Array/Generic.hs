@@ -613,9 +613,6 @@ adaptCGWith pstep initial extract cont !offset0 !usedCount !input = do
                 move n = cur + n
                 curOff = cur - start
                 nextOff = next - start
-            -- The "n" here is how many items have been consumed by the parser
-            -- from the array which is the same as the stream position index
-            -- wrt the array start.
             case pRes of
                 ParserD.SDone 1 b ->
                     onDone nextOff b

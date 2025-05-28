@@ -1186,6 +1186,19 @@ blockWithQuotes isEsc isQuote bopen bclose
         err $ "blockWithQuotes: finished, inside an unfinished quote, "
             ++ "after an escape char, at block nest level " ++ show level
 
+{-# INLINE takeEndByDone #-}
+takeEndByDone :: Monad f => (s -> f (Step s b)) -> Step s b -> f (Step s b)
+takeEndByDone pextract res =
+    -- If the parser is backtracking we let it backtrack even if the
+    -- predicate is true.
+    case res of
+        SPartial 1 s1 -> mapCount (+1) <$> pextract s1
+        SPartial _ _ -> return res
+        SContinue 1 s1 -> mapCount (+1) <$> pextract s1
+        SContinue _ _ -> return res
+        SDone n b -> return $ SDone n b
+        Error err -> return $ Error err
+
 -- | @takeEndBy cond parser@ parses a token that ends by a separator chosen by
 -- the supplied predicate. The separator is also taken with the token.
 --
@@ -1218,19 +1231,7 @@ takeEndBy cond (Parser pstep pinitial pextract) =
         res <- pstep s a
         if not (cond a)
         then return res
-        else
-            -- XXX Check if there are any other such cases where we are
-            -- extracting like this.
-
-            -- If the parser is backtracking we let it backtrack even if the
-            -- predicate is true.
-            case res of
-                SPartial 1 s1 -> mapCount (+1) <$> pextract s1
-                SPartial _ _ -> return res
-                SContinue 1 s1 -> mapCount (+1) <$> pextract s1
-                SContinue _ _ -> return res
-                SDone n b -> return $ SDone n b
-                Error err -> return $ Error err
+        else takeEndByDone pextract res
 
 -- | Like 'takeEndBy' but the separator elements can be escaped using an
 -- escape char determined by the first predicate. The escape characters are
@@ -1255,17 +1256,7 @@ takeEndByEsc isEsc isSep (Parser pstep pinitial pextract) =
             res <- pstep s a
             if not (isSep a)
             then return $ first Left' res
-            -- else fmap (first Left') $ extractStep pextract res
-            else
-                -- If the parser is backtracking we let it backtrack even if the
-                -- predicate is true.
-                fmap (first Left') $ case res of
-                    SPartial 1 s1 -> mapCount (+1) <$> pextract s1
-                    SPartial _ _ -> return res
-                    SContinue 1 s1 -> mapCount (+1) <$> pextract s1
-                    SContinue _ _ -> return res
-                    SDone n b -> return $ SDone n b
-                    Error err -> return $ Error err
+            else fmap (first Left') $ takeEndByDone pextract res
 
     step (Right' s) a = do
         res <- pstep s a

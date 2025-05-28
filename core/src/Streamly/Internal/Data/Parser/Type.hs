@@ -182,7 +182,6 @@ module Streamly.Internal.Data.Parser.Type
       Initial (..)
     -- (..) does not seem to export patterns yet the compiler complains it does.
     , Step(Partial, Continue, Done, SPartial, SContinue, SDone, Error)
-    -- , extractStep
     , mapCount
     , bimapOverrideCount
     , Parser (..)
@@ -294,11 +293,6 @@ instance Functor (Initial s) where
 -- the last segment where this parser failed or from the beginning.
 --
 -- Folds can only return the right values. Parsers can also return lefts.
-
--- XXX If we assume that the current position of the stream includes the
--- element being processed then we can use 'SPartial 0' in the common cases, no
--- change from current, and the change required would be just inverting the
--- sign of the arguments.
 
 -- | The return type of a 'Parser' step.
 --
@@ -423,36 +417,6 @@ bimapOverrideCount n f g step =
 instance Functor (Step s) where
     {-# INLINE fmap #-}
     fmap = second
-
-{-
-{-# INLINE assertStepCount #-}
-assertStepCount :: Int -> Step s b -> Step s b
-assertStepCount i step =
-    case step of
-        SPartial n _ -> assert (i == n) step
-        SContinue n _ -> assert (i == n) step
-        SDone n _ -> assert (i == n) step
-        Error _ -> step
-
--- | Map an extract function over the state of Step
---
-{-# INLINE extractStep #-}
-extractStep :: Monad m => (s -> m (Step s1 b)) -> Step s b -> m (Step s1 b)
-extractStep pextract res =
-    case res of
-    {-
-        SPartial n s1 -> assertStepCount n <$> f s1
-        SDone n b -> return $ SDone n b
-        SContinue n s1 -> assertStepCount n <$> f s1
-        Error err -> return $ Error err
-        -}
-        SPartial 1 s1 -> pextract s1
-        SPartial _ _ -> return res
-        SContinue 1 s1 -> pextract s1
-        SContinue _ _ -> return res
-        SDone n b -> return $ SDone n b
-        Error err -> return $ Error err
-        -}
 
 -- | Map a function over the count.
 --

@@ -14,7 +14,6 @@ where
 -- Imports
 --------------------------------------------------------------------------------
 
-import Debug.Trace (trace)
 import Streamly.Internal.Data.Parser (ParseError(..))
 import qualified Streamly.Internal.Data.Parser as P
 import Test.Hspec
@@ -31,19 +30,17 @@ data Move
 jumpParser :: Monad m => [Move] -> P.Parser Int m [Int]
 jumpParser jumps = P.Parser step initial done
     where
-    initial = trace (show jumps) (pure $ P.IPartial (jumps, []))
+    initial = pure $ P.IPartial (jumps, [])
 
     step ([], buf) _ = pure $ P.SDone 0 (reverse buf)
     step (action:xs, buf) a =
         case action of
             Consume n
-                | n == 1 -> trace ("Consume -- " ++ show a) (pure $ P.SContinue 1 (xs, a:buf))
+                | n == 1 -> pure $ P.SContinue 1 (xs, a:buf)
                 | n > 0 -> pure $ P.SContinue 1 (Consume (n - 1) : xs, a:buf)
                 | otherwise -> error "Cannot consume <= 0"
             Custom (P.SPartial i ()) -> pure $ P.SPartial i (xs, buf)
-            Custom (P.SContinue i ()) ->
-                trace ("SContinue -- " ++ show a)
-                (pure $ P.SContinue i (xs, buf))
+            Custom (P.SContinue i ()) -> pure $ P.SContinue i (xs, buf)
             Custom (P.SDone i ()) -> pure $ P.SDone i (reverse buf)
             Custom (P.Error err) -> pure $ P.Error err
 
@@ -82,16 +79,6 @@ expectedResult moves inp = go 0 0 [] moves
             go (i + n) j (ys ++ slice i n inp) xs
     go i j ys ((Custom step):xs)
         | i > inpLen = error "i > inpLen"
-        {-
-        | i == inpLen =
-              -- Where there is no input we do not move forward by default.
-              -- Hence it is (i - n) and not (i + 1 - n)
-              case step of
-                  P.SPartial n () -> go (i + n - 1) (max j (i + n - 1)) ys xs
-                  P.SContinue n () -> go (i + n - 1) j ys xs
-                  P.SDone n () -> (Right ys, slice_ (max (i + n - 1) j) inp)
-                  P.Error err -> (Left (ParseError err), slice_ j inp)
-                  -}
         | otherwise =
               case step of
                   P.SPartial n () -> go (i + n) (max j (i + n)) ys xs

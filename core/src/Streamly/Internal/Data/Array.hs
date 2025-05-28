@@ -1236,8 +1236,6 @@ adaptCWith pstep initial extract cont !offset0 !usedCount !input = do
                 move n = cur + n * elemSize
                 curOff = (cur - start) `div` elemSize
                 nextOff = (next - start) `div` elemSize
-            -- The "n" here is stream position index wrt the array start, and
-            -- not the backtrack count as returned by byte stream parsers.
             case pRes of
                 ParserD.SDone 1 b ->
                     onDone nextOff b
