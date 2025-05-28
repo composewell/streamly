@@ -234,7 +234,7 @@ takeWhileFailD predicate (Fold fstep finitial _ ffinal) =
             fres <- fstep s a
             return
                 $ case fres of
-                      Fold.Partial s1 -> SPartial 1 s1
+                      Fold.Partial s1 -> SContinue 1 s1
                       Fold.Done b -> SDone 1 b
         else return $ Error "fail"
 
