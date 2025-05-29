@@ -464,7 +464,7 @@ adaptWith pstep initial extract cont !relPos !usedCount !input = do
                 assert (n <= 0)
                     (cont (Success n b) (count + n) None)
             ParserD.SContinue n pst1 ->
-                assert (n >= 0)
+                assert (n <= 0)
                     (return $ Continue n (parseCont (count + n) pst1))
             ParserD.Error err ->
                 -- XXX It is called only when there is no input chunk. So using
