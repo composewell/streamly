@@ -149,9 +149,9 @@ word16beD = PRD.Parser step initial extract
     step Nothing' a =
         -- XXX We can use a non-failing parser or a fold so that we do not
         -- have to buffer for backtracking which is inefficient.
-        return $ PRD.Continue 0 (Just' (fromIntegral a `unsafeShiftL` 8))
+        return $ PRD.SContinue 1 (Just' (fromIntegral a `unsafeShiftL` 8))
     step (Just' w) a =
-        return $ PRD.Done 0 (w .|. fromIntegral a)
+        return $ PRD.SDone 1 (w .|. fromIntegral a)
 
     extract _ = return $ PRD.Error "word16be: end of input"
 
@@ -174,9 +174,9 @@ word16leD = PRD.Parser step initial extract
     initial = return $ PRD.IPartial Nothing'
 
     step Nothing' a =
-        return $ PRD.Continue 0 (Just' (fromIntegral a))
+        return $ PRD.SContinue 1 (Just' (fromIntegral a))
     step (Just' w) a =
-        return $ PRD.Done 0 (w .|. fromIntegral a `unsafeShiftL` 8)
+        return $ PRD.SDone 1 (w .|. fromIntegral a `unsafeShiftL` 8)
 
     extract _ = return $ PRD.Error "word16le: end of input"
 
@@ -202,8 +202,8 @@ word32beD = PRD.Parser step initial extract
         if sh /= 0
         then
             let w1 = w .|. (fromIntegral a `unsafeShiftL` sh)
-             in PRD.Continue 0 (Tuple' w1 (sh - 8))
-        else PRD.Done 0 (w .|. fromIntegral a)
+             in PRD.SContinue 1 (Tuple' w1 (sh - 8))
+        else PRD.SDone 1 (w .|. fromIntegral a)
 
     extract _ = return $ PRD.Error "word32beD: end of input"
 
@@ -228,8 +228,8 @@ word32leD = PRD.Parser step initial extract
     step (Tuple' w sh) a = return $
         let w1 = w .|. (fromIntegral a `unsafeShiftL` sh)
          in if sh /= 24
-            then PRD.Continue 0 (Tuple' w1 (sh + 8))
-            else PRD.Done 0 w1
+            then PRD.SContinue 1 (Tuple' w1 (sh + 8))
+            else PRD.SDone 1 w1
 
     extract _ = return $ PRD.Error "word32leD: end of input"
 
@@ -255,8 +255,8 @@ word64beD = PRD.Parser step initial extract
         if sh /= 0
         then
             let w1 = w .|. (fromIntegral a `unsafeShiftL` sh)
-             in PRD.Continue 0 (Tuple' w1 (sh - 8))
-        else PRD.Done 0 (w .|. fromIntegral a)
+             in PRD.SContinue 1 (Tuple' w1 (sh - 8))
+        else PRD.SDone 1 (w .|. fromIntegral a)
 
     extract _ = return $ PRD.Error "word64beD: end of input"
 
@@ -281,8 +281,8 @@ word64leD = PRD.Parser step initial extract
     step (Tuple' w sh) a = return $
         let w1 = w .|. (fromIntegral a `unsafeShiftL` sh)
          in if sh /= 56
-            then PRD.Continue 0 (Tuple' w1 (sh + 8))
-            else PRD.Done 0 w1
+            then PRD.SContinue 1 (Tuple' w1 (sh + 8))
+            else PRD.SDone 1 w1
 
     extract _ = return $ PRD.Error "word64leD: end of input"
 

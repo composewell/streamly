@@ -153,6 +153,9 @@ module Streamly.Internal.Data.Stream.Type
     , eqBy
     , cmpBy
 
+    -- * Utilities
+    , splitAt
+
     -- * Deprecated
     , sliceOnSuffix
     , unfoldMany
@@ -182,7 +185,7 @@ import GHC.Base (build)
 import GHC.Exts (IsList(..), IsString(..), oneShot)
 import GHC.Types (SPEC(..))
 import Prelude hiding
-    (head, map, mapM, take, concatMap, takeWhile, zipWith, concat)
+    (head, map, mapM, take, concatMap, takeWhile, zipWith, concat, splitAt)
 import Text.Read
        ( Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec
        , readListPrecDefault)
@@ -2314,3 +2317,41 @@ instance MonadTrans CrossStream where
 
 instance (MonadThrow m) => MonadThrow (CrossStream m) where
     throwM = lift . throwM
+
+------------------------------------------------------------------------------
+-- Utilities
+------------------------------------------------------------------------------
+
+-- | Inlined definition. Without the inline "serially/parser/take" benchmark
+-- degrades and parseMany does not fuse. Even using "inline" at the callsite
+-- does not help.
+{-# INLINE splitAt #-}
+splitAt :: String -> Int -> [a] -> ([a],[a])
+splitAt desc n ls
+  | n < 0 = seekOver n
+  | n == 0 = ([], ls)
+  | otherwise = splitAt' n ls
+
+    where
+
+    splitAt' :: Int -> [a] -> ([a], [a])
+    splitAt' 0  []     = ([], [])
+    splitAt' m  []     = seekUnder n m
+    splitAt' 1  (x:xs) = ([x], xs)
+    splitAt' m  (x:xs) = (x:xs', xs'')
+
+        where
+
+        (xs', xs'') = splitAt' (m - 1) xs
+
+    seekOver x =
+        error $ desc ++ ": bug in parser, seeking ["
+            ++ show (negate x)
+            ++ "] elements in future"
+
+    seekUnder x y =
+        error $ desc ++ ": bug in parser, backtracking ["
+            ++ show x
+            ++ "] elements. Goes ["
+            ++ show y
+            ++ "] elements beyond backtrack buffer"
