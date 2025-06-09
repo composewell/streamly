@@ -281,6 +281,7 @@ module Streamly.Internal.Data.MutArray.Type
     , snoc
     , snocGrowBy
     , snocMay
+    , snoc1KB
     , unsafeSnoc
 
  -- , revSnoc -- cons
@@ -496,12 +497,12 @@ module Streamly.Internal.Data.MutArray.Type
     , splitOn
     , pinnedNewAligned
     , unsafePinnedAsPtr
-    , grow -- XXX to be deprecated
-    , createWith -- XXX to be deprecated
-    , snocLinear -- XXX deprecate, replace by snocGrowBy or rename snoc1KB
-    , unsafeAppendN -- XXX deprecate, replaced by unsafeAppendMax
-    , appendN -- XXX deprecate, replaced by appendMax
-    , append -- XXX deprecate, replaced by append2
+    , grow
+    , createWith
+    , snocLinear
+    , unsafeAppendN
+    , appendN
+    , append
     )
 where
 
@@ -1151,8 +1152,7 @@ growTo nElems arr@MutArray{..} = do
     then return arr
     else realloc req arr
 
-{-# INLINE grow #-}
-grow = growTo
+RENAME(grow,growTo)
 
 -- | Like 'growTo' but specifies the required reserve (unused) capacity rather
 -- than the total capacity. Increases the reserve capacity, if required, to at
@@ -1334,9 +1334,10 @@ snocWith sizer arr x = do
 -- Performs O(n^2) copies to grow but is thrifty on memory.
 --
 -- /Pre-release/
-{-# INLINE snocLinear #-}
-snocLinear :: forall m a. (MonadIO m, Unbox a) => MutArray a -> a -> m (MutArray a)
-snocLinear = snocWith (+ allocBytesToBytes (undefined :: a) arrayChunkBytes)
+{-# INLINE snoc1KB #-}
+snocLinear, snoc1KB :: forall m a. (MonadIO m, Unbox a) => MutArray a -> a -> m (MutArray a)
+snoc1KB = snocWith (+ allocBytesToBytes (undefined :: a) arrayChunkBytes)
+RENAME(snocLinear,snoc1KB)
 
 -- | The array is mutated to append an additional element to it.
 --
@@ -2351,6 +2352,7 @@ foldRev f arr = D.fold f (readRev arr)
 -- Any free space left in the array after appending @n@ elements is lost.
 --
 -- /Internal/
+{-# DEPRECATED unsafeAppendN "Please use unsafeAppendMax instead." #-}
 {-# INLINE_NORMAL unsafeAppendN #-}
 unsafeAppendN :: forall m a. (MonadIO m, Unbox a) =>
        Int
@@ -2428,6 +2430,7 @@ writeAppendNUnsafe = unsafeAppendN
 --
 -- >>> appendN n initial = Fold.take n (MutArray.unsafeAppendN n initial)
 --
+{-# DEPRECATED appendN "Please use appendMax instead." #-}
 {-# INLINE_NORMAL appendN #-}
 appendN :: forall m a. (MonadIO m, Unbox a) =>
     Int -> m (MutArray a) -> Fold m a (MutArray a)
@@ -2481,6 +2484,7 @@ writeAppendWith = appendWith
 --
 -- >>> append = Fold.foldlM' MutArray.snoc
 --
+{-# DEPRECATED append "Please use append2 instead." #-}
 {-# INLINE append #-}
 append :: forall m a. (MonadIO m, Unbox a) =>
     m (MutArray a) -> Fold m a (MutArray a)
@@ -2824,7 +2828,7 @@ createMinOf, createWith :: forall m a. (MonadIO m, Unbox a)
 -- createWith n = FL.rmapM rightSize $ appendWith (* 2) (emptyOf n)
 createMinOf = writeWithAs Unpinned
 
-createWith = createMinOf
+RENAME(createWith,createMinOf)
 
 {-# DEPRECATED writeWith "Please use createMinOf instead." #-}
 {-# INLINE writeWith #-}
