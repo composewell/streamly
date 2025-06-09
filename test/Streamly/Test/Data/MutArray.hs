@@ -41,8 +41,9 @@ testAppend =
         where
 
         action ls = do
+            arr0 <- MArray.emptyOf' 0
             x <- Stream.fold
-                    (MArray.append (MArray.emptyOf' 0))
+                    (MArray.append2 arr0)
                     (Stream.fromList (ls::[Int]))
             lst <- MArray.toList x
             assert (ls == lst)
