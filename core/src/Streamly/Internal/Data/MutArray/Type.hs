@@ -281,7 +281,6 @@ module Streamly.Internal.Data.MutArray.Type
     , snoc
     , snocGrowBy
     , snocMay
-    , snoc1KB
     , unsafeSnoc
 
  -- , revSnoc -- cons
@@ -1334,10 +1333,10 @@ snocWith sizer arr x = do
 -- Performs O(n^2) copies to grow but is thrifty on memory.
 --
 -- /Pre-release/
-{-# INLINE snoc1KB #-}
-snocLinear, snoc1KB :: forall m a. (MonadIO m, Unbox a) => MutArray a -> a -> m (MutArray a)
-snoc1KB = snocWith (+ allocBytesToBytes (undefined :: a) arrayChunkBytes)
-RENAME(snocLinear,snoc1KB)
+{-# DEPRECATED snocLinear "Please use snocGrowBy instead. snocLinear ~ snocGrowBy (1024 / sizeOf (Proxy :: Proxy a) + 1)" #-}
+{-# INLINE snocLinear #-}
+snocLinear :: forall m a. (MonadIO m, Unbox a) => MutArray a -> a -> m (MutArray a)
+snocLinear = snocWith (+ allocBytesToBytes (undefined :: a) arrayChunkBytes)
 
 -- | The array is mutated to append an additional element to it.
 --
