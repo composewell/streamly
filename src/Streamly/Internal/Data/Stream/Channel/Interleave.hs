@@ -65,7 +65,7 @@ workLoopFIFO q sv winfo = run
     run = do
         work <- liftIO $ tryPopR q
         case work of
-            Nothing -> liftIO $ stopWith winfo sv
+            Nothing -> return ()
             Just (RunInIO runin, m) -> do
                 r <- liftIO
                         $ runin
@@ -74,7 +74,7 @@ workLoopFIFO q sv winfo = run
                 res <- restoreM r
                 case res of
                     Continue -> run
-                    Suspend -> liftIO $ stopWith winfo sv
+                    Suspend -> return ()
 
     single a = do
         res <- liftIO $ yieldWith winfo sv a
@@ -109,7 +109,7 @@ workLoopFIFOLimited q sv winfo = run
     run = do
         work <- liftIO $ tryPopR q
         case work of
-            Nothing -> liftIO $ stopWith winfo sv
+            Nothing -> return ()
             Just (RunInIO runin, m) -> do
                 yieldLimitOk <- liftIO $ decrementYieldLimit (remainingWork sv)
                 if yieldLimitOk
@@ -121,11 +121,10 @@ workLoopFIFOLimited q sv winfo = run
                     res <- restoreM r
                     case res of
                         Continue -> run
-                        Suspend -> liftIO $ stopWith winfo sv
+                        Suspend -> return ()
                 else liftIO $ do
                     enqueueFIFO sv q (RunInIO runin, m)
                     incrementYieldLimit (remainingWork sv)
-                    stopWith winfo sv
 
     single a = do
         res <- liftIO $ yieldWith winfo sv a
@@ -162,6 +161,7 @@ getFifoSVar mrun cfg = do
     yl      <- case getYieldLimit cfg of
                 Nothing -> return Nothing
                 Just x -> Just <$> newIORef x
+    stopRef <- newIORef False
     rateInfo <- newRateInfo cfg
 
     stats <- newSVarStats
@@ -198,6 +198,7 @@ getFifoSVar mrun cfg = do
             , postProcess      = postProc sv
             , workerThreads    = running
             , workLoop         = wloop q sv
+            , channelStopped   = stopRef
             , enqueue          = enqueueFIFO sv q
             , eagerDispatch    = return ()
             , isWorkDone       = workDone sv
