@@ -104,25 +104,31 @@ import qualified Streamly.Internal.Data.Parser.Type as ParserD
 -- XXX Rename Chunk to Some.
 data Input a = None | Chunk a
 
--- XXX Step should be renamed to StepResult.
--- XXX and StepParser should be just Step.
+-- Note: Step should ideally be called StepResult and StepParser should be just
+-- Step, but then it will not be consistent with Parser/Stream.
 
--- | A parsing function that parses a single input.
+-- Using "Input" in runParser is not necessary but it avoids making
+-- one more function call to get the input. This could be helpful
+-- for cases where we process just one element per call.
+
+-- | A parsing function that parses a single input object.
 type StepParser a m r = Input a -> m (Step a m r)
 
 -- | The intermediate result of running a parser step. The parser driver may
--- stop with a final result, pause with a continuation to resume, or fail with
--- an error.
+-- (1) stop with a final result ('Done') with no more inputs to be accepted,
+-- (2) generate an intermediate result ('Partial') and accept more inputs, (3)
+-- generate no result but wait for more input ('Continue'), (4) or fail with an
+-- error ('Error').
 --
--- See ParserD docs. This is the same as the ParserD Step except that it uses a
--- continuation in Partial and Continue constructors instead of a state in case
--- of ParserD.
+-- The Int is a count by which the current stream position should be adjusted
+-- before calling the next parsing step.
+--
+-- See the documentation of 'Streamly.Data.Parser.Step' for more details, this
+-- has the same semantics.
 --
 -- /Pre-release/
 --
 data Step a m r =
-    -- The Int is the current stream position index wrt to the start of the
-    -- array.
       Done !Int r
     | Partial !Int (StepParser a m r)
     | Continue !Int (StepParser a m r)
@@ -160,40 +166,48 @@ instance Functor ParseResult where
 --
 -- Use Step itself in place of ParseResult.
 
--- | A continuation passing style parser representation. A continuation of
--- 'Step's, each step passes a state and a parse result to the next 'Step'. The
--- resulting 'Step' may carry a continuation that consumes input 'a' and
--- results in another 'Step'. Essentially, the continuation may either consume
--- input without a result or return a result with no further input to be
--- consumed.
+-- | A continuation passing style parser representation. A parser is a
+-- continuation of 'Step's, each step passes a state and a parse result to the
+-- next 'Step'. The resulting 'Step' may carry a continuation that consumes
+-- input 'a' and results in another 'Step'. Essentially, the continuation may
+-- either consume input without a result or return a result with no further
+-- input to be consumed.
+--
+-- The first argument of runParser is a continuation to be invoked after the
+-- parser is done, it is of the following shape:
+--
+-- >> ParseResult b -> Int -> StepParser a m r
+--
+-- First argument of the continuation is the 'ParseResult'. The current stream
+-- position is carried as part of the 'Success' or 'Failure' constructors of
+-- 'ParseResult'. The second argument of the continuation is a count of the
+-- elements used in the current alterantive of an alternative composition, if
+-- the alternative fails we need to backtrack by this amount before invoking
+-- the next alternative.
+--
+-- The second argument of runParser is the incoming stream position adjustment.
+-- The parser needs to adjust the current position of the stream by this amount
+-- before consuming any input. A positive value means move forward by that much
+-- in the stream and a negative value means backward. See the 'Step' and
+-- 'Streamly.Data.Parser.Step' documentation for more details.
+--
+-- The third argument is the incoming cumulative used element count for the
+-- current alternative, same as described for the continuation above.
 --
 newtype ParserK a m b = MkParser
     { runParser :: forall r.
-           -- Using "Input" in runParser is not necessary but it avoids making
-           -- one more function call to get the input. This could be helpful
-           -- for cases where we process just one element per call.
-           --
            -- Do not eta reduce the applications of this continuation.
-           --
-           -- The current stream position index is carried as part of 'Success'
-           -- constructor of 'ParseResult'. The second argument is the used
-           -- elem count.
+           -- Continuation to be invoked after the parser is done
            (ParseResult b -> Int -> StepParser a m r)
            -- XXX Maintain and pass the original position in the stream. that
            -- way we can also report better errors. Use a Context structure for
            -- passing the state.
-
-           -- Stream position index wrt to the current input array start. If
-           -- negative then backtracking is required before using the array.
-           -- The parser should use "Continue -n" in this case if it needs to
-           -- consume input. Negative value cannot be beyond the current
-           -- backtrack buffer. Positive value cannot be beyond array length.
-           -- If the parser needs to advance beyond the array length it should
-           -- use "Continue +n".
+           --
+           -- stream position adjustment before the parser starts.
         -> Int
-           -- used elem count, a count of elements consumed by the parser. If
-           -- an Alternative fails we need to backtrack by this amount.
+           -- initial used count for the current alternative.
         -> Int
+            -- final parse result, when the last continuation is done.
         -> StepParser a m r
     }
 
@@ -410,28 +424,33 @@ adaptWith pstep initial extract cont !relPos !usedCount !input = do
             r <- pstep pst x
             case r of
                 -- Done, call the next continuation
-                ParserD.Done 0 b ->
+                ParserD.SDone 1 b ->
                     cont (Success 1 b) (count + 1) (Chunk x)
-                ParserD.Done 1 b ->
+                ParserD.SDone 0 b ->
                     cont (Success 0 b) count (Chunk x)
-                ParserD.Done n b -> -- n > 1
-                    cont (Success (1 - n) b) (count + 1 - n) (Chunk x)
+                ParserD.SDone m b -> -- n > 1
+                    let n = 1 - m
+                     in cont (Success (1 - n) b) (count + 1 - n) (Chunk x)
 
                 -- Not done yet, return the parseCont continuation
-                ParserD.Partial 0 pst1 ->
+                ParserD.SPartial 1 pst1 ->
                     pure $ Partial 1 (parseCont (count + 1) pst1)
-                ParserD.Partial 1 pst1 ->
+                ParserD.SPartial 0 pst1 ->
+                    -- XXX if we recurse we are not dropping backtrack buffer
+                    -- on partial.
                     -- XXX recurse or call the driver?
                     go SPEC pst1
-                ParserD.Partial n pst1 -> -- n > 0
-                    pure $ Partial (1 - n) (parseCont (count + 1 - n) pst1)
-                ParserD.Continue 0 pst1 ->
+                ParserD.SPartial m pst1 -> -- n > 0
+                    let n = 1 - m
+                     in pure $ Partial (1 - n) (parseCont (count + 1 - n) pst1)
+                ParserD.SContinue 1 pst1 ->
                     pure $ Continue 1 (parseCont (count + 1) pst1)
-                ParserD.Continue 1 pst1 ->
+                ParserD.SContinue 0 pst1 ->
                     -- XXX recurse or call the driver?
                     go SPEC pst1
-                ParserD.Continue n pst1 -> -- n > 0
-                    pure $ Continue (1 - n) (parseCont (count + 1 - n) pst1)
+                ParserD.SContinue m pst1 -> -- n > 0
+                    let n = 1 - m
+                     in pure $ Continue (1 - n) (parseCont (count + 1 - n) pst1)
 
                 -- Error case
                 ParserD.Error err ->
@@ -441,20 +460,17 @@ adaptWith pstep initial extract cont !relPos !usedCount !input = do
     parseContNothing !count !pst = do
         r <- extract pst
         case r of
-            -- IMPORTANT: the n here is from the byte stream parser, that means
-            -- it is the backtrack element count and not the stream position
-            -- index into the current input chunk.
-            ParserD.Done n b ->
-                assert (n >= 0)
-                    (cont (Success (- n) b) (count - n) None)
-            ParserD.Continue n pst1 ->
-                assert (n >= 0)
-                    (return $ Continue (- n) (parseCont (count - n) pst1))
+            ParserD.SDone n b ->
+                assert (n <= 0)
+                    (cont (Success n b) (count + n) None)
+            ParserD.SContinue n pst1 ->
+                assert (n <= 0)
+                    (return $ Continue n (parseCont (count + n) pst1))
             ParserD.Error err ->
                 -- XXX It is called only when there is no input chunk. So using
                 -- 0 as the position is correct?
                 cont (Failure 0 err) count None
-            ParserD.Partial _ _ -> error "Bug: adaptWith Partial unreachable"
+            ParserD.SPartial _ _ -> error "Bug: adaptWith Partial unreachable"
 
     -- XXX Maybe we can use two separate continuations instead of using
     -- Just/Nothing cases here. That may help in avoiding the parseContJust
@@ -482,8 +498,12 @@ RENAME(adapt,parserK)
 {-# INLINE parserDone #-}
 parserDone :: Applicative m =>
     ParseResult b -> Int -> Input a -> m (Step a m b)
-parserDone (Success n b) _ _ = assert(n <= 1) `seq` pure (Done n b)
-parserDone (Failure n e) _ _ = assert(n <= 1) `seq` pure (Error n e)
+parserDone (Success n b) _ _ =
+    -- trace ("parserDone Success n: " ++ show n) $
+        assert(n <= 1) `seq` pure (Done n b)
+parserDone (Failure n e) _ _ =
+    -- trace ("parserDone Failure n: " ++ show n) $
+        assert(n <= 1) `seq` pure (Error n e)
 
 -- XXX Note that this works only for single element parsers and not for Array
 -- input parsers. The asserts will fail for array parsers.
@@ -503,21 +523,19 @@ toParser parser = ParserD.Parser step initial extract
     step cont a = do
         r <- cont (Chunk a)
         return $ case r of
-            Done n b -> assert (n <= 1) (ParserD.Done (1 - n) b)
+            Done n b -> assert (n <= 1) (ParserD.SDone n b)
             Error _ e -> ParserD.Error e
-            Partial n cont1 -> assert (n <= 1) (ParserD.Partial (1 - n) cont1)
-            Continue n cont1 -> assert (n <= 1) (ParserD.Continue (1 - n) cont1)
+            Partial n cont1 -> assert (n <= 1) (ParserD.SPartial n cont1)
+            Continue n cont1 -> assert (n <= 1) (ParserD.SContinue n cont1)
 
     extract cont = do
         r <- cont None
         case r of
-            -- This is extract so no input has been given, therefore, the
-            -- translation here is (0 - n) rather than (1 - n).
-            Done n b ->  assert (n <= 0) (return $ ParserD.Done (negate n) b)
+            Done n b ->  assert (n <= 0) (return $ ParserD.SDone n b)
             Error _ e -> return $ ParserD.Error e
             Partial _ cont1 -> extract cont1
             Continue n cont1 ->
-                assert (n <= 0) (return $ ParserD.Continue (negate n) cont1)
+                assert (n <= 0) (return $ ParserD.SContinue n cont1)
 
 {-# RULES "fromParser/toParser fusion" [2]
     forall s. toParser (parserK s) = s #-}

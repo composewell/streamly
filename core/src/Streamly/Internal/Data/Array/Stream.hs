@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wno-deprecations #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 -- |
 -- Module      : Streamly.Internal.Data.Array.Stream
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -293,8 +294,7 @@ parseBreak ::
 parseBreak p s =
     fmap fromStreamD <$> parseBreakD (PRD.fromParserK p) (toStreamD s)
 -}
-parseBreak = Array.parseBreakChunksK
--- parseBreak p = K.parseBreakChunks (ParserK.adaptC p)
+parseBreak p = Array.parseBreak (Array.parserK p)
 
 -------------------------------------------------------------------------------
 -- Elimination - Running Array Folds and parsers

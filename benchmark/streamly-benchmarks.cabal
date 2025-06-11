@@ -197,10 +197,11 @@ common bench-depends
     , tasty-bench       >= 0.3 && < 0.5
     , tasty             >= 1.4.1 && < 1.6
     , streamly-core
-    , bench-test-lib
 
   if !flag(use-streamly-core)
-    build-depends: streamly
+    build-depends:
+          streamly
+        , bench-test-lib
 
   if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
     build-depends:
