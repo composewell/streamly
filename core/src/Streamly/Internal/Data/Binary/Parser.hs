@@ -61,7 +61,7 @@ import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Parser as PR
     (fromPure, either, satisfy, takeEQ)
 import qualified Streamly.Internal.Data.Parser as PRD
-    (Parser(..), Initial(..), Step(..))
+    (Parser(..), Initial(..), Step(..), Final(..))
 
 -- Note: The () type does not need to have an on-disk representation in theory.
 -- But we use a concrete representation for it so that we count how many ()
@@ -153,7 +153,7 @@ word16beD = PRD.Parser step initial extract
     step (Just' w) a =
         return $ PRD.SDone 1 (w .|. fromIntegral a)
 
-    extract _ = return $ PRD.Error "word16be: end of input"
+    extract _ = return $ PRD.FError "word16be: end of input"
 
 -- | Parse two bytes as a 'Word16', the first byte is the MSB of the Word16 and
 -- second byte is the LSB (big endian representation).
@@ -178,7 +178,7 @@ word16leD = PRD.Parser step initial extract
     step (Just' w) a =
         return $ PRD.SDone 1 (w .|. fromIntegral a `unsafeShiftL` 8)
 
-    extract _ = return $ PRD.Error "word16le: end of input"
+    extract _ = return $ PRD.FError "word16le: end of input"
 
 -- | Parse two bytes as a 'Word16', the first byte is the LSB of the Word16 and
 -- second byte is the MSB (little endian representation).
@@ -205,7 +205,7 @@ word32beD = PRD.Parser step initial extract
              in PRD.SContinue 1 (Tuple' w1 (sh - 8))
         else PRD.SDone 1 (w .|. fromIntegral a)
 
-    extract _ = return $ PRD.Error "word32beD: end of input"
+    extract _ = return $ PRD.FError "word32beD: end of input"
 
 -- | Parse four bytes as a 'Word32', the first byte is the MSB of the Word32
 -- and last byte is the LSB (big endian representation).
@@ -231,7 +231,7 @@ word32leD = PRD.Parser step initial extract
             then PRD.SContinue 1 (Tuple' w1 (sh + 8))
             else PRD.SDone 1 w1
 
-    extract _ = return $ PRD.Error "word32leD: end of input"
+    extract _ = return $ PRD.FError "word32leD: end of input"
 
 -- | Parse four bytes as a 'Word32', the first byte is the MSB of the Word32
 -- and last byte is the LSB (big endian representation).
@@ -258,7 +258,7 @@ word64beD = PRD.Parser step initial extract
              in PRD.SContinue 1 (Tuple' w1 (sh - 8))
         else PRD.SDone 1 (w .|. fromIntegral a)
 
-    extract _ = return $ PRD.Error "word64beD: end of input"
+    extract _ = return $ PRD.FError "word64beD: end of input"
 
 -- | Parse eight bytes as a 'Word64', the first byte is the MSB of the Word64
 -- and last byte is the LSB (big endian representation).
@@ -284,7 +284,7 @@ word64leD = PRD.Parser step initial extract
             then PRD.SContinue 1 (Tuple' w1 (sh + 8))
             else PRD.SDone 1 w1
 
-    extract _ = return $ PRD.Error "word64leD: end of input"
+    extract _ = return $ PRD.FError "word64leD: end of input"
 
 -- | Parse eight bytes as a 'Word64', the first byte is the MSB of the Word64
 -- and last byte is the LSB (big endian representation).

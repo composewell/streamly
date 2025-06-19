@@ -3738,8 +3738,8 @@ pCompactLeAs ps maxElems = Parser step initial extract
                 buf2 <- unsafeSplice buf1 arr
                 return $ Parser.SPartial 1 (Just buf2)
 
-    extract Nothing = return $ Parser.SDone 0 nil
-    extract (Just buf) = return $ Parser.SDone 0 buf
+    extract Nothing = return $ Parser.FDone 0 nil
+    extract (Just buf) = return $ Parser.FDone 0 buf
 
 -- | Parser @createCompactMax maxElems@ coalesces adjacent arrays in the
 -- input stream only if the combined size would be less than or equal to

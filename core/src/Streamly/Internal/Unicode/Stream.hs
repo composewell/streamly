@@ -542,9 +542,9 @@ parseCharUtf8WithD cfm = ParserD.Parser (step' utf8d) initial extract
     extract (UTF8CharDecoding _ _) =
         case cfm of
             ErrorOnCodingFailure ->
-                return $ ParserD.Error $ prefix ++ "Not enough input"
+                return $ ParserD.FError $ prefix ++ "Not enough input"
             TransliterateCodingFailure ->
-                return (ParserD.SDone 0 replacementChar)
+                return (ParserD.FDone 0 replacementChar)
             -- XXX We shouldn't error out here. There is no way to represent an
             -- empty parser result unless we return a "Maybe" type.
             DropOnCodingFailure -> error $ prefix ++ "Not enough input"

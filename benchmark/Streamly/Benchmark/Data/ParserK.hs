@@ -31,7 +31,7 @@ import Streamly.Data.Array.Generic (Array)
 import Streamly.Internal.Data.Fold (Fold(..))
 import Streamly.Data.StreamK (StreamK)
 import Streamly.Internal.Data.Parser
-    (ParseError(..), Parser(..), Initial(..), Step(..))
+    (ParseError(..), Parser(..), Initial(..), Step(..), Final(..))
 import Streamly.Internal.Data.Stream (Stream)
 import System.Random (randomRIO)
 import Prelude hiding
@@ -238,7 +238,7 @@ takeWhileFailD predicate (Fold fstep finitial _ ffinal) =
                       Fold.Done b -> SDone 1 b
         else return $ Error "fail"
 
-    extract s = fmap (SDone 0) (ffinal s)
+    extract s = fmap (FDone 0) (ffinal s)
 
 {-# INLINE takeWhileFail #-}
 takeWhileFail :: CONSTRAINT =>

@@ -1167,7 +1167,7 @@ adaptCWith
     :: forall m a s b r. (Monad m, Unbox a)
     => (s -> a -> m (ParserD.Step s b))
     -> m (ParserD.Initial s b)
-    -> (s -> m (ParserD.Step s b))
+    -> (s -> m (ParserD.Final s b))
     -> (ParseResult b -> Int -> Input (Array a) -> m (Step (Array a) m r))
     -> Int
     -> Int
@@ -1262,16 +1262,15 @@ adaptCWith pstep initial extract cont !offset0 !usedCount !input = do
     parseContNothing !count !pst = do
         r <- extract pst
         case r of
-            ParserD.SDone n b ->
+            ParserD.FDone n b ->
                 assert (n <= 0) (cont (Success n b) (count + n) None)
-            ParserD.SContinue n pst1 ->
+            ParserD.FContinue n pst1 ->
                 assert (n <= 0)
                     (return $ Continue n (parseCont (count + n) pst1))
-            ParserD.Error err ->
+            ParserD.FError err ->
                 -- XXX It is called only when there is no input arr. So using 0
                 -- as the position is correct?
                 cont (Failure 0 err) count None
-            ParserD.SPartial _ _ -> error "Bug: adaptCWith Partial unreachable"
 
     -- XXX Maybe we can use two separate continuations instead of using
     -- Just/Nothing cases here. That may help in avoiding the parseContJust

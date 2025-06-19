@@ -320,11 +320,10 @@ toFold (Parser pstep pinitial pextract) = Fold step initial extract final
     final st = do
         r <- pextract st
         case r of
-            SDone 0 b -> return b
-            SPartial n _ -> perror n
-            SContinue n _ -> cerror n
-            SDone n _ -> derror n
-            Error err -> eerror err
+            FDone 0 b -> return b
+            FContinue n _ -> cerror n
+            FDone n _ -> derror n
+            FError err -> eerror err
 
 -------------------------------------------------------------------------------
 -- Upgrade folds to parses
@@ -353,7 +352,7 @@ fromFold (Fold fstep finitial _ ffinal) = Parser step initial extract
                   FL.Partial s1 -> SPartial 1 s1
                   FL.Done b -> SDone 1 b
 
-    extract = fmap (SDone 0) . ffinal
+    extract = fmap (FDone 0) . ffinal
 
 -- | Convert a Maybe returning fold to an error returning parser. The first
 -- argument is the error message that the parser would return when the fold
@@ -391,8 +390,8 @@ fromFoldMaybe errMsg (Fold fstep finitial _ ffinal) =
     extract s = do
         res <- ffinal s
         case res of
-            Just x -> return $ SDone 0 x
-            Nothing -> return $ Error errMsg
+            Just x -> return $ FDone 0 x
+            Nothing -> return $ FError errMsg
 
 -------------------------------------------------------------------------------
 -- Failing Parsers
@@ -418,7 +417,7 @@ peek = Parser step initial extract
 
     step () a = return $ SDone 0 a
 
-    extract () = return $ Error "peek: end of input"
+    extract () = return $ FError "peek: end of input"
 
 -- | Succeeds if we are at the end of input, fails otherwise.
 --
@@ -435,7 +434,7 @@ eof = Parser step initial extract
 
     step () _ = return $ Error "eof: not at end of input"
 
-    extract () = return $ SDone 0 ()
+    extract () = return $ FDone 0 ()
 
 -- | Return the next element of the input. Returns 'Nothing'
 -- on end of input. Also known as 'head'.
@@ -453,7 +452,7 @@ next = Parser step initial extract
 
   step () a = pure $ SDone 1 (Just a)
 
-  extract () = pure $ SDone 0 Nothing
+  extract () = pure $ FDone 0 Nothing
 
 -- | Map an 'Either' returning function on the next element in the stream.  If
 -- the function returns 'Left err', the parser fails with the error message
@@ -474,7 +473,7 @@ either f = Parser step initial extract
             Right b -> SDone 1 b
             Left err -> Error err
 
-    extract () = return $ Error "end of input"
+    extract () = return $ FError "end of input"
 
 -- | Map a 'Maybe' returning function on the next element in the stream. The
 -- parser fails if the function returns 'Nothing' otherwise returns the 'Just'
@@ -501,7 +500,7 @@ maybe parserF = Parser step initial extract
             Just b -> SDone 1 b
             Nothing -> Error "maybe: predicate failed"
 
-    extract () = return $ Error "maybe: end of input"
+    extract () = return $ FError "maybe: end of input"
 
 -- | Returns the next element if it passes the predicate, fails otherwise.
 --
@@ -525,7 +524,7 @@ satisfy predicate = Parser step initial extract
         then SDone 1 a
         else Error "satisfy: predicate failed"
 
-    extract () = return $ Error "satisfy: end of input"
+    extract () = return $ FError "satisfy: end of input"
 
 -- | Consume one element from the head of the stream.  Fails if it encounters
 -- end of input.
@@ -707,8 +706,8 @@ takeBetween low high (Fold fstep finitial _ ffinal) =
     step (Tuple'Fused i s) a = fstep s a >>= snext i
 
     extract f (Tuple'Fused i s)
-        | i >= low && i <= high = fmap (SDone 0) (ffinal s)
-        | otherwise = return $ Error (f i)
+        | i >= low && i <= high = fmap (FDone 0) (ffinal s)
+        | otherwise = return $ FError (f i)
 
     -- XXX Need to make Initial return type Step to deduplicate this
     iextract f (Tuple'Fused i s)
@@ -770,7 +769,7 @@ takeEQ n (Fold fstep finitial _ ffinal) = Parser step initial extract
         -- Using the count "i" in the message below causes large performance
         -- regression unless we use Fuse annotation on Tuple.
         return
-            $ Error
+            $ FError
             $ "takeEQ: Expecting exactly " ++ show n
                 ++ " elements, input terminated on " ++ show (i - 1)
 
@@ -840,10 +839,10 @@ takeGE n (Fold fstep finitial _ ffinal) = Parser step initial extract
 
     extract (TakeGELT i _) =
         return
-            $ Error
+            $ FError
             $ "takeGE: Expecting at least " ++ show n
                 ++ " elements, input terminated on " ++ show (i - 1)
-    extract (TakeGEGE r) = fmap (SDone 0) $ ffinal r
+    extract (TakeGEGE r) = fmap (FDone 0) $ ffinal r
 
 -------------------------------------------------------------------------------
 -- Conditional splitting
@@ -879,10 +878,9 @@ takeWhileP predicate (Parser pstep pinitial pextract) =
             r <- pextract s
             -- XXX need a map on count
             case r of
-                Error err -> return $ Error err
-                SDone n s1 -> return $ SDone (n - 1) s1
-                SPartial _ _ -> error "Bug: takeWhileP: SPartial in extract"
-                SContinue n s1 -> return $ SContinue (n - 1) s1
+                FError err -> return $ Error err
+                FDone n s1 -> return $ SDone (n - 1) s1
+                FContinue n s1 -> return $ SContinue (n - 1) s1
 
 -- | Collect stream elements until an element fails the predicate. The element
 -- on which the predicate fails is returned back to the input stream.
@@ -925,7 +923,7 @@ takeWhile predicate (Fold fstep finitial _ ffinal) =
                       FL.Done b -> SDone 1 b
         else SDone 0 <$> ffinal s
 
-    extract s = fmap (SDone 0) (ffinal s)
+    extract s = fmap (FDone 0) (ffinal s)
 
 {-
 -- XXX This may not be composable because of the b argument. We can instead
@@ -978,8 +976,8 @@ takeWhile1 predicate (Fold fstep finitial _ ffinal) =
             b <- ffinal s
             return $ SDone 0 b
 
-    extract (Left' _) = return $ Error "takeWhile1: end of input"
-    extract (Right' s) = fmap (SDone 0) (ffinal s)
+    extract (Left' _) = return $ FError "takeWhile1: end of input"
+    extract (Right' s) = fmap (FDone 0) (ffinal s)
 
 -- | Drain the input as long as the predicate succeeds, running the effects and
 -- discarding the results.
@@ -1085,7 +1083,7 @@ takeFramedByGeneric esc begin end (Fold fstep finitial _ ffinal) =
     step (FrameEscGo s n) a = processCheckEsc s a n
     step (FrameEscEsc s n) a = process s a n
 
-    err = return . Error
+    err = return . FError
 
     extract (FrameEscInit _) =
         err "takeFramedByGeneric: empty token"
@@ -1093,7 +1091,7 @@ takeFramedByGeneric esc begin end (Fold fstep finitial _ ffinal) =
         case begin of
             Just _ ->
                 case end of
-                    Nothing -> fmap (SDone 0) $ ffinal s
+                    Nothing -> fmap (FDone 0) $ ffinal s
                     Just _ -> err "takeFramedByGeneric: missing frame end"
             Nothing -> err "takeFramedByGeneric: missing closing frame"
     extract (FrameEscEsc _ _) = err "takeFramedByGeneric: trailing escape"
@@ -1174,9 +1172,9 @@ blockWithQuotes isEsc isQuote bopen bclose
             else process s a (BlockQuoted level)
     step (BlockQuotedEsc level s) a = process s a (BlockQuoted level)
 
-    err = return . Error
+    err = return . FError
 
-    extract (BlockInit s) = fmap (SDone 0) $ ffinal s
+    extract (BlockInit s) = fmap (FDone 0) $ ffinal s
     extract (BlockUnquoted level _) =
         err $ "blockWithQuotes: finished at block nest level " ++ show level
     extract (BlockQuoted level _) =
@@ -1187,17 +1185,27 @@ blockWithQuotes isEsc isQuote bopen bclose
             ++ "after an escape char, at block nest level " ++ show level
 
 {-# INLINE takeEndByDone #-}
-takeEndByDone :: Monad f => (s -> f (Step s b)) -> Step s b -> f (Step s b)
+takeEndByDone :: Monad f => (s -> f (Final s b)) -> Step s b -> f (Step s b)
 takeEndByDone pextract res =
     -- If the parser is backtracking we let it backtrack even if the
     -- predicate is true.
     case res of
-        SPartial 1 s1 -> mapCount (+1) <$> pextract s1
+        SPartial 1 s1 -> do
+            res1 <- pextract s1
+            pure $ case res1 of
+                FDone n b -> SDone (1 + n) b
+                FContinue n s -> SPartial (1 + n) s
+                FError err -> Error err
+        SContinue 1 s1 -> do
+            res1 <- pextract s1
+            pure $ case res1 of
+                FDone n b -> SDone (1 + n) b
+                FContinue n s -> SContinue (1 + n) s
+                FError err -> Error err
         SPartial _ _ -> return res
-        SContinue 1 s1 -> mapCount (+1) <$> pextract s1
         SContinue _ _ -> return res
         SDone n b -> return $ SDone n b
-        Error err -> return $ Error err
+        Error n -> return $ Error n
 
 -- | @takeEndBy cond parser@ parses a token that ends by a separator chosen by
 -- the supplied predicate. The separator is also taken with the token.
@@ -1264,7 +1272,7 @@ takeEndByEsc isEsc isSep (Parser pstep pinitial pextract) =
 
     extract (Left' s) = fmap (first Left') $ pextract s
     extract (Right' _) =
-        return $ Error "takeEndByEsc: trailing escape"
+        return $ FError "takeEndByEsc: trailing escape"
 
 -- | Like 'takeEndBy' but the separator is dropped.
 --
@@ -1273,7 +1281,7 @@ takeEndByEsc isEsc isSep (Parser pstep pinitial pextract) =
 -- /Pre-release/
 --
 {-# INLINE takeEndBy_ #-}
-takeEndBy_ :: (a -> Bool) -> Parser a m b -> Parser a m b
+takeEndBy_ :: Monad m => (a -> Bool) -> Parser a m b -> Parser a m b
 {-
 takeEndBy_ isEnd p =
     takeFramedByGeneric Nothing Nothing (Just isEnd) (toFold p)
@@ -1286,7 +1294,12 @@ takeEndBy_ cond (Parser pstep pinitial pextract) =
 
     step s a =
         if cond a
-        then pextract s
+        then do
+            res <- pextract s
+            pure $ case res of
+                FDone n b -> SDone n b
+                FContinue n s1 -> SPartial n s1
+                FError err -> Error err
         else pstep s a
 
 -- | Take either the separator or the token. Separator is a Left value and
@@ -1355,8 +1368,8 @@ takeBeginBy cond (Fold fstep finitial _ ffinal) =
         then process s a
         else SDone 0 <$> ffinal s
 
-    extract (Left' s) = fmap (SDone 0) $ ffinal s
-    extract (Right' s) = fmap (SDone 0) $ ffinal s
+    extract (Left' s) = fmap (FDone 0) $ ffinal s
+    extract (Right' s) = fmap (FDone 0) $ ffinal s
 
 RENAME(takeStartBy,takeBeginBy)
 
@@ -1437,7 +1450,7 @@ takeFramedByEsc_ isEsc isBegin isEnd (Fold fstep finitial _ ffinal ) =
                 else process s a (n - 1)
     step (FrameEscEsc s n) a = process s a n
 
-    err = return . Error
+    err = return . FError
 
     extract (FrameEscInit _) = err "takeFramedByEsc_: empty token"
     extract (FrameEscGo _ _) = err "takeFramedByEsc_: missing frame end"
@@ -1488,7 +1501,7 @@ takeFramedBy_ isBegin isEnd (Fold fstep finitial _ ffinal) =
         | n == 0 = SDone 1 <$> ffinal s
         | otherwise = process s a (n - 1)
 
-    err = return . Error
+    err = return . FError
 
     extract (FrameInit _) = err "takeFramedBy_: empty token"
     extract (FrameGo _ _) = err "takeFramedBy_: missing frame end"
@@ -1555,9 +1568,9 @@ wordBy predicate (Fold fstep finitial _ ffinal) = Parser step initial extract
               then SDone 0 b
               else SPartial 1 $ WBRight b
 
-    extract (WBLeft s) = fmap (SDone 0) $ ffinal s
-    extract (WBWord s) = fmap (SDone 0) $ ffinal s
-    extract (WBRight b) = return (SDone 0 b)
+    extract (WBLeft s) = fmap (FDone 0) $ ffinal s
+    extract (WBWord s) = fmap (FDone 0) $ ffinal s
+    extract (WBRight b) = return (FDone 0 b)
 
 data WordFramedState s b =
       WordFramedSkipPre !s
@@ -1655,16 +1668,16 @@ wordFramedBy isEsc isBegin isEnd isSep
               then SDone 0 b
               else SPartial 1 $ WordFramedSkipPost b
 
-    err = return . Error
+    err = return . FError
 
-    extract (WordFramedSkipPre s) = fmap (SDone 0) $ ffinal s
+    extract (WordFramedSkipPre s) = fmap (FDone 0) $ ffinal s
     extract (WordFramedWord s n) =
         if n == 0
-        then fmap (SDone 0) $ ffinal s
+        then fmap (FDone 0) $ ffinal s
         else err "wordFramedBy: missing frame end"
     extract (WordFramedEsc _ _) =
         err "wordFramedBy: trailing escape"
-    extract (WordFramedSkipPost b) = return (SDone 0 b)
+    extract (WordFramedSkipPost b) = return (FDone 0 b)
 
 data WordQuotedState s b a =
       WordQuotedSkipPre !s
@@ -1845,19 +1858,19 @@ wordWithQuotes keepQuotes tr escChar toRight isSep
               then SDone 0 b
               else SPartial 1 $ WordQuotedSkipPost b
 
-    err = return . Error
+    err = return . FError
 
-    extract (WordQuotedSkipPre s) = fmap (SDone 0) $ ffinal s
-    extract (WordUnquotedWord s) = fmap (SDone 0) $ ffinal s
+    extract (WordQuotedSkipPre s) = fmap (FDone 0) $ ffinal s
+    extract (WordUnquotedWord s) = fmap (FDone 0) $ ffinal s
     extract (WordQuotedWord s n _ _) =
         if n == 0
-        then fmap (SDone 0) $ ffinal s
+        then fmap (FDone 0) $ ffinal s
         else err "wordWithQuotes: missing frame end"
     extract WordQuotedEsc {} =
         err "wordWithQuotes: trailing escape"
     extract (WordUnquotedEsc _) =
         err "wordWithQuotes: trailing escape"
-    extract (WordQuotedSkipPost b) = return (SDone 0 b)
+    extract (WordQuotedSkipPost b) = return (FDone 0 b)
 
 -- | 'wordWithQuotes' without processing the quotes and escape function
 -- supplied to escape the quote char within a quote. Can be used to parse words
@@ -1954,8 +1967,8 @@ groupBy eq (Fold fstep finitial _ ffinal) = Parser step initial extract
         then grouper s a0 a
         else SDone 0 <$> ffinal s
 
-    extract (GroupByInit s) = fmap (SDone 0) $ ffinal s
-    extract (GroupByGrouping _ s) = fmap (SDone 0) $ ffinal s
+    extract (GroupByInit s) = fmap (FDone 0) $ ffinal s
+    extract (GroupByGrouping _ s) = fmap (FDone 0) $ ffinal s
 
 -- | Unlike 'groupBy' this combinator performs a rolling comparison of two
 -- successive elements in the input stream.  Assuming the input stream
@@ -2014,8 +2027,8 @@ groupByRolling eq (Fold fstep finitial _ ffinal) = Parser step initial extract
         then grouper s a
         else SDone 0 <$> ffinal s
 
-    extract (GroupByInit s) = fmap (SDone 0) $ ffinal s
-    extract (GroupByGrouping _ s) = fmap (SDone 0) $ ffinal s
+    extract (GroupByInit s) = fmap (FDone 0) $ ffinal s
+    extract (GroupByGrouping _ s) = fmap (FDone 0) $ ffinal s
 
 {-# ANN type GroupByStatePair Fuse #-}
 data GroupByStatePair a s1 s2
@@ -2106,14 +2119,14 @@ groupByRollingEither
         then grouperR2 s1 s2 a
         else SDone 0 . Right <$> ffinal2 s2
 
-    extract (GroupByInitPair s1 _) = SDone 0 . Left <$> ffinal1 s1
-    extract (GroupByGroupingPairL _ s1 _) = SDone 0 . Left <$> ffinal1 s1
-    extract (GroupByGroupingPairR _ _ s2) = SDone 0 . Right <$> ffinal2 s2
+    extract (GroupByInitPair s1 _) = FDone 0 . Left <$> ffinal1 s1
+    extract (GroupByGroupingPairL _ s1 _) = FDone 0 . Left <$> ffinal1 s1
+    extract (GroupByGroupingPairR _ _ s2) = FDone 0 . Right <$> ffinal2 s2
     extract (GroupByGroupingPair a s1 _) = do
                 res <- fstep1 s1 a
                 case res of
-                    FL.Done b -> return $ SDone 0 (Left b)
-                    FL.Partial s11 -> SDone 0 . Left <$> ffinal1 s11
+                    FL.Done b -> return $ FDone 0 (Left b)
+                    FL.Partial s11 -> FDone 0 . Left <$> ffinal1 s11
 
 -- XXX use an Unfold instead of a list?
 -- XXX custom combinators for matching list, array and stream?
@@ -2201,7 +2214,7 @@ streamEqByInternal cmp (D.Stream sstep state) = Parser step initial extract
                 D.Stop -> SDone 0 ()
                 D.Skip s -> SContinue 0 (Nothing', s)
 
-    extract _ = return $ Error "streamEqBy: end of input"
+    extract _ = return $ FError "streamEqBy: end of input"
 
 -- | Like 'listEqBy' but uses a stream instead of a list and does not return
 -- the stream.
@@ -2313,7 +2326,7 @@ zipWithM zf (D.Stream sstep state) (Fold fstep finitial _ ffinal) =
                     return $ SDone 0 x
                 D.Skip s -> return $ SContinue 0 (Nothing', s, fs)
 
-    extract _ = return $ Error "zipWithM: end of input"
+    extract _ = return $ FError "zipWithM: end of input"
 
 -- | Zip the input of a fold with a stream.
 --
@@ -2453,11 +2466,11 @@ takeP lim (Parser pstep pinitial pextract) = Parser step initial extract
                 then return $ SPartial 1 $ Tuple' cnt1 s
                 else do
                     r1 <- pextract s
+                    -- Add tests here: Shouldn't we add 1?
                     return $ case r1 of
-                        SDone n b -> SDone n b
-                        SContinue n s1 -> SContinue n (Tuple' (cnt1 + n) s1)
-                        Error err -> Error err
-                        SPartial _ _ -> error "takeP: SPartial in extract"
+                        FDone n b -> SDone n b
+                        FContinue n s1 -> SContinue n (Tuple' (cnt1 + n) s1)
+                        FError err -> Error err
 
             SContinue 1 s -> do
                 let cnt1 = cnt + 1
@@ -2466,11 +2479,11 @@ takeP lim (Parser pstep pinitial pextract) = Parser step initial extract
                 then return $ SContinue 1 $ Tuple' cnt1 s
                 else do
                     r1 <- pextract s
+                    -- XXX Check. Shouldn't we add 1?
                     return $ case r1 of
-                        SDone n b -> SDone n b
-                        SContinue n s1 -> SContinue n (Tuple' (cnt1 + n) s1)
-                        Error err -> Error err
-                        SPartial _ _ -> error "takeP: SPartial in extract"
+                        FDone n b -> SDone n b
+                        FContinue n s1 -> SContinue n (Tuple' (cnt1 + n) s1)
+                        FError err -> Error err
             SPartial n s -> do
                 let taken = cnt + n
                 assertM(taken >= 0)
@@ -2485,17 +2498,16 @@ takeP lim (Parser pstep pinitial pextract) = Parser step initial extract
     extract (Tuple' cnt r) = do
         r1 <- pextract r
         return $ case r1 of
-            SDone n b -> SDone n b
-            SContinue n s1 -> SContinue n (Tuple' (cnt + n) s1)
-            Error err -> Error err
-            SPartial _ _ -> error "takeP: SPartial in extract"
+            FDone n b -> FDone n b
+            FContinue n s1 -> FContinue n (Tuple' (cnt + n) s1)
+            FError err -> FError err
 
     -- XXX Need to make the Initial type Step to remove this
     iextract s = do
         r <- pextract s
         return $ case r of
-            SDone _ b -> IDone b
-            Error err -> IError err
+            FDone _ b -> IDone b
+            FError err -> IError err
             _ -> error "Bug: takeP invalid state in initial"
 
 -- | Run a parser without consuming the input.
@@ -2527,7 +2539,7 @@ lookAhead (Parser step1 initial1 _) = Parser step initial extract
     -- backtrack on eof, that will require extract to return 'Step' type.
     extract (Tuple'Fused n _) =
         return
-            $ Error
+            $ FError
             $ "lookAhead: end of input after consuming "
             ++ show n ++ " elements"
 
@@ -2664,19 +2676,18 @@ deintercalateAll
     extractResult n fs r = do
         res <- fstep fs r
         case res of
-            FL.Partial fs1 -> fmap (SDone n) $ ffinal fs1
-            FL.Done c -> return (SDone n c)
-    extract (DeintercalateAllInitL fs) = fmap (SDone 0) $ ffinal fs
+            FL.Partial fs1 -> fmap (FDone n) $ ffinal fs1
+            FL.Done c -> return (FDone n c)
+    extract (DeintercalateAllInitL fs) = fmap (FDone 0) $ ffinal fs
     extract (DeintercalateAllL fs sL) = do
         r <- extractL sL
         case r of
-            SDone n b -> extractResult n fs (Left b)
-            Error err -> return $ Error err
-            SContinue n s -> return $ SContinue n (DeintercalateAllL fs s)
-            SPartial _ _ -> error "SPartial in extract"
-    extract (DeintercalateAllInitR fs) = fmap (SDone 0) $ ffinal fs
+            FDone n b -> extractResult n fs (Left b)
+            FError err -> return $ FError err
+            FContinue n s -> return $ FContinue n (DeintercalateAllL fs s)
+    extract (DeintercalateAllInitR fs) = fmap (FDone 0) $ ffinal fs
     extract (DeintercalateAllR _ _) =
-        return $ Error "deintercalateAll: input ended at 'Right' value"
+        return $ FError "deintercalateAll: input ended at 'Right' value"
 
 {-# ANN type DeintercalateState Fuse #-}
 data DeintercalateState b fs sp ss =
@@ -2809,34 +2820,32 @@ deintercalate
     extractResult n fs r = do
         res <- fstep fs r
         case res of
-            FL.Partial fs1 -> fmap (SDone n) $ ffinal fs1
-            FL.Done c -> return (SDone n c)
+            FL.Partial fs1 -> fmap (FDone n) $ ffinal fs1
+            FL.Done c -> return (FDone n c)
 
-    extract (DeintercalateInitL fs) = fmap (SDone 0) $ ffinal fs
+    extract (DeintercalateInitL fs) = fmap (FDone 0) $ ffinal fs
     extract (DeintercalateL cnt fs sL) = do
         r <- extractL sL
         case r of
-            SDone n b -> extractResult n fs (Left b)
-            SContinue n s -> return $ SContinue n (DeintercalateL (cnt + n) fs s)
-            SPartial _ _ -> error "SPartial in extract"
-            Error _ -> do
+            FDone n b -> extractResult n fs (Left b)
+            FContinue n s -> return $ FContinue n (DeintercalateL (cnt + n) fs s)
+            FError _ -> do
                 xs <- ffinal fs
-                return $ SDone (- cnt) xs
-    extract (DeintercalateInitR fs) = fmap (SDone 0) $ ffinal fs
-    extract (DeintercalateR cnt fs _) = fmap (SDone (- cnt)) $ ffinal fs
+                return $ FDone (- cnt) xs
+    extract (DeintercalateInitR fs) = fmap (FDone 0) $ ffinal fs
+    extract (DeintercalateR cnt fs _) = fmap (FDone (- cnt)) $ ffinal fs
     extract (DeintercalateRL cnt bR fs sL) = do
         r <- extractL sL
         case r of
-            SDone n bL -> do
+            FDone n bL -> do
                 res <- fstep fs (Right bR)
                 case res of
                     FL.Partial fs1 -> extractResult n fs1 (Left bL)
                     FL.Done _ -> error "Fold terminated consuming partial input"
-            SContinue n s -> return $ SContinue n (DeintercalateRL (cnt + n) bR fs s)
-            SPartial _ _ -> error "SPartial in extract"
-            Error _ -> do
+            FContinue n s -> return $ FContinue n (DeintercalateRL (cnt + n) bR fs s)
+            FError _ -> do
                 xs <- ffinal fs
-                return $ SDone (- cnt) xs
+                return $ FDone (- cnt) xs
 
 {-# ANN type Deintercalate1State Fuse #-}
 data Deintercalate1State b fs sp ss =
@@ -2959,31 +2968,29 @@ deintercalate1
     extractResult n fs r = do
         res <- fstep fs r
         case res of
-            FL.Partial fs1 -> fmap (SDone n) $ ffinal fs1
-            FL.Done c -> return (SDone n c)
+            FL.Partial fs1 -> fmap (FDone n) $ ffinal fs1
+            FL.Done c -> return (FDone n c)
 
     extract (Deintercalate1InitL cnt fs sL) = do
         r <- extractL sL
         case r of
-            SDone n b -> extractResult n fs (Left b)
-            SContinue n s -> return $ SContinue n (Deintercalate1InitL (cnt + n) fs s)
-            SPartial _ _ -> error "SPartial in extract"
-            Error err -> return $ Error err
-    extract (Deintercalate1InitR fs) = fmap (SDone 0) $ ffinal fs
-    extract (Deintercalate1R cnt fs _) = fmap (SDone (- cnt)) $ ffinal fs
+            FDone n b -> extractResult n fs (Left b)
+            FContinue n s -> return $ FContinue n (Deintercalate1InitL (cnt + n) fs s)
+            FError err -> return $ FError err
+    extract (Deintercalate1InitR fs) = fmap (FDone 0) $ ffinal fs
+    extract (Deintercalate1R cnt fs _) = fmap (FDone (- cnt)) $ ffinal fs
     extract (Deintercalate1RL cnt bR fs sL) = do
         r <- extractL sL
         case r of
-            SDone n bL -> do
+            FDone n bL -> do
                 res <- fstep fs (Right bR)
                 case res of
                     FL.Partial fs1 -> extractResult n fs1 (Left bL)
                     FL.Done _ -> error "Fold terminated consuming partial input"
-            SContinue n s -> return $ SContinue n (Deintercalate1RL (cnt + n) bR fs s)
-            SPartial _ _ -> error "SPartial in extract"
-            Error _ -> do
+            FContinue n s -> return $ FContinue n (Deintercalate1RL (cnt + n) bR fs s)
+            FError _ -> do
                 xs <- ffinal fs
-                return $ SDone (- cnt) xs
+                return $ FDone (- cnt) xs
 
 {-# ANN type SepByState Fuse #-}
 data SepByState fs sp ss =
@@ -3096,21 +3103,20 @@ sepBy
     extractResult n fs r = do
         res <- fstep fs r
         case res of
-            FL.Partial fs1 -> fmap (SDone n) $ ffinal fs1
-            FL.Done c -> return (SDone n c)
+            FL.Partial fs1 -> fmap (FDone n) $ ffinal fs1
+            FL.Done c -> return (FDone n c)
 
-    extract (SepByInitL fs) = fmap (SDone 0) $ ffinal fs
+    extract (SepByInitL fs) = fmap (FDone 0) $ ffinal fs
     extract (SepByL cnt fs sL) = do
         r <- extractL sL
         case r of
-            SDone n b -> extractResult n fs b
-            SContinue n s -> return $ SContinue n (SepByL (cnt + n) fs s)
-            SPartial _ _ -> error "Partial in extract"
-            Error _ -> do
+            FDone n b -> extractResult n fs b
+            FContinue n s -> return $ FContinue n (SepByL (cnt + n) fs s)
+            FError _ -> do
                 xs <- ffinal fs
-                return $ SDone (- cnt) xs
-    extract (SepByInitR fs) = fmap (SDone 0) $ ffinal fs
-    extract (SepByR cnt fs _) = fmap (SDone (- cnt)) $ ffinal fs
+                return $ FDone (- cnt) xs
+    extract (SepByInitR fs) = fmap (FDone 0) $ ffinal fs
+    extract (SepByR cnt fs _) = fmap (FDone (- cnt)) $ ffinal fs
 
 -- | Non-backtracking version of sepBy. Several times faster.
 {-# INLINE sepByAll #-}
@@ -3247,27 +3253,25 @@ sepBy1
     extractResult n fs r = do
         res <- fstep fs r
         case res of
-            FL.Partial fs1 -> fmap (SDone n) $ ffinal fs1
-            FL.Done c -> return (SDone n c)
+            FL.Partial fs1 -> fmap (FDone n) $ ffinal fs1
+            FL.Done c -> return (FDone n c)
 
     extract (SepBy1InitL cnt fs sL) = do
         r <- extractL sL
         case r of
-            SDone n b -> extractResult n fs b
-            SContinue n s -> return $ SContinue n (SepBy1InitL (cnt + n) fs s)
-            SPartial _ _ -> error "SPartial in extract"
-            Error err -> return $ Error err
+            FDone n b -> extractResult n fs b
+            FContinue n s -> return $ FContinue n (SepBy1InitL (cnt + n) fs s)
+            FError err -> return $ FError err
     extract (SepBy1L cnt fs sL) = do
         r <- extractL sL
         case r of
-            SDone n b -> extractResult n fs b
-            SContinue n s -> return $ SContinue n (SepBy1L (cnt + n) fs s)
-            SPartial _ _ -> error "SPartial in extract"
-            Error _ -> do
+            FDone n b -> extractResult n fs b
+            FContinue n s -> return $ FContinue n (SepBy1L (cnt + n) fs s)
+            FError _ -> do
                 xs <- ffinal fs
-                return $ SDone (- cnt) xs
-    extract (SepBy1InitR fs) = fmap (SDone 0) $ ffinal fs
-    extract (SepBy1R cnt fs _) = fmap (SDone (- cnt)) $ ffinal fs
+                return $ FDone (- cnt) xs
+    extract (SepBy1InitR fs) = fmap (FDone 0) $ ffinal fs
+    extract (SepBy1R cnt fs _) = fmap (FDone (- cnt)) $ ffinal fs
 
 -------------------------------------------------------------------------------
 -- Interleaving a collection of parsers
@@ -3351,27 +3355,26 @@ sequence (D.Stream sstep sstate) (Fold fstep finitial _ ffinal) =
                     FL.Done c -> return $ SDone 0 c
             IError err -> return $ Error err
 
-    extract (Nothing', _, fs) = fmap (SDone 0) $ ffinal fs
+    extract (Nothing', _, fs) = fmap (FDone 0) $ ffinal fs
     extract (Just' (Parser pstep pinit pextr), ss, fs) = do
         ps <- pinit
         case ps of
             IPartial ps1 ->  do
                 r <- pextr ps1
                 case r of
-                    SDone n b -> do
+                    FDone n b -> do
                         res <- fstep fs b
                         case res of
-                            FL.Partial fs1 -> fmap (SDone n) $ ffinal fs1
-                            FL.Done c -> return (SDone n c)
-                    Error err -> return $ Error err
-                    SContinue n s -> return $ SContinue n (Just' (Parser pstep (return (IPartial s)) pextr), ss, fs)
-                    SPartial _ _ -> error "SPartial in extract"
+                            FL.Partial fs1 -> fmap (FDone n) $ ffinal fs1
+                            FL.Done c -> return (FDone n c)
+                    FError err -> return $ FError err
+                    FContinue n s -> return $ FContinue n (Just' (Parser pstep (return (IPartial s)) pextr), ss, fs)
             IDone b -> do
                 fres <- fstep fs b
                 case fres of
-                    FL.Partial fs1 -> fmap (SDone 0) $ ffinal fs1
-                    FL.Done c -> return (SDone 0 c)
-            IError err -> return $ Error err
+                    FL.Partial fs1 -> fmap (FDone 0) $ ffinal fs1
+                    FL.Done c -> return (FDone 0 c)
+            IError err -> return $ FError err
 
 -------------------------------------------------------------------------------
 -- Alternative Collection
@@ -3579,15 +3582,14 @@ manyTill (Parser stepL initialL extractL)
     extract (ManyTillL fs sR) = do
         res <- extractL sR
         case res of
-            SDone n b -> do
+            FDone n b -> do
                 r <- fstep fs b
                 case r of
-                    FL.Partial fs1 -> fmap (SDone n) $ ffinal fs1
-                    FL.Done c -> return (SDone n c)
-            Error err -> return $ Error err
-            SContinue n s -> return $ SContinue n (ManyTillL fs s)
-            SPartial _ _ -> error "SPartial in extract"
-    extract (ManyTillR _ fs _) = fmap (SDone 0) $ ffinal fs
+                    FL.Partial fs1 -> fmap (FDone n) $ ffinal fs1
+                    FL.Done c -> return (FDone n c)
+            FError err -> return $ FError err
+            FContinue n s -> return $ FContinue n (ManyTillL fs s)
+    extract (ManyTillR _ fs _) = fmap (FDone 0) $ ffinal fs
 
 -- | @manyThen f collect recover@ repeats the parser @collect@ on the input and
 -- collects the output in the supplied fold. If the the parser @collect@ fails,

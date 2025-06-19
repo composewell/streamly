@@ -418,25 +418,24 @@ runArrayParserDBreak
     goStop backBuf pst = do
         pRes <- extract pst
         case pRes of
-            PR.Partial _ _ -> error "Bug: runArrayParserDBreak: Partial in extract"
-            PR.Continue 0 pst1 ->
+            PR.FContinue 0 pst1 ->
                 goStop backBuf pst1
-            PR.Continue n pst1 -> do
+            PR.FContinue n pst1 -> do
                 assert
                     (n <= sum (map Array.length (getList backBuf)))
                     (return ())
                 let (src0, buf1) = splitAtArrayListRev n (getList backBuf)
                     src = Prelude.reverse src0
                 goExtract SPEC src (List buf1) pst1
-            PR.Done 0 b -> return (Right b, D.nil)
-            PR.Done n b -> do
+            PR.FDone 0 b -> return (Right b, D.nil)
+            PR.FDone n b -> do
                 assert
                     (n <= sum (map Array.length (getList backBuf)))
                     (return ())
                 let src0 = takeArrayListRev n (getList backBuf)
                     src = Prelude.reverse src0
                 return (Right b, D.fromList src)
-            PR.Error err -> do
+            PR.FError err -> do
                 let src0 = getList backBuf
                     src = Prelude.reverse src0
                 return (Left (ParseError err), D.fromList src)
@@ -683,26 +682,25 @@ runArrayFoldManyD
     stepOuter _ (ParseChunksStop backBuf pst) = do
         pRes <- extract pst
         case pRes of
-            PR.Partial _ _ -> error "runArrayFoldManyD: Partial in extract"
-            PR.Continue 0 pst1 ->
+            PR.FContinue 0 pst1 ->
                 return $ D.Skip $ ParseChunksStop backBuf pst1
-            PR.Continue n pst1 -> do
+            PR.FContinue n pst1 -> do
                 assert (n <= sum (map Array.length backBuf)) (return ())
                 let (src0, buf1) = splitAtArrayListRev n backBuf
                     src  = Prelude.reverse src0
                 return $ D.Skip $ ParseChunksExtract src buf1 pst1
-            PR.Done 0 b ->
+            PR.FDone 0 b ->
                 return
                     $ D.Skip
                     $ ParseChunksYield (Right b) (ParseChunksInitLeftOver [])
-            PR.Done n b -> do
+            PR.FDone n b -> do
                 assert (n <= sum (map Array.length backBuf)) (return ())
                 let src0 = takeArrayListRev n backBuf
                     src = Prelude.reverse src0
                 return
                     $ D.Skip
                     $ ParseChunksYield (Right b) (ParseChunksInitBuf src)
-            PR.Error err -> do
+            PR.FError err -> do
                 let next = ParseChunksInitLeftOver []
                 return
                     $ D.Skip

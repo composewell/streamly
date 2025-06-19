@@ -36,7 +36,7 @@ where
 import Control.Exception (assert)
 import GHC.Exts (SpecConstrAnnotation(..))
 import GHC.Types (SPEC(..))
-import Streamly.Internal.Data.Parser (ParseError(..), Step(..))
+import Streamly.Internal.Data.Parser (ParseError(..), Step(..), Final(..))
 import Streamly.Internal.Data.Producer.Type (Producer(..))
 import Streamly.Internal.Data.Stream.Step (Step(..))
 
@@ -245,23 +245,22 @@ parse
     goStop buf pst = do
         pRes <- extract pst
         case pRes of
-            SPartial _ _ -> error "Bug: parseD: Partial in extract"
-            SContinue 0 pst1 ->
+            FContinue 0 pst1 ->
                 goStop buf pst1
-            SContinue m pst1 -> do
+            FContinue m pst1 -> do
                 let n = (- m)
                 assert (n <= length (getList buf)) (return ())
                 let (src0, buf1) = splitAt n (getList buf)
                     src = Prelude.reverse src0
                 goExtract SPEC (List buf1) (List src) pst1
-            SDone 0 b -> return (Right b, source Nothing)
-            SDone m b -> do
+            FDone 0 b -> return (Right b, source Nothing)
+            FDone m b -> do
                 let n = (- m)
                 assert (n <= length (getList buf)) (return ())
                 let src0 = Prelude.take n (getList buf)
                     src  = Prelude.reverse src0
                 return (Right b, unread src (source Nothing))
-            Error err -> do
+            FError err -> do
                 let src  = Prelude.reverse (getList buf)
                 return (Left (ParseError err), unread src (source Nothing))
 

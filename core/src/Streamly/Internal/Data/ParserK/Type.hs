@@ -386,7 +386,7 @@ adaptWith
     :: forall m a s b r. (Monad m)
     => (s -> a -> m (ParserD.Step s b))
     -> m (ParserD.Initial s b)
-    -> (s -> m (ParserD.Step s b))
+    -> (s -> m (ParserD.Final s b))
     -> (ParseResult b -> Int -> Input a -> m (Step a m r))
     -> Int
     -> Int
@@ -460,17 +460,16 @@ adaptWith pstep initial extract cont !relPos !usedCount !input = do
     parseContNothing !count !pst = do
         r <- extract pst
         case r of
-            ParserD.SDone n b ->
+            ParserD.FDone n b ->
                 assert (n <= 0)
                     (cont (Success n b) (count + n) None)
-            ParserD.SContinue n pst1 ->
+            ParserD.FContinue n pst1 ->
                 assert (n <= 0)
                     (return $ Continue n (parseCont (count + n) pst1))
-            ParserD.Error err ->
+            ParserD.FError err ->
                 -- XXX It is called only when there is no input chunk. So using
                 -- 0 as the position is correct?
                 cont (Failure 0 err) count None
-            ParserD.SPartial _ _ -> error "Bug: adaptWith Partial unreachable"
 
     -- XXX Maybe we can use two separate continuations instead of using
     -- Just/Nothing cases here. That may help in avoiding the parseContJust
@@ -531,11 +530,11 @@ toParser parser = ParserD.Parser step initial extract
     extract cont = do
         r <- cont None
         case r of
-            Done n b ->  assert (n <= 0) (return $ ParserD.SDone n b)
-            Error _ e -> return $ ParserD.Error e
+            Done n b ->  assert (n <= 0) (return $ ParserD.FDone n b)
+            Error _ e -> return $ ParserD.FError e
             Partial _ cont1 -> extract cont1
             Continue n cont1 ->
-                assert (n <= 0) (return $ ParserD.SContinue n cont1)
+                assert (n <= 0) (return $ ParserD.FContinue n cont1)
 
 {-# RULES "fromParser/toParser fusion" [2]
     forall s. toParser (parserK s) = s #-}
