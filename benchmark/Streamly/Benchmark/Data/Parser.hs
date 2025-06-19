@@ -32,7 +32,7 @@ import System.IO (Handle)
 import System.Random (randomRIO)
 import Streamly.Internal.Data.Fold (Fold(..))
 import Streamly.Internal.Data.Parser
-    (ParseError(..), Parser(..), Initial(..), Step(..))
+    (ParseError(..), Parser(..), Initial(..), Step(..), Final(..))
 import Streamly.Internal.Data.Stream (Stream)
 import Prelude hiding
     (any, all, take, sequence, sequence_, sequenceA, takeWhile, dropWhile, span)
@@ -368,7 +368,7 @@ takeWhileFail predicate (Fold fstep finitial _ ffinal) =
                       Fold.Done b -> SDone 1 b
         else return $ Error "fail"
 
-    extract s = fmap (SDone 0) (ffinal s)
+    extract s = fmap (FDone 0) (ffinal s)
 
 {-# INLINE alt2 #-}
 alt2 :: Monad m

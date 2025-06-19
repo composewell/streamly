@@ -72,7 +72,7 @@ import Data.Proxy (Proxy(..))
 import Streamly.Internal.Data.Unbox (Unbox(..))
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Array (Array(..))
-import Streamly.Internal.Data.Parser (Initial(..), Step(..))
+import Streamly.Internal.Data.Parser (Initial(..), Step(..), Final(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
 import qualified Streamly.Internal.Data.Array.Type as Array
@@ -137,7 +137,7 @@ fromFold (Fold.Fold fstep finitial _ ffinal) =
                 Fold.Partial fs1 ->
                     goArray SPEC next fs1
 
-    extract = fmap (Done 0) . ffinal
+    extract = fmap (FDone 0) . ffinal
 
 -- | Convert an element 'ParserD.Parser' into an array stream fold. If the
 -- parser fails the fold would throw an exception.
@@ -320,8 +320,8 @@ take n (ChunkFold (ParserD.Parser step1 initial1 extract1)) =
     iextract s = do
         r <- extract1 s
         return $ case r of
-            Done _ b -> IDone b
-            Error err -> IError err
+            FDone _ b -> IDone b
+            FError err -> IError err
             _ -> error "Bug: ChunkFold take invalid state in initial"
 
     initial = do
@@ -343,10 +343,9 @@ take n (ChunkFold (ParserD.Parser step1 initial1 extract1)) =
                 -- i2 == i1 == j == 0
                 r <- extract1 s
                 return $ case r of
-                    Error err -> Error err
-                    Done n1 b -> Done n1 b
-                    Continue n1 s1 -> Continue n1 (Tuple' i2 s1)
-                    Partial _ _ -> error "Partial in extract"
+                    FError err -> Error err
+                    FDone n1 b -> Done n1 b
+                    FContinue n1 s1 -> Continue n1 (Tuple' i2 s1)
 
     -- Tuple' (how many more items to take) (fold state)
     step (Tuple' i r) arr = do
@@ -369,11 +368,11 @@ take n (ChunkFold (ParserD.Parser step1 initial1 extract1)) =
             res <- step1 r arr1
             case res of
                 Partial 0 s ->
-                    ParserD.bimapOverrideCount
+                    ParserD.bimapMorphOverrideCount
                         remaining (Tuple' 0) id <$> extract1 s
                 Partial j s -> return $ Partial (remaining + j) (Tuple' j s)
                 Continue 0 s ->
-                    ParserD.bimapOverrideCount
+                    ParserD.bimapMorphOverrideCount
                         remaining (Tuple' 0) id <$> extract1 s
                 Continue j s -> return $ Continue (remaining + j) (Tuple' j s)
                 Done j b -> return $ Done (remaining + j) b

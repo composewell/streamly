@@ -44,14 +44,14 @@ jumpParser jumps = P.Parser step initial done
             Custom (P.SDone i ()) -> pure $ P.SDone i (reverse buf)
             Custom (P.Error err) -> pure $ P.Error err
 
-    done ([], buf) = pure $ P.SDone 0 (reverse buf)
+    done ([], buf) = pure $ P.FDone 0 (reverse buf)
     done (action:xs, buf) =
         case action of
-            Consume _ -> pure $ P.Error "INCOMPLETE"
-            Custom (P.SPartial i ()) -> pure $ P.SPartial i (xs, buf)
-            Custom (P.SContinue i ()) -> pure $ P.SContinue i (xs, buf)
-            Custom (P.SDone i ()) -> pure $ P.SDone i (reverse buf)
-            Custom (P.Error err) -> pure $ P.Error err
+            Consume _ -> pure $ P.FError "INCOMPLETE"
+            Custom (P.SPartial i ()) -> pure $ P.FContinue i (xs, buf)
+            Custom (P.SContinue i ()) -> pure $ P.FContinue i (xs, buf)
+            Custom (P.SDone i ()) -> pure $ P.FDone i (reverse buf)
+            Custom (P.Error err) -> pure $ P.FError err
 
 chunkedTape :: [[Int]]
 chunkedTape = Prelude.map (\x -> [x..(x+9)]) [1, 11 .. 91]

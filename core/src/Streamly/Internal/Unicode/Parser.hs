@@ -70,7 +70,7 @@ import Data.Bits (Bits, (.|.), shiftL, (.&.))
 import Data.Char (ord)
 import Data.Ratio ((%))
 import Fusion.Plugin.Types (Fuse(..))
-import Streamly.Internal.Data.Parser (Parser(..), Initial(..),  Step(..))
+import Streamly.Internal.Data.Parser (Parser(..), Initial(..), Step(..), Final(..))
 
 import qualified Data.Char as Char
 import qualified Streamly.Data.Fold as Fold
@@ -408,18 +408,18 @@ number =  Parser (\s a -> return $ step s a) initial (return . extract)
                     $ exitSPAfterExponent mult num decimalPlaces powerMult buf
 
     {-# INLINE extract #-}
-    extract SPInitial = Error $ exitSPInitial "end of input"
-    extract (SPSign _) = Error $ exitSPSign "end of input"
-    extract (SPAfterSign mult num) = SDone 0 $ exitSPAfterSign mult num
-    extract (SPDot mult num) = SDone (-1) $ exitSPAfterSign mult num
+    extract SPInitial = FError $ exitSPInitial "end of input"
+    extract (SPSign _) = FError $ exitSPSign "end of input"
+    extract (SPAfterSign mult num) = FDone 0 $ exitSPAfterSign mult num
+    extract (SPDot mult num) = FDone (-1) $ exitSPAfterSign mult num
     extract (SPAfterDot mult num decimalPlaces) =
-        SDone 0 $ exitSPAfterDot mult num decimalPlaces
+        FDone 0 $ exitSPAfterDot mult num decimalPlaces
     extract (SPExponent mult num decimalPlaces) =
-        SDone (-1) $ exitSPAfterDot mult num decimalPlaces
+        FDone (-1) $ exitSPAfterDot mult num decimalPlaces
     extract (SPExponentWithSign mult num decimalPlaces _) =
-        SDone (-2) $ exitSPAfterDot mult num decimalPlaces
+        FDone (-2) $ exitSPAfterDot mult num decimalPlaces
     extract (SPAfterExponent mult num decimalPlaces powerMult powerNum) =
-        SDone 0 $ exitSPAfterExponent mult num decimalPlaces powerMult powerNum
+        FDone 0 $ exitSPAfterExponent mult num decimalPlaces powerMult powerNum
 
 type MantissaInt = Int
 type OverflowPower = Int
@@ -546,18 +546,18 @@ doubleParser =  Parser (\s a -> return $ step s a) initial (return . extract)
             else SDone 0 $ exitDPAfterExponent mult num opower powerMult buf
 
     {-# INLINE extract #-}
-    extract DPInitial = Error $ exitDPInitial "end of input"
-    extract (DPSign _) = Error $ exitDPSign "end of input"
-    extract (DPAfterSign mult num opow) = SDone 0 $ exitDPAfterSign mult num opow
-    extract (DPDot mult num opow) = SDone (-1) $ exitDPAfterSign mult num opow
+    extract DPInitial = FError $ exitDPInitial "end of input"
+    extract (DPSign _) = FError $ exitDPSign "end of input"
+    extract (DPAfterSign mult num opow) = FDone 0 $ exitDPAfterSign mult num opow
+    extract (DPDot mult num opow) = FDone (-1) $ exitDPAfterSign mult num opow
     extract (DPAfterDot mult num opow) =
-        SDone 0 $ exitDPAfterDot mult num opow
+        FDone 0 $ exitDPAfterDot mult num opow
     extract (DPExponent mult num opow) =
-        SDone (-1) $ exitDPAfterDot mult num opow
+        FDone (-1) $ exitDPAfterDot mult num opow
     extract (DPExponentWithSign mult num opow _) =
-        SDone (-2) $ exitDPAfterDot mult num opow
+        FDone (-2) $ exitDPAfterDot mult num opow
     extract (DPAfterExponent mult num opow powerMult powerNum) =
-        SDone 0 $ exitDPAfterExponent mult num opow powerMult powerNum
+        FDone 0 $ exitDPAfterExponent mult num opow powerMult powerNum
 
 -- XXX We can have a `realFloat` parser instead to parse any RealFloat value.
 -- And a integral parser to read any integral value.

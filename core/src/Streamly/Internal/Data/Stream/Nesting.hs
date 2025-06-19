@@ -1783,25 +1783,24 @@ parseMany (PRD.Parser pstep initial extract) (Stream step state) =
     stepOuter _ (ParseChunksStop buf pst) = do
         pRes <- extract pst
         case pRes of
-            PR.SPartial _ _ -> error "Bug: parseMany: Partial in extract"
-            PR.SContinue 0 pst1 ->
+            PR.FContinue 0 pst1 ->
                 return $ Skip $ ParseChunksStop buf pst1
-            PR.SContinue m pst1 -> do
+            PR.FContinue m pst1 -> do
                 let n = (- m)
                 assert (n <= length buf) (return ())
                 let (src0, buf1) = splitAt n buf
                     src  = Prelude.reverse src0
                 return $ Skip $ ParseChunksExtract src buf1 pst1
-            PR.SDone 0 b -> do
+            PR.FDone 0 b -> do
                 return $ Skip $
                     ParseChunksYield (Right b) (ParseChunksInitLeftOver [])
-            PR.SDone m b -> do
+            PR.FDone m b -> do
                 let n = (- m)
                 assert (n <= length buf) (return ())
                 let src = Prelude.reverse (Prelude.take n buf)
                 return $ Skip $
                     ParseChunksYield (Right b) (ParseChunksInitBuf src)
-            PR.Error err ->
+            PR.FError err ->
                 return
                     $ Skip
                     $ ParseChunksYield
@@ -1857,13 +1856,13 @@ data ConcatParseState c b inpBuf st p m a =
     | ConcatParseInitBuf inpBuf p
     | ConcatParseInitLeftOver inpBuf
     | forall s. ConcatParseStop
-        inpBuf (s -> a -> m (PRD.Step s b)) s (s -> m (PRD.Step s b))
+        inpBuf (s -> a -> m (PRD.Step s b)) s (s -> m (PRD.Final s b))
     | forall s. ConcatParseStream
-        st inpBuf (s -> a -> m (PRD.Step s b)) s (s -> m (PRD.Step s b))
+        st inpBuf (s -> a -> m (PRD.Step s b)) s (s -> m (PRD.Final s b))
     | forall s. ConcatParseBuf
-        inpBuf st inpBuf (s -> a -> m (PRD.Step s b)) s (s -> m (PRD.Step s b))
+        inpBuf st inpBuf (s -> a -> m (PRD.Step s b)) s (s -> m (PRD.Final s b))
     | forall s. ConcatParseExtract
-        inpBuf inpBuf (s -> a -> m (PRD.Step s b)) s (s -> m (PRD.Step s b))
+        inpBuf inpBuf (s -> a -> m (PRD.Step s b)) s (s -> m (PRD.Final s b))
     | ConcatParseYield c (ConcatParseState c b inpBuf st p m a)
 
 -- | Iterate a parser generating function on a stream. The initial value @b@ is
@@ -2068,25 +2067,24 @@ parseIterate func seed (Stream step state) =
     stepOuter _ (ConcatParseStop buf pstep pst extract) = do
         pRes <- extract pst
         case pRes of
-            PR.SPartial _ _ -> error "Bug: parseIterate: Partial in extract"
-            PR.SContinue 0 pst1 ->
+            PR.FContinue 0 pst1 ->
                 return $ Skip $ ConcatParseStop buf pstep pst1 extract
-            PR.SContinue m pst1 -> do
+            PR.FContinue m pst1 -> do
                 let n = (- m)
                 assert (n <= length buf) (return ())
                 let (src0, buf1) = splitAt n buf
                     src  = Prelude.reverse src0
                 return $ Skip $ ConcatParseExtract src buf1 pstep pst1 extract
-            PR.SDone 0 b -> do
+            PR.FDone 0 b -> do
                 return $ Skip $
                     ConcatParseYield (Right b) (ConcatParseInitLeftOver [])
-            PR.SDone m b -> do
+            PR.FDone m b -> do
                 let n = (- m)
                 assert (n <= length buf) (return ())
                 let src = Prelude.reverse (Prelude.take n buf)
                 return $ Skip $
                     ConcatParseYield (Right b) (ConcatParseInitBuf src (func b))
-            PR.Error err ->
+            PR.FError err ->
                 return
                     $ Skip
                     $ ConcatParseYield

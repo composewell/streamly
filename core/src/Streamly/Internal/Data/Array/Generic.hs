@@ -550,7 +550,7 @@ adaptCGWith
     :: forall m a s b r. (Monad m)
     => (s -> a -> m (ParserD.Step s b))
     -> m (ParserD.Initial s b)
-    -> (s -> m (ParserD.Step s b))
+    -> (s -> m (ParserD.Final s b))
     -> (ParseResult b -> Int -> Input (Array a) -> m (Step (Array a) m r))
     -> Int
     -> Int
@@ -639,16 +639,15 @@ adaptCGWith pstep initial extract cont !offset0 !usedCount !input = do
     parseContNothing !count !pst = do
         r <- extract pst
         case r of
-            ParserD.SDone n b ->
+            ParserD.FDone n b ->
                 assert (n <= 0) (cont (Success n b) (count + n) None)
-            ParserD.SContinue n pst1 ->
+            ParserD.FContinue n pst1 ->
                 assert (n <= 1)
                     (return $ Continue n (parseCont (count + n) pst1))
-            ParserD.Error err ->
+            ParserD.FError err ->
                 -- XXX It is called only when there is no input arr. So using 0
                 -- as the position is correct?
                 cont (Failure 0 err) count None
-            ParserD.SPartial _ _ -> error "Bug: adaptCGWith Partial unreachable"
 
     {-# INLINE parseCont #-}
     parseCont !cnt !pst (Chunk arr) = parseContChunk cnt 0 pst arr

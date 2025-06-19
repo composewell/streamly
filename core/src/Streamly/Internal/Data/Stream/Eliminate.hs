@@ -318,22 +318,21 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
     goStop _ buf pst = do
         pRes <- extract pst
         case pRes of
-            PR.SPartial _ _ -> error "Bug: parseBreak: Partial in extract"
-            PR.SContinue 0 pst1 -> goStop SPEC buf pst1
-            PR.SContinue m pst1 -> do
+            PR.FContinue 0 pst1 -> goStop SPEC buf pst1
+            PR.FContinue m pst1 -> do
                 let n = (- m)
                 assert (n <= length (getList buf)) (return ())
                 let (src0, buf1) = splitAt n (getList buf)
                     src = Prelude.reverse src0
                 goExtract SPEC (List buf1) (List src) pst1
-            PR.SDone 0 b -> return (Right b, StreamD.nil)
-            PR.SDone m b -> do
+            PR.FDone 0 b -> return (Right b, StreamD.nil)
+            PR.FDone m b -> do
                 let n = (- m)
                 assert (n <= length (getList buf)) (return ())
                 let src0 = Prelude.take n (getList buf)
                     src  = Prelude.reverse src0
                 return (Right b, fromList src)
-            PR.Error err -> do
+            PR.FError err -> do
                 let src  = Prelude.reverse $ getList buf
                 return (Left (ParseError err), fromList src)
 
