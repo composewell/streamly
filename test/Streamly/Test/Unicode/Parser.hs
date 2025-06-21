@@ -102,9 +102,10 @@ doubleErr f s msg = monadicIO $ do
     x <- run $ f s
     case x of
         Right _ -> assert False
-        Left (ParseError _ err) -> if err == msg
-                                   then assert (err == msg)
-                                   else trace err (assert (err == msg))
+        Left (ParseError _ err) ->
+            if err == msg
+            then assert (err == msg)
+            else trace err (assert (err == msg))
 
 remainingStreamDouble :: String -> [String]
 remainingStreamDouble x =

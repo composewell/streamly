@@ -174,6 +174,9 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
     -- XXX currently we are using a dumb list based approach for backtracking
     -- buffer. This can be replaced by a sliding/ring buffer using Data.Array.
     -- That will allow us more efficient random back and forth movement.
+    --
+    -- XXX Try a go0 case where the backtrack buffer is completely empty
+    --
     go !_ st buf !pst i = do
         r <- step defState st
         case r of
@@ -187,15 +190,16 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                         assert (n <= length (x:getList buf)) (return ())
                         let src0 = Prelude.take n (x:getList buf)
                             src  = Prelude.reverse src0
-                        gobuf SPEC s (List []) (List src) pst1 (i + 1 - n)
-                    PR.SContinue 1 pst1 -> go SPEC s (List (x:getList buf)) pst1 (i + 1)
+                        gobuf SPEC s (List []) (List src) pst1 (i + m)
+                    PR.SContinue 1 pst1 ->
+                        go SPEC s (List (x:getList buf)) pst1 (i + 1)
                     PR.SContinue 0 pst1 -> gobuf SPEC s buf (List [x]) pst1 i
                     PR.SContinue m pst1 -> do
                         let n = 1 - m
                         assert (n <= length (x:getList buf)) (return ())
                         let (src0, buf1) = splitAt n (x:getList buf)
                             src  = Prelude.reverse src0
-                        gobuf SPEC s (List buf1) (List src) pst1 (i + 1 - n)
+                        gobuf SPEC s (List buf1) (List src) pst1 (i + m)
                     PR.SDone 1 b -> return (Right b, Stream step s)
                     PR.SDone m b -> do
                         let n = 1 - m
@@ -255,7 +259,7 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                 assert (n <= length (x:getList buf)) (return ())
                 let src0 = Prelude.take n (x:getList buf)
                     src  = Prelude.reverse src0 ++ xs
-                gobuf SPEC s (List []) (List src) pst1 (i + 1 - n)
+                gobuf SPEC s (List []) (List src) pst1 (i + m)
             PR.SContinue 1 pst1 ->
                 gobuf SPEC s (List (x:getList buf)) (List xs) pst1 (i + 1)
             PR.SContinue 0 pst1 ->
@@ -265,7 +269,7 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                 assert (n <= length (x:getList buf)) (return ())
                 let (src0, buf1) = splitAt n (x:getList buf)
                     src  = Prelude.reverse src0 ++ xs
-                gobuf SPEC s (List buf1) (List src) pst1 (i + 1 - n)
+                gobuf SPEC s (List buf1) (List src) pst1 (i + m)
             PR.SDone m b -> do
                 let n = 1 - m
                 assert (n <= length (x:getList buf)) (return ())
@@ -291,7 +295,7 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                 assert (n <= length (x:getList buf)) (return ())
                 let src0 = Prelude.take n (x:getList buf)
                     src  = Prelude.reverse src0 ++ xs
-                goExtract SPEC (List []) (List src) pst1 (i + 1 - n)
+                goExtract SPEC (List []) (List src) pst1 (i + m)
             PR.SContinue 1 pst1 ->
                 goExtract SPEC (List (x:getList buf)) (List xs) pst1 (i + 1)
             PR.SContinue 0 pst1 ->
@@ -301,7 +305,7 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                 assert (n <= length (x:getList buf)) (return ())
                 let (src0, buf1) = splitAt n (x:getList buf)
                     src  = Prelude.reverse src0 ++ xs
-                goExtract SPEC (List buf1) (List src) pst1 (i + 1 - n)
+                goExtract SPEC (List buf1) (List src) pst1 (i + m)
             PR.SDone m b -> do
                 let n = 1 - m
                 assert (n <= length (x:getList buf)) (return ())

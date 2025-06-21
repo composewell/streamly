@@ -525,8 +525,7 @@ data ParseError = ParseError Int String
     deriving (Eq, Show)
 
 instance Exception ParseError where
-    -- XXX Append the index in the error message here?
-    displayException (ParseError _ err) = err
+    displayException (ParseError pos err) = concat ["At ", show pos, ":", err]
 
 -- | Map a function on the result i.e. on @b@ in @Parser a m b@.
 instance Functor m => Functor (Parser a m) where

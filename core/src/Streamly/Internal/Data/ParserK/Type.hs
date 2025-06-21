@@ -412,8 +412,6 @@ adaptWith pstep initial extract cont !relPos !usedCount !input = do
 
     where
 
-    -- XXX We can maintain an absolute position instead of relative that will
-    -- help in reporting of error location in the stream.
     {-# NOINLINE parseContChunk #-}
     parseContChunk !count !state x = do
          go SPEC state
