@@ -211,28 +211,24 @@ parse
     goExtract !_ buf (List (x:xs)) !pst i = do
         pRes <- pstep pst x
         case pRes of
-            -- XXX review is it 0 or 1?
-            SPartial 0 pst1 ->
+            SPartial 1 pst1 ->
                 goExtract SPEC (List []) (List xs) pst1 (i + 1)
             SPartial m pst1 -> do
-                -- XXX Fix
-                let n = (- m)
+                let n = 1 - m
                 assert (n <= length (x:getList buf)) (return ())
                 let src0 = Prelude.take n (x:getList buf)
                     src  = Prelude.reverse src0 ++ xs
                 goExtract SPEC (List []) (List src) pst1 (i + 1 - n)
-            SContinue 0 pst1 ->
+            SContinue 1 pst1 ->
                 goExtract SPEC (List (x:getList buf)) (List xs) pst1 (i + 1)
             SContinue m pst1 -> do
-                -- XXX Fix
-                let n = (- m)
+                let n = 1 - m
                 assert (n <= length (x:getList buf)) (return ())
                 let (src0, buf1) = splitAt n (x:getList buf)
                     src  = Prelude.reverse src0 ++ xs
                 goExtract SPEC (List buf1) (List src) pst1 (i + 1 - n)
             SDone m b -> do
-                -- XXX Fix
-                let n = (- m)
+                let n = 1 - m
                 assert (n <= length (x:getList buf)) (return ())
                 let src0 = Prelude.take n (x:getList buf)
                     src  = Prelude.reverse src0
@@ -249,7 +245,6 @@ parse
     goStop buf pst i = do
         pRes <- extract pst
         case pRes of
-            --XXX
             FContinue 0 pst1 ->
                 goStop buf pst1 i
             FContinue m pst1 -> do
@@ -258,7 +253,6 @@ parse
                 let (src0, buf1) = splitAt n (getList buf)
                     src = Prelude.reverse src0
                 goExtract SPEC (List buf1) (List src) pst1 (i - n)
-            --XXX
             FDone 0 b -> return (Right b, source Nothing)
             FDone m b -> do
                 let n = (- m)
