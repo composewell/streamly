@@ -156,12 +156,32 @@ parseBreakD
     => PRD.Parser a m b
     -> Stream m a
     -> m (Either ParseError b, Stream m a)
-parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
+parseBreakD = parseBreak
+
+#ifndef PARSER_WITH_POS
+#define PARSE_BREAK parseBreak
+#define OPTIONAL(x)
+#define DEFAULT(x) 0
+#else
+#define PARSE_BREAK parseBreakPos
+#define OPTIONAL(x) (x)
+#define DEFAULT(x) (x)
+#endif
+
+-- | Parse a stream using the supplied 'Parser'.
+--
+{-# INLINE PARSE_BREAK #-}
+PARSE_BREAK :: Monad m =>
+    PR.Parser a m b -> Stream m a -> m (Either ParseError b, Stream m a)
+PARSE_BREAK (PRD.Parser pstep initial extract) stream@(Stream step state) = do
     res <- initial
     case res of
         PRD.IPartial s ->
-            go SPEC state (List []) s 0
-            -- go0 SPEC state s 0
+            go SPEC state (List []) s OPTIONAL(0)
+            -- Using go0 does improve alt and manyTill benchmarks dramatically
+            -- but also degrades the split/monad benchmarks equally. Needs more
+            -- investigation.
+            -- go0 SPEC state s COUNT(0)
         PRD.IDone b -> return (Right b, stream)
         PRD.IError err -> return (Left (ParseError 0 err), stream)
 
@@ -176,33 +196,30 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
     -- XXX currently we are using a dumb list based approach for backtracking
     -- buffer. This can be replaced by a sliding/ring buffer using Data.Array.
     -- That will allow us more efficient random back and forth movement.
-    --
-    -- XXX Try a go0 case where the backtrack buffer is completely empty
-    --
-    go !_ st buf !pst i = do
+    go !_ st buf !pst OPTIONAL(i) = do
         r <- step defState st
         case r of
             Yield x s -> do
                 pRes <- pstep pst x
                 case pRes of
-                    PR.SPartial 1 pst1 -> go SPEC s (List []) pst1 (i + 1)
+                    PR.SPartial 1 pst1 -> go SPEC s (List []) pst1 OPTIONAL(i+1)
                         -- go0 SPEC s pst1 (i + 1)
-                    PR.SPartial 0 pst1 -> go1 SPEC s x pst1 i
+                    PR.SPartial 0 pst1 -> go1 SPEC s x pst1 OPTIONAL(i)
                     PR.SPartial m pst1 -> do
                         let n = 1 - m
                         assert (n <= length (x:getList buf)) (return ())
                         let src0 = Prelude.take n (x:getList buf)
                             src  = Prelude.reverse src0
-                        gobuf SPEC s (List []) (List src) pst1 (i + m)
+                        gobuf SPEC s (List []) (List src) pst1 OPTIONAL(i+m)
                     PR.SContinue 1 pst1 ->
-                        go SPEC s (List (x:getList buf)) pst1 (i + 1)
-                    PR.SContinue 0 pst1 -> gobuf SPEC s buf (List [x]) pst1 i
+                        go SPEC s (List (x:getList buf)) pst1 OPTIONAL(i+1)
+                    PR.SContinue 0 pst1 -> gobuf SPEC s buf (List [x]) pst1 OPTIONAL(i)
                     PR.SContinue m pst1 -> do
                         let n = 1 - m
                         assert (n <= length (x:getList buf)) (return ())
                         let (src0, buf1) = splitAt n (x:getList buf)
                             src  = Prelude.reverse src0
-                        gobuf SPEC s (List buf1) (List src) pst1 (i + m)
+                        gobuf SPEC s (List buf1) (List src) pst1 OPTIONAL(i+m)
                     PR.SDone 1 b -> return (Right b, Stream step s)
                     PR.SDone m b -> do
                         let n = 1 - m
@@ -217,15 +234,13 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                     PR.SError err -> do
                         let src = Prelude.reverse $ x:getList buf
                         return
-                            ( Left (ParseError (i + 1) err)
+                            ( Left (ParseError DEFAULT(i+1) err)
                             , Nesting.append (fromList src) (Stream step s)
                             )
 
-            Skip s -> go SPEC s buf pst i
-            Stop -> goStop SPEC buf pst i
+            Skip s -> go SPEC s buf pst OPTIONAL(i)
+            Stop -> goStop SPEC buf pst OPTIONAL(i)
 
-    -- It does improve alt and manyTill benchmarks dramatically but also
-    -- degrades the split/monad benchmarks equally. Needs more investigation.
     {-
     go0 !_ st !pst i = do
         r <- step defState st
@@ -245,7 +260,7 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                     PR.SDone _ _ -> error "Unreachable"
                     PR.Error err -> do
                         return
-                            ( Left (ParseError (i + 1) err)
+                            ( Left (ParseError DEFAULT(i + 1) err)
                             , StreamD.cons x (Stream step s)
                             )
 
@@ -253,21 +268,20 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
             Stop -> goStop SPEC (List []) pst i
     -}
 
-    -- XXX Do we need the SPEC arg here?
-    go1 !_ s x !pst i = do
+    go1 !_ s x !pst OPTIONAL(i) = do
         pRes <- pstep pst x
         case pRes of
             PR.SPartial 1 pst1 ->
-                -- go0 SPEC s pst1 (i + 1)
-                go SPEC s (List []) pst1 (i + 1)
+                -- go0 SPEC s pst1 OPTIONAL(i + 1)
+                go SPEC s (List []) pst1 OPTIONAL(i + 1)
             PR.SPartial 0 pst1 -> do
-                go1 SPEC s x pst1 i
+                go1 SPEC s x pst1 OPTIONAL(i)
             PR.SPartial m _ ->
                 error $ "parseBreak: parser bug, go1: Partial m = " ++ show m
             PR.SContinue 1 pst1 ->
-                go SPEC s (List [x]) pst1 (i + 1)
+                go SPEC s (List [x]) pst1 OPTIONAL(i + 1)
             PR.SContinue 0 pst1 ->
-                go1 SPEC s x pst1 i
+                go1 SPEC s x pst1 OPTIONAL(i)
             PR.SContinue m _ -> do
                 error $ "parseBreak: parser bug, go1: Continue m = " ++ show m
             PR.SDone 1 b -> do
@@ -278,33 +292,33 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                 error $ "parseBreak: parser bug, go1: SDone m = " ++ show m
             PR.SError err ->
                 return
-                    ( Left (ParseError (i + 1) err)
+                    ( Left (ParseError DEFAULT(i + 1) err)
                     , Nesting.append (fromPure x) (Stream step s)
                     )
 
     -- gobuf !_ s (List []) (List []) !pst i = go0 SPEC s pst i
-    gobuf !_ s buf (List []) !pst i = go SPEC s buf pst i
-    gobuf !_ s buf (List (x:xs)) !pst i = do
+    gobuf !_ s buf (List []) !pst OPTIONAL(i) = go SPEC s buf pst OPTIONAL(i)
+    gobuf !_ s buf (List (x:xs)) !pst OPTIONAL(i) = do
         pRes <- pstep pst x
         case pRes of
             PR.SPartial 1 pst1 ->
-                gobuf SPEC s (List []) (List xs) pst1 (i + 1)
+                gobuf SPEC s (List []) (List xs) pst1 OPTIONAL(i + 1)
             PR.SPartial m pst1 -> do
                 let n = 1 - m
                 assert (n <= length (x:getList buf)) (return ())
                 let src0 = Prelude.take n (x:getList buf)
                     src  = Prelude.reverse src0 ++ xs
-                gobuf SPEC s (List []) (List src) pst1 (i + m)
+                gobuf SPEC s (List []) (List src) pst1 OPTIONAL(i + m)
             PR.SContinue 1 pst1 ->
-                gobuf SPEC s (List (x:getList buf)) (List xs) pst1 (i + 1)
+                gobuf SPEC s (List (x:getList buf)) (List xs) pst1 OPTIONAL(i + 1)
             PR.SContinue 0 pst1 ->
-                gobuf SPEC s buf (List (x:xs)) pst1 i
+                gobuf SPEC s buf (List (x:xs)) pst1 OPTIONAL(i)
             PR.SContinue m pst1 -> do
                 let n = 1 - m
                 assert (n <= length (x:getList buf)) (return ())
                 let (src0, buf1) = splitAt n (x:getList buf)
                     src  = Prelude.reverse src0 ++ xs
-                gobuf SPEC s (List buf1) (List src) pst1 (i + m)
+                gobuf SPEC s (List buf1) (List src) pst1 OPTIONAL(i + m)
             PR.SDone m b -> do
                 let n = 1 - m
                 assert (n <= length (x:getList buf)) (return ())
@@ -314,33 +328,33 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
             PR.SError err -> do
                 let src = Prelude.reverse (getList buf) ++ x:xs
                 return
-                    ( Left (ParseError (i + 1) err)
+                    ( Left (ParseError DEFAULT(i + 1) err)
                     , Nesting.append (fromList src) (Stream step s)
                     )
 
     -- This is simplified gobuf
-    goExtract !_ buf (List []) !pst i = goStop SPEC buf pst i
-    goExtract !_ buf (List (x:xs)) !pst i = do
+    goExtract !_ buf (List []) !pst OPTIONAL(i) = goStop SPEC buf pst OPTIONAL(i)
+    goExtract !_ buf (List (x:xs)) !pst OPTIONAL(i) = do
         pRes <- pstep pst x
         case pRes of
             PR.SPartial 1 pst1 ->
-                goExtract SPEC (List []) (List xs) pst1 (i + 1)
+                goExtract SPEC (List []) (List xs) pst1 OPTIONAL(i + 1)
             PR.SPartial m pst1 -> do
                 let n = 1 - m
                 assert (n <= length (x:getList buf)) (return ())
                 let src0 = Prelude.take n (x:getList buf)
                     src  = Prelude.reverse src0 ++ xs
-                goExtract SPEC (List []) (List src) pst1 (i + m)
+                goExtract SPEC (List []) (List src) pst1 OPTIONAL(i + m)
             PR.SContinue 1 pst1 ->
-                goExtract SPEC (List (x:getList buf)) (List xs) pst1 (i + 1)
+                goExtract SPEC (List (x:getList buf)) (List xs) pst1 OPTIONAL(i + 1)
             PR.SContinue 0 pst1 ->
-                goExtract SPEC buf (List (x:xs)) pst1 i
+                goExtract SPEC buf (List (x:xs)) pst1 OPTIONAL(i)
             PR.SContinue m pst1 -> do
                 let n = 1 - m
                 assert (n <= length (x:getList buf)) (return ())
                 let (src0, buf1) = splitAt n (x:getList buf)
                     src  = Prelude.reverse src0 ++ xs
-                goExtract SPEC (List buf1) (List src) pst1 (i + m)
+                goExtract SPEC (List buf1) (List src) pst1 OPTIONAL(i + m)
             PR.SDone m b -> do
                 let n = 1 - m
                 assert (n <= length (x:getList buf)) (return ())
@@ -349,21 +363,21 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                 return (Right b, fromList src)
             PR.SError err -> do
                 let src = Prelude.reverse (getList buf) ++ x:xs
-                return (Left (ParseError (i + 1) err), fromList src)
+                return (Left (ParseError DEFAULT(i + 1) err), fromList src)
 
     -- This is simplified goExtract
     -- XXX Use SPEC?
     {-# INLINE goStop #-}
-    goStop _ buf pst i = do
+    goStop _ buf pst OPTIONAL(i) = do
         pRes <- extract pst
         case pRes of
-            PR.FContinue 0 pst1 -> goStop SPEC buf pst1 i
+            PR.FContinue 0 pst1 -> goStop SPEC buf pst1 OPTIONAL(i)
             PR.FContinue m pst1 -> do
                 let n = (- m)
                 assert (n <= length (getList buf)) (return ())
                 let (src0, buf1) = splitAt n (getList buf)
                     src = Prelude.reverse src0
-                goExtract SPEC (List buf1) (List src) pst1 (i - n)
+                goExtract SPEC (List buf1) (List src) pst1 OPTIONAL(i + m)
             PR.FDone 0 b -> return (Right b, StreamD.nil)
             PR.FDone m b -> do
                 let n = (- m)
@@ -373,13 +387,7 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                 return (Right b, fromList src)
             PR.FError err -> do
                 let src  = Prelude.reverse $ getList buf
-                return (Left (ParseError i err), fromList src)
-
--- | Parse a stream using the supplied 'Parser'.
---
-{-# INLINE parseBreak #-}
-parseBreak :: Monad m => PR.Parser a m b -> Stream m a -> m (Either ParseError b, Stream m a)
-parseBreak = parseBreakD
+                return (Left (ParseError DEFAULT(i) err), fromList src)
 
 ------------------------------------------------------------------------------
 -- Specialized Folds

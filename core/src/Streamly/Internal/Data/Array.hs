@@ -1056,41 +1056,51 @@ backtrack count buf inp
             ++ show y
             ++ "] elements beyond backtrack buffer"
 
+#ifndef PARSER_WITH_POS
+#define PARSE_BREAK parseBreak
+#define OPTIONAL(x)
+#define DEFAULT(x) 0
+#else
+#define PARSE_BREAK parseBreakPos
+#define OPTIONAL(x) (x)
+#define DEFAULT(x) (x)
+#endif
+
 -- | Run a 'ParserK' over a 'StreamK' of Arrays and return the parse result and
 -- the remaining Stream.
-{-# INLINE_NORMAL parseBreak #-}
-parseBreak
+{-# INLINE_NORMAL PARSE_BREAK #-}
+PARSE_BREAK
     :: (Monad m, Unbox a)
     => ParserK (Array a) m b
     -> StreamK m (Array a)
     -> m (Either ParseError b, StreamK m (Array a))
-parseBreak parser input = do
+PARSE_BREAK parser input = do
     let parserk = ParserK.runParser parser ParserK.parserDone 0 0
-     in go 0 [] parserk input
+     in go OPTIONAL(0) [] parserk input
 
     where
 
     {-# INLINE goStop #-}
-    goStop pos backBuf parserk = do
+    goStop OPTIONAL(pos) backBuf parserk = do
         pRes <- parserk ParserK.None
         case pRes of
             -- If we stop in an alternative, it will try calling the next
             -- parser, the next parser may call initial returning Partial and
             -- then immediately we have to call extract on it.
             ParserK.Partial 0 cont1 ->
-                 go pos [] cont1 StreamK.nil
+                 go OPTIONAL(pos) [] cont1 StreamK.nil
             ParserK.Partial n cont1 -> do
                 let n1 = negate n
                 assertM(n1 >= 0 && n1 <= sum (Prelude.map length backBuf))
                 let (s1, backBuf1) = backtrack n1 backBuf StreamK.nil
-                 in go (pos + n) backBuf1 cont1 s1
+                 in go OPTIONAL(pos + n) backBuf1 cont1 s1
             ParserK.Continue 0 cont1 ->
-                go pos backBuf cont1 StreamK.nil
+                go OPTIONAL(pos) backBuf cont1 StreamK.nil
             ParserK.Continue n cont1 -> do
                 let n1 = negate n
                 assertM(n1 >= 0 && n1 <= sum (Prelude.map length backBuf))
                 let (s1, backBuf1) = backtrack n1 backBuf StreamK.nil
-                 in go (pos + n) backBuf1 cont1 s1
+                 in go OPTIONAL(pos + n) backBuf1 cont1 s1
             ParserK.Done 0 b ->
                 return (Right b, StreamK.nil)
             ParserK.Done n b -> do
@@ -1101,43 +1111,43 @@ parseBreak parser input = do
             ParserK.SError n err -> do
                 let s1 = Prelude.foldl (flip StreamK.cons) StreamK.nil backBuf
                 -- XXX pos + n + 1?
-                return (Left (ParseError (pos + n) err), s1)
+                return (Left (ParseError (DEFAULT(pos) + n) err), s1)
 
     seekErr n len =
         error $ "parseBreak: Partial: forward seek not implemented n = "
             ++ show n ++ " len = " ++ show len
 
-    yieldk pos backBuf parserk arr stream = do
+    yieldk OPTIONAL(pos) backBuf parserk arr stream = do
         pRes <- parserk (ParserK.Chunk arr)
         let len = length arr
         case pRes of
             ParserK.Partial n cont1 ->
                 case compare n len of
-                    EQ -> go (pos + n) [] cont1 stream
+                    EQ -> go OPTIONAL(pos + n) [] cont1 stream
                     LT -> do
                         if n >= 0
-                        then yieldk (pos + n) [] cont1 arr stream
+                        then yieldk OPTIONAL(pos + n) [] cont1 arr stream
                         else do
                             let n1 = negate n
                                 bufLen = sum (Prelude.map length backBuf)
                                 s = StreamK.cons arr stream
                             assertM(n1 >= 0 && n1 <= bufLen)
                             let (s1, _) = backtrack n1 backBuf s
-                            go (pos + n) [] cont1 s1
+                            go OPTIONAL(pos + n) [] cont1 s1
                     GT -> seekErr n len
             ParserK.Continue n cont1 ->
                 case compare n len of
-                    EQ -> go (pos + n) (arr:backBuf) cont1 stream
+                    EQ -> go OPTIONAL(pos + n) (arr:backBuf) cont1 stream
                     LT -> do
                         if n >= 0
-                        then yieldk (pos + n) backBuf cont1 arr stream
+                        then yieldk OPTIONAL(pos + n) backBuf cont1 arr stream
                         else do
                             let n1 = negate n
                                 bufLen = sum (Prelude.map length backBuf)
                                 s = StreamK.cons arr stream
                             assertM(n1 >= 0 && n1 <= bufLen)
                             let (s1, backBuf1) = backtrack n1 backBuf s
-                            go (pos + n) backBuf1 cont1 s1
+                            go OPTIONAL(pos + n) backBuf1 cont1 s1
                     GT -> seekErr n len
             ParserK.Done n b -> do
                 let n1 = len - n
@@ -1146,13 +1156,13 @@ parseBreak parser input = do
                  in return (Right b, s1)
             ParserK.SError n err -> do
                 let s1 = Prelude.foldl (flip StreamK.cons) stream (arr:backBuf)
-                return (Left (ParseError (pos + n + 1) err), s1)
+                return (Left (ParseError (DEFAULT(pos) + n + 1) err), s1)
 
-    go pos backBuf parserk stream = do
-        let stop = goStop pos backBuf parserk
-            single a = yieldk pos backBuf parserk a StreamK.nil
+    go OPTIONAL(pos) backBuf parserk stream = do
+        let stop = goStop OPTIONAL(pos) backBuf parserk
+            single a = yieldk OPTIONAL(pos) backBuf parserk a StreamK.nil
          in StreamK.foldStream
-                defState (yieldk pos backBuf parserk) single stop stream
+                defState (yieldk OPTIONAL(pos) backBuf parserk) single stop stream
 
 {-# INLINE parse #-}
 parse :: (Monad m, Unbox a) =>
