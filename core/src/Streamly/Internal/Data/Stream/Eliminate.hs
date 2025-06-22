@@ -159,7 +159,9 @@ parseBreakD
 parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
     res <- initial
     case res of
-        PRD.IPartial s -> go SPEC state (List []) s 0
+        PRD.IPartial s ->
+            go SPEC state (List []) s 0
+            -- go0 SPEC state s 0
         PRD.IDone b -> return (Right b, stream)
         PRD.IError err -> return (Left (ParseError 0 err), stream)
 
@@ -184,6 +186,7 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                 pRes <- pstep pst x
                 case pRes of
                     PR.SPartial 1 pst1 -> go SPEC s (List []) pst1 (i + 1)
+                        -- go0 SPEC s pst1 (i + 1)
                     PR.SPartial 0 pst1 -> go1 SPEC s x pst1 i
                     PR.SPartial m pst1 -> do
                         let n = 1 - m
@@ -221,10 +224,41 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
             Skip s -> go SPEC s buf pst i
             Stop -> goStop SPEC buf pst i
 
-    go1 _ s x !pst i = do
+    -- It does improve alt and manyTill benchmarks dramatically but also
+    -- degrades the split/monad benchmarks equally. Needs more investigation.
+    {-
+    go0 !_ st !pst i = do
+        r <- step defState st
+        case r of
+            Yield x s -> do
+                pRes <- pstep pst x
+                case pRes of
+                    PR.SPartial 1 pst1 -> go0 SPEC s pst1 (i + 1)
+                    PR.SPartial 0 pst1 -> go1 SPEC s x pst1 i
+                    PR.SPartial _ _ -> error "Unreachable"
+                    PR.SContinue 1 pst1 -> go SPEC s (List [x]) pst1 (i + 1)
+                    PR.SContinue 0 pst1 -> go1 SPEC s x pst1 i
+                    PR.SContinue _ _ -> error "Unreachable"
+                    PR.SDone 1 b -> return (Right b, Stream step s)
+                    PR.SDone 0 b ->
+                        return ( Right b, StreamD.cons x (Stream step s))
+                    PR.SDone _ _ -> error "Unreachable"
+                    PR.Error err -> do
+                        return
+                            ( Left (ParseError (i + 1) err)
+                            , StreamD.cons x (Stream step s)
+                            )
+
+            Skip s -> go0 SPEC s pst i
+            Stop -> goStop SPEC (List []) pst i
+    -}
+
+    -- XXX Do we need the SPEC arg here?
+    go1 !_ s x !pst i = do
         pRes <- pstep pst x
         case pRes of
             PR.SPartial 1 pst1 ->
+                -- go0 SPEC s pst1 (i + 1)
                 go SPEC s (List []) pst1 (i + 1)
             PR.SPartial 0 pst1 -> do
                 go1 SPEC s x pst1 i
@@ -248,6 +282,7 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                     , Nesting.append (fromPure x) (Stream step s)
                     )
 
+    -- gobuf !_ s (List []) (List []) !pst i = go0 SPEC s pst i
     gobuf !_ s buf (List []) !pst i = go SPEC s buf pst i
     gobuf !_ s buf (List (x:xs)) !pst i = do
         pRes <- pstep pst x
