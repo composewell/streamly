@@ -875,12 +875,13 @@ takeWhileP predicate (Parser pstep pinitial pextract) =
         if predicate a
         then pstep s a
         else do
+            -- In this case when converting Final to Step we don't add 1 as we
+            -- don't consume the current element.
             r <- pextract s
-            -- XXX need a map on count
             case r of
                 FError err -> return $ Error err
-                FDone n s1 -> return $ SDone (n - 1) s1
-                FContinue n s1 -> return $ SContinue (n - 1) s1
+                FDone n s1 -> return $ SDone n s1
+                FContinue n s1 -> return $ SContinue n s1
 
 -- | Collect stream elements until an element fails the predicate. The element
 -- on which the predicate fails is returned back to the input stream.
@@ -1297,8 +1298,8 @@ takeEndBy_ cond (Parser pstep pinitial pextract) =
         then do
             res <- pextract s
             pure $ case res of
-                FDone n b -> SDone n b
-                FContinue n s1 -> SPartial n s1
+                FDone n b -> SDone (n + 1) b
+                FContinue n s1 -> SPartial (n + 1) s1
                 FError err -> Error err
         else pstep s a
 
@@ -2466,10 +2467,9 @@ takeP lim (Parser pstep pinitial pextract) = Parser step initial extract
                 then return $ SPartial 1 $ Tuple' cnt1 s
                 else do
                     r1 <- pextract s
-                    -- Add tests here: Shouldn't we add 1?
                     return $ case r1 of
-                        FDone n b -> SDone n b
-                        FContinue n s1 -> SContinue n (Tuple' (cnt1 + n) s1)
+                        FDone n b -> SDone (n + 1) b
+                        FContinue n s1 -> SContinue (n + 1) (Tuple' (cnt1 + n) s1)
                         FError err -> Error err
 
             SContinue 1 s -> do
@@ -2479,10 +2479,9 @@ takeP lim (Parser pstep pinitial pextract) = Parser step initial extract
                 then return $ SContinue 1 $ Tuple' cnt1 s
                 else do
                     r1 <- pextract s
-                    -- XXX Check. Shouldn't we add 1?
                     return $ case r1 of
-                        FDone n b -> SDone n b
-                        FContinue n s1 -> SContinue n (Tuple' (cnt1 + n) s1)
+                        FDone n b -> SDone (n + 1) b
+                        FContinue n s1 -> SContinue (n + 1) (Tuple' (cnt1 + n) s1)
                         FError err -> Error err
             SPartial n s -> do
                 let taken = cnt + n
