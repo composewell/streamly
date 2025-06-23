@@ -1688,7 +1688,7 @@ parseMany (PRD.Parser pstep initial extract) (Stream step state) =
                         let src = Prelude.reverse (Prelude.take n (x:buf))
                         return $ Skip $
                             ParseChunksYield (Right b) (ParseChunksInit src s)
-                    PR.Error err ->
+                    PR.SError err ->
                         return
                             $ Skip
                             $ ParseChunksYield
@@ -1731,7 +1731,7 @@ parseMany (PRD.Parser pstep initial extract) (Stream step state) =
                 let src = Prelude.reverse (Prelude.take n (x:buf)) ++ xs
                 return $ Skip
                     $ ParseChunksYield (Right b) (ParseChunksInit src s)
-            PR.Error err ->
+            PR.SError err ->
                 return
                     $ Skip
                     $ ParseChunksYield
@@ -1772,7 +1772,7 @@ parseMany (PRD.Parser pstep initial extract) (Stream step state) =
                 return
                     $ Skip
                     $ ParseChunksYield (Right b) (ParseChunksInitBuf src)
-            PR.Error err ->
+            PR.SError err ->
                 return
                     $ Skip
                     $ ParseChunksYield
@@ -1980,7 +1980,7 @@ parseIterate func seed (Stream step state) =
                         let src = Prelude.reverse (Prelude.take n (x:buf))
                         return $ Skip $
                             ConcatParseYield (Right b) (ConcatParseInit src s (func b))
-                    PR.Error err ->
+                    PR.SError err ->
                         return
                             $ Skip
                             $ ConcatParseYield
@@ -2019,7 +2019,7 @@ parseIterate func seed (Stream step state) =
                 let src = Prelude.reverse (Prelude.take n (x:buf)) ++ xs
                 return $ Skip $ ConcatParseYield (Right b)
                                     (ConcatParseInit src s (func b))
-            PR.Error err ->
+            PR.SError err ->
                 return
                     $ Skip
                     $ ConcatParseYield
@@ -2056,7 +2056,7 @@ parseIterate func seed (Stream step state) =
                 assert (n <= length (x:buf)) (return ())
                 let src = Prelude.reverse (Prelude.take n (x:buf)) ++ xs
                 return $ Skip $ ConcatParseYield (Right b) (ConcatParseInitBuf src (func b))
-            PR.Error err ->
+            PR.SError err ->
                 return
                     $ Skip
                     $ ConcatParseYield

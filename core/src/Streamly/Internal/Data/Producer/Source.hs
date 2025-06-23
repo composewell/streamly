@@ -161,7 +161,7 @@ parse
                             src  = Prelude.reverse src0
                         s1 <- uextract s
                         return (Right b, unread src s1)
-                    Error err -> do
+                    SError err -> do
                         s1 <- uextract s
                         let src  = Prelude.reverse (getList buf)
                         return
@@ -198,7 +198,7 @@ parse
                     src  = Prelude.reverse src0
                 s1 <- uextract s
                 return (Right b, unread src s1)
-            Error err -> do
+            SError err -> do
                     s1 <- uextract s
                     let src  = Prelude.reverse (getList buf)
                     return
@@ -233,7 +233,7 @@ parse
                 let src0 = Prelude.take n (x:getList buf)
                     src  = Prelude.reverse src0
                 return (Right b, unread src (source Nothing))
-            Error err -> do
+            SError err -> do
                     let src  = Prelude.reverse (getList buf)
                     return
                         ( Left (ParseError err)

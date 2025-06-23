@@ -842,7 +842,7 @@ parseBreakD
                     -- constructors every time.
                     str = D.cons arr0 (D.cons arr1 (D.Stream step s))
                 return (b, str)
-            PR.Error err -> throwM $ ParseError err
+            PR.SError err -> throwM $ ParseError err
 
 -- | Parse an array stream using the supplied 'Parser'.  Returns the parse
 -- result and the unconsumed stream. Throws 'ParseError' if the parse fails.
@@ -924,7 +924,7 @@ parseBreakChunksK (Parser pstep initial extract) stream = do
                     arr1 = Array contents next end
                     str = StreamK.cons arr0 (StreamK.cons arr1 st)
                 return (Right b, str)
-            Parser.Error err -> do
+            Parser.SError err -> do
                 let n = Prelude.length backBuf
                     arr0 = fromListN n (Prelude.reverse backBuf)
                     arr1 = Array contents cur end
@@ -975,7 +975,7 @@ parseBreakChunksK (Parser pstep initial extract) stream = do
                     arr1 = Array contents next end
                     str = StreamK.cons arr0 (StreamK.fromPure arr1)
                 return (Right b, str)
-            Parser.Error err -> do
+            Parser.SError err -> do
                 let n = Prelude.length backBuf
                     arr0 = fromListN n (Prelude.reverse backBuf)
                     arr1 = Array contents cur end
@@ -1008,7 +1008,7 @@ parseBreakChunksK (Parser pstep initial extract) stream = do
                     -- arr0 = A.fromListRevN n src0
                     arr0 = fromListN n (Prelude.reverse src0)
                 return (Right b, StreamK.fromPure arr0)
-            Parser.Error err -> do
+            Parser.SError err -> do
                 let n = Prelude.length backBuf
                     arr0 = fromListN n (Prelude.reverse backBuf)
                 return (Left (ParseError err), StreamK.fromPure arr0)
@@ -1098,7 +1098,7 @@ parseBreak parser input = do
                 assertM(n1 >= 0 && n1 <= sum (Prelude.map length backBuf))
                 let (s1, _) = backtrack n1 backBuf StreamK.nil
                  in return (Right b, s1)
-            ParserK.Error _ err -> do
+            ParserK.SError _ err -> do
                 let s1 = Prelude.foldl (flip StreamK.cons) StreamK.nil backBuf
                 return (Left (ParseError err), s1)
 
@@ -1143,7 +1143,7 @@ parseBreak parser input = do
                 assertM(n1 <= sum (Prelude.map length (arr:backBuf)))
                 let (s1, _) = backtrack n1 (arr:backBuf) stream
                  in return (Right b, s1)
-            ParserK.Error _ err -> do
+            ParserK.SError _ err -> do
                 let s1 = Prelude.foldl (flip StreamK.cons) stream (arr:backBuf)
                 return (Left (ParseError err), s1)
 
@@ -1255,7 +1255,7 @@ adaptCWith pstep initial extract cont !offset0 !usedCount !input = do
                     go SPEC cur pst1
                 ParserD.SContinue n pst1 ->
                     onBack (move n) elemSize onContinue pst1
-                ParserD.Error err ->
+                ParserD.SError err ->
                     onError curOff err
 
     {-# NOINLINE parseContNothing #-}

@@ -465,7 +465,7 @@ parseBreak parser input = do
                 assertM(n1 >= 0 && n1 <= sum (Prelude.map length backBuf))
                 let (s1, _) = backtrack n1 backBuf StreamK.nil
                  in return (Right b, s1)
-            ParserK.Error _ err ->
+            ParserK.SError _ err ->
                 let strm = Prelude.foldl (flip StreamK.cons) StreamK.nil backBuf
                  in return (Left (ParseError err), strm)
 
@@ -517,7 +517,7 @@ parseBreak parser input = do
                 assertM(n1 <= sum (Prelude.map length (arr:backBuf)))
                 let (s1, _) = backtrack n1 (arr:backBuf) stream
                  in return (Right b, s1)
-            ParserK.Error _ err ->
+            ParserK.SError _ err ->
                 let strm = Prelude.foldl (flip StreamK.cons) stream (arr:backBuf)
                  in return (Left (ParseError err), strm)
 
@@ -632,7 +632,7 @@ adaptCGWith pstep initial extract cont !offset0 !usedCount !input = do
                     go SPEC cur pst1
                 ParserD.SContinue n pst1 ->
                     onBack (move n) onContinue pst1
-                ParserD.Error err ->
+                ParserD.SError err ->
                     onError curOff err
 
     {-# NOINLINE parseContNothing #-}

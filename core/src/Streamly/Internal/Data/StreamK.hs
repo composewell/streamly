@@ -1223,7 +1223,7 @@ parseDBreak (PR.Parser pstep initial extract) stream = do
                         let src0 = Prelude.take n (x:buf)
                             src  = Prelude.reverse src0
                         return (Right b, append (fromList src) r)
-                    PR.Error err -> do
+                    PR.SError err -> do
                         let src = Prelude.reverse (x:buf)
                         return (Left (ParseError err), append (fromList src) r)
          in foldStream defState yieldk single stop st
@@ -1252,7 +1252,7 @@ parseDBreak (PR.Parser pstep initial extract) stream = do
                 let src0 = Prelude.take n (x:buf)
                     src  = Prelude.reverse src0 ++ xs
                 return (Right b, append (fromList src) st)
-            PR.Error err -> do
+            PR.SError err -> do
                 let src = Prelude.reverse buf ++ x:xs
                 return (Left (ParseError err), append (fromList src) st)
 
@@ -1346,7 +1346,7 @@ parseBreak parser input = do
                 assertM(n1 >= 0 && n1 <= length backBuf)
                 let (s1, _) = backtrack n1 backBuf nil
                  in return (Right b, s1)
-            ParserK.Error _ err ->
+            ParserK.SError _ err ->
                 let strm = fromList (Prelude.reverse backBuf)
                  in return (Left (ParseError err), strm)
 
@@ -1389,7 +1389,7 @@ parseBreak parser input = do
                 assertM(n1 >= 0 && n1 <= bufLen)
                 let (s1, _) = backtrack n1 backBuf s
                 pure (Right b, s1)
-            ParserK.Error _ err ->
+            ParserK.SError _ err ->
                 let strm =
                         append
                             (fromList (Prelude.reverse backBuf))

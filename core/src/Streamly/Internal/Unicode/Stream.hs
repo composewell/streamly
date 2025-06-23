@@ -493,7 +493,7 @@ parseCharUtf8WithD cfm = ParserD.Parser (step' utf8d) initial extract
 
     handleError err souldBackTrack =
         case cfm of
-            ErrorOnCodingFailure -> ParserD.Error err
+            ErrorOnCodingFailure -> ParserD.SError err
             TransliterateCodingFailure ->
                 case souldBackTrack of
                     True -> ParserD.SDone 0 replacementChar

@@ -207,7 +207,7 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                         return
                             ( Right b,
                               Nesting.append (fromList src) (Stream step s))
-                    PR.Error err -> do
+                    PR.SError err -> do
                         let src = Prelude.reverse $ x:getList buf
                         return
                             ( Left (ParseError err)
@@ -238,7 +238,7 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                 return (Right b, StreamD.cons x (Stream step s))
             PR.SDone m _ -> do
                 error $ "parseBreak: parser bug, go1: SDone m = " ++ show m
-            PR.Error err ->
+            PR.SError err ->
                 return
                     ( Left (ParseError err)
                     , Nesting.append (fromPure x) (Stream step s)
@@ -272,7 +272,7 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                 let src0 = Prelude.take n (x:getList buf)
                     src  = Prelude.reverse src0 ++ xs
                 return (Right b, Nesting.append (fromList src) (Stream step s))
-            PR.Error err -> do
+            PR.SError err -> do
                 let src = Prelude.reverse (getList buf) ++ x:xs
                 return
                     ( Left (ParseError err)
@@ -308,7 +308,7 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                 let src0 = Prelude.take n (x:getList buf)
                     src  = Prelude.reverse src0 ++ xs
                 return (Right b, fromList src)
-            PR.Error err -> do
+            PR.SError err -> do
                 let src = Prelude.reverse (getList buf) ++ x:xs
                 return (Left (ParseError err), fromList src)
 

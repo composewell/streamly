@@ -345,12 +345,12 @@ number =  Parser (\s a -> return $ step s a) initial (return . extract)
               let num = ord val - 48
               if num >= 0 && num <= 9
               then SPartial 1 $ SPAfterSign 1 (intToInteger num)
-              else Error $ exitSPInitial $ show val
+              else SError $ exitSPInitial $ show val
     step (SPSign multiplier) val =
         let num = ord val - 48
          in if num >= 0 && num <= 9
             then SPartial 1 $ SPAfterSign multiplier (intToInteger num)
-            else Error $ exitSPSign $ show val
+            else SError $ exitSPSign $ show val
     step (SPAfterSign multiplier buf) val =
         case val of
             '.' -> SContinue 1 $ SPDot multiplier buf
@@ -486,12 +486,12 @@ doubleParser =  Parser (\s a -> return $ step s a) initial (return . extract)
               let num = ord val - 48
               if num >= 0 && num <= 9
               then SPartial 1 $ DPAfterSign 1 num 0
-              else Error $ exitDPInitial $ show val
+              else SError $ exitDPInitial $ show val
     step (DPSign multiplier) val =
         let num = ord val - 48
          in if num >= 0 && num <= 9
             then SPartial 1 $ DPAfterSign multiplier num 0
-            else Error $ exitDPSign $ show val
+            else SError $ exitDPSign $ show val
     step (DPAfterSign multiplier buf opower) val =
         case val of
             '.' -> SContinue 1 $ DPDot multiplier buf opower

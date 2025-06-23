@@ -236,7 +236,7 @@ takeWhileFailD predicate (Fold fstep finitial _ ffinal) =
                 $ case fres of
                       Fold.Partial s1 -> SContinue 1 s1
                       Fold.Done b -> SDone 1 b
-        else return $ Error "fail"
+        else return $ SError "fail"
 
     extract s = fmap (FDone 0) (ffinal s)
 
