@@ -9,9 +9,9 @@
 module Streamly.Internal.Data.Fold.Exception
     (
     -- * Resources
-      afterIO
-    , before
+      before
     , bracketIO
+    , finallyIO
 
     -- * Exceptions
     , onException
@@ -163,9 +163,9 @@ bracketIO bef aft bet = Fold step initial extract final
 -- | Run a side effect whenever the fold stops normally, aborts due to an
 -- exception or is garbage collected.
 --
-{-# INLINE afterIO #-}
-afterIO :: (MonadIO m, MonadCatch m) => IO b -> Fold m a b -> Fold m a b
-afterIO aft (Fold step1 initial1 extract1 final1) =
+{-# INLINE finallyIO #-}
+finallyIO :: (MonadIO m, MonadCatch m) => IO b -> Fold m a b -> Fold m a b
+finallyIO aft (Fold step1 initial1 extract1 final1) =
     Fold step initial extract final
 
     where
