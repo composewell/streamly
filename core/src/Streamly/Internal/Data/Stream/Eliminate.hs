@@ -122,9 +122,7 @@ parseD
     => PRD.Parser a m b
     -> Stream m a
     -> m (Either ParseError b)
-parseD parser strm = do
-    (b, _) <- parseBreakD parser strm
-    return b
+parseD = parse
 
 -- | Parse a stream using the supplied 'Parser'.
 --
@@ -140,7 +138,9 @@ parseD parser strm = do
 --
 {-# INLINE [3] parse #-}
 parse :: Monad m => PR.Parser a m b -> Stream m a -> m (Either ParseError b)
-parse = parseD
+parse parser strm = do
+    (b, _) <- parseBreak parser strm
+    return b
 
 -- XXX It may be a good idea to use constant sized chunks for backtracking. We
 -- can take a byte stream but when we have to backtrack we create constant
