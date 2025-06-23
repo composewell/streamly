@@ -85,7 +85,6 @@ import qualified Data.List as List
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Scanl as Scanl
 import qualified Streamly.Internal.Data.Stream.Type as Stream
-import qualified Streamly.Internal.Data.Stream.Nesting as Stream
 import qualified Streamly.Internal.Data.Stream.Transform as Stream
 
 import Prelude hiding (filter, zipWith, concatMap, concat)

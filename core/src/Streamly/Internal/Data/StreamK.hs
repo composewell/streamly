@@ -43,6 +43,7 @@ module Streamly.Internal.Data.StreamK
     , parseDBreak
     , parseD
     , parseBreak
+    , parseBreakPos
     , parse
 
     -- ** Specialized Folds
@@ -153,6 +154,7 @@ import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Array.Generic as GenArr
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Parser as Parser
+import qualified Streamly.Internal.Data.ParserDrivers as Drivers
 import qualified Streamly.Internal.Data.Parser.Type as PR
 import qualified Streamly.Internal.Data.ParserK.Type as ParserK
 import qualified Streamly.Internal.Data.Stream as Stream
@@ -1294,131 +1296,26 @@ parseChunks = Array.parse
 -- ParserK Singular
 -------------------------------------------------------------------------------
 
-#ifndef PARSER_WITH_POS
-#define PARSE_BREAK parseBreak
-#define OPTIONAL(x)
-#define DEFAULT(x) 0
-#else
-#define PARSE_BREAK parseBreakPos
-#define OPTIONAL(x) (x)
-#define DEFAULT(x) (x)
-#endif
-
 -- | Similar to 'parseBreak' but works on singular elements.
 --
-{-# INLINE_NORMAL PARSE_BREAK #-}
-PARSE_BREAK
+{-# INLINE parseBreak #-}
+parseBreak
     :: forall m a b. Monad m
     => ParserK.ParserK a m b
     -> StreamK m a
     -> m (Either ParseError b, StreamK m a)
-PARSE_BREAK parser input = do
-    let parserk = ParserK.runParser parser ParserK.parserDone 0 0
-     in go OPTIONAL(0) [] parserk input
+parseBreak = Drivers.parseBreakStreamK
 
-    where
-
-    {-# INLINE backtrack #-}
-    -- backtrack :: Int -> [a] -> StreamK m a -> (StreamK m a, [a])
-    backtrack n xs stream =
-        let (pre, post) = Stream.splitAt "Data.StreamK.parseBreak" n xs
-         in (append (fromList (Prelude.reverse pre)) stream, post)
-
-    {-# INLINE goStop #-}
-    goStop
-        :: OPTIONAL(Int ->)
-           [a]
-        -> (ParserK.Input a -> m (ParserK.Step a m b))
-        -> m (Either ParseError b, StreamK m a)
-    goStop OPTIONAL(pos) backBuf parserk = do
-        pRes <- parserk ParserK.None
-        case pRes of
-            -- If we stop in an alternative, it will try calling the next
-            -- parser, the next parser may call initial returning Partial and
-            -- then immediately we have to call extract on it.
-            ParserK.Partial 0 cont1 ->
-                 go OPTIONAL(pos) [] cont1 nil
-            ParserK.Partial n cont1 -> do
-                let n1 = negate n
-                assertM(n1 >= 0 && n1 <= length backBuf)
-                let (s1, backBuf1) = backtrack n1 backBuf nil
-                 in go OPTIONAL(pos + n) backBuf1 cont1 s1
-            ParserK.Continue 0 cont1 ->
-                go OPTIONAL(pos) backBuf cont1 nil
-            ParserK.Continue n cont1 -> do
-                let n1 = negate n
-                assertM(n1 >= 0 && n1 <= length backBuf)
-                let (s1, backBuf1) = backtrack n1 backBuf nil
-                 in go OPTIONAL(pos + n) backBuf1 cont1 s1
-            ParserK.Done 0 b ->
-                return (Right b, nil)
-            ParserK.Done n b -> do
-                let n1 = negate n
-                assertM(n1 >= 0 && n1 <= length backBuf)
-                let (s1, _) = backtrack n1 backBuf nil
-                 in return (Right b, s1)
-            ParserK.SError n err ->
-                let strm = fromList (Prelude.reverse backBuf)
-                 in return (Left (ParseError (DEFAULT(pos) + n) err), strm)
-
-    yieldk
-        :: OPTIONAL(Int ->)
-           [a]
-        -> (ParserK.Input a -> m (ParserK.Step a m b))
-        -> a
-        -> StreamK m a
-        -> m (Either ParseError b, StreamK m a)
-    yieldk OPTIONAL(pos) backBuf parserk element stream = do
-        pRes <- parserk (ParserK.Chunk element)
-        -- NOTE: factoring out "cons element stream" in a let statement here
-        -- cause big alloc regression.
-        case pRes of
-            ParserK.Partial 1 cont1 -> go OPTIONAL(pos + 1) [] cont1 stream
-            ParserK.Partial 0 cont1 -> go OPTIONAL(pos) [] cont1 (cons element stream)
-            ParserK.Partial n cont1 -> do -- n < 0 case
-                let n1 = negate n
-                    bufLen = length backBuf
-                    s = cons element stream
-                assertM(n1 >= 0 && n1 <= bufLen)
-                let (s1, _) = backtrack n1 backBuf s
-                go OPTIONAL(pos + n) [] cont1 s1
-            ParserK.Continue 1 cont1 -> go OPTIONAL(pos + 1) (element:backBuf) cont1 stream
-            ParserK.Continue 0 cont1 ->
-                go OPTIONAL(pos) backBuf cont1 (cons element stream)
-            ParserK.Continue n cont1 -> do
-                let n1 = negate n
-                    bufLen = length backBuf
-                    s = cons element stream
-                assertM(n1 >= 0 && n1 <= bufLen)
-                let (s1, backBuf1) = backtrack n1 backBuf s
-                go OPTIONAL(pos + n) backBuf1 cont1 s1
-            ParserK.Done 1 b -> pure (Right b, stream)
-            ParserK.Done 0 b -> pure (Right b, cons element stream)
-            ParserK.Done n b -> do
-                let n1 = negate n
-                    bufLen = length backBuf
-                    s = cons element stream
-                assertM(n1 >= 0 && n1 <= bufLen)
-                let (s1, _) = backtrack n1 backBuf s
-                pure (Right b, s1)
-            ParserK.SError n err ->
-                let strm =
-                        append
-                            (fromList (Prelude.reverse backBuf))
-                            (cons element stream)
-                 in return (Left (ParseError (DEFAULT(pos) + n + 1) err), strm)
-
-    go
-        :: OPTIONAL(Int ->)
-           [a]
-        -> (ParserK.Input a -> m (ParserK.Step a m b))
-        -> StreamK m a
-        -> m (Either ParseError b, StreamK m a)
-    go OPTIONAL(pos) backBuf parserk stream = do
-        let stop = goStop OPTIONAL(pos) backBuf parserk
-            single a = yieldk OPTIONAL(pos) backBuf parserk a nil
-         in foldStream
-                defState (yieldk OPTIONAL(pos) backBuf parserk) single stop stream
+-- | Like 'parseBreak' but includes stream position information in the error
+-- messages.
+--
+{-# INLINE parseBreakPos #-}
+parseBreakPos
+    :: forall m a b. Monad m
+    => ParserK.ParserK a m b
+    -> StreamK m a
+    -> m (Either ParseError b, StreamK m a)
+parseBreakPos = Drivers.parseBreakStreamKPos
 
 -- | Run a 'ParserK' over a 'StreamK'. Please use 'parseChunks' where possible,
 -- for better performance.

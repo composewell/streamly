@@ -31,19 +31,11 @@ module Streamly.Internal.Data.Stream.Nesting
     --
     -- @Stream m a -> Stream m a -> Stream m a@.
 
-    -- *** Appending
-    -- | Append a stream after another. A special case of concatMap or
-    -- unfoldEach Note, appending more than two streams is called @concat@
-    -- which could be called appendMany or appendAll in append terminology and
-    -- is equivalent to @concatMap id@. Append is equivalent to @mergeBy fst@.
-      AppendState(..)
-    , append
-
     -- *** Interleaving
     -- | Interleave elements from two streams alternately. A special case of
     -- unfoldEachInterleave. Interleave is equivalent to mergeBy with a round
     -- robin merge function.
-    , InterleaveState(..)
+      InterleaveState(..)
     , interleave
     , interleaveEndBy'
     , interleaveSepBy'
@@ -123,9 +115,11 @@ module Streamly.Internal.Data.Stream.Nesting
     -- splitting the stream and then folds each such split to single value in
     -- the output stream.
     , parseMany
+    , parseManyPos
     , parseSequence
     , parseManyTill
     , parseIterate
+    , parseIteratePos
 
     -- ** Grouping
     -- | Group segments of a stream and fold. Special case of parsing.
@@ -203,9 +197,9 @@ import qualified Streamly.Internal.Data.MutArray.Type as MutArray
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser as PRD
+import qualified Streamly.Internal.Data.ParserDrivers as Drivers
 import qualified Streamly.Internal.Data.RingArray as RB
 import qualified Streamly.Internal.Data.Stream.Generate as Stream
-import qualified Streamly.Internal.Data.Stream.Type as Stream
 import qualified Streamly.Internal.Data.Unfold.Type as Unfold
 
 import Streamly.Internal.Data.Stream.Transform
@@ -215,55 +209,6 @@ import Streamly.Internal.Data.Stream.Type hiding (splitAt)
 import Prelude hiding (concatMap, mapM, zipWith, splitAt)
 
 #include "DocTestDataStream.hs"
-
-------------------------------------------------------------------------------
--- Appending
-------------------------------------------------------------------------------
-
-data AppendState s1 s2 = AppendFirst s1 | AppendSecond s2
-
--- Performance Note: From an implementation perspective,
--- StreamK.'Streamly.Data.StreamK.append' translates into a function call
--- whereas Stream.'append' translates into a conditional branch (jump).
--- However, the overhead of the function call in StreamK.append is incurred
--- only once, while the overhead of the conditional branch in fused append is
--- incurred for each element in the stream. As a result, StreamK.append has a
--- linear time complexity of O(n), while fused append has a quadratic time
--- complexity of O(n^2), where @n@ represents the number of 'append's used.
-
--- | WARNING! O(n^2) time complexity wrt number of streams. Suitable for
--- statically fusing a small number of streams. Use the O(n) complexity
--- StreamK.'Streamly.Data.StreamK.append' otherwise.
---
--- Fuses two streams sequentially, yielding all elements from the first
--- stream, and then all elements from the second stream.
---
--- >>> s1 = Stream.fromList [1,2]
--- >>> s2 = Stream.fromList [3,4]
--- >>> Stream.fold Fold.toList $ s1 `Stream.append` s2
--- [1,2,3,4]
---
-{-# INLINE_NORMAL append #-}
-append :: Monad m => Stream m a -> Stream m a -> Stream m a
-append (Stream step1 state1) (Stream step2 state2) =
-    Stream step (AppendFirst state1)
-
-    where
-
-    {-# INLINE_LATE step #-}
-    step gst (AppendFirst st) = do
-        r <- step1 gst st
-        return $ case r of
-            Yield a s -> Yield a (AppendFirst s)
-            Skip s -> Skip (AppendFirst s)
-            Stop -> Skip (AppendSecond state2)
-
-    step gst (AppendSecond st) = do
-        r <- step2 gst st
-        return $ case r of
-            Yield a s -> Yield a (AppendSecond s)
-            Skip s -> Skip (AppendSecond s)
-            Stop -> Stop
 
 ------------------------------------------------------------------------------
 -- Interleaving
@@ -1555,29 +1500,6 @@ foldIterateM func seed0 (Stream step state) =
 -- Parsing
 ------------------------------------------------------------------------------
 
-#ifndef PARSER_WITH_POS
-#define PARSE_MANY parseMany
-#define OPTIONAL(x)
-#define DEFAULT(x) 0
-#else
-#define PARSE_MANY parseManyPos
-#define OPTIONAL(x) (x)
-#define DEFAULT(x) (x)
-#endif
-
-{-# ANN type ParseChunksState Fuse #-}
-data ParseChunksState x inpBuf st pst =
-      ParseChunksInit OPTIONAL(Int) inpBuf st
-    | ParseChunksInitBuf OPTIONAL(Int) inpBuf
-    | ParseChunksInitLeftOver OPTIONAL(Int) inpBuf
-    | ParseChunksStream OPTIONAL(Int) st inpBuf !pst
-    | ParseChunksStop OPTIONAL(Int) inpBuf !pst
-    | ParseChunksBuf OPTIONAL(Int) inpBuf st inpBuf !pst
-    | ParseChunksExtract OPTIONAL(Int) inpBuf inpBuf !pst
-    | ParseChunksYield x (ParseChunksState x inpBuf st pst)
-
--- XXX return the remaining stream as part of the error.
-
 -- | Apply a 'Parser' repeatedly on a stream and emit the parsed values in the
 -- output stream.
 --
@@ -1594,234 +1516,24 @@ data ParseChunksState x inpBuf st pst =
 -- Known Issues: When the parser fails there is no way to get the remaining
 -- stream.
 --
-{-# INLINE_NORMAL PARSE_MANY #-}
-PARSE_MANY
+{-# INLINE parseMany #-}
+parseMany
     :: Monad m
     => PRD.Parser a m b
     -> Stream m a
     -> Stream m (Either ParseError b)
-PARSE_MANY (PRD.Parser pstep initial extract) (Stream step state) =
-    Stream stepOuter (ParseChunksInit OPTIONAL(0) [] state)
+parseMany = Drivers.parseMany
 
-    where
-
-    {-# INLINE splitAt #-}
-    splitAt = Stream.splitAt "Data.StreamK.parseMany"
-
-    {-# INLINE_LATE stepOuter #-}
-    -- Buffer is empty, get the first element from the stream, initialize the
-    -- fold and then go to stream processing loop.
-    stepOuter gst (ParseChunksInit OPTIONAL(i) [] st) = do
-        r <- step (adaptState gst) st
-        case r of
-            Yield x s -> do
-                res <- initial
-                case res of
-                    PRD.IPartial ps ->
-                        return $ Skip $ ParseChunksBuf OPTIONAL(i) [x] s [] ps
-                    PRD.IDone pb ->
-                        let next = ParseChunksInit OPTIONAL(i) [x] s
-                         in return $ Skip $ ParseChunksYield (Right pb) next
-                    PRD.IError err ->
-                        return
-                            $ Skip
-                            $ ParseChunksYield
-                                (Left (ParseError DEFAULT(i) err))
-                                (ParseChunksInitLeftOver OPTIONAL(i) [])
-            Skip s -> return $ Skip $ ParseChunksInit OPTIONAL(i) [] s
-            Stop   -> return Stop
-
-    -- Buffer is not empty, go to buffered processing loop
-    stepOuter _ (ParseChunksInit OPTIONAL(i) src st) = do
-        res <- initial
-        case res of
-            PRD.IPartial ps ->
-                return $ Skip $ ParseChunksBuf OPTIONAL(i) src st [] ps
-            PRD.IDone pb ->
-                let next = ParseChunksInit OPTIONAL(i) src st
-                 in return $ Skip $ ParseChunksYield (Right pb) next
-            PRD.IError err ->
-                return
-                    $ Skip
-                    $ ParseChunksYield
-                        (Left (ParseError DEFAULT(i) err))
-                        (ParseChunksInitLeftOver OPTIONAL(i) [])
-
-    -- This is simplified ParseChunksInit
-    stepOuter _ (ParseChunksInitBuf OPTIONAL(i) src) = do
-        res <- initial
-        case res of
-            PRD.IPartial ps ->
-                return $ Skip $ ParseChunksExtract OPTIONAL(i) src [] ps
-            PRD.IDone pb ->
-                let next = ParseChunksInitBuf OPTIONAL(i) src
-                 in return $ Skip $ ParseChunksYield (Right pb) next
-            PRD.IError err ->
-                return
-                    $ Skip
-                    $ ParseChunksYield
-                        (Left (ParseError DEFAULT(i) err))
-                        (ParseChunksInitLeftOver OPTIONAL(i) [])
-
-    -- XXX we just discard any leftover input at the end
-    stepOuter _ (ParseChunksInitLeftOver OPTIONAL(_) _) = return Stop
-
-    -- Buffer is empty, process elements from the stream
-    stepOuter gst (ParseChunksStream OPTIONAL(i) st buf pst) = do
-        r <- step (adaptState gst) st
-        case r of
-            Yield x s -> do
-                pRes <- pstep pst x
-                case pRes of
-                    PR.SPartial 1 pst1 ->
-                        return $ Skip $ ParseChunksStream OPTIONAL(i + 1) s [] pst1
-                    PR.SPartial m pst1 -> do
-                        let n = 1 - m
-                        assert (n <= length (x:buf)) (return ())
-                        let src0 = Prelude.take n (x:buf)
-                            src  = Prelude.reverse src0
-                        return $ Skip $ ParseChunksBuf OPTIONAL(i + m) src s [] pst1
-                    PR.SContinue 1 pst1 ->
-                        return $ Skip $ ParseChunksStream OPTIONAL(i + 1) s (x:buf) pst1
-                    PR.SContinue m pst1 -> do
-                        let n = 1 - m
-                        assert (n <= length (x:buf)) (return ())
-                        let (src0, buf1) = splitAt n (x:buf)
-                            src  = Prelude.reverse src0
-                        return $ Skip $ ParseChunksBuf OPTIONAL(i + m) src s buf1 pst1
-                    PR.SDone 1 b -> do
-                        return $ Skip $
-                            ParseChunksYield
-                                (Right b) (ParseChunksInit OPTIONAL(i + 1) [] s)
-                    PR.SDone m b -> do
-                        let n = 1 - m
-                        assert (n <= length (x:buf)) (return ())
-                        let src = Prelude.reverse (Prelude.take n (x:buf))
-                        return $ Skip $
-                            ParseChunksYield
-                                (Right b) (ParseChunksInit OPTIONAL(i + m) src s)
-                    PR.SError err ->
-                        return
-                            $ Skip
-                            $ ParseChunksYield
-                                (Left (ParseError (DEFAULT(i) + 1) err))
-                                (ParseChunksInitLeftOver OPTIONAL(i + 1) [])
-            Skip s -> return $ Skip $ ParseChunksStream OPTIONAL(i) s buf pst
-            Stop -> return $ Skip $ ParseChunksStop OPTIONAL(i) buf pst
-
-    -- go back to stream processing mode
-    stepOuter _ (ParseChunksBuf OPTIONAL(i) [] s buf pst) =
-        return $ Skip $ ParseChunksStream OPTIONAL(i) s buf pst
-
-    -- buffered processing loop
-    stepOuter _ (ParseChunksBuf OPTIONAL(i) (x:xs) s buf pst) = do
-        pRes <- pstep pst x
-        case pRes of
-            PR.SPartial 1 pst1 ->
-                return $ Skip $ ParseChunksBuf OPTIONAL(i + 1) xs s [] pst1
-            PR.SPartial m pst1 -> do
-                let n = 1 - m
-                assert (n <= length (x:buf)) (return ())
-                let src0 = Prelude.take n (x:buf)
-                    src  = Prelude.reverse src0 ++ xs
-                return $ Skip $ ParseChunksBuf OPTIONAL(i + m) src s [] pst1
-            PR.SContinue 1 pst1 ->
-                return $ Skip $ ParseChunksBuf OPTIONAL(i + 1) xs s (x:buf) pst1
-            PR.SContinue m pst1 -> do
-                let n = 1 - m
-                assert (n <= length (x:buf)) (return ())
-                let (src0, buf1) = splitAt n (x:buf)
-                    src  = Prelude.reverse src0 ++ xs
-                return $ Skip $ ParseChunksBuf OPTIONAL(i + m) src s buf1 pst1
-            PR.SDone 1 b ->
-                return
-                    $ Skip
-                    $ ParseChunksYield (Right b) (ParseChunksInit OPTIONAL(i + 1) xs s)
-            PR.SDone m b -> do
-                let n = 1 - m
-                assert (n <= length (x:buf)) (return ())
-                let src = Prelude.reverse (Prelude.take n (x:buf)) ++ xs
-                return $ Skip
-                    $ ParseChunksYield
-                        (Right b) (ParseChunksInit OPTIONAL(i + m) src s)
-            PR.SError err ->
-                return
-                    $ Skip
-                    $ ParseChunksYield
-                        (Left (ParseError DEFAULT(i + 1) err))
-                        (ParseChunksInitLeftOver OPTIONAL(i + 1) [])
-
-    -- This is simplified ParseChunksBuf
-    stepOuter _ (ParseChunksExtract OPTIONAL(i) [] buf pst) =
-        return $ Skip $ ParseChunksStop OPTIONAL(i) buf pst
-
-    stepOuter _ (ParseChunksExtract OPTIONAL(i) (x:xs) buf pst) = do
-        pRes <- pstep pst x
-        case pRes of
-            PR.SPartial 1 pst1 ->
-                return $ Skip $ ParseChunksExtract OPTIONAL(i + 1) xs [] pst1
-            PR.SPartial m pst1 -> do
-                let n = 1 - m
-                assert (n <= length (x:buf)) (return ())
-                let src0 = Prelude.take n (x:buf)
-                    src  = Prelude.reverse src0 ++ xs
-                return $ Skip $ ParseChunksExtract OPTIONAL(i + m) src [] pst1
-            PR.SContinue 1 pst1 ->
-                return $ Skip $ ParseChunksExtract OPTIONAL(i + 1) xs (x:buf) pst1
-            PR.SContinue m pst1 -> do
-                let n = 1 - m
-                assert (n <= length (x:buf)) (return ())
-                let (src0, buf1) = splitAt n (x:buf)
-                    src  = Prelude.reverse src0 ++ xs
-                return $ Skip $ ParseChunksExtract OPTIONAL(i + m) src buf1 pst1
-            PR.SDone 1 b ->
-                return
-                    $ Skip
-                    $ ParseChunksYield (Right b) (ParseChunksInitBuf OPTIONAL(i + 1) xs)
-            PR.SDone m b -> do
-                let n = 1 - m
-                assert (n <= length (x:buf)) (return ())
-                let src = Prelude.reverse (Prelude.take n (x:buf)) ++ xs
-                return
-                    $ Skip
-                    $ ParseChunksYield
-                        (Right b) (ParseChunksInitBuf OPTIONAL(i + m) src)
-            PR.SError err ->
-                return
-                    $ Skip
-                    $ ParseChunksYield
-                        (Left (ParseError (DEFAULT(i) + 1) err))
-                        (ParseChunksInitLeftOver OPTIONAL(i + 1) [])
-
-    -- This is simplified ParseChunksExtract
-    stepOuter _ (ParseChunksStop OPTIONAL(i) buf pst) = do
-        pRes <- extract pst
-        case pRes of
-            PR.FContinue 0 pst1 ->
-                return $ Skip $ ParseChunksStop OPTIONAL(i) buf pst1
-            PR.FContinue m pst1 -> do
-                let n = (- m)
-                assert (n <= length buf) (return ())
-                let (src0, buf1) = splitAt n buf
-                    src  = Prelude.reverse src0
-                return $ Skip $ ParseChunksExtract OPTIONAL(i + m) src buf1 pst1
-            PR.FDone 0 b -> do
-                return $ Skip $
-                    ParseChunksYield (Right b) (ParseChunksInitLeftOver OPTIONAL(i) [])
-            PR.FDone m b -> do
-                let n = (- m)
-                assert (n <= length buf) (return ())
-                let src = Prelude.reverse (Prelude.take n buf)
-                return $ Skip $
-                    ParseChunksYield (Right b) (ParseChunksInitBuf OPTIONAL(i + m) src)
-            PR.FError err ->
-                return
-                    $ Skip
-                    $ ParseChunksYield
-                        (Left (ParseError DEFAULT(i) err))
-                        (ParseChunksInitLeftOver OPTIONAL(i) [])
-
-    stepOuter _ (ParseChunksYield a next) = return $ Yield a next
+-- | Like 'parseMany' but includes stream position information in the error
+-- messages.
+--
+{-# INLINE parseManyPos #-}
+parseManyPos
+    :: Monad m
+    => PRD.Parser a m b
+    -> Stream m a
+    -> Stream m (Either ParseError b)
+parseManyPos = Drivers.parseManyPos
 
 {-# DEPRECATED parseManyD "Please use parseMany instead." #-}
 {-# INLINE parseManyD #-}
@@ -1864,27 +1576,6 @@ parseManyTill ::
     -> Stream m b
 parseManyTill = undefined
 
-#ifndef PARSER_WITH_POS
-#define PARSE_ITERATE parseIterate
-#else
-#define PARSE_ITERATE parseIteratePos
-#endif
-
-{-# ANN type ConcatParseState Fuse #-}
-data ConcatParseState c b inpBuf st p m a =
-      ConcatParseInit OPTIONAL(Int) inpBuf st p
-    | ConcatParseInitBuf OPTIONAL(Int) inpBuf p
-    | ConcatParseInitLeftOver OPTIONAL(Int) inpBuf
-    | forall s. ConcatParseStop OPTIONAL(Int)
-        inpBuf (s -> a -> m (PRD.Step s b)) s (s -> m (PRD.Final s b))
-    | forall s. ConcatParseStream OPTIONAL(Int)
-        st inpBuf (s -> a -> m (PRD.Step s b)) s (s -> m (PRD.Final s b))
-    | forall s. ConcatParseBuf OPTIONAL(Int)
-        inpBuf st inpBuf (s -> a -> m (PRD.Step s b)) s (s -> m (PRD.Final s b))
-    | forall s. ConcatParseExtract OPTIONAL(Int)
-        inpBuf inpBuf (s -> a -> m (PRD.Step s b)) s (s -> m (PRD.Final s b))
-    | ConcatParseYield c (ConcatParseState c b inpBuf st p m a)
-
 -- | Iterate a parser generating function on a stream. The initial value @b@ is
 -- used to generate the first parser, the parser is applied on the stream and
 -- the result is used to generate the next parser and so on.
@@ -1901,239 +1592,26 @@ data ConcatParseState c b inpBuf st p m a =
 --
 -- /Pre-release/
 --
-{-# INLINE_NORMAL PARSE_ITERATE #-}
-PARSE_ITERATE
+{-# INLINE parseIterate #-}
+parseIterate
     :: Monad m
     => (b -> PRD.Parser a m b)
     -> b
     -> Stream m a
     -> Stream m (Either ParseError b)
-PARSE_ITERATE func seed (Stream step state) =
-    Stream stepOuter (ConcatParseInit OPTIONAL(0) [] state (func seed))
+parseIterate = Drivers.parseIterate
 
-    where
-
-    {-# INLINE splitAt #-}
-    splitAt = Stream.splitAt "Data.StreamK.parseIterate"
-
-    {-# INLINE_LATE stepOuter #-}
-    -- Buffer is empty, go to stream processing loop
-    stepOuter _ (ConcatParseInit OPTIONAL(i) [] st (PRD.Parser pstep initial extract)) = do
-        res <- initial
-        case res of
-            PRD.IPartial ps ->
-                return $ Skip $ ConcatParseStream OPTIONAL(i) st [] pstep ps extract
-            PRD.IDone pb ->
-                let next = ConcatParseInit OPTIONAL(i) [] st (func pb)
-                 in return $ Skip $ ConcatParseYield (Right pb) next
-            PRD.IError err ->
-                return
-                    $ Skip
-                    $ ConcatParseYield
-                        (Left (ParseError DEFAULT(i) err))
-                        (ConcatParseInitLeftOver OPTIONAL(i) [])
-
-    -- Buffer is not empty, go to buffered processing loop
-    stepOuter _ (ConcatParseInit OPTIONAL(i) src st
-                    (PRD.Parser pstep initial extract)) = do
-        res <- initial
-        case res of
-            PRD.IPartial ps ->
-                return $ Skip $ ConcatParseBuf OPTIONAL(i) src st [] pstep ps extract
-            PRD.IDone pb ->
-                let next = ConcatParseInit OPTIONAL(i) src st (func pb)
-                 in return $ Skip $ ConcatParseYield (Right pb) next
-            PRD.IError err ->
-                return
-                    $ Skip
-                    $ ConcatParseYield
-                        (Left (ParseError DEFAULT(i) err))
-                        (ConcatParseInitLeftOver OPTIONAL(i) [])
-
-    -- This is simplified ConcatParseInit
-    stepOuter _ (ConcatParseInitBuf OPTIONAL(i) src
-                    (PRD.Parser pstep initial extract)) = do
-        res <- initial
-        case res of
-            PRD.IPartial ps ->
-                return $ Skip $ ConcatParseExtract OPTIONAL(i) src [] pstep ps extract
-            PRD.IDone pb ->
-                let next = ConcatParseInitBuf OPTIONAL(i) src (func pb)
-                 in return $ Skip $ ConcatParseYield (Right pb) next
-            PRD.IError err ->
-                return
-                    $ Skip
-                    $ ConcatParseYield
-                        (Left (ParseError DEFAULT(i) err))
-                        (ConcatParseInitLeftOver OPTIONAL(i) [])
-
-    -- XXX we just discard any leftover input at the end
-    stepOuter _ (ConcatParseInitLeftOver OPTIONAL(_) _) = return Stop
-
-    -- Buffer is empty process elements from the stream
-    stepOuter gst (ConcatParseStream OPTIONAL(i) st buf pstep pst extract) = do
-        r <- step (adaptState gst) st
-        case r of
-            Yield x s -> do
-                pRes <- pstep pst x
-                case pRes of
-                    PR.SPartial 1 pst1 ->
-                        return $ Skip
-                            $ ConcatParseStream OPTIONAL(i + 1) s [] pstep pst1 extract
-                    PR.SPartial m pst1 -> do
-                        let n = 1 - m
-                        assert (n <= length (x:buf)) (return ())
-                        let src0 = Prelude.take n (x:buf)
-                            src  = Prelude.reverse src0
-                        return $ Skip
-                            $ ConcatParseBuf
-                                OPTIONAL(i + m) src s [] pstep pst1 extract
-                    -- PR.SContinue 1 pst1 ->
-                    --     return $ Skip $ ConcatParseStream s (x:buf) pst1
-                    PR.SContinue m pst1 -> do
-                        let n = 1 - m
-                        assert (n <= length (x:buf)) (return ())
-                        let (src0, buf1) = splitAt n (x:buf)
-                            src  = Prelude.reverse src0
-                        return $ Skip
-                            $ ConcatParseBuf
-                                OPTIONAL(i + m) src s buf1 pstep pst1 extract
-                    -- XXX Specialize for Stop 0 common case?
-                    PR.SDone m b -> do
-                        let n = 1 - m
-                        assert (n <= length (x:buf)) (return ())
-                        let src = Prelude.reverse (Prelude.take n (x:buf))
-                        return $ Skip
-                            $ ConcatParseYield
-                                (Right b)
-                                (ConcatParseInit OPTIONAL(i + m) src s (func b))
-                    PR.SError err ->
-                        return
-                            $ Skip
-                            $ ConcatParseYield
-                                (Left (ParseError (DEFAULT(i) + 1) err))
-                                (ConcatParseInitLeftOver OPTIONAL(i + 1) [])
-            Skip s ->
-                return $ Skip $ ConcatParseStream OPTIONAL(i) s buf pstep pst extract
-            Stop -> return $ Skip $ ConcatParseStop OPTIONAL(i) buf pstep pst extract
-
-    -- go back to stream processing mode
-    stepOuter _ (ConcatParseBuf OPTIONAL(i) [] s buf pstep ps extract) =
-        return $ Skip $ ConcatParseStream OPTIONAL(i) s buf pstep ps extract
-
-    -- buffered processing loop
-    stepOuter _ (ConcatParseBuf OPTIONAL(i) (x:xs) s buf pstep pst extract) = do
-        pRes <- pstep pst x
-        case pRes of
-            PR.SPartial 1 pst1 ->
-                return $ Skip
-                    $ ConcatParseBuf OPTIONAL(i + 1) xs s [] pstep pst1 extract
-            PR.SPartial m pst1 -> do
-                let n = 1 - m
-                assert (n <= length (x:buf)) (return ())
-                let src0 = Prelude.take n (x:buf)
-                    src  = Prelude.reverse src0 ++ xs
-                return $ Skip
-                    $ ConcatParseBuf OPTIONAL(i + m) src s [] pstep pst1 extract
-         -- PR.SContinue 1 pst1 -> return $ Skip $ ConcatParseBuf xs s (x:buf) pst1
-            PR.SContinue m pst1 -> do
-                let n = 1 - m
-                assert (n <= length (x:buf)) (return ())
-                let (src0, buf1) = splitAt n (x:buf)
-                    src  = Prelude.reverse src0 ++ xs
-                return $ Skip
-                    $ ConcatParseBuf OPTIONAL(i + m) src s buf1 pstep pst1 extract
-            -- XXX Specialize for Stop 0 common case?
-            PR.SDone m b -> do
-                let n = 1 - m
-                assert (n <= length (x:buf)) (return ())
-                let src = Prelude.reverse (Prelude.take n (x:buf)) ++ xs
-                return $ Skip
-                    $ ConcatParseYield
-                        (Right b) (ConcatParseInit OPTIONAL(i + m) src s (func b))
-            PR.SError err ->
-                return
-                    $ Skip
-                    $ ConcatParseYield
-                        (Left (ParseError (DEFAULT(i) + 1) err))
-                        (ConcatParseInitLeftOver OPTIONAL(i + 1) [])
-
-    -- This is simplified ConcatParseBuf
-    stepOuter _ (ConcatParseExtract OPTIONAL(i) [] buf pstep pst extract) =
-        return $ Skip $ ConcatParseStop OPTIONAL(i) buf pstep pst extract
-
-    stepOuter _ (ConcatParseExtract OPTIONAL(i) (x:xs) buf pstep pst extract) = do
-        pRes <- pstep pst x
-        case pRes of
-            PR.SPartial 1 pst1 ->
-                return $ Skip
-                    $ ConcatParseExtract OPTIONAL(i + 1) xs [] pstep pst1 extract
-            PR.SPartial m pst1 -> do
-                let n = 1 - m
-                assert (n <= length (x:buf)) (return ())
-                let src0 = Prelude.take n (x:buf)
-                    src  = Prelude.reverse src0 ++ xs
-                return $ Skip
-                    $ ConcatParseExtract OPTIONAL(i + m) src [] pstep pst1 extract
-            PR.SContinue 1 pst1 ->
-                return $ Skip
-                    $ ConcatParseExtract OPTIONAL(i + 1) xs (x:buf) pstep pst1 extract
-            PR.SContinue m pst1 -> do
-                let n = 1 - m
-                assert (n <= length (x:buf)) (return ())
-                let (src0, buf1) = splitAt n (x:buf)
-                    src  = Prelude.reverse src0 ++ xs
-                return $ Skip
-                    $ ConcatParseExtract OPTIONAL(i + m) src buf1 pstep pst1 extract
-            PR.SDone 1 b ->
-                 return $ Skip
-                    $ ConcatParseYield
-                        (Right b) (ConcatParseInitBuf OPTIONAL(i + 1) xs (func b))
-            PR.SDone m b -> do
-                let n = 1 - m
-                assert (n <= length (x:buf)) (return ())
-                let src = Prelude.reverse (Prelude.take n (x:buf)) ++ xs
-                return $ Skip
-                    $ ConcatParseYield
-                        (Right b) (ConcatParseInitBuf OPTIONAL(i + m) src (func b))
-            PR.SError err ->
-                return
-                    $ Skip
-                    $ ConcatParseYield
-                        (Left (ParseError (DEFAULT(i) + 1) err))
-                        (ConcatParseInitLeftOver OPTIONAL(i + 1) [])
-
-    -- This is simplified ConcatParseExtract
-    stepOuter _ (ConcatParseStop OPTIONAL(i) buf pstep pst extract) = do
-        pRes <- extract pst
-        case pRes of
-            PR.FContinue 0 pst1 ->
-                return $ Skip $ ConcatParseStop OPTIONAL(i) buf pstep pst1 extract
-            PR.FContinue m pst1 -> do
-                let n = (- m)
-                assert (n <= length buf) (return ())
-                let (src0, buf1) = splitAt n buf
-                    src  = Prelude.reverse src0
-                return $ Skip
-                    $ ConcatParseExtract OPTIONAL(i + m) src buf1 pstep pst1 extract
-            PR.FDone 0 b -> do
-                return $ Skip $
-                    ConcatParseYield (Right b) (ConcatParseInitLeftOver OPTIONAL(i) [])
-            PR.FDone m b -> do
-                let n = (- m)
-                assert (n <= length buf) (return ())
-                let src = Prelude.reverse (Prelude.take n buf)
-                return $ Skip $
-                    ConcatParseYield
-                        (Right b) (ConcatParseInitBuf OPTIONAL(i + m) src (func b))
-            PR.FError err ->
-                return
-                    $ Skip
-                    $ ConcatParseYield
-                        (Left (ParseError DEFAULT(i) err))
-                        (ConcatParseInitLeftOver OPTIONAL(i) [])
-
-    stepOuter _ (ConcatParseYield a next) = return $ Yield a next
+-- | Like 'parseIterate' but includes stream position information in the error
+-- messages.
+--
+{-# INLINE parseIteratePos #-}
+parseIteratePos
+    :: Monad m
+    => (b -> PRD.Parser a m b)
+    -> b
+    -> Stream m a
+    -> Stream m (Either ParseError b)
+parseIteratePos = Drivers.parseIteratePos
 
 {-# DEPRECATED parseIterateD "Please use parseIterate instead." #-}
 {-# INLINE parseIterateD #-}
