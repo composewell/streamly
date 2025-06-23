@@ -210,8 +210,8 @@
 --
 -- This means: takeWhile, groupBy, wordBy would be implemented as parsers.
 --
--- A proposed design is to use the same Step type with Error in Folds as well
--- as Parsers. Folds won't use the Error constructor and even if they use, it
+-- A proposed design is to use the same Step type with SError in Folds as well
+-- as Parsers. Folds won't use the SError constructor and even if they use, it
 -- will be equivalent to just throwing an error. They won't have an
 -- alternative.
 --
@@ -244,7 +244,7 @@
 -- would succeed if the condition is satisfied and it would fail otherwise, on
 -- failure an alternative parser can be used on the same input.
 --
--- We add @Error@ and @Continue@ to the @Step@ type of fold. @Continue@ is to
+-- We add @SError@ and @Continue@ to the @Step@ type of fold. @Continue@ is to
 -- skip producing an output or to backtrack. We also add the ability to
 -- backtrack in @Partial@ and @Done@.:
 --
@@ -257,7 +257,7 @@
 --       Partial Int s   -- partial result and how much to backtrack
 --     | Done Int b      -- final result and how much to backtrack
 --     | Continue Int s  -- no result and how much to backtrack
---     | Error String    -- error
+--     | SError String    -- error
 --
 -- data Parser a m b =
 --   forall s. Fold

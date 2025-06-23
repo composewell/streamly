@@ -370,7 +370,7 @@ runArrayParserDBreak
                 let src0 = takeArrayListRev n (x:getList backBuf)
                     src = Prelude.reverse src0 ++ xs
                 return (Right b, D.append (D.fromList src) (D.Stream step s))
-            PR.Error err -> do
+            PR.SError err -> do
                 let src0 = x:getList backBuf
                     src = Prelude.reverse src0 ++ x:xs
                     strm = D.append (D.fromList src) (D.Stream step s)
@@ -408,7 +408,7 @@ runArrayParserDBreak
                 let src0 = takeArrayListRev n (x:getList backBuf)
                     src = Prelude.reverse src0 ++ xs
                 return (Right b, D.fromList src)
-            PR.Error err -> do
+            PR.SError err -> do
                 let src0 = getList backBuf
                     src = Prelude.reverse src0 ++ x:xs
                 return (Left (ParseError err), D.fromList src)
@@ -591,7 +591,7 @@ runArrayFoldManyD
                         return
                             $ D.Skip
                             $ ParseChunksYield (Right b) next
-                    PR.Error err -> do
+                    PR.SError err -> do
                         let next = ParseChunksInitLeftOver []
                         return
                             $ D.Skip
@@ -633,7 +633,7 @@ runArrayFoldManyD
                 return
                     $ D.Skip
                     $ ParseChunksYield (Right b) (ParseChunksInit src s)
-            PR.Error err -> do
+            PR.SError err -> do
                 let next = ParseChunksInitLeftOver []
                 return
                     $ D.Skip
@@ -671,7 +671,7 @@ runArrayFoldManyD
                 return
                     $ D.Skip
                     $ ParseChunksYield (Right b) (ParseChunksInitBuf src)
-            PR.Error err -> do
+            PR.SError err -> do
                 let next = ParseChunksInitLeftOver []
                 return
                     $ D.Skip

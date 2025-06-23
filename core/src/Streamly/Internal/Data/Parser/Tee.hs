@@ -168,7 +168,7 @@ teeWith zf (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
                     src  = Prelude.reverse src0
                     state = (buf2, StepState s, src ++ inp11, inp21)
                  in assert (n <= length buf1) (return (state, Skp))
-            Error err -> return (undefined, Err err)
+            SError err -> return (undefined, Err err)
 
     {-# INLINE_LATE step #-}
     step (TeePair (bufL, StepState sL, inpL1, inpL2)
@@ -186,8 +186,8 @@ teeWith zf (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
                 let (_, StepResult rL, _, _) = l
                     (_, StepResult rR, _, _) = r
                  in Done (min n1 n2) (zf rL rR)
-            (Err err, _) -> Error err
-            (_, Err err) -> Error err
+            (Err err, _) -> SError err
+            (_, Err err) -> SError err
             _ -> Continue 0 next
 
     step (TeePair (bufL, StepState sL, inpL1, inpL2)
@@ -204,7 +204,7 @@ teeWith zf (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
                 let (_, StepResult rL, _, _) = l
                  in Done n (zf rL rR)
             Skp -> Continue 0 next
-            Err err -> Error err
+            Err err -> SError err
 
     step (TeePair l@(_, StepResult rL, _, _)
                     (bufR, StepState sR, inpR1, inpR2)) x = do
@@ -220,7 +220,7 @@ teeWith zf (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
                 let (_, StepResult rR, _, _) = r
                  in Done n (zf rL rR)
             Skp -> Continue 0 next
-            Err err -> Error err
+            Err err -> SError err
 
     step _ _ = undefined
 
@@ -301,7 +301,7 @@ teeWithFst zf (Parser stepL initialL extractL)
                     src  = Prelude.reverse src0
                     state = (buf2, StepState s, src ++ inp11, inp21)
                  in assert (n <= length buf1) (return (state, Skp))
-            Error err -> return (undefined, Err err)
+            SError err -> return (undefined, Err err)
 
     {-# INLINE_LATE step #-}
     step (TeePair (bufL, StepState sL, inpL1, inpL2)
@@ -314,7 +314,7 @@ teeWithFst zf (Parser stepL initialL extractL)
             -- more than the second parser's unused count? It does not make
             -- sense for the second parser to consume more than the first
             -- parser. We reset the input cursor based on the first parser.
-            -- Error out if the second one has consumed more then the first?
+            -- SError out if the second one has consumed more then the first?
             (Stp n1, Stp _) ->
                 -- Uni-pattern match results in better optimized code compared
                 -- to a case match.
@@ -329,8 +329,8 @@ teeWithFst zf (Parser stepL initialL extractL)
                     return $ Done n1 (zf rL rR)
             (Yld n1, Yld n2) -> return $ Partial (min n1 n2) next
             (Yld n1, Stp n2) -> return $ Partial (min n1 n2) next
-            (Err err, _) -> return $ Error err
-            (_, Err err) -> return $ Error err
+            (Err err, _) -> return $ SError err
+            (_, Err err) -> return $ SError err
             _ -> return $ Continue 0 next
 
     step (TeePair (bufL, StepState sL, inpL1, inpL2)
@@ -347,7 +347,7 @@ teeWithFst zf (Parser stepL initialL extractL)
                 let (_, StepResult rL, _, _) = l
                  in Done n (zf rL rR)
             Skp -> Continue 0 next
-            Err err -> Error err
+            Err err -> SError err
 
     step _ _ = undefined
 
@@ -435,7 +435,7 @@ shortest (Parser stepL initialL extractL) (Parser stepR initialR _) =
                     src  = Prelude.reverse src0
                     state = (buf2, StepState s, src ++ inp11, inp21)
                  in assert (n <= length buf1) (return (state, Skp))
-            Error err -> return (undefined, Err err)
+            SError err -> return (undefined, Err err)
 
     -- XXX Even if a parse finished earlier it may not be shortest if the other
     -- parser finishes later but returns a lot of unconsumed input. Our current
@@ -454,8 +454,8 @@ shortest (Parser stepL initialL extractL) (Parser stepR initialR _) =
                 let (_, StepResult rR, _, _) = r
                  in Done n2 rR
             (Yld n1, Yld n2) -> Partial (min n1 n2) next
-            (Err err, _) -> Error err
-            (_, Err err) -> Error err
+            (Err err, _) -> SError err
+            (_, Err err) -> SError err
             _ -> Continue 0 next
 
     step _ _ = undefined
@@ -536,7 +536,7 @@ longest (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
                     src  = Prelude.reverse src0
                     state = (buf2, StepState s, src ++ inp11, inp21)
                  in assert (n <= length buf1) (return (state, Skp))
-            Error err -> return (undefined, Err err)
+            SError err -> return (undefined, Err err)
 
     {-# INLINE_LATE step #-}
     step (TeePair (bufL, StepState sL, inpL1, inpL2)
@@ -552,8 +552,8 @@ longest (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
                 let (_, StepResult rL, _, _) = l
                     (_, StepResult rR, _, _) = r
                  in Done (max n1 n2) (if n1 >= n2 then rL else rR)
-            (Err err, _) -> Error err
-            (_, Err err) -> Error err
+            (Err err, _) -> SError err
+            (_, Err err) -> SError err
             _ -> Continue 0 next
 
     -- XXX the parser that finishes last may not be the longest because it may
@@ -574,7 +574,7 @@ longest (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
                 let (_, StepResult rL, _, _) = l
                  in Done n rL
             Skp -> Continue 0 next
-            Err err -> Error err
+            Err err -> SError err
 
     step (TeePair l@(_, StepResult _, _, _)
                     (bufR, StepState sR, inpR1, inpR2)) x = do
@@ -586,7 +586,7 @@ longest (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
                 let (_, StepResult rR, _, _) = r
                  in Done n rR
             Skp -> Continue 0 next
-            Err err -> Error err
+            Err err -> SError err
 
     step _ _ = undefined
 

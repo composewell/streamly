@@ -42,7 +42,7 @@ jumpParser jumps = P.Parser step initial done
             Custom (P.SPartial i ()) -> pure $ P.SPartial i (xs, buf)
             Custom (P.SContinue i ()) -> pure $ P.SContinue i (xs, buf)
             Custom (P.SDone i ()) -> pure $ P.SDone i (reverse buf)
-            Custom (P.Error err) -> pure $ P.Error err
+            Custom (P.SError err) -> pure $ P.SError err
 
     done ([], buf) = pure $ P.FDone 0 (reverse buf)
     done (action:xs, buf) =
@@ -51,7 +51,7 @@ jumpParser jumps = P.Parser step initial done
             Custom (P.SPartial i ()) -> pure $ P.FContinue i (xs, buf)
             Custom (P.SContinue i ()) -> pure $ P.FContinue i (xs, buf)
             Custom (P.SDone i ()) -> pure $ P.FDone i (reverse buf)
-            Custom (P.Error err) -> pure $ P.FError err
+            Custom (P.SError err) -> pure $ P.FError err
 
 chunkedTape :: [[Int]]
 chunkedTape = Prelude.map (\x -> [x..(x+9)]) [1, 11 .. 91]
@@ -84,7 +84,7 @@ expectedResult moves inp = go 0 0 [] moves
                   P.SPartial n () -> go (i + n) (max j (i + n)) ys xs
                   P.SContinue n () -> go (i + n) j ys xs
                   P.SDone n () -> (Right ys, slice_ (max (i + n) j) inp)
-                  P.Error err -> (Left (ParseError err), slice_ j inp)
+                  P.SError err -> (Left (ParseError err), slice_ j inp)
 
 expectedResultMany :: [Move] -> [Int] -> [Either ParseError [Int]]
 expectedResultMany _ [] = []
@@ -108,7 +108,7 @@ parserSanityTests desc testRunner =
                 ]
         Prelude.mapM_ testRunner $
             createPaths
-                [ Custom (P.Error "Message0")
+                [ Custom (P.SError "Message0")
                 ]
         Prelude.mapM_ testRunner $
             createPaths
@@ -124,7 +124,7 @@ parserSanityTests desc testRunner =
                 , Custom (P.SContinue 0 ())
                 , Consume 10
                 , Custom (P.SContinue (-10) ())
-                , Custom (P.Error "Message1")
+                , Custom (P.SError "Message1")
                 ]
         Prelude.mapM_ testRunner $
             createPaths
@@ -149,7 +149,7 @@ parserSanityTests desc testRunner =
                 [ Consume 20
                 , Custom (P.SContinue 1 ())
                 , Custom (P.SContinue (-10) ())
-                , Custom (P.Error "Message2")
+                , Custom (P.SError "Message2")
                 ]
         Prelude.mapM_ testRunner $
             createPaths
@@ -170,5 +170,5 @@ parserSanityTests desc testRunner =
                 [ Consume (tapeLen - 1)
                 , Custom (P.SContinue 1 ())
                 , Custom (P.SContinue (-9) ())
-                , Custom (P.Error "Message3")
+                , Custom (P.SError "Message3")
                 ]

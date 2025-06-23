@@ -43,7 +43,7 @@
 -- 2. 'Partial': buffer the current input and optionally go back to a previous
 --    position in the stream, drop the buffer before that position.
 -- 3. 'Done': parser succeeded, returns how much input was leftover
--- 4. 'Error': indicates that the parser has failed without a result
+-- 4. 'SError': indicates that the parser has failed without a result
 --
 -- = How a Parser Works?
 --
@@ -58,7 +58,7 @@
 -- value is complete it can use a @Done n b@ to terminate the parser with @n@
 -- items of input unused and the final value of the accumulator returned as
 -- @b@. If at any time the parser determines that the parse has failed it can
--- return @Error err@.
+-- return @SError err@.
 --
 -- A parser building a collection of values (e.g. a list) can use the @Partial@
 -- constructor whenever a new item in the output collection is generated. If a
@@ -66,7 +66,7 @@
 -- it is considered successful and cannot fail after that. In the current
 -- implementation, this is not automatically enforced, there is a rule that the
 -- parser MUST use only @Done@ for termination after the first @Partial@, it
--- cannot use @Error@. It may be possible to change the implementation so that
+-- cannot use @SError@. It may be possible to change the implementation so that
 -- this rule is not required, but there may be some performance cost to it.
 --
 -- 'Streamly.Internal.Data.Parser.takeWhile' and
@@ -77,10 +77,10 @@
 -- multi-yield parser.  However, this implementation is amenable to stream
 -- fusion and can therefore be much faster.
 --
--- = Error Handling
+-- = SError Handling
 --
 -- When a parser's @step@ function is invoked it may terminate by either a
--- 'Done' or an 'Error' return value. In an 'Alternative' composition an error
+-- 'Done' or an 'SError' return value. In an 'Alternative' composition an error
 -- return can make the composed parser backtrack and try another parser.
 --
 -- If the stream stops before a parser could terminate then we use the
@@ -93,7 +93,7 @@
 -- explicit error return via an 'Either' type for keeping the interface simple
 -- as most of the time we do not need to catch the error in intermediate
 -- layers. Note that we cannot use exception throwing mechanism in @step@
--- function because of performance reasons. 'Error' constructor in that case
+-- function because of performance reasons. 'SError' constructor in that case
 -- allows loop fusion and better performance.
 --
 -- = Optimizing backtracking
@@ -126,7 +126,7 @@
 -- If we are not using the parser in an alternative composition we can
 -- downgrade the parser to a backtracking fold and use the "backtracking
 -- fold"'s applicative for more efficient implementation. To downgrade we can
--- translate the "Error" of parser to an exception.  This gives us best of both
+-- translate the "SError" of parser to an exception.  This gives us best of both
 -- worlds, the applicative as well as alternative would have optimal
 -- backtracking buffer.
 --
@@ -181,7 +181,7 @@ module Streamly.Internal.Data.Parser.Type
     -- * Types
       Initial (..)
     -- (..) does not seem to export patterns yet the compiler complains it does.
-    , Step(Partial, Continue, Done, SPartial, SContinue, SDone, Error)
+    , Step(Partial, Continue, Done, Error, SPartial, SContinue, SDone, SError)
     , Final(..)
     , mapCount
     , bimapOverrideCount
@@ -293,7 +293,7 @@ instance Functor (Initial s) where
 -- Partial Int (Either s (s, b)) -- Left continue, right partial result
 -- Done Int (Either String b)
 --
--- In this case Error may also have a "leftover" return. This means that after
+-- In this case SError may also have a "leftover" return. This means that after
 -- several successful partial results the last segment parsing failed and we
 -- are returning the leftover of that. The driver may choose to restart from
 -- the last segment where this parser failed or from the beginning.
@@ -360,7 +360,7 @@ data Step s b =
     -- result:
     --
     -- 1. If 'SPartial' result was returned in the past, @extract@ on @state@
-    -- would give that result otherwise it will return 'Error' or 'SContinue'.
+    -- would give that result otherwise it will return 'SError' or 'SContinue'.
     -- 2. Input stream position is updated to @current position + count@.
     -- 3. the previous input is retained in a backtrack buffer.
 
@@ -371,8 +371,7 @@ data Step s b =
     -- any more input, the final stream position must be set to @current
     -- position + count@ and the result of the parser is in @result@.
 
-    -- XXX change to SError
-    | Error !String
+    | SError !String
     -- ^ Parser failed without generating any output.
     --
     -- The parsing operation may backtrack to the beginning and try another
@@ -393,7 +392,11 @@ negateDirection :: Step s b -> Step s b
 negateDirection (SPartial i s) = SPartial (1 - i) s
 negateDirection (SContinue i s) = SContinue (1 - i) s
 negateDirection (SDone i b) = SDone (1 - i) b
-negateDirection (Error s) = Error s
+negateDirection (SError s) = SError s
+
+{-# DEPRECATED Error "Use @SError@ instead of @Error@" #-}
+pattern Error :: String -> Step s b
+pattern Error s = SError s
 
 {-# DEPRECATED Partial "Use @SPartial (1 - n)@ instead of @Partial n@" #-}
 pattern Partial :: Int -> s -> Step s b
@@ -422,7 +425,7 @@ instance Bifunctor Step where
             SPartial n s -> SPartial n (f s)
             SContinue n s -> SContinue n (f s)
             SDone n b -> SDone n (g b)
-            Error err -> Error err
+            SError err -> SError err
 
 instance Bifunctor Final where
     {-# INLINE bimap #-}
@@ -439,14 +442,14 @@ bimapOverrideCount n f g step =
         SPartial _ s -> SPartial n (f s)
         SContinue _ s -> SContinue n (f s)
         SDone _ b -> SDone n (g b)
-        Error err -> Error err
+        SError err -> SError err
 
 bimapMorphOverrideCount :: Int -> (s -> s1) -> (b -> b1) -> Final s b -> Step s1 b1
 bimapMorphOverrideCount n f g step =
     case step of
         FDone _ b -> SDone n (g b)
         FContinue _ s -> SContinue n (f s)
-        FError err -> Error err
+        FError err -> SError err
 
 bimapFinalOverrideCount :: Int -> (s -> s1) -> (b -> b1) -> Final s b -> Final s1 b1
 bimapFinalOverrideCount n f g step =
@@ -473,7 +476,7 @@ mapCount f res =
         SPartial n s -> SPartial (f n) s
         SDone n b -> SDone (f n) b
         SContinue n s -> SContinue (f n) s
-        Error err -> Error err
+        SError err -> SError err
 
 -- | Map a monadic function over the result @b@ in @Step s b@.
 --
@@ -485,7 +488,7 @@ mapMStep f res =
         SPartial n s -> pure $ SPartial n s
         SDone n b -> SDone n <$> f b
         SContinue n s -> pure $ SContinue n s
-        Error err -> pure $ Error err
+        SError err -> pure $ SError err
 
 {-# INLINE mapMFinal #-}
 mapMFinal :: Applicative m => (a -> m b) -> Final s a -> m (Final s b)
@@ -666,8 +669,8 @@ splitWith func (Parser stepL initialL extractL)
                 return $ case initR of
                    IPartial sr -> SContinue n $ SeqParseR (func b) sr
                    IDone br -> SDone n (func b br)
-                   IError err -> Error err
-            Error err -> return $ Error err
+                   IError err -> SError err
+            SError err -> return $ SError err
 
     step (SeqParseR f st) a = fmap (bimap (SeqParseR f) f) (stepR st a)
 
@@ -744,7 +747,7 @@ noErrorUnsafeSplitWith func (Parser stepL initialL extractL)
                           IPartial sr -> SPartial n $ SeqParseR (func b) sr
                           IDone br -> SDone n (func b br)
                           IError err -> errMsg err
-            Error err -> errMsg err
+            SError err -> errMsg err
 
     step (SeqParseR f st) a = fmap (bimap (SeqParseR f) f) (stepR st a)
 
@@ -820,8 +823,8 @@ split_ (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
                 return $ case initR of
                     IPartial s -> SContinue n (SeqAR s)
                     IDone b -> SDone n b
-                    IError err -> Error err
-            Error err -> return $ Error err
+                    IError err -> SError err
+            SError err -> return $ SError err
 
     step (SeqAR st) a = first SeqAR <$> stepR st a
 
@@ -881,7 +884,7 @@ noErrorUnsafeSplit_
                     IPartial s -> SPartial n (SeqAR s)
                     IDone b -> SDone n b
                     IError err -> errMsg err
-            Error err -> errMsg err
+            SError err -> errMsg err
 
     step (SeqAR st) a = first SeqAR <$> stepR st a
 
@@ -986,13 +989,13 @@ alt (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
                 assertM(cnt + n >= 0)
                 return $ SContinue n (AltParseL (cnt + n) s)
             SDone n b -> return $ SDone n b
-            Error _ -> do
+            SError _ -> do
                 res <- initialR
                 return
                     $ case res of
                           IPartial rR -> SContinue (negate cnt) (AltParseR rR)
                           IDone b -> SDone (negate cnt) b
-                          IError err -> Error err
+                          IError err -> SError err
 
     step (AltParseR st) a = do
         r <- stepR st a
@@ -1000,7 +1003,7 @@ alt (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
             SPartial n s -> SPartial n (AltParseR s)
             SContinue n s -> SContinue n (AltParseR s)
             SDone n b -> SDone n b
-            Error err -> Error err
+            SError err -> SError err
 
     extract (AltParseR sR) = fmap (first AltParseR) (extractR sR)
 
@@ -1066,7 +1069,7 @@ splitMany (Parser step1 initial1 extract1) (Fold fstep finitial _ ffinal) =
             SDone n b -> do
                 assertM(cnt + n >= 0)
                 fstep fs b >>= handleCollect (SPartial n) (SDone n)
-            Error _ -> do
+            SError _ -> do
                 xs <- ffinal fs
                 -- XXX review, need a test for this
                 return $ SDone (- cnt) xs
@@ -1129,7 +1132,7 @@ splitManyPost (Parser step1 initial1 extract1) (Fold fstep finitial _ ffinal) =
             SDone n b -> do
                 assertM(cnt + n >= 0)
                 fstep fs b >>= handleCollect (SPartial n) (SDone n)
-            Error _ -> do
+            SError _ -> do
                 xs <- ffinal fs
                 return $ SDone (- cnt) xs
 
@@ -1204,7 +1207,7 @@ splitSome (Parser step1 initial1 extract1) (Fold fstep finitial _ ffinal) =
             SDone n b -> do
                 assertM(cnt + n >= 0)
                 fstep fs b >>= handleCollect (SPartial n) (SDone n)
-            Error err -> return $ Error err
+            SError err -> return $ SError err
     step (Fused3 st cnt (Right fs)) a = do
         r <- step1 st a
         case r of
@@ -1217,7 +1220,7 @@ splitSome (Parser step1 initial1 extract1) (Fold fstep finitial _ ffinal) =
             SDone n b -> do
                 assertM(cnt + n >= 0)
                 fstep fs b >>= handleCollect (SPartial n) (SDone n)
-            Error _ -> SDone (- cnt) <$> ffinal fs
+            SError _ -> SDone (- cnt) <$> ffinal fs
 
     extract (Fused3 s cnt (Left fs)) = do
         r <- extract1 s
@@ -1331,7 +1334,7 @@ concatMap func (Parser stepL initialL extractL) = Parser step initial extract
         return $ case resR of
             IPartial sr -> SContinue n $ ConcatParseR stepR sr extractR
             IDone br -> SDone n br
-            IError err -> Error err
+            IError err -> SError err
 
     step (ConcatParseL st) a = do
         r <- stepL st a
@@ -1339,7 +1342,7 @@ concatMap func (Parser stepL initialL extractL) = Parser step initial extract
             SPartial n s -> return $ SContinue n (ConcatParseL s)
             SContinue n s -> return $ SContinue n (ConcatParseL s)
             SDone n b -> initializeRL n (func b)
-            Error err -> return $ Error err
+            SError err -> return $ SError err
 
     step (ConcatParseR stepR st extractR) a = do
         r <- stepR st a
@@ -1347,7 +1350,7 @@ concatMap func (Parser stepL initialL extractL) = Parser step initial extract
             SPartial n s -> SPartial n $ ConcatParseR stepR s extractR
             SContinue n s -> SContinue n $ ConcatParseR stepR s extractR
             SDone n b -> SDone n b
-            Error err -> Error err
+            SError err -> SError err
 
     {-# INLINE extractP #-}
     extractP n (Parser stepR initialR extractR) = do
@@ -1404,7 +1407,7 @@ noErrorUnsafeConcatMap func (Parser stepL initialL extractL) =
         return $ case resR of
             IPartial sr -> SPartial n $ ConcatParseR stepR sr extractR
             IDone br -> SDone n br
-            IError err -> Error err
+            IError err -> SError err
 
     step (ConcatParseL st) a = do
         r <- stepL st a
@@ -1412,7 +1415,7 @@ noErrorUnsafeConcatMap func (Parser stepL initialL extractL) =
             SPartial n s -> return $ SPartial n (ConcatParseL s)
             SContinue n s -> return $ SContinue n (ConcatParseL s)
             SDone n b -> initializeRL n (func b)
-            Error err -> return $ Error err
+            SError err -> return $ SError err
 
     step (ConcatParseR stepR st extractR) a = do
         r <- stepR st a
@@ -1420,7 +1423,7 @@ noErrorUnsafeConcatMap func (Parser stepL initialL extractL) =
             SPartial n s -> SPartial n $ ConcatParseR stepR s extractR
             SContinue n s -> SContinue n $ ConcatParseR stepR s extractR
             SDone n b -> SDone n b
-            Error err -> Error err
+            SError err -> SError err
 
     {-# INLINE extractP #-}
     extractP n (Parser stepR initialR extractR) = do

@@ -178,7 +178,7 @@ fromParserD (ParserD.Parser step1 initial1 extract1) =
                     partial arrRem cur next elemSize Partial n fs1
                 ParserD.Continue n fs1 -> do
                     partial arrRem cur next elemSize Continue n fs1
-                Error err -> return $ Error err
+                SError err -> return $ SError err
 
 -- | Convert an element 'Parser.Parser' into an array stream fold. If the
 -- parser fails the fold would throw an exception.
@@ -343,7 +343,7 @@ take n (ChunkFold (ParserD.Parser step1 initial1 extract1)) =
                 -- i2 == i1 == j == 0
                 r <- extract1 s
                 return $ case r of
-                    FError err -> Error err
+                    FError err -> SError err
                     FDone n1 b -> Done n1 b
                     FContinue n1 s1 -> Continue n1 (Tuple' i2 s1)
 
@@ -358,7 +358,7 @@ take n (ChunkFold (ParserD.Parser step1 initial1 extract1)) =
                 Partial j s -> partial i1 Partial j s
                 Continue j s -> partial i1 Continue j s
                 Done j b -> return $ Done j b
-                Error err -> return $ Error err
+                SError err -> return $ SError err
         else do
             let !(Array contents start _) = arr
                 end = INDEX_OF(start,i,a)
@@ -376,6 +376,6 @@ take n (ChunkFold (ParserD.Parser step1 initial1 extract1)) =
                         remaining (Tuple' 0) id <$> extract1 s
                 Continue j s -> return $ Continue (remaining + j) (Tuple' j s)
                 Done j b -> return $ Done (remaining + j) b
-                Error err -> return $ Error err
+                SError err -> return $ SError err
 
     extract (Tuple' i r) = first (Tuple' i) <$> extract1 r
