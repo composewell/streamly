@@ -45,6 +45,7 @@ module Streamly.Internal.Data.StreamK
     , parseBreak
     , parseBreakPos
     , parse
+    , parsePos
 
     -- ** Specialized Folds
     , head
@@ -1323,6 +1324,14 @@ parseBreakPos = Drivers.parseBreakStreamKPos
 parse :: Monad m =>
     ParserK.ParserK a m b -> StreamK m a -> m (Either ParseError b)
 parse f = fmap fst . parseBreak f
+
+-- | Like 'parse' but includes stream position information in the error
+-- messages.
+--
+{-# INLINE parsePos #-}
+parsePos :: Monad m =>
+    ParserK.ParserK a m b -> StreamK m a -> m (Either ParseError b)
+parsePos f = fmap fst . parseBreakPos f
 
 -------------------------------------------------------------------------------
 -- ParserK Chunked Generic

@@ -589,7 +589,7 @@ mkDouble mantissa power =
 --
 -- Examples:
 --
--- >>> p = Stream.parse Unicode.double . Stream.fromList
+-- >>> p = Stream.parsePos Unicode.double . Stream.fromList
 --
 -- >>> p "-1.23e-123"
 -- Right (-1.23e-123)

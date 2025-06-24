@@ -15,6 +15,7 @@ module Streamly.Internal.Data.Stream.Eliminate
     (
     -- * Running a Parser
       parse
+    , parsePos
     , parseD
     , parseBreak
     , parseBreakPos
@@ -147,6 +148,18 @@ parseD = parse
 parse :: Monad m => PR.Parser a m b -> Stream m a -> m (Either ParseError b)
 parse parser strm = do
     (b, _) <- parseBreak parser strm
+    return b
+
+-- | Like 'parse' but includes stream position information in the error
+-- messages.
+--
+-- >>> Stream.parsePos (Parser.takeEQ 2 Fold.drain) (Stream.fromList [1])
+-- Left (ParseError 1 "takeEQ: Expecting exactly 2 elements, input terminated on 1")
+--
+{-# INLINE [3] parsePos #-}
+parsePos :: Monad m => PR.Parser a m b -> Stream m a -> m (Either ParseError b)
+parsePos parser strm = do
+    (b, _) <- parseBreakPos parser strm
     return b
 
 -- XXX It may be a good idea to use constant sized chunks for backtracking. We

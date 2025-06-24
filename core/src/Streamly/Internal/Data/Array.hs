@@ -79,6 +79,7 @@ module Streamly.Internal.Data.Array
     , parseBreak
     , parseBreakPos
     , parse
+    , parsePos
 
     -- * Serialization
     , encodeAs
@@ -1040,6 +1041,14 @@ parseBreakPos = Drivers.parseBreakChunksPos
 parse :: (Monad m, Unbox a) =>
     ParserK (Array a) m b -> StreamK m (Array a) -> m (Either ParseError b)
 parse f = fmap fst . parseBreak f
+
+-- | Like 'parse' but includes stream position information in the error
+-- messages.
+--
+{-# INLINE parsePos #-}
+parsePos :: (Monad m, Unbox a) =>
+    ParserK (Array a) m b -> StreamK m (Array a) -> m (Either ParseError b)
+parsePos f = fmap fst . parseBreakPos f
 
 -------------------------------------------------------------------------------
 -- Convert ParserD to ParserK

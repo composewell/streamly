@@ -12,6 +12,7 @@ module Streamly.Internal.Data.Array.Generic
 
     -- * Parsing Stream of Arrays
     , parse
+    , parsePos
     , parseBreak
     , parseBreakPos
     )
@@ -56,3 +57,11 @@ parse ::
     -> StreamK m (Array a)
     -> m (Either ParseError b)
 parse f = fmap fst . parseBreak f
+
+{-# INLINE parsePos #-}
+parsePos ::
+       (Monad m)
+    => ParserK.ParserK (Array a) m b
+    -> StreamK m (Array a)
+    -> m (Either ParseError b)
+parsePos f = fmap fst . parseBreakPos f

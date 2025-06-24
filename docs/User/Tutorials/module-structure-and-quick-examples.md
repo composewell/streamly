@@ -126,7 +126,7 @@ For example, to parse a sequence of digits:
 ```haskell
 >>> import qualified Data.Char as Char
 >>> decimal = Parser.takeWhile1 Char.isDigit Fold.toList
->>> Stream.parse decimal $ Stream.fromList "1234 is the number"
+>>> Stream.parsePos decimal $ Stream.fromList "1234 is the number"
 Right "1234"
 >>> Stream.parse decimal $ Stream.fromList "this is the number"
 Left (ParseError 1 "takeWhile1: predicate failed on first element")
