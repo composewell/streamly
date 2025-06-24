@@ -15,13 +15,15 @@ module Streamly.Internal.Data.Stream.Exception
     , afterUnsafe
     , finallyIO
     , finallyUnsafe
+    , withFinallyIO
+    , withFinallyIOM
     , gbracket_
     , gbracket
     , bracketUnsafe
     , bracketIO3
     , bracketIO
-    , cleanupIO
-    , cleanupEffectIO
+    , withBracketIO
+    , withBracketIOM
 
     -- * Exceptions
     , onException
@@ -32,6 +34,7 @@ where
 
 #include "inline.hs"
 
+import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Exception (Exception, SomeException, mask_)
 import Control.Monad.Catch (MonadCatch)
@@ -42,6 +45,7 @@ import Streamly.Internal.Data.IOFinalizer
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
 
 import qualified Control.Monad.Catch as MC
+import qualified Data.Map.Strict as Map
 
 import Streamly.Internal.Data.Stream.Type
 
@@ -350,17 +354,81 @@ bracketIO3 bef aft onExc onGC =
         onGC
         (inline MC.try)
 
--- | Run a monadic effect supplying it with a function to register cleanup
--- actions that are automatically invoked on exception or after the effect
--- function is done.
-{-# INLINE cleanupEffectIO #-}
-cleanupEffectIO :: (MonadIO m, MonadCatch m) =>
-    ((IO () -> IO ()) -> m ()) -> m ()
-cleanupEffectIO action = do
+-- | @withBracketIOM action@ runs the given @action@, providing it with a
+-- special function called @registerHook@ as argument. A @registerHook alloc
+-- free@ call can be used within @action@ any number of times to allocate
+-- resources that are freed automatically when 'withBracketIOM' ends or if an
+-- exception occurs at any time. @alloc@ is a function used to allocate a
+-- resource and @free@ is to free the allocated resource. @registerHook@
+-- returns the allocated resource and a @release@ function, it ensures safe
+-- allocation of resource and sets up its automatic release on exception or at
+-- the end. The @release@ function returned by @registerHook@ can be used to
+-- free the resource manually at any time.
+--
+-- This provides similar functionality as the bracket function in the base
+-- library but it is more powerful as resources can be allocated at any time
+-- within the scope and can be released at any time.
+--
+-- This function does not rely on GC for cleanup. Cleanup is deterministic.
+--
+-- Exception safe, thread safe.
+{-# INLINE withBracketIOM #-}
+withBracketIOM :: (MonadIO m, MonadCatch m) =>
+    ((IO b -> (b -> IO c) -> IO (b, IO ())) -> m a) -> m a
+withBracketIOM action = do
+    ref <- liftIO $ newIORef (0 :: Int, Map.empty)
+    -- XXX use mask or MC.finally?
+    r <- action (bracket ref) `MC.onException` aft ref
+    aft ref
+    return r
+
+    where
+
+    aft ref = liftIO $ do
+        xs <- readIORef ref
+        sequence_ (snd xs)
+
+    bracket ref alloc free = do
+        (r, index) <- liftIO $ mask_ $ do
+            r <- alloc
+            idx <- atomicModifyIORef ref (\(i, mp) ->
+                ((i + 1, Map.insert i (void $ free r) mp), i))
+            return (r, idx)
+
+        let free1 =
+                atomicModifyIORef ref (\(i, mp) ->
+                    ((i, Map.delete index mp), ()))
+        return (r, free1)
+
+-- | @withFinallyIOM action@ runs the given @action@, providing it with a
+-- special function called @registerHook@ as argument. A @registerHook hook@
+-- call can be used within @action@ any number of times to register a hook that
+-- would run automatically when 'withBracketIOM' ends or if an exception occurs
+-- at any time.
+--
+-- This provides functionality similar to the finally function in the base
+-- library but it is more powerful as hooks can be registered at any time
+-- within the scope.
+--
+-- This function does not rely on GC for executing the hooks.
+--
+-- Exception safe, thread safe.
+{-# INLINE withFinallyIOM #-}
+withFinallyIOM :: (MonadIO m, MonadCatch m) =>
+    ((IO () -> IO ()) -> m a) -> m a
+{-
+withFinallyIOM action = do
+    let f bracket = do
+            let reg hook = void $ bracket (return ()) (\() -> void hook)
+            action reg
+     in withBracketIOM f
+-}
+withFinallyIOM action = do
     ref <- liftIO $ newIORef []
     -- XXX use mask or MC.finally?
-    action (register ref) `MC.onException` aft ref
+    r <- action (register ref) `MC.onException` aft ref
     aft ref
+    return r
 
     where
 
@@ -372,7 +440,7 @@ cleanupEffectIO action = do
         atomicModifyIORef ref (\xs -> (f : xs, ()))
 
 -- | Run the alloc action @IO b@ with async exceptions disabled but keeping
--- blocking operations interruptible (see 'Control.Exception.mask').  Use the
+-- blocking operations interruptible (see 'Control.Exception.mask').  Uses the
 -- output @b@ of the IO action as input to the function @b -> Stream m a@ to
 -- generate an output stream.
 --
@@ -393,6 +461,8 @@ cleanupEffectIO action = do
 -- but the fold terminates without draining the entire stream or if the
 -- consumer of the stream encounters an exception.
 --
+-- For cleanup that never relies on GC see 'withBracketIO'.
+--
 -- Observes exceptions only in the stream generation, and not in stream
 -- consumers.
 --
@@ -405,12 +475,54 @@ bracketIO :: (MonadIO m, MonadCatch m)
     => IO b -> (b -> IO c) -> (b -> Stream m a) -> Stream m a
 bracketIO bef aft = bracketIO3 bef aft aft aft
 
--- | Run a stream supplying it a function to register cleanup actions which are
--- automatically called on exception or when the stream is done.
-{-# INLINE cleanupIO #-}
-cleanupIO :: (MonadIO m, MonadCatch m) =>
+-- | Like 'withBracketIOM' but for use in streams instead of effects.
+--
+-- Unlike 'bracketIO' this function does not rely on GC for cleanup. Cleanup is
+-- deterministic.
+--
+{-# INLINE withBracketIO #-}
+withBracketIO :: (MonadIO m, MonadCatch m) =>
+    ((IO b -> (b -> IO c) -> IO (b, IO ())) -> Stream m a) -> Stream m a
+withBracketIO action = do
+    bracketIO bef aft (\(_, reg) -> action reg)
+
+    where
+
+    bef = do
+        ref <- liftIO $ newIORef (0 :: Int, Map.empty)
+        return (ref, bracket ref)
+
+    aft (ref, _) = liftIO $ do
+        xs <- readIORef ref
+        sequence_ (snd xs)
+
+    bracket ref alloc free = do
+        (r, index) <- liftIO $ mask_ $ do
+            r <- alloc
+            idx <- atomicModifyIORef ref (\(i, mp) ->
+                ((i + 1, Map.insert i (void $ free r) mp), i))
+            return (r, idx)
+
+        let free1 =
+                atomicModifyIORef ref (\(i, mp) ->
+                    ((i, Map.delete index mp), ()))
+        return (r, free1)
+
+-- | Like 'withFinallyIOM' but for use in streams instead of effects.
+--
+-- Unlike 'finallyIO' this function does not rely on GC for cleanup.
+--
+{-# INLINE withFinallyIO #-}
+withFinallyIO :: (MonadIO m, MonadCatch m) =>
     ((IO () -> IO ()) -> Stream m a) -> Stream m a
-cleanupIO action = do
+{-
+withFinallyIO action = do
+    let f bracket = do
+            let reg hook = void $ bracket (return ()) (\() -> void hook)
+            action reg
+     in withBracketIO f
+-}
+withFinallyIO action = do
     bracketIO bef aft (\(_, reg) -> action reg)
 
     where
@@ -474,6 +586,8 @@ finallyUnsafe action xs = bracketUnsafe (return ()) (const action) (const xs)
 -- semantics described in 'bracketIO'.
 --
 -- >>> finallyIO release = Stream.bracketIO (return ()) (const release)
+--
+-- For cleanup that never relies on GC see 'withFinallyIO'.
 --
 -- /See also 'finallyUnsafe'/
 --

@@ -77,13 +77,13 @@ finalAction gc ref t = do
 cleanup :: Int -> (Stream.Config -> Stream.Config) -> IO ()
 cleanup t cfg = do
     ref <- newIORef (0 :: Int)
-    (Stream.cleanupIO (\f -> stream ref (cfg . Stream.addCleanup f))
+    (Stream.withFinallyIO (\f -> stream ref (cfg . Stream.addCleanup f))
         & Stream.fold Fold.drain) `finally` finalAction False ref t
 
 cleanupEffect :: Int -> (Stream.Config -> Stream.Config) -> IO ()
 cleanupEffect t cfg = do
     ref <- newIORef (0 :: Int)
-    Stream.cleanupEffectIO (\f -> stream ref (cfg . Stream.addCleanup f)
+    Stream.withFinallyIOM (\f -> stream ref (cfg . Stream.addCleanup f)
         & Stream.fold Fold.drain) `finally` finalAction False ref t
 
 finallyGC :: Int -> (Stream.Config -> Stream.Config) -> IO ()
