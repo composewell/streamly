@@ -7,6 +7,7 @@ src/Streamly/Internal/Data/Stream/Serial.hs
 src/Streamly/Internal/Data/Stream/Zip.hs
 test/Streamly/Test/Data/Array.hs
 test/Streamly/Test/Data/Parser.hs
+test/Streamly/Test/Data/Parser/Common.hs
 test/Streamly/Test/Data/ParserK.hs
 test/Streamly/Test/Data/SmallArray.hs
 test/Streamly/Test/Data/Unfold.hs
