@@ -423,6 +423,12 @@ altD =
         <|> P.takeWhile (<= 7) FL.toList
         )
 
+altTests :: Spec
+altTests =
+    describe "alt" $ do
+        it "alt2 [1..20]" $ alt2 (K.fromList [1..20]) `shouldReturn` Right [1..7]
+        it "altD [1..20]" $ altD (S.fromList [1..20]) `shouldReturn` Right [1..7]
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -432,19 +438,6 @@ moduleName = "Data.Parser"
 
 main :: IO ()
 main = do
-  -- TODO: convert this test to the same format as other tests.
-  r <- alt2 (K.fromList [1..20])
-  case r of
-    Right x | x == [1..7] -> putStrLn "K.Alt parse successful"
-    Right x -> error $ "K.Alt parse got incorrect output " ++ show x
-    _ -> error $ "K.Alt parse failed"
-
-  r1 <- altD (S.fromList [1..20])
-  case r1 of
-    Right x | x == [1..7] -> putStrLn "Alt parse successful"
-    Right x -> error $ "Alt parse got incorrect output " ++ show x
-    _ -> error $ "Alt parse failed"
-
   hspec $
       H.parallel $
       modifyMaxSuccess (const maxTestCount) $ do
@@ -474,4 +467,6 @@ main = do
                    "\"hello\\\"\\\\w\\'orld\""
                    ["hello\"\\w\\'orld"]
 
+
+        altTests
         Common.main
