@@ -15,9 +15,7 @@ module Streamly.Internal.Data.Stream.Eliminate
     (
     -- * Running a Parser
       parse
-    , parseD
     , parseBreak
-    , parseBreakD
 
     -- * Deconstruction
     , uncons
@@ -58,10 +56,15 @@ module Streamly.Internal.Data.Stream.Eliminate
     , stripPrefix
     , stripSuffix
     , stripSuffixUnbox
+
+    -- * Deprecated
+    , parseD
+    , parseBreakD
     )
 where
 
 #include "inline.hs"
+#include "deprecation.h"
 
 import Control.Exception (assert)
 import Control.Monad.IO.Class (MonadIO(..))
@@ -115,16 +118,8 @@ foldr1 f m = do
 {-# ANN type List NoSpecConstr #-}
 newtype List a = List {getList :: [a]}
 
--- | Run a 'Parse' over a stream.
-{-# INLINE_NORMAL parseD #-}
-parseD
-    :: Monad m
-    => PRD.Parser a m b
-    -> Stream m a
-    -> m (Either ParseError b)
-parseD parser strm = do
-    (b, _) <- parseBreakD parser strm
-    return b
+-- XXX There is INLINE_NORMAL on parseD but INLINE [3] on parse
+-- XXX There is INLINE on parseBreakD but INLINE_NORMAL on parseBreak
 
 -- | Parse a stream using the supplied 'Parser'.
 --
@@ -139,8 +134,11 @@ parseD parser strm = do
 -- Note: @parse p@ is not the same as  @head . parseMany p@ on an empty stream.
 --
 {-# INLINE [3] parse #-}
-parse :: Monad m => PR.Parser a m b -> Stream m a -> m (Either ParseError b)
-parse = parseD
+parseD, parse :: Monad m => PR.Parser a m b -> Stream m a -> m (Either ParseError b)
+parse parser strm =  do
+    (b, _) <- parseBreak parser strm
+    return b
+RENAME(parseD,parse)
 
 -- XXX It may be a good idea to use constant sized chunks for backtracking. We
 -- can take a byte stream but when we have to backtrack we create constant
@@ -150,13 +148,13 @@ parse = parseD
 -- reducing bookkeeping work.
 
 -- | Run a 'Parse' over a stream and return rest of the Stream.
-{-# INLINE_NORMAL parseBreakD #-}
-parseBreakD
+{-# INLINE_NORMAL parseBreak #-}
+parseBreakD, parseBreak
     :: Monad m
     => PRD.Parser a m b
     -> Stream m a
     -> m (Either ParseError b, Stream m a)
-parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
+parseBreak (PRD.Parser pstep initial extract) stream@(Stream step state) = do
     res <- initial
     case res of
         PRD.IPartial s -> go SPEC state (List []) s
@@ -336,11 +334,7 @@ parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                 let src  = Prelude.reverse $ getList buf
                 return (Left (ParseError err), fromList src)
 
--- | Parse a stream using the supplied 'Parser'.
---
-{-# INLINE parseBreak #-}
-parseBreak :: Monad m => PR.Parser a m b -> Stream m a -> m (Either ParseError b, Stream m a)
-parseBreak = parseBreakD
+RENAME(parseBreakD,parseBreak)
 
 ------------------------------------------------------------------------------
 -- Specialized Folds

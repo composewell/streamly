@@ -43,7 +43,6 @@ module Streamly.Internal.Data.Array.Stream
     -- backtracking, StreamK at byte level would not be efficient.
     -- parseBreak p = K.parseBreakChunks (ParserK.adaptC p)
     , parseBreak
-    -- , parseBreakD
     -- , foldManyChunks
     -- , parseManyChunks
     , K.parseBreakChunks
@@ -292,7 +291,7 @@ parseBreak ::
     -> m (Either ParseError b, StreamK m (A.Array a))
 {-
 parseBreak p s =
-    fmap fromStreamD <$> parseBreakD (PRD.fromParserK p) (toStreamD s)
+    fmap fromStreamD <$> parseBreak (PRD.fromParserK p) (toStreamD s)
 -}
 parseBreak p = Array.parseBreak (Array.parserK p)
 
@@ -452,7 +451,7 @@ parseArr ::
     => ASF.Parser a m b
     -> Stream m (A.Array a)
     -> m (b, Stream m (A.Array a))
-parseArr p s = fmap fromStreamD <$> parseBreakD p (toStreamD s)
+parseArr p s = fmap fromStreamD <$> parseBreak p (toStreamD s)
 -}
 
 -- | Fold an array stream using the supplied array stream 'Fold'.
