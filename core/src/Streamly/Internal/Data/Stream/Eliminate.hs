@@ -16,10 +16,8 @@ module Streamly.Internal.Data.Stream.Eliminate
     -- * Running a Parser
       parse
     , parsePos
-    , parseD
     , parseBreak
     , parseBreakPos
-    , parseBreakD
 
     -- * Deconstruction
     , uncons
@@ -60,10 +58,15 @@ module Streamly.Internal.Data.Stream.Eliminate
     , stripPrefix
     , stripSuffix
     , stripSuffixUnbox
+
+    -- * Deprecated
+    , parseD
+    , parseBreakD
     )
 where
 
 #include "inline.hs"
+#include "deprecation.h"
 
 import Control.Monad.IO.Class (MonadIO(..))
 import GHC.Types (SPEC(..))
@@ -76,7 +79,6 @@ import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
 import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as PR
-import qualified Streamly.Internal.Data.Parser as PRD
 import qualified Streamly.Internal.Data.ParserDrivers as Drivers
 import qualified Streamly.Internal.Data.Stream.Nesting as Nesting
 import qualified Streamly.Internal.Data.Stream.Transform as StreamD
@@ -108,12 +110,21 @@ foldr1 f m = do
 -- Parsers
 ------------------------------------------------------------------------------
 
+-- XXX It may be a good idea to use constant sized chunks for backtracking. We
+-- can take a byte stream but when we have to backtrack we create constant
+-- sized chunks. We maintain one forward list and one backward list of constant
+-- sized chunks, and a last backtracking offset. That way we just need lists of
+-- contents and no need to maintain start/end pointers for individual arrays,
+-- reducing bookkeeping work.
+
 -- | Parse a stream using the supplied 'Parser'.
 --
 {-# INLINE parseBreak #-}
-parseBreak :: Monad m =>
+parseBreak, parseBreakD :: Monad m =>
     PR.Parser a m b -> Stream m a -> m (Either ParseError b, Stream m a)
 parseBreak = Drivers.parseBreak
+
+RENAME(parseBreakD,parseBreak)
 
 -- | Like 'parseBreak' but includes stream position information in the error
 -- messages.
@@ -122,15 +133,6 @@ parseBreak = Drivers.parseBreak
 parseBreakPos :: Monad m =>
     PR.Parser a m b -> Stream m a -> m (Either ParseError b, Stream m a)
 parseBreakPos = Drivers.parseBreakPos
-
--- | Run a 'Parse' over a stream.
-{-# INLINE_NORMAL parseD #-}
-parseD
-    :: Monad m
-    => PRD.Parser a m b
-    -> Stream m a
-    -> m (Either ParseError b)
-parseD = parse
 
 -- | Parse a stream using the supplied 'Parser'.
 --
@@ -145,10 +147,12 @@ parseD = parse
 -- Note: @parse p@ is not the same as  @head . parseMany p@ on an empty stream.
 --
 {-# INLINE [3] parse #-}
-parse :: Monad m => PR.Parser a m b -> Stream m a -> m (Either ParseError b)
+parse, parseD :: Monad m => PR.Parser a m b -> Stream m a -> m (Either ParseError b)
 parse parser strm = do
     (b, _) <- parseBreak parser strm
     return b
+
+RENAME(parseD,parse)
 
 -- | Like 'parse' but includes stream position information in the error
 -- messages.
@@ -161,22 +165,6 @@ parsePos :: Monad m => PR.Parser a m b -> Stream m a -> m (Either ParseError b)
 parsePos parser strm = do
     (b, _) <- parseBreakPos parser strm
     return b
-
--- XXX It may be a good idea to use constant sized chunks for backtracking. We
--- can take a byte stream but when we have to backtrack we create constant
--- sized chunks. We maintain one forward list and one backward list of constant
--- sized chunks, and a last backtracking offset. That way we just need lists of
--- contents and no need to maintain start/end pointers for individual arrays,
--- reducing bookkeeping work.
-
--- | Run a 'Parse' over a stream and return rest of the Stream.
-{-# INLINE_NORMAL parseBreakD #-}
-parseBreakD
-    :: Monad m
-    => PRD.Parser a m b
-    -> Stream m a
-    -> m (Either ParseError b, Stream m a)
-parseBreakD = parseBreak
 
 ------------------------------------------------------------------------------
 -- Specialized Folds
