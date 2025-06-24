@@ -288,8 +288,10 @@ test-suite Data.Parser
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Parser.hs
+  hs-source-dirs: .
+  other-modules: Streamly.Test.Data.Parser.Common
   if flag(limit-build-mem)
-    ghc-options: +RTS -M4000M -RTS
+    ghc-options: +RTS -M2000M -RTS
 
 test-suite Data.ParserK
   import: test-options

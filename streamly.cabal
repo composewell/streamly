@@ -122,6 +122,7 @@ extra-source-files:
     test/Streamly/Test/Data/RingArray.hs
     test/Streamly/Test/Data/Array/Stream.hs
     test/Streamly/Test/Data/Parser.hs
+    test/Streamly/Test/Data/Parser/*.hs
     test/Streamly/Test/Data/ParserK.hs
     test/Streamly/Test/Data/Stream/*.hs
     test/Streamly/Test/FileSystem/Event.hs
