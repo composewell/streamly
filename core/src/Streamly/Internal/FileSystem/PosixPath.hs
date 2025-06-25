@@ -131,7 +131,7 @@ module Streamly.Internal.FileSystem.OS_PATH
     , isBranch
 
     -- * Joining
-    , addString
+    , extendByString
  -- , concat
     , unsafeExtend
 #ifndef IS_WINDOWS
@@ -153,9 +153,17 @@ module Streamly.Internal.FileSystem.OS_PATH
     , splitFirst
     , splitLast
 
+    -- ** Extension
     , splitExtension
     , dropExtension
     , addExtension
+    , replaceExtension
+
+    -- ** Path View
+    , takeFileName
+    , takeDirectory
+    , takeExtension
+    , takeBaseName
 
     -- * Equality
     , EqCfg
@@ -413,9 +421,12 @@ fromString = fromChars . Stream.fromList
 --  Throws an error if the resulting path is not a valid path as per
 --  'isValidPath'.
 --
--- /Unimplemented/
-addString :: OS_PATH -> [Char] -> OS_PATH
-addString (OS_PATH _a) = undefined
+extendByString :: OS_PATH -> [Char] -> OS_PATH
+extendByString (OS_PATH a) b =
+    OS_PATH $
+        Common.append Common.OS_NAME
+            (Common.toString Unicode.UNICODE_DECODER) a (rawFromString b)
+
 
 ------------------------------------------------------------------------------
 -- Statically Verified Strings
@@ -1013,6 +1024,10 @@ splitExtension (OS_PATH a) =
     fmap (bimap OS_PATH OS_PATH) $ Common.splitExtension Common.OS_NAME a
 #endif
 
+-- | Take the extension of a file if it has one.
+takeExtension :: OS_PATH -> Maybe OS_PATH
+takeExtension = fmap snd . splitExtension
+
 -- | Drop the extension of a file if it has one.
 dropExtension :: OS_PATH -> OS_PATH
 dropExtension orig@(OS_PATH a) =
@@ -1027,6 +1042,23 @@ dropExtension orig@(OS_PATH a) =
 -- /Unimplemented/
 addExtension :: OS_PATH -> OS_PATH -> OS_PATH
 addExtension (OS_PATH _a) = undefined
+
+-- /Unimplemented/
+replaceExtension :: OS_PATH -> OS_PATH -> OS_PATH
+replaceExtension (OS_PATH _a) = undefined
+
+------------------------------------------------------------------------------
+-- Path View
+------------------------------------------------------------------------------
+
+takeFileName :: OS_PATH -> Maybe OS_PATH
+takeFileName = fmap snd . splitFile
+
+takeBaseName :: OS_PATH -> Maybe OS_PATH
+takeBaseName = fmap dropExtension . takeFileName
+
+takeDirectory :: OS_PATH -> Maybe OS_PATH
+takeDirectory x = splitFile x >>= fst
 
 ------------------------------------------------------------------------------
 -- Path equality
