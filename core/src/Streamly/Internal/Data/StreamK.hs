@@ -43,7 +43,9 @@ module Streamly.Internal.Data.StreamK
     , parseDBreak
     , parseD
     , parseBreak
+    , parseBreakPos
     , parse
+    , parsePos
 
     -- ** Specialized Folds
     , head
@@ -153,6 +155,7 @@ import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Array.Generic as GenArr
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Parser as Parser
+import qualified Streamly.Internal.Data.ParserDrivers as Drivers
 import qualified Streamly.Internal.Data.Parser.Type as PR
 import qualified Streamly.Internal.Data.ParserK.Type as ParserK
 import qualified Streamly.Internal.Data.Stream as Stream
@@ -1163,9 +1166,9 @@ parseDBreak
 parseDBreak (PR.Parser pstep initial extract) stream = do
     res <- initial
     case res of
-        PR.IPartial s -> goStream stream [] s
+        PR.IPartial s -> goStream stream [] s 0
         PR.IDone b -> return (Right b, stream)
-        PR.IError err -> return (Left (ParseError err), stream)
+        PR.IError err -> return (Left (ParseError 0 err), stream)
 
     where
 
@@ -1178,44 +1181,44 @@ parseDBreak (PR.Parser pstep initial extract) stream = do
     -- XXX currently we are using a dumb list based approach for backtracking
     -- buffer. This can be replaced by a sliding/ring buffer using Data.Array.
     -- That will allow us more efficient random back and forth movement.
-    goStream st buf !pst =
+    goStream st buf !pst i =
         let stop = do
                 r <- extract pst
                 case r of
                     PR.FError err -> do
                         let src = Prelude.reverse buf
-                        return (Left (ParseError err), fromList src)
+                        return (Left (ParseError i err), fromList src)
                     PR.FDone m b -> do
                         let n = (- m)
                         assertM(n <= length buf)
                         let src0 = Prelude.take n buf
                             src  = Prelude.reverse src0
                         return (Right b, fromList src)
-                    PR.FContinue 0 s -> goStream nil buf s
+                    PR.FContinue 0 s -> goStream nil buf s i
                     PR.FContinue m s -> do
                         let n = (- m)
                         assertM(n <= length buf)
                         let (src0, buf1) = splitAt n buf
                             src = Prelude.reverse src0
-                        goBuf nil buf1 src s
+                        goBuf nil buf1 src s (i + m)
             single x = yieldk x nil
             yieldk x r = do
                 res <- pstep pst x
                 case res of
-                    PR.SPartial 1 s -> goStream r [] s
+                    PR.SPartial 1 s -> goStream r [] s (i + 1)
                     PR.SPartial m s -> do
                         let n = 1 - m
                         assertM(n <= length (x:buf))
                         let src0 = Prelude.take n (x:buf)
                             src  = Prelude.reverse src0
-                        goBuf r [] src s
-                    PR.SContinue 1 s -> goStream r (x:buf) s
+                        goBuf r [] src s (i + m)
+                    PR.SContinue 1 s -> goStream r (x:buf) s (i + 1)
                     PR.SContinue m s -> do
                         let n = 1 - m
                         assertM(n <= length (x:buf))
                         let (src0, buf1) = splitAt n (x:buf)
                             src = Prelude.reverse src0
-                        goBuf r buf1 src s
+                        goBuf r buf1 src s (i + m)
                     PR.SDone 1 b -> return (Right b, r)
                     PR.SDone m b -> do
                         let n = 1 - m
@@ -1225,27 +1228,27 @@ parseDBreak (PR.Parser pstep initial extract) stream = do
                         return (Right b, append (fromList src) r)
                     PR.SError err -> do
                         let src = Prelude.reverse (x:buf)
-                        return (Left (ParseError err), append (fromList src) r)
+                        return (Left (ParseError (i + 1) err), append (fromList src) r)
          in foldStream defState yieldk single stop st
 
-    goBuf st buf [] !pst = goStream st buf pst
-    goBuf st buf (x:xs) !pst = do
+    goBuf st buf [] !pst i = goStream st buf pst i
+    goBuf st buf (x:xs) !pst i = do
         pRes <- pstep pst x
         case pRes of
-            PR.SPartial 1 s -> goBuf st [] xs s
+            PR.SPartial 1 s -> goBuf st [] xs s (i + 1)
             PR.SPartial m s -> do
                 let n = 1 - m
                 assert (n <= length (x:buf)) (return ())
                 let src0 = Prelude.take n (x:buf)
                     src  = Prelude.reverse src0 ++ xs
-                goBuf st [] src s
-            PR.SContinue 1 s -> goBuf st (x:buf) xs s
+                goBuf st [] src s (i + m)
+            PR.SContinue 1 s -> goBuf st (x:buf) xs s (i + 1)
             PR.SContinue m s -> do
                 let n = 1 - m
                 assert (n <= length (x:buf)) (return ())
                 let (src0, buf1) = splitAt n (x:buf)
                     src  = Prelude.reverse src0 ++ xs
-                goBuf st buf1 src s
+                goBuf st buf1 src s (i + m)
             PR.SDone m b -> do
                 let n = 1 - m
                 assert (n <= length (x:buf)) (return ())
@@ -1254,7 +1257,7 @@ parseDBreak (PR.Parser pstep initial extract) stream = do
                 return (Right b, append (fromList src) st)
             PR.SError err -> do
                 let src = Prelude.reverse buf ++ x:xs
-                return (Left (ParseError err), append (fromList src) st)
+                return (Left (ParseError (i + 1) err), append (fromList src) st)
 
 -- Using ParserD or ParserK on StreamK may not make much difference. We should
 -- perhaps use only chunked parsing on StreamK. We can always convert a stream
@@ -1296,116 +1299,24 @@ parseChunks = Array.parse
 
 -- | Similar to 'parseBreak' but works on singular elements.
 --
-{-# INLINE_NORMAL parseBreak #-}
+{-# INLINE parseBreak #-}
 parseBreak
     :: forall m a b. Monad m
     => ParserK.ParserK a m b
     -> StreamK m a
     -> m (Either ParseError b, StreamK m a)
-parseBreak parser input = do
-    let parserk = ParserK.runParser parser ParserK.parserDone 0 0
-     in go [] parserk input
+parseBreak = Drivers.parseBreakStreamK
 
-    where
-
-    {-# INLINE backtrack #-}
-    -- backtrack :: Int -> [a] -> StreamK m a -> (StreamK m a, [a])
-    backtrack n xs stream =
-        let (pre, post) = Stream.splitAt "Data.StreamK.parseBreak" n xs
-         in (append (fromList (Prelude.reverse pre)) stream, post)
-
-    {-# INLINE goStop #-}
-    goStop
-        :: [a]
-        -> (ParserK.Input a -> m (ParserK.Step a m b))
-        -> m (Either ParseError b, StreamK m a)
-    goStop backBuf parserk = do
-        pRes <- parserk ParserK.None
-        case pRes of
-            -- If we stop in an alternative, it will try calling the next
-            -- parser, the next parser may call initial returning Partial and
-            -- then immediately we have to call extract on it.
-            ParserK.Partial 0 cont1 ->
-                 go [] cont1 nil
-            ParserK.Partial n cont1 -> do
-                let n1 = negate n
-                assertM(n1 >= 0 && n1 <= length backBuf)
-                let (s1, backBuf1) = backtrack n1 backBuf nil
-                 in go backBuf1 cont1 s1
-            ParserK.Continue 0 cont1 ->
-                go backBuf cont1 nil
-            ParserK.Continue n cont1 -> do
-                let n1 = negate n
-                assertM(n1 >= 0 && n1 <= length backBuf)
-                let (s1, backBuf1) = backtrack n1 backBuf nil
-                 in go backBuf1 cont1 s1
-            ParserK.Done 0 b ->
-                return (Right b, nil)
-            ParserK.Done n b -> do
-                let n1 = negate n
-                assertM(n1 >= 0 && n1 <= length backBuf)
-                let (s1, _) = backtrack n1 backBuf nil
-                 in return (Right b, s1)
-            ParserK.SError _ err ->
-                let strm = fromList (Prelude.reverse backBuf)
-                 in return (Left (ParseError err), strm)
-
-    yieldk
-        :: [a]
-        -> (ParserK.Input a -> m (ParserK.Step a m b))
-        -> a
-        -> StreamK m a
-        -> m (Either ParseError b, StreamK m a)
-    yieldk backBuf parserk element stream = do
-        pRes <- parserk (ParserK.Chunk element)
-        -- NOTE: factoring out "cons element stream" in a let statement here
-        -- cause big alloc regression.
-        case pRes of
-            ParserK.Partial 1 cont1 -> go [] cont1 stream
-            ParserK.Partial 0 cont1 -> go [] cont1 (cons element stream)
-            ParserK.Partial n cont1 -> do -- n < 0 case
-                let n1 = negate n
-                    bufLen = length backBuf
-                    s = cons element stream
-                assertM(n1 >= 0 && n1 <= bufLen)
-                let (s1, _) = backtrack n1 backBuf s
-                go [] cont1 s1
-            ParserK.Continue 1 cont1 -> go (element:backBuf) cont1 stream
-            ParserK.Continue 0 cont1 ->
-                go backBuf cont1 (cons element stream)
-            ParserK.Continue n cont1 -> do
-                let n1 = negate n
-                    bufLen = length backBuf
-                    s = cons element stream
-                assertM(n1 >= 0 && n1 <= bufLen)
-                let (s1, backBuf1) = backtrack n1 backBuf s
-                go backBuf1 cont1 s1
-            ParserK.Done 1 b -> pure (Right b, stream)
-            ParserK.Done 0 b -> pure (Right b, cons element stream)
-            ParserK.Done n b -> do
-                let n1 = negate n
-                    bufLen = length backBuf
-                    s = cons element stream
-                assertM(n1 >= 0 && n1 <= bufLen)
-                let (s1, _) = backtrack n1 backBuf s
-                pure (Right b, s1)
-            ParserK.SError _ err ->
-                let strm =
-                        append
-                            (fromList (Prelude.reverse backBuf))
-                            (cons element stream)
-                 in return (Left (ParseError err), strm)
-
-    go
-        :: [a]
-        -> (ParserK.Input a -> m (ParserK.Step a m b))
-        -> StreamK m a
-        -> m (Either ParseError b, StreamK m a)
-    go backBuf parserk stream = do
-        let stop = goStop backBuf parserk
-            single a = yieldk backBuf parserk a nil
-         in foldStream
-                defState (yieldk backBuf parserk) single stop stream
+-- | Like 'parseBreak' but includes stream position information in the error
+-- messages.
+--
+{-# INLINE parseBreakPos #-}
+parseBreakPos
+    :: forall m a b. Monad m
+    => ParserK.ParserK a m b
+    -> StreamK m a
+    -> m (Either ParseError b, StreamK m a)
+parseBreakPos = Drivers.parseBreakStreamKPos
 
 -- | Run a 'ParserK' over a 'StreamK'. Please use 'parseChunks' where possible,
 -- for better performance.
@@ -1413,6 +1324,14 @@ parseBreak parser input = do
 parse :: Monad m =>
     ParserK.ParserK a m b -> StreamK m a -> m (Either ParseError b)
 parse f = fmap fst . parseBreak f
+
+-- | Like 'parse' but includes stream position information in the error
+-- messages.
+--
+{-# INLINE parsePos #-}
+parsePos :: Monad m =>
+    ParserK.ParserK a m b -> StreamK m a -> m (Either ParseError b)
+parsePos f = fmap fst . parseBreakPos f
 
 -------------------------------------------------------------------------------
 -- ParserK Chunked Generic

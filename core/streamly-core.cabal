@@ -88,6 +88,7 @@ extra-source-files:
 
     -- This is duplicated
     src/Streamly/Internal/Data/Array/ArrayMacros.h
+    src/Streamly/Internal/Data/ParserDrivers.h
     src/assert.hs
     src/inline.hs
     src/deprecation.h
@@ -319,6 +320,7 @@ library
 
     include-dirs:
           src
+        , src/Streamly/Internal/Data
         , src/Streamly/Internal/Data/Array
         , src/Streamly/Internal/Data/Stream
 
@@ -395,6 +397,7 @@ library
                      , Streamly.Internal.Data.Scanl
 
                      -- streamly-core-data-arrays
+                     , Streamly.Internal.Data.Array.Generic.Type
                      , Streamly.Internal.Data.Array.Generic
                      , Streamly.Internal.Data.Array
 
@@ -519,6 +522,7 @@ library
                     , Streamly.Internal.Data.Parser.Type
                     , Streamly.Internal.Data.Parser.Tee
                     , Streamly.Internal.Data.ParserK.Type
+                    , Streamly.Internal.Data.ParserDrivers
 
                     , Streamly.Internal.Data.Stream.Container
                     , Streamly.Internal.Data.Stream.Eliminate

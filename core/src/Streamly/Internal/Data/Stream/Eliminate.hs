@@ -15,9 +15,9 @@ module Streamly.Internal.Data.Stream.Eliminate
     (
     -- * Running a Parser
       parse
-    , parseD
+    , parsePos
     , parseBreak
-    , parseBreakD
+    , parseBreakPos
 
     -- * Deconstruction
     , uncons
@@ -58,14 +58,17 @@ module Streamly.Internal.Data.Stream.Eliminate
     , stripPrefix
     , stripSuffix
     , stripSuffixUnbox
+
+    -- * Deprecated
+    , parseD
+    , parseBreakD
     )
 where
 
 #include "inline.hs"
+#include "deprecation.h"
 
-import Control.Exception (assert)
 import Control.Monad.IO.Class (MonadIO(..))
-import GHC.Exts (SpecConstrAnnotation(..))
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
@@ -76,16 +79,13 @@ import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
 import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as PR
-import qualified Streamly.Internal.Data.Parser as PRD
-import qualified Streamly.Internal.Data.Stream.Type as Stream
-import qualified Streamly.Internal.Data.Stream.Generate as StreamD
+import qualified Streamly.Internal.Data.ParserDrivers as Drivers
 import qualified Streamly.Internal.Data.Stream.Nesting as Nesting
 import qualified Streamly.Internal.Data.Stream.Transform as StreamD
 
 import Prelude hiding
        ( Foldable(..), all, any, head, last, lookup, mapM, mapM_
        , notElem, splitAt, init, tail, (!!))
-import Data.Foldable (length)
 import Streamly.Internal.Data.Stream.Type hiding (splitAt)
 
 #include "DocTestDataStream.hs"
@@ -110,21 +110,29 @@ foldr1 f m = do
 -- Parsers
 ------------------------------------------------------------------------------
 
--- GHC parser does not accept {-# ANN type [] NoSpecConstr #-}, so we need
--- to make a newtype.
-{-# ANN type List NoSpecConstr #-}
-newtype List a = List {getList :: [a]}
+-- XXX It may be a good idea to use constant sized chunks for backtracking. We
+-- can take a byte stream but when we have to backtrack we create constant
+-- sized chunks. We maintain one forward list and one backward list of constant
+-- sized chunks, and a last backtracking offset. That way we just need lists of
+-- contents and no need to maintain start/end pointers for individual arrays,
+-- reducing bookkeeping work.
 
--- | Run a 'Parse' over a stream.
-{-# INLINE_NORMAL parseD #-}
-parseD
-    :: Monad m
-    => PRD.Parser a m b
-    -> Stream m a
-    -> m (Either ParseError b)
-parseD parser strm = do
-    (b, _) <- parseBreakD parser strm
-    return b
+-- | Parse a stream using the supplied 'Parser'.
+--
+{-# INLINE parseBreak #-}
+parseBreak, parseBreakD :: Monad m =>
+    PR.Parser a m b -> Stream m a -> m (Either ParseError b, Stream m a)
+parseBreak = Drivers.parseBreak
+
+RENAME(parseBreakD,parseBreak)
+
+-- | Like 'parseBreak' but includes stream position information in the error
+-- messages.
+--
+{-# INLINE parseBreakPos #-}
+parseBreakPos :: Monad m =>
+    PR.Parser a m b -> Stream m a -> m (Either ParseError b, Stream m a)
+parseBreakPos = Drivers.parseBreakPos
 
 -- | Parse a stream using the supplied 'Parser'.
 --
@@ -134,213 +142,29 @@ parseD parser strm = do
 -- error.  For example:
 --
 -- >>> Stream.parse (Parser.takeEQ 1 Fold.drain) Stream.nil
--- Left (ParseError "takeEQ: Expecting exactly 1 elements, input terminated on 0")
+-- Left (ParseError 0 "takeEQ: Expecting exactly 1 elements, input terminated on 0")
 --
 -- Note: @parse p@ is not the same as  @head . parseMany p@ on an empty stream.
 --
 {-# INLINE [3] parse #-}
-parse :: Monad m => PR.Parser a m b -> Stream m a -> m (Either ParseError b)
-parse = parseD
+parse, parseD :: Monad m => PR.Parser a m b -> Stream m a -> m (Either ParseError b)
+parse parser strm = do
+    (b, _) <- parseBreak parser strm
+    return b
 
--- XXX It may be a good idea to use constant sized chunks for backtracking. We
--- can take a byte stream but when we have to backtrack we create constant
--- sized chunks. We maintain one forward list and one backward list of constant
--- sized chunks, and a last backtracking offset. That way we just need lists of
--- contents and no need to maintain start/end pointers for individual arrays,
--- reducing bookkeeping work.
+RENAME(parseD,parse)
 
--- | Run a 'Parse' over a stream and return rest of the Stream.
-{-# INLINE_NORMAL parseBreakD #-}
-parseBreakD
-    :: Monad m
-    => PRD.Parser a m b
-    -> Stream m a
-    -> m (Either ParseError b, Stream m a)
-parseBreakD (PRD.Parser pstep initial extract) stream@(Stream step state) = do
-    res <- initial
-    case res of
-        PRD.IPartial s -> go SPEC state (List []) s
-        PRD.IDone b -> return (Right b, stream)
-        PRD.IError err -> return (Left (ParseError err), stream)
-
-    where
-
-    {-# INLINE splitAt #-}
-    splitAt = Stream.splitAt "Data.Stream.parseBreak"
-
-    -- "buf" contains last few items in the stream that we may have to
-    -- backtrack to.
-    --
-    -- XXX currently we are using a dumb list based approach for backtracking
-    -- buffer. This can be replaced by a sliding/ring buffer using Data.Array.
-    -- That will allow us more efficient random back and forth movement.
-    go !_ st buf !pst = do
-        r <- step defState st
-        case r of
-            Yield x s -> do
-                pRes <- pstep pst x
-                case pRes of
-                    PR.SPartial 1 pst1 -> go SPEC s (List []) pst1
-                    PR.SPartial 0 pst1 -> go1 SPEC s x pst1
-                    PR.SPartial m pst1 -> do
-                        let n = 1 - m
-                        assert (n <= length (x:getList buf)) (return ())
-                        let src0 = Prelude.take n (x:getList buf)
-                            src  = Prelude.reverse src0
-                        gobuf SPEC s (List []) (List src) pst1
-                    PR.SContinue 1 pst1 -> go SPEC s (List (x:getList buf)) pst1
-                    PR.SContinue 0 pst1 -> gobuf SPEC s buf (List [x]) pst1
-                    PR.SContinue m pst1 -> do
-                        let n = 1 - m
-                        assert (n <= length (x:getList buf)) (return ())
-                        let (src0, buf1) = splitAt n (x:getList buf)
-                            src  = Prelude.reverse src0
-                        gobuf SPEC s (List buf1) (List src) pst1
-                    PR.SDone 1 b -> return (Right b, Stream step s)
-                    PR.SDone m b -> do
-                        let n = 1 - m
-                        assert (n <= length (x:getList buf)) (return ())
-                        let src0 = Prelude.take n (x:getList buf)
-                            src  = Prelude.reverse src0
-                        -- XXX This would make it quadratic. We should probably
-                        -- use StreamK if we have to append many times.
-                        return
-                            ( Right b,
-                              Nesting.append (fromList src) (Stream step s))
-                    PR.SError err -> do
-                        let src = Prelude.reverse $ x:getList buf
-                        return
-                            ( Left (ParseError err)
-                            , Nesting.append (fromList src) (Stream step s)
-                            )
-
-            Skip s -> go SPEC s buf pst
-            Stop -> goStop SPEC buf pst
-
-    go1 _ s x !pst = do
-        pRes <- pstep pst x
-        case pRes of
-            PR.SPartial 1 pst1 ->
-                go SPEC s (List []) pst1
-            PR.SPartial 0 pst1 -> do
-                go1 SPEC s x pst1
-            PR.SPartial m _ ->
-                error $ "parseBreak: parser bug, go1: SPartial m = " ++ show m
-            PR.SContinue 1 pst1 ->
-                go SPEC s (List [x]) pst1
-            PR.SContinue 0 pst1 ->
-                go1 SPEC s x pst1
-            PR.SContinue m _ -> do
-                error $ "parseBreak: parser bug, go1: SContinue m = " ++ show m
-            PR.SDone 1 b -> do
-                return (Right b, Stream step s)
-            PR.SDone 0 b -> do
-                return (Right b, StreamD.cons x (Stream step s))
-            PR.SDone m _ -> do
-                error $ "parseBreak: parser bug, go1: SDone m = " ++ show m
-            PR.SError err ->
-                return
-                    ( Left (ParseError err)
-                    , Nesting.append (fromPure x) (Stream step s)
-                    )
-
-    gobuf !_ s buf (List []) !pst = go SPEC s buf pst
-    gobuf !_ s buf (List (x:xs)) !pst = do
-        pRes <- pstep pst x
-        case pRes of
-            PR.SPartial 1 pst1 ->
-                gobuf SPEC s (List []) (List xs) pst1
-            PR.SPartial m pst1 -> do
-                let n = 1 - m
-                assert (n <= length (x:getList buf)) (return ())
-                let src0 = Prelude.take n (x:getList buf)
-                    src  = Prelude.reverse src0 ++ xs
-                gobuf SPEC s (List []) (List src) pst1
-            PR.SContinue 1 pst1 ->
-                gobuf SPEC s (List (x:getList buf)) (List xs) pst1
-            PR.SContinue 0 pst1 ->
-                gobuf SPEC s buf (List (x:xs)) pst1
-            PR.SContinue m pst1 -> do
-                let n = 1 - m
-                assert (n <= length (x:getList buf)) (return ())
-                let (src0, buf1) = splitAt n (x:getList buf)
-                    src  = Prelude.reverse src0 ++ xs
-                gobuf SPEC s (List buf1) (List src) pst1
-            PR.SDone m b -> do
-                let n = 1 - m
-                assert (n <= length (x:getList buf)) (return ())
-                let src0 = Prelude.take n (x:getList buf)
-                    src  = Prelude.reverse src0 ++ xs
-                return (Right b, Nesting.append (fromList src) (Stream step s))
-            PR.SError err -> do
-                let src = Prelude.reverse (getList buf) ++ x:xs
-                return
-                    ( Left (ParseError err)
-                    , Nesting.append (fromList src) (Stream step s)
-                    )
-
-    -- This is simplified gobuf
-    goExtract !_ buf (List []) !pst = goStop SPEC buf pst
-    goExtract !_ buf (List (x:xs)) !pst = do
-        pRes <- pstep pst x
-        case pRes of
-            PR.SPartial 1 pst1 ->
-                goExtract SPEC (List []) (List xs) pst1
-            PR.SPartial m pst1 -> do
-                let n = 1 - m
-                assert (n <= length (x:getList buf)) (return ())
-                let src0 = Prelude.take n (x:getList buf)
-                    src  = Prelude.reverse src0 ++ xs
-                goExtract SPEC (List []) (List src) pst1
-            PR.SContinue 1 pst1 ->
-                goExtract SPEC (List (x:getList buf)) (List xs) pst1
-            PR.SContinue 0 pst1 ->
-                goExtract SPEC buf (List (x:xs)) pst1
-            PR.SContinue m pst1 -> do
-                let n = 1 - m
-                assert (n <= length (x:getList buf)) (return ())
-                let (src0, buf1) = splitAt n (x:getList buf)
-                    src  = Prelude.reverse src0 ++ xs
-                goExtract SPEC (List buf1) (List src) pst1
-            PR.SDone m b -> do
-                let n = 1 - m
-                assert (n <= length (x:getList buf)) (return ())
-                let src0 = Prelude.take n (x:getList buf)
-                    src  = Prelude.reverse src0 ++ xs
-                return (Right b, fromList src)
-            PR.SError err -> do
-                let src = Prelude.reverse (getList buf) ++ x:xs
-                return (Left (ParseError err), fromList src)
-
-    -- This is simplified goExtract
-    -- XXX Use SPEC?
-    {-# INLINE goStop #-}
-    goStop _ buf pst = do
-        pRes <- extract pst
-        case pRes of
-            PR.FContinue 0 pst1 -> goStop SPEC buf pst1
-            PR.FContinue m pst1 -> do
-                let n = (- m)
-                assert (n <= length (getList buf)) (return ())
-                let (src0, buf1) = splitAt n (getList buf)
-                    src = Prelude.reverse src0
-                goExtract SPEC (List buf1) (List src) pst1
-            PR.FDone 0 b -> return (Right b, StreamD.nil)
-            PR.FDone m b -> do
-                let n = (- m)
-                assert (n <= length (getList buf)) (return ())
-                let src0 = Prelude.take n (getList buf)
-                    src  = Prelude.reverse src0
-                return (Right b, fromList src)
-            PR.FError err -> do
-                let src  = Prelude.reverse $ getList buf
-                return (Left (ParseError err), fromList src)
-
--- | Parse a stream using the supplied 'Parser'.
+-- | Like 'parse' but includes stream position information in the error
+-- messages.
 --
-{-# INLINE parseBreak #-}
-parseBreak :: Monad m => PR.Parser a m b -> Stream m a -> m (Either ParseError b, Stream m a)
-parseBreak = parseBreakD
+-- >>> Stream.parsePos (Parser.takeEQ 2 Fold.drain) (Stream.fromList [1])
+-- Left (ParseError 1 "takeEQ: Expecting exactly 2 elements, input terminated on 1")
+--
+{-# INLINE [3] parsePos #-}
+parsePos :: Monad m => PR.Parser a m b -> Stream m a -> m (Either ParseError b)
+parsePos parser strm = do
+    (b, _) <- parseBreakPos parser strm
+    return b
 
 ------------------------------------------------------------------------------
 -- Specialized Folds

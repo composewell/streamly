@@ -7,6 +7,7 @@ module Streamly.Test.Data.Parser.Common (main) where
 
 import Control.Applicative ((<|>))
 import Control.Exception (displayException, try, evaluate, SomeException)
+import Data.List (isSuffixOf)
 import Streamly.Internal.Data.MutByteArray (Unbox)
 import Streamly.Test.Common (listEquals, checkListEqual, chooseInt)
 import Streamly.Internal.Data.Parser (ParseError(..))
@@ -20,8 +21,7 @@ import Prelude hiding (sequence)
 import qualified Control.Monad.Fail as Fail
 import qualified Data.List as List
 import qualified Prelude
-import qualified Streamly.Data.Stream as S
-import qualified Streamly.Internal.Data.Stream as S (parseBreak)
+import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Array.Generic as GA
 import qualified Streamly.Internal.Data.Fold as FL
@@ -116,7 +116,7 @@ parserFail consumer =
     property $
         case runIdentity $ consumer (Fail.fail err) [0 :: Int] of
             (Right _, _) -> False
-            (Left (ParseError e), rest) -> err == e && rest == [0 :: Int]
+            (Left (ParseError _ e), rest) -> err == e && rest == [0 :: Int]
     where
     err = "Testing MonadFail.fail."
 
@@ -857,7 +857,7 @@ takeEndByEsc producer consumer =
         in
             case runIdentity $ consumer prsr (producer ls) of
                 Right parsed_list -> checkListEqual parsed_list $ escapeSep Nothing ls
-                Left err -> property (displayException err == msg)
+                Left err -> property (msg `isSuffixOf` displayException err)
 
 takeFramedByEsc_ :: ParserTestCase_Temp Int Identity [Int] Property
 takeFramedByEsc_ producer consumer =
@@ -1009,7 +1009,7 @@ takeFramedByEsc_Fail1 producer consumer =
     in
         case runIdentity $ consumer prsr (producer ls) of
             Right _ -> property False
-            Left err -> property (displayException err == msg)
+            Left err -> property (msg `isSuffixOf` displayException err)
 
 takeFramedByEsc_Fail2 :: ParserTestCase_Temp Int Identity [Int] Property
 takeFramedByEsc_Fail2 producer consumer =
@@ -1028,7 +1028,7 @@ takeFramedByEsc_Fail2 producer consumer =
     in
         case runIdentity $ consumer prsr (producer ls) of
             Right _ -> property False
-            Left err -> property (displayException err == msg)
+            Left err -> property (msg `isSuffixOf` displayException err)
 
 takeFramedByEsc_Fail3 :: ParserTestCase_Temp Int Identity [Int] Property
 takeFramedByEsc_Fail3 producer consumer =
@@ -1047,7 +1047,7 @@ takeFramedByEsc_Fail3 producer consumer =
     in
         case runIdentity $ consumer prsr (producer ls) of
             Right _ -> property False
-            Left err -> property $ (displayException err == msg)
+            Left err -> property (msg `isSuffixOf` displayException err)
 
 takeStartBy_ :: ParserTestCase_Temp Int Identity [Int] Property
 takeStartBy_ producer consumer =
@@ -1065,7 +1065,7 @@ takeStartBy_ producer consumer =
                       then tls
                       else Prelude.takeWhile (not . predicate) ls1
                   else property $ Prelude.null parsed_list
-                Left err -> property (displayException err == msg)
+                Left err -> property (msg `isSuffixOf` displayException err)
             where
                 predicate = odd
                 parser = P.takeBeginBy_ predicate FL.toList
@@ -1085,21 +1085,21 @@ runParserTC :: (Unbox a, Monad m) => TestMode -> ParserTestCase a m b c -> c
 runParserTC tm runner =
     case tm of
         TMParserStream ->
-            runner $ \p -> mapMTup S.toList . S.parseBreak p . S.fromList
+            runner $ \p -> mapMTup S.toList . S.parseBreakPos p . S.fromList
         TMParserKStreamK ->
             runner $ \p ->
-                mapMTup K.toList . K.parseBreak (PK.parserK p) . K.fromList
+                mapMTup K.toList . K.parseBreakPos (PK.parserK p) . K.fromList
         TMParserKStreamKChunks ->
             runner $ \p ->
                 mapMTup
                     (fmap (concatMap A.toList) . K.toList)
-                        . A.parseBreak (A.parserK p)
+                        . A.parseBreakPos (A.parserK p)
                         . producerChunks A.fromList
         TMParserKStreamKChunksGeneric ->
             runner $ \p ->
                 mapMTup
                     (fmap (concatMap GA.toList) . K.toList)
-                        . GA.parseBreak (GA.parserK p)
+                        . GA.parseBreakPos (GA.parserK p)
                         . producerChunks GA.fromList
 
     where
@@ -1117,14 +1117,14 @@ runParserTC tm runner =
 runParserTC_temp :: (Unbox a, Monad m) => TestMode -> ParserTestCase_Temp a m b c -> c
 runParserTC_temp tm runner =
     case tm of
-        TMParserStream -> runner S.fromList S.parse
-        TMParserKStreamK -> runner K.fromList (K.parse . PK.parserK)
+        TMParserStream -> runner S.fromList S.parsePos
+        TMParserKStreamK -> runner K.fromList (K.parsePos . PK.parserK)
         TMParserKStreamKChunks ->
-            runner (producerChunks A.fromList) (A.parse . A.parserK)
+            runner (producerChunks A.fromList) (A.parsePos . A.parserK)
         TMParserKStreamKChunksGeneric ->
             runner
                 (producerChunks GA.fromList)
-                (GA.parse . GA.parserK)
+                (GA.parsePos . GA.parserK)
 
     where
     cSize = 50

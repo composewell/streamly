@@ -331,19 +331,17 @@ TODO:
 Add sanity tests for
 - Producer.parse
 - Producer.parseMany
-- Stream.parseMany
-- Stream.parseIterate
 -}
 
 sanityParseBreak :: [Move] -> SpecWith ()
 sanityParseBreak jumps = it (show jumps) $ do
-    (val, rest) <- SI.parseBreak (jumpParser jumps) $ S.fromList tape
+    (val, rest) <- SI.parseBreakPos (jumpParser jumps) $ S.fromList tape
     lst <- S.toList rest
     (val, lst) `shouldBe` (expectedResult jumps tape)
 
 sanityParseDBreak :: [Move] -> SpecWith ()
 sanityParseDBreak jumps = it (show jumps) $ do
-    (val, rest) <- K.parseDBreak (jumpParser jumps) $ K.fromList tape
+    (val, rest) <- K.parseBreakPos (PK.parserK (jumpParser jumps)) $ K.fromList tape
     lst <- K.toList rest
     (val, lst) `shouldBe` (expectedResult jumps tape)
 
@@ -359,14 +357,14 @@ sanityParseBreakChunksK jumps = it (show jumps) $ do
 
 sanityParseMany :: [Move] -> SpecWith ()
 sanityParseMany jumps = it (show jumps) $ do
-    res <- S.toList $ SI.parseMany (jumpParser jumps) $ S.fromList tape
+    res <- S.toList $ SI.parseManyPos (jumpParser jumps) $ S.fromList tape
     res `shouldBe` (expectedResultMany jumps tape)
 
 sanityParseIterate :: [Move] -> SpecWith ()
 sanityParseIterate jumps = it (show jumps) $ do
     res <-
         S.toList
-             $ SI.parseIterate (const (jumpParser jumps)) [] $ S.fromList tape
+             $ SI.parseIteratePos (const (jumpParser jumps)) [] $ S.fromList tape
     res `shouldBe` (expectedResultMany jumps tape)
 
 -------------------------------------------------------------------------------

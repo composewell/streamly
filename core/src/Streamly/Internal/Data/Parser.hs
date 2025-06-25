@@ -605,7 +605,7 @@ data Tuple'Fused a b = Tuple'Fused !a !b deriving Show
 --
 -- @
 -- >>> :{
---   takeBetween' low high ls = Stream.parse prsr (Stream.fromList ls)
+--   takeBetween' low high ls = Stream.parsePos prsr (Stream.fromList ls)
 --     where prsr = Parser.takeBetween low high Fold.toList
 -- :}
 --
@@ -618,7 +618,7 @@ data Tuple'Fused a b = Tuple'Fused !a !b deriving Show
 -- Right [1,2]
 --
 -- >>> takeBetween' 2 4 [1]
--- Left (ParseError "takeBetween: Expecting alteast 2 elements, got 1")
+-- Left (ParseError 1 "takeBetween: Expecting alteast 2 elements, got 1")
 --
 -- >>> takeBetween' 0 0 [1, 2]
 -- Right []
@@ -720,11 +720,11 @@ takeBetween low high (Fold fstep finitial _ ffinal) =
 -- * Fails - if the stream or the collecting fold ends before it can collect
 --           exactly @n@ elements.
 --
--- >>> Stream.parse (Parser.takeEQ 2 Fold.toList) $ Stream.fromList [1,0,1]
+-- >>> Stream.parsePos (Parser.takeEQ 2 Fold.toList) $ Stream.fromList [1,0,1]
 -- Right [1,0]
 --
--- >>> Stream.parse (Parser.takeEQ 4 Fold.toList) $ Stream.fromList [1,0,1]
--- Left (ParseError "takeEQ: Expecting exactly 4 elements, input terminated on 3")
+-- >>> Stream.parsePos (Parser.takeEQ 4 Fold.toList) $ Stream.fromList [1,0,1]
+-- Left (ParseError 3 "takeEQ: Expecting exactly 4 elements, input terminated on 3")
 --
 {-# INLINE takeEQ #-}
 takeEQ :: Monad m => Int -> Fold m a b -> Parser a m b
@@ -784,8 +784,8 @@ data TakeGEState s =
 -- * Fails - if the stream or the collecting fold ends before producing @n@
 --           elements.
 --
--- >>> Stream.parse (Parser.takeGE 4 Fold.toList) $ Stream.fromList [1,0,1]
--- Left (ParseError "takeGE: Expecting at least 4 elements, input terminated on 3")
+-- >>> Stream.parsePos (Parser.takeGE 4 Fold.toList) $ Stream.fromList [1,0,1]
+-- Left (ParseError 3 "takeGE: Expecting at least 4 elements, input terminated on 3")
 --
 -- >>> Stream.parse (Parser.takeGE 4 Fold.toList) $ Stream.fromList [1,0,1,0,1]
 -- Right [1,0,1,0,1]
@@ -1323,9 +1323,9 @@ takeEitherSepBy _cond = undefined -- D.toParserK . D.takeEitherSepBy cond
 -- Examples: -
 --
 -- >>> p = Parser.takeBeginBy (== ',') Fold.toList
--- >>> leadingComma = Stream.parse p . Stream.fromList
+-- >>> leadingComma = Stream.parsePos p . Stream.fromList
 -- >>> leadingComma "a,b"
--- Left (ParseError "takeBeginBy: missing frame start")
+-- Left (ParseError 1 "takeBeginBy: missing frame start")
 -- ...
 -- >>> leadingComma ",,"
 -- Right ","
@@ -1402,8 +1402,8 @@ RENAME(takeStartBy_,takeBeginBy_)
 -- Right "hello {world}"
 -- >>> Stream.parse p $ Stream.fromList "{hello \\{world}"
 -- Right "hello {world"
--- >>> Stream.parse p $ Stream.fromList "{hello {world}"
--- Left (ParseError "takeFramedByEsc_: missing frame end")
+-- >>> Stream.parsePos p $ Stream.fromList "{hello {world}"
+-- Left (ParseError 14 "takeFramedByEsc_: missing frame end")
 --
 -- /Pre-release/
 {-# INLINE takeFramedByEsc_ #-}
@@ -2145,8 +2145,8 @@ groupByRollingEither
 -- >>> Stream.parse (Parser.listEqBy (==) "string") $ Stream.fromList "string"
 -- Right "string"
 --
--- >>> Stream.parse (Parser.listEqBy (==) "mismatch") $ Stream.fromList "match"
--- Left (ParseError "streamEqBy: mismtach occurred")
+-- >>> Stream.parsePos (Parser.listEqBy (==) "mismatch") $ Stream.fromList "match"
+-- Left (ParseError 2 "streamEqBy: mismtach occurred")
 --
 {-# INLINE listEqBy #-}
 listEqBy :: Monad m => (a -> a -> Bool) -> [a] -> Parser a m [a]
@@ -2436,8 +2436,8 @@ spanByRolling eq f1 f2 =
 -- >>> Stream.parse (Parser.takeP 4 (Parser.takeEQ 2 Fold.toList)) $ Stream.fromList [1, 2, 3, 4, 5]
 -- Right [1,2]
 --
--- >>> Stream.parse (Parser.takeP 4 (Parser.takeEQ 5 Fold.toList)) $ Stream.fromList [1, 2, 3, 4, 5]
--- Left (ParseError "takeEQ: Expecting exactly 5 elements, input terminated on 4")
+-- >>> Stream.parsePos (Parser.takeP 4 (Parser.takeEQ 5 Fold.toList)) $ Stream.fromList [1, 2, 3, 4, 5]
+-- Left (ParseError 4 "takeEQ: Expecting exactly 5 elements, input terminated on 4")
 --
 -- /Internal/
 {-# INLINE takeP #-}
@@ -2590,8 +2590,8 @@ data DeintercalateAllState fs sp ss =
 -- Right []
 -- >>> Stream.parse p $ Stream.fromList "1"
 -- Right [Left "1"]
--- >>> Stream.parse p $ Stream.fromList "1+"
--- Left (ParseError "takeWhile1: end of input")
+-- >>> Stream.parsePos p $ Stream.fromList "1+"
+-- Left (ParseError 2 "takeWhile1: end of input")
 -- >>> Stream.parse p $ Stream.fromList "1+2+3"
 -- Right [Left "1",Right '+',Left "2",Right '+',Left "3"]
 --
@@ -2862,8 +2862,8 @@ data Deintercalate1State b fs sp ss =
 -- >>> p1 = Parser.takeWhile1 (not . (== '+')) Fold.toList
 -- >>> p2 = Parser.satisfy (== '+')
 -- >>> p = Parser.deintercalate1 p1 p2 Fold.toList
--- >>> Stream.parse p $ Stream.fromList ""
--- Left (ParseError "takeWhile1: end of input")
+-- >>> Stream.parsePos p $ Stream.fromList ""
+-- Left (ParseError 0 "takeWhile1: end of input")
 -- >>> Stream.parse p $ Stream.fromList "1"
 -- Right [Left "1"]
 -- >>> Stream.parse p $ Stream.fromList "1+"
@@ -3155,8 +3155,8 @@ sepBy1 p sep sink = do
 -- >>> p1 = Parser.takeWhile1 (not . (== '+')) Fold.toList
 -- >>> p2 = Parser.satisfy (== '+')
 -- >>> p = Parser.sepBy1 p1 p2 Fold.toList
--- >>> Stream.parse p $ Stream.fromList ""
--- Left (ParseError "takeWhile1: end of input")
+-- >>> Stream.parsePos p $ Stream.fromList ""
+-- Left (ParseError 0 "takeWhile1: end of input")
 -- >>> Stream.parse p $ Stream.fromList "1"
 -- Right ["1"]
 -- >>> Stream.parse p $ Stream.fromList "1+"

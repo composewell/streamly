@@ -5,5 +5,6 @@
 
 For APIs that have not been released yet.
 
+>>> import qualified Streamly.Internal.Data.Stream as Stream (parsePos)
 >>> import qualified Streamly.Internal.Unicode.Parser as Unicode (number, mkDouble)
 -}

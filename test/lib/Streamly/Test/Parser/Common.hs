@@ -74,7 +74,7 @@ expectedResult moves inp = go 0 0 [] moves
     -- j = Minimum index of inp head
     go i j ys [] = (Right ys, slice_ (max i j) inp)
     go i j ys ((Consume n):xs)
-        | i + n > inpLen = (Left (ParseError "INCOMPLETE"), drop j inp)
+        | i + n > inpLen = (Left (ParseError inpLen "INCOMPLETE"), drop j inp)
         | otherwise =
             go (i + n) j (ys ++ slice i n inp) xs
     go i j ys ((Custom step):xs)
@@ -84,16 +84,20 @@ expectedResult moves inp = go 0 0 [] moves
                   P.SPartial n () -> go (i + n) (max j (i + n)) ys xs
                   P.SContinue n () -> go (i + n) j ys xs
                   P.SDone n () -> (Right ys, slice_ (max (i + n) j) inp)
-                  P.SError err -> (Left (ParseError err), slice_ j inp)
+                  P.SError err -> (Left (ParseError (i + 1) err), slice_ j inp)
 
 expectedResultMany :: [Move] -> [Int] -> [Either ParseError [Int]]
-expectedResultMany _ [] = []
-expectedResultMany moves inp =
-    let (res, rest) = expectedResult moves inp
-     in
-       case res of
-           Left err -> [Left err]
-           Right val -> Right val : expectedResultMany moves rest
+expectedResultMany = go 0
+    where
+    go _ _ [] = []
+    go off moves inp =
+        let (res, rest) = expectedResult moves inp
+            consumed = length inp - length rest
+         in
+           case res of
+               Left (ParseError relOff err) ->
+                   [Left (ParseError (off + relOff) err)]
+               Right val -> Right val : go (off + consumed) moves rest
 
 createPaths :: [a] -> [[a]]
 createPaths xs =

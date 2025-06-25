@@ -41,7 +41,6 @@ import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Array.Generic as Array
 import qualified Streamly.Internal.Data.MutArray.Type as MA
 import qualified Streamly.Internal.Data.Stream.Type as Stream
-import qualified Streamly.Internal.Data.Stream.Nesting as Stream
 import qualified Streamly.Internal.Data.Stream.Generate as Stream
 import qualified Streamly.Internal.Data.Stream.Transform as Stream
 import qualified Streamly.Internal.Data.Stream.Transformer as Stream

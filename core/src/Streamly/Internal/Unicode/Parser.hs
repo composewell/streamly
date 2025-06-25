@@ -589,7 +589,7 @@ mkDouble mantissa power =
 --
 -- Examples:
 --
--- >>> p = Stream.parse Unicode.double . Stream.fromList
+-- >>> p = Stream.parsePos Unicode.double . Stream.fromList
 --
 -- >>> p "-1.23e-123"
 -- Right (-1.23e-123)
@@ -614,13 +614,13 @@ mkDouble mantissa power =
 -- Error cases:
 --
 -- >>> p ""
--- Left (ParseError "number: expecting sign or decimal digit, got end of input")
+-- Left (ParseError 0 "number: expecting sign or decimal digit, got end of input")
 --
 -- >>> p ".1"
--- Left (ParseError "number: expecting sign or decimal digit, got '.'")
+-- Left (ParseError 1 "number: expecting sign or decimal digit, got '.'")
 --
 -- >>> p "+"
--- Left (ParseError "number: expecting decimal digit, got end of input")
+-- Left (ParseError 1 "number: expecting decimal digit, got end of input")
 --
 {-# INLINE double #-}
 double :: Monad m => Parser Char m Double

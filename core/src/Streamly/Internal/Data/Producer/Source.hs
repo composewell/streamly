@@ -125,35 +125,35 @@ parse
     case res of
         ParserD.IPartial s -> do
             state <- uinject seed
-            go SPEC state (List []) s
+            go SPEC state (List []) s 0
         ParserD.IDone b -> return (Right b, seed)
-        ParserD.IError err -> return (Left (ParseError err), seed)
+        ParserD.IError err -> return (Left (ParseError 0 err), seed)
 
     where
 
     -- XXX currently we are using a dumb list based approach for backtracking
     -- buffer. This can be replaced by a sliding/ring buffer using Data.Array.
     -- That will allow us more efficient random back and forth movement.
-    go !_ st buf !pst = do
+    go !_ st buf !pst i = do
         r <- ustep st
         case r of
             Yield x s -> do
                 pRes <- pstep pst x
                 case pRes of
-                    SPartial 1 pst1 -> go SPEC s (List []) pst1
+                    SPartial 1 pst1 -> go SPEC s (List []) pst1 i
                     SPartial m pst1 -> do
                         let n = 1 - m
                         assert (n <= length (x:getList buf)) (return ())
                         let src0 = Prelude.take n (x:getList buf)
                             src  = Prelude.reverse src0
-                        gobuf SPEC s (List []) (List src) pst1
-                    SContinue 1 pst1 -> go SPEC s (List (x:getList buf)) pst1
+                        gobuf SPEC s (List []) (List src) pst1 (i + 1 - n)
+                    SContinue 1 pst1 -> go SPEC s (List (x:getList buf)) pst1 (i + 1)
                     SContinue m pst1 -> do
                         let n = 1 - m
                         assert (n <= length (x:getList buf)) (return ())
                         let (src0, buf1) = splitAt n (x:getList buf)
                             src  = Prelude.reverse src0
-                        gobuf SPEC s (List buf1) (List src) pst1
+                        gobuf SPEC s (List buf1) (List src) pst1 (i + 1 - n)
                     SDone m b -> do
                         let n = 1 - m
                         assert (n <= length (x:getList buf)) (return ())
@@ -165,32 +165,32 @@ parse
                         s1 <- uextract s
                         let src  = Prelude.reverse (getList buf)
                         return
-                            ( Left (ParseError err)
+                            ( Left (ParseError (i + 1) err)
                             , unread (src ++ [x]) s1
                             )
-            Skip s -> go SPEC s buf pst
-            Stop -> goStop buf pst
+            Skip s -> go SPEC s buf pst i
+            Stop -> goStop buf pst i
 
-    gobuf !_ s buf (List []) !pst = go SPEC s buf pst
-    gobuf !_ s buf (List (x:xs)) !pst = do
+    gobuf !_ s buf (List []) !pst i = go SPEC s buf pst i
+    gobuf !_ s buf (List (x:xs)) !pst i = do
         pRes <- pstep pst x
         case pRes of
             SPartial 1 pst1 ->
-                gobuf SPEC s (List []) (List xs) pst1
+                gobuf SPEC s (List []) (List xs) pst1 (i + 1)
             SPartial m pst1 -> do
                 let n = 1 - m
                 assert (n <= length (x:getList buf)) (return ())
                 let src0 = Prelude.take n (x:getList buf)
                     src  = Prelude.reverse src0 ++ xs
-                gobuf SPEC s (List []) (List src) pst1
+                gobuf SPEC s (List []) (List src) pst1 (i + 1 - n)
             SContinue 1 pst1 ->
-                gobuf SPEC s (List (x:getList buf)) (List xs) pst1
+                gobuf SPEC s (List (x:getList buf)) (List xs) pst1 (i + 1)
             SContinue m pst1 -> do
                 let n = 1 - m
                 assert (n <= length (x:getList buf)) (return ())
                 let (src0, buf1) = splitAt n (x:getList buf)
                     src  = Prelude.reverse src0 ++ xs
-                gobuf SPEC s (List buf1) (List src) pst1
+                gobuf SPEC s (List buf1) (List src) pst1 (i + 1 - n)
             SDone m b -> do
                 let n = 1 - m
                 assert (n <= length (x:getList buf)) (return ())
@@ -202,33 +202,33 @@ parse
                     s1 <- uextract s
                     let src  = Prelude.reverse (getList buf)
                     return
-                        ( Left (ParseError err)
+                        ( Left (ParseError (i + 1) err)
                         , unread (src ++ (x:xs)) s1
                         )
 
     -- This is a simplified gobuf
-    goExtract !_ buf (List []) !pst = goStop buf pst
-    goExtract !_ buf (List (x:xs)) !pst = do
+    goExtract !_ buf (List []) !pst i = goStop buf pst i
+    goExtract !_ buf (List (x:xs)) !pst i = do
         pRes <- pstep pst x
         case pRes of
-            SPartial 0 pst1 ->
-                goExtract SPEC (List []) (List xs) pst1
+            SPartial 1 pst1 ->
+                goExtract SPEC (List []) (List xs) pst1 (i + 1)
             SPartial m pst1 -> do
-                let n = (- m)
+                let n = 1 - m
                 assert (n <= length (x:getList buf)) (return ())
                 let src0 = Prelude.take n (x:getList buf)
                     src  = Prelude.reverse src0 ++ xs
-                goExtract SPEC (List []) (List src) pst1
-            SContinue 0 pst1 ->
-                goExtract SPEC (List (x:getList buf)) (List xs) pst1
+                goExtract SPEC (List []) (List src) pst1 (i + 1 - n)
+            SContinue 1 pst1 ->
+                goExtract SPEC (List (x:getList buf)) (List xs) pst1 (i + 1)
             SContinue m pst1 -> do
-                let n = (- m)
+                let n = 1 - m
                 assert (n <= length (x:getList buf)) (return ())
                 let (src0, buf1) = splitAt n (x:getList buf)
                     src  = Prelude.reverse src0 ++ xs
-                goExtract SPEC (List buf1) (List src) pst1
+                goExtract SPEC (List buf1) (List src) pst1 (i + 1 - n)
             SDone m b -> do
-                let n = (- m)
+                let n = 1 - m
                 assert (n <= length (x:getList buf)) (return ())
                 let src0 = Prelude.take n (x:getList buf)
                     src  = Prelude.reverse src0
@@ -236,23 +236,23 @@ parse
             SError err -> do
                     let src  = Prelude.reverse (getList buf)
                     return
-                        ( Left (ParseError err)
+                        ( Left (ParseError (i + 1) err)
                         , unread (src ++ (x:xs)) (source Nothing)
                         )
 
     -- This is a simplified goExtract
     {-# INLINE goStop #-}
-    goStop buf pst = do
+    goStop buf pst i = do
         pRes <- extract pst
         case pRes of
             FContinue 0 pst1 ->
-                goStop buf pst1
+                goStop buf pst1 i
             FContinue m pst1 -> do
                 let n = (- m)
                 assert (n <= length (getList buf)) (return ())
                 let (src0, buf1) = splitAt n (getList buf)
                     src = Prelude.reverse src0
-                goExtract SPEC (List buf1) (List src) pst1
+                goExtract SPEC (List buf1) (List src) pst1 (i - n)
             FDone 0 b -> return (Right b, source Nothing)
             FDone m b -> do
                 let n = (- m)
@@ -262,7 +262,7 @@ parse
                 return (Right b, unread src (source Nothing))
             FError err -> do
                 let src  = Prelude.reverse (getList buf)
-                return (Left (ParseError err), unread src (source Nothing))
+                return (Left (ParseError i err), unread src (source Nothing))
 
 {-
 -- | Parse a buffered source using a parser, returning the parsed value and the

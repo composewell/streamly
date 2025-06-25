@@ -521,11 +521,11 @@ data Parser a m b =
 --
 -- /Pre-release/
 --
-newtype ParseError = ParseError String
+data ParseError = ParseError Int String
     deriving (Eq, Show)
 
 instance Exception ParseError where
-    displayException (ParseError err) = err
+    displayException (ParseError pos err) = concat ["At ", show pos, ":", err]
 
 -- | Map a function on the result i.e. on @b@ in @Parser a m b@.
 instance Functor m => Functor (Parser a m) where

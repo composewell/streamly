@@ -93,6 +93,14 @@ module Streamly.Internal.Data.Stream.Type
     , takeEndByM
 
     -- * Combining Two Streams
+    -- ** Appending
+    -- | Append a stream after another. A special case of concatMap or
+    -- unfoldEach Note, appending more than two streams is called @concat@
+    -- which could be called appendMany or appendAll in append terminology and
+    -- is equivalent to @concatMap id@. Append is equivalent to @mergeBy fst@.
+    , AppendState(..)
+    , append
+
     -- ** Zipping
     -- | Zip corresponding elements of two streams.
     , zipWithM
@@ -1134,6 +1142,55 @@ takeEndBy f = takeEndByM (return . f)
 {-# INLINE takeEndBy_ #-}
 takeEndBy_ :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
 takeEndBy_ f = takeWhile (not . f)
+
+------------------------------------------------------------------------------
+-- Appending
+------------------------------------------------------------------------------
+
+data AppendState s1 s2 = AppendFirst s1 | AppendSecond s2
+
+-- Performance Note: From an implementation perspective,
+-- StreamK.'Streamly.Data.StreamK.append' translates into a function call
+-- whereas Stream.'append' translates into a conditional branch (jump).
+-- However, the overhead of the function call in StreamK.append is incurred
+-- only once, while the overhead of the conditional branch in fused append is
+-- incurred for each element in the stream. As a result, StreamK.append has a
+-- linear time complexity of O(n), while fused append has a quadratic time
+-- complexity of O(n^2), where @n@ represents the number of 'append's used.
+
+-- | WARNING! O(n^2) time complexity wrt number of streams. Suitable for
+-- statically fusing a small number of streams. Use the O(n) complexity
+-- StreamK.'Streamly.Data.StreamK.append' otherwise.
+--
+-- Fuses two streams sequentially, yielding all elements from the first
+-- stream, and then all elements from the second stream.
+--
+-- >>> s1 = Stream.fromList [1,2]
+-- >>> s2 = Stream.fromList [3,4]
+-- >>> Stream.fold Fold.toList $ s1 `Stream.append` s2
+-- [1,2,3,4]
+--
+{-# INLINE_NORMAL append #-}
+append :: Monad m => Stream m a -> Stream m a -> Stream m a
+append (Stream step1 state1) (Stream step2 state2) =
+    Stream step (AppendFirst state1)
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (AppendFirst st) = do
+        r <- step1 gst st
+        return $ case r of
+            Yield a s -> Yield a (AppendFirst s)
+            Skip s -> Skip (AppendFirst s)
+            Stop -> Skip (AppendSecond state2)
+
+    step gst (AppendSecond st) = do
+        r <- step2 gst st
+        return $ case r of
+            Yield a s -> Yield a (AppendSecond s)
+            Skip s -> Skip (AppendSecond s)
+            Stop -> Stop
 
 ------------------------------------------------------------------------------
 -- Zipping
