@@ -811,7 +811,7 @@ PARSE_BREAK_STREAMK parser input = do
                 assertM(n1 >= 0 && n1 <= length backBuf)
                 let (s1, _) = backtrck n1 backBuf StreamK.nil
                  in return (Right b, s1)
-            ParserK.SError n err ->
+            ParserK.Error n err ->
                 let strm = StreamK.fromList (Prelude.reverse backBuf)
                  in return (Left (ParseError (DEFAULT(pos) + n) err), strm)
 
@@ -857,7 +857,7 @@ PARSE_BREAK_STREAMK parser input = do
                 assertM(n1 >= 0 && n1 <= bufLen)
                 let (s1, _) = backtrck n1 backBuf s
                 pure (Right b, s1)
-            ParserK.SError n err ->
+            ParserK.Error n err ->
                 let strm =
                         StreamK.append
                             (StreamK.fromList (Prelude.reverse backBuf))
@@ -918,7 +918,7 @@ PARSE_BREAK_CHUNKS parser input = do
                 assertM(n1 >= 0 && n1 <= sum (Prelude.map Array.length backBuf))
                 let (s1, _) = backtrack n1 backBuf StreamK.nil
                  in return (Right b, s1)
-            ParserK.SError n err -> do
+            ParserK.Error n err -> do
                 let s1 = Prelude.foldl (flip StreamK.cons) StreamK.nil backBuf
                 return (Left (ParseError (DEFAULT(pos) + n) err), s1)
 
@@ -963,7 +963,7 @@ PARSE_BREAK_CHUNKS parser input = do
                 assertM(n1 <= sum (Prelude.map Array.length (arr:backBuf)))
                 let (s1, _) = backtrack n1 (arr:backBuf) stream
                  in return (Right b, s1)
-            ParserK.SError n err -> do
+            ParserK.Error n err -> do
                 let s1 = Prelude.foldl (flip StreamK.cons) stream (arr:backBuf)
                 return (Left (ParseError (DEFAULT(pos) + n + 1) err), s1)
 
@@ -1021,7 +1021,7 @@ PARSE_BREAK_CHUNKS_GENERIC parser input = do
                 assertM(n1 >= 0 && n1 <= sum (Prelude.map GArray.length backBuf))
                 let (s1, _) = backtrackGeneric n1 backBuf StreamK.nil
                  in return (Right b, s1)
-            ParserK.SError n err ->
+            ParserK.Error n err ->
                 let strm = Prelude.foldl (flip StreamK.cons) StreamK.nil backBuf
                  in return (Left (ParseError (DEFAULT(pos) + n) err), strm)
 
@@ -1076,7 +1076,7 @@ PARSE_BREAK_CHUNKS_GENERIC parser input = do
                 assertM(n1 <= sum (Prelude.map GArray.length (arr:backBuf)))
                 let (s1, _) = backtrackGeneric n1 (arr:backBuf) stream
                  in return (Right b, s1)
-            ParserK.SError n err ->
+            ParserK.Error n err ->
                 let strm = Prelude.foldl (flip StreamK.cons) stream (arr:backBuf)
                  in return (Left (ParseError (DEFAULT(pos) + n + 1) err), strm)
 
