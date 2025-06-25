@@ -118,7 +118,7 @@ type StepParser a m r = Input a -> m (Step a m r)
 -- (1) stop with a final result ('Done') with no more inputs to be accepted,
 -- (2) generate an intermediate result ('Partial') and accept more inputs, (3)
 -- generate no result but wait for more input ('Continue'), (4) or fail with an
--- error ('SError').
+-- error ('Error').
 --
 -- The Int is a count by which the current stream position should be adjusted
 -- before calling the next parsing step.
@@ -132,13 +132,13 @@ data Step a m r =
       Done !Int r
     | Partial !Int (StepParser a m r)
     | Continue !Int (StepParser a m r)
-    | SError !Int String
+    | Error !Int String
 
 instance Functor m => Functor (Step a m) where
     fmap f (Done n r) = Done n (f r)
     fmap f (Partial n k) = Partial n (fmap (fmap f) . k)
     fmap f (Continue n k) = Continue n (fmap (fmap f) . k)
-    fmap _ (SError n e) = SError n e
+    fmap _ (Error n e) = Error n e
 
 -- Note: Passing position index separately instead of passing it with the
 -- result causes huge regression in expression parsing becnhmarks.
@@ -500,7 +500,7 @@ parserDone (Success n b) _ _ =
         assert(n <= 1) `seq` pure (Done n b)
 parserDone (Failure n e) _ _ =
     -- trace ("parserDone Failure n: " ++ show n) $
-        assert(n <= 1) `seq` pure (SError n e)
+        assert(n <= 1) `seq` pure (Error n e)
 
 -- XXX Note that this works only for single element parsers and not for Array
 -- input parsers. The asserts will fail for array parsers.
@@ -521,7 +521,7 @@ toParser parser = ParserD.Parser step initial extract
         r <- cont (Chunk a)
         return $ case r of
             Done n b -> assert (n <= 1) (ParserD.SDone n b)
-            SError _ e -> ParserD.SError e
+            Error _ e -> ParserD.SError e
             Partial n cont1 -> assert (n <= 1) (ParserD.SPartial n cont1)
             Continue n cont1 -> assert (n <= 1) (ParserD.SContinue n cont1)
 
@@ -529,7 +529,7 @@ toParser parser = ParserD.Parser step initial extract
         r <- cont None
         case r of
             Done n b ->  assert (n <= 0) (return $ ParserD.FDone n b)
-            SError _ e -> return $ ParserD.FError e
+            Error _ e -> return $ ParserD.FError e
             Partial _ cont1 -> extract cont1
             Continue n cont1 ->
                 assert (n <= 0) (return $ ParserD.FContinue n cont1)
