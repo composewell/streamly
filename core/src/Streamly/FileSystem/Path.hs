@@ -101,11 +101,8 @@ module Streamly.FileSystem.Path
     -- * Type
       Path
 
-    -- * Conversions
-    , IsPath (..)
-    , adapt
-
     -- * Construction
+    , fromChunk
     , fromString
 
     -- * Statically Verified String Literals
@@ -117,15 +114,57 @@ module Streamly.FileSystem.Path
     , pathE
 
     -- * Elimination
+    , toChunk
+    , toChars
     , toString
+#if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
+    , asCString
+#else
+    , asCWString
+#endif
 
-    -- * Operations
-    -- , dropTrailingSeparators
+    -- * Path Info
     , isRooted
     , isBranch
 
-    -- * Combinators
+    -- * Separators
+    , dropTrailingSeparators
+    , hasTrailingSeparator
+    , addTrailingSeparator
+
+    -- * Joining
+    , unsafeExtend
     , extend
+    , extendByString
+
+    -- * Splitting
+    , splitRoot
+    , splitPath
+    , splitPath_
+    , splitFile
+
+    -- * Extension
+    , splitExtension
+    , dropExtension
+    -- , addExtension
+    -- , replaceExtension
+
+    -- ** Path View
+    , takeFileName
+    , takeDirectory
+    , takeExtension
+    , takeBaseName
+
+    -- * Equality
+    , EqCfg
+    , eqPath
+
+#ifndef IS_WINDOWS
+    -- ** Config options (Posix)
+    , ignoreTrailingSeparators
+    , ignoreCase
+    , allowRelativeEquality
+#endif
     )
 where
 
