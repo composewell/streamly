@@ -4,19 +4,24 @@
 
 ### Breaking Changes
 
-* In the `Streamly.Data.Parser` module, constructors `Partial`,
+* In the `Streamly.Internal.Data.Parser` module, constructors `Partial`,
   `Continue`, `Done` have been deprecated and replaced by `SPartial`,
   `SContinue` and `SDone`.  Old code can be changed to use new
   constructors as follows:
-
-  * In the step function of a parser, constructor `Partial n` should
-    be replaced by `SPartial (1-n)`, `Continue n` by `SContinue (1-n)`
-    and `Done n` by `SDone (1-n)`. A pattern match `SPartial n` can be
-    replaced by `SPartial m -> let n = 1 - m; ... ` and so on.
-  * In the extract function `Contine n` should be replaced by `Continue (-n)`
-    and `Done n` by `Done (-n)`.
-
-    If the `n` returned by these constructors is used in making some decisions,
+  * In the step function of a parser the constructors should be replaced as
+    follows:
+    - `Partial n` by `SPartial (1-n)`
+    - `Continue n` by `SContinue (1-n)`
+    - `Done n` by `SDone (1-n)`
+    - `Error` by `SError`
+  * The signature for the extract function is changed. It now returns
+    `Parser.Extract` instead of `Parser.Step`. The constructors should be
+    replaced as follows:
+    - `Contine n` by `FContinue (-n)`
+    - `Done n` by `FDone (-n)`
+    - `Partial n` by `FContinue (-n)`
+    - `Error` by `FError`
+  * If the `n` returned by these constructors is used in making some decisions,
     that will have to be modified accordingly. See the docs for more details.
 
 * Concurrent streams and folds now use separate types for concurrency
