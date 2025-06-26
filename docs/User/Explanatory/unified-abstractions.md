@@ -79,11 +79,15 @@ API.
 This simple console echo program shows the simplicity of Streamly API
 and its similarity with the list API:
 
-```haskell
+```haskell unshared
+import Data.Function ((&))
+import qualified Streamly.Data.Stream as Stream
+import qualified Streamly.Data.Fold as Fold
+
 echo =
       Stream.repeatM getLine
     & Stream.mapM putStrLn
-    & Stream.drain
+    & Stream.fold Fold.drain
 ```
 
 Streamly uses dual representation for streams. On top it uses Scott
@@ -105,19 +109,34 @@ programmers use for what you call nested loops in imperative
 programming. List transformers are the basic implementations for
 non-determinism.
 
-The stream monad in Streamly is a list-transformer with behavior similar
-to the list monad. It provides the functionality provided by `list-t` or
-`logict` packages for free.  Here is an example of nested looping using
-the serial stream monad:
+You can use `Streamly.Data.Stream.MkType` to create a custom type and specify
+the behaviour of non-determinism. The basic `concatMap` would result in a
+list-transformer with behavior similar to the list monad. It provides the
+functionality provided by `list-t` or `logict` packages for free.  Here is an
+example of nested looping using the new type:
 
 ```haskell
-import qualified Streamly.Prelude as S
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE UndecidableInstances #-}
 
-loops = do
-    x <- Stream.fromFoldable [1,2]
-    y <- Stream.fromFoldable [3,4]
-    Stream.fromEffect $ print (x, y)
+import Streamly.Data.Stream.Prelude (Stream, MonadAsync)
+import qualified Streamly.Data.Stream.Prelude as Stream
+import qualified Streamly.Data.StreamK as StreamK
+import Streamly.Data.Stream.MkType
+
+bindSerial :: Monad m => Stream m a -> (a -> Stream m b) -> Stream m b
+bindSerial = flip Stream.concatMap
+$(mkCrossType "CrossT" "bindSerial" False)
+
+loopsCross :: Stream IO ()
+loopsCross = unCrossT $ do
+    x <- CrossT $ Stream.fromList [1,2]
+    y <- CrossT $ Stream.fromList [3,4]
+    CrossT $ Stream.fromEffect $ print (x, y)
 ```
+
+`Streamly.Data.Stream.CrossStream` and `Streamly.Data.StreamK.CrossStreamK`
+provide the same functionality as `CrossT` type created above.
 
 Moreover, the list transformer in Streamly can be concurrent. The Scott
 encoding of streams also avoids the quadratic performance issue of
@@ -142,12 +161,18 @@ concurrent round-robin scheduling of streams.
 
 The monad instance provides a convenient way to combine streams in
 different ways. It is just non-determinism with different flavors of
-scheduling behavior.  The example from the previous section can be run
-with interleaved scheduling behavior as follows, without changing the
-code at all:
+scheduling behavior. The scheduling behavior can be controlled as follows.
 
 ```haskell
-main = Stream.drain $ Stream.fromWserial loops
+bindWSerialK = StreamK.bindWith StreamK.interleave
+bindWSerial a f = StreamK.toStream $ bindWSerialK (StreamK.fromStream a) (StreamK.fromStream . f)
+$(mkCrossType "WSerialT" "bindWSerial" True)
+
+loopsWSerial :: Stream IO ()
+loopsWSerial = unWSerialT $ do
+    x <- WSerialT $ Stream.fromList [1,2]
+    y <- WSerialT $ Stream.fromList [3,4]
+    WSerialT $ Stream.fromEffect $ print (x, y)
 ```
 
 Scheduling is fundamental to expressing many common programming problems
@@ -159,6 +184,9 @@ Please see [mini kanren implementation using streamly](https://github.com/compos
 
 The same combinators that are used for serial streams e.g. 'unfoldrM',
 'replicateM', 'repeatM' work concurrently when used at the appropriate type.
+
+There are several concurrent combinators in streamly which are prefixed with
+`par`. These combinators fit into the default composition very cleanly.
 It allows concurrent programs to be written declaratively and composed
 idiomatically. They are not much different than serial programs.  See
 [Streamly vs async](/docs/User/HowTo/streamly-vs-async.md)
@@ -168,18 +196,33 @@ Streamly provides concurrent scheduling and looping similar to to
 [OpenMP](https://en.wikipedia.org/wiki/OpenMP) and
 [Cilk](https://en.wikipedia.org/wiki/Cilk) but with a more declarative
 style.  The list transformer example can be run with concurrent
-execution of loop iterations as follows, without changing the code at
-all:
+execution of loop iterations as follows:
 
 ```haskell
-main = Stream.drain $ Stream.fromAhead loops
+bindAhead :: MonadAsync m => Stream m a -> (a -> Stream m b) -> Stream m b
+bindAhead = flip (Stream.parConcatMap (Stream.ordered True))
+$(mkCrossType "AheadT" "bindAhead" True)
+
+loopsAhead :: Stream IO ()
+loopsAhead = unAheadT $ do
+    x <- AheadT $ Stream.fromList [1,2]
+    y <- AheadT $ Stream.fromList [3,4]
+    AheadT $ Stream.fromEffect $ print (x, y)
 ```
 
 And interleaving with concurrent execution of the loop iterations can be
 written like this:
 
 ```haskell
-main = Stream.drain $ Stream.fromWAsync loops
+bindWAsync :: MonadAsync m => Stream m a -> (a -> Stream m b) -> Stream m b
+bindWAsync = flip (Stream.parConcatMap (Stream.interleaved True))
+$(mkCrossType "WAsyncT" "bindWAsync" True)
+
+loopsWAsync :: Stream IO ()
+loopsWAsync = unWAsyncT $ do
+    x <- WAsyncT $ Stream.fromList [1,2]
+    y <- WAsyncT $ Stream.fromList [3,4]
+    WAsyncT $ Stream.fromEffect $ print (x, y)
 ```
 
 All this comes with no change in the streaming APIs.

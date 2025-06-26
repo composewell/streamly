@@ -93,7 +93,7 @@ streams are evaluated as soon as possible.
 parallel :: MonadAsync m => [Stream m a] -> Stream m a
 parallel = Stream.parList (Stream.eager True)
 
-eventStream :: Stream m Event
+eventStream :: MonadAsync m => Stream m Event
 eventStream = parallel [userAction, acidRain]
 ```
 
@@ -140,7 +140,7 @@ getStatus :: (MonadAsync m, MonadState Int m) => Result -> m Status
 getStatus result =
     case result of
         Done  -> liftIO $ putStrLn "You quit!" >> return GameOver
-        Check -> do
+        Continue -> do
             h <- get
             liftIO
                 $ if (h <= 0)
@@ -161,7 +161,7 @@ terminates as soon as a `GameOver` value is encountered in the stream.
 ```haskell
 main :: IO ()
 main = do
-    putStrLn "Your health is deteriorating due to acid rain,\\
+    putStrLn "Your health is deteriorating due to acid rain,\
              \ type \"potion\" or \"quit\""
     runEvents                        -- Stream (StateT Int IO) Result
         & Stream.mapM getStatus      -- Stream (StateT Int IO) Status

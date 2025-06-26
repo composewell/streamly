@@ -22,12 +22,16 @@ consumed as soon as it is produced.  If all the processing stages are pure,
 lists can be used in a streaming style processing. For example, this is
 streaming style processing:
 
-```
-  replicate 10 1
+```haskell docspec
+>>> import Data.Function ((&))
+>>> :{
+replicate 10 1
     & zipWith (+) [1..10]
     & map (+1)
     & filter odd
     & sum
+:}
+35
 ```
 
 However, if a list is generated in a strict monad (e.g. IO) it cannot be
@@ -37,12 +41,16 @@ proportional to the size of the list and therefore it becomes unusable for
 large lists. For example, the following code accumulates `xs` before it
 processes it:
 
-```
-  xs <- replicateM 10 (return 1)
-  zipWith (+) [1..10] xs
+```haskell docspec
+>>> import Control.Monad (replicateM)
+>>> xs <- replicateM 10 (return 1)
+>>> :{
+zipWith (+) [1..10] xs
     & map (+1)
     & filter odd
     & sum
+:}
+35
 ```
 
 Monadic streams solve this problem. To be able to consume elements from
@@ -52,12 +60,17 @@ one at a time. Streamly provides a monadic representation for lists with the
 same API.  So we can represent the previous example in a streaming fashion by
 replacing the list combinators with corresponding streamly combinators:
 
-```
-  S.replicateM 10 (return 1)
+```haskell docspec
+>>> import qualified Streamly.Data.Stream as S
+>>> import qualified Streamly.Data.Fold as F
+>>> :{
+S.replicateM 10 (return 1)
     & S.zipWith (+) (S.fromList [1..10])
-    & S.map (+1)
+    & fmap (+1)
     & S.filter odd
-    & S.sum
+    & S.fold F.sum
+:}
+35
 ```
 
 Streamly's monadic streams are a generalization of pure streams (aka lists) and
@@ -66,7 +79,7 @@ case.
 
 ## Streamly as lists
 
-`SerialT Identity a` can be used in place of `[a]` with equivalent or better
+`Stream Identity a` can be used in place of `[a]` with equivalent or better
 performance and almost identical interface except a few differences. Use of
 `OverloadedLists` extension can make the difference even less significant.
 
@@ -75,20 +88,19 @@ performance and almost identical interface except a few differences. Use of
 
 Lists are constructed using `[]` and `:`.
 
-```
-> "hello" : "world" : []
+```haskell docspec
+>>> "hello" : "world" : []
 ["hello","world"]
 ```
 
 Pure streams are constructed using `S.nil` (corresponds to `[]`) and `S.cons`
 or `.:` (corresponds to `:`):
 
-```
-import Streamly
-import Streamly.Prelude ((.:))
-import qualified Streamly.Prelude as S
-
-> "hello" .: "world" .: S.nil :: SerialT Identity String
+```haskell docspec
+>>> import Data.Functor.Identity (Identity)
+>>> import Streamly.Data.StreamK (StreamK)
+>>> import qualified Streamly.Data.StreamK as StreamK
+>>> "hello" `StreamK.cons` "world" `StreamK.cons` StreamK.nil :: StreamK Identity String
 fromList ["hello","world"]
 ```
 
@@ -97,34 +109,44 @@ fromList ["hello","world"]
 The crucial difference is that lists are built using constructors whereas
 streams are built using functions. `S.nil` and `S.cons` are functions.
 Therefore, you cannot directly pattern match on streams.  However, the yet
-unexposed `Streamly.List` module also provides `Nil` and `Cons` pattern
-synonyms corresponding to the list `[]` and `:` constructors for pattern
+unexposed `Streamly.Internal.Data.List` module also provides `Nil` and `Cons`
+pattern synonyms corresponding to the list `[]` and `:` constructors for pattern
 matches.
 
 ### Pure Operations
 
-`SerialT Identity a` is an instance of `Show`, `Read`, `Eq`, `Ord`, `IsList`,
-`Foldable` and `Traversable` type classes. Furthermore, `SerialT Identity Char`
+`Stream Identity a` is an instance of `Show`, `Read`, `Eq`, `Ord`, `IsList`,
+`Foldable` and `Traversable` type classes. Furthermore, `Stream Identity Char`
 is an instance of `IsString`. Use of `OverloadedLists` and `OverloadedStrings`
 can make the use of streams in place of lists quite convenient.
 
-Along with these we can use combinators from `Streamly.Prelude` to perform all
-list operations on pure streams.
+Along with these we can use combinators from `Streamly.Data.Stream` to perform
+all list operations on pure streams.
 
 Lists:
 
-```
-> replicate 10 1
-> map (+1) $ replicate 10 1
-> length $ replicate 10 1
+```haskell docspec
+>>> replicate 10 1
+[1,1,1,1,1,1,1,1,1,1]
+
+>>> map (+1) $ replicate 10 1
+[2,2,2,2,2,2,2,2,2,2]
+
+>>> length $ replicate 10 1
+10
 ```
 
 Pure streams are almost identical:
 
 ```
-> S.replicate 10 1 :: SerialT Identity Int
-> S.map (+1) $ S.replicate 10 1 :: SerialT Identity Int
-> length (S.replicate 10 1 :: SerialT Identity Int)
+>>> S.replicate 10 1 :: S.Stream Identity Int
+fromList [1,1,1,1,1,1,1,1,1,1]
+
+>>> S.map (+1) $ S.replicate 10 1 :: S.Stream Identity Int
+fromList [2,2,2,2,2,2,2,2,2,2]
+
+>>> S.fold F.length (S.replicate 10 1 :: S.Stream Identity Int)
+10
 ```
 
 ## Monadic Operations
@@ -142,8 +164,9 @@ monadic list operations work on streams without any issues.
 Unsafe monadic operations involving lists, run these example with `+RTS -s`
 options:
 
-```
+```haskell unshared
 import Control.Monad
+
 main = do
   xs <- replicateM 10000000 (pure 1)
   ys <- mapM (\x -> return $ x + 1) xs
@@ -152,11 +175,12 @@ main = do
 
 Streams:
 
-```
-import Streamly
-import qualified Streamly.Prelude as S
+```haskell unshared
+import qualified Streamly.Data.Stream as S
+import qualified Streamly.Data.Fold as F
+
 main = do
-  n <- S.length
+  n <- S.fold F.length
       $ S.mapM (\x -> return $ x + 1)
       $ S.replicateM 10000000 (pure 1)
   print n
@@ -176,16 +200,15 @@ without accumulating any data in memory.
 Monadic streams are nothing but lists made monadic. We can construct streams
 using monadic actions, just the way pure lists are constructed:
 
+<!-- We are not type checking this -->
 ```
-> import Streamly.Prelude ((|:))
-> import qualified Streamly.Prelude as S
-> S.toList $ getLine |: getLine |: S.nil
+>>> import qualified Streamly.Data.StreamK as StreamK
+>>> StreamK.toList $ getLine `StreamK.cons` getLine `StreamK.cons` StreamK.nil
 hello
 world
 ["hello","world"]
 ```
 
-`|:` is the monadic construction equivalent of `:`.
 The monadic action `getLine` is executed twice in a sequence, the first one
 gets "hello" and second one gets "world" from the terminal and a stream
 consisting of those strings is produced.
@@ -199,38 +222,40 @@ modifying combinator, without any other change to the code.
 
 The following code prints one element every second:
 
-```haskell
-import Control.Concurrent
-import Streamly
-import qualified Streamly.Prelude as S
+```haskell docspec
+>>> import Control.Concurrent
+>>> import qualified Streamly.Data.Stream.Prelude as S
+>>> import qualified Streamly.Data.Fold as F
 
-func = S.mapM (\x -> threadDelay 1000000 >> print x) $ S.replicate 10 1
-main = runStream func
+>>> func = S.mapM (\x -> threadDelay 1000000 >> print x) $ S.replicate 10 1
+>>> main = S.fold F.drain func
 ```
 
-To run it concurrently, just run the same code with `fromAsync` combinator:
+To run it concurrently, depending on what you want to make concurrent, you can
+use `parMapM` or `parBuffered`.
 
-```haskell
-main = runStream $ fromAsync func
+```haskell docspec
+>>> func = S.parMapM id (\x -> threadDelay 1000000 >> print x) $ S.replicate 10 1
+>>> main = S.fold F.drain func
 ```
 
-The `mapM` combinator now maps the monadic delay action concurrently on all the
-stream elements.  It prints all the 10 elements after one second because all
+The `parMapM` combinator now maps the monadic delay action concurrently on all
+the stream elements.  It prints all the 10 elements after one second because all
 the delay actions run concurrently. Alternatively we can write:
 
-```
-func = S.mapM $ fromAsync $ S.replicateM (threadDelay 1000000 >> print 1)
-main = runStream func
+```haskell docspec
+>>> func = S.parReplicateM id 10 (threadDelay 1000000 >> print 1)
+>>> main = S.fold F.drain func
 ```
 
-Here, the `replicateM` operation replicates the action concurrently.  In real
+Here, the `parReplicateM` operation replicates the action concurrently.  In real
 applications this could be a request to a web server that you may want to
 perform multiple times concurrently.
 
 ## Performance: Streamly vs Lists
 
 The following figures show the ratio of time and memory consumed by `[Int]`
-(`base-4.12`) vs `SerialT Identity Int`
+(`base-4.12`) vs `Stream Identity Int`
 ([streamly@00c7613](https://github.com/composewell/streamly)) for exactly the
 same operation. `5x` on the y axis means lists take 5 times more resources
 compared to streamly. Whereas a `1/5x` means that lists take 5 times less

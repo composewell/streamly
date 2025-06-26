@@ -1,5 +1,9 @@
 # Upgrading to streamly 0.9.0
 
+```haskell docspec
+>>> :set -Wno-deprecations
+```
+
 Also see the detailed changelog describing all the changes in the release:
 
 * [0.9.0 API Changelog](/docs/User/Project/ApiChangelogs/0.8.3-0.9.0.txt) or

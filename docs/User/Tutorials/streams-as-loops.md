@@ -16,13 +16,15 @@ infinite sequence of data items.
 
 A finite stream consisting of integer data elements 1,2,3:
 
-```haskell
+```haskell docspec
+>>> import Streamly.Data.Stream (Stream)
+>>> import qualified Streamly.Data.Stream as Stream
 >>> s1 = Stream.enumerateFromTo 1 3 :: Stream IO Int
 ```
 
 An infinite stream consisting of integers from 1 to infinity:
 
-```haskell
+```haskell docspec
 >>> s2 = Stream.enumerateFrom 1 :: Stream IO Int
 ```
 
@@ -36,20 +38,25 @@ function on the stream we get an output stream in which each element of
 the input stream is incremented by 1. Stream `s3` consists of elements
 2,3,4:
 
-```haskell
+```haskell docspec
+>>> import Data.Function ((&))
+>>> :{
 s3 =
     Stream.enumerateFromTo 1 3 -- Stream IO Int
       & fmap (+1)              -- Stream IO Int
+:}
 ```
 
 Another example of a stream transformation operation is `take`, it trims
 the stream to the specified number of elements. For example, the stream
 `s4` in the code below consists of only two items 1,2:
 
-```haskell
+```haskell docspec
+>>> :{
 s4 =
-    Stream.enumerateFrom 1 3 -- Stream IO Int
-      & Stream.take 2        -- Stream IO Int
+    Stream.enumerateFromTo 1 3 -- Stream IO Int
+      & Stream.take 2          -- Stream IO Int
+:}
 ```
 
 ## Modular Streaming Operations
@@ -62,11 +69,13 @@ operation on the stream. For example, if we want to increment each element by 1
 and want to take only first two items, then we can do it as follows. The
 resulting stream `s5` consists of items 2,4.
 
-```haskell
+```haskell docspec
+>>> :{
 s5 =
     Stream.enumerateFromTo 1 3 -- Stream IO Int
       & fmap (+1)              -- Stream IO Int
       & Stream.take 2          -- Stream IO Int
+:}
 ```
 
 Each stream transformation operation maintains its own internal state
@@ -99,10 +108,13 @@ and a fold and connects them together, feeding the stream to the fold
 and then returning the result. We refer to this operation as the fold
 driver. The variable `total` contains the value `1+2+3` i.e. 6.
 
-```haskell
+```haskell docspec
+>>> import Streamly.Data.Fold as Fold
+>>> :{
 total <-
     Stream.enumerateFromTo 1 3 -- Stream IO Int
       & Stream.fold Fold.sum   -- IO Int
+:}
 ```
 
 ## The Streaming Pipeline
@@ -111,23 +123,25 @@ Using all the operations described above we can create a data processing
 pipeline that increments each data item one by 1, takes the first two
 elements, adds them and prints the result:
 
-```haskell
+```haskell docspec
+>>> :{
 main =
     Stream.enumerateFromTo 1 3 -- Stream IO Int
       & fmap (+1)              -- Stream IO Int
       & Stream.take 2          -- Stream IO Int
       & Stream.fold Fold.sum   -- IO Int
       >>= print                -- IO ()
+:}
 ```
 
 The following snippet provides a simple stream composition example that reads
 numbers from stdin, prints the squares of even numbers and exits if an even
 number more than 9 is entered.
 
-``` haskell
-import qualified Streamly.Data.Stream as Stream
-import Data.Function ((&))
+``` haskell ghci
+>>> import qualified Streamly.Data.Stream as Stream
 
+>>> :{
 main = Stream.drain $
        Stream.repeatM getLine
      & fmap read
@@ -135,6 +149,7 @@ main = Stream.drain $
      & Stream.takeWhile (<= 9)
      & fmap (\x -> x * x)
      & Stream.mapM print
+:}
 ```
 
 ## Data Flow Programming
