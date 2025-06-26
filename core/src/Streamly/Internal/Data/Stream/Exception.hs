@@ -24,6 +24,8 @@ module Streamly.Internal.Data.Stream.Exception
     , bracketIO
     , withBracketIO
     , withBracketIOM
+    , adapt
+    , Allocator(..)
 
     -- * Exceptions
     , onException
@@ -354,6 +356,12 @@ bracketIO3 bef aft onExc onGC =
         onGC
         (inline MC.try)
 
+-- XXX To keep the type signatures simple and to avoid inference problems we
+-- should use this newtype.
+-- We cannot pass around foralled types without wrapping them in a newtype.
+newtype Allocator = Allocator
+    (forall b c. IO b -> (b -> IO c) -> IO (b, IO ()))
+
 -- | @withBracketIOM action@ runs the given @action@, providing it with a
 -- special function called @registerHook@ as argument. A @registerHook alloc
 -- free@ call can be used within @action@ any number of times to allocate
@@ -363,18 +371,19 @@ bracketIO3 bef aft onExc onGC =
 -- returns the allocated resource and a @release@ function, it ensures safe
 -- allocation of resource and sets up its automatic release on exception or at
 -- the end. The @release@ function returned by @registerHook@ can be used to
--- free the resource manually at any time.
+-- free the resource manually at any time. @release@ is guaranteed to free the
+-- resource only once even if called concurrently or multiple times.
 --
--- This provides similar functionality as the bracket function in the base
--- library but it is more powerful as resources can be allocated at any time
--- within the scope and can be released at any time.
+-- This function provides functionality similar to the bracket function in the
+-- base library but it is more powerful as resources can be allocated at any
+-- time within the scope and can be released at any time.
 --
 -- This function does not rely on GC for cleanup. Cleanup is deterministic.
 --
 -- Exception safe, thread safe.
 {-# INLINE withBracketIOM #-}
 withBracketIOM :: (MonadIO m, MonadCatch m) =>
-    ((IO b -> (b -> IO c) -> IO (b, IO ())) -> m a) -> m a
+    ((forall b c. IO b -> (b -> IO c) -> IO (b, IO ())) -> m a) -> m a
 withBracketIOM action = do
     ref <- liftIO $ newIORef (0 :: Int, Map.empty)
     -- XXX use mask or MC.finally?
@@ -384,6 +393,8 @@ withBracketIOM action = do
 
     where
 
+    -- This is called from a single thread, therefore, we do not need to worry
+    -- about concurrent execution.
     aft ref = liftIO $ do
         xs <- readIORef ref
         sequence_ (snd xs)
@@ -395,10 +406,17 @@ withBracketIOM action = do
                 ((i + 1, Map.insert i (void $ free r) mp), i))
             return (r, idx)
 
-        let free1 =
-                atomicModifyIORef ref (\(i, mp) ->
-                    ((i, Map.delete index mp), ()))
+        let modify (i, mp) =
+                let res = Map.lookup index mp
+                 in ((i, Map.delete index mp), res)
+            free1 = do
+                res <- atomicModifyIORef ref modify
+                sequence_ res
         return (r, free1)
+
+-- XXX allocating and relesing different type of resources.
+adapt :: (forall b c. IO b -> (b -> IO c) -> IO (b, IO ())) -> IO () -> IO ()
+adapt f g = void $ f (return ()) (\() -> g)
 
 -- | @withFinallyIOM action@ runs the given @action@, providing it with a
 -- special function called @registerHook@ as argument. A @registerHook hook@
@@ -406,15 +424,15 @@ withBracketIOM action = do
 -- would run automatically when 'withBracketIOM' ends or if an exception occurs
 -- at any time.
 --
--- This provides functionality similar to the finally function in the base
--- library but it is more powerful as hooks can be registered at any time
+-- This function provides functionality similar to the finally function in the
+-- base library but it is more powerful as hooks can be registered at any time
 -- within the scope.
 --
 -- This function does not rely on GC for executing the hooks.
 --
 -- Exception safe, thread safe.
 {-# INLINE withFinallyIOM #-}
-withFinallyIOM :: (MonadIO m, MonadCatch m) =>
+withFinallyIOM :: forall m a. (MonadIO m, MonadCatch m) =>
     ((IO () -> IO ()) -> m a) -> m a
 {-
 withFinallyIOM action = do
@@ -482,16 +500,18 @@ bracketIO bef aft = bracketIO3 bef aft aft aft
 --
 {-# INLINE withBracketIO #-}
 withBracketIO :: (MonadIO m, MonadCatch m) =>
-    ((IO b -> (b -> IO c) -> IO (b, IO ())) -> Stream m a) -> Stream m a
+    ((forall b c. IO b -> (b -> IO c) -> IO (b, IO ())) -> Stream m a) -> Stream m a
 withBracketIO action = do
-    bracketIO bef aft (\(_, reg) -> action reg)
+    bracketIO bef aft (\(_, Allocator reg) -> action reg)
 
     where
 
     bef = do
         ref <- liftIO $ newIORef (0 :: Int, Map.empty)
-        return (ref, bracket ref)
+        return (ref, Allocator (bracket ref))
 
+    -- This is called from a single thread, therefore, we do not need to worry
+    -- about concurrent execution.
     aft (ref, _) = liftIO $ do
         xs <- readIORef ref
         sequence_ (snd xs)
@@ -503,9 +523,12 @@ withBracketIO action = do
                 ((i + 1, Map.insert i (void $ free r) mp), i))
             return (r, idx)
 
-        let free1 =
-                atomicModifyIORef ref (\(i, mp) ->
-                    ((i, Map.delete index mp), ()))
+        let modify (i, mp) =
+                let res = Map.lookup index mp
+                 in ((i, Map.delete index mp), res)
+            free1 = do
+                res <- atomicModifyIORef ref modify
+                sequence_ res
         return (r, free1)
 
 -- | Like 'withFinallyIOM' but for use in streams instead of effects.

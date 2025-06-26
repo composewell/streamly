@@ -4,10 +4,14 @@ where
 
 import Control.Concurrent (threadDelay)
 import Control.Exception (SomeException, throw, catch, finally, bracket_)
-import Control.Monad (when)
+import Control.Monad (void, when)
+import Control.Monad.IO.Class (MonadIO(..))
+import Control.Monad.Catch (MonadCatch)
 import Data.Foldable (sequenceA_)
 import Data.Function ((&))
 import Data.IORef (IORef, newIORef, atomicModifyIORef, readIORef)
+import Streamly.Internal.Data.Stream (Stream, Allocator(..))
+import Streamly.Internal.Data.Stream.Prelude (Config)
 import System.Mem (performMajorGC)
 
 import qualified Streamly.Internal.Data.Stream.Prelude as Stream
@@ -43,8 +47,7 @@ timeout = 1000000
 takeCount :: Int
 takeCount = 1
 
-stream :: Num a =>
-    IORef a -> (Stream.Config -> Stream.Config) -> Stream.Stream IO ()
+stream :: IORef Int -> (Config -> Config) -> Stream.Stream IO ()
 stream ref modifier =
       Stream.enumerateFrom (1 :: Int)
         & Stream.parMapM modifier
@@ -55,7 +58,22 @@ stream ref modifier =
             )
         & Stream.take takeCount
 
-finalAction :: (Show a, Eq a, Num a) => Bool -> IORef a -> Int -> IO ()
+streamRelease :: Allocator -> IORef Int -> IORef Int -> (Config -> Config) -> Stream IO ()
+streamRelease (Allocator alloc) ref1 ref2 modifier =
+      Stream.enumerateFrom (1 :: Int)
+        & Stream.parMapM modifier
+            ( \x -> do
+              if x <= 10
+              then do
+                  ((), release) <- alloc (incr ref1) (\() -> decr ref1)
+                  threadDelay 1000
+                  release
+              else do
+                  run ref2 $ threadDelay timeout
+            )
+        & Stream.take 10
+
+finalAction :: Bool -> IORef Int -> Int -> IO ()
 finalAction gc ref t = do
     -- When cleanup happens via GC, ghc creates a thread for the finalizer to
     -- run, actual cleanup time depends on when that thread is scheduled. The
@@ -74,17 +92,83 @@ finalAction gc ref t = do
     -- when gc $ threadDelay 1000000
     when (r /= 0) $ error "Failed"
 
-cleanup :: Int -> (Stream.Config -> Stream.Config) -> IO ()
-cleanup t cfg = do
+adaptBracket ::
+    ((IO x -> IO ()) -> Stream m a)
+    -> (forall b c. IO b -> (b -> IO c) -> IO (b, IO ())) -> Stream m a
+adaptBracket action bracket = do
+    let reg hook = void $ bracket (return ()) (\() -> void hook)
+    action reg
+
+withFinallyIO :: (MonadIO m, MonadCatch m) =>
+    ((IO a -> IO ()) -> Stream m b) -> Stream m b
+withFinallyIO action = do
+     Stream.withBracketIO (adaptBracket action)
+
+testStream ::
+       (((IO () -> IO ()) -> Stream IO ()) -> Stream IO a)
+    -> Int -> (Config -> Config) -> IO ()
+testStream f t cfg = do
     ref <- newIORef (0 :: Int)
-    (Stream.withFinallyIO (\f -> stream ref (cfg . Stream.addCleanup f))
+    (f (\reg -> stream ref (cfg . Stream.addCleanup reg))
         & Stream.fold Fold.drain) `finally` finalAction False ref t
 
-cleanupEffect :: Int -> (Stream.Config -> Stream.Config) -> IO ()
-cleanupEffect t cfg = do
+testStreamRelease ::
+       (((forall b c. IO b -> (b -> IO c) -> IO (b, IO ())) -> Stream IO ()) -> Stream IO a)
+    -> Int -> (Config -> Config) -> IO ()
+testStreamRelease g t cfg = do
+    ref1 <- newIORef (0 :: Int)
+    ref2 <- newIORef (0 :: Int)
+    (g (\reg -> do
+            streamRelease
+                (Allocator reg)
+                ref1
+                ref2
+                (cfg . Stream.addCleanup (Stream.adapt reg)))
+            & Stream.fold Fold.drain)
+        `finally` do
+            putStrLn "Checking MANUALLY released resources..."
+            finalAction False ref1 t
+            putStrLn "Checking AUTO released resources..."
+            finalAction False ref2 t
+
+adaptBracketM ::
+    ((IO x -> IO ()) -> m a)
+    -> (forall b c. IO b -> (b -> IO c) -> IO (b, IO ())) -> m a
+adaptBracketM action bracket = do
+    let reg hook = void $ bracket (return ()) (\() -> void hook)
+    action reg
+
+withFinallyIOM :: (MonadIO m, MonadCatch m) =>
+    ((IO a -> IO ()) -> m b) -> m b
+withFinallyIOM action = do
+     Stream.withBracketIOM (adaptBracketM action)
+
+testEffect ::
+       (((IO () -> IO ()) -> IO ()) -> IO ())
+    -> Int -> (Config -> Config) -> IO ()
+testEffect g t cfg = do
     ref <- newIORef (0 :: Int)
-    Stream.withFinallyIOM (\f -> stream ref (cfg . Stream.addCleanup f)
+    g (\reg -> stream ref (cfg . Stream.addCleanup reg)
         & Stream.fold Fold.drain) `finally` finalAction False ref t
+
+testEffectRelease ::
+       (((forall b c. IO b -> (b -> IO c) -> IO (b, IO ())) -> IO ()) -> IO a)
+    -> Int -> (Config -> Config) -> IO a
+testEffectRelease g t cfg = do
+    ref1 <- newIORef (0 :: Int)
+    ref2 <- newIORef (0 :: Int)
+    g (\reg -> do
+            streamRelease
+                (Allocator reg)
+                ref1
+                ref2
+                (cfg . Stream.addCleanup (Stream.adapt reg))
+            & Stream.fold Fold.drain
+      ) `finally` do
+            putStrLn "Checking MANUALLY released resources..."
+            finalAction False ref1 t
+            putStrLn "Checking AUTO released resources..."
+            finalAction False ref2 t
 
 finallyGC :: Int -> (Stream.Config -> Stream.Config) -> IO ()
 finallyGC t cfg = do
@@ -110,8 +194,12 @@ sched =
 
 funcs :: [(String, Int -> (Stream.Config -> Stream.Config) -> IO ())]
 funcs =
-    [ ("cleanup", cleanup)
-    , ("cleanupEffect", cleanupEffect)
+    [ ("withFinallyIO", testStream Stream.withFinallyIO)
+    , ("withFinallyIOM", testEffect Stream.withFinallyIOM)
+    , ("withBracketIO", testStream withFinallyIO)
+    , ("withBracketIOM", testEffect withFinallyIOM)
+    , ("withBracketIO release", testStreamRelease Stream.withBracketIO)
+    , ("withBracketIOM release", testEffectRelease Stream.withBracketIOM)
     , ("finallyGC", finallyGC)
     ]
 
