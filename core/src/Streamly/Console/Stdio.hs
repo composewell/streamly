@@ -13,8 +13,15 @@
 
 module Streamly.Console.Stdio
     (
+    -- * Streams (stdin)
+      readChunks
+    , readChars
+
+    -- * Streams (srdout)
+    , putChunks
+
     -- * Unfolds (stdin)
-      reader
+    , reader
     , chunkReader
 
     -- * Write (stdout)

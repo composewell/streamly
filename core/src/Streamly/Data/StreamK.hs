@@ -112,6 +112,9 @@ module Streamly.Data.StreamK
     -- ** From Containers
     , fromFoldable
 
+    -- ** To Containers
+    , toList
+
     -- * Elimination
 
     -- ** Primitives
@@ -168,6 +171,7 @@ module Streamly.Data.StreamK
     --
     , concatEffect
     , concatMap
+    , bindWith
     , concatMapWith
     , mergeMapWith
 
