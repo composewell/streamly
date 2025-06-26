@@ -1,0 +1,15 @@
+source-repository-package
+  type: git
+  location: https://github.com/composewell/streamly.git
+  tag: d330733874cb57a81ddde444b2b77bac875f3633
+
+source-repository-package
+  type: git
+  location: https://github.com/composewell/streamly.git
+  tag: d330733874cb57a81ddde444b2b77bac875f3633
+  subdir: core
+
+source-repository-package
+  type: git
+  location: https://github.com/composewell/markdown-doctest.git
+  tag: 05dcf5f03128c49b66cf7c7778f567da1990014c

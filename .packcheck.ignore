@@ -3,6 +3,7 @@
 .github/workflows/haskell.yml
 .github/workflows/regression-check.yml
 .github/workflows/packdiff.yml
+.github/workflows/markdown-doctest.yml
 .gitignore
 .hlint.ignore
 .hlint.yaml
@@ -23,6 +24,7 @@ cabal.project.hpc-coveralls
 cabal.project.O0
 cabal.project.report
 cabal.project.packdiff
+cabal.project.markdown-doctest
 cabal.project.streamly
 cabal.project.Werror
 cabal.project.Werror-nocode

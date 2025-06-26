@@ -1,0 +1,42 @@
+name: Markdown Doctest
+
+on: pull_request
+
+jobs:
+  markdown-doctest:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - name: Download ghc
+      run: |
+        GHCUP_VER=0.1.20.0
+        curl -sL -o ./ghcup https://downloads.haskell.org/~ghcup/$GHCUP_VER/x86_64-linux-ghcup-$GHCUP_VER
+        chmod +x ./ghcup
+        GHCVER=9.8.1
+        ./ghcup install ghc $GHCVER
+        ./ghcup set ghc $GHCVER
+        cabal update
+
+    - uses: actions/cache@v4
+      name: Cache ~/.cabal
+      with:
+        path: |
+            ~/.cabal
+        # Bump the key version to clear the cache
+        key: cache-v2
+
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+
+    - name: Create env files for ghci
+      run: cabal build streamly --write-ghc-environment-files=always
+
+    - name: Run markdown-doctest
+      run: |
+        echo "Commit: $(git rev-parse HEAD)"
+        cabal install markdown-doctest --project-file=cabal.project.markdown-doctest --installdir=./ --overwrite-policy=always
+        find ./docs -type f -name "*.md" -print0 | while IFS= read -r -d '' file; do echo "CMD: ./markdown-doctest $file" && ./markdown-doctest "$file" || exit 1; done
+        find ./core/docs -type f -name "*.md" -print0 | while IFS= read -r -d '' file; do echo "CMD: ./markdown-doctest $file" && ./markdown-doctest "$file" || exit 1; done
