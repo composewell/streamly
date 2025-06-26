@@ -13,25 +13,26 @@ together to create a single transformed stream.
 
 Distributing a value to a stream of consumers concurrently:
 
-```haskell ghci
-{-# LANGUAGE FlexibleContexts #-}
+```haskell docspec
+>>> :set -XFlexibleContexts
+>>> import Data.Function ((&))
+>>> import qualified Streamly.Data.Fold as Fold
+>>> import qualified Streamly.Data.Stream.Prelude as Stream
 
-import Data.Function ((&))
-import qualified Streamly.Data.Fold as Fold
-import qualified Streamly.Data.Stream.Prelude as Stream
-
+>>> :{
 f1 x =
     Stream.fromList [return . (+ 1), return . (+ 2)] -- Stream of functions
         & fmap ($ x)                                 -- Stream of lazy actions
         & Stream.parSequence (Stream.ordered True)   -- Evaluate concurrently
         & Stream.fold Fold.toList                    -- Fold to list
+:}
 ```
 
 Use `parZipWith` to zip streams concurrently. Here, we zip three singleton
 streams:
 
-```haskell ghci
-
+```haskell docspec
+>>> :{
 f2 x =
   let app = Stream.parZipWith id ($)
   in (,,)
@@ -39,15 +40,18 @@ f2 x =
       `app`  Stream.fromEffect (return $ x + 1)
       `app`  Stream.fromEffect (return $ fromIntegral x / 2)
   & Stream.fold Fold.one
+:}
 ```
 
 Applying a function concurrently to your input stream:
 
-```haskell ghci
+```haskell docspec
+>>> :{
 g f xs =
   Stream.fromList xs
     & Stream.parMapM (Stream.ordered True) f
     & Stream.fold Fold.toList
+:}
 ```
 
 You can now use the concurrent map to pipe each element through multiple
@@ -66,15 +70,17 @@ create a zip Applicative newtype so that you can use the `Applicative`
 instance.
 
 ```haskell
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE UndecidableInstances #-}
 
-import Streamly.Internal.Data.Stream.TypeGen
+import Control.Monad.Trans.Control (MonadBaseControl)
+import Streamly.Data.Stream.Prelude (MonadAsync, Stream)
+import qualified Streamly.Data.Stream.Prelude as Stream
+import Streamly.Data.Stream.MkType
 
-app = parZipWith id ($)
-$(mkZippingType "ZipConcurrent" "app" True)
+app :: MonadAsync m => Stream m (a -> b) -> Stream m a -> Stream m b
+app = Stream.parZipWith id ($)
+$(mkZipType "ZipConcurrent" "app" True)
 ```
 
 ## Sliding Window
@@ -82,6 +88,7 @@ $(mkZippingType "ZipConcurrent" "app" True)
 The `createOfLast` fold can be used to create a stream of sliding windows.
 
 ```haskell docspec
+>>> :set -Wno-deprecations
 >>> import qualified Streamly.Data.Array as Array
 >>> :{
   Stream.fromList [1,2,3,4,5::Int]

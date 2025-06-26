@@ -65,39 +65,45 @@ program.
 
 We start with a code fragment that counts the number of bytes in a file:
 
-```haskell ghci
-import Data.Function ((&))
+```haskell docspec
+>>> import Data.Function ((&))
+>>> import Streamly.FileSystem.Path (Path)
+>>> import qualified Streamly.FileSystem.Path as Path
+>>> import qualified Streamly.Data.Fold as Fold
+>>> import qualified Streamly.Data.Stream as Stream
+>>> import qualified Streamly.FileSystem.FileIO as File
 
-import qualified Streamly.Data.Fold as Fold
-import qualified Streamly.Data.Stream as Stream
-import qualified Streamly.FileSystem.FileIO as File
-
-wcb :: String -> IO Int
-wcb file =
-    File.read file           -- Stream IO Word8
-  & Stream.fold Fold.length  -- IO Int
+>>> :{
+wcb :: Path -> IO Int
+wcb file = do
+  File.read file               -- Stream IO Word8
+    & Stream.fold Fold.length  -- IO Int
+:}
 ```
 
 ### Count Lines (wc -l)
 
 The next code fragment shows how to count the number of lines in a file:
 
-```haskell ghci
-import Data.Word (Word8)
-import Streamly.Data.Fold (Fold)
-
+```haskell docspec
+>>> import Data.Word (Word8)
+>>> import Streamly.Data.Fold (Fold)
+>>> :{
 -- ASCII character 10 is a newline.
 countl :: Int -> Word8 -> Int
 countl n ch = if ch == 10 then n + 1 else n
-
+:}
+>>> :{
 -- The `nlines` fold accepts a stream of `Word8` and returns a line count (`Int`).
 nlines :: Monad m => Fold m Word8 Int
 nlines = Fold.foldl' countl 0
-
-wcl :: String -> IO Int
+:}
+>>> :{
+wcl :: Path -> IO Int
 wcl file =
     File.read file     -- Stream IO Word8
   & Stream.fold nlines -- IO Int
+:}
 ```
 
 ### Count Words (wc -w)
@@ -105,23 +111,26 @@ wcl file =
 Our final code fragment counts the number of whitespace-separated words
 in a stream:
 
-```haskell ghci
-import Data.Char (chr, isSpace)
-
+```haskell docspec
+>>> import Data.Char (chr, isSpace)
+>>> :{
 countw :: (Int, Bool) -> Word8 -> (Int, Bool)
 countw (n, wasSpace) ch =
     if isSpace $ chr $ fromIntegral ch
     then (n, True)
     else (if wasSpace then n + 1 else n, False)
-
+:}
+>>> :{
 -- The `nwords` fold accepts a stream of `Word8` and returns a word count (`Int`).
 nwords :: Monad m => Fold m Word8 Int
 nwords = fst <$> Fold.foldl' countw (0, True)
-
-wcw :: String -> IO Int
+:}
+>>> :{
+wcw :: Path -> IO Int
 wcw file =
     File.read file      -- Stream IO Word8
   & Stream.fold nwords  -- IO Int
+:}
 ```
 
 ### Counting Bytes, Words and Lines Together
@@ -133,17 +142,19 @@ to all the supplied folds (`Fold.length`, `nlines`, and `nwords`) and
 then combines the outputs from the folds using the supplied combiner
 function (`(,,)`).
 
-```haskell ghci
-import Streamly.Data.Fold (Tee(..))
-
+```haskell docspec
+>>> import Streamly.Data.Fold (Tee(..))
+>>> :{
 -- The fold accepts a stream of `Word8` and returns the three counts.
 countAll :: Fold IO Word8 (Int, Int, Int)
 countAll = unTee $ (,,) <$> Tee Fold.length <*> Tee nlines <*> Tee nwords
-
-wc :: String -> IO (Int, Int, Int)
+:}
+>>> :{
+wc :: Path -> IO (Int, Int, Int)
 wc file =
     File.read file       -- Stream IO Word8
   & Stream.fold countAll -- IO (Int, Int, Int)
+:}
 ```
 
 This example demonstrates the excellent modularity offered by
@@ -192,10 +203,12 @@ code for this example, including the imports that we have omitted below.
 
 First we create a new data type `Counts` that holds all the context.
 
-```haskell ghci
+```haskell docspec
+>>> :{
 -- Counts lines words chars lastCharWasSpace
 data Counts = Counts !Int !Int !Int !Bool deriving Show
-
+:}
+>>> :{
 {-# INLINE count #-}
 count :: Counts -> Char -> Counts
 count (Counts l w c wasSpace) ch =
@@ -205,21 +218,24 @@ count (Counts l w c wasSpace) ch =
             then (w, True)
             else (if wasSpace then w + 1 else w, False)
     in Counts l1 w1 (c + 1) wasSpace1
+:}
 ```
 
 The `countArray` function counts the line, word, char counts in one chunk:
 
-```haskell ghci
-import Streamly.Data.Array (Array)
+```haskell docspec
+>>> import Streamly.Data.Array (Array)
 
-import qualified Streamly.Data.Array as Array
-import qualified Streamly.Unicode.Stream as Unicode
+>>> import qualified Streamly.Data.Array as Array
+>>> import qualified Streamly.Unicode.Stream as Unicode
 
+>>> :{
 countArray :: Array Word8 -> IO Counts
 countArray arr =
       Array.read arr                                      -- Stream IO Word8
     & Unicode.decodeLatin1                                -- Stream IO Char
     & Stream.fold (Fold.foldl' count (Counts 0 0 0 True)) -- IO Counts
+:}
 ```
 
 Here the function `count` and the `Counts` data type are defined in the
@@ -232,7 +248,8 @@ whether the chunk starts with a new word. The `partialCounts` function
 adds a `Bool` flag to `Counts` returned by `countArray` to indicate
 whether the first character in the chunk is a space.
 
-```haskell ghci
+```haskell docspec
+>>> :{
 partialCounts :: Array Word8 -> IO (Bool, Counts)
 partialCounts arr = do
     let r = Array.getIndex 0 arr
@@ -241,11 +258,13 @@ partialCounts arr = do
             counts <- countArray arr
             return (isSpace (chr (fromIntegral x)), counts)
         Nothing -> return (False, Counts 0 0 0 True)
+:}
 ```
 
 `addCounts` then adds the counts from two consecutive chunks:
 
-```haskell ghci
+```haskell docspec
+>>> :{
 addCounts :: (Bool, Counts) -> (Bool, Counts) -> (Bool, Counts)
 addCounts (sp1, Counts l1 w1 c1 ws1) (sp2, Counts l2 w2 c2 ws2) =
     let wcount =
@@ -253,19 +272,20 @@ addCounts (sp1, Counts l1 w1 c1 ws1) (sp2, Counts l2 w2 c2 ws2) =
             then w1 + w2 - 1
             else w1 + w2
      in (sp1, Counts (l1 + l2) wcount (c1 + c2) ws2)
+:}
 ```
 
 To count in parallel we now only need to divide the stream into arrays,
 apply our counting function to each array, and then combine the counts
 from each chunk.
 
-```haskell ghci
-{-# LANGUAGE FlexibleContexts #-}
+```haskell docspec
+>>> :set -XFlexibleContexts
+>>> import GHC.Conc (numCapabilities)
+>>> import qualified Streamly.Data.Stream.Prelude as Stream
 
-import GHC.Conc (numCapabilities)
-import qualified Streamly.Data.Stream.Prelude as Stream
-
-wc :: String -> IO (Bool, Counts)
+>>> :{
+wc :: Path -> IO (Bool, Counts)
 wc file = do
       File.readChunks file             -- Stream IO (Array Word8)
     & Stream.parMapM cfg partialCounts -- Stream IO (Bool, Counts)
@@ -275,6 +295,7 @@ wc file = do
 
     cfg = Stream.maxThreads numCapabilities . Stream.ordered True
     add = Fold.foldl' addCounts (False, Counts 0 0 0 True)
+:}
 ```
 
 We can replace `parMapM` with `mapM` to get a serial version of the program.
@@ -313,20 +334,23 @@ clients concurrently.
 Please see the file [WordServer.hs][] for the complete code for this
 example.
 
-```haskell ghci
-import Control.Concurrent (threadDelay)
-import Control.Exception (finally)
-import Network.Socket (Socket, close)
+```haskell docspec
+>>> import Control.Concurrent (threadDelay)
+>>> import Control.Exception (finally)
+>>> import Network.Socket (Socket, close)
 
-import qualified Streamly.Data.Parser as Parser
-import qualified Streamly.Network.Inet.TCP as TCP
-import qualified Streamly.Network.Socket as Socket
-import qualified Streamly.Unicode.Stream as Unicode
+>>> import qualified Streamly.Data.Parser as Parser
+>>> import qualified Streamly.Network.Inet.TCP as TCP
+>>> import qualified Streamly.Network.Socket as Socket
+>>> import qualified Streamly.Unicode.Stream as Unicode
 
+>>> :{
 -- Simulate network/db query by adding a delay.
 fetch :: String -> IO (String, String)
 fetch w = threadDelay 1000000 >> return (w,w)
+:}
 
+>>> :{
 -- Read lines of whitespace separated list of words from a socket, fetch the
 -- meanings of each word concurrently and return the meanings separated by
 -- newlines, in same order as the words were received. Repeat until the
@@ -345,10 +369,14 @@ lookupWords sk =
     where
 
     cfg = Stream.ordered True
+:}
 
+>>> :{
 serve :: Socket -> IO ()
 serve sk = finally (lookupWords sk) (close sk)
+:}
 
+>>> :{
 -- | Run a server on port 8091. Accept and handle connections concurrently. The
 -- connection handler is "serve" (i.e. lookupWords).  You can use "telnet" or
 -- "nc" as a client to try it out.
@@ -357,6 +385,7 @@ main =
       TCP.accept 8091         -- Stream IO Socket
     & Stream.parMapM id serve -- Stream IO ()
     & Stream.fold Fold.drain  -- IO ()
+:}
 ```
 
 ### Merging Incoming Streams
@@ -370,19 +399,23 @@ streams concurrently.
 Please see the file [MergeServer.hs][] for the complete working code,
 including the imports that we have omitted below.
 
-```haskell ghci
-{-# LANGUAGE FlexibleContexts #-}
+<!--
+Docspec bug: For some reason if we add the signature of the function the
+definition is not registered and goes out of scope. This behaviour is consistent
+but I'm unable to figure out the pattern yet.
+-->
+```haskell docspec
+>>> import Streamly.Data.Stream (Stream)
+>>> import System.IO (IOMode(AppendMode), Handle, withFile)
 
-import Streamly.Data.Stream (Stream)
-import System.IO (IOMode(AppendMode), Handle, withFile)
+>>> import qualified Streamly.Network.Socket as Socket
+>>> import qualified Streamly.FileSystem.Handle as Handle
 
-import qualified Streamly.Network.Socket as Socket
-import qualified Streamly.FileSystem.Handle as Handle
-
+>>> :{
 -- | Read a line stream from a socket.
 -- Note: lines are buffered, and we could add a limit to the
 -- buffering for safety.
-readLines :: Socket -> Stream IO (Array Char)
+-- readLines :: Socket -> Stream IO (Array Char)
 readLines sk =
     Socket.read sk       -- Stream IO Word8
   & Unicode.decodeLatin1 -- Stream IO Char
@@ -390,25 +423,32 @@ readLines sk =
 
   where
 
-  line = Fold.takeEndBy (== '\n') Array.write
+  line = Fold.takeEndBy (== '\n') Array.create
+:}
 
-recv :: Socket -> Stream IO (Array Char)
+>>> :{
+-- recv :: Socket -> Stream IO (Array Char)
 recv sk = Stream.finallyIO (close sk) (readLines sk)
+:}
 
+>>> :{
 -- | Starts a server at port 8091 listening for lines with space separated
 -- words. Multiple clients can connect to the server and send streams of lines.
 -- The server handles all the connections concurrently, merges the incoming
 -- streams at line boundaries and writes the merged stream to a file.
-server :: Handle -> IO ()
+-- server :: Handle -> IO ()
 server file =
       TCP.accept 8090                              -- Stream IO Socket
     & Stream.parConcatMap (Stream.eager True) recv -- Stream IO (Array Char)
-    & Stream.unfoldMany Array.reader               -- Stream IO Char
+    & Stream.unfoldEach Array.reader               -- Stream IO Char
     & Unicode.encodeLatin1                         -- Stream IO Word8
     & Stream.fold (Handle.write file)              -- IO ()
+:}
 
+>>> :{
 main :: IO ()
 main = withFile "output.txt" AppendMode server
+:}
 ```
 
 ### Listing Directories Recursively/Concurrently
@@ -423,17 +463,24 @@ results in a concurrent recursive depth first traversal of the directory tree.
 
 Please see [ListDir.hs][] for the complete working code.
 
-```haskell ghci
-import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
-import qualified Streamly.Internal.FileSystem.Dir as Dir (readEitherPaths)
+```haskell docspec
+>>> import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
+>>> import qualified Streamly.Internal.FileSystem.DirIO as Dir (readEitherPaths)
 
+>>> :set -XQuasiQuotes
+>>> import Streamly.FileSystem.Path (path)
+>>> import qualified Streamly.FileSystem.Path as Path
+>>> import Data.Bifunctor(bimap)
+
+>>> :{
 main :: IO ()
 main = do
     hSetBuffering stdout LineBuffering
-    let start = Stream.fromPure (Left ".")
-        f = either Dir.readEitherPaths (const Stream.nil)
+    let start = Stream.fromPure (Left [path|.|])
+        f = either (Dir.readEitherPaths id) (const Stream.nil)
         ls = Stream.parConcatIterate id f start
-     in Stream.fold (Fold.drainMapM print) ls
+     in Stream.fold (Fold.drainMapM (print . bimap Path.toString Path.toString)) ls
+:}
 ```
 
 ### Rate Limiting
@@ -441,14 +488,16 @@ main = do
 For concurrent streams, a stream evaluation rate can be specified.  For
 example, to print "tick" once every second you can simply write:
 
-```haskell ghci
-import qualified Streamly.Internal.Data.Stream as Stream (timestamped)
+```haskell docspec
+>>> import qualified Streamly.Internal.Data.Stream as Stream (timestamped)
 
+>>> :{
 main :: IO ()
 main =
       Stream.parRepeatM (Stream.avgRate 1) (pure "tick") -- Stream IO String
     & Stream.timestamped                                 -- Stream IO (AbsTime, String)
     & Stream.fold (Fold.drainMapM print)                 -- IO ()
+:}
 ```
 
 Please see the file [Rate.hs][] for the complete working code.

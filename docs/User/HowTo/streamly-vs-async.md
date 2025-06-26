@@ -48,11 +48,12 @@ stream folding operations can also be used, see the docs for more details.
 Use the following imports to run the snippets shown below:
 
 ```haskell
-import Streamly
-import Streamly.Prelude ((|:))
-import qualified Streamly.Prelude as S
+import qualified Streamly.Data.Stream.Prelude as S
+import qualified Streamly.Data.Fold as F
 import qualified Data.Text as Text
 import Control.Concurrent (threadDelay)
+import Control.Exception (Exception, SomeException)
+import Control.Monad.Catch (throwM, try)
 ```
 
 Let us simulate a URL fetch with a delay of `n` seconds using the following
@@ -71,7 +72,7 @@ You can run any number of actions concurrently. For example, to fetch two URLs
 concurrently:
 
 ```haskell
-  urls <- S.toList $ fromParallel $ getURL 2 |: getURL 1 |: S.nil
+getUrlsConcurrently = S.parSequence id $ S.fromList [getURL 2, getURL 1]
 ```
 
 This would return the results in their arrival order i.e. first 1 and then 2.
@@ -81,7 +82,7 @@ concurrently, and even though URL 1 arrives before URL 2 the results will
 return 2 first and then 1.
 
 ```haskell
-  urls <- S.toList $ fromAhead $ getURL 2 |: getURL 1 |: S.nil
+getUrlsOrdered = S.parSequence (S.ordered True) $ S.fromList [getURL 2, getURL 1]
 ```
 
 ### concurrently_
@@ -89,18 +90,17 @@ return 2 first and then 1.
 Use `drain` instead of `toList` to run the actions but ignore the results:
 
 ```haskell
-  S.drain $ fromParallel $ getURL 1 |: getURL 2 |: S.nil
+drainUrlsConcurrently = S.fold F.drain $ S.parMapM id getURL $ S.fromList [1, 2]
 ```
 
-### Concurrent Applicative
+### Concurrent Zipping
 
 If the actions that you are executing result in different output types you can
-use applicative zip to collect the results or to directly apply them to a
-function:
+use zip to collect the results or to directly apply them to a function:
 
 ```haskell
-  tuples <- S.toList $ fromZipAsync $
-              (,) <$> S.fromEffect (getURLString 1) <*> S.fromEffect (getURLText 2)
+concurrentZipping =
+    S.parZipWith id (,) (S.fromEffect (getURLString 1)) (S.fromEffect (getURLText 2))
 ```
 
 ### race
@@ -114,14 +114,14 @@ We can run multiple actions concurrently and take the first result that
 arrives:
 
 ```haskell
-  urls <- S.toList $ S.take 1 $ fromParallel $ getURL 1 |: getURL 2 |: S.nil
+fastest = S.toList $ S.take 1 $ S.parSequence id $ S.fromList [getURL 1, getURL 2]
 ```
 
 After the first result arrives, the rest of the actions are canceled
 automatically.  In general, we can take first `n` results as they arrive:
 
 ```haskell
-  urls <- S.toList $ S.take 2 $ fromParallel $ getURL 1 |: getURL 2 |: S.nil
+fastestN n = S.toList $ S.take n $ S.parSequence id $ S.fromList [getURL 1, getURL 2]
 ```
 
 #### `race` Using Exceptions
@@ -133,54 +133,38 @@ exception to communicate the result. As soon as the first result arrives all
 other actions will be canceled, for example:
 
 ```haskell
-  data Result = Result String deriving Show
-  instance Exception Result
+data Result = Result String deriving Show
+instance Exception Result
 
-  main = do
-      url <- try $ S.drain $ fromParallel $
-                   (getURL 2 >>= throwM . Result)
-                |: (getURL 1 >>= throwM . Result)
-                |: S.nil
-      case url of
-          Left (e :: SomeException) -> print e
-          Right _ -> undefined
+raceUsingExceptions = do
+    url <- try $ S.fold F.drain $ S.parSequence id $ S.fromList
+               [ (getURL 2 >>= throwM . Result)
+               , (getURL 1 >>= throwM . Result)
+               ]
+    case url of
+        Left (e :: SomeException) -> print e
+        Right _ -> undefined
 ```
 
 ### mapConcurrently
 
-There are many ways to map concurrently on a container and collect the results:
-
-You can create a concurrent stream from a `Foldable` container of monadic
-actions:
-
-```haskell
-  urls <- S.toList $ fromAhead $ S.fromFoldableM $ fmap getURL [1..3]
-```
-
-You can first convert a `Foldable` into a stream and then map an action on the
-stream concurrently:
+There are many ways to map concurrently on a container and collect the results.
+The recommended way is to first convert itinto a stream and then map an action
+on the stream concurrently:
 
 ```haskell
-  urls <- S.toList $ fromAhead $ S.mapM getURL $ foldMap return [1..3]
-```
-
-You can map a monadic action to a `Foldable` container to convert it into a
-stream and at the same time fold it:
-
-```haskell
-  urls <- S.toList $ fromAhead $ foldMap (S.fromEffect . getURL) [1..3]
+mapConcurrently = S.toList $ S.parMapM id getURL $ S.fromList [1..3]
 ```
 
 ### replicateConcurrently
 
 Streamly has not just the equivalent of `replicateConcurrently` which is
-`replicateM` but many more ways to generate concurrent streams, for example,
-`|:`, `unfoldrM`, `repeatM`, `iterateM`, `fromFoldableM` etc. See the
-[Streamly.Prelude](https://hackage.haskell.org/package/streamly/docs/Streamly-Prelude.html)
-module documentation for more details.
+`parReplicateM` but many more ways to generate concurrent streams, for example,
+`parRepeatM`, `parBuffered`, etc. See the `Streamly.Data.Stream.Prelude` module
+documentation for more details.
 
 ```haskell
-  xs <- S.toList $ fromParallel $ S.replicateM 2 $ getURL 1
+replicateConcurrently = S.toList $ S.parReplicateM id 2 $ getURL 1
 ```
 
 ### Functor
@@ -191,14 +175,15 @@ concurrently.
 To map serially just use `fmap`:
 
 ```haskell
-  xs <- S.toList $ fromParallel $ fmap (+1) $ return 1 |: return 2 |: S.nil
+serialMap = S.toList $ fmap (+1) (S.fromList [1, 2] :: S.Stream IO Int)
+
 ```
 
-To map a monadic action concurrently on all elements of the stream use `mapM`:
+To map a monadic action concurrently on all elements of the stream use `parMapM`:
 
 ```haskell
-  xs <- S.toList $ fromParallel $ S.mapM (\x -> return (x + 1))
-                           $ return 1 |: return 2 |: S.nil
+concurrentMap =
+    S.toList $ S.parMapM id (\x -> pure (x + 1) :: IO Int) $ S.fromList [1, 2]
 ```
 
 ### Semigroup
