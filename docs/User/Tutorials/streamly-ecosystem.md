@@ -15,7 +15,11 @@ modularity.
 The shell command `echo "hello world" | tr [a-z] [A-Z]` can be written as
 follows using this package:
 
-```haskell
+<!--
+Not exactly sure what the clean way is to import packages. We need to launch the
+ghci session with the required packages.
+-->
+```
 >>> :{
    Command.toBytes [str|echo "hello world"|] -- Stream IO Word8
  & Command.pipeBytes [str|tr [a-z] [A-Z]|]   -- Stream IO Word8
