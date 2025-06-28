@@ -45,8 +45,8 @@ module Streamly.Internal.Data.Stream.Channel.Type
     , inspect
 
     -- *** Resource cleanup
-    , addCleanup
-    , clearCleanup
+    , setHookInstaller
+    , clearHookInstaller
 
     -- *** Get config
     , getMaxBuffer
@@ -89,6 +89,7 @@ import Streamly.Internal.Data.Channel.Dispatcher (dumpSVarStats)
 import Streamly.Internal.Data.Channel.Worker
     (sendYield, sendStop, sendEvent, sendException)
 import Streamly.Internal.Data.StreamK (StreamK)
+import Streamly.Internal.Data.Stream (Register(..))
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units (NanoSecond64(..))
 
@@ -578,12 +579,12 @@ _getBound = _bound
 -- | Specify a function that registers a resource relase function. The resource
 -- release function can be called on exception or when the stream pipeline has
 -- finished to promptly release the channel instead of waiting for GC.
-addCleanup :: (IO () -> IO ()) -> Config -> Config
-addCleanup ref cfg = cfg { _release = Just ref }
+setHookInstaller :: Register -> Config -> Config
+setHookInstaller (Register ref) cfg = cfg { _release = Just (void . ref) }
 
 -- | Clear the resource release registration function.
-clearCleanup :: Config -> Config
-clearCleanup cfg = cfg { _release = Nothing }
+clearHookInstaller :: Config -> Config
+clearHookInstaller cfg = cfg { _release = Nothing }
 
 getCleanup :: Config -> Maybe (IO () -> IO ())
 getCleanup = _release
