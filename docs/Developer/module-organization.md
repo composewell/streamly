@@ -4,10 +4,16 @@
 
 We keep all modules exposed to facilitate convenient exposure of experimental
 APIs and constructors to users. It allows users of the library to experiment
-much more easily and carry a caveat that these APIs can change in future
+much more easily but carry a caveat that these APIs can change in future
 without notice.  Since everything is exposed, maintainers do not have to think
 about what to expose as experimental and what remains completely hidden every
 time something is added to the library.
+
+However, some modules are created purely for the purpose of breaking a module
+into multiple smaller modules, or for organizing similar functionality in a
+separate file, such modules are exported as entire module from a higher level
+modules. These modules can remain hidden as they are fully exported via another
+module.
 
 ## Internal module Namespace
 
@@ -21,7 +27,7 @@ Another decision point is about two choices:
 
 * Keep the implementation of all the APIs in an internal module and just
 reexport selected APIs through the external module. The disadvantages of this
-are:
+approach are:
 
   1) users may not be able to easily figure out what unexposed APIs are available
   other than the ones exposed through the external module. To avoid this problem
@@ -29,12 +35,13 @@ are:
 
   2) In tests and benchmarks we will be using internal modules to test internal
   and unexposed APIs. Since exposed APIs are exported via both internal and
-  external modules we will have to be careful in not using the internal module
-  for testing accidentally, instead we should always be using the exposed module
-  so that we are always testing exactly the way users will be using the APIs.
+  external modules we will have to be careful in not accidentally using
+  the internal module for testing, instead we should always be using the
+  exposed module so that we are always testing exactly the way users
+  will be using the APIs.
 
-* Keep the implementations of unexposed modules in the internal module file
-and exposed module in the external module file. In this approach, users can
+* Keep the implementations of unexposed APIs in the internal module file
+and exposed APIs in the external module file. In this approach, users can
 easily figure out the unexposed vs exposed APIs. But maintaining this would
 require us to move the APIs from internal to external module file whenever we
 expose an API.
@@ -71,25 +78,26 @@ parent module `Streamly.Data.Stream`.
 
 ## Constrained Modules
 
-Some modules represent operations on a type which constrain a type using a type
+Some modules represent operations on a type which constrain the type using a type
 class or a specific instance of a general type. For example, we may have Arrays
-that operate on a `Storable` or a `Prim` type.
+that operate on an `Unbox` type.
 
-One possible way to organize such module is to have a `Storable` or `Prim`
+One possible way to organize such modules is to have an `Unbox`
 hierarchy and all data structures using that type constraint are bundled under
 it. However, in general, a data structure may have multiple such
 constraints or may have to be organized based on some other dimension
 like an abstract interface it is implementing.
 
-General purpose constraints like `Prim` can be defined in their own module
+General purpose constraints like `Unbox` can be defined in their own module
 hierarchy and can be used everywhere. For example, we can have the following
-Array types, here we have organized the types under the `Array` hierarchy
-rather than putting the `PrimArray` under a `Prim` hierarchy.
+Array types, here we have organized all array types under the `Array` hierarchy
+rather than having e.g. `Unbox.Array` for unboxed arrays.
 
 ```
-Streamly.Internal.Data.Array.Boxed
-Streamly.Internal.Data.Array.Prim
-Streamly.Internal.Data.Array.Prim.Pinned
+Streamly.Internal.Data.Array -- Unboxed arrays
+Streamly.Internal.Data.Array.Generic -- Boxed arrays
+Streamly.Internal.Data.MutArray -- Unboxed mutable arrays
+Streamly.Internal.Data.MutArray.Generic -- Boxed mutable arrays
 ```
 
 ## Common Modules
@@ -171,71 +179,36 @@ We have the following module hierarchy under Streamly:
 
 ## Stream modules
 
-By default the streaming modules are effectful. The basic effectful
-stream types are:
+Effectful streams are fused or CPS types:
 
 * `Streamly.Data.Stream`
-* `Streamly.Data.Stream.Async`
-* `Streamly.Data.Stream.Ahead`
-* `Streamly.Data.Stream.Parallel`
-* `Streamly.Data.Stream.IsStream` -- polymorphic operations
-* `Streamly.Data.Stream.Using`    -- e.g. mapMUsing consMAsync
-
-The above streams have an append-like multi-stream combining behavior
-i.e. `concatMap` and `bind` would by default evaluate the streams one
-after another. Alternative implementations of `concatMap` and `bind` are
-possible. We can either use rebindable syntax to use a different bind or
-define newtypes with a different bind behavior, all other operations for
-these remain the same as the base type:
-
-* `Streamly.Data.Stream.Zip`
-* `Streamly.Data.Stream.Interleaved`
-* `Streamly.Data.Stream.RoundRobin`
-* `Streamly.Data.Stream.Async.Zip`
-* `Streamly.Data.Stream.Async.Interleaved`
-* `Streamly.Data.Stream.Async.RoundRobin`
-* ...
+* `Streamly.Data.StreamK`
+* `Streamly.Data.Stream.Prelude`
 
 Pure streams are a special case of effectful streams and have the same
 interface as lists, so we put them under `Streamly.Data.List`:
 
 * `Streamly.Data.List`
-* `Streamly.Data.List.Zip`
-* `Streamly.Data.List.Interleaved`
-* `Streamly.Data.List.RoundRobin`
-* ...
-
-We could possibly use the same type named `Stream` for all stream
-types, as the names of all stream operation are also the same and we
-distinguish only by the module name.
+* `Streamly.Data.ListK`
 
 ## Array modules
 
 Similarly, the immutable Array modules would go in:
 
-* `Streamly.Data.Array.Generic`                  -- unpinned, native memory arrays
-* `Streamly.Data.Array.Storable`         -- unpinned, unboxed, native memory arrays
-* `Streamly.Data.Array.Storable.Pinned`  -- pinned, unboxed, native memory arrays
-* `Streamly.Data.Array.Foreign` -- pinned, unboxed, foreign capable arrays
-
-Unboxed arrays, based on `Prim` type class:
-
-* `Streamly.Data.Array.Prim`
-* `Streamly.Data.Array.Prim.Pinned`
+* Streamly.Data.Array -- Unboxed arrays
+* Streamly.Data.Array.Generic -- Boxed arrays
 
 Mutable arrays are a generalization of immutable arrays:
 
-* `Streamly.Data.MutArray`
-* `Streamly.Data.Array.Storable.Mut`
-* `Streamly.Data.Array.Storable.Pinned.Mut`
-* ...
+* Streamly.Data.MutArray -- Unboxed mutable arrays
+* Streamly.Data.MutArray.Generic -- Boxed mutable arrays
 
 ## Stream and Fold Channels (SVar)
 
 * `Streamly.Data.Stream.Channel`
-* `Streamly.Data.Stream.Channel.Storable`
+* `Streamly.Data.Stream.Channel.Unboxed`
 * `Streamly.Data.Fold.Channel`
-* `Streamly.Data.Fold.Channel.Storable`
+* `Streamly.Data.Fold.Channel.Unboxed`
 
 ## Mutable variables
 

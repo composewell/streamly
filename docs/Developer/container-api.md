@@ -16,8 +16,13 @@ the name.
 
 ## Unfolds and Folds
 
-* Unfolds are named as "read" or with a "read" prefix (e.g. readChunks).
+* Unfolds are named as "reader" or with a "reader" suffix (e.g. chunkReader).
+* Refolds are named as "writer" or with a "writer" suffix.
+* Streams are names as "read" or with a "read" prefix.
 * Folds are named as "write" or with a "write" prefix (e.g. writeChunks).
+
+Streams and fold API names are in line with the file system calls for reading
+writing.
 
 ## To and from Stream
 
@@ -59,6 +64,9 @@ buffer. For such cases we apply the "With" suffix to standard combinator names:
 ## Random Access (Arrays)
 
 ### Single elements
+
+Especially for mutable arrays, the names "get" and "put" make better
+sense as effectful APIs.
 
 * getIndex (for arrays)
 * putIndex (for mutable arrays)
