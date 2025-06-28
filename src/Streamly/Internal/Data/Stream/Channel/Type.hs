@@ -89,7 +89,7 @@ import Streamly.Internal.Data.Channel.Dispatcher (dumpSVarStats)
 import Streamly.Internal.Data.Channel.Worker
     (sendYield, sendStop, sendEvent, sendException)
 import Streamly.Internal.Data.StreamK (StreamK)
-import Streamly.Internal.Data.Stream (Register(..))
+import Streamly.Internal.Control.Exception (RegisterIO(..))
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units (NanoSecond64(..))
 
@@ -579,8 +579,8 @@ _getBound = _bound
 -- | Specify a function that registers a resource relase function. The resource
 -- release function can be called on exception or when the stream pipeline has
 -- finished to promptly release the channel instead of waiting for GC.
-setHookInstaller :: Register -> Config -> Config
-setHookInstaller (Register ref) cfg = cfg { _release = Just (void . ref) }
+setHookInstaller :: RegisterIO -> Config -> Config
+setHookInstaller (RegisterIO ref) cfg = cfg { _release = Just (void . ref) }
 
 -- | Clear the resource release registration function.
 clearHookInstaller :: Config -> Config

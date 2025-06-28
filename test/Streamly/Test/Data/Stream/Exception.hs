@@ -6,14 +6,16 @@ import Control.Concurrent (threadDelay)
 import Control.Exception (SomeException, throw, catch, finally, bracket_)
 import Control.Monad (void, when)
 import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, MonadMask)
 import Data.Foldable (sequenceA_)
 import Data.Function ((&))
 import Data.IORef (IORef, newIORef, atomicModifyIORef, readIORef)
-import Streamly.Internal.Data.Stream (Stream, Allocate(..), Register(..))
+import Streamly.Internal.Control.Exception (AllocateIO(..), RegisterIO(..))
+import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Stream.Prelude (Config)
 import System.Mem (performMajorGC)
 
+import qualified Streamly.Internal.Control.Exception as Exception
 import qualified Streamly.Internal.Data.Stream.Prelude as Stream
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Data.Fold as Fold
@@ -58,8 +60,8 @@ stream ref modifier =
             )
         & Stream.take takeCount
 
-streamRelease :: Allocate -> IORef Int -> IORef Int -> (Config -> Config) -> Stream IO ()
-streamRelease (Allocate alloc) ref1 ref2 modifier =
+streamRelease :: AllocateIO -> IORef Int -> IORef Int -> (Config -> Config) -> Stream IO ()
+streamRelease (AllocateIO alloc) ref1 ref2 modifier =
       Stream.enumerateFrom (1 :: Int)
         & Stream.parMapM modifier
             ( \x -> do
@@ -92,17 +94,17 @@ finalAction gc ref t = do
     -- when gc $ threadDelay 1000000
     when (r /= 0) $ error "Failed"
 
-adaptBracket :: (Register -> Stream m a) -> Allocate -> Stream m a
-adaptBracket action (Allocate alloc) = do
+adaptBracket :: (RegisterIO -> Stream m a) -> AllocateIO -> Stream m a
+adaptBracket action (AllocateIO alloc) = do
     let f hook = void $ alloc (return ()) (\() -> void hook)
-    action (Register f)
+    action (RegisterIO f)
 
 withFinallyIO :: (MonadIO m, MonadCatch m) =>
-    (Register -> Stream m b) -> Stream m b
-withFinallyIO action = Stream.withBracketIO (adaptBracket action)
+    (RegisterIO -> Stream m b) -> Stream m b
+withFinallyIO action = Stream.withAllocateIO (adaptBracket action)
 
 testStream ::
-       ((Register -> Stream IO ()) -> Stream IO a)
+       ((RegisterIO -> Stream IO ()) -> Stream IO a)
     -> Int -> (Config -> Config) -> IO ()
 testStream f t cfg = do
     ref <- newIORef (0 :: Int)
@@ -110,13 +112,13 @@ testStream f t cfg = do
         & Stream.fold Fold.drain) `finally` finalAction False ref t
 
 testStreamRelease ::
-       ((Allocate -> Stream IO ()) -> Stream IO a)
+       ((AllocateIO -> Stream IO ()) -> Stream IO a)
     -> Int -> (Config -> Config) -> IO ()
 testStreamRelease g t cfg = do
     ref1 <- newIORef (0 :: Int)
     ref2 <- newIORef (0 :: Int)
     (g (\alloc -> do
-            let cfg1 = cfg . Stream.setHookInstaller (Stream.allocToRegister alloc)
+            let cfg1 = cfg . Stream.setHookInstaller (Exception.allocToRegIO alloc)
             streamRelease alloc ref1 ref2 cfg1)
         & Stream.fold Fold.drain
        )
@@ -126,16 +128,16 @@ testStreamRelease g t cfg = do
             putStrLn "Checking AUTO released resources..."
             finalAction False ref2 t
 
-adaptBracketM :: (Register -> m a) -> Allocate -> m a
-adaptBracketM action (Allocate alloc) = do
+adaptBracketM :: (RegisterIO -> m a) -> AllocateIO -> m a
+adaptBracketM action (AllocateIO alloc) = do
     let reg hook = void $ alloc (return ()) (\() -> void hook)
-    action (Register reg)
+    action (RegisterIO reg)
 
-withFinallyIOM :: (MonadIO m, MonadCatch m) => (Register -> m b) -> m b
-withFinallyIOM action = Stream.withBracketIOM (adaptBracketM action)
+withFinallyIOM :: (MonadIO m, MonadMask m) => (RegisterIO -> m b) -> m b
+withFinallyIOM action = Exception.withAllocateIO (adaptBracketM action)
 
 testEffect ::
-       ((Register -> IO ()) -> IO ())
+       ((RegisterIO -> IO ()) -> IO ())
     -> Int -> (Config -> Config) -> IO ()
 testEffect g t cfg = do
     ref <- newIORef (0 :: Int)
@@ -143,13 +145,13 @@ testEffect g t cfg = do
         & Stream.fold Fold.drain) `finally` finalAction False ref t
 
 testEffectRelease ::
-       ((Allocate -> IO ()) -> IO a)
+       ((AllocateIO -> IO ()) -> IO a)
     -> Int -> (Config -> Config) -> IO a
 testEffectRelease g t cfg = do
     ref1 <- newIORef (0 :: Int)
     ref2 <- newIORef (0 :: Int)
     g (\alloc -> do
-            let cfg1 = cfg . Stream.setHookInstaller (Stream.allocToRegister alloc)
+            let cfg1 = cfg . Stream.setHookInstaller (Exception.allocToRegIO alloc)
             streamRelease alloc ref1 ref2 cfg1 & Stream.fold Fold.drain
       ) `finally` do
             putStrLn "Checking MANUALLY released resources..."
@@ -181,12 +183,12 @@ sched =
 
 funcs :: [(String, Int -> (Stream.Config -> Stream.Config) -> IO ())]
 funcs =
-    [ ("withFinallyIO", testStream Stream.withFinallyIO)
-    , ("withFinallyIOM", testEffect Stream.withFinallyIOM)
-    , ("withBracketIO", testStream withFinallyIO)
-    , ("withBracketIOM", testEffect withFinallyIOM)
-    , ("withBracketIO release", testStreamRelease Stream.withBracketIO)
-    , ("withBracketIOM release", testEffectRelease Stream.withBracketIOM)
+    [ ("Stream.withRegisterIO", testStream Stream.withRegisterIO)
+    , ("Exception.withRegisterIO", testEffect Exception.withRegisterIO)
+    , ("Stream.withAllocateIO", testStream withFinallyIO)
+    , ("Exception.withAllocateIO", testEffect withFinallyIOM)
+    , ("Stream.withAllocateIO release", testStreamRelease Stream.withAllocateIO)
+    , ("Exception.withAllocateIO release", testEffectRelease Exception.withAllocateIO)
     , ("finallyGC", finallyGC)
     ]
 
