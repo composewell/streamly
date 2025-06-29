@@ -86,9 +86,9 @@
 --
 -- Use ParserK when recursive use is required:
 --
--- >>> import Streamly.Data.ParserK (ParserK, parserK)
+-- >>> import Streamly.Data.ParserK (ParserK)
+-- >>> import Streamly.Data.StreamK (parserK)
 -- >>> import qualified Streamly.Data.StreamK as StreamK
--- >>> import qualified Streamly.Internal.Data.StreamK as StreamK (parse)
 --
 -- >>> :{
 -- >>> p, p1, p2 :: Monad m => ParserK Char m String

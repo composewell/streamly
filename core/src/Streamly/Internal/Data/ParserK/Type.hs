@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Internal.Data.Parser.ParserK.Type
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -18,17 +19,33 @@
 --
 module Streamly.Internal.Data.ParserK.Type
     (
+    -- * Setup
+    -- | To execute the code examples provided in this module in ghci, please
+    -- run the following commands first.
+    --
+    -- $setup
+
+    -- * Types
       Step (..)
     , Input (..)
     , ParseResult (..)
     , ParserK (..)
+
+    -- * Adapting from Parser
+    , parserDone
     , parserK -- XXX move to StreamK module
     , toParser -- XXX unParserK, unK, unPK
+
+    -- * Basic Parsers
     , fromPure
     , fromEffect
     , die
 
-    , parserDone
+    -- * Expression Parsers
+    , chainl
+    , chainl1
+    , chainr
+    , chainr1
 
     -- * Deprecated
     , adapt
@@ -51,6 +68,8 @@ import GHC.Types (SPEC(..))
 
 import qualified Control.Monad.Fail as Fail
 import qualified Streamly.Internal.Data.Parser.Type as ParserD
+
+#include "DocTestDataParserK.hs"
 
 -------------------------------------------------------------------------------
 -- Developer Notes
@@ -534,3 +553,68 @@ toParser parser = ParserD.Parser step initial extract
     forall s. toParser (parserK s) = s #-}
 {-# RULES "toParser/parserK fusion" [2]
     forall s. parserK (toParser s) = s #-}
+
+-- | @chainl1 p op x@ parses /one/ or more occurrences of @p@, separated by
+-- @op@. Returns a value obtained by a /left/ associative application of all
+-- functions returned by @op@ to the values returned by @p@.
+--
+-- >>> num = Parser.decimal
+-- >>> plus = Parser.char '+' *> pure (+)
+-- >>> expr = ParserK.chainl1 (StreamK.parserK num) (StreamK.parserK plus)
+-- >>> StreamK.parse expr $ StreamK.fromStream $ Stream.fromList "1+2+3"
+-- Right 6
+--
+-- If you're building full expression parsers with operator precedence and
+-- associativity, consider using @makeExprParser@ from the @parser-combinators@
+-- package.
+--
+-- See also 'Streamly.Internal.Data.Parser.deintercalate'.
+--
+{-# INLINE chainl1 #-}
+chainl1 :: ParserK b IO a -> ParserK b IO (a -> a -> a) -> ParserK b IO a
+chainl1 p op = p >>= go
+
+    where
+
+    go l = step l <|> pure l
+
+    step l = do
+        f <- op
+        r <- p
+        go (f l r)
+
+-- | @chainl p op x@ is like 'chainl1' but allows /zero/ or more occurrences of
+-- @p@, separated by @op@. If there are zero occurrences of @p@, the value @x@
+-- is returned.
+{-# INLINE chainl #-}
+chainl :: ParserK b IO a -> ParserK b IO (a -> a -> a) -> a -> ParserK b IO a
+chainl p op x = chainl1 p op <|> pure x
+
+-- | Like chainl1 but parses right associative application of the operator
+-- instead of left associative.
+--
+-- >>> num = Parser.decimal
+-- >>> pow = Parser.char '^' *> pure (^)
+-- >>> expr = ParserK.chainr1 (StreamK.parserK num) (StreamK.parserK pow)
+-- >>> StreamK.parse expr $ StreamK.fromStream $ Stream.fromList "2^3^2"
+-- Right 512
+--
+{-# INLINE chainr1 #-}
+chainr1 :: ParserK b IO a -> ParserK b IO (a -> a -> a) -> ParserK b IO a
+chainr1 p op = p >>= go
+
+    where
+
+    go l = step l <|> pure l
+
+    step l = do
+        f <- op
+        r <- chainr1 p op
+        return (f l r)
+
+-- | @chainr p op x@ is like 'chainr1' but allows /zero/ or more occurrences of
+-- @p@, separated by @op@. If there are zero occurrences of @p@, the value @x@
+-- is returned.
+{-# INLINE chainr #-}
+chainr :: ParserK b IO a -> ParserK b IO (a -> a -> a) -> a -> ParserK b IO a
+chainr p op x = chainr1 p op <|> pure x
