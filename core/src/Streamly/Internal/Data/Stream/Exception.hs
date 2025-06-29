@@ -20,8 +20,9 @@ module Streamly.Internal.Data.Stream.Exception
     , bracketUnsafe
     , bracketIO3
     , bracketIO
-    , cleanupIO
-    , cleanupEffectIO
+
+    , withRegisterIO
+    , withAllocateIO
 
     -- * Exceptions
     , onException
@@ -32,16 +33,19 @@ where
 
 #include "inline.hs"
 
+import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Exception (Exception, SomeException, mask_)
 import Control.Monad.Catch (MonadCatch)
 import Data.Foldable (sequenceA_)
 import Data.IORef (newIORef, readIORef, atomicModifyIORef)
 import GHC.Exts (inline)
+import Streamly.Internal.Control.Exception (AllocateIO(..), RegisterIO(..))
 import Streamly.Internal.Data.IOFinalizer
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
 
 import qualified Control.Monad.Catch as MC
+import qualified Data.Map.Strict as Map
 
 import Streamly.Internal.Data.Stream.Type
 
@@ -350,29 +354,8 @@ bracketIO3 bef aft onExc onGC =
         onGC
         (inline MC.try)
 
--- | Run a monadic effect supplying it with a function to register cleanup
--- actions that are automatically invoked on exception or after the effect
--- function is done.
-{-# INLINE cleanupEffectIO #-}
-cleanupEffectIO :: (MonadIO m, MonadCatch m) =>
-    ((IO () -> IO ()) -> m ()) -> m ()
-cleanupEffectIO action = do
-    ref <- liftIO $ newIORef []
-    -- XXX use mask or MC.finally?
-    action (register ref) `MC.onException` aft ref
-    aft ref
-
-    where
-
-    aft ref = liftIO $ do
-        xs <- readIORef ref
-        sequenceA_ xs
-
-    register ref f =
-        atomicModifyIORef ref (\xs -> (f : xs, ()))
-
 -- | Run the alloc action @IO b@ with async exceptions disabled but keeping
--- blocking operations interruptible (see 'Control.Exception.mask').  Use the
+-- blocking operations interruptible (see 'Control.Exception.mask').  Uses the
 -- output @b@ of the IO action as input to the function @b -> Stream m a@ to
 -- generate an output stream.
 --
@@ -393,6 +376,8 @@ cleanupEffectIO action = do
 -- but the fold terminates without draining the entire stream or if the
 -- consumer of the stream encounters an exception.
 --
+-- For cleanup that never relies on GC see 'withAllocateIO'.
+--
 -- Observes exceptions only in the stream generation, and not in stream
 -- consumers.
 --
@@ -405,26 +390,75 @@ bracketIO :: (MonadIO m, MonadCatch m)
     => IO b -> (b -> IO c) -> (b -> Stream m a) -> Stream m a
 bracketIO bef aft = bracketIO3 bef aft aft aft
 
--- | Run a stream supplying it a function to register cleanup actions which are
--- automatically called on exception or when the stream is done.
-{-# INLINE cleanupIO #-}
-cleanupIO :: (MonadIO m, MonadCatch m) =>
-    ((IO () -> IO ()) -> Stream m a) -> Stream m a
-cleanupIO action = do
+-- | Like 'Streamly.Internal.Control.Exception.withAllocateIO' but for use in
+-- streams instead of effects.
+--
+-- Unlike 'bracketIO' this function does not rely on GC for cleanup. Cleanup is
+-- deterministic.
+--
+{-# INLINE withAllocateIO #-}
+withAllocateIO :: (MonadIO m, MonadCatch m) =>
+    (AllocateIO -> Stream m a) -> Stream m a
+withAllocateIO action = do
+    bracketIO bef aft (\(_, alloc) -> action alloc)
+
+    where
+
+    bef = do
+        ref <- liftIO $ newIORef (0 :: Int, Map.empty)
+        return (ref, AllocateIO (bracket ref))
+
+    -- This is called from a single thread, therefore, we do not need to worry
+    -- about concurrent execution.
+    aft (ref, _) = liftIO $ do
+        xs <- readIORef ref
+        sequence_ (snd xs)
+
+    bracket ref alloc free = do
+        (r, index) <- liftIO $ mask_ $ do
+            r <- alloc
+            idx <- atomicModifyIORef ref (\(i, mp) ->
+                ((i + 1, Map.insert i (void $ free r) mp), i))
+            return (r, idx)
+
+        let modify (i, mp) =
+                let res = Map.lookup index mp
+                 in ((i, Map.delete index mp), res)
+            free1 = do
+                res <- atomicModifyIORef ref modify
+                sequence_ res
+        return (r, free1)
+
+-- | Like 'Streamly.Internal.Control.Exception.withRegisterIO' but for use in
+-- streams instead of effects.
+--
+-- Unlike 'finallyIO' this function does not rely on GC for cleanup.
+--
+{-# INLINE withRegisterIO #-}
+withRegisterIO :: (MonadIO m, MonadCatch m) =>
+    (RegisterIO -> Stream m a) -> Stream m a
+{-
+withRegisterIO action = do
+    let f bracket = do
+            let reg hook = void $ bracket (return ()) (\() -> void hook)
+            action reg
+     in withAllocateIO f
+-}
+withRegisterIO action = do
     bracketIO bef aft (\(_, reg) -> action reg)
 
     where
 
     bef = do
         ref <- liftIO $ newIORef []
-        return (ref, register ref)
+        return (ref, RegisterIO (register ref))
 
     aft (ref, _) = liftIO $ do
         xs <- readIORef ref
         sequenceA_ xs
 
     register ref f =
-        atomicModifyIORef ref (\xs -> (f : xs, ()))
+        atomicModifyIORef ref (\xs -> (void f : xs, ()))
 
 data BracketState s v = BracketInit | BracketRun s v
 
@@ -474,6 +508,8 @@ finallyUnsafe action xs = bracketUnsafe (return ()) (const action) (const xs)
 -- semantics described in 'bracketIO'.
 --
 -- >>> finallyIO release = Stream.bracketIO (return ()) (const release)
+--
+-- For cleanup that never relies on GC see 'withRegisterIO'.
 --
 -- /See also 'finallyUnsafe'/
 --
