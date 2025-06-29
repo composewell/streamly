@@ -241,7 +241,9 @@ module Streamly.Data.Stream
 
     -- ** Parsing
     , parse
-    -- , parseBreak
+    , parseBreak
+    , parsePos
+    , parseBreakPos
 
     -- ** Lazy Right Folds
     -- | Consuming a stream to build a right associated expression, suitable

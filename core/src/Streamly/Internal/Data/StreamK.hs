@@ -40,6 +40,7 @@ module Streamly.Internal.Data.StreamK
     , foldBreak
     , foldEither
     , foldConcat
+    , ParserK.parserK -- XXX move the code to this module
     , parseDBreak
     , parseD
     , parseBreak

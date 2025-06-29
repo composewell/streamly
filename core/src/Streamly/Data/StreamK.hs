@@ -125,8 +125,11 @@ module Streamly.Data.StreamK
     -- , foldBreak
 
     -- ** Parsing
+    , parserK
     , parse
     , parseBreak
+    , parsePos
+    , parseBreakPos
 
     -- * Transformation
     , mapM

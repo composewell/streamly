@@ -7,7 +7,7 @@
 -- Stability   : pre-release
 -- Portability : GHC
 --
--- Parsers are more powerful 'Streamly.Data.Fold.Fold's:
+-- Parsers are more powerful but less general than 'Streamly.Data.Fold.Fold's:
 --
 -- * folds cannot fail but parsers can fail and backtrack.
 -- * folds can be composed as a Tee but parsers cannot.
@@ -15,12 +15,15 @@
 -- * folds can be converted to parsers.
 --
 -- Streamly parsers support all operations offered by popular Haskell parser
--- libraries. They operate on a generic input type, support streaming, and are
--- faster.
+-- libraries. Unlike other parser libraries, (1) streamly parsers can operate
+-- on any Haskell type as input - not just bytes, (2) natively support
+-- streaming, (3) and are faster.
 --
--- Like folds, parsers use stream fusion, compiling to efficient low-level code
--- comparable to the speed of C. Parsers are suitable for high-performance
--- parsing of streams.
+-- == High Performance by Static Parser Fusion
+--
+-- Like folds, parsers are designed to utilize stream fusion, compiling to
+-- efficient low-level code comparable to the speed of C. Parsers are suitable
+-- for high-performance parsing of streams.
 --
 -- Operations in this module are designed to be composed statically rather than
 -- dynamically. They are inlined to enable static fusion. More importantly,
@@ -30,30 +33,35 @@
 -- from the "Streamly.Data.ParserK" module. 'Parser' and
 -- 'Streamly.Data.ParserK.ParserK' types are interconvertible.
 --
--- == Using Parsers
+-- == How to parse a stream?
 --
--- This module provides elementary parsers and parser combinators that can be
--- used to parse a stream of data. Additionally, all the folds from the
--- "Streamly.Data.Fold" module can be converted to parsers using 'fromFold'.
--- All the parsing functionality provided by popular parsing libraries, and
--- more is available. Also see "Streamly.Unicode.Parser" module for Char stream
--- parsers.
+-- Parser combinators can be used to create a pipeline of folds or parsers such
+-- that the next fold or parser consumes the result of the previous parser.
+-- Such a composed pipeline of parsers can then be driven by one of many parser
+-- drivers available in the Stream and Array modules.
 --
--- A data stream can be transformed to a stream of parsed data elements. Parser
--- combinators can be used to create a pipeline of folds or parsers such that
--- the next fold or parser consumes the result of the previous parser. See
--- 'Streamly.Data.Stream.parse' and 'Streamly.Data.Stream.parseMany' to run
--- these parsers on a stream.
+-- Use Streamly.Data.Stream.'Streamly.Data.Stream.parse' or
+-- Streamly.Data.Stream.'Streamly.Data.Stream.parseBreak' to run a parser on an
+-- input stream and return the parsed result.
+--
+-- Use Streamly.Data.Stream.'Streamly.Data.Stream.parseMany' or
+-- Streamly.Data.Stream.'Streamly.Data.Stream.parseIterate' to transform an
+-- input data stream to an output stream of parsed data elements using a
+-- parser.
 --
 -- == Parser vs ParserK
 --
 -- There are two functionally equivalent parsing modules,
 -- "Streamly.Data.Parser" (this module) and "Streamly.Data.ParserK". The latter
 -- is a CPS based wrapper over the former, and can be used for parsing in
--- general. "Streamly.Data.Parser" enables stream fusion and should be
+-- general. "Streamly.Data.Parser" enables stream fusion and where possible it should be
 -- preferred over "Streamly.Data.ParserK" for high performance stream parsing
 -- use cases. However, there are a few cases where this module is not
 -- suitable and ParserK should be used instead.
+--
+-- As a thumb rule, when recursion or heavy nesting is needed use ParserK.
+--
+-- === Parser: non-recursive static fusion
 --
 -- For static fusion, parser combinators have to use strict pattern matching on
 -- arguments of type Parser. This leads to infinte loop when a parser is
@@ -73,6 +81,8 @@
 -- >>> p2 = Parser.fromFold Fold.toList
 -- >>> p = p1 <|> p2
 -- >>> :}
+--
+-- === ParserK: recursive application
 --
 -- Use ParserK when recursive use is required:
 --
@@ -105,14 +115,30 @@
 -- combined @n@ times, roughly 8 or less sequenced parsers are fine. READ THE
 -- DOCS OF APPLICATIVE, MONAD AND ALTERNATIVE INSTANCES.
 --
--- == Streaming Parsers
+-- == Parsers Galore!
 --
--- With 'Streamly.Data.ParserK.ParserK' you can use the generic Alternative
--- type class based parsers from the
+-- Streamly provides all the parsing functionality provided by popular parsing
+-- libraries, and much more with higher performance.
+-- This module provides most of the elementary parsers and parser combinators.
+-- Additionally,
+--
+-- * all the folds from the "Streamly.Data.Fold" module can be converted to
+-- parsers using 'fromFold'.
+-- * "Streamly.Unicode.Parser" module provides Char stream parsers.
+-- * all the combinators from the
 -- <https://hackage.haskell.org/package/parser-combinators parser-combinators>
--- library or similar. However, we recommend that you use the equivalent
--- functionality from this module for better performance and for streaming
--- behavior.
+-- package can be used with streamly ParserK.
+-- * See "Streamly.Internal.Data.Parser" for many more unreleased but useful APIs.
+--
+-- == Generic Parser Combinators
+--
+-- With 'Streamly.Data.ParserK.ParserK' you can use the 'Applicative' and
+-- 'Control.Applicative.Alternative' type class based generic parser
+-- combinators from the
+-- <https://hackage.haskell.org/package/parser-combinators parser-combinators>
+-- library or similar. However, if available, we recommend that you use the
+-- equivalent functionality from this module where performance and streaming
+-- behavior matters.
 --
 -- Firstly, the combinators in this module are faster due to stream fusion.
 -- Secondly, these are streaming in nature as the results can be passed
@@ -120,9 +146,22 @@
 -- class based parsers would end up buffering all the results in lists before
 -- they can be consumed.
 --
--- When recursion or heavy nesting is needed use ParserK.
---
 -- == Error Reporting
+--
+-- There are two types of parser drivers available, @parse@ and @parseBreak@
+-- drivers do not track stream position, whereas @parsePos@ and @parseBreakPos@
+-- drivers track stream position information with slightly more performance
+-- overhead.
+--
+-- When an error occurs the stream position is reported, in case byte streams
+-- or unboxed array streams this is the byte position, in case of generic
+-- element parsers or generic array parsers this is the element position in the
+-- stream.
+--
+-- If you need line number or column information you can read the stream again
+-- (if it is immutable) and translate the reported byte position to line number
+-- and column. More elaborate support for computing arbitrary and custom error
+-- context information is planned to be added in future.
 --
 -- These parsers do not report the error context (e.g. line number or column).
 -- This may be supported in future.
@@ -148,7 +187,7 @@ module Streamly.Data.Parser
 
     -- * Parser Type
       Parser
-    , ParseError
+    , ParseError(..)
 
     -- -- * Downgrade to Fold
     -- , toFold

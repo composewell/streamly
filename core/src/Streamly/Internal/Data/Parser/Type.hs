@@ -403,12 +403,12 @@ pattern Partial :: Int -> s -> Step s b
 pattern Partial i s <- (negateDirection -> SPartial i s)
     where Partial i s = SPartial (1 - i) s
 
-{-# DEPRECATED Continue "Replace @Continue n@ with @SContinue (1 - n)@ in parser step and with @SContinue (-n)@ in parser extract" #-}
+{-# DEPRECATED Continue "Replace @Continue n@ with @SContinue (1 - n)@ in parser step and with @FContinue (-n)@ in parser extract" #-}
 pattern Continue :: Int -> s -> Step s b
 pattern Continue i s <- (negateDirection -> SContinue i s)
     where Continue i s = SContinue (1 - i) s
 
-{-# DEPRECATED Done "Replace @Done n@ with @SDone (1 - n)@ in parser step and with @SDone (-n)@ in parser extract" #-}
+{-# DEPRECATED Done "Replace @Done n@ with @SDone (1 - n)@ in parser step and with @FDone (-n)@ in parser extract" #-}
 pattern Done :: Int -> b -> Step s b
 pattern Done i b <- (negateDirection -> SDone i b)
     where Done i b = SDone (1 - i) b
@@ -517,9 +517,10 @@ data Parser a m b =
         (s -> m (Final s b))
 
 -- | This exception is used when a parser ultimately fails, the user of the
--- parser is intimated via this exception.
---
--- /Pre-release/
+-- parser is intimated via this exception. The @Int@ is the position in the
+-- stream where the error ocurred. Note that the position is reported only when
+-- a position reporting parser driver is used, otherwise it will be reported as
+-- 0.
 --
 data ParseError = ParseError Int String
     deriving (Eq, Show)

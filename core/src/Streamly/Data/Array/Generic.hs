@@ -35,6 +35,11 @@ module Streamly.Data.Array.Generic
 
     -- * Stream of Arrays
     , chunksOf
+    , parserK
+    , parse
+    , parseBreak
+    , parsePos
+    , parseBreakPos
 
     -- * Random Access
     , length

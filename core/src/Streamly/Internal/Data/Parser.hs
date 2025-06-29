@@ -2595,6 +2595,8 @@ data DeintercalateAllState fs sp ss =
 -- >>> Stream.parse p $ Stream.fromList "1+2+3"
 -- Right [Left "1",Right '+',Left "2",Right '+',Left "3"]
 --
+-- See also 'Streamly.Internal.Data.ParserK.chainl1'.
+--
 {-# INLINE deintercalateAll #-}
 deintercalateAll :: Monad m =>
        Parser a m x
@@ -2717,6 +2719,8 @@ data DeintercalateState b fs sp ss =
 -- Right [Left "1"]
 -- >>> Stream.parse p $ Stream.fromList "1+2+3"
 -- Right [Left "1",Right '+',Left "2",Right '+',Left "3"]
+--
+-- See also 'Streamly.Internal.Data.ParserK.chainl1'.
 --
 {-# INLINE deintercalate #-}
 deintercalate :: Monad m =>

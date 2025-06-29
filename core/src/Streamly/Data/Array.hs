@@ -76,6 +76,11 @@ module Streamly.Data.Array
 
     -- * Stream of Arrays
     , chunksOf
+    , parserK
+    , parse
+    , parseBreak
+    , parsePos
+    , parseBreakPos
 
     -- * Casting
     , cast

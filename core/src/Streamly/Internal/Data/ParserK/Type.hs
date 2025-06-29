@@ -16,18 +16,13 @@
 -- The direct style representation does not allow for recursive definitions of
 -- "some" and "many" whereas CPS allows that.
 --
--- 'Applicative' and 'Control.Applicative.Alternative' type class based
--- combinators from the
--- <http://hackage.haskell.org/package/parser-combinators parser-combinators>
--- package can also be used with the 'ParserK' type.
-
 module Streamly.Internal.Data.ParserK.Type
     (
       Step (..)
     , Input (..)
     , ParseResult (..)
     , ParserK (..)
-    , parserK
+    , parserK -- XXX move to StreamK module
     , toParser -- XXX unParserK, unK, unPK
     , fromPure
     , fromEffect
@@ -145,8 +140,11 @@ instance Functor m => Functor (Step a m) where
 
 -- | The parser's result.
 --
--- Int is the position index into the current input array. Could be negative.
--- Cannot be beyond the input array max bound.
+-- Int is the position index in the stream relative to the position on entry
+-- i.e. when the parser started running. When the parser enters the position
+-- index is zero. If the parser consumed n elements then the new position index
+-- would be n. If the parser is backtracking then the position index would be
+-- negative.
 --
 -- /Pre-release/
 --
@@ -166,30 +164,31 @@ instance Functor ParseResult where
 --
 -- Use Step itself in place of ParseResult.
 
--- | A continuation passing style parser representation. A parser is a
--- continuation of 'Step's, each step passes a state and a parse result to the
--- next 'Step'. The resulting 'Step' may carry a continuation that consumes
--- input 'a' and results in another 'Step'. Essentially, the continuation may
--- either consume input without a result or return a result with no further
--- input to be consumed.
+-- | A continuation passing style parser representation.
+
+-- A parser is a continuation of 'Step's, each step passes a state and a parse
+-- result to the next 'Step'. The resulting 'Step' may carry a continuation
+-- that consumes input 'a' and results in another 'Step'. Essentially, the
+-- continuation may either consume input without a result or return a result
+-- with no further input to be consumed.
 --
 -- The first argument of runParser is a continuation to be invoked after the
 -- parser is done, it is of the following shape:
 --
--- >> ParseResult b -> Int -> StepParser a m r
+-- >>> type Cont = ParseResult b -> Int -> StepParser a m r
 --
 -- First argument of the continuation is the 'ParseResult'. The current stream
 -- position is carried as part of the 'Success' or 'Failure' constructors of
 -- 'ParseResult'. The second argument of the continuation is a count of the
--- elements used in the current alterantive of an alternative composition, if
+-- elements used in the current alterantive in an alternative composition, if
 -- the alternative fails we need to backtrack by this amount before invoking
 -- the next alternative.
 --
 -- The second argument of runParser is the incoming stream position adjustment.
--- The parser needs to adjust the current position of the stream by this amount
--- before consuming any input. A positive value means move forward by that much
--- in the stream and a negative value means backward. See the 'Step' and
--- 'Streamly.Data.Parser.Step' documentation for more details.
+-- The parser driver needs to adjust the current position of the stream by this
+-- amount before consuming further input. A positive value means move forward
+-- by that much in the stream and a negative value means backward. See the
+-- 'Step' and 'Streamly.Data.Parser.Step' documentation for more details.
 --
 -- The third argument is the incoming cumulative used element count for the
 -- current alternative, same as described for the continuation above.
@@ -199,10 +198,6 @@ newtype ParserK a m b = MkParser
            -- Do not eta reduce the applications of this continuation.
            -- Continuation to be invoked after the parser is done
            (ParseResult b -> Int -> StepParser a m r)
-           -- XXX Maintain and pass the original position in the stream. that
-           -- way we can also report better errors. Use a Context structure for
-           -- passing the state.
-           --
            -- stream position adjustment before the parser starts.
         -> Int
            -- initial used count for the current alternative.
@@ -504,8 +499,9 @@ parserDone (Failure n e) _ _ =
 
 -- XXX Note that this works only for single element parsers and not for Array
 -- input parsers. The asserts will fail for array parsers.
+-- XXX We should move this to StreamK module along with parserK
 
--- | Convert a CPS style 'ParserK' to a direct style 'ParserD.Parser'.
+-- | Convert a CPS style 'ParserK' to a direct style 'Parser'.
 --
 -- /Pre-release/
 --
@@ -534,7 +530,7 @@ toParser parser = ParserD.Parser step initial extract
             Continue n cont1 ->
                 assert (n <= 0) (return $ ParserD.FContinue n cont1)
 
-{-# RULES "fromParser/toParser fusion" [2]
+{-# RULES "parserK/toParser fusion" [2]
     forall s. toParser (parserK s) = s #-}
-{-# RULES "toParser/fromParser fusion" [2]
+{-# RULES "toParser/parserK fusion" [2]
     forall s. parserK (toParser s) = s #-}

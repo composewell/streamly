@@ -15,7 +15,6 @@ import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
 import qualified Data.Scientific as Scientific
 import qualified Streamly.Data.Stream as Stream
-import qualified Streamly.Internal.Data.Stream as Stream (parseBreak)
 import qualified Streamly.Unicode.Parser as Unicode
 import qualified Streamly.Internal.Unicode.Parser as Parser
 import qualified Test.Hspec as H
