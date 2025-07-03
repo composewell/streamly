@@ -23,11 +23,11 @@ module Streamly.Internal.Control.Exception
     -- These operations support allocation and free only in the IO monad,
     -- therefore, they have the IO suffix.
     --
-    , AllocateIO(..)
-    , RegisterIO(..)
-    , allocToRegIO
-    , withRegisterIO
+    , AllocateIO(..) -- XXX rename to BracketIO or AcquirerIO
     , withAllocateIO
+    , acquire
+    , register
+    , hook
     )
 where
 
@@ -35,11 +35,10 @@ import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Exception (mask_)
 import Control.Monad.Catch (MonadMask)
-import Data.Foldable (sequenceA_)
 import Data.IORef (newIORef, readIORef, atomicModifyIORef)
 
 import qualified Control.Monad.Catch as MC
-import qualified Data.Map.Strict as Map
+import qualified Data.IntMap.Strict as Map
 
 -------------------------------------------------------------------------------
 -- Asserts
@@ -73,25 +72,15 @@ verifyM predicate = verify predicate (pure ())
 
 -- To keep the type signatures simple and to avoid inference problems we should
 -- use this newtype. We cannot pass around a foralled type without wrapping
--- them it in a newtype.
+-- it in a newtype.
 
--- | @AllocateIO f@ is a newtype wrapper for an IO monad allocator function @f@.
+-- | @AllocateIO@ is used to acquire a resource safely such that it is
+-- automatically released if not released manually.
 --
--- The allocator function @f alloc free@ is used in bracket-style safe resource
--- allocation functions, where @alloc@ is a function used to allocate a
--- resource and @free@ is used to free it. The allocator returns a tuple
--- @(resource, release)@ where @resource@ is the allocated resource and
--- @release@ is an action that can be called later to release the resource.
+-- See 'withAllocateIO'.
 --
 newtype AllocateIO = AllocateIO
     (forall b c. IO b -> (b -> IO c) -> IO (b, IO ()))
-
--- | @RegisterIO f@ is a newtype wrapper for a hook registration function @f@.
---
--- @f hook@ is used to register hooks to be executed at the end of
--- finally style functions.
---
-newtype RegisterIO = RegisterIO (forall c. IO c -> IO ())
 
 -- | @withAllocateIO action@ runs the given @action@, providing it with a
 -- special function called @allocator@ as argument. An @allocator alloc
@@ -108,6 +97,64 @@ newtype RegisterIO = RegisterIO (forall c. IO c -> IO ())
 -- resource manually at any time. @release@ is guaranteed to free the resource
 -- only once even if it is called concurrently or multiple times.
 --
+-- Here is an example to allocate resources that are guaranteed to be released,
+-- and can be released manually as well:
+--
+-- >>> :{
+-- close x h = do
+--  putStrLn $ "closing: " ++ x
+--  hClose h
+--
+-- action (AllocateIO alloc) =
+--      Stream.fromList ["file1", "file2"]
+--    & Stream.mapM
+--        (\x -> do
+--            (h, release) <- alloc (openFile x ReadMode) (close x)
+--            -- use h here
+--            threadDelay 1000000
+--            when (x == "file1") $ do
+--                putStrLn $ "Manually releasing: " ++ x
+--                release
+--            return x
+--        )
+--    & Stream.trace print
+--    & Stream.fold Fold.drain
+--
+-- run = Exception.withAllocateIO action
+-- :}
+--
+-- In the above code, you should see the \"closing:\" message for both the
+-- files, and only once for each file. Even if you interrupt the program with
+-- CTRL-C you should still see the \"closing:\" message for the files opened
+-- before the interrupt. Make sure you create "file1" and "file2" before
+-- running it.
+--
+-- Cleanup is guaranteed to happen as soon as the scope of 'withAllocateIO'
+-- finishes or if an exception occurs.
+--
+-- Here is an example for just registering hooks to be called eventually:
+--
+-- >>> :{
+-- action f =
+--      Stream.fromList ["file1", "file2"]
+--    & Stream.mapM
+--        (\x -> do
+--            register f $ putStrLn $ "saw: " ++ x
+--            threadDelay 1000000
+--            return x
+--        )
+--    & Stream.trace print
+--    & Stream.fold Fold.drain
+--
+-- run = Exception.withAllocateIO action
+-- :}
+--
+-- In the above code, even if you interrupt the program with CTRL-C you should
+-- still see the "saw:" message for the elements seen before the interrupt.
+--
+-- The registered hooks are guaranteed to be invoked as soon as the scope of
+-- 'withAllocateIO' finishes or if an exception occurs.
+--
 -- This function provides functionality similar to the @bracket@ function
 -- available in the base library. However, it is more powerful as any number of
 -- resources can be allocated at any time within the scope and can be released
@@ -117,18 +164,19 @@ newtype RegisterIO = RegisterIO (forall c. IO c -> IO ())
 {-# INLINE withAllocateIO #-}
 withAllocateIO :: (MonadIO m, MonadMask m) => (AllocateIO -> m a) -> m a
 withAllocateIO action = do
+    -- Assuming 64-bit int counter will never overflow
     ref <- liftIO $ newIORef (0 :: Int, Map.empty)
-    action (AllocateIO (bracket ref)) `MC.finally` aft ref
+    action (AllocateIO (allocator ref)) `MC.finally` aft ref
 
     where
 
-    -- This is called from a the same thread as the main action, therefore, we
+    -- The thread doing manual release
     -- do not need to worry about concurrent execution.
     aft ref = liftIO $ do
         xs <- readIORef ref
         sequence_ (snd xs)
 
-    bracket ref alloc free = do
+    allocator ref alloc free = do
         (r, index) <- liftIO $ mask_ $ do
             r <- alloc
             idx <- atomicModifyIORef ref (\(i, mp) ->
@@ -138,50 +186,33 @@ withAllocateIO action = do
         let modify (i, mp) =
                 let res = Map.lookup index mp
                  in ((i, Map.delete index mp), res)
-            free1 = do
-                res <- atomicModifyIORef ref modify
-                sequence_ res
-        return (r, free1)
 
--- | Convert an @allocate@ function to a hook registration function.
+            release = do
+                f <- atomicModifyIORef ref modify
+                sequence_ f
+        return (r, release)
+
+-- | @acquire bracket alloc free@ is used in bracket-style safe resource
+-- allocation functions, where @alloc@ is a function used to allocate a
+-- resource and @free@ is used to free it. @acquire@ returns a tuple
+-- @(resource, release)@ where @resource@ is the allocated resource and
+-- @release@ is an action that can be called later to release the resource.
 --
-allocToRegIO :: AllocateIO -> RegisterIO
-allocToRegIO (AllocateIO f) = RegisterIO (void . g)
-
-    where
-
-    g x = f (return ()) (\() -> x)
-
--- | @withRegisterIO action@ runs the given @action@, providing it with a
--- special function called @register@ as argument. A @register hook@ call can
--- be used within @action@ any number of times to register hooks that would
--- run automatically when 'withRegisterIO' ends or if an exception occurs at
--- any time.
+-- The release action can be called multiple times but it will release the
+-- resource only once. If @release@ is never called it will be called at the
+-- end of the bracket scope.
 --
--- This function provides functionality similar to the @finally@ function
--- available in the @base@ package. However, it is more powerful as any number
--- of hooks can be registered at any time within the scope of @withRegisterIO@.
+acquire :: AllocateIO -> IO b -> (b -> IO c) -> IO (b, IO ())
+acquire (AllocateIO f) = f
+
+-- | Register a hook to be executed at the end of a bracket.
+register :: AllocateIO -> IO () -> IO ()
+register (AllocateIO f) g = void $ f (return ()) (\() -> g)
+
+-- | Like 'register' but returns a hook release function as well. When the
+-- returned hook release function is called, the hook is invoked and removed.
+-- If the returned function is never called then it will be automatically
+-- invoked at the end of the bracket. The hook is invoked once and only once.
 --
--- Exception safe, thread safe.
-{-# INLINE withRegisterIO #-}
-withRegisterIO :: forall m a. (MonadIO m, MonadMask m) =>
-    (RegisterIO -> m a) -> m a
-{-
-withRegisterIO action = do
-    let f bracket = do
-            let reg hook = void $ bracket (return ()) (\() -> void hook)
-            action reg
-     in withAllocateIO f
--}
-withRegisterIO action = do
-    ref <- liftIO $ newIORef []
-    action (RegisterIO (register ref)) `MC.finally` aft ref
-
-    where
-
-    aft ref = liftIO $ do
-        xs <- readIORef ref
-        sequenceA_ xs
-
-    register ref f =
-        atomicModifyIORef ref (\xs -> (void f : xs, ()))
+hook :: AllocateIO -> IO () -> IO (IO())
+hook (AllocateIO f) g = fmap snd $ f (return ()) (\() -> g)

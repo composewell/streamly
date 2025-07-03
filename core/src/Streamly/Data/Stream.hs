@@ -618,14 +618,18 @@ module Streamly.Data.Stream
     -- in Exception.Base
 
     -- * Exceptions
-    -- | Note that the stream exception handling routines catch and handle
-    -- exceptions only in the stream generation steps and not in the consumer
-    -- of the stream. For example, if we are folding or parsing a stream - any
-    -- exceptions in the fold or parse steps won't be observed by the stream
-    -- exception handlers. Exceptions in the fold or parse steps can be handled
-    -- using the fold or parse exception handling routines. You can wrap the
-    -- stream elimination function in the monad exception handler to observe
-    -- exceptions in the stream as well as the consumer.
+    -- | //Scope//: Note that the stream exception handling routines
+    -- (catch and handle) observe exceptions only in the stream segment (i.e.
+    -- functions with the 'Stream' type) of the pipeline and not in the
+    -- consumer segments (i.e. functions with 'Fold' or 'Parser' types). For
+    -- example, if we are folding or parsing a stream - any exceptions in the
+    -- fold or parser code won't be observed by the stream exception handlers.
+    --
+    -- Exceptions in the fold code can be handled using similar exception
+    -- handling routines found in the "Streamly.Data.Fold" module. To observe
+    -- exceptions in the entire pipeline, you can wrap the stream elimination
+    -- effect itself in a monad level exception handler (e.g. @Stream.fold
+    -- Fold.drain `catch` ...@).
     --
     -- Most of these combinators inhibit stream fusion, therefore, when
     -- possible, they should be called in an outer loop to mitigate the cost.
@@ -637,25 +641,33 @@ module Streamly.Data.Stream
 
     -- * Resource Management
     -- | 'bracket' is the most general resource management operation, all other
-    -- operations can be expressed using it. These functions have IO suffix
-    -- because the allocation and cleanup functions are IO actions. For
-    -- generalized allocation and cleanup functions, see the functions without
-    -- the IO suffix in the "streamly" package.
+    -- resource management operations can be expressed using it. These
+    -- functions have IO suffix because the allocation and cleanup functions
+    -- are IO actions. For generalized allocation and cleanup functions, see
+    -- the functions without the IO suffix in the "streamly" package.
     --
-    -- Note that these operations bracket the stream generation only, they do
-    -- not cover the stream consumer. This means if an exception occurs in
-    -- the consumer of the stream (e.g. in a fold or parse step) then the
-    -- exception won't be observed by the stream resource handlers, in that
-    -- case the resource cleanup handler runs when the stream is garbage
-    -- collected.
+    -- //Scope//: Note that these operations bracket only the stream segment in
+    -- a pipeline, they do not cover the stream consumer (e.g. folds). This
+    -- means if an exception occurs in the consumer of the stream (e.g. in a
+    -- fold or parser driven by the stream) then the exception won't be
+    -- observed by the stream resource handlers, in such cases the resource
+    -- cleanup handler runs when the stream is garbage collected.
     --
-    -- Monad level resource management can always be used around the stream
-    -- elimination functions, such a function can observe exceptions in both
-    -- the stream and its consumer.
+    -- To observe exceptions in the entire pipline, put a monad level resource
+    -- bracket around the stream elimination effect (e.g. around @Stream.fold
+    -- Fold.sum@).
+    --
+    -- See also the "Streamly.Internal.Control.Exception" module for general
+    -- resource management operations in non-stream as well as stream code.
     , before
     , afterIO
     , finallyIO
+    , finallyIO'
+    , finallyIO''
     , bracketIO
+    -- XXX Expose the Control.Exception module as well.
+    , bracketIO'
+    , bracketIO''
     , bracketIO3
 
     -- * Transforming Inner Monad

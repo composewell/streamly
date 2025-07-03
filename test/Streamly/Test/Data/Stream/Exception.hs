@@ -4,13 +4,11 @@ where
 
 import Control.Concurrent (threadDelay)
 import Control.Exception (SomeException, throw, catch, finally, bracket_)
-import Control.Monad (void, when)
-import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.Catch (MonadCatch, MonadMask)
+import Control.Monad (when)
 import Data.Foldable (sequenceA_)
 import Data.Function ((&))
 import Data.IORef (IORef, newIORef, atomicModifyIORef, readIORef)
-import Streamly.Internal.Control.Exception (AllocateIO(..), RegisterIO(..))
+import Streamly.Internal.Control.Exception (AllocateIO, acquire)
 import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Stream.Prelude (Config)
 import System.Mem (performMajorGC)
@@ -61,13 +59,14 @@ stream ref modifier =
         & Stream.take takeCount
 
 streamRelease :: AllocateIO -> IORef Int -> IORef Int -> (Config -> Config) -> Stream IO ()
-streamRelease (AllocateIO alloc) ref1 ref2 modifier =
+streamRelease bracket ref1 ref2 modifier =
       Stream.enumerateFrom (1 :: Int)
         & Stream.parMapM modifier
             ( \x -> do
               if x <= 10
               then do
-                  ((), release) <- alloc (incr ref1) (\() -> decr ref1)
+                  ((), release) <- acquire bracket (incr ref1) (\() -> decr ref1)
+                  -- 1000 makes a particular bug surface, not less, not more
                   threadDelay 1000
                   release
               else do
@@ -94,70 +93,54 @@ finalAction gc ref t = do
     -- when gc $ threadDelay 1000000
     when (r /= 0) $ error "Failed"
 
-adaptBracket :: (RegisterIO -> Stream m a) -> AllocateIO -> Stream m a
-adaptBracket action (AllocateIO alloc) = do
-    let f hook = void $ alloc (return ()) (\() -> void hook)
-    action (RegisterIO f)
-
-withFinallyIO :: (MonadIO m, MonadCatch m) =>
-    (RegisterIO -> Stream m b) -> Stream m b
-withFinallyIO action = Stream.withAllocateIO (adaptBracket action)
-
-testStream ::
-       ((RegisterIO -> Stream IO ()) -> Stream IO a)
-    -> Int -> (Config -> Config) -> IO ()
-testStream f t cfg = do
+testStream :: Int -> (Config -> Config) -> IO ()
+testStream t cfg = do
     ref <- newIORef (0 :: Int)
-    (f (\reg -> stream ref (cfg . Stream.setHookInstaller reg))
+    (Stream.withAllocateIO (\reg -> stream ref (cfg . Stream.setReleaseCb reg))
+        -- XXX enable this when stream finalization is implemented
+        -- & Stream.take 1
         & Stream.fold Fold.drain) `finally` finalAction False ref t
 
-testStreamRelease ::
-       ((AllocateIO -> Stream IO ()) -> Stream IO a)
-    -> Int -> (Config -> Config) -> IO ()
-testStreamRelease g t cfg = do
+testStreamRelease :: Int -> (Config -> Config) -> IO ()
+testStreamRelease count cfg = do
     ref1 <- newIORef (0 :: Int)
     ref2 <- newIORef (0 :: Int)
-    (g (\alloc -> do
-            let cfg1 = cfg . Stream.setHookInstaller (Exception.allocToRegIO alloc)
+    (Stream.withAllocateIO (\alloc -> do
+            let cfg1 = cfg . Stream.setReleaseCb alloc
             streamRelease alloc ref1 ref2 cfg1)
+        -- XXX enable this when stream finalization is implemented
+        -- & Stream.take 1
         & Stream.fold Fold.drain
        )
        `finally` do
             putStrLn "Checking MANUALLY released resources..."
-            finalAction False ref1 t
+            finalAction False ref1 count
             putStrLn "Checking AUTO released resources..."
-            finalAction False ref2 t
+            finalAction False ref2 count
 
-adaptBracketM :: (RegisterIO -> m a) -> AllocateIO -> m a
-adaptBracketM action (AllocateIO alloc) = do
-    let reg hook = void $ alloc (return ()) (\() -> void hook)
-    action (RegisterIO reg)
-
-withFinallyIOM :: (MonadIO m, MonadMask m) => (RegisterIO -> m b) -> m b
-withFinallyIOM action = Exception.withAllocateIO (adaptBracketM action)
-
-testEffect ::
-       ((RegisterIO -> IO ()) -> IO ())
-    -> Int -> (Config -> Config) -> IO ()
-testEffect g t cfg = do
+testEffect :: Int -> (Config -> Config) -> IO ()
+testEffect t cfg = do
     ref <- newIORef (0 :: Int)
-    g (\reg -> stream ref (cfg . Stream.setHookInstaller reg)
-        & Stream.fold Fold.drain) `finally` finalAction False ref t
+    Exception.withAllocateIO (\reg ->
+        stream ref (cfg . Stream.setReleaseCb reg)
+        & Stream.take 1
+        & Stream.fold Fold.drain
+      ) `finally` finalAction False ref t
 
-testEffectRelease ::
-       ((AllocateIO -> IO ()) -> IO a)
-    -> Int -> (Config -> Config) -> IO a
-testEffectRelease g t cfg = do
+testEffectRelease :: Int -> (Config -> Config) -> IO ()
+testEffectRelease count cfg = do
     ref1 <- newIORef (0 :: Int)
     ref2 <- newIORef (0 :: Int)
-    g (\alloc -> do
-            let cfg1 = cfg . Stream.setHookInstaller (Exception.allocToRegIO alloc)
-            streamRelease alloc ref1 ref2 cfg1 & Stream.fold Fold.drain
+    Exception.withAllocateIO (\alloc -> do
+            let cfg1 = cfg . Stream.setReleaseCb alloc
+            streamRelease alloc ref1 ref2 cfg1
+                & Stream.take 1
+                & Stream.fold Fold.drain
       ) `finally` do
             putStrLn "Checking MANUALLY released resources..."
-            finalAction False ref1 t
+            finalAction False ref1 count
             putStrLn "Checking AUTO released resources..."
-            finalAction False ref2 t
+            finalAction False ref2 count
 
 finallyGC :: Int -> (Stream.Config -> Stream.Config) -> IO ()
 finallyGC t cfg = do
@@ -183,12 +166,10 @@ sched =
 
 funcs :: [(String, Int -> (Stream.Config -> Stream.Config) -> IO ())]
 funcs =
-    [ ("Stream.withRegisterIO", testStream Stream.withRegisterIO)
-    , ("Exception.withRegisterIO", testEffect Exception.withRegisterIO)
-    , ("Stream.withAllocateIO", testStream withFinallyIO)
-    , ("Exception.withAllocateIO", testEffect withFinallyIOM)
-    , ("Stream.withAllocateIO release", testStreamRelease Stream.withAllocateIO)
-    , ("Exception.withAllocateIO release", testEffectRelease Exception.withAllocateIO)
+    [ ("Stream.withAllocateIO", testStream)
+    , ("Exception.withAllocateIO", testEffect)
+    , ("Stream.withAllocateIO release", testStreamRelease)
+    , ("Exception.withAllocateIO release", testEffectRelease)
     , ("finallyGC", finallyGC)
     ]
 
@@ -203,6 +184,7 @@ main = do
     -- Run another thread which sleeps for random intervals and sends
     -- UserInterrupt exception to the current test thread-id stored in the
     -- glbal variable in a loop.
+    -- TODO: test for non-concurrent use cases as well
     sequenceA_
         [ putStrLn ("Running: " ++ fst f ++ " " ++ fst x1 ++ " " ++ fst x2)
             >> snd f

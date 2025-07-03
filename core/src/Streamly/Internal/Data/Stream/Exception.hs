@@ -14,15 +14,19 @@ module Streamly.Internal.Data.Stream.Exception
     , afterIO
     , afterUnsafe
     , finallyIO
+    , finallyIO'
+    , finallyIO''
     , finallyUnsafe
     , gbracket_
     , gbracket
     , bracketUnsafe
     , bracketIO3
     , bracketIO
+    , bracketIO'
+    , bracketIO''
 
-    , withRegisterIO
     , withAllocateIO
+    , withAllocateIO'
 
     -- * Exceptions
     , onException
@@ -37,15 +41,14 @@ import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Exception (Exception, SomeException, mask_)
 import Control.Monad.Catch (MonadCatch)
-import Data.Foldable (sequenceA_)
 import Data.IORef (newIORef, readIORef, atomicModifyIORef)
 import GHC.Exts (inline)
-import Streamly.Internal.Control.Exception (AllocateIO(..), RegisterIO(..))
+import Streamly.Internal.Control.Exception (AllocateIO(..), acquire)
 import Streamly.Internal.Data.IOFinalizer
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
 
 import qualified Control.Monad.Catch as MC
-import qualified Data.Map.Strict as Map
+import qualified Data.IntMap.Strict as Map
 
 import Streamly.Internal.Data.Stream.Type
 
@@ -147,10 +150,9 @@ gbracket bef aft onExc onGC ftry action =
     -- weak pointer to us.
     {-# INLINE_LATE step #-}
     step _ GBracketIOInit = do
-        -- We mask asynchronous exceptions to make the execution
-        -- of 'bef' and the registration of 'aft' atomic.
-        -- A similar thing is done in the resourcet package: https://git.io/JvKV3
-        -- Tutorial: https://markkarpov.com/tutorial/exceptions.html
+        -- allocation of resource and installation of finalizer must be atomic
+        -- with respect to async exception, otherwise we may leave a window
+        -- where the resource may not be freed.
         (r, ref) <- liftIO $ mask_ $ do
             r <- bef
             ref <- newIOFinalizer (onGC r)
@@ -158,6 +160,10 @@ gbracket bef aft onExc onGC ftry action =
         return $ Skip $ GBracketIONormal (action r) r ref
 
     step gst (GBracketIONormal (UnStream step1 st) v ref) = do
+        -- IMPORTANT: Note that if an async exception occurs before try or
+        -- after try, in those cases the exception will not be intercepted and
+        -- the cleanup handler won't run. In those cases the cleanup handler
+        -- will run via GC.
         res <- ftry $ step1 gst st
         case res of
             Right r -> case r of
@@ -321,6 +327,8 @@ bracketUnsafe bef aft =
 -- the process in case of exception or garbage collection, but waits for the
 -- process to terminate in normal cases.
 
+-- XXX Just use bracketIO2 instead - stop and exception.
+
 -- | Like 'bracketIO' but can use 3 separate cleanup actions depending on the
 -- mode of termination:
 --
@@ -354,29 +362,54 @@ bracketIO3 bef aft onExc onGC =
         onGC
         (inline MC.try)
 
--- | Run the alloc action @IO b@ with async exceptions disabled but keeping
+-- XXX Fix the early termination case not being prompt. Will require a "final"
+-- function in the stream constructor.
+
+-- Examples of cases where the stream is not fully consumed:
+--
+-- * a bracketed stream is folded but before the stream ends, the fold
+-- terminates or encounters an exception abandoning the original stream.
+-- * 'take' on a bracketed stream terminates without draining the stream
+-- completely. To avoid this, bracket should be outermost combinator on a
+-- stream.
+-- * A synchronous exception is handled using 'handle', in that case the
+-- original stream is abandoned and collected by GC.
+--
+-- In case of async exceptions, if the async exception occurs when we are
+-- executing the stream code then it will be intercepted. After the stream
+-- element is generated, control is handed over to the consumer (fold), async
+-- exceptions occurring in this period are not intercepted by bracketIO, they
+-- are intercepted by the fold's bracket instead. If an async exceptions occurs
+-- in this part and the stream is abandoned, the cleanup handler runs on GC.
+
+-- | The alloc action @IO b@ is executed with async exceptions disabled but keeping
 -- blocking operations interruptible (see 'Control.Exception.mask').  Uses the
 -- output @b@ of the IO action as input to the function @b -> Stream m a@ to
 -- generate an output stream.
 --
--- @b@ is usually a resource under the IO monad, e.g. a file handle, that
--- requires a cleanup after use. The cleanup action @b -> IO c@, runs whenever
--- (1) the stream ends normally, (2) due to a sync or async exception or, (3)
--- if it gets garbage collected after a partial lazy evaluation. The exception
--- is not caught, it is rethrown.
+-- @b@ is usually a resource allocated under the IO monad, e.g. a file handle, that
+-- requires a cleanup after use. The cleanup is done using the @b -> IO c@
+-- action. bracketIO guarantees that the allocated resource is eventually (see
+-- details below) cleaned up even in the face of sync or async exceptions. If
+-- an exception occurs it is not caught, simply rethrown.
 --
 -- 'bracketIO' only guarantees that the cleanup action runs, and it runs with
--- async exceptions enabled. The action must ensure that it can successfully
+-- //async exceptions enabled//. The action must ensure that it can successfully
 -- cleanup the resource in the face of sync or async exceptions.
 --
--- When the stream ends normally or on a sync exception, cleanup action runs
--- immediately in the current thread context, whereas in other cases it runs in
--- the GC context, therefore, cleanup may be delayed until the GC gets to run.
--- An example where GC based cleanup happens is when a stream is being folded
--- but the fold terminates without draining the entire stream or if the
--- consumer of the stream encounters an exception.
+-- /Best case/: Cleanup happens immediately in the following cases:
 --
--- For cleanup that never relies on GC see 'withAllocateIO'.
+-- * the stream is consumed completely
+-- * an exception occurs in the bracketed part of the pipeline
+--
+-- /Worst case/: In the following cases cleanup is deferred to GC.
+--
+-- * the bracketed stream is partially consumed and abandoned
+-- * pipeline is aborted due to an exception outside the bracket
+--
+-- Use Streamly.Internal.Control.Exception.'Streamly.Internal.Control.Exception.withAllocateIO'
+-- for covering the entire pipeline with guaranteed cleanup at the end of
+-- bracket.
 --
 -- Observes exceptions only in the stream generation, and not in stream
 -- consumers.
@@ -390,11 +423,216 @@ bracketIO :: (MonadIO m, MonadCatch m)
     => IO b -> (b -> IO c) -> (b -> Stream m a) -> Stream m a
 bracketIO bef aft = bracketIO3 bef aft aft aft
 
--- | Like 'Streamly.Internal.Control.Exception.withAllocateIO' but for use in
--- streams instead of effects.
+-- If you are recovering from exceptions using 'handle' then you should use
+-- bracketIO'' which releases the resource promptly on exception before the
+-- exception handler generates another stream. But for better performance
+-- bracketIO' may be better and leave the resource to be freed by GC.
 --
--- Unlike 'bracketIO' this function does not rely on GC for cleanup. Cleanup is
--- deterministic.
+-- XXX If we want to recover from exceptions then we should probably have an
+-- integrated combinator combining handling with bracketIO'' otherwise we will
+-- have multiple layers of "try" which will not be good for perf.
+
+data GbracketIO'State s ref release
+    = GBracketIO'Init
+    | GBracketIO'Normal s ref release
+
+-- | Like 'bracketIO' but requires a resource manager in the underlying monad
+-- of the stream, and guarantees that all resources are freed before the
+-- scope of the monad level resource manager
+-- (Streamly.Internal.Control.Exception.'Streamly.Internal.Control.Exception.withAllocateIO')
+-- ends. Where fusion matters, it can be much faster than 'bracketIO' as it
+-- allows stream fusion.
+--
+-- /Best case/: Cleanup happens immediately if the stream is consumed
+-- completely.
+--
+-- /Worst case/: In the following cases cleanup is guaranteed to occur at the
+-- end of the monad level bracket. However, if a GC occurs then cleanup will
+-- occur even earlier than that.
+--
+-- * the bracketed stream is partially consumed and abandoned
+-- * pipeline is aborted due to an exception
+--
+-- This is the recommended default bracket operation.
+--
+-- Note: You can use 'acquire' directly, instead of using this combinator, if
+-- you don’t need to release the resource when the stream ends. However, if
+-- you're using the stream inside another stream (like with concatMap), you
+-- usually do want to release it at the end of the stream.
+--
+-- /Allows stream fusion/
+--
+{-# INLINE bracketIO' #-}
+bracketIO' :: MonadIO m
+    => AllocateIO -> IO b -> (b -> IO c) -> (b -> Stream m a) -> Stream m a
+bracketIO' bracket alloc free action =
+    Stream step GBracketIO'Init
+
+    where
+
+    -- In nested stream cases, where the inner stream is abandoned due to early
+    -- termination or due to exception handling, we use GC based cleanup as
+    -- fallback because the monad level cleanup may not occur in deterministic
+    -- amount of time, but GC may. Users can also implement backpressure
+    -- themselves e.g. if the number of open fds is greater than n then perform
+    -- GC until it comes down.
+    {-# INLINE_LATE step #-}
+    step _ GBracketIO'Init = do
+        (r, ref, release) <- liftIO $ mask_ $ do
+            (r, release) <- liftIO $ acquire bracket alloc free
+            ref <- newIOFinalizer release
+            return (r, ref, release)
+        return $ Skip $ GBracketIO'Normal (action r) ref release
+
+    step gst (GBracketIO'Normal (UnStream step1 st) ref release) = do
+        res <- step1 gst st
+        case res of
+            Yield x s ->
+                return $ Yield x (GBracketIO'Normal (Stream step1 s) ref release)
+            Skip s ->
+                return $ Skip (GBracketIO'Normal (Stream step1 s) ref release)
+            Stop ->
+                liftIO (clearingIOFinalizer ref release) >> return Stop
+
+-- | Like bracketIO, the only difference is that there is a guarantee that the
+-- resources will be freed at the end of the monad level bracket.
+--
+-- /Best case/: Cleanup happens immediately in the following cases:
+--
+-- * the stream is consumed completely
+-- * an exception occurs in the bracketed part of the pipeline
+--
+-- /Worst case/: In the following cases cleanup is guaranteed to occur at the
+-- end of the monad level bracket. However, if a GC occurs before that then
+-- cleanup will occur early.
+--
+-- * the bracketed stream is partially consumed and abandoned
+-- * pipeline is aborted due to an exception outside the bracket
+--
+-- Note: Instead of using this combinator you can directly use 'acquire'
+-- if you do not care about releasing the resource at the end of the stream
+-- and if you are not recovering from an exception using 'handle'. You may want
+-- to care about releasing the resource at the end of a stream if you are using
+-- it in a nested manner (e.g. in concatMap).
+--
+-- /Inhibits stream fusion/
+--
+{-# INLINE bracketIO'' #-}
+bracketIO'' :: (MonadIO m, MonadCatch m)
+    => AllocateIO -> IO b -> (b -> IO c) -> (b -> Stream m a) -> Stream m a
+bracketIO'' bracket alloc free action =
+    Stream step GBracketIO'Init
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step _ GBracketIO'Init = do
+        (r, ref, release) <- liftIO $ mask_ $ do
+            (r, release) <- liftIO $ acquire bracket alloc free
+            ref <- newIOFinalizer release
+            return (r, ref, release)
+        return $ Skip $ GBracketIO'Normal (action r) ref release
+
+    step gst (GBracketIO'Normal (UnStream step1 st) ref release) = do
+        -- If an async exception occurs before try or after try, in those cases
+        -- the exception will not be intercepted here. In those cases the
+        -- release action will run via AllocateIO release hook.
+        res <- MC.try $ step1 gst st
+        case res of
+            Right r ->
+                case r of
+                    Yield x s ->
+                        return
+                            $ Yield x (GBracketIO'Normal (Stream step1 s) ref release)
+                    Skip s ->
+                        return
+                            $ Skip (GBracketIO'Normal (Stream step1 s) ref release)
+                    Stop ->
+                        liftIO (clearingIOFinalizer ref release) >> return Stop
+            Left (e :: SomeException) ->
+                liftIO (clearingIOFinalizer ref release) >> MC.throwM e
+
+-- | Like finallyIO, based on bracketIO' semantics.
+{-# INLINE finallyIO' #-}
+finallyIO' :: MonadIO m => AllocateIO -> IO b -> Stream m a -> Stream m a
+finallyIO' bracket free stream =
+    bracketIO' bracket (return ()) (const free) (const stream)
+
+-- | Like finallyIO, based on bracketIO'' semantics.
+{-# INLINE finallyIO'' #-}
+finallyIO'' :: (MonadIO m, MonadCatch m) =>
+    AllocateIO -> IO b -> Stream m a -> Stream m a
+finallyIO'' bracket free stream =
+    bracketIO'' bracket (return ()) (const free) (const stream)
+
+-- | Like 'bracketIO' but with on-demand allocations and manual release
+-- facility.
+--
+-- Here is an example:
+--
+-- >>> :{
+-- close x h = do
+--  putStrLn $ "closing: " ++ x
+--  hClose h
+--
+-- generate bracket =
+--      Stream.fromList ["file1", "file2"]
+--    & Stream.mapM
+--        (\x -> do
+--            (h, release) <- acquire bracket (openFile x ReadMode) (close x)
+--            -- use h here
+--            threadDelay 1000000
+--            when (x == "file1") $ do
+--                putStrLn $ "Manually releasing: " ++ x
+--                release
+--            return x
+--        )
+--    & Stream.trace print
+--
+-- run =
+--     Stream.withAllocateIO generate
+--         & Stream.fold Fold.drain
+-- :}
+--
+-- In the above code, you should see the \"closing:\" message for both the
+-- files, and only once for each file. Make sure you create "file1" and "file2"
+-- before running it.
+--
+-- Here is an example for just registering hooks to be called eventually:
+--
+-- >>> :{
+-- generate bracket =
+--      Stream.fromList ["file1", "file2"]
+--    & Stream.mapM
+--        (\x -> do
+--            register bracket $ putStrLn $ "saw: " ++ x
+--            threadDelay 1000000
+--            return x
+--        )
+--    & Stream.trace print
+--
+-- run =
+--     Stream.withAllocateIO generate
+--         & Stream.fold Fold.drain
+-- :}
+--
+-- In the above code, even if you interrupt the program with CTRL-C you should
+-- still see the "saw:" message for the elements seen before the interrupt.
+--
+-- See 'bracketIO' documentation for the caveats related to partially consumed
+-- streams and async exceptions.
+--
+-- Use monad level bracket Streamly.Internal.Control.Exception.'Streamly.Internal.Control.Exception.withAllocateIO'
+-- for guaranteed cleanup in the entire pipeline, however, an important
+-- difference in that case is that you can either release resources manually or
+-- via automatic cleanup at the end of the monad bracket, no automatic cleanup
+-- happens at the end of the stream.
+-- The end of stream cleanup is useful, especially when allocations happen in
+-- nested streams which we want to cleanup at the end of every nested stream
+-- instead of waiting for the outer stream to end for cleaning up.
+--
+-- See also withAllocateIO' for the most general resource management mechanism
+-- in streams.
 --
 {-# INLINE withAllocateIO #-}
 withAllocateIO :: (MonadIO m, MonadCatch m) =>
@@ -405,16 +643,22 @@ withAllocateIO action = do
     where
 
     bef = do
+        -- Assuming 64-bit int counter will never overflow
         ref <- liftIO $ newIORef (0 :: Int, Map.empty)
-        return (ref, AllocateIO (bracket ref))
+        return (ref, AllocateIO (allocator ref))
 
     -- This is called from a single thread, therefore, we do not need to worry
     -- about concurrent execution.
+    --
+    -- XXX this can be called simultaneously with release. because those
+    -- threads may not have finished yet. However, if this releases them first
+    -- then the threads may misbehave. So we should first ensure that all
+    -- threads have drained.
     aft (ref, _) = liftIO $ do
         xs <- readIORef ref
         sequence_ (snd xs)
 
-    bracket ref alloc free = do
+    allocator ref alloc free = do
         (r, index) <- liftIO $ mask_ $ do
             r <- alloc
             idx <- atomicModifyIORef ref (\(i, mp) ->
@@ -429,36 +673,22 @@ withAllocateIO action = do
                 sequence_ res
         return (r, free1)
 
--- | Like 'Streamly.Internal.Control.Exception.withRegisterIO' but for use in
--- streams instead of effects.
+-- | We can also combine the stream local 'withAllocateIO' with the global monad
+-- level bracket
+-- Streamly.Internal.Control.Exception.'Streamly.Internal.Control.Exception.withAllocateIO'.
+-- The release actions returned by the local allocator can be registered to be
+-- called by the monad level bracket. This way we can guarantee that in the
+-- worst case release actions happen at the end of bracket and not depend on
+-- GC. This is the most powerful way of allocating resources on-demand with
+-- manual release inside a stream. If required a custom combinator can be
+-- written to register the local allocator's release in the global allocator
+-- automatically.
 --
--- Unlike 'finallyIO' this function does not rely on GC for cleanup.
---
-{-# INLINE withRegisterIO #-}
-withRegisterIO :: (MonadIO m, MonadCatch m) =>
-    (RegisterIO -> Stream m a) -> Stream m a
-{-
-withRegisterIO action = do
-    let f bracket = do
-            let reg hook = void $ bracket (return ()) (\() -> void hook)
-            action reg
-     in withAllocateIO f
--}
-withRegisterIO action = do
-    bracketIO bef aft (\(_, reg) -> action reg)
-
-    where
-
-    bef = do
-        ref <- liftIO $ newIORef []
-        return (ref, RegisterIO (register ref))
-
-    aft (ref, _) = liftIO $ do
-        xs <- readIORef ref
-        sequenceA_ xs
-
-    register ref f =
-        atomicModifyIORef ref (\xs -> (void f : xs, ()))
+-- /Unimplemented/
+{-# INLINE withAllocateIO' #-}
+withAllocateIO' :: -- (MonadIO m, MonadCatch m) =>
+    AllocateIO -> (AllocateIO -> Stream m a) -> Stream m a
+withAllocateIO' _globalAlloc _action = undefined
 
 data BracketState s v = BracketInit | BracketRun s v
 
@@ -507,9 +737,9 @@ finallyUnsafe action xs = bracketUnsafe (return ()) (const action) (const xs)
 -- The semantics of running the action @IO b@ are similar to the cleanup action
 -- semantics described in 'bracketIO'.
 --
--- >>> finallyIO release = Stream.bracketIO (return ()) (const release)
+-- >>> finallyIO release stream = Stream.bracketIO (return ()) (const release) (const stream)
 --
--- For cleanup that never relies on GC see 'withRegisterIO'.
+-- See also finallyIO' for stricter resource release guarantees.
 --
 -- /See also 'finallyUnsafe'/
 --

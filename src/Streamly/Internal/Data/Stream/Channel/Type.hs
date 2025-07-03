@@ -45,8 +45,8 @@ module Streamly.Internal.Data.Stream.Channel.Type
     , inspect
 
     -- *** Resource cleanup
-    , setHookInstaller
-    , clearHookInstaller
+    , setReleaseCb
+    , clearReleaseCb
 
     -- *** Get config
     , getMaxBuffer
@@ -89,7 +89,7 @@ import Streamly.Internal.Data.Channel.Dispatcher (dumpSVarStats)
 import Streamly.Internal.Data.Channel.Worker
     (sendYield, sendStop, sendEvent, sendException)
 import Streamly.Internal.Data.StreamK (StreamK)
-import Streamly.Internal.Control.Exception (RegisterIO(..))
+import Streamly.Internal.Control.Exception (AllocateIO(..), register)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units (NanoSecond64(..))
 
@@ -576,15 +576,54 @@ boundThreads flag st = st { _bound = flag }
 _getBound :: Config -> Bool
 _getBound = _bound
 
--- | Specify a function that registers a resource relase function. The resource
--- release function can be called on exception or when the stream pipeline has
--- finished to promptly release the channel instead of waiting for GC.
-setHookInstaller :: RegisterIO -> Config -> Config
-setHookInstaller (RegisterIO ref) cfg = cfg { _release = Just (void . ref) }
+-- | A concurrent stream allocates worker threads to evaluates actions in the
+-- stream concurrently. When an exception (sync or async) occurs in the code
+-- outside the scope of the stream generation code, these workers need to be
+-- stopped promptly. To enable that we allow the user to supply a callback
+-- registration function @register release@, this callback is used to set a
+-- @release@ function which cleans up the worker threads whenever it is called
+-- by the user. The user exception handling mechanism can call this to cleanup
+-- the concurrency state in the face of exceptions outside the scope of
+-- concurrent code.
+--
+-- The @register@ callback registration function is usually supplied by the
+-- 'withRegisterIO' or 'withAllocateIO' bracketing functions. But you can also
+-- create your own and use it manually if you want to.
+--
+-- Here is an example:
+--
+-- >>> :{
+-- close x h = do
+--  putStrLn $ "closing: " ++ x
+--  hClose h
+--
+-- action f@(AllocateIO alloc) =
+--      Stream.fromList ["file1", "file2"]
+--    & Stream.parMapM (Stream.setReleaseCb (Exception.allocToRegIO f))
+--        (\x -> do
+--            (h, release) <- alloc (openFile x ReadMode) (close x)
+--            -- use h here
+--            threadDelay 1000000
+--            when (x == "file1") $ do
+--                putStrLn $ "Manually releasing: " ++ x
+--                release
+--            return x
+--        )
+--    & Stream.trace print
+--    & Stream.fold Fold.drain
+--
+-- run = Exception.withAllocateIO action
+-- :}
+--
+-- If you do not need any allocations you can just use 'withRegisterIO' for
+-- simpler code.
+--
+setReleaseCb :: AllocateIO -> Config -> Config
+setReleaseCb f cfg = cfg { _release = Just (register f) }
 
 -- | Clear the resource release registration function.
-clearHookInstaller :: Config -> Config
-clearHookInstaller cfg = cfg { _release = Nothing }
+clearReleaseCb :: Config -> Config
+clearReleaseCb cfg = cfg { _release = Nothing }
 
 getCleanup :: Config -> Maybe (IO () -> IO ())
 getCleanup = _release
