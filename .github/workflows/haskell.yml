@@ -260,7 +260,7 @@ jobs:
           ~/.stack
           ~/.ghcup
         # Bump the key version to clear the cache
-        key: ${{ runner.os }}-${{ matrix.ghc_version }}-cabal-v2
+        key: ${{ runner.os }}-${{ matrix.ghc_version }}-cabal-v3
 
     - name: Download packcheck
       run: |
