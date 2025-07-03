@@ -32,6 +32,7 @@ module Streamly.Internal.Data.ParserK.Type
     , fromPure
     , fromEffect
     , die
+    , chainl1
 
     , parserDone
 
@@ -538,3 +539,16 @@ toParser parser = ParserD.Parser step initial extract
     forall s. toParser (parserK s) = s #-}
 {-# RULES "toParser/fromParser fusion" [2]
     forall s. parserK (toParser s) = s #-}
+
+{-# INLINE chainl1 #-}
+chainl1 :: ParserK b IO a -> ParserK b IO (a -> a -> a) -> ParserK b IO a
+chainl1 p op = p >>= go
+
+    where
+
+    go l = step l <|> pure l
+
+    step l = do
+        c <- op
+        r <- p
+        go (c l r)
