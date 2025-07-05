@@ -29,20 +29,18 @@ where
 
 #include "inline.hs"
 
-import Control.Exception (fromException)
+import Control.Exception (fromException, displayException)
 import Control.Monad (when)
 import Control.Monad.Catch (throwM, MonadThrow)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 #if __GLASGOW_HASKELL__ >= 810
 import Data.Kind (Type)
 #endif
-import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef)
-import Data.Maybe (isNothing)
+import Data.IORef (newIORef, mkWeakIORef, writeIORef)
 import Streamly.Internal.Control.Concurrent
     (MonadAsync, MonadRunInIO, askRunInIO)
 import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
-import System.Mem (performMajorGC)
 
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream as D
@@ -152,17 +150,11 @@ fromChannelRaw sv = K.MkStream $ \st yld sng stp -> do
 
     where
 
-    cleanup = do
-        when (svarInspectMode sv) $ liftIO $ do
-            t <- getTime Monotonic
-            writeIORef (svarStopTime (svarStats sv)) (Just t)
-            printSVar (dumpChannel sv) "Channel Done"
-
     {-# INLINE processEvents #-}
     processEvents [] = K.MkStream $ \st yld sng stp -> do
         done <- postProcess sv
         if done
-        then cleanup >> stp
+        then liftIO (channelDone sv "Channel done") >> stp
         else K.foldStream st yld sng stp $ fromChannelRaw sv
 
     processEvents (ev : es) = K.MkStream $ \st yld sng stp -> do
@@ -170,8 +162,8 @@ fromChannelRaw sv = K.MkStream $ \st yld sng stp -> do
         case ev of
             ChildYield a -> yld a rest
             ChildStopChannel -> do
-                liftIO $ cleanupChan sv
-                cleanup >> stp
+                liftIO $ cleanupChan sv "ChildStopChannel"
+                stp
             ChildStop tid e -> do
                 accountThread sv tid
                 case e of
@@ -187,10 +179,8 @@ fromChannelRaw sv = K.MkStream $ \st yld sng stp -> do
                                 error $ "processEvents: got ThreadAbort for tid " ++ show tid
                                 -- K.foldStream st yld sng stp rest
                             Nothing -> do
-                                liftIO $ cleanupChan sv
-                                -- XXX Should we wait for all threads to abort
-                                -- before throwing the exception?
-                                cleanup >> throwM ex
+                                liftIO $ cleanupChan sv (displayException ex)
+                                throwM ex
 
 #ifdef INSPECTION
 -- Use of GHC constraint tuple (GHC.Classes.(%,,%)) in fromStreamVar leads to
@@ -215,20 +205,6 @@ inspect $ hasNoTypeClassesExcept 'fromChannelRaw
 --
 -- XXX Add an option to block the consumer rather than stopping the stream if
 -- the work queue gets over.
-
-chanCleanup :: String -> Channel m a -> IO ()
-chanCleanup reason chan = do
-    when (svarInspectMode chan) $ do
-        r <- liftIO $ readIORef (svarStopTime (svarStats chan))
-        when (isNothing r) $
-            printSVar (dumpChannel chan) reason
-    liftIO $ cleanupChan chan
-    -- If there are any other channels referenced by this channel a GC will
-    -- prompt them to be cleaned up quickly.
-    when (svarInspectMode chan) performMajorGC
-
-chanCleanupOnGc :: Channel m a -> IO ()
-chanCleanupOnGc = chanCleanup "Channel cleanup via GC"
 
 -- | Draw a stream from a concurrent channel. The stream consists of the
 -- evaluated values from the input streams that were enqueued on the channel
@@ -261,17 +237,31 @@ fromChannelK register chan =
     -- collected.
     K.mkStream $ \st yld sng stp -> do
         ref <- liftIO $ newIORef ()
-        _ <- liftIO $ mkWeakIORef ref (chanCleanupOnGc chan)
+        _ <- liftIO $ mkWeakIORef ref (cleanupChan chan "Channel cleanup via GC")
         let msg = "Channel cleanup via explicit handler"
+
+        -- Register the cleanup handler to be called at the end of a user
+        -- defined bracket.
+        --
+        -- IMPORTANT: this hook should run before the resource cleanup hooks
+        -- registered by the worker threads themselves. If the auto release
+        -- hooks registered by the workers run first then we might release the
+        -- resources which are potentially in use by the workers, thus the
+        -- workers may misbehave. The correct sequence is to first abort and
+        -- drain all the workers then run any hooks registered by them.
+
         case register of
             Nothing -> return ()
-            Just f -> liftIO $ f (chanCleanup msg chan)
+            Just f -> liftIO $ f (cleanupChan chan msg)
 
         startChannel chan
         -- We pass a copy of chan to fromChannelRaw, with svarRef set to ref,
         -- so that we know that it has no other references, when that copy gets
         -- garbage collected "ref" will get garbage collected and our hook will
         -- be called.
+        --
+        -- XXX We should install cleanupChan as the exception handler for
+        -- ThreadAbort or any async exception while running fromChannelRaw.
         K.foldStreamShared st yld sng stp $
             fromChannelRaw chan{svarRef = Just ref}
 
@@ -300,24 +290,11 @@ _fromChannelD svar = D.Stream step FromSVarInit
     {-# INLINE_LATE step #-}
     step _ FromSVarInit = do
         ref <- liftIO $ newIORef ()
-        _ <- liftIO $ mkWeakIORef ref hook
+        _ <- liftIO $ mkWeakIORef ref (cleanupChan svar "Channel cleanup via GC")
         -- when this copy of svar gets garbage collected "ref" will get
         -- garbage collected and our GC hook will be called.
         let sv = svar{svarRef = Just ref}
         return $ D.Skip (FromSVarRead sv)
-
-        where
-
-        {-# NOINLINE hook #-}
-        hook = do
-            when (svarInspectMode svar) $ do
-                r <- liftIO $ readIORef (svarStopTime (svarStats svar))
-                when (isNothing r) $
-                    printSVar (dumpChannel svar) "SVar Garbage Collected"
-            liftIO $ cleanupChan svar
-            -- If there are any SVars referenced by this SVar a GC will prompt
-            -- them to be cleaned up quickly.
-            when (svarInspectMode svar) performMajorGC
 
     step _ (FromSVarRead sv) = do
         list <- readOutputQ sv
@@ -336,7 +313,7 @@ _fromChannelD svar = D.Stream step FromSVarInit
         case ev of
             ChildYield a -> return $ D.Yield a (FromSVarLoop sv es)
             ChildStopChannel -> do
-                liftIO $ cleanupChan sv
+                liftIO $ cleanupChan sv "ChildStopChannel"
                 return $ D.Skip (FromSVarDone sv)
             ChildStop tid e -> do
                 accountThread sv tid
@@ -347,7 +324,7 @@ _fromChannelD svar = D.Stream step FromSVarInit
                             Just ThreadAbort ->
                                 return $ D.Skip (FromSVarLoop sv es)
                             Nothing -> do
-                                liftIO $ cleanupChan sv
+                                liftIO $ cleanupChan sv (displayException ex)
                                 throwM ex
 
     step _ (FromSVarDone sv) = do

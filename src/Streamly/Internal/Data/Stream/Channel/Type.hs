@@ -67,6 +67,7 @@ module Streamly.Internal.Data.Stream.Channel.Type
     , shutdown
 
     -- ** Cleanup
+    , channelDone
     , cleanupChan
 
     -- ** Diagnostics
@@ -74,13 +75,13 @@ module Streamly.Internal.Data.Stream.Channel.Type
     )
 where
 
-import Control.Concurrent (ThreadId, throwTo, takeMVar)
+import Control.Concurrent (ThreadId, throwTo, takeMVar, putMVar)
 import Control.Concurrent.MVar (MVar)
 import Control.Exception (SomeException(..))
 import Control.Monad (void, when)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Int (Int64)
-import Data.IORef (IORef, newIORef, readIORef, atomicModifyIORef)
+import Data.IORef (IORef, newIORef, readIORef, atomicWriteIORef, writeIORef)
 import Data.List (intersperse)
 import Data.Set (Set)
 import Streamly.Internal.Control.Concurrent (RunInIO)
@@ -89,9 +90,11 @@ import Streamly.Internal.Data.Channel.Dispatcher (dumpSVarStats)
 import Streamly.Internal.Data.Channel.Worker
     (sendYield, sendStop, sendEvent, sendException)
 import Streamly.Internal.Data.StreamK (StreamK)
-import Streamly.Internal.Control.Exception (AllocateIO(..), register)
+import Streamly.Internal.Control.Exception
+    (AllocateIO(..), Priority(..), registerWith)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units (NanoSecond64(..))
+import System.Mem (performMajorGC)
 
 import qualified Data.Set as Set
 
@@ -244,7 +247,8 @@ data Channel m a = Channel
     -- information and communicate it to the channel.
     , workLoop :: Maybe WorkerInfo -> m ()
 
-    , channelStopped :: IORef Bool
+    , channelStopping :: IORef Bool
+    , channelStopped :: MVar Bool
 
     ---------------------------------------------------------------------------
     -- Worker thread accounting
@@ -576,6 +580,8 @@ boundThreads flag st = st { _bound = flag }
 _getBound :: Config -> Bool
 _getBound = _bound
 
+-- XXX setResourceBracket/setReleaseBracket
+
 -- | A concurrent stream allocates worker threads to evaluates actions in the
 -- stream concurrently. When an exception (sync or async) occurs in the code
 -- outside the scope of the stream generation code, these workers need to be
@@ -619,7 +625,7 @@ _getBound = _bound
 -- simpler code.
 --
 setReleaseCb :: AllocateIO -> Config -> Config
-setReleaseCb f cfg = cfg { _release = Just (register f) }
+setReleaseCb f cfg = cfg { _release = Just (registerWith f Priority1) }
 
 -- | Clear the resource release registration function.
 clearReleaseCb :: Config -> Config
@@ -820,13 +826,30 @@ dumpChannel sv = do
 -- Cleanup
 -------------------------------------------------------------------------------
 
--- | Never called from a worker thread.
-cleanupChan :: Channel m a -> IO ()
-cleanupChan chan = do
-    stopped <- atomicModifyIORef (channelStopped chan) (\x -> (True,x))
+channelDone :: Channel m a -> String -> IO ()
+channelDone chan reason = do
+    when (svarInspectMode chan) $ do
+        t <- getTime Monotonic
+        writeIORef (svarStopTime (svarStats chan)) (Just t)
+        printSVar (dumpChannel chan) reason
+        -- If there are any other channels referenced by this channel a GC will
+        -- prompt them to be cleaned up quickly.
+        performMajorGC
+
+-- XXX Handle ThreadAbort while this is running?
+
+-- | Never called from a worker thread. This can be called multiple times and
+-- only one will succeed others will block until it finishes.
+--
+cleanupChan :: Channel m a -> String -> IO ()
+cleanupChan chan reason = do
+    stopped <- takeMVar (channelStopped chan)
     when (not stopped) $ do
         -- putStrLn "cleanupChan: START"
+        atomicWriteIORef (channelStopping chan) True
         go
+        channelDone chan reason
+        putMVar (channelStopped chan) True
         -- putStrLn "cleanupChan: DONE"
 
     where

@@ -41,9 +41,10 @@ import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Exception (Exception, SomeException, mask_)
 import Control.Monad.Catch (MonadCatch)
-import Data.IORef (newIORef, readIORef, atomicModifyIORef)
+import Data.IORef (newIORef, readIORef, atomicModifyIORef')
 import GHC.Exts (inline)
-import Streamly.Internal.Control.Exception (AllocateIO(..), acquire)
+import Streamly.Internal.Control.Exception
+    (AllocateIO(..), Priority(..), acquire)
 import Streamly.Internal.Data.IOFinalizer
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
 
@@ -623,13 +624,12 @@ finallyIO'' bracket free stream =
 -- streams and async exceptions.
 --
 -- Use monad level bracket Streamly.Internal.Control.Exception.'Streamly.Internal.Control.Exception.withAllocateIO'
--- for guaranteed cleanup in the entire pipeline, however, an important
--- difference in that case is that you can either release resources manually or
--- via automatic cleanup at the end of the monad bracket, no automatic cleanup
--- happens at the end of the stream.
--- The end of stream cleanup is useful, especially when allocations happen in
--- nested streams which we want to cleanup at the end of every nested stream
--- instead of waiting for the outer stream to end for cleaning up.
+-- for guaranteed cleanup in the entire pipeline, however, it does not provide
+-- an automatic cleanup at the end of the stream; you can only release
+-- resources manually or via automatic cleanup at the end of the monad bracket.
+-- The end of stream cleanup is useful especially in nested streams where we
+-- want to cleanup at the end of every inner stream instead of waiting for the
+-- outer stream to end for cleaning up.
 --
 -- See also withAllocateIO' for the most general resource management mechanism
 -- in streams.
@@ -650,18 +650,24 @@ withAllocateIO action = do
     -- This is called from a single thread, therefore, we do not need to worry
     -- about concurrent execution.
     --
-    -- XXX this can be called simultaneously with release. because those
-    -- threads may not have finished yet. However, if this releases them first
-    -- then the threads may misbehave. So we should first ensure that all
-    -- threads have drained.
+    -- This after action may be exceuted asynchronously from GC hook. We are
+    -- assuming that the abandoned stream will not have any async actions being
+    -- executed which can use the resources while we are freeing them.
     aft (ref, _) = liftIO $ do
+        -- XXX free them atomically, even if another release executes in
+        -- parallel.
         xs <- readIORef ref
         sequence_ (snd xs)
 
-    allocator ref alloc free = do
+    allocator ref pri alloc free = do
+        case pri of
+            Priority1 ->
+                error $ "withAllocateIO: streaming version cannot be "
+                    ++ "used in channel cleanup"
+            Priority2 -> return ()
         (r, index) <- liftIO $ mask_ $ do
             r <- alloc
-            idx <- atomicModifyIORef ref (\(i, mp) ->
+            idx <- atomicModifyIORef' ref (\(i, mp) ->
                 ((i + 1, Map.insert i (void $ free r) mp), i))
             return (r, idx)
 
@@ -669,7 +675,10 @@ withAllocateIO action = do
                 let res = Map.lookup index mp
                  in ((i, Map.delete index mp), res)
             free1 = do
-                res <- atomicModifyIORef ref modify
+                -- We run it without an exception mask unlike withAllocateIO in
+                -- the Streamly.Control.Exception module. We can add it if
+                -- needed.
+                res <- atomicModifyIORef' ref modify
                 sequence_ res
         return (r, free1)
 

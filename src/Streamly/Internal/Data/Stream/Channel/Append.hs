@@ -959,7 +959,8 @@ getLifoSVar mrun cfg = do
         case getYieldLimit cfg of
             Nothing -> return Nothing
             Just x -> Just <$> newIORef x
-    stopRef <- newIORef False
+    stoppingRef <- newIORef False
+    stoppedMVar <- newMVar False
     rateInfo <- newRateInfo cfg
 
     stats <- newSVarStats
@@ -1008,7 +1009,8 @@ getLifoSVar mrun cfg = do
                 if inOrder
                 then workLoopAhead aheadQ outH sv
                 else wloop q sv
-            , channelStopped = stopRef
+            , channelStopping = stoppingRef
+            , channelStopped = stoppedMVar
             , enqueue =
                     if inOrder
                     then enqueueAhead sv aheadQ

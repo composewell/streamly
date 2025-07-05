@@ -116,8 +116,8 @@ forkWorker yieldMax sv = do
                     , workerLatencyStart = lat
                     }
 
-    stopped <- liftIO $ readIORef (channelStopped sv)
-    when (not stopped) $ liftIO $ doFork False sv winfo
+    stopping <- liftIO $ readIORef (channelStopping sv)
+    when (not stopping) $ liftIO $ doFork False sv winfo
 
 -- | Determine the maximum number of workers required based on 'maxWorkerLimit'
 -- and 'remainingWork'.

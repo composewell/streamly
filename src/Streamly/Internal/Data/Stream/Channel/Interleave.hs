@@ -15,7 +15,7 @@ where
 #include "inline.hs"
 
 import Control.Concurrent (myThreadId)
-import Control.Concurrent.MVar (newEmptyMVar)
+import Control.Concurrent.MVar (newEmptyMVar, newMVar)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.Concurrent.Queue.MichaelScott (LinkedQueue, newQ, nullQ, tryPopR, pushL)
 import Data.IORef (newIORef, readIORef)
@@ -161,7 +161,8 @@ getFifoSVar mrun cfg = do
     yl      <- case getYieldLimit cfg of
                 Nothing -> return Nothing
                 Just x -> Just <$> newIORef x
-    stopRef <- newIORef False
+    stoppingRef <- newIORef False
+    stoppedMVar <- newMVar False
     rateInfo <- newRateInfo cfg
 
     stats <- newSVarStats
@@ -198,7 +199,8 @@ getFifoSVar mrun cfg = do
             , postProcess      = postProc sv
             , workerThreads    = running
             , workLoop         = wloop q sv
-            , channelStopped   = stopRef
+            , channelStopping   = stoppingRef
+            , channelStopped   = stoppedMVar
             , enqueue          = enqueueFIFO sv q
             , eagerDispatch    = return ()
             , isWorkDone       = workDone sv

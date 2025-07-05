@@ -7,7 +7,7 @@ import Control.Exception (SomeException, throw, catch, finally, bracket_)
 import Control.Monad (when)
 import Data.Foldable (sequenceA_)
 import Data.Function ((&))
-import Data.IORef (IORef, newIORef, atomicModifyIORef, readIORef)
+import Data.IORef (IORef, newIORef, atomicModifyIORef', readIORef)
 import Streamly.Internal.Control.Exception (AllocateIO, acquire)
 import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Stream.Prelude (Config)
@@ -18,15 +18,19 @@ import qualified Streamly.Internal.Data.Stream.Prelude as Stream
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Data.Fold as Fold
 
+-- IMPORTANT: do not use a blocking operation inside it, otherwise the tests
+-- might fail because the operation will become interruptible..
 incr :: Num a => IORef a -> IO ()
 incr ref = do
     -- tid <- myThreadId
     -- putStrLn $ "Incrementing the counter: " ++ show tid
-    atomicModifyIORef ref (\x -> (x + 1, ()))
+    atomicModifyIORef' ref (\x -> (x + 1, ()))
 
+-- IMPORTANT: do not use a blocking operation inside it, otherwise the tests
+-- might fail because the operation will become interruptible..
 decr :: Num a => IORef a -> IO ()
 decr ref = do
-    atomicModifyIORef ref (\x -> (x - 1, ()))
+    atomicModifyIORef' ref (\x -> (x - 1, ()))
     -- tid <- myThreadId
     -- putStrLn $ "Decremented the counter: " ++ show tid
 
@@ -65,9 +69,13 @@ streamRelease bracket ref1 ref2 modifier =
             ( \x -> do
               if x <= 10
               then do
+                -- IMPORTANT: do not put interruptile operations in the
+                -- release function, otherwise the tests might fail,
+                -- because the operation will become interruptible.
                   ((), release) <- acquire bracket (incr ref1) (\() -> decr ref1)
                   -- 1000 makes a particular bug surface, not less, not more
                   threadDelay 1000
+                  -- putStrLn $ "release: " ++ show x
                   release
               else do
                   run ref2 $ threadDelay timeout
