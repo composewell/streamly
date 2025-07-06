@@ -54,6 +54,10 @@ module Streamly.Data.Stream.Prelude
     , ordered
     , interleaved
 
+    -- *** Resource management
+    , useAcquire
+    , clearAcquire
+
     -- *** Diagnostics
     , inspect
 
