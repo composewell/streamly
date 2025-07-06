@@ -394,7 +394,7 @@ bracketIO3 bef aft onExc onGC =
 -- an exception occurs it is not caught, simply rethrown.
 --
 -- 'bracketIO' only guarantees that the cleanup action runs, and it runs with
--- //async exceptions enabled//. The action must ensure that it can successfully
+-- __async exceptions enabled__. The action must ensure that it can successfully
 -- cleanup the resource in the face of sync or async exceptions.
 --
 -- /Best case/: Cleanup happens immediately in the following cases:
@@ -436,11 +436,11 @@ data GbracketIO'State s ref release
     = GBracketIO'Init
     | GBracketIO'Normal s ref release
 
--- | Like 'bracketIO' but requires a resource manager in the underlying monad
+-- | Like 'bracketIO' but requires an 'AcquireIO' reference in the underlying monad
 -- of the stream, and guarantees that all resources are freed before the
 -- scope of the monad level resource manager
 -- (Streamly.Internal.Control.Exception.'Streamly.Internal.Control.Exception.withAcquireIO')
--- ends. Where fusion matters, it can be much faster than 'bracketIO' as it
+-- ends. Where fusion matters, this combinator can be much faster than 'bracketIO' as it
 -- allows stream fusion.
 --
 -- /Best case/: Cleanup happens immediately if the stream is consumed
@@ -495,7 +495,7 @@ bracketIO' bracket alloc free action =
                 liftIO (clearingIOFinalizer ref release) >> return Stop
 
 -- | Like bracketIO, the only difference is that there is a guarantee that the
--- resources will be freed at the end of the monad level bracket.
+-- resources will be freed at the end of the monad level bracket ('AcquireIO').
 --
 -- /Best case/: Cleanup happens immediately in the following cases:
 --
@@ -574,12 +574,14 @@ finallyIO'' bracket free stream =
 -- close x h = do
 --  putStrLn $ "closing: " ++ x
 --  hClose h
+-- :}
 --
--- generate bracket =
+-- >>> :{
+-- generate ref =
 --      Stream.fromList ["file1", "file2"]
 --    & Stream.mapM
 --        (\x -> do
---            (h, release) <- acquire bracket (openFile x ReadMode) (close x)
+--            (h, release) <- Exception.acquire ref (openFile x ReadMode) (close x)
 --            -- use h here
 --            threadDelay 1000000
 --            when (x == "file1") $ do
@@ -588,7 +590,9 @@ finallyIO'' bracket free stream =
 --            return x
 --        )
 --    & Stream.trace print
+-- :}
 --
+-- >>> :{
 -- run =
 --     Stream.withAcquireIO generate
 --         & Stream.fold Fold.drain
@@ -601,16 +605,18 @@ finallyIO'' bracket free stream =
 -- Here is an example for just registering hooks to be called eventually:
 --
 -- >>> :{
--- generate bracket =
+-- generate ref =
 --      Stream.fromList ["file1", "file2"]
 --    & Stream.mapM
 --        (\x -> do
---            register bracket $ putStrLn $ "saw: " ++ x
+--            Exception.register ref $ putStrLn $ "saw: " ++ x
 --            threadDelay 1000000
 --            return x
 --        )
 --    & Stream.trace print
+-- :}
 --
+-- >>> :{
 -- run =
 --     Stream.withAcquireIO generate
 --         & Stream.fold Fold.drain
@@ -623,12 +629,12 @@ finallyIO'' bracket free stream =
 -- streams and async exceptions.
 --
 -- Use monad level bracket Streamly.Internal.Control.Exception.'Streamly.Internal.Control.Exception.withAcquireIO'
--- for guaranteed cleanup in the entire pipeline, however, it does not provide
+-- for guaranteed cleanup in the entire pipeline, however, monad level bracket does not provide
 -- an automatic cleanup at the end of the stream; you can only release
 -- resources manually or via automatic cleanup at the end of the monad bracket.
 -- The end of stream cleanup is useful especially in nested streams where we
 -- want to cleanup at the end of every inner stream instead of waiting for the
--- outer stream to end for cleaning up.
+-- outer stream to end for cleaning up to happen.
 --
 {-# INLINE withAcquireIO #-}
 withAcquireIO :: (MonadIO m, MonadCatch m) =>

@@ -62,8 +62,9 @@ stream ref modifier =
             )
         & Stream.take takeCount
 
-streamRelease :: AcquireIO -> IORef Int -> IORef Int -> (Config -> Config) -> Stream IO ()
-streamRelease bracket ref1 ref2 modifier =
+streamRelease ::
+    AcquireIO -> IORef Int -> IORef Int -> (Config -> Config) -> Stream IO ()
+streamRelease aref ref1 ref2 modifier =
       Stream.enumerateFrom (1 :: Int)
         & Stream.parMapM modifier
             ( \x -> do
@@ -72,7 +73,8 @@ streamRelease bracket ref1 ref2 modifier =
                 -- IMPORTANT: do not put interruptile operations in the
                 -- release function, otherwise the tests might fail,
                 -- because the operation will become interruptible.
-                  ((), release) <- acquire bracket (incr ref1) (\() -> decr ref1)
+                  ((), release) <-
+                        acquire aref (incr ref1) (\() -> decr ref1)
                   -- 1000 makes a particular bug surface, not less, not more
                   threadDelay 1000
                   -- putStrLn $ "release: " ++ show x
@@ -104,7 +106,7 @@ finalAction gc ref t = do
 testStream :: Int -> (Config -> Config) -> IO ()
 testStream t cfg = do
     ref <- newIORef (0 :: Int)
-    (Stream.withAcquireIO (\acq -> stream ref (cfg . Stream.useAcquire acq))
+    (Stream.withAcquireIO (\aref -> stream ref (cfg . Stream.useAcquire aref))
         -- XXX enable this when stream finalization is implemented
         -- & Stream.take 1
         & Stream.fold Fold.drain) `finally` finalAction False ref t
@@ -113,9 +115,9 @@ testStreamRelease :: Int -> (Config -> Config) -> IO ()
 testStreamRelease count cfg = do
     ref1 <- newIORef (0 :: Int)
     ref2 <- newIORef (0 :: Int)
-    (Stream.withAcquireIO (\acq -> do
-            let cfg1 = cfg . Stream.useAcquire acq
-            streamRelease acq ref1 ref2 cfg1)
+    (Stream.withAcquireIO (\aref -> do
+            let cfg1 = cfg . Stream.useAcquire aref
+            streamRelease aref ref1 ref2 cfg1)
         -- XXX enable this when stream finalization is implemented
         -- & Stream.take 1
         & Stream.fold Fold.drain
@@ -129,8 +131,8 @@ testStreamRelease count cfg = do
 testEffect :: Int -> (Config -> Config) -> IO ()
 testEffect t cfg = do
     ref <- newIORef (0 :: Int)
-    Exception.withAcquireIO (\acq ->
-        stream ref (cfg . Stream.useAcquire acq)
+    Exception.withAcquireIO (\aref ->
+        stream ref (cfg . Stream.useAcquire aref)
         & Stream.take 1
         & Stream.fold Fold.drain
       ) `finally` finalAction False ref t
@@ -139,9 +141,9 @@ testEffectRelease :: Int -> (Config -> Config) -> IO ()
 testEffectRelease count cfg = do
     ref1 <- newIORef (0 :: Int)
     ref2 <- newIORef (0 :: Int)
-    Exception.withAcquireIO (\acq -> do
-            let cfg1 = cfg . Stream.useAcquire acq
-            streamRelease acq ref1 ref2 cfg1
+    Exception.withAcquireIO (\aref -> do
+            let cfg1 = cfg . Stream.useAcquire aref
+            streamRelease aref ref1 ref2 cfg1
                 & Stream.take 1
                 & Stream.fold Fold.drain
       ) `finally` do

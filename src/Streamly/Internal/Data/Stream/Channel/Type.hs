@@ -583,16 +583,9 @@ _getBound = _bound
 -- | A concurrent stream allocates worker threads to evaluates actions in the
 -- stream concurrently. When an exception (sync or async) occurs in the code
 -- outside the scope of the stream generation code, these workers need to be
--- stopped promptly. To enable that we allow the user to supply a callback
--- registration function @register release@, this callback is used to set a
--- @release@ function which cleans up the worker threads whenever it is called
--- by the user. The user exception handling mechanism can call this to cleanup
--- the concurrency state in the face of exceptions outside the scope of
--- concurrent code.
---
--- The @register@ callback registration function is usually supplied by the
--- 'withRegisterIO' or 'withAcquireIO' bracketing functions. But you can also
--- create your own and use it manually if you want to.
+-- stopped promptly. To enable that we can use an 'AcquireIO' bracket from the
+-- surrounding scope. When 'AcquireIO' scope ends the channel is automatically
+-- cleaned up.
 --
 -- Here is an example:
 --
@@ -600,12 +593,14 @@ _getBound = _bound
 -- close x h = do
 --  putStrLn $ "closing: " ++ x
 --  hClose h
+-- :}
 --
--- action f@(AcquireIO alloc) =
+-- >>> :{
+-- action ref =
 --      Stream.fromList ["file1", "file2"]
---    & Stream.parMapM (Stream.useAcquire (Exception.allocToRegIO f))
+--    & Stream.parMapM (Stream.useAcquire ref)
 --        (\x -> do
---            (h, release) <- alloc (openFile x ReadMode) (close x)
+--            (h, release) <- Exception.acquire ref (openFile x ReadMode) (close x)
 --            -- use h here
 --            threadDelay 1000000
 --            when (x == "file1") $ do
@@ -615,12 +610,9 @@ _getBound = _bound
 --        )
 --    & Stream.trace print
 --    & Stream.fold Fold.drain
---
--- run = Exception.withAcquireIO action
 -- :}
 --
--- If you do not need any allocations you can just use 'withRegisterIO' for
--- simpler code.
+-- >>> run = Exception.withAcquireIO action
 --
 useAcquire :: AcquireIO -> Config -> Config
 useAcquire f cfg = cfg { _release = Just (registerWith Priority1 f) }

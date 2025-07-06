@@ -618,7 +618,7 @@ module Streamly.Data.Stream
     -- in Exception.Base
 
     -- * Exceptions
-    -- | //Scope//: Note that the stream exception handling routines
+    -- | __Scope__: Note that the stream exception handling routines
     -- (catch and handle) observe exceptions only in the stream segment (i.e.
     -- functions with the 'Stream' type) of the pipeline and not in the
     -- consumer segments (i.e. functions with 'Fold' or 'Parser' types). For
@@ -646,8 +646,8 @@ module Streamly.Data.Stream
     -- are IO actions. For generalized allocation and cleanup functions, see
     -- the functions without the IO suffix in the "streamly" package.
     --
-    -- //Scope//: Note that these operations bracket only the stream segment in
-    -- a pipeline, they do not cover the stream consumer (e.g. folds). This
+    -- __Scope__: Note that these operations bracket only the stream-segment in
+    -- a pipeline, they do not cover the stream-consumer (e.g. folds). This
     -- means if an exception occurs in the consumer of the stream (e.g. in a
     -- fold or parser driven by the stream) then the exception won't be
     -- observed by the stream resource handlers, in such cases the resource

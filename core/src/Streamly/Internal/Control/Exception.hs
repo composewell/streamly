@@ -17,11 +17,11 @@ module Streamly.Internal.Control.Exception
 
     -- * Resource Management
     -- | Exception safe, thread safe resource managment operations, similar to
-    -- but more powerful than the bracket and finally operations available in
-    -- the base package.
+    -- but more powerful than the @bracket@ and @finally@ operations available
+    -- in the base package.
     --
     -- These operations support allocation and free only in the IO monad,
-    -- therefore, they have the IO suffix.
+    -- hence the IO suffix.
     --
     , AcquireIO(..)
     , Priority(..)
@@ -86,11 +86,12 @@ verifyM predicate = verify predicate (pure ())
 -- a limited GC to free them? We can then just put gc sync barriers at points
 -- where we want to ensure that resources are freed.
 
--- | Resources with Priority1 are freed before Priority2. This is especially
--- introduced to take care of the case where we need to free channels, so that
--- all the workers of the channel are cleanup before we free the resources
--- allocated by the workers of the channel. Otherwise we might free the
--- resources and workers may be trying to use them and start misbehaving.
+-- | Resources with 'Priority1' are freed before 'Priority2'. Priority is
+-- especially introduced to take care of the case where we need to free
+-- concurrency channels, so that all the workers of the channel are cleaned up
+-- before we free the resources allocated by the workers of the channel.
+-- Otherwise we might free the resources and workers may be trying to use them
+-- and start misbehaving.
 --
 data Priority = Priority1 | Priority2 deriving Show
 
@@ -106,6 +107,7 @@ data Priority = Priority1 | Priority2 deriving Show
 newtype AcquireIO = AcquireIO
     (forall b c. Priority -> IO b -> (b -> IO c) -> IO (b, IO ()))
 
+-- | /Internal/.
 allocator :: MonadIO m =>
        IORef (Int, IntMap (IO ()), IntMap (IO ()))
     -> Priority
@@ -162,11 +164,12 @@ allocator ref pri alloc free = do
 -- tracked by us, however, that would be a programming error and any such
 -- threads could misbehave if we freed the resources from under them.
 --
--- We use GC based hooks in Stream.bracketIO' so there could be async threads
+-- We use GC based hooks in 'Stream.bracketIO\'' so there could be async threads
 -- spawned by GC, releasing resources concurrently with us. For that reason we
 -- need to make sure that the "release" in the bracket end action is executed
 -- only once in that case.
 --
+-- /Internal/.
 releaser :: MonadIO m => IORef (a, IntMap (IO b), IntMap (IO b)) -> m ()
 releaser ref =
     liftIO $ mask_ $ do
@@ -186,33 +189,36 @@ releaser ref =
         -- XXX We can now assert that the IORef has both maps empty.
 
 -- | @withAcquireIO action@ runs the given @action@, providing it with a
--- special function called @allocator@ as argument. An @allocator alloc
--- free@ call can be used within @action@ any number of times to allocate
--- resources that are automatically freed when 'withAcquireIO' ends or if an
--- exception occurs at any time. @alloc@ is a function used to allocate a
--- resource and @free@ is to free the allocated resource. @allocator@
--- returns @(resource, release)@ -- the allocated @resource@ and a @release@
--- action to release it.
+-- an 'AcquireIO' reference called @ref@ as argument. @ref@ is used for resource
+-- acquisition or hook registeration within the scope of @action@. An @acquire
+-- ref alloc free@ call can be used within @action@ any number of times to
+-- acquire resources that are automatically freed when the scope of @action@
+-- ends or if an exception occurs at any time. @alloc@ is a function supplied
+-- by the user to allocate a resource and @free@ is supplied to free the
+-- allocated resource. @acquire@ returns @(resource, release)@ -- the acquired
+-- @resource@ and a @release@ action to release it.
 --
--- @allocator@ allocates a resource in an exception safe manner and
--- sets up its automatic release on exception or when @withAcquireIO@ ends.
--- The @release@ function returned by @allocator@ can be used to free the
--- resource manually at any time. @release@ is guaranteed to free the resource
+-- @acquire@ allocates a resource in an exception safe manner and sets up its
+-- automatic release on exception or when the scope of @action@ ends. The
+-- @release@ function returned by @acquire@ can be used to free the resource
+-- manually at any time. @release@ is guaranteed to free the resource once and
 -- only once even if it is called concurrently or multiple times.
 --
--- Here is an example to allocate resources that are guaranteed to be released,
--- and can be released manually as well:
+-- Here is an example to allocate resources that are guaranteed to be released
+-- automatically, and can be released manually as well:
 --
 -- >>> :{
 -- close x h = do
 --  putStrLn $ "closing: " ++ x
 --  hClose h
+-- :}
 --
--- action (AcquireIO alloc) =
+-- >>> :{
+-- action ref =
 --      Stream.fromList ["file1", "file2"]
 --    & Stream.mapM
 --        (\x -> do
---            (h, release) <- alloc (openFile x ReadMode) (close x)
+--            (h, release) <- Exception.acquire ref (openFile x ReadMode) (close x)
 --            -- use h here
 --            threadDelay 1000000
 --            when (x == "file1") $ do
@@ -222,46 +228,45 @@ releaser ref =
 --        )
 --    & Stream.trace print
 --    & Stream.fold Fold.drain
---
--- run = Exception.withAcquireIO action
 -- :}
+--
+-- >>> run = Exception.withAcquireIO action
 --
 -- In the above code, you should see the \"closing:\" message for both the
 -- files, and only once for each file. Even if you interrupt the program with
 -- CTRL-C you should still see the \"closing:\" message for the files opened
 -- before the interrupt. Make sure you create "file1" and "file2" before
--- running it.
+-- running this code snippet.
 --
--- Cleanup is guaranteed to happen as soon as the scope of 'withAcquireIO'
+-- Cleanup is guaranteed to happen as soon as the scope of 'action'
 -- finishes or if an exception occurs.
 --
 -- Here is an example for just registering hooks to be called eventually:
 --
 -- >>> :{
--- action f =
+-- action ref =
 --      Stream.fromList ["file1", "file2"]
 --    & Stream.mapM
 --        (\x -> do
---            register f $ putStrLn $ "saw: " ++ x
+--            Exception.register ref $ putStrLn $ "saw: " ++ x
 --            threadDelay 1000000
 --            return x
 --        )
 --    & Stream.trace print
 --    & Stream.fold Fold.drain
---
--- run = Exception.withAcquireIO action
 -- :}
+--
+-- >>> run = Exception.withAcquireIO action
 --
 -- In the above code, even if you interrupt the program with CTRL-C you should
 -- still see the "saw:" message for the elements seen before the interrupt.
 --
 -- The registered hooks are guaranteed to be invoked as soon as the scope of
--- 'withAcquireIO' finishes or if an exception occurs.
+-- 'action' finishes or if an exception occurs.
 --
 -- This function provides functionality similar to the @bracket@ function
 -- available in the base library. However, it is more powerful as any number of
--- resources can be allocated at any time within the scope and can be released
--- at any time.
+-- resources can be allocated and released within the scope of 'action'.
 --
 -- Exception safe, thread safe.
 {-# INLINE withAcquireIO #-}
@@ -272,27 +277,29 @@ withAcquireIO action = do
     action (AcquireIO (allocator ref)) `MC.finally` releaser ref
 
 -- | Like 'acquire' but allows specifying a priority for releasing the
--- resource. Priority1 resources are released before Priority2. This allows us
--- to specify a dependency between resource release.
+-- resource. 'Priority1' resources are released before 'Priority2'. This allows
+-- us to specify a dependency between resource release.
 {-# INLINE acquireWith #-}
 acquireWith :: Priority -> AcquireIO -> IO b -> (b -> IO c) -> IO (b, IO ())
 acquireWith pri (AcquireIO f) = f pri
 
--- | @acquire bracket alloc free@ is used in bracket-style safe resource
--- allocation functions, where @alloc@ is a function used to allocate a
--- resource and @free@ is used to free it. @acquire@ returns a tuple
+-- | @acquire ref alloc free@ is used in bracket-style safe resource allocation
+-- functions, where @alloc@ is a function supplied by the user to allocate a
+-- resource and @free@ is supplied to free it. @acquire@ returns a tuple
 -- @(resource, release)@ where @resource@ is the allocated resource and
 -- @release@ is an action that can be called later to release the resource.
--- Both alloc and free are invoked with async signals masked. You can use
--- allowInterrupt for allowing interrupts if required.
+-- Both @alloc@ and @free@ are invoked with async signals masked. You can use
+-- @allowInterrupt@ from base package for allowing interrupts if required.
 --
--- The release action can be called multiple times or even concurrently from
+-- The @release@ action can be called multiple times or even concurrently from
 -- multiple threads,  but it will release the resource only once. If @release@
--- is never called it will be called at the end of the bracket scope.
+-- is never called by the programmer it will be automatically called at the end
+-- of the bracket scope.
 --
 acquire :: AcquireIO -> IO b -> (b -> IO c) -> IO (b, IO ())
 acquire = acquireWith Priority2
 
+-- | Like 'register' but specifies a 'Priority' for calling the hook.
 {-# INLINE registerWith #-}
 registerWith :: Priority -> AcquireIO -> IO () -> IO ()
 registerWith pri (AcquireIO f) g = void $ f pri (return ()) (\() -> g)
@@ -303,8 +310,9 @@ register = registerWith Priority2
 
 -- | Like 'register' but returns a hook release function as well. When the
 -- returned hook release function is called, the hook is invoked and removed.
--- If the returned function is never called then it will be automatically
--- invoked at the end of the bracket. The hook is invoked once and only once.
+-- If the returned function is never called by the programmer then it is
+-- automatically invoked at the end of the bracket. The hook is invoked once
+-- and only once.
 --
 hook :: AcquireIO -> IO () -> IO (IO())
 hook (AcquireIO f) g = fmap snd $ f Priority2 (return ()) (\() -> g)
