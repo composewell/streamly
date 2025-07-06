@@ -25,6 +25,8 @@ module Streamly.Internal.Control.Exception
     --
     , AllocateIO(..) -- XXX rename to BracketIO or AcquirerIO
     , Priority(..)
+    , allocator
+    , releaser
     , withAllocateIO
     , acquireWith
     , acquire
@@ -39,7 +41,8 @@ import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Exception (mask_)
 import Control.Monad.Catch (MonadMask)
-import Data.IORef (newIORef, readIORef, atomicModifyIORef')
+import Data.IntMap.Strict (IntMap)
+import Data.IORef (IORef, newIORef, atomicModifyIORef')
 
 import qualified Control.Monad.Catch as MC
 import qualified Data.IntMap.Strict as Map
@@ -102,6 +105,85 @@ data Priority = Priority1 | Priority2 deriving Show
 --
 newtype AllocateIO = AllocateIO
     (forall b c. Priority -> IO b -> (b -> IO c) -> IO (b, IO ()))
+
+allocator :: MonadIO m =>
+       IORef (Int, IntMap (IO ()), IntMap (IO ()))
+    -> Priority
+    -> IO a
+    -> (a -> IO b)
+    -> m (a, m ())
+allocator ref pri alloc free = do
+    let insertResource r (i, mp1, mp2) =
+            case pri of
+                Priority1 ->
+                    ((i + 1, Map.insert i (void $ free r) mp1, mp2), i)
+                Priority2 ->
+                    ((i + 1, mp1, Map.insert i (void $ free r) mp2), i)
+
+    (r, index) <-
+        liftIO $ mask_ $ do
+            -- tid <- myThreadId
+            r <- alloc
+            idx <- atomicModifyIORef' ref (insertResource r)
+            -- liftIO $ putStrLn $ "insert: " ++ show pri
+            --      ++ " " ++ show idx ++ " " ++ show tid
+            return (r, idx)
+
+    let deleteResource (i, mp1, mp2) =
+            case pri of
+                Priority1 ->
+                    let res = Map.lookup index mp1
+                     in ((i, Map.delete index mp1, mp2), res)
+                Priority2 ->
+                    let res = Map.lookup index mp2
+                     in ((i, mp1, Map.delete index mp2), res)
+
+        release =
+            -- IMPORTANT: do not use interruptible operations in this
+            -- critical section. Even putStrLn can make tests fail.
+            liftIO $ mask_ $ do
+                -- tid <- myThreadId
+                -- liftIO $ putStrLn $ "releasing index: " ++ show index
+                --      ++ " " ++ show tid
+                f <- atomicModifyIORef' ref deleteResource
+                -- restoring exceptions makes it non-atomic, tests fail.
+                -- Can use allowInterrupt in "free" if desired.
+                sequence_ f
+    return (r, release)
+
+-- XXX can we ensure via GC that the resources that we are freeing are all
+-- dead, there are no other references to them?
+
+-- | We ensure that all async workers for concurrent streams are stopped
+-- before we release the resources so that nobody could be using the
+-- resource after they are freed.
+--
+-- The only other possibility, could be user issued forkIO not being
+-- tracked by us, however, that would be a programming error and any such
+-- threads could misbehave if we freed the resources from under them.
+--
+-- We use GC based hooks in Stream.bracketIO' so there could be async threads
+-- spawned by GC, releasing resources concurrently with us. For that reason we
+-- need to make sure that the "release" in the bracket end action is executed
+-- only once in that case.
+--
+releaser :: MonadIO m => IORef (a, IntMap (IO b), IntMap (IO b)) -> m ()
+releaser ref =
+    liftIO $ mask_ $ do
+        -- Delete the map from the ref first so that anyone else (GC)
+        -- releasing concurrently cannot find the map.
+        -- liftIO $ putStrLn "cleaning up priority 1"
+        mp1 <- atomicModifyIORef' ref
+            (\(i, mp1,mp2) -> ((i, Map.empty, mp2), mp1))
+        -- Note that the channel cleanup function is interruptible because
+        -- it has blocking points.
+        sequence_ mp1
+        -- Now nobody would be changing mp2, we can read it safely
+        -- liftIO $ putStrLn "cleaning up priority 2"
+        mp2 <- atomicModifyIORef' ref
+            (\(i, mp,mp2) -> ((i, mp, Map.empty), mp2))
+        sequence_ mp2
+        -- XXX We can now assert that the IORef has both maps empty.
 
 -- | @withAllocateIO action@ runs the given @action@, providing it with a
 -- special function called @allocator@ as argument. An @allocator alloc
@@ -187,76 +269,7 @@ withAllocateIO :: (MonadIO m, MonadMask m) => (AllocateIO -> m a) -> m a
 withAllocateIO action = do
     -- Assuming 64-bit int counter will never overflow
     ref <- liftIO $ newIORef (0 :: Int, Map.empty, Map.empty)
-    action (AllocateIO (allocator ref)) `MC.finally` aft ref
-
-    where
-
-    -- XXX can we ensure via GC that the resources that we are freeing are all
-    -- dead, there are no other references to them?
-    --
-    -- XXX Take a lock to avoid parallel release. By using an MVar for each
-    -- "release" instance we can make release thread-safe such that it can be
-    -- called from multiple threads concurrently. We can use acquireSafeRelease
-    -- to optionally use that feature. Using that will make release
-    -- interruptible. Also using a shared resource in multiple threads may have
-    -- more issues like one thread releasing it means other threads should not
-    -- use it any more.
-    --
-    -- XXX We can use atomicModifyIORef to run each release action only once,
-    -- in one of the threads instead of using an MVar.
-
-    aft ref =
-        -- XXX free them atomically, even if another release executes in
-        -- parallel.
-        liftIO $ mask_ $ do
-            (_, mp1, _) <- readIORef ref
-            -- liftIO $ putStrLn "cleaning up priority 1"
-            -- Note that the channel cleanup function is interruptible because
-            -- it has blocking points.
-            sequence_ mp1
-            -- Now nobody would be changing mp2, we can read it safely
-            (_, _, mp2) <- readIORef ref
-            -- liftIO $ putStrLn "cleaning up priority 2"
-            sequence_ mp2
-
-    allocator ref pri alloc free = do
-        let insertResource r (i, mp1, mp2) =
-                case pri of
-                    Priority1 ->
-                        ((i + 1, Map.insert i (void $ free r) mp1, mp2), i)
-                    Priority2 ->
-                        ((i + 1, mp1, Map.insert i (void $ free r) mp2), i)
-
-        (r, index) <-
-            liftIO $ mask_ $ do
-                -- tid <- myThreadId
-                r <- alloc
-                idx <- atomicModifyIORef' ref (insertResource r)
-                -- liftIO $ putStrLn $ "insert: " ++ show pri
-                --      ++ " " ++ show idx ++ " " ++ show tid
-                return (r, idx)
-
-        let deleteResource (i, mp1, mp2) =
-                case pri of
-                    Priority1 ->
-                        let res = Map.lookup index mp1
-                         in ((i, Map.delete index mp1, mp2), res)
-                    Priority2 ->
-                        let res = Map.lookup index mp2
-                         in ((i, mp1, Map.delete index mp2), res)
-
-            release =
-                -- IMPORTANT: do not use interruptible operations in this
-                -- critical section. Even putStrLn can make tests fail.
-                liftIO $ mask_ $ do
-                    -- tid <- myThreadId
-                    -- liftIO $ putStrLn $ "releasing index: " ++ show index
-                    --      ++ " " ++ show tid
-                    f <- atomicModifyIORef' ref deleteResource
-                    -- restoring exceptions makes it non-atomic, tests fail.
-                    -- Can use allowInterrupt in "free" if desired.
-                    sequence_ f
-        return (r, release)
+    action (AllocateIO (allocator ref)) `MC.finally` releaser ref
 
 {-# INLINE acquireWith #-}
 acquireWith :: AllocateIO -> Priority -> IO b -> (b -> IO c) -> IO (b, IO ())
@@ -270,10 +283,9 @@ acquireWith (AllocateIO f) = f
 -- Both alloc and free are invoked with async signals masked. You can use
 -- allowInterrupt for allowing interrupts if required.
 --
--- The release action can be called multiple times but it will release the
--- resource only once. However, it cannot be called concurrently from multiple
--- threads. If @release@ is never called it will be called at the end of the
--- bracket scope.
+-- The release action can be called multiple times or even concurrently from
+-- multiple threads,  but it will release the resource only once. If @release@
+-- is never called it will be called at the end of the bracket scope.
 --
 acquire :: AllocateIO -> IO b -> (b -> IO c) -> IO (b, IO ())
 acquire alloc = acquireWith alloc Priority2

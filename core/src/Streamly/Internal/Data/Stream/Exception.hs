@@ -37,14 +37,13 @@ where
 
 #include "inline.hs"
 
-import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Exception (Exception, SomeException, mask_)
 import Control.Monad.Catch (MonadCatch)
-import Data.IORef (newIORef, readIORef, atomicModifyIORef')
+import Data.IORef (newIORef)
 import GHC.Exts (inline)
 import Streamly.Internal.Control.Exception
-    (AllocateIO(..), Priority(..), acquire)
+    (AllocateIO(..), acquire, allocator, releaser)
 import Streamly.Internal.Data.IOFinalizer
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
 
@@ -631,63 +630,25 @@ finallyIO'' bracket free stream =
 -- want to cleanup at the end of every inner stream instead of waiting for the
 -- outer stream to end for cleaning up.
 --
--- See also withAllocateIO' for the most general resource management mechanism
--- in streams.
---
 {-# INLINE withAllocateIO #-}
 withAllocateIO :: (MonadIO m, MonadCatch m) =>
     (AllocateIO -> Stream m a) -> Stream m a
 withAllocateIO action = do
-    bracketIO bef aft (\(_, alloc) -> action alloc)
+    bracketIO bef (releaser . fst) (\(_, alloc) -> action alloc)
 
     where
 
     bef = do
         -- Assuming 64-bit int counter will never overflow
-        ref <- liftIO $ newIORef (0 :: Int, Map.empty)
+        ref <- liftIO $ newIORef (0 :: Int, Map.empty, Map.empty)
         return (ref, AllocateIO (allocator ref))
-
-    -- This is called from a single thread, therefore, we do not need to worry
-    -- about concurrent execution.
-    --
-    -- This after action may be exceuted asynchronously from GC hook. We are
-    -- assuming that the abandoned stream will not have any async actions being
-    -- executed which can use the resources while we are freeing them.
-    aft (ref, _) = liftIO $ do
-        -- XXX free them atomically, even if another release executes in
-        -- parallel.
-        xs <- readIORef ref
-        sequence_ (snd xs)
-
-    allocator ref pri alloc free = do
-        case pri of
-            Priority1 ->
-                error $ "withAllocateIO: streaming version cannot be "
-                    ++ "used in channel cleanup"
-            Priority2 -> return ()
-        (r, index) <- liftIO $ mask_ $ do
-            r <- alloc
-            idx <- atomicModifyIORef' ref (\(i, mp) ->
-                ((i + 1, Map.insert i (void $ free r) mp), i))
-            return (r, idx)
-
-        let modify (i, mp) =
-                let res = Map.lookup index mp
-                 in ((i, Map.delete index mp), res)
-            free1 = do
-                -- We run it without an exception mask unlike withAllocateIO in
-                -- the Streamly.Control.Exception module. We can add it if
-                -- needed.
-                res <- atomicModifyIORef' ref modify
-                sequence_ res
-        return (r, free1)
 
 -- | We can also combine the stream local 'withAllocateIO' with the global monad
 -- level bracket
 -- Streamly.Internal.Control.Exception.'Streamly.Internal.Control.Exception.withAllocateIO'.
 -- The release actions returned by the local allocator can be registered to be
 -- called by the monad level bracket. This way we can guarantee that in the
--- worst case release actions happen at the end of bracket and not depend on
+-- worst case release actions happen at the end of bracket and do not depend on
 -- GC. This is the most powerful way of allocating resources on-demand with
 -- manual release inside a stream. If required a custom combinator can be
 -- written to register the local allocator's release in the global allocator
