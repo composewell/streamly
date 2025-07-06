@@ -25,8 +25,8 @@ module Streamly.Internal.Data.Stream.Exception
     , bracketIO'
     , bracketIO''
 
-    , withAllocateIO
-    , withAllocateIO'
+    , withAcquireIO
+    , withAcquireIO'
 
     -- * Exceptions
     , onException
@@ -43,7 +43,7 @@ import Control.Monad.Catch (MonadCatch)
 import Data.IORef (newIORef)
 import GHC.Exts (inline)
 import Streamly.Internal.Control.Exception
-    (AllocateIO(..), acquire, allocator, releaser)
+    (AcquireIO(..), acquire, allocator, releaser)
 import Streamly.Internal.Data.IOFinalizer
     (newIOFinalizer, runIOFinalizer, clearingIOFinalizer)
 
@@ -407,7 +407,7 @@ bracketIO3 bef aft onExc onGC =
 -- * the bracketed stream is partially consumed and abandoned
 -- * pipeline is aborted due to an exception outside the bracket
 --
--- Use Streamly.Internal.Control.Exception.'Streamly.Internal.Control.Exception.withAllocateIO'
+-- Use Streamly.Internal.Control.Exception.'Streamly.Internal.Control.Exception.withAcquireIO'
 -- for covering the entire pipeline with guaranteed cleanup at the end of
 -- bracket.
 --
@@ -439,7 +439,7 @@ data GbracketIO'State s ref release
 -- | Like 'bracketIO' but requires a resource manager in the underlying monad
 -- of the stream, and guarantees that all resources are freed before the
 -- scope of the monad level resource manager
--- (Streamly.Internal.Control.Exception.'Streamly.Internal.Control.Exception.withAllocateIO')
+-- (Streamly.Internal.Control.Exception.'Streamly.Internal.Control.Exception.withAcquireIO')
 -- ends. Where fusion matters, it can be much faster than 'bracketIO' as it
 -- allows stream fusion.
 --
@@ -464,7 +464,7 @@ data GbracketIO'State s ref release
 --
 {-# INLINE bracketIO' #-}
 bracketIO' :: MonadIO m
-    => AllocateIO -> IO b -> (b -> IO c) -> (b -> Stream m a) -> Stream m a
+    => AcquireIO -> IO b -> (b -> IO c) -> (b -> Stream m a) -> Stream m a
 bracketIO' bracket alloc free action =
     Stream step GBracketIO'Init
 
@@ -519,7 +519,7 @@ bracketIO' bracket alloc free action =
 --
 {-# INLINE bracketIO'' #-}
 bracketIO'' :: (MonadIO m, MonadCatch m)
-    => AllocateIO -> IO b -> (b -> IO c) -> (b -> Stream m a) -> Stream m a
+    => AcquireIO -> IO b -> (b -> IO c) -> (b -> Stream m a) -> Stream m a
 bracketIO'' bracket alloc free action =
     Stream step GBracketIO'Init
 
@@ -536,7 +536,7 @@ bracketIO'' bracket alloc free action =
     step gst (GBracketIO'Normal (UnStream step1 st) ref release) = do
         -- If an async exception occurs before try or after try, in those cases
         -- the exception will not be intercepted here. In those cases the
-        -- release action will run via AllocateIO release hook.
+        -- release action will run via AcquireIO release hook.
         res <- MC.try $ step1 gst st
         case res of
             Right r ->
@@ -554,14 +554,14 @@ bracketIO'' bracket alloc free action =
 
 -- | Like finallyIO, based on bracketIO' semantics.
 {-# INLINE finallyIO' #-}
-finallyIO' :: MonadIO m => AllocateIO -> IO b -> Stream m a -> Stream m a
+finallyIO' :: MonadIO m => AcquireIO -> IO b -> Stream m a -> Stream m a
 finallyIO' bracket free stream =
     bracketIO' bracket (return ()) (const free) (const stream)
 
 -- | Like finallyIO, based on bracketIO'' semantics.
 {-# INLINE finallyIO'' #-}
 finallyIO'' :: (MonadIO m, MonadCatch m) =>
-    AllocateIO -> IO b -> Stream m a -> Stream m a
+    AcquireIO -> IO b -> Stream m a -> Stream m a
 finallyIO'' bracket free stream =
     bracketIO'' bracket (return ()) (const free) (const stream)
 
@@ -590,7 +590,7 @@ finallyIO'' bracket free stream =
 --    & Stream.trace print
 --
 -- run =
---     Stream.withAllocateIO generate
+--     Stream.withAcquireIO generate
 --         & Stream.fold Fold.drain
 -- :}
 --
@@ -612,7 +612,7 @@ finallyIO'' bracket free stream =
 --    & Stream.trace print
 --
 -- run =
---     Stream.withAllocateIO generate
+--     Stream.withAcquireIO generate
 --         & Stream.fold Fold.drain
 -- :}
 --
@@ -622,7 +622,7 @@ finallyIO'' bracket free stream =
 -- See 'bracketIO' documentation for the caveats related to partially consumed
 -- streams and async exceptions.
 --
--- Use monad level bracket Streamly.Internal.Control.Exception.'Streamly.Internal.Control.Exception.withAllocateIO'
+-- Use monad level bracket Streamly.Internal.Control.Exception.'Streamly.Internal.Control.Exception.withAcquireIO'
 -- for guaranteed cleanup in the entire pipeline, however, it does not provide
 -- an automatic cleanup at the end of the stream; you can only release
 -- resources manually or via automatic cleanup at the end of the monad bracket.
@@ -630,10 +630,10 @@ finallyIO'' bracket free stream =
 -- want to cleanup at the end of every inner stream instead of waiting for the
 -- outer stream to end for cleaning up.
 --
-{-# INLINE withAllocateIO #-}
-withAllocateIO :: (MonadIO m, MonadCatch m) =>
-    (AllocateIO -> Stream m a) -> Stream m a
-withAllocateIO action = do
+{-# INLINE withAcquireIO #-}
+withAcquireIO :: (MonadIO m, MonadCatch m) =>
+    (AcquireIO -> Stream m a) -> Stream m a
+withAcquireIO action = do
     bracketIO bef (releaser . fst) (\(_, alloc) -> action alloc)
 
     where
@@ -641,11 +641,11 @@ withAllocateIO action = do
     bef = do
         -- Assuming 64-bit int counter will never overflow
         ref <- liftIO $ newIORef (0 :: Int, Map.empty, Map.empty)
-        return (ref, AllocateIO (allocator ref))
+        return (ref, AcquireIO (allocator ref))
 
--- | We can also combine the stream local 'withAllocateIO' with the global monad
+-- | We can also combine the stream local 'withAcquireIO' with the global monad
 -- level bracket
--- Streamly.Internal.Control.Exception.'Streamly.Internal.Control.Exception.withAllocateIO'.
+-- Streamly.Internal.Control.Exception.'Streamly.Internal.Control.Exception.withAcquireIO'.
 -- The release actions returned by the local allocator can be registered to be
 -- called by the monad level bracket. This way we can guarantee that in the
 -- worst case release actions happen at the end of bracket and do not depend on
@@ -655,10 +655,10 @@ withAllocateIO action = do
 -- automatically.
 --
 -- /Unimplemented/
-{-# INLINE withAllocateIO' #-}
-withAllocateIO' :: -- (MonadIO m, MonadCatch m) =>
-    AllocateIO -> (AllocateIO -> Stream m a) -> Stream m a
-withAllocateIO' _globalAlloc _action = undefined
+{-# INLINE withAcquireIO' #-}
+withAcquireIO' :: -- (MonadIO m, MonadCatch m) =>
+    AcquireIO -> (AcquireIO -> Stream m a) -> Stream m a
+withAcquireIO' _globalAlloc _action = undefined
 
 data BracketState s v = BracketInit | BracketRun s v
 

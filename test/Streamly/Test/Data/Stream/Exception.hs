@@ -8,7 +8,7 @@ import Control.Monad (when)
 import Data.Foldable (sequenceA_)
 import Data.Function ((&))
 import Data.IORef (IORef, newIORef, atomicModifyIORef', readIORef)
-import Streamly.Internal.Control.Exception (AllocateIO, acquire)
+import Streamly.Internal.Control.Exception (AcquireIO, acquire)
 import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Stream.Prelude (Config)
 import System.Mem (performMajorGC)
@@ -62,7 +62,7 @@ stream ref modifier =
             )
         & Stream.take takeCount
 
-streamRelease :: AllocateIO -> IORef Int -> IORef Int -> (Config -> Config) -> Stream IO ()
+streamRelease :: AcquireIO -> IORef Int -> IORef Int -> (Config -> Config) -> Stream IO ()
 streamRelease bracket ref1 ref2 modifier =
       Stream.enumerateFrom (1 :: Int)
         & Stream.parMapM modifier
@@ -104,7 +104,7 @@ finalAction gc ref t = do
 testStream :: Int -> (Config -> Config) -> IO ()
 testStream t cfg = do
     ref <- newIORef (0 :: Int)
-    (Stream.withAllocateIO (\reg -> stream ref (cfg . Stream.setReleaseCb reg))
+    (Stream.withAcquireIO (\reg -> stream ref (cfg . Stream.setReleaseCb reg))
         -- XXX enable this when stream finalization is implemented
         -- & Stream.take 1
         & Stream.fold Fold.drain) `finally` finalAction False ref t
@@ -113,7 +113,7 @@ testStreamRelease :: Int -> (Config -> Config) -> IO ()
 testStreamRelease count cfg = do
     ref1 <- newIORef (0 :: Int)
     ref2 <- newIORef (0 :: Int)
-    (Stream.withAllocateIO (\alloc -> do
+    (Stream.withAcquireIO (\alloc -> do
             let cfg1 = cfg . Stream.setReleaseCb alloc
             streamRelease alloc ref1 ref2 cfg1)
         -- XXX enable this when stream finalization is implemented
@@ -129,7 +129,7 @@ testStreamRelease count cfg = do
 testEffect :: Int -> (Config -> Config) -> IO ()
 testEffect t cfg = do
     ref <- newIORef (0 :: Int)
-    Exception.withAllocateIO (\reg ->
+    Exception.withAcquireIO (\reg ->
         stream ref (cfg . Stream.setReleaseCb reg)
         & Stream.take 1
         & Stream.fold Fold.drain
@@ -139,7 +139,7 @@ testEffectRelease :: Int -> (Config -> Config) -> IO ()
 testEffectRelease count cfg = do
     ref1 <- newIORef (0 :: Int)
     ref2 <- newIORef (0 :: Int)
-    Exception.withAllocateIO (\alloc -> do
+    Exception.withAcquireIO (\alloc -> do
             let cfg1 = cfg . Stream.setReleaseCb alloc
             streamRelease alloc ref1 ref2 cfg1
                 & Stream.take 1
@@ -174,10 +174,10 @@ sched =
 
 funcs :: [(String, Int -> (Stream.Config -> Stream.Config) -> IO ())]
 funcs =
-    [ ("Stream.withAllocateIO", testStream)
-    , ("Exception.withAllocateIO", testEffect)
-    , ("Stream.withAllocateIO release", testStreamRelease)
-    , ("Exception.withAllocateIO release", testEffectRelease)
+    [ ("Stream.withAcquireIO", testStream)
+    , ("Exception.withAcquireIO", testEffect)
+    , ("Stream.withAcquireIO release", testStreamRelease)
+    , ("Exception.withAcquireIO release", testEffectRelease)
     , ("finallyGC", finallyGC)
     ]
 

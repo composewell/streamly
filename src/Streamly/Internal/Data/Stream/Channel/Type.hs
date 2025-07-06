@@ -91,7 +91,7 @@ import Streamly.Internal.Data.Channel.Worker
     (sendYield, sendStop, sendEvent, sendException)
 import Streamly.Internal.Data.StreamK (StreamK)
 import Streamly.Internal.Control.Exception
-    (AllocateIO(..), Priority(..), registerWith)
+    (AcquireIO(..), Priority(..), registerWith)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units (NanoSecond64(..))
 import System.Mem (performMajorGC)
@@ -593,7 +593,7 @@ _getBound = _bound
 -- concurrent code.
 --
 -- The @register@ callback registration function is usually supplied by the
--- 'withRegisterIO' or 'withAllocateIO' bracketing functions. But you can also
+-- 'withRegisterIO' or 'withAcquireIO' bracketing functions. But you can also
 -- create your own and use it manually if you want to.
 --
 -- Here is an example:
@@ -603,7 +603,7 @@ _getBound = _bound
 --  putStrLn $ "closing: " ++ x
 --  hClose h
 --
--- action f@(AllocateIO alloc) =
+-- action f@(AcquireIO alloc) =
 --      Stream.fromList ["file1", "file2"]
 --    & Stream.parMapM (Stream.setReleaseCb (Exception.allocToRegIO f))
 --        (\x -> do
@@ -618,14 +618,14 @@ _getBound = _bound
 --    & Stream.trace print
 --    & Stream.fold Fold.drain
 --
--- run = Exception.withAllocateIO action
+-- run = Exception.withAcquireIO action
 -- :}
 --
 -- If you do not need any allocations you can just use 'withRegisterIO' for
 -- simpler code.
 --
-setReleaseCb :: AllocateIO -> Config -> Config
-setReleaseCb f cfg = cfg { _release = Just (registerWith f Priority1) }
+setReleaseCb :: AcquireIO -> Config -> Config
+setReleaseCb f cfg = cfg { _release = Just (registerWith Priority1 f) }
 
 -- | Clear the resource release registration function.
 clearReleaseCb :: Config -> Config
