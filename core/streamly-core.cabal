@@ -469,6 +469,7 @@ library
                      -- streamly-core released modules in alphabetic order
                      -- NOTE: these must be added to streamly.cabal as well
                      , Streamly.Console.Stdio
+                     , Streamly.Control.Exception
                      , Streamly.Data.MutByteArray
                      , Streamly.Data.Array
                      , Streamly.Data.Array.Generic

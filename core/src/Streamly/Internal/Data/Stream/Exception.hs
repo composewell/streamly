@@ -407,7 +407,7 @@ bracketIO3 bef aft onExc onGC =
 -- * the bracketed stream is partially consumed and abandoned
 -- * pipeline is aborted due to an exception outside the bracket
 --
--- Use Streamly.Internal.Control.Exception.'Streamly.Internal.Control.Exception.withAcquireIO'
+-- Use Streamly.Control.Exception.'Streamly.Control.Exception.withAcquireIO'
 -- for covering the entire pipeline with guaranteed cleanup at the end of
 -- bracket.
 --
@@ -436,10 +436,10 @@ data GbracketIO'State s ref release
     = GBracketIO'Init
     | GBracketIO'Normal s ref release
 
--- | Like 'bracketIO' but requires an 'AcquireIO' reference in the underlying monad
+-- | Like 'bracketIO' but requires an 'Streamly.Control.Exception.AcquireIO' reference in the underlying monad
 -- of the stream, and guarantees that all resources are freed before the
 -- scope of the monad level resource manager
--- (Streamly.Internal.Control.Exception.'Streamly.Internal.Control.Exception.withAcquireIO')
+-- (Streamly.Control.Exception.'Streamly.Control.Exception.withAcquireIO')
 -- ends. Where fusion matters, this combinator can be much faster than 'bracketIO' as it
 -- allows stream fusion.
 --
@@ -455,7 +455,7 @@ data GbracketIO'State s ref release
 --
 -- This is the recommended default bracket operation.
 --
--- Note: You can use 'acquire' directly, instead of using this combinator, if
+-- Note: You can use 'Streamly.Control.Exception.acquire' directly, instead of using this combinator, if
 -- you don’t need to release the resource when the stream ends. However, if
 -- you're using the stream inside another stream (like with concatMap), you
 -- usually do want to release it at the end of the stream.
@@ -495,7 +495,8 @@ bracketIO' bracket alloc free action =
                 liftIO (clearingIOFinalizer ref release) >> return Stop
 
 -- | Like bracketIO, the only difference is that there is a guarantee that the
--- resources will be freed at the end of the monad level bracket ('AcquireIO').
+-- resources will be freed at the end of the monad level bracket
+-- ('Streamly.Control.Exception.AcquireIO').
 --
 -- /Best case/: Cleanup happens immediately in the following cases:
 --
@@ -509,7 +510,8 @@ bracketIO' bracket alloc free action =
 -- * the bracketed stream is partially consumed and abandoned
 -- * pipeline is aborted due to an exception outside the bracket
 --
--- Note: Instead of using this combinator you can directly use 'acquire'
+-- Note: Instead of using this combinator you can directly use
+-- 'Streamly.Control.Exception.acquire'
 -- if you do not care about releasing the resource at the end of the stream
 -- and if you are not recovering from an exception using 'handle'. You may want
 -- to care about releasing the resource at the end of a stream if you are using
@@ -628,7 +630,7 @@ finallyIO'' bracket free stream =
 -- See 'bracketIO' documentation for the caveats related to partially consumed
 -- streams and async exceptions.
 --
--- Use monad level bracket Streamly.Internal.Control.Exception.'Streamly.Internal.Control.Exception.withAcquireIO'
+-- Use monad level bracket Streamly.Control.Exception.'Streamly..Control.Exception.withAcquireIO'
 -- for guaranteed cleanup in the entire pipeline, however, monad level bracket does not provide
 -- an automatic cleanup at the end of the stream; you can only release
 -- resources manually or via automatic cleanup at the end of the monad bracket.
