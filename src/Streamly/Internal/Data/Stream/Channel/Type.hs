@@ -45,8 +45,8 @@ module Streamly.Internal.Data.Stream.Channel.Type
     , inspect
 
     -- *** Resource cleanup
-    , setReleaseCb
-    , clearReleaseCb
+    , useAcquire
+    , clearAcquire
 
     -- *** Get config
     , getMaxBuffer
@@ -580,8 +580,6 @@ boundThreads flag st = st { _bound = flag }
 _getBound :: Config -> Bool
 _getBound = _bound
 
--- XXX setResourceBracket/setReleaseBracket
-
 -- | A concurrent stream allocates worker threads to evaluates actions in the
 -- stream concurrently. When an exception (sync or async) occurs in the code
 -- outside the scope of the stream generation code, these workers need to be
@@ -605,7 +603,7 @@ _getBound = _bound
 --
 -- action f@(AcquireIO alloc) =
 --      Stream.fromList ["file1", "file2"]
---    & Stream.parMapM (Stream.setReleaseCb (Exception.allocToRegIO f))
+--    & Stream.parMapM (Stream.useAcquire (Exception.allocToRegIO f))
 --        (\x -> do
 --            (h, release) <- alloc (openFile x ReadMode) (close x)
 --            -- use h here
@@ -624,12 +622,12 @@ _getBound = _bound
 -- If you do not need any allocations you can just use 'withRegisterIO' for
 -- simpler code.
 --
-setReleaseCb :: AcquireIO -> Config -> Config
-setReleaseCb f cfg = cfg { _release = Just (registerWith Priority1 f) }
+useAcquire :: AcquireIO -> Config -> Config
+useAcquire f cfg = cfg { _release = Just (registerWith Priority1 f) }
 
 -- | Clear the resource release registration function.
-clearReleaseCb :: Config -> Config
-clearReleaseCb cfg = cfg { _release = Nothing }
+clearAcquire :: Config -> Config
+clearAcquire cfg = cfg { _release = Nothing }
 
 getCleanup :: Config -> Maybe (IO () -> IO ())
 getCleanup = _release

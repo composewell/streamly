@@ -23,7 +23,7 @@ module Streamly.Internal.Control.Exception
     -- These operations support allocation and free only in the IO monad,
     -- therefore, they have the IO suffix.
     --
-    , AcquireIO(..) -- XXX rename to BracketIO or AcquirerIO
+    , AcquireIO(..)
     , Priority(..)
     , allocator
     , releaser

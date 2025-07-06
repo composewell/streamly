@@ -104,7 +104,7 @@ finalAction gc ref t = do
 testStream :: Int -> (Config -> Config) -> IO ()
 testStream t cfg = do
     ref <- newIORef (0 :: Int)
-    (Stream.withAcquireIO (\reg -> stream ref (cfg . Stream.setReleaseCb reg))
+    (Stream.withAcquireIO (\acq -> stream ref (cfg . Stream.useAcquire acq))
         -- XXX enable this when stream finalization is implemented
         -- & Stream.take 1
         & Stream.fold Fold.drain) `finally` finalAction False ref t
@@ -113,9 +113,9 @@ testStreamRelease :: Int -> (Config -> Config) -> IO ()
 testStreamRelease count cfg = do
     ref1 <- newIORef (0 :: Int)
     ref2 <- newIORef (0 :: Int)
-    (Stream.withAcquireIO (\alloc -> do
-            let cfg1 = cfg . Stream.setReleaseCb alloc
-            streamRelease alloc ref1 ref2 cfg1)
+    (Stream.withAcquireIO (\acq -> do
+            let cfg1 = cfg . Stream.useAcquire acq
+            streamRelease acq ref1 ref2 cfg1)
         -- XXX enable this when stream finalization is implemented
         -- & Stream.take 1
         & Stream.fold Fold.drain
@@ -129,8 +129,8 @@ testStreamRelease count cfg = do
 testEffect :: Int -> (Config -> Config) -> IO ()
 testEffect t cfg = do
     ref <- newIORef (0 :: Int)
-    Exception.withAcquireIO (\reg ->
-        stream ref (cfg . Stream.setReleaseCb reg)
+    Exception.withAcquireIO (\acq ->
+        stream ref (cfg . Stream.useAcquire acq)
         & Stream.take 1
         & Stream.fold Fold.drain
       ) `finally` finalAction False ref t
@@ -139,9 +139,9 @@ testEffectRelease :: Int -> (Config -> Config) -> IO ()
 testEffectRelease count cfg = do
     ref1 <- newIORef (0 :: Int)
     ref2 <- newIORef (0 :: Int)
-    Exception.withAcquireIO (\alloc -> do
-            let cfg1 = cfg . Stream.setReleaseCb alloc
-            streamRelease alloc ref1 ref2 cfg1
+    Exception.withAcquireIO (\acq -> do
+            let cfg1 = cfg . Stream.useAcquire acq
+            streamRelease acq ref1 ref2 cfg1
                 & Stream.take 1
                 & Stream.fold Fold.drain
       ) `finally` do
