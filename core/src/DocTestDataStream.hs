@@ -2,7 +2,7 @@
 
 >>> :m
 >>> import Control.Concurrent (threadDelay)
->>> import Control.Monad (void)
+>>> import Control.Monad (void, when)
 >>> import Control.Monad.IO.Class (MonadIO (liftIO))
 >>> import Control.Monad.Trans.Class (lift)
 >>> import Control.Monad.Trans.Identity (runIdentityT)
@@ -15,7 +15,7 @@
 >>> import Data.Semigroup (cycle1)
 >>> import Data.Word (Word8, Word16)
 >>> import GHC.Exts (Ptr (Ptr))
->>> import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
+>>> import System.IO (stdout, hClose, hSetBuffering, openFile, BufferMode(LineBuffering), IOMode(..))
 
 >>> hSetBuffering stdout LineBuffering
 >>> effect n = print n >> return n
@@ -32,6 +32,7 @@
 
 For APIs that have not been released yet.
 
+>>> import qualified Streamly.Internal.Control.Exception as Exception
 >>> import qualified Streamly.Internal.FileSystem.Path as Path
 >>> import qualified Streamly.Internal.Data.Scanr as Scanr
 >>> import qualified Streamly.Internal.Data.Scanl as Scanl

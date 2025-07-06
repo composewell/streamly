@@ -44,7 +44,7 @@ module Streamly.Internal.Data.Stream.Channel.Type
     -- *** Diagnostics
     , inspect
 
-    -- *** Resource cleanup
+    -- *** Resource management
     , useAcquire
     , clearAcquire
 
@@ -588,6 +588,15 @@ _getBound = _bound
 -- cleaned up.
 --
 -- Here is an example:
+--
+-- >>> import Control.Monad (when)
+-- >>> import Control.Concurrent (threadDelay)
+-- >>> import Data.Function ((&))
+-- >>> import System.IO (hClose, IOMode(..), openFile)
+--
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Data.Stream.Prelude as Stream
+-- >>> import qualified Streamly.Control.Exception as Exception
 --
 -- >>> :{
 -- close x h = do

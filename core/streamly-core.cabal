@@ -71,6 +71,7 @@ extra-source-files:
     configure.ac
 
    -- doctest include files
+    src/DocTestControlException.hs
     src/DocTestDataArray.hs
     src/DocTestDataFold.hs
     src/DocTestDataScanl.hs

@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Internal.Control.Exception
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -46,6 +47,8 @@ import Data.IORef (IORef, newIORef, atomicModifyIORef')
 
 import qualified Control.Monad.Catch as MC
 import qualified Data.IntMap.Strict as Map
+
+#include "DocTestControlException.hs"
 
 -------------------------------------------------------------------------------
 -- Asserts
