@@ -124,24 +124,24 @@ UInt32 FSEventStreamEventFlagItemIsLastHardlink () {
  *****************************************************************************/
 
 /* Write an event to the pipe input fd */
-static void writeEvent(int fd, UInt64 eventId, UInt64 eventFlags, char* path) 
+static void writeEvent(int fd, UInt64 eventId, UInt64 eventFlags, char* path)
 {
     UInt64 buf[3];
+    /* XXX Is the path string in UTF-8? */
+    size_t len = strlen(path);
+
     buf[0] = eventId;
     buf[1] = eventFlags;
-    /* XXX Is the path string in UTF-8? */
-    buf[2] = (UInt64)strlen(path);
+    buf[2] = (UInt64)len;
     write(fd, buf, 3 * sizeof(UInt64));
-    write(fd, path, strlen(path));
+    write(fd, path, len);
 }
 
-/* thread state */
 struct watch
 {
     FSEventStreamRef eventStream;
-    CFRunLoopRef runLoop;
+    dispatch_queue_t queue;
     int writefd;
-    pthread_mutex_t mut;
 };
 
 /* Just writes the event to the pipe input fd */
@@ -163,25 +163,15 @@ static void watchCallback
     }
 }
 
-/******************************************************************************
- * Start a watch event loop
- *****************************************************************************/
-
-/* Event loop run in a pthread */
-static void *watchRunLoop(void *vw)
-{
-    struct watch* w = (struct watch*) vw;
-    CFRunLoopRef rl = CFRunLoopGetCurrent();
-    CFRetain(rl);
-    w->runLoop = rl;
-    FSEventStreamScheduleWithRunLoop(w->eventStream, rl, kCFRunLoopDefaultMode);
-    FSEventStreamStart(w->eventStream);
-    pthread_mutex_unlock(&w->mut);
-    CFRunLoopRun();
-    pthread_exit(NULL);
-}
-
 #define MAX_WATCH_PATHS 4096
+
+static void free_cffolders(CFStringRef *cffolders, int n) {
+    int i;
+    for (i = 0; i < n; i++) {
+        CFRelease (cffolders[i]);
+    }
+    free(cffolders);
+}
 
 int createWatch
     ( struct pathName* folders
@@ -210,8 +200,18 @@ int createWatch
       since = kFSEventStreamEventIdSinceNow;
     }
 
+    struct watch *w = malloc(sizeof(struct watch));
+    if (!w) {
+      goto cleanup_pipe;
+    }
+
     /* Setup paths array */
     CFStringRef *cffolders = malloc(n * sizeof(CFStringRef));
+    if (!cffolders) {
+      goto cleanup_watch;
+    }
+
+    /* Create event stream using paths and context*/
     int i;
     for(i = 0; i < n; i++) {
       cffolders[i] = CFStringCreateWithBytes
@@ -221,11 +221,17 @@ int createWatch
           , kCFStringEncodingUTF8
           , false
           );
+      if (!cffolders[i]) {
+          free_cffolders(cffolders, i);
+          goto cleanup_watch;
+      }
     }
     CFArrayRef paths = CFArrayCreate(NULL, (const void **)cffolders, n, NULL);
+    if (!paths) {
+      free_cffolders(cffolders, n);
+      goto cleanup_watch;
+    }
 
-    /* Setup context */
-    struct watch *w = malloc(sizeof(struct watch));
     FSEventStreamContext ctx;
     ctx.version = 0;
     ctx.info = (void*)w;
@@ -233,43 +239,35 @@ int createWatch
     ctx.release = NULL;
     ctx.copyDescription = NULL;
 
-    /* Create watch using paths and context*/
-    FSEventStreamRef es = FSEventStreamCreate
+    w->eventStream = FSEventStreamCreate
         (NULL, &watchCallback, &ctx, paths, since, latency, createFlags);
-
-    /* Run the event loop in a pthread */
-    int retval;
-    if(es != NULL) {
-        /* Success */
-        w->writefd = pfds[1];
-        w->eventStream = es;
-        w->runLoop = NULL;
-
-        /* Lock to prevent race against watch destroy */
-        pthread_mutex_init(&w->mut, NULL);
-        pthread_mutex_lock(&w->mut);
-        pthread_t t;
-        pthread_create(&t, NULL, &watchRunLoop, (void*)w);
-
-        /* return the out fd and the watch struct */
-        *fd = pfds[0];
-        *wp = w;
-        retval = 0;
-    } else {
-        /* Failure */
-        close(pfds[0]);
-        close(pfds[1]);
-        free(w);
-        retval = -1;
-    }
-
-    /* Cleanup */
-    for (i = 0; i < n; i++) {
-        CFRelease (cffolders[i]);
-    }
-    free(cffolders);
+    free_cffolders(cffolders, n);
     CFRelease(paths);
-    return retval;
+
+    if(w->eventStream == NULL) {
+      goto cleanup_watch;
+    }
+
+    w->queue = dispatch_queue_create("com.composewell.streamly", NULL);
+    if (!w->queue) {
+      goto cleanup_es;
+    }
+
+    w->writefd = pfds[1];
+    *fd = pfds[0];
+    *wp = w;
+    FSEventStreamSetDispatchQueue(w->eventStream, w->queue);
+    FSEventStreamStart(w->eventStream);
+    return 0;
+
+cleanup_es:
+    FSEventStreamRelease(w->eventStream);
+cleanup_watch:
+    free(w);
+cleanup_pipe:
+    close(pfds[0]);
+    close(pfds[1]);
+    return -1;
 }
 
 /******************************************************************************
@@ -277,18 +275,13 @@ int createWatch
  *****************************************************************************/
 
 void destroyWatch(struct watch* w) {
-    /* Stop the loop so the thread will exit */
-    pthread_mutex_lock(&w->mut);
+    /* Stop and invalidate the event stream */
+    FSEventStreamFlushSync(w->eventStream);
     FSEventStreamStop(w->eventStream);
     FSEventStreamInvalidate(w->eventStream);
-    CFRunLoopStop(w->runLoop);
-    CFRelease(w->runLoop);
+    dispatch_release(w->queue);
     FSEventStreamRelease(w->eventStream);
     close(w->writefd);
-    pthread_mutex_unlock(&w->mut);
-
-    /* Cleanup */
-    pthread_mutex_destroy(&w->mut);
     free(w);
 }
 #endif
