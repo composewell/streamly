@@ -15,7 +15,7 @@
     - `Done n` by `SDone (1-n)`
     - `Error` by `SError`
   * The signature for the extract function is changed. It now returns
-    `Parser.Extract` instead of `Parser.Step`. The constructors should be
+    `Parser.Final` instead of `Parser.Step`. The constructors should be
     replaced as follows:
     - `Contine n` by `FContinue (-n)`
     - `Done n` by `FDone (-n)`
