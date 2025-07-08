@@ -14,7 +14,7 @@ where
 -- Imports
 --------------------------------------------------------------------------------
 
-import Streamly.Internal.Data.Parser (ParseError(..))
+import Streamly.Internal.Data.Parser (ParseErrorPos(..))
 import qualified Streamly.Internal.Data.Parser as P
 import Test.Hspec
 
@@ -62,7 +62,7 @@ tape = concat chunkedTape
 tapeLen :: Int
 tapeLen = length tape
 
-expectedResult :: [Move] -> [Int] -> (Either ParseError [Int], [Int])
+expectedResult :: [Move] -> [Int] -> (Either ParseErrorPos [Int], [Int])
 expectedResult moves inp = go 0 0 [] moves
     where
     inpLen = length inp
@@ -74,7 +74,7 @@ expectedResult moves inp = go 0 0 [] moves
     -- j = Minimum index of inp head
     go i j ys [] = (Right ys, slice_ (max i j) inp)
     go i j ys ((Consume n):xs)
-        | i + n > inpLen = (Left (ParseError inpLen "INCOMPLETE"), drop j inp)
+        | i + n > inpLen = (Left (ParseErrorPos inpLen "INCOMPLETE"), drop j inp)
         | otherwise =
             go (i + n) j (ys ++ slice i n inp) xs
     go i j ys ((Custom step):xs)
@@ -84,9 +84,9 @@ expectedResult moves inp = go 0 0 [] moves
                   P.SPartial n () -> go (i + n) (max j (i + n)) ys xs
                   P.SContinue n () -> go (i + n) j ys xs
                   P.SDone n () -> (Right ys, slice_ (max (i + n) j) inp)
-                  P.SError err -> (Left (ParseError (i + 1) err), slice_ j inp)
+                  P.SError err -> (Left (ParseErrorPos (i + 1) err), slice_ j inp)
 
-expectedResultMany :: [Move] -> [Int] -> [Either ParseError [Int]]
+expectedResultMany :: [Move] -> [Int] -> [Either ParseErrorPos [Int]]
 expectedResultMany = go 0
     where
     go _ _ [] = []
@@ -95,8 +95,8 @@ expectedResultMany = go 0
             consumed = length inp - length rest
          in
            case res of
-               Left (ParseError relOff err) ->
-                   [Left (ParseError (off + relOff) err)]
+               Left (ParseErrorPos relOff err) ->
+                   [Left (ParseErrorPos (off + relOff) err)]
                Right val -> Right val : go (off + consumed) moves rest
 
 createPaths :: [a] -> [[a]]

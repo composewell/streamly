@@ -188,6 +188,7 @@ module Streamly.Internal.Data.Parser.Type
     , bimapMorphOverrideCount
     , Parser (..)
     , ParseError (..)
+    , ParseErrorPos (..)
     , rmapM
 
     -- * Constructors
@@ -517,16 +518,23 @@ data Parser a m b =
         (s -> m (Final s b))
 
 -- | This exception is used when a parser ultimately fails, the user of the
--- parser is intimated via this exception. The @Int@ is the position in the
--- stream where the error ocurred. Note that the position is reported only when
--- a position reporting parser driver is used, otherwise it will be reported as
--- 0.
+-- parser is intimated via this exception.
 --
-data ParseError = ParseError Int String
+newtype ParseError = ParseError String
     deriving (Eq, Show)
 
 instance Exception ParseError where
-    displayException (ParseError pos err) = concat ["At ", show pos, ":", err]
+    displayException (ParseError err) = err
+
+-- | Like 'ParseError' but reports the stream position where the error ocurred.
+-- The @Int@ is the position in the stream where the error ocurred. This
+-- exception is used by position reporting parser drivers.
+data ParseErrorPos = ParseErrorPos Int String
+    deriving (Eq, Show)
+
+instance Exception ParseErrorPos where
+    displayException (ParseErrorPos pos err) =
+        concat ["At ", show pos, ":", err]
 
 -- | Map a function on the result i.e. on @b@ in @Parser a m b@.
 instance Functor m => Functor (Parser a m) where

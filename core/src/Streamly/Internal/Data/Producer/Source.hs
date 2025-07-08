@@ -36,7 +36,8 @@ where
 import Control.Exception (assert)
 import GHC.Exts (SpecConstrAnnotation(..))
 import GHC.Types (SPEC(..))
-import Streamly.Internal.Data.Parser (ParseError(..), Step(..), Final(..))
+import Streamly.Internal.Data.Parser
+    (ParseError(..), ParseErrorPos(..), Step(..), Final(..))
 import Streamly.Internal.Data.Producer.Type (Producer(..))
 import Streamly.Internal.Data.Stream.Step (Step(..))
 
@@ -115,7 +116,7 @@ parse
     ParserD.Parser a m b
     -> Producer m (Source s a) a
     -> Source s a
-    -> m (Either ParseError b, Source s a)
+    -> m (Either ParseErrorPos b, Source s a)
 parse
     (ParserD.Parser pstep initial extract)
     (Producer ustep uinject uextract)
@@ -127,7 +128,7 @@ parse
             state <- uinject seed
             go SPEC state (List []) s 0
         ParserD.IDone b -> return (Right b, seed)
-        ParserD.IError err -> return (Left (ParseError 0 err), seed)
+        ParserD.IError err -> return (Left (ParseErrorPos 0 err), seed)
 
     where
 
@@ -165,7 +166,7 @@ parse
                         s1 <- uextract s
                         let src  = Prelude.reverse (getList buf)
                         return
-                            ( Left (ParseError (i + 1) err)
+                            ( Left (ParseErrorPos (i + 1) err)
                             , unread (src ++ [x]) s1
                             )
             Skip s -> go SPEC s buf pst i
@@ -202,7 +203,7 @@ parse
                     s1 <- uextract s
                     let src  = Prelude.reverse (getList buf)
                     return
-                        ( Left (ParseError (i + 1) err)
+                        ( Left (ParseErrorPos (i + 1) err)
                         , unread (src ++ (x:xs)) s1
                         )
 
@@ -236,7 +237,7 @@ parse
             SError err -> do
                     let src  = Prelude.reverse (getList buf)
                     return
-                        ( Left (ParseError (i + 1) err)
+                        ( Left (ParseErrorPos (i + 1) err)
                         , unread (src ++ (x:xs)) (source Nothing)
                         )
 
@@ -262,7 +263,7 @@ parse
                 return (Right b, unread src (source Nothing))
             FError err -> do
                 let src  = Prelude.reverse (getList buf)
-                return (Left (ParseError i err), unread src (source Nothing))
+                return (Left (ParseErrorPos i err), unread src (source Nothing))
 
 {-
 -- | Parse a buffered source using a parser, returning the parsed value and the

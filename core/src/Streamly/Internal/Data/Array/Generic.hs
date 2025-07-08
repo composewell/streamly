@@ -18,7 +18,7 @@ module Streamly.Internal.Data.Array.Generic
     )
 where
 
-import Streamly.Internal.Data.Parser (ParseError(..))
+import Streamly.Internal.Data.Parser (ParseError(..), ParseErrorPos(..))
 import Streamly.Internal.Data.StreamK.Type (StreamK)
 
 import qualified Streamly.Internal.Data.ParserDrivers as Drivers
@@ -47,7 +47,7 @@ parseBreakPos
     :: forall m a b. Monad m
     => ParserK.ParserK (Array a) m b
     -> StreamK m (Array a)
-    -> m (Either ParseError b, StreamK m (Array a))
+    -> m (Either ParseErrorPos b, StreamK m (Array a))
 parseBreakPos = Drivers.parseBreakChunksGenericPos
 
 {-# INLINE parse #-}
@@ -63,5 +63,5 @@ parsePos ::
        (Monad m)
     => ParserK.ParserK (Array a) m b
     -> StreamK m (Array a)
-    -> m (Either ParseError b)
+    -> m (Either ParseErrorPos b)
 parsePos f = fmap fst . parseBreakPos f

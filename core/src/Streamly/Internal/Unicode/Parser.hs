@@ -614,13 +614,13 @@ mkDouble mantissa power =
 -- Error cases:
 --
 -- >>> p ""
--- Left (ParseError 0 "number: expecting sign or decimal digit, got end of input")
+-- Left (ParseErrorPos 0 "number: expecting sign or decimal digit, got end of input")
 --
 -- >>> p ".1"
--- Left (ParseError 1 "number: expecting sign or decimal digit, got '.'")
+-- Left (ParseErrorPos 1 "number: expecting sign or decimal digit, got '.'")
 --
 -- >>> p "+"
--- Left (ParseError 1 "number: expecting decimal digit, got end of input")
+-- Left (ParseErrorPos 1 "number: expecting decimal digit, got end of input")
 --
 {-# INLINE double #-}
 double :: Monad m => Parser Char m Double

@@ -19,12 +19,6 @@ module Streamly.Internal.Data.Parser
       module Streamly.Internal.Data.Parser.Type
     --, module Streamly.Internal.Data.Parser.Tee
 
-    -- * Types
-    , Parser (..)
-    , ParseError (..)
-    , Step (..)
-    , Initial (..)
-
     -- * Downgrade to Fold
     , toFold
 
@@ -618,7 +612,7 @@ data Tuple'Fused a b = Tuple'Fused !a !b deriving Show
 -- Right [1,2]
 --
 -- >>> takeBetween' 2 4 [1]
--- Left (ParseError 1 "takeBetween: Expecting alteast 2 elements, got 1")
+-- Left (ParseErrorPos 1 "takeBetween: Expecting alteast 2 elements, got 1")
 --
 -- >>> takeBetween' 0 0 [1, 2]
 -- Right []
@@ -724,7 +718,7 @@ takeBetween low high (Fold fstep finitial _ ffinal) =
 -- Right [1,0]
 --
 -- >>> Stream.parsePos (Parser.takeEQ 4 Fold.toList) $ Stream.fromList [1,0,1]
--- Left (ParseError 3 "takeEQ: Expecting exactly 4 elements, input terminated on 3")
+-- Left (ParseErrorPos 3 "takeEQ: Expecting exactly 4 elements, input terminated on 3")
 --
 {-# INLINE takeEQ #-}
 takeEQ :: Monad m => Int -> Fold m a b -> Parser a m b
@@ -785,7 +779,7 @@ data TakeGEState s =
 --           elements.
 --
 -- >>> Stream.parsePos (Parser.takeGE 4 Fold.toList) $ Stream.fromList [1,0,1]
--- Left (ParseError 3 "takeGE: Expecting at least 4 elements, input terminated on 3")
+-- Left (ParseErrorPos 3 "takeGE: Expecting at least 4 elements, input terminated on 3")
 --
 -- >>> Stream.parse (Parser.takeGE 4 Fold.toList) $ Stream.fromList [1,0,1,0,1]
 -- Right [1,0,1,0,1]
@@ -1325,7 +1319,7 @@ takeEitherSepBy _cond = undefined -- D.toParserK . D.takeEitherSepBy cond
 -- >>> p = Parser.takeBeginBy (== ',') Fold.toList
 -- >>> leadingComma = Stream.parsePos p . Stream.fromList
 -- >>> leadingComma "a,b"
--- Left (ParseError 1 "takeBeginBy: missing frame start")
+-- Left (ParseErrorPos 1 "takeBeginBy: missing frame start")
 -- ...
 -- >>> leadingComma ",,"
 -- Right ","
@@ -1403,7 +1397,7 @@ RENAME(takeStartBy_,takeBeginBy_)
 -- >>> Stream.parse p $ Stream.fromList "{hello \\{world}"
 -- Right "hello {world"
 -- >>> Stream.parsePos p $ Stream.fromList "{hello {world}"
--- Left (ParseError 14 "takeFramedByEsc_: missing frame end")
+-- Left (ParseErrorPos 14 "takeFramedByEsc_: missing frame end")
 --
 -- /Pre-release/
 {-# INLINE takeFramedByEsc_ #-}
@@ -2146,7 +2140,7 @@ groupByRollingEither
 -- Right "string"
 --
 -- >>> Stream.parsePos (Parser.listEqBy (==) "mismatch") $ Stream.fromList "match"
--- Left (ParseError 2 "streamEqBy: mismtach occurred")
+-- Left (ParseErrorPos 2 "streamEqBy: mismtach occurred")
 --
 {-# INLINE listEqBy #-}
 listEqBy :: Monad m => (a -> a -> Bool) -> [a] -> Parser a m [a]
@@ -2437,7 +2431,7 @@ spanByRolling eq f1 f2 =
 -- Right [1,2]
 --
 -- >>> Stream.parsePos (Parser.takeP 4 (Parser.takeEQ 5 Fold.toList)) $ Stream.fromList [1, 2, 3, 4, 5]
--- Left (ParseError 4 "takeEQ: Expecting exactly 5 elements, input terminated on 4")
+-- Left (ParseErrorPos 4 "takeEQ: Expecting exactly 5 elements, input terminated on 4")
 --
 -- /Internal/
 {-# INLINE takeP #-}
@@ -2591,7 +2585,7 @@ data DeintercalateAllState fs sp ss =
 -- >>> Stream.parse p $ Stream.fromList "1"
 -- Right [Left "1"]
 -- >>> Stream.parsePos p $ Stream.fromList "1+"
--- Left (ParseError 2 "takeWhile1: end of input")
+-- Left (ParseErrorPos 2 "takeWhile1: end of input")
 -- >>> Stream.parse p $ Stream.fromList "1+2+3"
 -- Right [Left "1",Right '+',Left "2",Right '+',Left "3"]
 --
@@ -2867,7 +2861,7 @@ data Deintercalate1State b fs sp ss =
 -- >>> p2 = Parser.satisfy (== '+')
 -- >>> p = Parser.deintercalate1 p1 p2 Fold.toList
 -- >>> Stream.parsePos p $ Stream.fromList ""
--- Left (ParseError 0 "takeWhile1: end of input")
+-- Left (ParseErrorPos 0 "takeWhile1: end of input")
 -- >>> Stream.parse p $ Stream.fromList "1"
 -- Right [Left "1"]
 -- >>> Stream.parse p $ Stream.fromList "1+"
@@ -3160,7 +3154,7 @@ sepBy1 p sep sink = do
 -- >>> p2 = Parser.satisfy (== '+')
 -- >>> p = Parser.sepBy1 p1 p2 Fold.toList
 -- >>> Stream.parsePos p $ Stream.fromList ""
--- Left (ParseError 0 "takeWhile1: end of input")
+-- Left (ParseErrorPos 0 "takeWhile1: end of input")
 -- >>> Stream.parse p $ Stream.fromList "1"
 -- Right ["1"]
 -- >>> Stream.parse p $ Stream.fromList "1+"

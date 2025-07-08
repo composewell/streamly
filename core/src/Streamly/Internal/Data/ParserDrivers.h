@@ -6,7 +6,8 @@
 #define PARSE_MANY parseMany
 #define PARSE_ITERATE parseIterate
 #define OPTIONAL(x)
-#define DEFAULT(x) 0
+#define PARSE_ERROR(x) ParseError
+#define PARSE_ERROR_TYPE ParseError
 #else
 #undef PARSE_BREAK
 #define PARSE_BREAK parseBreakPos
@@ -44,8 +45,10 @@
 #define PARSE_ITERATE parseIteratePos
 #undef OPTIONAL
 #define OPTIONAL(x) (x)
-#undef DEFAULT
-#define DEFAULT(x) (x)
+#undef PARSE_ERROR
+#define PARSE_ERROR(x) ParseErrorPos (x)
+#undef PARSE_ERROR_TYPE
+#define PARSE_ERROR_TYPE ParseErrorPos
 #endif
 
 {- HLINT ignore -}
@@ -67,7 +70,7 @@ PARSE_MANY
     :: Monad m
     => PRD.Parser a m b
     -> Stream m a
-    -> Stream m (Either ParseError b)
+    -> Stream m (Either PARSE_ERROR_TYPE b)
 PARSE_MANY (PRD.Parser pstep initial extract) (Stream step state) =
     Stream stepOuter (ParseChunksInit OPTIONAL(0) [] state)
 
@@ -94,7 +97,7 @@ PARSE_MANY (PRD.Parser pstep initial extract) (Stream step state) =
                         return
                             $ Skip
                             $ ParseChunksYield
-                                (Left (ParseError DEFAULT(i) err))
+                                (Left (PARSE_ERROR(i) err))
                                 (ParseChunksInitLeftOver OPTIONAL(i) [])
             Skip s -> return $ Skip $ ParseChunksInit OPTIONAL(i) [] s
             Stop   -> return Stop
@@ -112,7 +115,7 @@ PARSE_MANY (PRD.Parser pstep initial extract) (Stream step state) =
                 return
                     $ Skip
                     $ ParseChunksYield
-                        (Left (ParseError DEFAULT(i) err))
+                        (Left (PARSE_ERROR(i) err))
                         (ParseChunksInitLeftOver OPTIONAL(i) [])
 
     -- This is simplified ParseChunksInit
@@ -128,7 +131,7 @@ PARSE_MANY (PRD.Parser pstep initial extract) (Stream step state) =
                 return
                     $ Skip
                     $ ParseChunksYield
-                        (Left (ParseError DEFAULT(i) err))
+                        (Left (PARSE_ERROR(i) err))
                         (ParseChunksInitLeftOver OPTIONAL(i) [])
 
     -- XXX we just discard any leftover input at the end
@@ -172,7 +175,7 @@ PARSE_MANY (PRD.Parser pstep initial extract) (Stream step state) =
                         return
                             $ Skip
                             $ ParseChunksYield
-                                (Left (ParseError (DEFAULT(i) + 1) err))
+                                (Left (PARSE_ERROR(i + 1) err))
                                 (ParseChunksInitLeftOver OPTIONAL(i + 1) [])
             Skip s -> return $ Skip $ ParseChunksStream OPTIONAL(i) s buf pst
             Stop -> return $ Skip $ ParseChunksStop OPTIONAL(i) buf pst
@@ -216,7 +219,7 @@ PARSE_MANY (PRD.Parser pstep initial extract) (Stream step state) =
                 return
                     $ Skip
                     $ ParseChunksYield
-                        (Left (ParseError DEFAULT(i + 1) err))
+                        (Left (PARSE_ERROR(i + 1) err))
                         (ParseChunksInitLeftOver OPTIONAL(i + 1) [])
 
     -- This is simplified ParseChunksBuf
@@ -258,7 +261,7 @@ PARSE_MANY (PRD.Parser pstep initial extract) (Stream step state) =
                 return
                     $ Skip
                     $ ParseChunksYield
-                        (Left (ParseError (DEFAULT(i) + 1) err))
+                        (Left (PARSE_ERROR(i + 1) err))
                         (ParseChunksInitLeftOver OPTIONAL(i + 1) [])
 
     -- This is simplified ParseChunksExtract
@@ -286,7 +289,7 @@ PARSE_MANY (PRD.Parser pstep initial extract) (Stream step state) =
                 return
                     $ Skip
                     $ ParseChunksYield
-                        (Left (ParseError DEFAULT(i) err))
+                        (Left (PARSE_ERROR(i) err))
                         (ParseChunksInitLeftOver OPTIONAL(i) [])
 
     stepOuter _ (ParseChunksYield a next) = return $ Yield a next
@@ -312,7 +315,7 @@ PARSE_ITERATE
     => (b -> PRD.Parser a m b)
     -> b
     -> Stream m a
-    -> Stream m (Either ParseError b)
+    -> Stream m (Either PARSE_ERROR_TYPE b)
 PARSE_ITERATE func seed (Stream step state) =
     Stream stepOuter (ConcatParseInit OPTIONAL(0) [] state (func seed))
 
@@ -335,7 +338,7 @@ PARSE_ITERATE func seed (Stream step state) =
                 return
                     $ Skip
                     $ ConcatParseYield
-                        (Left (ParseError DEFAULT(i) err))
+                        (Left (PARSE_ERROR(i) err))
                         (ConcatParseInitLeftOver OPTIONAL(i) [])
 
     -- Buffer is not empty, go to buffered processing loop
@@ -352,7 +355,7 @@ PARSE_ITERATE func seed (Stream step state) =
                 return
                     $ Skip
                     $ ConcatParseYield
-                        (Left (ParseError DEFAULT(i) err))
+                        (Left (PARSE_ERROR(i) err))
                         (ConcatParseInitLeftOver OPTIONAL(i) [])
 
     -- This is simplified ConcatParseInit
@@ -369,7 +372,7 @@ PARSE_ITERATE func seed (Stream step state) =
                 return
                     $ Skip
                     $ ConcatParseYield
-                        (Left (ParseError DEFAULT(i) err))
+                        (Left (PARSE_ERROR(i) err))
                         (ConcatParseInitLeftOver OPTIONAL(i) [])
 
     -- XXX we just discard any leftover input at the end
@@ -416,7 +419,7 @@ PARSE_ITERATE func seed (Stream step state) =
                         return
                             $ Skip
                             $ ConcatParseYield
-                                (Left (ParseError (DEFAULT(i) + 1) err))
+                                (Left (PARSE_ERROR(i + 1) err))
                                 (ConcatParseInitLeftOver OPTIONAL(i + 1) [])
             Skip s ->
                 return $ Skip $ ConcatParseStream OPTIONAL(i) s buf pstep pst extract
@@ -460,7 +463,7 @@ PARSE_ITERATE func seed (Stream step state) =
                 return
                     $ Skip
                     $ ConcatParseYield
-                        (Left (ParseError (DEFAULT(i) + 1) err))
+                        (Left (PARSE_ERROR(i + 1) err))
                         (ConcatParseInitLeftOver OPTIONAL(i + 1) [])
 
     -- This is simplified ConcatParseBuf
@@ -505,7 +508,7 @@ PARSE_ITERATE func seed (Stream step state) =
                 return
                     $ Skip
                     $ ConcatParseYield
-                        (Left (ParseError (DEFAULT(i) + 1) err))
+                        (Left (PARSE_ERROR(i + 1) err))
                         (ConcatParseInitLeftOver OPTIONAL(i + 1) [])
 
     -- This is simplified ConcatParseExtract
@@ -535,14 +538,14 @@ PARSE_ITERATE func seed (Stream step state) =
                 return
                     $ Skip
                     $ ConcatParseYield
-                        (Left (ParseError DEFAULT(i) err))
+                        (Left (PARSE_ERROR(i) err))
                         (ConcatParseInitLeftOver OPTIONAL(i) [])
 
     stepOuter _ (ConcatParseYield a next) = return $ Yield a next
 
 {-# INLINE PARSE_BREAK #-}
 PARSE_BREAK :: Monad m =>
-    PR.Parser a m b -> Stream m a -> m (Either ParseError b, Stream m a)
+    PR.Parser a m b -> Stream m a -> m (Either PARSE_ERROR_TYPE b, Stream m a)
 PARSE_BREAK (PRD.Parser pstep initial extract) stream@(Stream step state) = do
     res <- initial
     case res of
@@ -553,7 +556,7 @@ PARSE_BREAK (PRD.Parser pstep initial extract) stream@(Stream step state) = do
             -- investigation.
             -- go0 SPEC state s COUNT(0)
         PRD.IDone b -> return (Right b, stream)
-        PRD.IError err -> return (Left (ParseError 0 err), stream)
+        PRD.IError err -> return (Left (PARSE_ERROR(0) err), stream)
 
     where
 
@@ -604,7 +607,7 @@ PARSE_BREAK (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                     PR.SError err -> do
                         let src = Prelude.reverse $ x:getList buf
                         return
-                            ( Left (ParseError DEFAULT(i+1) err)
+                            ( Left (PARSE_ERROR(i+1) err)
                             , Nesting.append (fromList src) (Stream step s)
                             )
 
@@ -630,7 +633,7 @@ PARSE_BREAK (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                     PR.SDone _ _ -> error "Unreachable"
                     PR.SError err -> do
                         return
-                            ( Left (ParseError DEFAULT(i + 1) err)
+                            ( Left (PARSE_ERROR(i + 1) err)
                             , StreamD.cons x (Stream step s)
                             )
 
@@ -662,7 +665,7 @@ PARSE_BREAK (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                 error $ "parseBreak: parser bug, go1: SDone m = " ++ show m
             PR.SError err ->
                 return
-                    ( Left (ParseError DEFAULT(i + 1) err)
+                    ( Left (PARSE_ERROR(i + 1) err)
                     , Nesting.append (fromPure x) (Stream step s)
                     )
 
@@ -698,7 +701,7 @@ PARSE_BREAK (PRD.Parser pstep initial extract) stream@(Stream step state) = do
             PR.SError err -> do
                 let src = Prelude.reverse (getList buf) ++ x:xs
                 return
-                    ( Left (ParseError DEFAULT(i + 1) err)
+                    ( Left (PARSE_ERROR(i + 1) err)
                     , Nesting.append (fromList src) (Stream step s)
                     )
 
@@ -733,7 +736,7 @@ PARSE_BREAK (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                 return (Right b, fromList src)
             PR.SError err -> do
                 let src = Prelude.reverse (getList buf) ++ x:xs
-                return (Left (ParseError DEFAULT(i + 1) err), fromList src)
+                return (Left (PARSE_ERROR(i + 1) err), fromList src)
 
     -- This is simplified goExtract
     {-# INLINE goStop #-}
@@ -756,14 +759,14 @@ PARSE_BREAK (PRD.Parser pstep initial extract) stream@(Stream step state) = do
                 return (Right b, fromList src)
             PR.FError err -> do
                 let src  = Prelude.reverse $ getList buf
-                return (Left (ParseError DEFAULT(i) err), fromList src)
+                return (Left (PARSE_ERROR(i) err), fromList src)
 
 {-# INLINE_NORMAL PARSE_BREAK_STREAMK #-}
 PARSE_BREAK_STREAMK
     :: forall m a b. Monad m
     => ParserK.ParserK a m b
     -> StreamK m a
-    -> m (Either ParseError b, StreamK m a)
+    -> m (Either PARSE_ERROR_TYPE b, StreamK m a)
 PARSE_BREAK_STREAMK parser input = do
     let parserk = ParserK.runParser parser ParserK.parserDone 0 0
      in go OPTIONAL(0) [] parserk input
@@ -782,7 +785,7 @@ PARSE_BREAK_STREAMK parser input = do
         :: OPTIONAL(Int ->)
            [a]
         -> (ParserK.Input a -> m (ParserK.Step a m b))
-        -> m (Either ParseError b, StreamK m a)
+        -> m (Either PARSE_ERROR_TYPE b, StreamK m a)
     -}
     goStop OPTIONAL(pos) backBuf parserk = do
         pRes <- parserk ParserK.None
@@ -811,9 +814,10 @@ PARSE_BREAK_STREAMK parser input = do
                 assertM(n1 >= 0 && n1 <= length backBuf)
                 let (s1, _) = backtrck n1 backBuf StreamK.nil
                  in return (Right b, s1)
-            ParserK.Error n err ->
+            ParserK.Error _n err ->
                 let strm = StreamK.fromList (Prelude.reverse backBuf)
-                 in return (Left (ParseError (DEFAULT(pos) + n) err), strm)
+                -- XXX do we need to add n here?
+                 in return (Left (PARSE_ERROR(pos + _n) err), strm)
 
     {-
     yieldk
@@ -822,7 +826,7 @@ PARSE_BREAK_STREAMK parser input = do
         -> (ParserK.Input a -> m (ParserK.Step a m b))
         -> a
         -> StreamK m a
-        -> m (Either ParseError b, StreamK m a)
+        -> m (Either PPARSE_ERROR_TYPE b, StreamK m a)
     -}
     yieldk OPTIONAL(pos) backBuf parserk element stream = do
         pRes <- parserk (ParserK.Chunk element)
@@ -857,12 +861,12 @@ PARSE_BREAK_STREAMK parser input = do
                 assertM(n1 >= 0 && n1 <= bufLen)
                 let (s1, _) = backtrck n1 backBuf s
                 pure (Right b, s1)
-            ParserK.Error n err ->
+            ParserK.Error _n err ->
                 let strm =
                         StreamK.append
                             (StreamK.fromList (Prelude.reverse backBuf))
                             (StreamK.cons element stream)
-                 in return (Left (ParseError (DEFAULT(pos) + n + 1) err), strm)
+                 in return (Left (PARSE_ERROR(pos + _n + 1) err), strm)
 
     {-
     go
@@ -870,7 +874,7 @@ PARSE_BREAK_STREAMK parser input = do
            [a]
         -> (ParserK.Input a -> m (ParserK.Step a m b))
         -> StreamK m a
-        -> m (Either ParseError b, StreamK m a)
+        -> m (Either PARSE_ERROR_TYPE b, StreamK m a)
     -}
     go OPTIONAL(pos) backBuf parserk stream = do
         let stop = goStop OPTIONAL(pos) backBuf parserk
@@ -883,7 +887,7 @@ PARSE_BREAK_CHUNKS
     :: (Monad m, Unbox a)
     => ParserK (Array a) m b
     -> StreamK m (Array a)
-    -> m (Either ParseError b, StreamK m (Array a))
+    -> m (Either PARSE_ERROR_TYPE b, StreamK m (Array a))
 PARSE_BREAK_CHUNKS parser input = do
     let parserk = ParserK.runParser parser ParserK.parserDone 0 0
      in go OPTIONAL(0) [] parserk input
@@ -918,9 +922,9 @@ PARSE_BREAK_CHUNKS parser input = do
                 assertM(n1 >= 0 && n1 <= sum (Prelude.map Array.length backBuf))
                 let (s1, _) = backtrack n1 backBuf StreamK.nil
                  in return (Right b, s1)
-            ParserK.Error n err -> do
+            ParserK.Error _n err -> do
                 let s1 = Prelude.foldl (flip StreamK.cons) StreamK.nil backBuf
-                return (Left (ParseError (DEFAULT(pos) + n) err), s1)
+                return (Left (PARSE_ERROR(pos + _n) err), s1)
 
     seekErr n len =
         error $ "parseBreak: Partial: forward seek not implemented n = "
@@ -963,9 +967,9 @@ PARSE_BREAK_CHUNKS parser input = do
                 assertM(n1 <= sum (Prelude.map Array.length (arr:backBuf)))
                 let (s1, _) = backtrack n1 (arr:backBuf) stream
                  in return (Right b, s1)
-            ParserK.Error n err -> do
+            ParserK.Error _n err -> do
                 let s1 = Prelude.foldl (flip StreamK.cons) stream (arr:backBuf)
-                return (Left (ParseError (DEFAULT(pos) + n + 1) err), s1)
+                return (Left (PARSE_ERROR(pos + _n + 1) err), s1)
 
     go OPTIONAL(pos) backBuf parserk stream = do
         let stop = goStop OPTIONAL(pos) backBuf parserk
@@ -978,7 +982,7 @@ PARSE_BREAK_CHUNKS_GENERIC
     :: forall m a b. Monad m
     => ParserK.ParserK (GArray.Array a) m b
     -> StreamK m (GArray.Array a)
-    -> m (Either ParseError b, StreamK m (GArray.Array a))
+    -> m (Either PARSE_ERROR_TYPE b, StreamK m (GArray.Array a))
 PARSE_BREAK_CHUNKS_GENERIC parser input = do
     let parserk = ParserK.runParser parser ParserK.parserDone 0 0
      in go OPTIONAL(0) [] parserk input
@@ -992,7 +996,7 @@ PARSE_BREAK_CHUNKS_GENERIC parser input = do
            [GArray.Array a]
         -> (ParserK.Input (GArray.Array a)
                 -> m (ParserK.Step (GArray.Array a) m b))
-        -> m (Either ParseError b, StreamK m (GArray.Array a))
+        -> m (Either PARSE_ERROR_TYPE b, StreamK m (GArray.Array a))
     -}
     goStop OPTIONAL(pos) backBuf parserk = do
         pRes <- parserk ParserK.None
@@ -1021,9 +1025,9 @@ PARSE_BREAK_CHUNKS_GENERIC parser input = do
                 assertM(n1 >= 0 && n1 <= sum (Prelude.map GArray.length backBuf))
                 let (s1, _) = backtrackGeneric n1 backBuf StreamK.nil
                  in return (Right b, s1)
-            ParserK.Error n err ->
+            ParserK.Error _n err ->
                 let strm = Prelude.foldl (flip StreamK.cons) StreamK.nil backBuf
-                 in return (Left (ParseError (DEFAULT(pos) + n) err), strm)
+                 in return (Left (PARSE_ERROR(pos + _n) err), strm)
 
     seekErr n len =
         error $ "parseBreak: Partial: forward seek not implemented n = "
@@ -1037,7 +1041,7 @@ PARSE_BREAK_CHUNKS_GENERIC parser input = do
                 -> m (ParserK.Step (GArray.Array a) m b))
         -> Array a
         -> StreamK m (GArray.Array a)
-        -> m (Either ParseError b, StreamK m (GArray.Array a))
+        -> m (Either PARSE_ERROR_TYPE b, StreamK m (GArray.Array a))
     -}
     yieldk OPTIONAL(pos) backBuf parserk arr stream = do
         pRes <- parserk (ParserK.Chunk arr)
@@ -1076,9 +1080,9 @@ PARSE_BREAK_CHUNKS_GENERIC parser input = do
                 assertM(n1 <= sum (Prelude.map GArray.length (arr:backBuf)))
                 let (s1, _) = backtrackGeneric n1 (arr:backBuf) stream
                  in return (Right b, s1)
-            ParserK.Error n err ->
+            ParserK.Error _n err ->
                 let strm = Prelude.foldl (flip StreamK.cons) stream (arr:backBuf)
-                 in return (Left (ParseError (DEFAULT(pos) + n + 1) err), strm)
+                 in return (Left (PARSE_ERROR(pos + _n + 1) err), strm)
 
     {-
     go
@@ -1087,7 +1091,7 @@ PARSE_BREAK_CHUNKS_GENERIC parser input = do
         -> (ParserK.Input (GArray.Array a)
                 -> m (ParserK.Step (GArray.Array a) m b))
         -> StreamK m (GArray.Array a)
-        -> m (Either ParseError b, StreamK m (GArray.Array a))
+        -> m (Either PARSE_ERROR_TYPE b, StreamK m (GArray.Array a))
     -}
     go OPTIONAL(pos) backBuf parserk stream = do
         let stop = goStop OPTIONAL(pos) backBuf parserk

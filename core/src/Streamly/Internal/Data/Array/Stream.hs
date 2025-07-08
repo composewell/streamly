@@ -321,7 +321,7 @@ runArrayParserDBreak
     case res of
         PRD.IPartial s -> go SPEC state (List []) s
         PRD.IDone b -> return (Right b, stream)
-        PRD.IError err -> return (Left (ParseError (-1) err), stream)
+        PRD.IError err -> return (Left (ParseError err), stream)
 
     where
 
@@ -374,7 +374,7 @@ runArrayParserDBreak
                 let src0 = x:getList backBuf
                     src = Prelude.reverse src0 ++ x:xs
                     strm = D.append (D.fromList src) (D.Stream step s)
-                return (Left (ParseError (-1) err), strm)
+                return (Left (ParseError err), strm)
 
     -- This is a simplified gobuf
     goExtract _ [] backBuf !pst = goStop backBuf pst
@@ -411,7 +411,7 @@ runArrayParserDBreak
             PR.SError err -> do
                 let src0 = getList backBuf
                     src = Prelude.reverse src0 ++ x:xs
-                return (Left (ParseError (-1) err), D.fromList src)
+                return (Left (ParseError err), D.fromList src)
 
     -- This is a simplified goExtract
     {-# INLINE goStop #-}
@@ -438,7 +438,7 @@ runArrayParserDBreak
             PR.FError err -> do
                 let src0 = getList backBuf
                     src = Prelude.reverse src0
-                return (Left (ParseError (-1) err), D.fromList src)
+                return (Left (ParseError err), D.fromList src)
 
 {-
 -- | Parse an array stream using the supplied 'Parser'.  Returns the parse
@@ -516,7 +516,7 @@ runArrayFoldManyD
                         let next = ParseChunksInitLeftOver []
                         return
                             $ D.Skip
-                            $ ParseChunksYield (Left (ParseError (-1) err)) next
+                            $ ParseChunksYield (Left (ParseError err)) next
             D.Skip s -> return $ D.Skip $ ParseChunksInit [] s
             D.Stop   -> return D.Stop
 
@@ -533,7 +533,7 @@ runArrayFoldManyD
                 let next = ParseChunksInitLeftOver []
                 return
                     $ D.Skip
-                    $ ParseChunksYield (Left (ParseError (-1) err)) next
+                    $ ParseChunksYield (Left (ParseError err)) next
 
     -- This is a simplified ParseChunksInit
     stepOuter _ (ParseChunksInitBuf src) = do
@@ -548,7 +548,7 @@ runArrayFoldManyD
                 let next = ParseChunksInitLeftOver []
                 return
                     $ D.Skip
-                    $ ParseChunksYield (Left (ParseError (-1) err)) next
+                    $ ParseChunksYield (Left (ParseError err)) next
 
     -- XXX we just discard any leftover input at the end
     stepOuter _ (ParseChunksInitLeftOver _) = return D.Stop
@@ -595,7 +595,7 @@ runArrayFoldManyD
                         let next = ParseChunksInitLeftOver []
                         return
                             $ D.Skip
-                            $ ParseChunksYield (Left (ParseError (-1) err)) next
+                            $ ParseChunksYield (Left (ParseError err)) next
 
             D.Skip s -> return $ D.Skip $ ParseChunksStream s backBuf pst
             D.Stop -> return $ D.Skip $ ParseChunksStop backBuf pst
@@ -637,7 +637,7 @@ runArrayFoldManyD
                 let next = ParseChunksInitLeftOver []
                 return
                     $ D.Skip
-                    $ ParseChunksYield (Left (ParseError (-1) err)) next
+                    $ ParseChunksYield (Left (ParseError err)) next
 
     -- This is a simplified ParseChunksBuf
     stepOuter _ (ParseChunksExtract [] buf pst) =
@@ -675,7 +675,7 @@ runArrayFoldManyD
                 let next = ParseChunksInitLeftOver []
                 return
                     $ D.Skip
-                    $ ParseChunksYield (Left (ParseError (-1) err)) next
+                    $ ParseChunksYield (Left (ParseError err)) next
 
 
     -- This is a simplified ParseChunksExtract
@@ -704,7 +704,7 @@ runArrayFoldManyD
                 let next = ParseChunksInitLeftOver []
                 return
                     $ D.Skip
-                    $ ParseChunksYield (Left (ParseError (-1) err)) next
+                    $ ParseChunksYield (Left (ParseError err)) next
 
     stepOuter _ (ParseChunksYield a next) = return $ D.Yield a next
 

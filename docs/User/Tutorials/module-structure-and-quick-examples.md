@@ -147,7 +147,7 @@ For example, to parse a sequence of digits:
 >>> Stream.parsePos decimal $ Stream.fromList "1234 is the number"
 Right "1234"
 >>> Stream.parsePos decimal $ Stream.fromList "this is the number"
-Left (ParseError 1 "takeWhile1: predicate failed on first element")
+Left (ParseErrorPos 1 "takeWhile1: predicate failed on first element")
 ```
 
 On failure we can return a default value:

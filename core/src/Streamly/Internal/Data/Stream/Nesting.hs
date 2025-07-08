@@ -186,7 +186,7 @@ import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.MutArray.Type (MutArray(..))
-import Streamly.Internal.Data.Parser (ParseError(..))
+import Streamly.Internal.Data.Parser (ParseError(..), ParseErrorPos)
 import Streamly.Internal.Data.RingArray (RingArray(..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Unbox (Unbox(..))
@@ -1532,7 +1532,7 @@ parseManyPos
     :: Monad m
     => PRD.Parser a m b
     -> Stream m a
-    -> Stream m (Either ParseError b)
+    -> Stream m (Either ParseErrorPos b)
 parseManyPos = Drivers.parseManyPos
 
 {-# DEPRECATED parseManyD "Please use parseMany instead." #-}
@@ -1610,7 +1610,7 @@ parseIteratePos
     => (b -> PRD.Parser a m b)
     -> b
     -> Stream m a
-    -> Stream m (Either ParseError b)
+    -> Stream m (Either ParseErrorPos b)
 parseIteratePos = Drivers.parseIteratePos
 
 {-# DEPRECATED parseIterateD "Please use parseIterate instead." #-}

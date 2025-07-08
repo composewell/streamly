@@ -10,7 +10,7 @@ import Control.Exception (displayException, try, evaluate, SomeException)
 import Data.List (isSuffixOf)
 import Streamly.Internal.Data.MutByteArray (Unbox)
 import Streamly.Test.Common (listEquals, checkListEqual, chooseInt)
-import Streamly.Internal.Data.Parser (ParseError(..))
+import Streamly.Internal.Data.Parser (ParseErrorPos(..))
 import Test.QuickCheck
        (arbitrary, forAll, elements, Property, property, listOf,
         vectorOf, Gen, (.&&.), ioProperty)
@@ -65,11 +65,11 @@ max_length = 1000
 -- TODO: Replace ParserTestCase_Temp with ParserTestCase in all the test cases.
 
 type ParserTestCase a m b c =
-        (P.Parser a m b -> [a] -> m (Either ParseError b, [a])) -> c
+        (P.Parser a m b -> [a] -> m (Either ParseErrorPos b, [a])) -> c
 
 type ParserTestCase_Temp a m b c =
         forall t. ([a] -> t)
-        -> (P.Parser a m b -> t -> m (Either ParseError b))
+        -> (P.Parser a m b -> t -> m (Either ParseErrorPos b))
         -> c
 
 fromFold :: ParserTestCase Int IO Int Property
@@ -116,7 +116,7 @@ parserFail consumer =
     property $
         case runIdentity $ consumer (Fail.fail err) [0 :: Int] of
             (Right _, _) -> False
-            (Left (ParseError _ e), rest) -> err == e && rest == [0 :: Int]
+            (Left (ParseErrorPos _ e), rest) -> err == e && rest == [0 :: Int]
     where
     err = "Testing MonadFail.fail."
 

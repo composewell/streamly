@@ -170,7 +170,7 @@ import Prelude
 import Data.Foldable (length)
 import Streamly.Internal.Data.StreamK.Type
 import Streamly.Internal.Data.StreamK.Transformer
-import Streamly.Internal.Data.Parser (ParseError(..))
+import Streamly.Internal.Data.Parser (ParseError(..), ParseErrorPos(..))
 
 #include "DocTestDataStreamK.hs"
 
@@ -1163,13 +1163,13 @@ parseDBreak
     :: Monad m
     => PR.Parser a m b
     -> StreamK m a
-    -> m (Either ParseError b, StreamK m a)
+    -> m (Either ParseErrorPos b, StreamK m a)
 parseDBreak (PR.Parser pstep initial extract) stream = do
     res <- initial
     case res of
         PR.IPartial s -> goStream stream [] s 0
         PR.IDone b -> return (Right b, stream)
-        PR.IError err -> return (Left (ParseError 0 err), stream)
+        PR.IError err -> return (Left (ParseErrorPos 0 err), stream)
 
     where
 
@@ -1188,7 +1188,7 @@ parseDBreak (PR.Parser pstep initial extract) stream = do
                 case r of
                     PR.FError err -> do
                         let src = Prelude.reverse buf
-                        return (Left (ParseError i err), fromList src)
+                        return (Left (ParseErrorPos i err), fromList src)
                     PR.FDone m b -> do
                         let n = (- m)
                         assertM(n <= length buf)
@@ -1229,7 +1229,7 @@ parseDBreak (PR.Parser pstep initial extract) stream = do
                         return (Right b, append (fromList src) r)
                     PR.SError err -> do
                         let src = Prelude.reverse (x:buf)
-                        return (Left (ParseError (i + 1) err), append (fromList src) r)
+                        return (Left (ParseErrorPos (i + 1) err), append (fromList src) r)
          in foldStream defState yieldk single stop st
 
     goBuf st buf [] !pst i = goStream st buf pst i
@@ -1258,7 +1258,7 @@ parseDBreak (PR.Parser pstep initial extract) stream = do
                 return (Right b, append (fromList src) st)
             PR.SError err -> do
                 let src = Prelude.reverse buf ++ x:xs
-                return (Left (ParseError (i + 1) err), append (fromList src) st)
+                return (Left (ParseErrorPos (i + 1) err), append (fromList src) st)
 
 -- Using ParserD or ParserK on StreamK may not make much difference. We should
 -- perhaps use only chunked parsing on StreamK. We can always convert a stream
@@ -1266,7 +1266,7 @@ parseDBreak (PR.Parser pstep initial extract) stream = do
 -- and convert ParserD to ParserK for element parsing using StreamK.
 {-# INLINE parseD #-}
 parseD :: Monad m =>
-    Parser.Parser a m b -> StreamK m a -> m (Either ParseError b)
+    Parser.Parser a m b -> StreamK m a -> m (Either ParseErrorPos b)
 parseD f = fmap fst . parseDBreak f
 
 -------------------------------------------------------------------------------
@@ -1316,7 +1316,7 @@ parseBreakPos
     :: forall m a b. Monad m
     => ParserK.ParserK a m b
     -> StreamK m a
-    -> m (Either ParseError b, StreamK m a)
+    -> m (Either ParseErrorPos b, StreamK m a)
 parseBreakPos = Drivers.parseBreakStreamKPos
 
 -- | Run a 'ParserK' over a 'StreamK'. Please use 'parseChunks' where possible,
@@ -1331,7 +1331,7 @@ parse f = fmap fst . parseBreak f
 --
 {-# INLINE parsePos #-}
 parsePos :: Monad m =>
-    ParserK.ParserK a m b -> StreamK m a -> m (Either ParseError b)
+    ParserK.ParserK a m b -> StreamK m a -> m (Either ParseErrorPos b)
 parsePos f = fmap fst . parseBreakPos f
 
 -------------------------------------------------------------------------------

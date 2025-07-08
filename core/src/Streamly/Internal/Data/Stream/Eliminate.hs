@@ -70,7 +70,7 @@ where
 
 import Control.Monad.IO.Class (MonadIO(..))
 import GHC.Types (SPEC(..))
-import Streamly.Internal.Data.Parser (ParseError(..))
+import Streamly.Internal.Data.Parser (ParseError(..), ParseErrorPos(..))
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
 import Streamly.Internal.Data.Unbox (Unbox)
 
@@ -131,7 +131,7 @@ RENAME(parseBreakD,parseBreak)
 --
 {-# INLINE parseBreakPos #-}
 parseBreakPos :: Monad m =>
-    PR.Parser a m b -> Stream m a -> m (Either ParseError b, Stream m a)
+    PR.Parser a m b -> Stream m a -> m (Either ParseErrorPos b, Stream m a)
 parseBreakPos = Drivers.parseBreakPos
 
 -- | Parse a stream using the supplied 'Parser'.
@@ -142,7 +142,7 @@ parseBreakPos = Drivers.parseBreakPos
 -- error.  For example:
 --
 -- >>> Stream.parse (Parser.takeEQ 1 Fold.drain) Stream.nil
--- Left (ParseError 0 "takeEQ: Expecting exactly 1 elements, input terminated on 0")
+-- Left (ParseError "takeEQ: Expecting exactly 1 elements, input terminated on 0")
 --
 -- Note: @parse p@ is not the same as  @head . parseMany p@ on an empty stream.
 --
@@ -158,10 +158,10 @@ RENAME(parseD,parse)
 -- messages.
 --
 -- >>> Stream.parsePos (Parser.takeEQ 2 Fold.drain) (Stream.fromList [1])
--- Left (ParseError 1 "takeEQ: Expecting exactly 2 elements, input terminated on 1")
+-- Left (ParseErrorPos 1 "takeEQ: Expecting exactly 2 elements, input terminated on 1")
 --
 {-# INLINE [3] parsePos #-}
-parsePos :: Monad m => PR.Parser a m b -> Stream m a -> m (Either ParseError b)
+parsePos :: Monad m => PR.Parser a m b -> Stream m a -> m (Either ParseErrorPos b)
 parsePos parser strm = do
     (b, _) <- parseBreakPos parser strm
     return b

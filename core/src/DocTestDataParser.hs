@@ -17,5 +17,4 @@ For APIs that have not been released yet.
 
 >>> import qualified Streamly.Internal.Data.Fold as Fold
 >>> import qualified Streamly.Internal.Data.Parser as Parser
->>> import qualified Streamly.Internal.Data.Stream as Stream (parsePos)
 -}

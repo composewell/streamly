@@ -130,7 +130,7 @@ import Prelude hiding (length, null, last, map, (!!), read, concat)
 import Streamly.Internal.Data.MutByteArray.Type (PinnedState(..), MutByteArray)
 import Streamly.Internal.Data.Serialize.Type (Serialize)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.Parser (ParseError(..))
+import Streamly.Internal.Data.Parser (ParseError(..), ParseErrorPos(..))
 import Streamly.Internal.Data.ParserK.Type
     (ParserK, ParseResult(..), Input(..), Step(..))
 import Streamly.Internal.Data.Stream (Stream(..))
@@ -1034,7 +1034,7 @@ parseBreakPos
     :: (Monad m, Unbox a)
     => ParserK (Array a) m b
     -> StreamK m (Array a)
-    -> m (Either ParseError b, StreamK m (Array a))
+    -> m (Either ParseErrorPos b, StreamK m (Array a))
 parseBreakPos = Drivers.parseBreakChunksPos
 
 {-# INLINE parse #-}
@@ -1047,7 +1047,7 @@ parse f = fmap fst . parseBreak f
 --
 {-# INLINE parsePos #-}
 parsePos :: (Monad m, Unbox a) =>
-    ParserK (Array a) m b -> StreamK m (Array a) -> m (Either ParseError b)
+    ParserK (Array a) m b -> StreamK m (Array a) -> m (Either ParseErrorPos b)
 parsePos f = fmap fst . parseBreakPos f
 
 -------------------------------------------------------------------------------
