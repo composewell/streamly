@@ -57,7 +57,7 @@
 -- the monadic parsers.
 --
 -- If we have to parse "9a" or "a9" but not "99" or "aa" we can use the
--- following non-monadic (Applicative), backtracking parser:
+-- following Applicative, backtracking parser:
 --
 -- >>> -- parse p1 : p2 : []
 -- >>> token p1 p2 = ((:) <$> p1 <*> ((:) <$> p2 <*> pure []))
@@ -78,7 +78,8 @@
 -- at the first place then the second parse is going to fail.  However, we
 -- waste that information and parse the first character again in the second
 -- parse only to know that it is not an alphabetic char.  By using lookbehind
--- in a 'Monad' composition we can avoid redundant work:
+-- in a 'Monad' composition we can make dynamic decisions based on previously
+-- parsed information and avoid redundant work:
 --
 -- >>> data DigitOrAlpha = Digit Char | Alpha Char
 --

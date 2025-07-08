@@ -816,7 +816,6 @@ PARSE_BREAK_STREAMK parser input = do
                  in return (Right b, s1)
             ParserK.Error _n err ->
                 let strm = StreamK.fromList (Prelude.reverse backBuf)
-                -- XXX do we need to add n here?
                  in return (Left (PARSE_ERROR(pos + _n) err), strm)
 
     {-
@@ -866,6 +865,7 @@ PARSE_BREAK_STREAMK parser input = do
                         StreamK.append
                             (StreamK.fromList (Prelude.reverse backBuf))
                             (StreamK.cons element stream)
+                 -- XXX Need to test if the +1 is correct.
                  in return (Left (PARSE_ERROR(pos + _n + 1) err), strm)
 
     {-

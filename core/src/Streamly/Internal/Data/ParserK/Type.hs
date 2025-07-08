@@ -146,6 +146,15 @@ data Step a m r =
       Done !Int r
     | Partial !Int (StepParser a m r)
     | Continue !Int (StepParser a m r)
+    -- The Error constructor in ParserK Step carries a count, but the 'Parser'
+    -- Step does not carry a count - this is because in ParserK we can have
+    -- chunked drivers which can consume multiple inputs before returning a
+    -- result or error. In such cases, if an error occurs the parser has to
+    -- tell us the offset where the error occurred. In case of 'Parser' type we
+    -- do not have chunked drivers, we always drive it one element at a time,
+    -- therefore, the offset is not required on Error, the driver already knows
+    -- where we are. However, if we ever build a chunked driver for 'Parser' we
+    -- will need this argument in Parser Step as well.
     | Error !Int String
 
 instance Functor m => Functor (Step a m) where

@@ -11,7 +11,6 @@
 --
 -- * folds cannot fail but parsers can fail and backtrack.
 -- * folds can be composed as a Tee but parsers cannot.
--- * folds can be used for scanning but parsers cannot.
 -- * folds can be converted to parsers.
 --
 -- Streamly parsers support all operations offered by popular Haskell parser
@@ -28,15 +27,15 @@
 -- Operations in this module are designed to be composed statically rather than
 -- dynamically. They are inlined to enable static fusion. More importantly,
 -- they are not designed to be used recursively. Recursive use will break
--- fusion and will lead to quadratic performance slowdown. For dynamic or
--- recursive composition use the continuation passing style (CPS) operations
+-- fusion and lead to quadratic performance slowdown. For dynamic and
+-- recursive compositions use the continuation passing style (CPS) operations
 -- from the "Streamly.Data.ParserK" module. 'Parser' and
 -- 'Streamly.Data.ParserK.ParserK' types are interconvertible.
 --
 -- == How to parse a stream?
 --
--- Parser combinators can be used to create a pipeline of folds or parsers such
--- that the next fold or parser consumes the result of the previous parser.
+-- Parser combinators can be used to create a pipeline of parsers such
+-- that the next parser consumes the result of the previous parser.
 -- Such a composed pipeline of parsers can then be driven by one of many parser
 -- drivers available in the Stream and Array modules.
 --
@@ -57,17 +56,18 @@
 -- general. "Streamly.Data.Parser" enables stream fusion and where possible it should be
 -- preferred over "Streamly.Data.ParserK" for high performance stream parsing
 -- use cases. However, there are a few cases where this module is not
--- suitable and ParserK should be used instead.
+-- suitable and ParserK should be used instead. As a thumb rule, when recursion
+-- or heavy nesting is needed use ParserK.
 --
--- As a thumb rule, when recursion or heavy nesting is needed use ParserK.
+-- === Parser: suitable for non-recursive static fusion
 --
--- === Parser: non-recursive static fusion
---
--- For static fusion, parser combinators have to use strict pattern matching on
--- arguments of type Parser. This leads to infinte loop when a parser is
--- defined recursively, due to strict evaluation of the recursive call. For
--- example, the following implementation loops infinitely because of the
--- recursive use of parser @p@ in the @*>@ combinator:
+-- The 'Parser' type is suitable only for non-recursive static fusion. It could
+-- be problematic for recursive definitions. To enable static fusion, parser
+-- combinators use strict pattern matching on arguments of type Parser. This
+-- leads to infinte loop when a parser is defined recursively, due to strict
+-- evaluation of the recursive call. For example, the following implementation
+-- loops infinitely because of the recursive use of parser @p@ in the @*>@
+-- combinator:
 --
 -- >>> import Streamly.Data.Parser (Parser)
 -- >>> import qualified Streamly.Data.Fold as Fold
@@ -82,9 +82,16 @@
 -- >>> p = p1 <|> p2
 -- >>> :}
 --
--- === ParserK: recursive application
+-- Another limitation of Parser type quadratic performance slowdown when too
+-- many nested compositions are used. Especially Applicative, Monad,
+-- Alternative instances, and sequenced parsing operations (e.g. nested 'one',
+-- and 'splitWith') exhibit quadratic slowdown (O(n^2) complexity) when
+-- combined @n@ times, roughly 8 or less sequenced parsers usually work fine.
+-- READ THE DOCS OF APPLICATIVE, MONAD AND ALTERNATIVE INSTANCES.
 --
--- Use ParserK when recursive use is required:
+-- === ParserK: suitable for recursive definitions
+--
+-- ParserK is suitable for recursive definitions:
 --
 -- >>> import Streamly.Data.ParserK (ParserK)
 -- >>> import Streamly.Data.StreamK (parserK)
@@ -107,13 +114,6 @@
 -- 'Prelude.sequence' use recursion. Custom implementations of many such
 -- operations are provided in this module (e.g. 'some', 'many'), and those
 -- should be used instead.
---
--- Another limitation of Parser type is due to the quadratic complexity causing
--- slowdown when too many nested compositions are used. Especially Applicative,
--- Monad, Alternative instances, and sequenced parsing operations (e.g. nested
--- 'one', and 'splitWith') degrade the performance quadratically (O(n^2)) when
--- combined @n@ times, roughly 8 or less sequenced parsers are fine. READ THE
--- DOCS OF APPLICATIVE, MONAD AND ALTERNATIVE INSTANCES.
 --
 -- == Parsers Galore!
 --
@@ -139,7 +139,6 @@
 -- library or similar. However, if available, we recommend that you use the
 -- equivalent functionality from this module where performance and streaming
 -- behavior matters.
---
 -- Firstly, the combinators in this module are faster due to stream fusion.
 -- Secondly, these are streaming in nature as the results can be passed
 -- directly to other stream consumers (folds or parsers). The Alternative type
@@ -150,21 +149,20 @@
 --
 -- There are two types of parser drivers available, @parse@ and @parseBreak@
 -- drivers do not track stream position, whereas @parsePos@ and @parseBreakPos@
--- drivers track stream position information with slightly more performance
--- overhead.
+-- drivers track and report stream position information with slightly more
+-- performance overhead.
 --
--- When an error occurs the stream position is reported, in case byte streams
+-- When an error occurs the stream position is reported, in case of byte streams
 -- or unboxed array streams this is the byte position, in case of generic
 -- element parsers or generic array parsers this is the element position in the
 -- stream.
 --
--- If you need line number or column information you can read the stream again
--- (if it is immutable) and translate the reported byte position to line number
--- and column. More elaborate support for computing arbitrary and custom error
--- context information is planned to be added in future.
---
--- These parsers do not report the error context (e.g. line number or column).
--- This may be supported in future.
+-- These parsers do not report a case specific error context (e.g. line number
+-- or column). If you need line number or column information you can read the
+-- stream again (if it is immutable) and this count the lines to translate the
+-- reported byte position to line number and column. More elaborate support for
+-- building arbitrary and custom error context information is planned to be
+-- added in future.
 --
 -- == Monad Transformer Stack
 --
