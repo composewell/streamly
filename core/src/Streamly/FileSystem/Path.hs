@@ -5,31 +5,44 @@
 -- Maintainer  : streamly@composewell.com
 -- Portability : GHC
 --
--- File system paths; extensible, high-performance, preserving the OS and
--- filesystem encoding.
+-- File system paths that are extensible, high-performance and preserve the OS
+-- and filesystem encoding.
+--
+-- The 'Path' type is built on top of Streamly's 'Array' type, leveraging all
+-- its operations and advantages—including support for both pinned and unpinned
+-- representations. It is designed for extensibility and fine-grained type
+-- safety. For type-safe adaptations, refer to the
+-- "Streamly.Internal.FileSystem.Path.*" modules. The type also offers a
+-- powerful and flexible path comparison mechanism.
+--
+-- 'Path' is interconvertible with the 'OsPath' type from the filepath package
+-- at zero runtime cost. While the API is mostly compatible with that of the
+-- filepath package, some differences exist due to a slightly different design
+-- philosophy focused on enhanced safety.
 --
 -- = Rooted Paths vs Branches
 --
--- To ensure the safety of the append operation, we distinguish between
--- rooted paths and branch-type paths. A path that starts from an explicit or
--- implicit root in the file system is called a rooted path. For example,
--- @\/usr\/bin@ is a rooted path starting from the explicit root directory @/@.
--- Similarly, @.\/bin@ is rooted implicitly, hanging from the current directory.
--- A path that is not rooted is called a branch; for example, @local\/bin@ is a
--- branch.
+-- To ensure the safety of the append operation, we distinguish between rooted
+-- paths and branch-type paths. A path that starts from an explicit or implicit
+-- root in the file system is called a rooted path or an anchored path. For
+-- example, @\/usr\/bin@ is a rooted path starting from the explicit root
+-- directory @/@. Similarly, @.\/bin@ is rooted implicitly, anchored at the
+-- current directory. A path that is not rooted is called a branch or
+-- unanchored path; for example, @local\/bin@ is a branch.
 --
 -- This distinction ensures the safety of the path append operation. You can
--- always append a branch to a rooted path or to another branch. However,
--- it does not make sense to append one rooted path to another. The default
--- append operation in the Path module checks for this and fails if the
--- operation is invalid. However, the programmer can force it using the
--- unsafe append operation. Alternatively, you can drop the root explicitly
--- and use the safe append.
+-- always append a branch to a rooted path or to another branch. However, it
+-- does not make sense to append one rooted path to another. The default append
+-- operation in the Path module checks for this and fails if the operation is
+-- invalid. However, the programmer can force the unsafe behavior by using the
+-- unsafe append operation. Alternatively, you can drop the root explicitly and
+-- use the safe append.
 --
--- Since we distinguish between rooted and branch-type paths, a separate
--- distinction between absolute and relative paths is not required. Both are
--- considered rooted paths, and all rooted paths are protected from invalid
--- append operations. Only branch-type paths can be appended.
+-- Rooted vs branch distinction is a stricter form of relative vs absolute path
+-- distinction. Essentially, paths relative to the current directory are also
+-- treated in the same way as absolute paths, from the perspective of an append
+-- operation. Only branch-type paths can be appended to any other path using
+-- safe operations.
 --
 -- = File vs. Directory Paths
 --
@@ -39,20 +52,18 @@
 -- Therefore, when using the @Path@ type, the append operation allows appending
 -- to paths even if they lack a trailing separator.
 --
--- = Compatibility
+-- = Compatibility with the filepath package
 --
--- Any path type can be converted to the 'FilePath' type using the 'toString'
--- operation. Operations to convert to and from 'OsPath' type at zero cost are
--- provided in the @streamly-filepath@ package. This is possible because the
--- types use an underlying representation which is compatible with the 'OsPath'
--- type.
+-- Any path type can be converted to the 'FilePath' type from the filepath
+-- package by using the 'toString' operation. Operations to convert to and from
+-- the 'OsPath' type at zero cost are provided in the @streamly-filepath@
+-- package. Zero-cost interconversion is possible because the 'Path' type use
+-- an underlying representation which is compatible with the 'OsPath' type.
 --
 -- = Path Creation Quasiquoter
 --
 -- The 'path' quasiquoter is useful in creating valid paths that are checked
 -- during the compile time.
---
---
 
 module Streamly.FileSystem.Path
     (
