@@ -146,21 +146,21 @@ For APIs that have not been released yet.
 -- True
 -- >>> isValid "\\\\??\\x"
 -- True
-isValidPath :: Array WORD_TYPE -> Bool
+isValidPath :: Array FS_WORD -> Bool
 isValidPath = Common.isValidPath Common.OS_NAME
 
 -- | Like 'validatePath' on but more strict. A share root must be followed by a
 -- non-empty path. Thus "\/\/x\/" is not considered a valid path.
 validatePath' ::
-    MonadThrow m => Array WORD_TYPE -> m ()
+    MonadThrow m => Array FS_WORD -> m ()
 validatePath' = Common.validatePath' Common.Windows
 
 -- | Like 'isValidPath' but more strict, see validatePath' for differences.
 isValidPath' ::
-    Array WORD_TYPE -> Bool
+    Array FS_WORD -> Bool
 isValidPath' = Common.isValidPath' Common.Windows
 
--- | Read a raw array of WORD_TYPE as a path type.
+-- | Read a raw array of FS_WORD as a path type.
 --
 -- >>> readRaw = fromJust . Path.fromChunk . read
 --
@@ -169,7 +169,7 @@ isValidPath' = Common.isValidPath' Common.Windows
 -- "fromList [104,101,108,108,111]"
 --
 -- See also: 'showRaw'.
-readRaw :: IsPath OS_PATH a => [Char] -> a
+readRaw :: IsPath OS_PATH_TYPE a => [Char] -> a
 readRaw = fromJust . fromChunk . read
 
 -- | A path that is attached to a root. "C:\\" is considered an absolute root
@@ -216,7 +216,7 @@ readRaw = fromJust . fromChunk . read
 -- >>> isRooted "//x/y"
 -- True
 --
-isRooted :: OS_PATH -> Bool
+isRooted :: OS_PATH_TYPE -> Bool
 isRooted (OS_PATH arr) = Common.isRooted Common.OS_NAME arr
 
 -- | Like 'extend' but does not check if any of the path is empty or if the
@@ -244,15 +244,15 @@ isRooted (OS_PATH arr) = Common.isRooted Common.OS_NAME arr
 -- "//x/y"
 --
 {-# INLINE unsafeExtend #-}
-unsafeExtend :: OS_PATH -> OS_PATH -> OS_PATH
+unsafeExtend :: OS_PATH_TYPE -> OS_PATH_TYPE -> OS_PATH_TYPE
 unsafeExtend (OS_PATH a) (OS_PATH b) =
     OS_PATH
         $ Common.unsafeAppend
             Common.OS_NAME (Common.toString Unicode.UNICODE_DECODER) a b
 
--- | Append a OS_PATH to another. Fails if the second path refers to a rooted
+-- | Append a OS_PATH_TYPE to another. Fails if the second path refers to a rooted
 -- path. If you want to avoid runtime failure use the typesafe
--- Streamly.FileSystem.OS_PATH.Seg module. Use 'unsafeExtend' to avoid failure
+-- Streamly.FileSystem.OS_PATH_TYPE.Seg module. Use 'unsafeExtend' to avoid failure
 -- if you know it is ok to append the path.
 --
 -- Usually, append joins two paths using a separator between the paths. On
@@ -284,7 +284,7 @@ unsafeExtend (OS_PATH a) (OS_PATH b) =
 -- True
 -- >>> fails $ f [path|//x/|] [path|/y|]
 -- True
-extend :: OS_PATH -> OS_PATH -> OS_PATH
+extend :: OS_PATH_TYPE -> OS_PATH_TYPE -> OS_PATH_TYPE
 extend (OS_PATH a) (OS_PATH b) =
     OS_PATH
         $ Common.append
@@ -299,7 +299,7 @@ extend (OS_PATH a) (OS_PATH b) =
 -- True
 --
 extendDir ::
-    OS_PATH -> OS_PATH -> OS_PATH
+    OS_PATH_TYPE -> OS_PATH_TYPE -> OS_PATH_TYPE
 extendDir
     (OS_PATH a) (OS_PATH b) =
     OS_PATH
@@ -364,7 +364,7 @@ extendDir
 -- >>> eq "x"  "x"
 -- True
 --
-eqPath :: (EqCfg -> EqCfg) -> OS_PATH -> OS_PATH -> Bool
+eqPath :: (EqCfg -> EqCfg) -> OS_PATH_TYPE -> OS_PATH_TYPE -> Bool
 eqPath cfg (OS_PATH a) (OS_PATH b) =
     Common.eqPath Unicode.UNICODE_DECODER
         Common.OS_NAME cfg a b
@@ -391,7 +391,7 @@ eqPath cfg (OS_PATH a) (OS_PATH b) =
 -- >>> split "//x/y"
 -- Just ("//x/",Just "y")
 --
-splitRoot :: OS_PATH -> Maybe (OS_PATH, Maybe OS_PATH)
+splitRoot :: OS_PATH_TYPE -> Maybe (OS_PATH_TYPE, Maybe OS_PATH_TYPE)
 splitRoot (OS_PATH x) =
     let (a,b) = Common.splitRoot Common.OS_NAME x
      in if Array.null a
@@ -437,7 +437,7 @@ splitRoot (OS_PATH x) =
 -- ["\\","x","y"]
 --
 {-# INLINE splitPath_ #-}
-splitPath_ :: Monad m => OS_PATH -> Stream m OS_PATH
+splitPath_ :: Monad m => OS_PATH_TYPE -> Stream m OS_PATH_TYPE
 splitPath_ (OS_PATH a) = fmap OS_PATH $ Common.splitPath_ Common.OS_NAME a
 
 -- | Split the path components keeping separators between path components
@@ -458,7 +458,7 @@ splitPath_ (OS_PATH a) = fmap OS_PATH $ Common.splitPath_ Common.OS_NAME a
 -- ["\\","x/","y"]
 --
 {-# INLINE splitPath #-}
-splitPath :: Monad m => OS_PATH -> Stream m OS_PATH
+splitPath :: Monad m => OS_PATH_TYPE -> Stream m OS_PATH_TYPE
 splitPath (OS_PATH a) = fmap OS_PATH $ Common.splitPath Common.OS_NAME a
 
 -- | See "Streamly.Internal.FileSystem.PosixPath" module for detailed
@@ -478,6 +478,6 @@ splitPath (OS_PATH a) = fmap OS_PATH $ Common.splitPath Common.OS_NAME a
 -- >>> split "x:.y"
 -- Nothing
 --
-splitExtension :: OS_PATH -> Maybe (OS_PATH, OS_PATH)
+splitExtension :: OS_PATH_TYPE -> Maybe (OS_PATH_TYPE, OS_PATH_TYPE)
 splitExtension (OS_PATH a) =
     fmap (bimap OS_PATH OS_PATH) $ Common.splitExtension Common.OS_NAME a

@@ -4,7 +4,12 @@
 #if defined(IS_WINDOWS)
 #define OS_NAME Windows
 #define OS_PATH WindowsPath
-#define WORD_TYPE Word16
+#define OS_PATH_TYPE WindowsPath
+#define FS_WORD Word16
+#define REAL_FS_WORD Word16
+#define FS_CSTRING CWString
+#define REAL_FS_CSTRING CWString
+#define AS_FS_CSTRING asCWString
 #define UNICODE_ENCODER encodeUtf16le'
 #define UNICODE_DECODER decodeUtf16le'
 #define UNICODE_DECODER_LAX decodeUtf16le
@@ -13,7 +18,12 @@
 #else
 #define OS_NAME Posix
 #define OS_PATH PosixPath
-#define WORD_TYPE Word8
+#define OS_PATH_TYPE PosixPath
+#define FS_WORD Word8
+#define REAL_FS_WORD Word8
+#define FS_CSTRING CString
+#define REAL_FS_CSTRING CString
+#define AS_FS_CSTRING asCString
 #define UNICODE_ENCODER encodeUtf8'
 #define UNICODE_DECODER decodeUtf8'
 #define UNICODE_DECODER_LAX decodeUtf8
@@ -21,16 +31,27 @@
 #define SEPARATORS @/@
 #endif
 
+#if defined(IS_PORTABLE)
+#undef OS_PATH_TYPE
+#define OS_PATH_TYPE Path
+#undef FS_WORD
+#define FS_WORD FsWord
+#undef FS_CSTRING
+#define FS_CSTRING FsCString
+#undef AS_FS_CSTRING
+#define AS_FS_CSTRING asFsCString
+#endif
+
 -- |
--- Module      : Streamly.Internal.FileSystem.OS_PATH
+-- Module      : Streamly.Internal.FileSystem.OS_PATH_TYPE
 -- Copyright   : (c) 2023 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
 -- Portability : GHC
 --
--- This module implements a OS_PATH type representing a file system path for
+-- This module implements a OS_PATH_TYPE type representing a file system path for
 -- OS_NAME operating systems. The only assumption about the encoding of the
--- path is that it maps the characters SEPARATORS and @.@ to WORD_TYPE
+-- path is that it maps the characters SEPARATORS and @.@ to FS_WORD
 -- representing their ASCII values. Operations are provided to encode and
 -- decode using CODEC_NAME encoding.
 --
@@ -51,11 +72,16 @@
 -- provide lower level operations for certain cases to interact more
 -- efficinetly with low level code.
 
-module Streamly.Internal.FileSystem.OS_PATH
+module Streamly.Internal.FileSystem.OS_PATH_TYPE
     (
     -- * Type
-      OS_PATH (..)
-
+#if defined(IS_PORTABLE)
+      FS_WORD
+    , FS_CSTRING
+    , OS_PATH_TYPE
+#else
+      OS_PATH_TYPE (..)
+#endif
     -- * Conversions
     , IsPath (..)
     , adapt
@@ -97,11 +123,7 @@ module Streamly.Internal.FileSystem.OS_PATH
     , toChars
     , toChars_
     , toString
-#ifndef IS_WINDOWS
-    , asCString
-#else
-    , asCWString
-#endif
+    , AS_FS_CSTRING
     , toString_
     , showRaw
 
@@ -201,6 +223,10 @@ import Language.Haskell.TH
 import Language.Haskell.TH.Quote
 import Streamly.Internal.Data.Path
 
+#if defined(IS_PORTABLE)
+import Streamly.Internal.FileSystem.OS_PATH (OS_PATH(..))
+#endif
+
 -- XXX docspec does not process CPP
 
 {- $setup
@@ -234,16 +260,17 @@ For APIs that have not been released yet.
 -- Path components may have limits.
 -- Total path length may have a limit.
 
+#if !defined(IS_PORTABLE)
 -- | A type representing file system paths on OS_NAME.
 --
--- A OS_PATH is validated before construction unless unsafe constructors are
+-- A OS_PATH_TYPE is validated before construction unless unsafe constructors are
 -- used to create it. For validations performed by the safe construction
 -- methods see the 'fromChars' function.
 --
 -- Note that in some cases the file system may perform unicode normalization on
 -- paths (e.g. Apple HFS), it may cause surprising results as the path used by
 -- the user may not have the same bytes as later returned by the file system.
-newtype OS_PATH = OS_PATH (Array WORD_TYPE)
+newtype OS_PATH = OS_PATH (Array FS_WORD)
 
 -- XXX The Eq instance may be provided but it will require some sensible
 -- defaults for comparison. For example, should we use case sensitive or
@@ -254,6 +281,11 @@ instance IsPath OS_PATH OS_PATH where
     unsafeFromPath = id
     fromPath = pure
     toPath = id
+#else
+type OS_PATH_TYPE = OS_PATH
+type FS_WORD = REAL_FS_WORD
+type FS_CSTRING = REAL_FS_CSTRING
+#endif
 
 -- XXX Use rewrite rules to eliminate intermediate conversions for better
 -- efficiency. If the argument path is already verfied for a property, we
@@ -265,8 +297,8 @@ instance IsPath OS_PATH OS_PATH where
 -- | Convert a path type to another path type. This operation may fail with a
 -- 'PathException' when converting a less restrictive path type to a more
 -- restrictive one. This can be used to upgrade or downgrade type safety.
-adapt :: (MonadThrow m, IsPath OS_PATH a, IsPath OS_PATH b) => a -> m b
-adapt p = fromPath (toPath p :: OS_PATH)
+adapt :: (MonadThrow m, IsPath OS_PATH_TYPE a, IsPath OS_PATH_TYPE b) => a -> m b
+adapt p = fromPath (toPath p :: OS_PATH_TYPE)
 
 ------------------------------------------------------------------------------
 -- Path parsing utilities
@@ -289,14 +321,14 @@ adapt p = fromPath (toPath p :: OS_PATH)
 -- "/"
 --
 {-# INLINE dropTrailingSeparators #-}
-dropTrailingSeparators :: OS_PATH -> OS_PATH
+dropTrailingSeparators :: OS_PATH_TYPE -> OS_PATH_TYPE
 dropTrailingSeparators (OS_PATH arr) =
     OS_PATH (Common.dropTrailingSeparators Common.OS_NAME arr)
 
 -- | Returns True if the path has a trailing separator. This means the path is
 -- implicitly a dir type path.
 {-# INLINE hasTrailingSeparator #-}
-hasTrailingSeparator :: OS_PATH -> Bool
+hasTrailingSeparator :: OS_PATH_TYPE -> Bool
 hasTrailingSeparator (OS_PATH arr) =
     Common.hasTrailingSeparator Common.OS_NAME arr
 
@@ -307,7 +339,7 @@ hasTrailingSeparator (OS_PATH arr) =
 -- different meaning.
 --
 {-# INLINE addTrailingSeparator #-}
-addTrailingSeparator :: OS_PATH -> OS_PATH
+addTrailingSeparator :: OS_PATH_TYPE -> OS_PATH_TYPE
 addTrailingSeparator p = unsafeExtend p sep
 
     where
@@ -316,7 +348,7 @@ addTrailingSeparator p = unsafeExtend p sep
 
 -- | Throws an exception if the path is not valid. See 'isValidPath' for the
 -- list of validations.
-validatePath :: MonadThrow m => Array WORD_TYPE -> m ()
+validatePath :: MonadThrow m => Array FS_WORD -> m ()
 validatePath = Common.validatePath Common.OS_NAME
 
 #ifndef IS_WINDOWS
@@ -330,7 +362,7 @@ validatePath = Common.validatePath Common.OS_NAME
 -- >>> isValid "\0"
 -- False
 --
-isValidPath :: Array WORD_TYPE -> Bool
+isValidPath :: Array FS_WORD -> Bool
 isValidPath = Common.isValidPath Common.OS_NAME
 #endif
 
@@ -350,7 +382,7 @@ isValidPath = Common.isValidPath Common.OS_NAME
 -- per 'isValidPath'.
 --
 {-# INLINE unsafeFromChunk #-}
-unsafeFromChunk :: IsPath OS_PATH a => Array WORD_TYPE -> a
+unsafeFromChunk :: IsPath OS_PATH_TYPE a => Array FS_WORD -> a
 unsafeFromChunk =
 #ifndef DEBUG
     unsafeFromPath . OS_PATH . Common.unsafeFromChunk
@@ -363,12 +395,12 @@ unsafeFromChunk =
 -- | Convert a byte array into a Path.
 -- Throws 'InvalidPath' if 'isValidPath' fails on the path.
 --
-fromChunk :: (MonadThrow m, IsPath OS_PATH a) => Array WORD_TYPE -> m a
+fromChunk :: (MonadThrow m, IsPath OS_PATH_TYPE a) => Array FS_WORD -> m a
 fromChunk arr = Common.fromChunk Common.OS_NAME arr >>= fromPath . OS_PATH
 
 -- XXX Should be a Fold instead?
 
--- | Encode a Unicode character stream to OS_PATH using strict CODEC_NAME encoding.
+-- | Encode a Unicode character stream to OS_PATH_TYPE using strict CODEC_NAME encoding.
 --
 -- * Throws 'InvalidPath' if 'isValidPath' fails on the path
 -- * Fails if the stream contains invalid unicode characters
@@ -384,21 +416,21 @@ fromChunk arr = Common.fromChunk Common.OS_NAME arr >>= fromPath . OS_PATH
 -- Unicode normalization is not done. If normalization is needed the user can
 -- normalize it and then use the 'fromChunk' API.
 {-# INLINE fromChars #-}
-fromChars :: (MonadThrow m, IsPath OS_PATH a) => Stream Identity Char -> m a
+fromChars :: (MonadThrow m, IsPath OS_PATH_TYPE a) => Stream Identity Char -> m a
 fromChars s =
     Common.fromChars Common.OS_NAME Unicode.UNICODE_ENCODER s
         >>= fromPath . OS_PATH
 
 -- | Create a raw path i.e. an array representing the path. Note that the path
 -- is not validated, therefore, it may not be valid according to 'isValidPath'.
-rawFromString :: [Char] -> Array WORD_TYPE
+rawFromString :: [Char] -> Array FS_WORD
 rawFromString =
       Common.unsafeFromChars Unicode.UNICODE_ENCODER
     . Stream.fromList
 
 -- | Like 'fromString' but does not perform any validations mentioned under
 -- 'isValidPath'. Fails only if unicode encoding fails.
-unsafeFromString :: IsPath OS_PATH a => [Char] -> a
+unsafeFromString :: IsPath OS_PATH_TYPE a => [Char] -> a
 unsafeFromString =
 #ifndef DEBUG
       unsafeFromPath
@@ -408,12 +440,12 @@ unsafeFromString =
     fromJust . fromString
 #endif
 
--- | Convert a string to OS_PATH. See 'fromChars' for failure cases and
+-- | Convert a string to OS_PATH_TYPE See 'fromChars' for failure cases and
 -- semantics.
 --
 -- >>> fromString = Path.fromChars . Stream.fromList
 --
-fromString :: (MonadThrow m, IsPath OS_PATH a) => [Char] -> m a
+fromString :: (MonadThrow m, IsPath OS_PATH_TYPE a) => [Char] -> m a
 fromString = fromChars . Stream.fromList
 
 -- | Concatenate a string to an existing path.
@@ -421,7 +453,7 @@ fromString = fromChars . Stream.fromList
 --  Throws an error if the resulting path is not a valid path as per
 --  'isValidPath'.
 --
-extendByString :: OS_PATH -> [Char] -> OS_PATH
+extendByString :: OS_PATH_TYPE -> [Char] -> OS_PATH_TYPE
 extendByString (OS_PATH a) b =
     OS_PATH $
         Common.append Common.OS_NAME
@@ -437,11 +469,11 @@ extendByString (OS_PATH a) b =
 --
 -- XXX Make this polymorphic and reusable in other modules.
 
-liftPath :: OS_PATH -> Q Exp
+liftPath :: OS_PATH_TYPE -> Q Exp
 liftPath p =
     [| unsafeFromString $(lift $ toString p) :: OS_PATH |]
 
--- | Generates a Haskell expression of type OS_PATH from a String. Equivalent
+-- | Generates a Haskell expression of type OS_PATH_TYPE from a String. Equivalent
 -- to using 'fromString' on the string passed.
 --
 pathE :: String -> Q Exp
@@ -456,7 +488,7 @@ pathE = either (error . show) liftPath . fromString
 -- for free. Interpolated vars if any have to be of appropriate type depending
 -- on the context so that we can splice them safely.
 
--- | Generates a OS_PATH type from a quoted literal. Equivalent to using
+-- | Generates a OS_PATH_TYPE type from a quoted literal. Equivalent to using
 -- 'fromString' on the static literal.
 --
 -- >>> Path.toString ([path|/usr/bin|] :: PosixPath)
@@ -472,18 +504,18 @@ path = mkQ pathE
 -- XXX unPath?
 
 -- | Convert the path to an array.
-toChunk :: IsPath OS_PATH a => a -> Array WORD_TYPE
+toChunk :: IsPath OS_PATH_TYPE a => a -> Array FS_WORD
 toChunk p = let OS_PATH arr = toPath p in arr
 
 -- | Decode the path to a stream of Unicode chars using strict CODEC_NAME decoding.
 {-# INLINE toChars #-}
-toChars :: (Monad m, IsPath OS_PATH a) => a -> Stream m Char
+toChars :: (Monad m, IsPath OS_PATH_TYPE a) => a -> Stream m Char
 toChars p =
     let (OS_PATH arr) =
             toPath p in Common.toChars Unicode.UNICODE_DECODER arr
 
 -- | Decode the path to a stream of Unicode chars using lax CODEC_NAME decoding.
-toChars_ :: (Monad m, IsPath OS_PATH a) => a -> Stream m Char
+toChars_ :: (Monad m, IsPath OS_PATH_TYPE a) => a -> Stream m Char
 toChars_ p =
     let (OS_PATH arr) =
             toPath p in Common.toChars Unicode.UNICODE_DECODER_LAX arr
@@ -491,18 +523,18 @@ toChars_ p =
 -- XXX When showing, append a "/" to dir types?
 
 -- | Decode the path to a Unicode string using strict CODEC_NAME decoding.
-toString :: IsPath OS_PATH a => a -> [Char]
+toString :: IsPath OS_PATH_TYPE a => a -> [Char]
 toString = runIdentity . Stream.toList . toChars
 
 -- | Decode the path to a Unicode string using lax CODEC_NAME decoding.
-toString_ :: IsPath OS_PATH a => a -> [Char]
+toString_ :: IsPath OS_PATH_TYPE a => a -> [Char]
 toString_ = runIdentity . Stream.toList . toChars_
 
 -- | Show the path as raw characters without any specific decoding.
 --
 -- See also: 'readRaw'.
 --
-showRaw :: IsPath OS_PATH a => a -> [Char]
+showRaw :: IsPath OS_PATH_TYPE a => a -> [Char]
 showRaw p =
     let (OS_PATH arr) =
             toPath p in show arr
@@ -517,7 +549,7 @@ showRaw p =
 -- "fromList [104,101,108,108,111]"
 --
 -- See also: 'showRaw'.
-readRaw :: IsPath OS_PATH a => [Char] -> a
+readRaw :: IsPath OS_PATH_TYPE a => [Char] -> a
 readRaw = fromJust . fromChunk . read
 #endif
 
@@ -534,15 +566,15 @@ instance Show OS_PATH where
 #ifndef IS_WINDOWS
 -- | Use the path as a pinned CString. Useful for using a PosixPath in
 -- system calls on Posix.
-{-# INLINE asCString #-}
-asCString :: OS_PATH -> (CString -> IO a) -> IO a
-asCString p = Array.asCStringUnsafe (toChunk p)
+{-# INLINE AS_FS_CSTRING #-}
+AS_FS_CSTRING :: OS_PATH_TYPE -> (FS_CSTRING -> IO a) -> IO a
+AS_FS_CSTRING p = Array.asCStringUnsafe (toChunk p)
 #else
 -- | Use the path as a pinned CWString. Useful for using a WindowsPath in
 -- system calls on Windows.
-{-# INLINE asCWString #-}
-asCWString :: OS_PATH -> (CWString -> IO a) -> IO a
-asCWString p = Array.asCWString (toChunk p)
+{-# INLINE AS_FS_CSTRING #-}
+AS_FS_CSTRING :: OS_PATH_TYPE -> (FS_CSTRING -> IO a) -> IO a
+AS_FS_CSTRING p = Array.asCWString (toChunk p)
 #endif
 
 ------------------------------------------------------------------------------
@@ -565,7 +597,7 @@ asCWString p = Array.asCWString (toChunk p)
 -- >>> isRooted "./x"
 -- True
 --
-isRooted :: OS_PATH -> Bool
+isRooted :: OS_PATH_TYPE -> Bool
 isRooted (OS_PATH arr) = Common.isRooted Common.OS_NAME arr
 #endif
 
@@ -584,7 +616,7 @@ isRooted (OS_PATH arr) = Common.isRooted Common.OS_NAME arr
 -- >>> isBranch "../x"
 -- True
 --
-isBranch :: OS_PATH -> Bool
+isBranch :: OS_PATH_TYPE -> Bool
 isBranch = not . isRooted
 
 #ifndef IS_WINDOWS
@@ -602,15 +634,15 @@ isBranch = not . isRooted
 -- "x/y"
 --
 {-# INLINE unsafeExtend #-}
-unsafeExtend :: OS_PATH -> OS_PATH -> OS_PATH
+unsafeExtend :: OS_PATH_TYPE -> OS_PATH_TYPE -> OS_PATH_TYPE
 unsafeExtend (OS_PATH a) (OS_PATH b) =
     OS_PATH
         $ Common.unsafeAppend
             Common.OS_NAME (Common.toString Unicode.UNICODE_DECODER) a b
 
--- | Extend an OS_PATH by appending another one to it. Fails if the second path
+-- | Extend an OS_PATH_TYPE by appending another one to it. Fails if the second path
 -- refers to a rooted path. If you want to avoid runtime failure use the
--- typesafe Streamly.FileSystem.OS_PATH.Seg module. Use 'unsafeExtend' to avoid
+-- typesafe Streamly.FileSystem.OS_PATH_TYPE.Seg module. Use 'unsafeExtend' to avoid
 -- failure if you know it is ok to append the path.
 --
 -- >>> f a b = Path.toString $ Path.extend a b
@@ -622,7 +654,7 @@ unsafeExtend (OS_PATH a) (OS_PATH b) =
 -- >>> fails (f [path|/usr|] [path|/bin|])
 -- True
 --
-extend :: OS_PATH -> OS_PATH -> OS_PATH
+extend :: OS_PATH_TYPE -> OS_PATH_TYPE -> OS_PATH_TYPE
 extend (OS_PATH a) (OS_PATH b) =
     OS_PATH
         $ Common.append
@@ -637,7 +669,7 @@ extend (OS_PATH a) (OS_PATH b) =
 -- True
 --
 extendDir ::
-    OS_PATH -> OS_PATH -> OS_PATH
+    OS_PATH_TYPE -> OS_PATH_TYPE -> OS_PATH_TYPE
 extendDir
     (OS_PATH a) (OS_PATH b) =
     OS_PATH
@@ -653,7 +685,7 @@ extendDir
 -- but always inserts a separator between the two paths even if the first path
 -- has a trailing separator or second path has a leading separator.
 --
-extendByCString :: OS_PATH -> CString -> IO OS_PATH
+extendByCString :: OS_PATH_TYPE -> CString -> IO OS_PATH_TYPE
 extendByCString (OS_PATH a) str =
     fmap OS_PATH
         $ Common.appendCString
@@ -662,7 +694,7 @@ extendByCString (OS_PATH a) str =
 -- | Like 'appendCString' but creates a pinned path.
 --
 extendByCString' ::
-    OS_PATH -> CString -> IO OS_PATH
+    OS_PATH_TYPE -> CString -> IO OS_PATH_TYPE
 extendByCString'
     (OS_PATH a) str =
     fmap OS_PATH
@@ -678,7 +710,7 @@ extendByCString'
 -- the original path but an equivalent path.
 --
 -- /Unimplemented/
-unsafeJoinPaths :: [OS_PATH] -> OS_PATH
+unsafeJoinPaths :: [OS_PATH_TYPE] -> OS_PATH_TYPE
 unsafeJoinPaths = undefined
 
 ------------------------------------------------------------------------------
@@ -723,7 +755,7 @@ unsafeJoinPaths = undefined
 -- >>> split "home"
 -- Nothing
 --
-splitRoot :: OS_PATH -> Maybe (OS_PATH, Maybe OS_PATH)
+splitRoot :: OS_PATH_TYPE -> Maybe (OS_PATH_TYPE, Maybe OS_PATH_TYPE)
 splitRoot (OS_PATH x) =
     let (a,b) = Common.splitRoot Common.OS_NAME x
      in if Array.null a
@@ -782,7 +814,7 @@ splitRoot (OS_PATH x) =
 -- ["/","x/","\\y"]
 --
 {-# INLINE splitPath #-}
-splitPath :: Monad m => OS_PATH -> Stream m OS_PATH
+splitPath :: Monad m => OS_PATH_TYPE -> Stream m OS_PATH_TYPE
 splitPath (OS_PATH a) = fmap OS_PATH $ Common.splitPath Common.OS_NAME a
 
 -- | Split a path into components separated by the path separator. "."
@@ -834,7 +866,7 @@ splitPath (OS_PATH a) = fmap OS_PATH $ Common.splitPath Common.OS_NAME a
 -- ["/","x","\\y"]
 --
 {-# INLINE splitPath_ #-}
-splitPath_ :: Monad m => OS_PATH -> Stream m OS_PATH
+splitPath_ :: Monad m => OS_PATH_TYPE -> Stream m OS_PATH_TYPE
 splitPath_ (OS_PATH a) = fmap OS_PATH $ Common.splitPath_ Common.OS_NAME a
 #endif
 
@@ -894,7 +926,7 @@ splitPath_ (OS_PATH a) = fmap OS_PATH $ Common.splitPath_ Common.OS_NAME a
 --
 -- >>> split "x/./y"
 -- Just (Just "x/./","y")
-splitFile :: OS_PATH -> Maybe (Maybe OS_PATH, OS_PATH)
+splitFile :: OS_PATH_TYPE -> Maybe (Maybe OS_PATH_TYPE, OS_PATH_TYPE)
 splitFile (OS_PATH a) =
     fmap (bimap (fmap OS_PATH) OS_PATH) $ Common.splitFile Common.OS_NAME a
 
@@ -902,7 +934,7 @@ splitFile (OS_PATH a) =
 -- entire root or share name, if present, as the first component.
 --
 -- /Unimplemented/
-splitFirst :: OS_PATH -> (OS_PATH, Maybe OS_PATH)
+splitFirst :: OS_PATH_TYPE -> (OS_PATH_TYPE, Maybe OS_PATH_TYPE)
 splitFirst (OS_PATH a) =
     bimap OS_PATH (fmap OS_PATH) $ Common.splitHead Common.OS_NAME a
 
@@ -913,7 +945,7 @@ splitFirst (OS_PATH a) =
 -- >>> dirname = fst . Path.splitLast -- Posix dirname
 --
 -- /Unimplemented/
-splitLast :: OS_PATH -> (Maybe OS_PATH, OS_PATH)
+splitLast :: OS_PATH_TYPE -> (Maybe OS_PATH_TYPE, OS_PATH_TYPE)
 splitLast (OS_PATH a) =
     bimap (fmap OS_PATH) OS_PATH $ Common.splitTail Common.OS_NAME a
 
@@ -1019,17 +1051,17 @@ splitLast (OS_PATH a) =
 -- >>> split "x/y"
 -- Nothing
 --
-splitExtension :: OS_PATH -> Maybe (OS_PATH, OS_PATH)
+splitExtension :: OS_PATH_TYPE -> Maybe (OS_PATH_TYPE, OS_PATH_TYPE)
 splitExtension (OS_PATH a) =
     fmap (bimap OS_PATH OS_PATH) $ Common.splitExtension Common.OS_NAME a
 #endif
 
 -- | Take the extension of a file if it has one.
-takeExtension :: OS_PATH -> Maybe OS_PATH
+takeExtension :: OS_PATH_TYPE -> Maybe OS_PATH_TYPE
 takeExtension = fmap snd . splitExtension
 
 -- | Drop the extension of a file if it has one.
-dropExtension :: OS_PATH -> OS_PATH
+dropExtension :: OS_PATH_TYPE -> OS_PATH_TYPE
 dropExtension orig@(OS_PATH a) =
     maybe orig (OS_PATH . fst) $ Common.splitExtension Common.OS_NAME a
 
@@ -1040,24 +1072,24 @@ dropExtension orig@(OS_PATH a) =
 -- It is an error to add an extension to a path with a trailing separator.
 --
 -- /Unimplemented/
-addExtension :: OS_PATH -> OS_PATH -> OS_PATH
+addExtension :: OS_PATH_TYPE -> OS_PATH_TYPE -> OS_PATH_TYPE
 addExtension (OS_PATH _a) = undefined
 
 -- /Unimplemented/
-replaceExtension :: OS_PATH -> OS_PATH -> OS_PATH
+replaceExtension :: OS_PATH_TYPE -> OS_PATH_TYPE -> OS_PATH_TYPE
 replaceExtension (OS_PATH _a) = undefined
 
 ------------------------------------------------------------------------------
 -- Path View
 ------------------------------------------------------------------------------
 
-takeFileName :: OS_PATH -> Maybe OS_PATH
+takeFileName :: OS_PATH_TYPE -> Maybe OS_PATH_TYPE
 takeFileName = fmap snd . splitFile
 
-takeBaseName :: OS_PATH -> Maybe OS_PATH
+takeBaseName :: OS_PATH_TYPE -> Maybe OS_PATH_TYPE
 takeBaseName = fmap dropExtension . takeFileName
 
-takeDirectory :: OS_PATH -> Maybe OS_PATH
+takeDirectory :: OS_PATH_TYPE -> Maybe OS_PATH_TYPE
 takeDirectory x = splitFile x >>= fst
 
 ------------------------------------------------------------------------------
@@ -1169,7 +1201,7 @@ takeDirectory x = splitFile x >>= fst
 -- >>> eq "x"  "x"
 -- True
 --
-eqPath :: (EqCfg -> EqCfg) -> OS_PATH -> OS_PATH -> Bool
+eqPath :: (EqCfg -> EqCfg) -> OS_PATH_TYPE -> OS_PATH_TYPE -> Bool
 eqPath cfg (OS_PATH a) (OS_PATH b) =
     Common.eqPath Unicode.UNICODE_DECODER
         Common.OS_NAME cfg a b
@@ -1198,7 +1230,7 @@ eqPath cfg (OS_PATH a) (OS_PATH b) =
 -- >>> eqPath "file/"  "file"
 -- False
 --
-eqPathBytes :: OS_PATH -> OS_PATH -> Bool
+eqPathBytes :: OS_PATH_TYPE -> OS_PATH_TYPE -> Bool
 eqPathBytes (OS_PATH a) (OS_PATH b) = Common.eqPathBytes a b
 
 -- | Convert the path to an equivalent but standard format for reliable
@@ -1206,5 +1238,5 @@ eqPathBytes (OS_PATH a) (OS_PATH b) = Common.eqPathBytes a b
 -- operations should be enough and this may not be needed.
 --
 -- /Unimplemented/
-normalize :: EqCfg -> OS_PATH -> OS_PATH
+normalize :: EqCfg -> OS_PATH_TYPE -> OS_PATH_TYPE
 normalize _cfg (OS_PATH _a) = undefined
