@@ -118,42 +118,11 @@
 -- always create partial wrappers from these if that is convenient to use.
 --
 
+#define IS_PORTABLE
+
 #if defined(mingw32_HOST_OS) || defined(__MINGW32__)
--- #define IS_WINDOWS
-#define OS_PATH WindowsPath
-#define FS_WORD Word16
-#define FS_CSTRING CWString
+#define IS_WINDOWS
+#include "Streamly/Internal/FileSystem/WindowsPath.hs"
 #else
-#define OS_PATH PosixPath
-#define FS_WORD Word8
-#define FS_CSTRING CString
-#endif
-
--- #define IS_PORTABLE
--- #include "Streamly/Internal/FileSystem/PosixPath.hs"
-
-module Streamly.Internal.FileSystem.Path
-    (
-      Path
-    , FsWord
-    , FsCString
-    , asFsCString
-    , module Streamly.Internal.FileSystem.OS_PATH
-    )
-where
-
-import Data.Word (FS_WORD)
-import Foreign.C.String (FS_CSTRING)
-import Streamly.Internal.FileSystem.OS_PATH
-
-type Path = OS_PATH
-type FsWord = FS_WORD
-type FsCString = FS_CSTRING
-
-{-# INLINE asFsCString #-}
-asFsCString :: OS_PATH -> (FsCString -> IO a) -> IO a
-#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
-asFsCString = asCWString
-#else
-asFsCString = asCString
+#include "Streamly/Internal/FileSystem/PosixPath.hs"
 #endif

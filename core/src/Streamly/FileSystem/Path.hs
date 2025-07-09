@@ -9,55 +9,56 @@
 -- and filesystem encoding.
 --
 -- The 'Path' type is built on top of Streamly's 'Array' type, leveraging all
--- its operations and advantages—including support for both pinned and unpinned
+-- its operations — including support for both pinned and unpinned
 -- representations. It is designed for extensibility and fine-grained type
--- safety. For type-safe adaptations, refer to the
--- "Streamly.Internal.FileSystem.Path.*" modules. The type also offers a
--- powerful and flexible path comparison mechanism.
+-- safety. For type-safe adaptations, see the
+-- "Streamly.Internal.FileSystem.Path.*" modules.
 --
--- 'Path' is interconvertible with the 'OsPath' type from the filepath package
--- at zero runtime cost. While the API is mostly compatible with that of the
--- filepath package, some differences exist due to a slightly different design
--- philosophy focused on enhanced safety.
+-- 'Path' is interconvertible with the 'OsPath' type from the @filepath@
+-- package at zero runtime cost. While the API is mostly compatible with that
+-- of the @filepath@ package, some differences exist due to a slightly
+-- different design philosophy focused on better safety.
 --
 -- = Rooted Paths vs Branches
 --
--- To ensure the safety of the append operation, we distinguish between rooted
--- paths and branch-type paths. A path that starts from an explicit or implicit
--- root in the file system is called a rooted path or an anchored path. For
--- example, @\/usr\/bin@ is a rooted path starting from the explicit root
--- directory @/@. Similarly, @.\/bin@ is rooted implicitly, anchored at the
--- current directory. A path that is not rooted is called a branch or
+-- To ensure the safety of the path append operation, we distinguish between
+-- rooted paths and branch-type paths. A path that starts from an explicit or
+-- implicit file system root is called a rooted path or an anchored path. For
+-- example, @\/usr\/bin@ is a rooted path with an explicit root directory @/@.
+-- Similarly, @.\/bin@ is a rooted path with an implicit root, anchored at the
+-- current directory. A path that is not rooted is called a branch type path or
 -- unanchored path; for example, @local\/bin@ is a branch.
 --
 -- This distinction ensures the safety of the path append operation. You can
--- always append a branch to a rooted path or to another branch. However, it
--- does not make sense to append one rooted path to another. The default append
--- operation in the Path module checks for this and fails if the operation is
--- invalid. However, the programmer can force the unsafe behavior by using the
--- unsafe append operation. Alternatively, you can drop the root explicitly and
--- use the safe append.
+-- append only a branch type path to another path, it does not make sense to
+-- append a rooted path to another path. The default append operation in the
+-- Path module checks for this and fails if the operation is invalid. However,
+-- the programmer can force the unsafe behavior by using the unsafe append
+-- operation. Alternatively, you can drop the root explicitly and use the safe
+-- append.
 --
 -- Rooted vs branch distinction is a stricter form of relative vs absolute path
 -- distinction. Essentially, paths relative to the current directory are also
 -- treated in the same way as absolute paths, from the perspective of an append
--- operation. Only branch-type paths can be appended to any other path using
+-- operation. The meaning of current directory is context dependent and
+-- dynamic, therefore, appending it to another path is not allowed. Only pure
+-- branch-type paths (e.g. @local/bin@) can be appended to any other path using
 -- safe operations.
 --
 -- = File vs. Directory Paths
 --
--- By default, a path with a trailing separator is implicitly considered a
--- directory path. However, the absence of a trailing separator does not
--- indicate whether the path is a file or a directory — it could be either.
--- Therefore, when using the @Path@ type, the append operation allows appending
--- to paths even if they lack a trailing separator.
+-- By default, a path with a trailing separator (e.g. @local/@) is implicitly
+-- considered a directory path. However, the absence of a trailing separator
+-- does not indicate whether the path is a file or a directory — it could be
+-- either. Therefore, when using the @Path@ type, the append operation allows
+-- appending to paths even if they lack a trailing separator.
 --
 -- = Compatibility with the filepath package
 --
--- Any path type can be converted to the 'FilePath' type from the filepath
+-- Any path type can be converted to the 'FilePath' type from the @filepath@
 -- package by using the 'toString' operation. Operations to convert to and from
 -- the 'OsPath' type at zero cost are provided in the @streamly-filepath@
--- package. Zero-cost interconversion is possible because the 'Path' type use
+-- package. Zero-cost interconversion is possible because the 'Path' type uses
 -- an underlying representation which is compatible with the 'OsPath' type.
 --
 -- = Path Creation Quasiquoter
@@ -86,11 +87,7 @@ module Streamly.FileSystem.Path
     , toChunk
     , toChars
     , toString
-#if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
-    , asCString
-#else
-    , asCWString
-#endif
+    , asOsCString
 
     -- * Path Info
     , isRooted

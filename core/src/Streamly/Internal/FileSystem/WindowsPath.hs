@@ -146,21 +146,21 @@ For APIs that have not been released yet.
 -- True
 -- >>> isValid "\\\\??\\x"
 -- True
-isValidPath :: Array FS_WORD -> Bool
+isValidPath :: Array OS_WORD_TYPE -> Bool
 isValidPath = Common.isValidPath Common.OS_NAME
 
 -- | Like 'validatePath' on but more strict. A share root must be followed by a
 -- non-empty path. Thus "\/\/x\/" is not considered a valid path.
 validatePath' ::
-    MonadThrow m => Array FS_WORD -> m ()
+    MonadThrow m => Array OS_WORD_TYPE -> m ()
 validatePath' = Common.validatePath' Common.Windows
 
 -- | Like 'isValidPath' but more strict, see validatePath' for differences.
 isValidPath' ::
-    Array FS_WORD -> Bool
+    Array OS_WORD_TYPE -> Bool
 isValidPath' = Common.isValidPath' Common.Windows
 
--- | Read a raw array of FS_WORD as a path type.
+-- | Read a raw array of OS_WORD_TYPE as a path type.
 --
 -- >>> readRaw = fromJust . Path.fromChunk . read
 --

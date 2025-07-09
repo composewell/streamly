@@ -1,15 +1,28 @@
 {-# LANGUAGE TemplateHaskell #-}
 
+#if defined(IS_PORTABLE)
+#define OS_PATH_TYPE Path
+#define OS_WORD_TYPE OsWord
+#define OS_CSTRING_TYPE OsCString
+#define AS_OS_CSTRING asOsCString
+#elif defined(IS_WINDOWS)
+#define OS_PATH_TYPE WindowsPath
+#define OS_WORD_TYPE Word16
+#define OS_CSTRING_TYPE CWString
+#define AS_OS_CSTRING asCWString
+#else
+#define OS_PATH_TYPE PosixPath
+#define OS_WORD_TYPE Word8
+#define OS_CSTRING_TYPE CString
+#define AS_OS_CSTRING asCString
+#endif
+
 -- Anything other than windows (Linux/macOS/FreeBSD) is Posix
 #if defined(IS_WINDOWS)
 #define OS_NAME Windows
 #define OS_PATH WindowsPath
-#define OS_PATH_TYPE WindowsPath
-#define FS_WORD Word16
-#define REAL_FS_WORD Word16
-#define FS_CSTRING CWString
-#define REAL_FS_CSTRING CWString
-#define AS_FS_CSTRING asCWString
+#define OS_WORD Word16
+#define OS_CSTRING CWString
 #define UNICODE_ENCODER encodeUtf16le'
 #define UNICODE_DECODER decodeUtf16le'
 #define UNICODE_DECODER_LAX decodeUtf16le
@@ -18,28 +31,13 @@
 #else
 #define OS_NAME Posix
 #define OS_PATH PosixPath
-#define OS_PATH_TYPE PosixPath
-#define FS_WORD Word8
-#define REAL_FS_WORD Word8
-#define FS_CSTRING CString
-#define REAL_FS_CSTRING CString
-#define AS_FS_CSTRING asCString
+#define OS_WORD Word8
+#define OS_CSTRING CString
 #define UNICODE_ENCODER encodeUtf8'
 #define UNICODE_DECODER decodeUtf8'
 #define UNICODE_DECODER_LAX decodeUtf8
 #define CODEC_NAME UTF-8
 #define SEPARATORS @/@
-#endif
-
-#if defined(IS_PORTABLE)
-#undef OS_PATH_TYPE
-#define OS_PATH_TYPE Path
-#undef FS_WORD
-#define FS_WORD FsWord
-#undef FS_CSTRING
-#define FS_CSTRING FsCString
-#undef AS_FS_CSTRING
-#define AS_FS_CSTRING asFsCString
 #endif
 
 -- |
@@ -51,7 +49,7 @@
 --
 -- This module implements a OS_PATH_TYPE type representing a file system path for
 -- OS_NAME operating systems. The only assumption about the encoding of the
--- path is that it maps the characters SEPARATORS and @.@ to FS_WORD
+-- path is that it maps the characters SEPARATORS and @.@ to OS_WORD_TYPE
 -- representing their ASCII values. Operations are provided to encode and
 -- decode using CODEC_NAME encoding.
 --
@@ -76,8 +74,8 @@ module Streamly.Internal.FileSystem.OS_PATH_TYPE
     (
     -- * Type
 #if defined(IS_PORTABLE)
-      FS_WORD
-    , FS_CSTRING
+      OS_WORD_TYPE
+    , OS_CSTRING_TYPE
     , OS_PATH_TYPE
 #else
       OS_PATH_TYPE (..)
@@ -123,7 +121,7 @@ module Streamly.Internal.FileSystem.OS_PATH_TYPE
     , toChars
     , toChars_
     , toString
-    , AS_FS_CSTRING
+    , AS_OS_CSTRING
     , toString_
     , showRaw
 
@@ -260,7 +258,11 @@ For APIs that have not been released yet.
 -- Path components may have limits.
 -- Total path length may have a limit.
 
-#if !defined(IS_PORTABLE)
+#if defined(IS_PORTABLE)
+type OS_PATH_TYPE = OS_PATH
+type OS_WORD_TYPE = OS_WORD
+type OS_CSTRING_TYPE = OS_CSTRING
+#else
 -- | A type representing file system paths on OS_NAME.
 --
 -- A OS_PATH_TYPE is validated before construction unless unsafe constructors are
@@ -270,7 +272,7 @@ For APIs that have not been released yet.
 -- Note that in some cases the file system may perform unicode normalization on
 -- paths (e.g. Apple HFS), it may cause surprising results as the path used by
 -- the user may not have the same bytes as later returned by the file system.
-newtype OS_PATH = OS_PATH (Array FS_WORD)
+newtype OS_PATH = OS_PATH (Array OS_WORD_TYPE)
 
 -- XXX The Eq instance may be provided but it will require some sensible
 -- defaults for comparison. For example, should we use case sensitive or
@@ -281,10 +283,6 @@ instance IsPath OS_PATH OS_PATH where
     unsafeFromPath = id
     fromPath = pure
     toPath = id
-#else
-type OS_PATH_TYPE = OS_PATH
-type FS_WORD = REAL_FS_WORD
-type FS_CSTRING = REAL_FS_CSTRING
 #endif
 
 -- XXX Use rewrite rules to eliminate intermediate conversions for better
@@ -348,7 +346,7 @@ addTrailingSeparator p = unsafeExtend p sep
 
 -- | Throws an exception if the path is not valid. See 'isValidPath' for the
 -- list of validations.
-validatePath :: MonadThrow m => Array FS_WORD -> m ()
+validatePath :: MonadThrow m => Array OS_WORD_TYPE -> m ()
 validatePath = Common.validatePath Common.OS_NAME
 
 #ifndef IS_WINDOWS
@@ -362,7 +360,7 @@ validatePath = Common.validatePath Common.OS_NAME
 -- >>> isValid "\0"
 -- False
 --
-isValidPath :: Array FS_WORD -> Bool
+isValidPath :: Array OS_WORD_TYPE -> Bool
 isValidPath = Common.isValidPath Common.OS_NAME
 #endif
 
@@ -382,7 +380,7 @@ isValidPath = Common.isValidPath Common.OS_NAME
 -- per 'isValidPath'.
 --
 {-# INLINE unsafeFromChunk #-}
-unsafeFromChunk :: IsPath OS_PATH_TYPE a => Array FS_WORD -> a
+unsafeFromChunk :: IsPath OS_PATH_TYPE a => Array OS_WORD_TYPE -> a
 unsafeFromChunk =
 #ifndef DEBUG
     unsafeFromPath . OS_PATH . Common.unsafeFromChunk
@@ -395,7 +393,7 @@ unsafeFromChunk =
 -- | Convert a byte array into a Path.
 -- Throws 'InvalidPath' if 'isValidPath' fails on the path.
 --
-fromChunk :: (MonadThrow m, IsPath OS_PATH_TYPE a) => Array FS_WORD -> m a
+fromChunk :: (MonadThrow m, IsPath OS_PATH_TYPE a) => Array OS_WORD_TYPE -> m a
 fromChunk arr = Common.fromChunk Common.OS_NAME arr >>= fromPath . OS_PATH
 
 -- XXX Should be a Fold instead?
@@ -423,7 +421,7 @@ fromChars s =
 
 -- | Create a raw path i.e. an array representing the path. Note that the path
 -- is not validated, therefore, it may not be valid according to 'isValidPath'.
-rawFromString :: [Char] -> Array FS_WORD
+rawFromString :: [Char] -> Array OS_WORD_TYPE
 rawFromString =
       Common.unsafeFromChars Unicode.UNICODE_ENCODER
     . Stream.fromList
@@ -504,7 +502,7 @@ path = mkQ pathE
 -- XXX unPath?
 
 -- | Convert the path to an array.
-toChunk :: IsPath OS_PATH_TYPE a => a -> Array FS_WORD
+toChunk :: IsPath OS_PATH_TYPE a => a -> Array OS_WORD_TYPE
 toChunk p = let OS_PATH arr = toPath p in arr
 
 -- | Decode the path to a stream of Unicode chars using strict CODEC_NAME decoding.
@@ -566,15 +564,15 @@ instance Show OS_PATH where
 #ifndef IS_WINDOWS
 -- | Use the path as a pinned CString. Useful for using a PosixPath in
 -- system calls on Posix.
-{-# INLINE AS_FS_CSTRING #-}
-AS_FS_CSTRING :: OS_PATH_TYPE -> (FS_CSTRING -> IO a) -> IO a
-AS_FS_CSTRING p = Array.asCStringUnsafe (toChunk p)
+{-# INLINE AS_OS_CSTRING #-}
+AS_OS_CSTRING :: OS_PATH_TYPE -> (OS_CSTRING_TYPE -> IO a) -> IO a
+AS_OS_CSTRING p = Array.asCStringUnsafe (toChunk p)
 #else
 -- | Use the path as a pinned CWString. Useful for using a WindowsPath in
 -- system calls on Windows.
-{-# INLINE AS_FS_CSTRING #-}
-AS_FS_CSTRING :: OS_PATH_TYPE -> (FS_CSTRING -> IO a) -> IO a
-AS_FS_CSTRING p = Array.asCWString (toChunk p)
+{-# INLINE AS_OS_CSTRING #-}
+AS_OS_CSTRING :: OS_PATH_TYPE -> (OS_CSTRING_TYPE -> IO a) -> IO a
+AS_OS_CSTRING p = Array.asCWString (toChunk p)
 #endif
 
 ------------------------------------------------------------------------------
