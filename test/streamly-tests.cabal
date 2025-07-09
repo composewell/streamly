@@ -428,7 +428,7 @@ test-suite FileSystem.Event
   ghc-options: -main-is Streamly.Test.FileSystem.Event
   main-is: Streamly/Test/FileSystem/Event.hs
   other-modules: Streamly.Test.FileSystem.Event.Common
-  if !(os(linux) || os(darwin) || os(windows)) || flag(use-streamly-core)
+  if !((os(linux) && impl(ghc >= 9.4)) || os(darwin) || os(windows)) || flag(use-streamly-core)
     buildable: False
 
 test-suite FileSystem.Event.Darwin
@@ -448,7 +448,7 @@ test-suite FileSystem.Event.Linux
   other-modules: Streamly.Test.FileSystem.Event.Common
   cpp-options: -DFILESYSTEM_EVENT_LINUX
   ghc-options: -main-is Streamly.Test.FileSystem.Event.Linux
-  if !os(linux) || flag(use-streamly-core)
+  if impl(ghc < 9.4) || !os(linux) || flag(use-streamly-core)
     buildable: False
 
 test-suite FileSystem.Event.Windows
