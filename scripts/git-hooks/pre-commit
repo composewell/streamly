@@ -1,0 +1,27 @@
+#!/bin/bash
+set -euo pipefail
+
+# NOTE: This path needs to be from the root directory where ".git" exists.
+source scripts/check_m4_sync.sh
+
+# Function: enforce_cabal_from_m4
+# Args:
+#   $1 - path to .cabal.m4
+#   $2 - path to .cabal
+enforce_cabal_from_m4() {
+    local cabal_m4="$1"
+    local cabal_file="$2"
+
+    if git diff --cached --name-only | grep -qx "$cabal_file"; then
+        check_m4_sync "$cabal_m4" "$cabal_file"
+    fi
+
+    echo "Regenerating $cabal_file from $cabal_m4..."
+    m4 "$cabal_m4" > "$cabal_file"
+    echo "Regenerated and staged $cabal_file."
+}
+
+enforce_cabal_from_m4 "streamly.cabal.m4" "streamly.cabal"
+enforce_cabal_from_m4 "core/streamly-core.cabal.m4" "core/streamly-core.cabal"
+
+echo "pre-commit checks complete."

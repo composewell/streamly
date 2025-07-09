@@ -37,3 +37,6 @@ targets/default.nix
 targets/cabal.project
 test/test-runner/default.nix
 test/test-runner/cabal.project
+scripts/check_m4_sync.sh
+scripts/setup-git-hooks.sh
+scripts/git-hooks/pre-commit
