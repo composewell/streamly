@@ -136,6 +136,8 @@ targets =
             , "noTest"
             ]
       )
+    -- XXX Concurrent and rate benchmarks take a long time with --long, perhaps
+    -- need to use smaller stream sizes for these when using --long
     , ("Data.Stream.Concurrent",
             [ "infinite_grp"
             , "concurrent_stream_grp"

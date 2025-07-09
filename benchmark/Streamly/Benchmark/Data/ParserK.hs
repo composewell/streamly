@@ -383,12 +383,8 @@ o_1_space_serial value =
     , benchIOSink value "splitAp2" $ splitAp2 value
     , benchIOSink value "splitAp8" $ splitAp8 value
     , benchIOSink value "alt2" $ alt2 value
-    , benchIOSink value "alt8" $ alt8 value
-    , benchIOSink value "alt16" $ alt16 value
     , benchIOSink value "monad2" $ monad2 value
     , benchIOSink value "monad4" $ monad4 value
-    , benchIOSink value "monad8" $ monad8 value
-    , benchIOSink value "monad16" $ monad16 value
     ]
 
 {-# INLINE sepBy1 #-}
@@ -417,6 +413,12 @@ o_n_heap_serial value =
     , benchIOSink value "sepBy1" sepBy1
     , benchIOSink value "someAlt" someAlt
     , benchIOSink value "choice" $ choice value
+
+    -- XXX these take too much memory with --long, need to investigate
+    , benchIOSink value "alt8" $ alt8 value
+    , benchIOSink value "alt16" $ alt16 value
+    , benchIOSink value "monad8" $ monad8 value
+    , benchIOSink value "monad16" $ monad16 value
     ]
 
 -- O(n) heap beacuse of accumulation of the list in strict IO monad?

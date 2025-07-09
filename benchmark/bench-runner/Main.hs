@@ -60,29 +60,15 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
         | "Prelude.WAsync/o-n-space.monad-outer-product." `isPrefixOf` benchName =
             "-K4M"
 
-        -- This module is dev only now, and can be removed at some point
-        | "Data.Stream.StreamDK/o-1-space.grouping.classifySessionsOf"
-            `isPrefixOf` benchName = "-K512K"
-        | "Data.Stream.StreamDK/o-n-space.foldr.foldrM/"
-            `isPrefixOf` benchName = "-K4M"
-        | "Data.Stream.StreamDK/o-n-space.iterated."
-            `isPrefixOf` benchName = "-K4M -M64M"
-        -- GHC 9.4.4 requires 4M
-        | "Data.Stream.StreamDK/o-n-space.traversable."
-            `isPrefixOf` benchName = "-K4M"
-        -- GHC-9.6 requires 64M, earlier it was 32M
-        | "Data.Stream.StreamDK/o-n-heap.buffered.readsPrec pure streams" == benchName =
-            "-M64M"
-        -- GHC-9.6 requires 64M, earlier it was 32M
-        | "Data.Stream.StreamDK/o-n-heap.buffered.showPrec Haskell lists" == benchName =
-            "-M64M"
-
         -----------------------------------------------------------------------
 
         | "Data.StreamD/o-n-space.elimination.toList" == benchName =
             "-K2M"
         | "Data.StreamK/o-n-space.elimination.toList" == benchName =
             "-K2M"
+        -- XXX Memory required for these has increased in streamly-core 0.3
+        | "Data.StreamK/o-1-space.list.nested" `isPrefixOf` benchName =
+            "-M640M"
 
         -----------------------------------------------------------------------
 
@@ -128,6 +114,11 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
         -- this, so the reason may be related to chunked streams.
         | "Data.ParserK/o-1-space"
             `isPrefixOf` benchName = "-K4M -M256M"
+        | "Data.ParserK.Chunked/o-1-space"
+            `isPrefixOf` benchName = "-K4M -M256M"
+        | "Data.ParserK.Chunked.Generic/o-1-space"
+            `isPrefixOf` benchName = "-K4M -M256M"
+
 {-
         -- XXX This options does not seem to take effect. "ParserK.Chunked"
         -- needs more memory to work with --long option

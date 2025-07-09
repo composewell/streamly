@@ -75,8 +75,8 @@ instance NFData a => NFData (Stream Identity a) where
     {-# INLINE rnf #-}
     rnf xs = runIdentity $ Stream.fold (FL.foldl' (\_ x -> rnf x) ()) xs
 
-o_n_heap_serial :: Int -> [Benchmark]
-o_n_heap_serial value =
+o_1_space_serial :: Int -> [Benchmark]
+o_1_space_serial value =
     [ bgroup "key-value"
             [
               benchWithPostscan value "demuxIO (1-shot) (64 buckets) [sum 100]"
@@ -123,5 +123,5 @@ main = runWithCLIOpts defaultStreamSize allBenchmarks
     where
 
     allBenchmarks value =
-        [ bgroup (o_n_heap_prefix moduleName) (o_n_heap_serial value)
+        [ bgroup (o_1_space_prefix moduleName) (o_1_space_serial value)
         ]
