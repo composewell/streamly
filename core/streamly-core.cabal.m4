@@ -1,9 +1,13 @@
 cabal-version:      2.2
 
-
-
-
-
+ifdef(`DEV_MODE',
+  `define(`FLAG_DEV', `flag(dev)')',
+  `define(`FLAG_DEV', `false')'
+)
+ifdef(`DEV_MODE',
+  `define(`FLAG_USE_UNLIFTIO', `flag(use-unliftio)')',
+  `define(`FLAG_USE_UNLIFTIO', `false')'
+)
 
 name:               streamly-core
 version:            0.3.0
@@ -125,7 +129,12 @@ flag debug
   manual: True
   default: False
 
-
+ifdef(`DEV_MODE', `
+flag dev
+  description: Development build
+  manual: True
+  default: False
+')
 
 flag has-llvm
   description: Use llvm backend for code generation
@@ -142,7 +151,12 @@ flag limit-build-mem
   manual: True
   default: False
 
-
+ifdef(`DEV_MODE', `
+flag use-unliftio
+  description: Use unliftio-core instead of monad-control
+  manual: True
+  default: False
+')
 
 flag use-unfolds
   description: Use unfolds for generation everywhere
@@ -167,7 +181,7 @@ common compile-options
     if flag(force-lstat-readdir)
       cpp-options:    -DFORCE_LSTAT_READDIR
 
-    if false
+    if FLAG_DEV
       cpp-options:    -DDEVBUILD
 
     if flag(use-unfolds)
@@ -207,14 +221,14 @@ common compile-options
     if flag(has-llvm)
       ghc-options: -fllvm
 
-    if false
+    if FLAG_DEV
       ghc-options:    -Wmissed-specialisations
                       -Wall-missed-specialisations
 
     if flag(limit-build-mem)
         ghc-options: +RTS -M1000M -RTS
 
-    if false
+    if FLAG_USE_UNLIFTIO
       cpp-options: -DUSE_UNLIFTIO
 
 common default-extensions
@@ -293,7 +307,7 @@ common optimization-options
                  -fmax-worker-args=16
 
   -- For this to be effective it must come after the -O2 option
-  if false || flag(debug) || !flag(opt)
+  if FLAG_DEV || flag(debug) || !flag(opt)
     cpp-options: -DDEBUG
     ghc-options: -fno-ignore-asserts
 
@@ -566,7 +580,7 @@ library
                     , Streamly.Internal.Data.Time.Clock.Type
                     , Streamly.Internal.FileSystem.Path.Common
 
-    if false
+    if FLAG_DEV
       exposed-modules:
                         Streamly.Internal.Data.StreamK.Alt
                         -- XXX Compilation needs to be fixed
@@ -603,7 +617,7 @@ library
     else
       build-depends:  integer-gmp >= 1.0 && < 1.2
 
-    if !false
+    if !FLAG_USE_UNLIFTIO
       build-depends:   monad-control     >= 1.0 && < 1.1
 
     if os(windows)
