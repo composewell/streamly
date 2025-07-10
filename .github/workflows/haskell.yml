@@ -262,6 +262,12 @@ jobs:
         # Bump the key version to clear the cache
         key: ${{ runner.os }}-${{ matrix.ghc_version }}-cabal-v2
 
+    - name: Ensure m4 sync
+      run: |
+        source scripts/check_m4_sync.sh
+        check_m4_sync "streamly.cabal.m4" "streamly.cabal"
+        check_m4_sync "core/streamly-core.cabal.m4" "core/streamly-core.cabal"
+
     - name: Download packcheck
       run: |
         if test ! -e "$PACKCHECK"

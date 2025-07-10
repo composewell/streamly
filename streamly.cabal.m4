@@ -1,9 +1,13 @@
 cabal-version:      2.2
 
-
-
-
-
+ifdef(`DEV_MODE',
+  `define(`FLAG_DEV', `flag(dev)')',
+  `define(`FLAG_DEV', `false')'
+)
+ifdef(`DEV_MODE',
+  `define(`FLAG_USE_UNLIFTIO', `flag(use-unliftio)')',
+  `define(`FLAG_USE_UNLIFTIO', `false')'
+)
 
 name:               streamly
 version:            0.11.0
@@ -220,7 +224,12 @@ flag debug
   manual: True
   default: False
 
-
+ifdef(`DEV_MODE', `
+flag dev
+  description: Development build
+  manual: True
+  default: False
+')
 
 flag has-llvm
   description: Use llvm backend for code generation
@@ -237,7 +246,12 @@ flag limit-build-mem
   manual: True
   default: False
 
-
+ifdef(`DEV_MODE', `
+flag use-unliftio
+  description: Use unliftio-core instead of monad-control
+  manual: True
+  default: False
+')
 
 -------------------------------------------------------------------------------
 -- Common stanzas
@@ -253,7 +267,7 @@ common compile-options
     if os(windows)
       cpp-options:    -DCABAL_OS_WINDOWS
 
-    if false
+    if FLAG_DEV
       cpp-options:    -DDEVBUILD
 
     if flag(inspection)
@@ -286,14 +300,14 @@ common compile-options
     if flag(has-llvm)
       ghc-options: -fllvm
 
-    if false
+    if FLAG_DEV
       ghc-options:    -Wmissed-specialisations
                       -Wall-missed-specialisations
 
     if flag(limit-build-mem)
         ghc-options: +RTS -M1000M -RTS
 
-    if false
+    if FLAG_USE_UNLIFTIO
       cpp-options: -DUSE_UNLIFTIO
 
 common default-extensions
@@ -369,7 +383,7 @@ common optimization-options
                  -fmax-worker-args=16
 
   -- For this to be effective it must come after the -O2 option
-  if false || flag(debug) || !flag(opt)
+  if FLAG_DEV || flag(debug) || !flag(opt)
     ghc-options: -fno-ignore-asserts
     cpp-options: -DDEBUG
 
@@ -454,14 +468,14 @@ library
 
                      , Streamly.Internal.Data.Stream.IsStream
 
-    if !impl(ghcjs) && false
+    if !impl(ghcjs) && FLAG_DEV
         other-modules:
                        Streamly.Internal.System.IOVec.Type
                      , Streamly.Internal.System.IOVec
                      , Streamly.Internal.FileSystem.FDIO
                      , Streamly.Internal.FileSystem.FD
 
-    if false
+    if FLAG_DEV
         exposed-modules: Streamly.Internal.Data.SmallArray
         -- Exposed modules show up on hackage irrespective of the flag, so keep
         -- it hidden.
@@ -571,12 +585,12 @@ library
     if impl(ghc < 9.6)
       build-depends:   transformers-base >= 0.4   && < 0.5
 
-    if false
+    if FLAG_USE_UNLIFTIO
       build-depends:   unliftio-core     >= 0.2 && < 0.3
     else
       build-depends:   monad-control     >= 1.0 && < 1.1
 
-    if false
+    if FLAG_DEV
       build-depends: primitive >= 0.5.4 && < 0.9
 
     -- For FileSystem.Event module
@@ -595,5 +609,5 @@ library
 
     -- Array uses a Storable constraint in dev build making several inspection
     -- tests fail
-    if false && flag(inspection)
+    if FLAG_DEV && flag(inspection)
       build-depends: inspection-and-dev-flags-cannot-be-used-together
