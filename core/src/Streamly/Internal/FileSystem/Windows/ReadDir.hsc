@@ -160,7 +160,7 @@ openDirStream p = do
     fp_finddata <- mallocForeignPtrBytes (# const sizeof(WIN32_FIND_DATAW) )
     withForeignPtr fp_finddata $ \dataPtr -> do
         handle <-
-            Array.asCStringUnsafe (Path.toChunk path) $ \pathPtr -> do
+            Array.asCStringUnsafe (Path.toArray path) $ \pathPtr -> do
                 -- XXX Use getLastError to distinguish the case when no
                 -- matching file is found. See the doc of FindFirstFileW.
                 failIf
@@ -216,8 +216,8 @@ readDirStreamEither _ (DirStream (h, ref, fdata)) =
             isMeta <- isMetaDir dname
             if isMeta
             then findNext ptr
-            else return (Just (Left (Path.unsafeFromChunk name)))
-        else return (Just (Right (Path.unsafeFromChunk name)))
+            else return (Just (Left (Path.unsafeFromArray name)))
+        else return (Just (Right (Path.unsafeFromArray name)))
 
     findNext ptr = do
         retval <- liftIO $ c_FindNextFileW h ptr

@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 #if defined(IS_PORTABLE)
@@ -57,7 +58,7 @@
 -- the filepath package APIs. It has some differences from the filepath
 -- package:
 --
--- * The default Path type it self affords considerable safety regarding the
+-- * The default Path type itself affords considerable safety regarding the
 -- distinction of rooted or non-rooted paths, it also allows distinguishing
 -- directory and file paths.
 -- * It is designed to provide flexible typing to provide compile time safety
@@ -72,6 +73,12 @@
 
 module Streamly.Internal.FileSystem.OS_PATH_TYPE
     (
+    -- * Setup
+    -- | To execute the code examples provided in this module in ghci, please
+    -- run the following commands first.
+    --
+    -- $setup
+
     -- * Type
 #if defined(IS_PORTABLE)
       OS_WORD_TYPE
@@ -84,6 +91,10 @@ module Streamly.Internal.FileSystem.OS_PATH_TYPE
     , IsPath (..)
     , adapt
 
+    -- * Conversion to OsWord
+    , charToWord
+    , wordToChar
+
     -- * Validation
     , validatePath
     , isValidPath
@@ -93,15 +104,16 @@ module Streamly.Internal.FileSystem.OS_PATH_TYPE
 #endif
 
     -- * Construction
-    , fromChunk
-    , unsafeFromChunk
+    , fromArray
+    , unsafeFromArray
     , fromChars
     , fromString
-    , rawFromString
+    , fromString_
+    , arrayFromString
     , unsafeFromString
     -- , fromCString#
     -- , fromCWString#
-    , readRaw
+    , readArray
 
     -- * Statically Verified String Literals
     -- | Quasiquoters.
@@ -117,21 +129,22 @@ module Streamly.Internal.FileSystem.OS_PATH_TYPE
     , pathE
 
     -- * Elimination
-    , toChunk
+    , toArray
     , toChars
     , toChars_
     , toString
     , AS_OS_CSTRING
     , toString_
-    , showRaw
+    , showArray
 
-    -- -- * Separators
+    -- * Separators
     -- Do we need to export the separator char functions? They are not
     -- essential if operations to split and combine paths are provided. If
     -- someone wants to work on paths at low level then they know what they
-    -- are.
-    -- , isPrimarySeparator
-    -- , isSeparator
+    -- are. We should export the OsWord based operations to work with arrays.
+    , separator
+    , isSeparator
+    , extSeparator
 
     -- * Dir or non-dir paths
     --
@@ -196,6 +209,7 @@ module Streamly.Internal.FileSystem.OS_PATH_TYPE
     )
 where
 
+import Control.Exception (throw)
 import Control.Monad.Catch (MonadThrow(..))
 import Data.Bifunctor (bimap)
 import Data.Functor.Identity (Identity(..))
@@ -225,38 +239,23 @@ import Streamly.Internal.Data.Path
 import Streamly.Internal.FileSystem.OS_PATH (OS_PATH(..))
 #endif
 
--- XXX docspec does not process CPP
-
-{- $setup
->>> :m
->>> :set -XQuasiQuotes
->>> import Data.Maybe (fromJust, isNothing, isJust)
->>> import qualified Streamly.Data.Stream as Stream
-
-For APIs that have not been released yet.
-
->>> import Streamly.Internal.FileSystem.PosixPath (PosixPath, path)
->>> import qualified Streamly.Internal.Data.Array as Array
->>> import qualified Streamly.Internal.FileSystem.PosixPath as Path
->>> import qualified Streamly.Unicode.Stream as Unicode
-
->>> import Data.Either (Either, isLeft)
->>> import Control.Exception (SomeException, evaluate, try)
-
->>> pack = fromJust . Path.fromString
->>> fails action = (try (evaluate action) :: IO (Either SomeException String)) >>= return . isLeft
--}
-
--- Path must not contain null char as system calls treat the path as a null
--- terminated C string. Also, they return null terminated strings as paths.
--- XXX Maintain the Array with null termination? To avoid copying the path for
--- null termination when passing to system calls. Path appends will have to
--- handle the null termination.
+-- NOTES about C preprocessor use.
 --
--- XXX On Windows several characters other than null are not allowed but we do
--- not validate that yet when parsing a path.
--- Path components may have limits.
--- Total path length may have a limit.
+-- docspec comment lines cannot use CPP macros, docspec does not expand them
+-- before running tests.
+--
+-- We cannot use a CPP conditional inside haddock comments because the
+-- conditional line replaced by a blank line by CPP and this breaks the haddock
+-- comment. Therefore if the comment is slightly different on a different
+-- platform we duplicate the entire comment inside a conditional.
+
+#ifdef IS_PORTABLE
+#include "DocTestFileSystemPath.hs"
+#elif defined(IS_WINDOWS)
+#include "DocTestFileSystemWindowsPath.hs"
+#else
+#include "DocTestFileSystemPosixPath.hs"
+#endif
 
 #if defined(IS_PORTABLE)
 type OS_PATH_TYPE = OS_PATH
@@ -299,23 +298,78 @@ adapt :: (MonadThrow m, IsPath OS_PATH_TYPE a, IsPath OS_PATH_TYPE b) => a -> m 
 adapt p = fromPath (toPath p :: OS_PATH_TYPE)
 
 ------------------------------------------------------------------------------
+-- Char to word
+------------------------------------------------------------------------------
+
+-- | Unsafe, truncates the Char to Word8 on Posix and Word16 on Windows.
+charToWord :: Char -> OS_WORD_TYPE
+charToWord = Common.charToWord
+
+-- | Unsafe, should be a valid character.
+wordToChar :: OS_WORD_TYPE -> Char
+wordToChar = Common.wordToChar
+
+------------------------------------------------------------------------------
+-- Separators
+------------------------------------------------------------------------------
+
+-- | The primary path separator word: @/@ on POSIX and @\\@ on Windows.
+-- Windows also supports @/@ as a valid separator. Use 'isSeparator' to check
+-- for any valid path separator.
+{-# INLINE separator #-}
+separator :: OS_WORD_TYPE
+separator = charToWord $ Common.primarySeparator Common.OS_NAME
+
+-- | On POSIX, only @/@ is a path separator, whereas on Windows both @/@ and
+-- @\\@ are valid separators.
+{-# INLINE isSeparator #-}
+isSeparator :: OS_WORD_TYPE -> Bool
+isSeparator = Common.isSeparatorWord Common.OS_NAME
+
+-- | File extension separator word.
+{-# INLINE extSeparator #-}
+extSeparator :: OS_WORD_TYPE
+extSeparator = Common.extensionWord
+
+------------------------------------------------------------------------------
 -- Path parsing utilities
 ------------------------------------------------------------------------------
 
--- | Drop all trailing separators from a path. This can potentially convert an
--- implicit dir path to a non-dir.
+-- XXX We can have prime suffixed versions where it drops or adds separator
+-- unconditionally. Alternatively, we can convert the path to array and use
+-- array operations instead.
+
+-- | Remove all trailing path separators from the given 'Path'.
 --
--- Normally, if the path is @dir//@ then the result is @dir@; there are a few
--- special cases though:
+-- This operation is careful not to alter the semantic meaning of the path.
+-- For example, on Windows:
 --
--- * If the path is @\/\/@ then the result is @\/@.
--- * On Windows, if the path is "C:\/\/" then the result is "C:\/" because "C:"
--- has a different meaning.
+--   * Dropping the separator from "C:/" would change the meaning of the path
+--     from referring to the root of the C: drive to the current directory on C:.
+--   * If a path ends with a separator immediately after a colon (e.g., "C:/"),
+--     the separator will not be removed.
 --
--- >>> f a = Path.toString $ Path.dropTrailingSeparators (pack a)
+-- If the input path is invalid, the behavior is not fully guaranteed:
+--
+--   * The separator may still be dropped.
+--   * In some cases, dropping the separator may make an invalid path valid
+--     (e.g., "C:\\\\" or "C:\\/").
+--
+-- This operation may convert a path that implicitly refers to a directory
+-- into one that does not.
+--
+-- Typically, if the path is @dir//@, the result is @dir@. Special cases include:
+--
+--   * On POSIX: dropping from @"//"@ yields @"/"@.
+--   * On Windows: dropping from @"C://"@ results in @"C:/"@.
+--
+-- Examples:
+--
+-- >>> f = Path.toString . Path.dropTrailingSeparators . Path.fromString_
 -- >>> f "./"
 -- "."
--- >>> f "//"
+--
+-- >> f "//"  -- On POSIX
 -- "/"
 --
 {-# INLINE dropTrailingSeparators #-}
@@ -323,42 +377,84 @@ dropTrailingSeparators :: OS_PATH_TYPE -> OS_PATH_TYPE
 dropTrailingSeparators (OS_PATH arr) =
     OS_PATH (Common.dropTrailingSeparators Common.OS_NAME arr)
 
--- | Returns True if the path has a trailing separator. This means the path is
--- implicitly a dir type path.
+-- On windows a share name can also be reported to have a trailing separator,
+-- but that is not a valid Path.
+
+-- | Returns 'True' if the path ends with a trailing separator.
+--
+-- This typically indicates that the path refers to a directory,
+-- though this is not guaranteed in all cases. The presence of a
+-- trailing separator can affect how the path is interpreted.
+--
+-- Example:
+--
+-- >>> Path.hasTrailingSeparator (Path.fromString_ "foo/")
+-- True
+--
+-- >>> Path.hasTrailingSeparator (Path.fromString_ "foo")
+-- False
 {-# INLINE hasTrailingSeparator #-}
 hasTrailingSeparator :: OS_PATH_TYPE -> Bool
 hasTrailingSeparator (OS_PATH arr) =
     Common.hasTrailingSeparator Common.OS_NAME arr
 
--- | Add a trailing path separator if it does not have one.
--- Note that this will make it an implicit dir type path.
+-- | Add a trailing path separator to a path if it doesn't already have one.
+-- The function avoids modifying the path if doing so would change its meaning
+-- or make it invalid. For example, on Windows:
 --
--- Note that on Windows adding a separator to "C:" makes it "C:\\" which has a
--- different meaning.
+--   * Adding a separator to "C:" would change it from referring to the current
+--     directory on the C: drive to the root directory.
+--   * Adding a separator to "\\" could turn it into a UNC share path, which may
+--     not be intended.
+--   * If the path ends with a colon (e.g., "C:"), a separator is not added.
 --
+-- This operation typically makes the path behave like an implicit directory path.
 {-# INLINE addTrailingSeparator #-}
 addTrailingSeparator :: OS_PATH_TYPE -> OS_PATH_TYPE
-addTrailingSeparator p = unsafeExtend p sep
+addTrailingSeparator p@(OS_PATH _arr) =
+#ifdef IS_WINDOWS
+    if Array.unsafeGetIndexRev 0 _arr == Common.charToWord ':'
+    then p
+    else unsafeExtend p sep
+#else
+    unsafeExtend p sep
+#endif
 
     where
 
     sep = fromJust $ fromString [Common.primarySeparator Common.OS_NAME]
 
--- | Throws an exception if the path is not valid. See 'isValidPath' for the
--- list of validations.
+-- | Throws an exception if the path is not valid. The exception contains a
+-- detailed description of the exact reason why the path is not valid.
+--
+-- See 'isValidPath' for the list of validations.
 validatePath :: MonadThrow m => Array OS_WORD_TYPE -> m ()
 validatePath = Common.validatePath Common.OS_NAME
+
+-- Path must not contain null char as system calls treat the path as a null
+-- terminated C string. Also, they return null terminated strings as paths.
+--
+-- XXX Maintain the Array with null termination? To avoid copying the path for
+-- null termination when passing to system calls. Path appends will have to
+-- handle the null termination.
 
 #ifndef IS_WINDOWS
 -- | Check if the filepath is valid i.e. does the operating system or the file
 -- system allow such a path in listing or creating files?
 --
--- >>> isValid = Path.isValidPath . Path.rawFromString
+-- >>> isValid = Path.isValidPath . Path.arrayFromString
+--
+-- All of these validations are enforced by Posix and therefore are
+-- file system independent.
 --
 -- >>> isValid ""
 -- False
 -- >>> isValid "\0"
 -- False
+--
+-- Other than these there may be maximum path component length and maximum path
+-- length restrictions enforced by the OS as well as the filesystem which we do
+-- not validate.
 --
 isValidPath :: Array OS_WORD_TYPE -> Bool
 isValidPath = Common.isValidPath Common.OS_NAME
@@ -379,26 +475,40 @@ isValidPath = Common.isValidPath Common.OS_NAME
 -- | /Unsafe/: The user is responsible to make sure that the path is valid as
 -- per 'isValidPath'.
 --
-{-# INLINE unsafeFromChunk #-}
-unsafeFromChunk :: IsPath OS_PATH_TYPE a => Array OS_WORD_TYPE -> a
-unsafeFromChunk =
+{-# INLINE unsafeFromArray #-}
+unsafeFromArray :: IsPath OS_PATH_TYPE a => Array OS_WORD_TYPE -> a
+unsafeFromArray =
 #ifndef DEBUG
-    unsafeFromPath . OS_PATH . Common.unsafeFromChunk
+    unsafeFromPath . OS_PATH . Common.unsafeFromArray
 #else
-    fromJust . fromChunk
+    fromJust . fromArray
 #endif
 
 -- XXX mkPath?
 
--- | Convert a byte array into a Path.
--- Throws 'InvalidPath' if 'isValidPath' fails on the path.
+-- | Convert an array of OS_WORD_TYPE into a value of type OS_PATH_TYPE.
+-- The path is validated using 'isValidPath'.
 --
-fromChunk :: (MonadThrow m, IsPath OS_PATH_TYPE a) => Array OS_WORD_TYPE -> m a
-fromChunk arr = Common.fromChunk Common.OS_NAME arr >>= fromPath . OS_PATH
+-- On POSIX and Windows, each OS_WORD_TYPE should be encoded such that:
+--
+-- * The path separator character is represented by a word with its ASCII byte value.
+-- * The input does not contain a NUL word.
+--
+-- On Windows, validation assumes a one-to-one mapping between ASCII character
+-- values used in path validation and the encoded words. Apart from this,
+-- there are no restrictions on the encoding.
+--
+-- To bypass path validation checks, use 'unsafeFromArray'.
+--
+-- Throws 'InvalidPath' if 'isValidPath' fails on the resulting path.
+--
+fromArray :: (MonadThrow m, IsPath OS_PATH_TYPE a) => Array OS_WORD_TYPE -> m a
+fromArray arr = Common.fromArray Common.OS_NAME arr >>= fromPath . OS_PATH
 
 -- XXX Should be a Fold instead?
 
--- | Encode a Unicode character stream to OS_PATH_TYPE using strict CODEC_NAME encoding.
+-- | Encode a Unicode character stream to OS_PATH_TYPE using strict CODEC_NAME
+-- encoding. The path is validated using 'isValidPath'.
 --
 -- * Throws 'InvalidPath' if 'isValidPath' fails on the path
 -- * Fails if the stream contains invalid unicode characters
@@ -409,20 +519,19 @@ fromChunk arr = Common.fromChunk Common.OS_NAME arr >>= fromPath . OS_PATH
 -- for any useful purpose, it is only needed for path equality and can be done
 -- during the equality check.
 --
--- On Windows it accepts a share root even if a path does not follow it.
---
 -- Unicode normalization is not done. If normalization is needed the user can
--- normalize it and then use the 'fromChunk' API.
+-- normalize it and then use the 'fromArray' API.
 {-# INLINE fromChars #-}
 fromChars :: (MonadThrow m, IsPath OS_PATH_TYPE a) => Stream Identity Char -> m a
 fromChars s =
     Common.fromChars Common.OS_NAME Unicode.UNICODE_ENCODER s
         >>= fromPath . OS_PATH
 
--- | Create a raw path i.e. an array representing the path. Note that the path
--- is not validated, therefore, it may not be valid according to 'isValidPath'.
-rawFromString :: [Char] -> Array OS_WORD_TYPE
-rawFromString =
+-- | Create an array from a path string using strict CODEC_NAME encoding. The
+-- path is not validated, therefore, it may not be valid according to
+-- 'isValidPath'.
+arrayFromString :: [Char] -> Array OS_WORD_TYPE
+arrayFromString =
       Common.unsafeFromChars Unicode.UNICODE_ENCODER
     . Stream.fromList
 
@@ -433,7 +542,7 @@ unsafeFromString =
 #ifndef DEBUG
       unsafeFromPath
     . OS_PATH
-    . rawFromString
+    . arrayFromString
 #else
     fromJust . fromString
 #endif
@@ -446,7 +555,15 @@ unsafeFromString =
 fromString :: (MonadThrow m, IsPath OS_PATH_TYPE a) => [Char] -> m a
 fromString = fromChars . Stream.fromList
 
--- | Concatenate a string to an existing path.
+-- | Like fromString but a pure and partial function that throws an
+-- 'InvalidPath' exception.
+fromString_ :: [Char] -> OS_PATH_TYPE
+fromString_ x =
+        case fromString x of
+            Left e -> throw e
+            Right v -> v
+
+-- | Extend a path by adding a separator followed by the supplied string to it.
 --
 --  Throws an error if the resulting path is not a valid path as per
 --  'isValidPath'.
@@ -455,7 +572,7 @@ extendByString :: OS_PATH_TYPE -> [Char] -> OS_PATH_TYPE
 extendByString (OS_PATH a) b =
     OS_PATH $
         Common.append Common.OS_NAME
-            (Common.toString Unicode.UNICODE_DECODER) a (rawFromString b)
+            (Common.toString Unicode.UNICODE_DECODER) a (arrayFromString b)
 
 
 ------------------------------------------------------------------------------
@@ -486,12 +603,14 @@ pathE = either (error . show) liftPath . fromString
 -- for free. Interpolated vars if any have to be of appropriate type depending
 -- on the context so that we can splice them safely.
 
+#ifdef IS_PORTABLE
 -- | Generates a OS_PATH_TYPE type from a quoted literal. Equivalent to using
 -- 'fromString' on the static literal.
 --
--- >>> Path.toString ([path|/usr/bin|] :: PosixPath)
+-- >>> Path.toString ([path|/usr/bin|] :: Path)
 -- "/usr/bin"
 --
+#endif
 path :: QuasiQuoter
 path = mkQ pathE
 
@@ -502,8 +621,8 @@ path = mkQ pathE
 -- XXX unPath?
 
 -- | Convert the path to an array.
-toChunk :: IsPath OS_PATH_TYPE a => a -> Array OS_WORD_TYPE
-toChunk p = let OS_PATH arr = toPath p in arr
+toArray :: IsPath OS_PATH_TYPE a => a -> Array OS_WORD_TYPE
+toArray p = let OS_PATH arr = toPath p in arr
 
 -- | Decode the path to a stream of Unicode chars using strict CODEC_NAME decoding.
 {-# INLINE toChars #-}
@@ -530,25 +649,27 @@ toString_ = runIdentity . Stream.toList . toChars_
 
 -- | Show the path as raw characters without any specific decoding.
 --
--- See also: 'readRaw'.
+-- See also: 'readArray'.
 --
-showRaw :: IsPath OS_PATH_TYPE a => a -> [Char]
-showRaw p =
+showArray :: IsPath OS_PATH_TYPE a => a -> [Char]
+showArray p =
     let (OS_PATH arr) =
             toPath p in show arr
 
 #ifndef IS_WINDOWS
+#ifdef IS_PORTABLE
 -- | Parse a raw array of bytes as a path type.
 --
--- >>> readRaw = fromJust . Path.fromChunk . read
+-- >>> readArray = fromJust . Path.fromArray . read
 --
--- >>> arr = Path.rawFromString "hello"
--- >>> Path.showRaw $ (Path.readRaw $ show arr :: Path.PosixPath)
+-- >>> arr = Path.arrayFromString "hello"
+-- >>> Path.showArray $ (Path.readArray $ show arr :: Path.Path)
 -- "fromList [104,101,108,108,111]"
 --
--- See also: 'showRaw'.
-readRaw :: IsPath OS_PATH_TYPE a => [Char] -> a
-readRaw = fromJust . fromChunk . read
+-- See also: 'showArray'.
+#endif
+readArray :: IsPath OS_PATH_TYPE a => [Char] -> a
+readArray = fromJust . fromArray . read
 #endif
 
 -- We cannot show decoded path in the Show instance as it may not always
@@ -566,13 +687,13 @@ instance Show OS_PATH where
 -- system calls on Posix.
 {-# INLINE AS_OS_CSTRING #-}
 AS_OS_CSTRING :: OS_PATH_TYPE -> (OS_CSTRING_TYPE -> IO a) -> IO a
-AS_OS_CSTRING p = Array.asCStringUnsafe (toChunk p)
+AS_OS_CSTRING p = Array.asCStringUnsafe (toArray p)
 #else
 -- | Use the path as a pinned CWString. Useful for using a WindowsPath in
 -- system calls on Windows.
 {-# INLINE AS_OS_CSTRING #-}
 AS_OS_CSTRING :: OS_PATH_TYPE -> (OS_CSTRING_TYPE -> IO a) -> IO a
-AS_OS_CSTRING p = Array.asCWString (toChunk p)
+AS_OS_CSTRING p = Array.asCWString (toArray p)
 #endif
 
 ------------------------------------------------------------------------------
@@ -584,7 +705,7 @@ AS_OS_CSTRING p = Array.asCWString (toChunk p)
 -- "\/" is considered an absolute root and "." as a dynamic root. ".." is not
 -- considered a root, "..\/x" or "x\/y" are not rooted paths.
 --
--- >>> isRooted = Path.isRooted . pack
+-- >>> isRooted = Path.isRooted . Path.fromString_
 --
 -- >>> isRooted "/"
 -- True
@@ -603,7 +724,7 @@ isRooted (OS_PATH arr) = Common.isRooted Common.OS_NAME arr
 --
 -- >>> isBranch = not . Path.isRooted
 --
--- >>> isBranch = Path.isBranch . pack
+-- >>> isBranch = Path.isBranch . Path.fromString_
 --
 -- >>> isBranch "x"
 -- True
@@ -620,7 +741,7 @@ isBranch = not . isRooted
 #ifndef IS_WINDOWS
 -- | Like 'extend' but does not check if the second path is rooted.
 --
--- >>> f a b = Path.toString $ Path.unsafeExtend (pack a) (pack b)
+-- >>> f a b = Path.toString $ Path.unsafeExtend (Path.fromString_ a) (Path.fromString_ b)
 --
 -- >>> f "x" "y"
 -- "x/y"
@@ -638,10 +759,12 @@ unsafeExtend (OS_PATH a) (OS_PATH b) =
         $ Common.unsafeAppend
             Common.OS_NAME (Common.toString Unicode.UNICODE_DECODER) a b
 
--- | Extend an OS_PATH_TYPE by appending another one to it. Fails if the second path
--- refers to a rooted path. If you want to avoid runtime failure use the
--- typesafe Streamly.FileSystem.OS_PATH_TYPE.Seg module. Use 'unsafeExtend' to avoid
--- failure if you know it is ok to append the path.
+-- If you want to avoid runtime failure use the typesafe
+-- Streamly.FileSystem.OS_PATH_TYPE.Seg module.
+
+-- | Extend a OS_PATH_TYPE by adding a separator followed by another path to
+-- it. Fails if the second path is a rooted path. Use 'unsafeExtend' to avoid
+-- failure if you know it is ok to append the rooted path.
 --
 -- >>> f a b = Path.toString $ Path.extend a b
 --
@@ -659,7 +782,7 @@ extend (OS_PATH a) (OS_PATH b) =
             Common.OS_NAME (Common.toString Unicode.UNICODE_DECODER) a b
 
 -- | A stricter version of 'extend' which requires the first path to be a
--- directory like path i.e. with a trailing separator.
+-- directory like path i.e. having a trailing separator.
 --
 -- >>> f a b = Path.toString $ Path.extendDir a b
 --
@@ -717,7 +840,7 @@ unsafeJoinPaths = undefined
 
 #ifndef IS_WINDOWS
 -- | If a path is rooted then separate the root and the remaining path,
--- otherwise return 'Nothing'. If the path is rooted then the non-root
+-- otherwise return 'Nothing'. The non-root
 -- part is guaranteed to NOT start with a separator.
 --
 -- Some filepath package equivalent idioms:
@@ -730,7 +853,7 @@ unsafeJoinPaths = undefined
 -- >>> isDrive = isNothing . dropDrive
 --
 -- >>> toList (a,b) = (Path.toString a, fmap Path.toString b)
--- >>> split = fmap toList . Path.splitRoot . pack
+-- >>> split = fmap toList . Path.splitRoot . Path.fromString_
 --
 -- >>> split "/"
 -- Just ("/",Nothing)
@@ -767,7 +890,7 @@ splitRoot (OS_PATH x) =
 -- one is kept. Separators are not added either e.g. "." and ".." may not have
 -- trailing separators if the original path does not.
 --
--- >>> split = Stream.toList . fmap Path.toString . Path.splitPath . pack
+-- >>> split = Stream.toList . fmap Path.toString . Path.splitPath . Path.fromString_
 --
 -- >>> split "."
 -- ["."]
@@ -819,7 +942,7 @@ splitPath (OS_PATH a) = fmap OS_PATH $ Common.splitPath Common.OS_NAME a
 -- components in the path are ignored except when in the leading position.
 -- Trailing separators in non-root components are dropped.
 --
--- >>> split = Stream.toList . fmap Path.toString . Path.splitPath_ . pack
+-- >>> split = Stream.toList . fmap Path.toString . Path.splitPath_ . Path.fromString_
 --
 -- >>> split "."
 -- ["."]
@@ -887,7 +1010,7 @@ splitPath_ (OS_PATH a) = fmap OS_PATH $ Common.splitPath_ Common.OS_NAME a
 -- >>> replaceDirectory p x = fmap (flip Path.extend x) (takeFileName p)
 --
 -- >>> toList (a,b) = (fmap Path.toString a, Path.toString b)
--- >>> split = fmap toList . Path.splitFile . pack
+-- >>> split = fmap toList . Path.splitFile . Path.fromString_
 --
 -- >>> split "/"
 -- Nothing
@@ -901,7 +1024,7 @@ splitPath_ (OS_PATH a) = fmap OS_PATH $ Common.splitPath_ Common.OS_NAME a
 -- >>> split ".."
 -- Nothing
 --
--- >>> split "//"
+-- >> split "//" -- Posix
 -- Nothing
 --
 -- >>> split "/home"
@@ -975,7 +1098,7 @@ splitLast (OS_PATH a) =
 -- implemented similarly.
 --
 -- >>> toList (a,b) = (Path.toString a, Path.toString b)
--- >>> split = fmap toList . Path.splitExtension . pack
+-- >>> split = fmap toList . Path.splitExtension . Path.fromString_
 --
 -- >>> split "/"
 -- Nothing
@@ -1095,43 +1218,68 @@ takeDirectory x = splitFile x >>= fst
 ------------------------------------------------------------------------------
 
 #ifndef IS_WINDOWS
--- | Checks whether two paths are logically equal. This function takes a
--- configuration modifier to customize the notion of equality. The default
--- configuration, denoted by @id@, behaves as described below. For details, see
--- the documentation of "EqCfg".
+-- | Default equality check configuration.
 --
--- It performs some normalizations on the paths before comparing them,
+-- >>> :{
+-- eqCfg =
+--       Path.ignoreTrailingSeparators False
+--     . Path.ignoreCase False
+--     . Path.allowRelativeEquality False
+-- :}
+--
+#else
+-- | Default equality check configuration.
+--
+-- >>> :{
+-- eqCfg =
+--       Path.ignoreTrailingSeparators False
+--     . Path.ignoreCase True
+--     . Path.allowRelativeEquality False
+-- :}
+--
+#endif
+eqCfg :: EqCfg
+eqCfg = Common.EqCfg
+    { _ignoreTrailingSeparators = False
+    , _allowRelativeEquality = False
+#ifndef IS_WINDOWS
+    , _ignoreCase = False
+#else
+    , _ignoreCase = True
+#endif
+    }
+
+#ifndef IS_WINDOWS
+-- | Checks whether two paths are logically equal. This function takes a
+-- configuration modifier to customize the notion of equality. For using the
+-- default configuration pass 'id' as the modifier. For details about the
+-- defaults, see 'EqCfg'.
+--
+-- eqPath performs some normalizations on the paths before comparing them,
 -- specifically it drops redundant path separators between path segments and
 -- redundant "\/.\/" components between segments.
 --
--- Equality semantics followed by this routine are listed below. If it returns
--- equal then the paths are definitely equal, if it returns unequal then the
--- paths may still be equal using some relaxed equality criterion.
+-- Default config options use strict equality, for strict equality both the
+-- paths must be absolute or both must be path segments without a leading root
+-- component (e.g. x\/y). Also, both must be files or both must be directories.
 --
--- * paths with a leading "." and without a leading "." e.g. ".\/x\/y"
--- and "x\/y" are treated as unequal. The first one is a dynamically rooted path
--- and the second one is a free path segment.
+-- In addition to the default config options, the following equality semantics
+-- are used:
 --
 -- * An absolute path and a path relative to "." may be equal depending on the
--- meaning of ".", however this routine treats them as unequal.
---
--- * Two paths starting with a leading "." may not actually be equal even if
--- they are literally equal. We return unequal even though they may be equal
--- sometimes.
+-- meaning of ".", however this routine treats them as unequal, it does not
+-- resolve the "." to a concrete path.
 --
 -- * Two paths having ".." components may be equal after processing the ".."
 -- components even if we determined them to be unequal. However, if we
 -- determined them to be equal then they must be equal.
 --
--- * A path with a trailing slash and a path without are treated as unequal
--- e.g. "x" is not the same as "x\/". The latter is a directory.
---
--- In short, for strict equality both the paths must be absolute or both must
--- be path segments without a leading root component (e.g. x\/y). Also, both
--- must be files or both must be directories.
+-- Using default config with case sensitive comparision, if eqPath returns
+-- equal then the paths are definitely equal, if it returns unequal then the
+-- paths may still be equal under some relaxed equality criterion.
 --
 -- >>> :{
---  eq a b = Path.eqPath id (pack a) (pack b)
+--  eq a b = Path.eqPath id (Path.fromString_ a) (Path.fromString_ b)
 -- :}
 --
 -- >>> eq "/x"  "//x"
@@ -1169,7 +1317,7 @@ takeDirectory x = splitFile x >>= fst
 -- >>> :{
 --  cfg = Path.ignoreTrailingSeparators True
 --      . Path.allowRelativeEquality True
---  eq a b = Path.eqPath cfg (pack a) (pack b)
+--  eq a b = Path.eqPath cfg (Path.fromString_ a) (Path.fromString_ b)
 -- :}
 --
 -- >>> eq "."  "."
@@ -1202,13 +1350,13 @@ takeDirectory x = splitFile x >>= fst
 eqPath :: (EqCfg -> EqCfg) -> OS_PATH_TYPE -> OS_PATH_TYPE -> Bool
 eqPath cfg (OS_PATH a) (OS_PATH b) =
     Common.eqPath Unicode.UNICODE_DECODER
-        Common.OS_NAME cfg a b
+        Common.OS_NAME (cfg eqCfg) a b
 #endif
 
 -- | Check two paths for byte level equality. This is the most strict path
 -- equality check.
 --
--- >>> eqPath a b = Path.eqPathBytes (pack a) (pack b)
+-- >>> eqPath a b = Path.eqPathBytes (Path.fromString_ a) (Path.fromString_ b)
 --
 -- >>> eqPath "x//y"  "x//y"
 -- True
