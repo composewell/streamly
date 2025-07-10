@@ -14,8 +14,9 @@
 module Streamly.Console.Stdio
     (
     -- * Streams (stdin)
-      readChunks
+      read
     , readChars
+    , readChunks
 
     -- * Streams (srdout)
     , putChunks
@@ -34,4 +35,5 @@ module Streamly.Console.Stdio
     )
 where
 
+import Prelude hiding (read)
 import Streamly.Internal.Console.Stdio
