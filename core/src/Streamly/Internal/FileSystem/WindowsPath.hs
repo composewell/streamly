@@ -1,27 +1,9 @@
+{-# LANGUAGE CPP #-}
 #define IS_WINDOWS
 #include "Streamly/Internal/FileSystem/PosixPath.hs"
 
-{- $setup
->>> :m
->>> :set -XQuasiQuotes
->>> import Data.Maybe (fromJust)
->>> import Data.Word (Word16)
->>> import qualified Streamly.Data.Stream as Stream
-
-For APIs that have not been released yet.
-
->>> import Streamly.Internal.FileSystem.WindowsPath (WindowsPath, path)
->>> import Streamly.Internal.Data.Array (Array)
->>> import qualified Streamly.Internal.Data.Array as Array
->>> import qualified Streamly.Internal.FileSystem.WindowsPath as Path
->>> import qualified Streamly.Internal.Unicode.Stream as Unicode
-
->>> import Data.Either (Either, isLeft)
->>> import Control.Exception (SomeException, evaluate, try)
-
->>> pack = fromJust . Path.fromString
->>> fails action = (try (evaluate action) :: IO (Either SomeException String)) >>= return . isLeft
--}
+-- XXX Move these functions to PosixPath.hs and use CPP conditionals for
+-- documentation differences, definitions are identical.
 
 -- Note: We can use powershell for testing path validity.
 -- "//share/x" works in powershell.
@@ -31,146 +13,47 @@ For APIs that have not been released yet.
 -- XXX Note: Windows may have case sensitive behavior depending on the file
 -- system being used. Does it impact any of the case insensitive validations
 -- below?
+--
+-- XXX ADS - alternate data stream syntax - file.txt:stream .
 
--- | Check if the filepath is valid i.e. does the operating system or the file
--- system allow such a path in listing or creating files?
+-- | Like 'validatePath' but more strict. The path must refer to a file system
+-- object. For example, a share root itself is not a valid file system object.
+-- it must be followed by a non-empty path.
 --
--- >>> isValid = Path.isValidPath . Path.rawFromString
+-- >>> isValid = isJust . Path.validatePath' . Path.encodeString
 --
--- >>> isValid ""
--- False
--- >>> isValid "\0"
--- False
---
--- Windows invalid characters:
---
--- >>> isValid "c::"
--- False
--- >>> isValid "c:\\x:y"
--- False
--- >>> isValid "x*"
--- False
--- >>> isValid "x\ty"
--- False
---
--- Windows invalid path components:
---
--- >>> isValid "pRn.txt"
--- False
--- >>> isValid " pRn .txt"
--- False
--- >>> isValid "c:\\x\\pRn"
--- False
--- >>> isValid "c:\\x\\pRn.txt"
--- False
--- >>> isValid "c:\\pRn\\x"
--- False
--- >>> isValid "c:\\ pRn \\x"
--- False
--- >>> isValid "pRn.x.txt"
--- False
---
--- Windows drive root validations:
---
--- >>> isValid "c:"
--- True
--- >>> isValid "c:a\\b"
--- True
--- >>> isValid "c:\\"
--- True
--- >>> isValid "c:\\\\"
--- False
--- >>> isValid "c:\\/"
--- False
--- >>> isValid "c:\\\\x"
--- False
--- >>> isValid "c:\\/x"
--- False
--- >>> isValid "\\/x/y"
--- True
---
--- Windows share path validations:
---
--- >>> isValid "\\"
--- True
 -- >>> isValid "\\\\"
 -- False
--- >>> isValid "\\\\\\"
+-- >>> isValid "\\\\server\\"
 -- False
--- >>> isValid "\\\\x"
--- False
--- >>> isValid "\\\\x\\"
+-- >>> isValid "\\\\server\\x"
 -- True
--- >>> isValid "\\\\x\\y"
--- True
--- >>> isValid "//x/y"
--- True
--- >>> isValid "\\\\prn\\y"
--- False
--- >>> isValid "\\\\x\\\\"
--- False
--- >>> isValid "\\\\x\\\\x"
--- False
--- >>> isValid "\\\\\\x"
+-- >>> isValid "\\\\?\\UNC\\server"
 -- False
 --
--- Windows short UNC path validations:
---
--- >>> isValid "\\\\?\\c:"
--- False
--- >>> isValid "\\\\?\\c:\\"
--- True
--- >>> isValid "\\\\?\\c:x"
--- False
--- >>> isValid "\\\\?\\c:\\\\" -- XXX validate this
--- False
--- >>> isValid "\\\\?\\c:\\x"
--- True
--- >>> isValid "\\\\?\\c:\\\\\\"
--- False
--- >>> isValid "\\\\?\\c:\\\\x"
--- False
---
--- Windows long UNC path validations:
---
--- >>> isValid "\\\\?\\UnC\\x" -- UnC treated as share name
--- True
--- >>> isValid "\\\\?\\UNC\\x" -- XXX fix
--- False
--- >>> isValid "\\\\?\\UNC\\c:\\x"
--- True
---
--- DOS local/global device namespace
---
--- >>> isValid "\\\\.\\x"
--- True
--- >>> isValid "\\\\??\\x"
--- True
-isValidPath :: Array OS_WORD_TYPE -> Bool
-isValidPath = Common.isValidPath Common.OS_NAME
-
--- | Like 'validatePath' on but more strict. A share root must be followed by a
--- non-empty path. Thus "\/\/x\/" is not considered a valid path.
 validatePath' ::
     MonadThrow m => Array OS_WORD_TYPE -> m ()
 validatePath' = Common.validatePath' Common.Windows
 
--- | Like 'isValidPath' but more strict, see validatePath' for differences.
+-- | Like 'isValidPath' but more strict.
+--
+-- >>> isValidPath' = isJust . Path.validatePath'
+--
 isValidPath' ::
     Array OS_WORD_TYPE -> Bool
-isValidPath' = Common.isValidPath' Common.Windows
+isValidPath' = isJust . validatePath'
 
 -- | Read a raw array of OS_WORD_TYPE as a path type.
 --
--- >>> readRaw = fromJust . Path.fromChunk . read
+-- >>> readArray = fromJust . Path.fromArray . read
 --
--- >>> arr :: Array Word16 = Path.rawFromString "hello"
--- >>> Path.showRaw $ (Path.readRaw $ show arr :: Path.WindowsPath)
+-- >>> arr :: Array Word16 = Path.encodeString "hello"
+-- >>> Path.showArray $ (Path.readArray $ show arr :: Path.WindowsPath)
 -- "fromList [104,101,108,108,111]"
 --
--- See also: 'showRaw'.
-readRaw :: IsPath OS_PATH_TYPE a => [Char] -> a
-readRaw = fromJust . fromChunk . read
+-- See also: 'showArray'.
+readArray :: IsPath OS_PATH_TYPE a => [Char] -> a
+readArray = fromJust . fromArray . read
 
 -- | A path that is attached to a root. "C:\\" is considered an absolute root
 -- and "." as a dynamic root. ".." is not considered a root, "..\/x" or "x\/y"
@@ -222,7 +105,7 @@ isRooted (OS_PATH arr) = Common.isRooted Common.OS_NAME arr
 -- | Like 'extend' but does not check if any of the path is empty or if the
 -- second path is rooted.
 --
--- >>> f a b = Path.toString $ Path.unsafeExtend (pack a) (pack b)
+-- >>> f a b = Path.toString $ Path.unsafeExtend (Path.fromString_ a) (Path.fromString_ b)
 --
 -- >>> f "x" "y"
 -- "x\\y"
@@ -309,14 +192,14 @@ extendDir
 -- | See the eqPath documentation in the
 -- "Streamly.Internal.FileSystem.PosixPath" module for details.
 --
--- On Windows the following is different:
+-- On Windows, the following is different:
 --
 -- * paths are normalized by replacing forward slash path separators by
 -- backslashes.
--- * the comparison is case sensitive.
+-- * default configuration uses case-insensitive comparison.
 --
 -- >>> :{
---  eq a b = Path.eqPath id (pack a) (pack b)
+--  eq a b = Path.eqPath id (Path.fromString_ a) (Path.fromString_ b)
 -- :}
 --
 -- The cases that are different from Posix:
@@ -325,7 +208,7 @@ extendDir
 -- True
 --
 -- >>> eq "x"  "X"
--- False
+-- True
 --
 -- >>> eq "c:"  "C:"
 -- False
@@ -340,7 +223,7 @@ extendDir
 --  cfg = Path.ignoreTrailingSeparators True
 --      . Path.ignoreCase True
 --      . Path.allowRelativeEquality True
---  eq a b = Path.eqPath cfg (pack a) (pack b)
+--  eq a b = Path.eqPath cfg (Path.fromString_ a) (Path.fromString_ b)
 -- :}
 --
 -- >>> eq "./x"  "x"
@@ -367,7 +250,7 @@ extendDir
 eqPath :: (EqCfg -> EqCfg) -> OS_PATH_TYPE -> OS_PATH_TYPE -> Bool
 eqPath cfg (OS_PATH a) (OS_PATH b) =
     Common.eqPath Unicode.UNICODE_DECODER
-        Common.OS_NAME cfg a b
+        Common.OS_NAME (cfg eqCfg) a b
 
 -- | If a path is rooted then separate the root and the remaining path,
 -- otherwise root is returned as empty. If the path is rooted then the non-root
@@ -377,7 +260,7 @@ eqPath cfg (OS_PATH a) (OS_PATH b) =
 -- provide some Windows specific examples here.
 --
 -- >>> toList (a,b) = (Path.toString a, fmap Path.toString b)
--- >>> split = fmap toList . Path.splitRoot . pack
+-- >>> split = fmap toList . Path.splitRoot . Path.fromString_
 --
 -- >>> split "c:"
 -- Just ("c:",Nothing)
@@ -404,7 +287,7 @@ splitRoot (OS_PATH x) =
 -- components in the path are ignored except when in the leading position.
 -- Trailing separators in non-root components are dropped.
 --
--- >>> split = Stream.toList . fmap Path.toString . Path.splitPath_ . pack
+-- >>> split = Stream.toList . fmap Path.toString . Path.splitPath_ . Path.fromString_
 --
 -- >>> split "c:x"
 -- ["c:","x"]
@@ -446,7 +329,7 @@ splitPath_ (OS_PATH a) = fmap OS_PATH $ Common.splitPath_ Common.OS_NAME a
 -- Separators are not added either e.g. "." and ".." may not have trailing
 -- separators if the original path does not.
 --
--- >>> split = Stream.toList . fmap Path.toString . Path.splitPath . pack
+-- >>> split = Stream.toList . fmap Path.toString . Path.splitPath . Path.fromString_
 --
 -- >>> split "/x"
 -- ["/","x"]
@@ -470,7 +353,7 @@ splitPath (OS_PATH a) = fmap OS_PATH $ Common.splitPath Common.OS_NAME a
 -- "prn." as a filename without an extension.
 --
 -- >>> toList (a,b) = (Path.toString a, Path.toString b)
--- >>> split = fmap toList . Path.splitExtension . pack
+-- >>> split = fmap toList . Path.splitExtension . Path.fromString_
 --
 -- >>> split "x:y"
 -- Nothing

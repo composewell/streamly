@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.FileSystem.Path
 -- Copyright   : (c) 2023 Composewell Technologies
@@ -10,9 +11,11 @@
 --
 -- The 'Path' type is built on top of Streamly's 'Array' type, leveraging all
 -- its operations — including support for both pinned and unpinned
--- representations. It is designed for extensibility and fine-grained type
--- safety. For type-safe adaptations, see the
--- "Streamly.Internal.FileSystem.Path.*" modules.
+-- representations. The API integrates with streaming, prioritizes safety,
+-- flexibility, and performance. It supports configurable equality for
+-- cross-platform compatibility and user-defined path matching. It is designed
+-- for extensibility and fine-grained type safety as well. For type-safe
+-- adaptations, see the "Streamly.Internal.FileSystem.Path.*" modules.
 --
 -- 'Path' is interconvertible with the 'OsPath' type from the @filepath@
 -- package at zero runtime cost. While the API is mostly compatible with that
@@ -68,11 +71,19 @@
 
 module Streamly.FileSystem.Path
     (
+    -- * Setup
+    -- | To execute the code examples provided in this module in ghci, please
+    -- run the following commands first.
+    --
+    -- $setup
+
     -- * Type
       Path
+    , OsWord
 
     -- * Construction
-    , fromChunk
+    , validatePath
+    , fromArray
     , fromString
 
     -- * Statically Verified String Literals
@@ -84,19 +95,14 @@ module Streamly.FileSystem.Path
     , pathE
 
     -- * Elimination
-    , toChunk
-    , toChars
+    , toArray
+    -- , toChars -- need fromChars as well
     , toString
-    , asOsCString
+    -- , asOsCString
 
     -- * Path Info
     , isRooted
     , isBranch
-
-    -- * Separators
-    , dropTrailingSeparators
-    , hasTrailingSeparator
-    , addTrailingSeparator
 
     -- * Joining
     , unsafeExtend
@@ -123,14 +129,11 @@ module Streamly.FileSystem.Path
 
     -- * Equality
     , EqCfg
-    , eqPath
-
-#ifndef IS_WINDOWS
-    -- ** Config options (Posix)
     , ignoreTrailingSeparators
     , ignoreCase
     , allowRelativeEquality
-#endif
+
+    , eqPath
     )
 where
 
@@ -186,3 +189,5 @@ where
 -}
 
 import Streamly.Internal.FileSystem.Path
+
+#include "DocTestFileSystemPath.hs"

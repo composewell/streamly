@@ -12,15 +12,13 @@ module Streamly.Internal.FileSystem.Path.Common
       OS (..)
 
     -- * Validation
-    , isValidPath
-    , isValidPath'
     , validatePath
     , validatePath'
     , validateFile
 
     -- * Construction
-    , fromChunk
-    , unsafeFromChunk
+    , fromArray
+    , unsafeFromArray
     , fromChars
     , unsafeFromChars
 
@@ -34,7 +32,9 @@ module Streamly.Internal.FileSystem.Path.Common
     -- * Separators
     , primarySeparator
     , isSeparator
+    , isSeparatorWord
     , dropTrailingSeparators
+    , dropTrailingBy
     , hasTrailingSeparator
     , hasLeadingSeparator
 
@@ -85,7 +85,7 @@ module Streamly.Internal.FileSystem.Path.Common
     , normalizeSeparators
  -- , normalize -- separators and /./ components (split/combine)
     , eqPathBytes
-    , EqCfg
+    , EqCfg(..)
     , ignoreTrailingSeparators
     , ignoreCase
     , allowRelativeEquality
@@ -165,6 +165,10 @@ data OS = Windows | Posix deriving Eq
 -- XXX We can use Enum type class to include the Char type as well so that the
 -- functions can work on Array Word8/Word16/Char but that may be slow.
 
+-- XXX Windows is supported only on little endian machines so generally we do
+-- not need covnersion from LE to BE format unless we want to manipulate
+-- windows paths on big-endian machines.
+
 -- | Unsafe, may tructate to shorter word types, can only be used safely for
 -- characters that fit in the given word size.
 charToWord :: Integral a => Char -> a
@@ -235,6 +239,9 @@ isSeparatorWord os = isSeparator os . wordToChar
 -- @a@. On Windows "c:" and "c:/" are different paths, therefore, we do not
 -- drop the trailing separator from "c:/" or for that matter a separator
 -- preceded by a ':'.
+--
+-- Can't use any arbitrary predicate "p", the logic in this depends on assuming
+-- that it is a path separator.
 {-# INLINE dropTrailingBy #-}
 dropTrailingBy :: (Unbox a, Integral a) =>
     OS -> (a -> Bool) -> Array a -> Array a
@@ -245,13 +252,23 @@ dropTrailingBy os p arr =
      in if n == 0
         then arr
         else if n == len -- "////"
-        then fst $ Array.unsafeBreakAt 1 arr
-        -- "c:////"
+        then
+            -- Even though "//" is not allowed as a valid path.
+            -- We still handle that case in this low level function.
+            if os == Windows
+                && n >= 2
+                && Array.unsafeGetIndex 0 arr == Array.unsafeGetIndex 1 arr
+            then fst $ Array.unsafeBreakAt 2 arr -- make it "//" share name
+            else fst $ Array.unsafeBreakAt 1 arr
+        -- "c:////" - keep one "/" after colon in ".*:///" otherwise it will
+        -- change the meaning. "c:/" may also appear, in the middle e.g.
+        -- in UNC paths.
         else if (os == Windows)
                 && (Array.unsafeGetIndex (len - n - 1) arr == charToWord ':')
         then fst $ Array.unsafeBreakAt (len - n + 1) arr
         else arr1
 
+-- XXX we cannot compact "//" to "/" on windows
 {-# INLINE compactTrailingBy #-}
 compactTrailingBy :: Unbox a => (a -> Bool) -> Array a -> Array a
 compactTrailingBy p arr =
@@ -1158,47 +1175,22 @@ validatePathWith allowRoot Windows path
 validatePath :: (MonadThrow m, Integral a, Unbox a) => OS -> Array a -> m ()
 validatePath = validatePathWith True
 
--- | Like validatePath but on Windows only full paths are allowed, path roots
--- only are not allowed. Thus "//x/" is not valid.
 {-# INLINE validatePath' #-}
 validatePath' :: (MonadThrow m, Integral a, Unbox a) => OS -> Array a -> m ()
 validatePath' = validatePathWith False
 
-{-# INLINE isValidPath #-}
-isValidPath :: (Integral a, Unbox a) => OS -> Array a -> Bool
-isValidPath os path =
-    case validatePath os path of
-        Nothing -> False
-        Just _ -> True
+{-# INLINE unsafeFromArray #-}
+unsafeFromArray :: Array a -> Array a
+unsafeFromArray = id
 
--- |
--- >>> isValidWin = Common.isValidPath' Common.Windows . packWindows
---
--- The following roots allowed by isValidPath are not allowed:
---
--- >>> isValidWin "\\\\x\\"
--- False
--- >>> isValidWin "\\\\?\\UNC\\x"
--- False
-{-# INLINE isValidPath' #-}
-isValidPath' :: (Integral a, Unbox a) => OS -> Array a -> Bool
-isValidPath' os path =
-    case validatePath' os path of
-        Nothing -> False
-        Just _ -> True
-
-{-# INLINE unsafeFromChunk #-}
-unsafeFromChunk :: Array a -> Array a
-unsafeFromChunk = id
-
-{-# INLINE fromChunk #-}
-fromChunk :: forall m a. (MonadThrow m, Unbox a, Integral a) =>
+{-# INLINE fromArray #-}
+fromArray :: forall m a. (MonadThrow m, Unbox a, Integral a) =>
     OS -> Array a -> m (Array a)
-fromChunk os arr = validatePath os arr >> pure arr
+fromArray os arr = validatePath os arr >> pure arr
 {-
     let arr1 = Array.unsafeCast arr :: Array a
      in validatePath os arr1 >> pure arr1
-fromChunk Windows arr =
+fromArray Windows arr =
     case Array.cast arr of
         Nothing ->
             throwM
@@ -1228,7 +1220,7 @@ fromChars :: (MonadThrow m, Unbox a, Integral a) =>
     -> m (Array a)
 fromChars os encode s =
     let arr = unsafeFromChars encode s
-     in fromChunk os (Array.unsafeCast arr)
+     in fromArray os (Array.unsafeCast arr)
 
 {-# INLINE toChars #-}
 toChars :: (Monad m, Unbox a) =>
@@ -1392,6 +1384,7 @@ eqPathBytes = Array.byteEq
 -- control the strictness.
 --
 -- The default configuration is as follows:
+--
 -- >>> :{
 -- defaultMod = ignoreTrailingSeparators False
 --            . ignoreCase False
@@ -1411,32 +1404,39 @@ data EqCfg =
     -- , noIgnoreRedundantDot -- "x\/.\/" \/= "x"
     }
 
--- | Default equality check configuration.
---
--- > :{
--- > eqCfg = EqCfg
--- >     { ignoreTrailingSeparators = False
--- >     , ignoreCase = False
--- >     , allowRelativeEquality = False
--- >     }
--- > :}
---
-eqCfg :: EqCfg
-eqCfg = EqCfg
-    { _ignoreTrailingSeparators = False
-    , _ignoreCase = False
-    , _allowRelativeEquality = False
-    }
+-- XXX ignoreTrailingSeparator -- like ignoreLeadingDot
 
+-- | When set to 'False', a path with a trailing slash and a path without are
+-- treated as unequal e.g. "x" is not the same as "x\/". The latter is a
+-- directory.
+--
+-- /Default/: False
 ignoreTrailingSeparators :: Bool -> EqCfg -> EqCfg
 ignoreTrailingSeparators val conf = conf { _ignoreTrailingSeparators = val }
 
+-- | When set to 'False', comparison is case sensitive.
+--
+-- /Posix Default/: False
+--
+-- /Windows Default/: True
 ignoreCase :: Bool -> EqCfg -> EqCfg
 ignoreCase val conf = conf { _ignoreCase = val }
 
+-- XXX ignoreLeadingDot? "Dots" may be confused with "..".
+
+-- | When set to 'False':
+--
+-- * paths with a leading "." and without a leading "." e.g. ".\/x\/y" and
+-- "x\/y" are treated as unequal. The first one is a dynamically rooted path
+-- and the second one is a branch or free path segment.
+--
+-- * Two paths starting with a leading "." may not actually be equal even if
+-- they are literally equal, depending on the meaning of ".". We return unequal
+-- even though they may be equal sometimes.
+--
+-- /Default/: False
 allowRelativeEquality :: Bool -> EqCfg -> EqCfg
 allowRelativeEquality val conf = conf { _allowRelativeEquality = val }
-
 
 data PosixRoot = PosixRootAbs | PosixRootRel deriving Eq
 
@@ -1547,8 +1547,8 @@ eqComponentsWith ignCase decoder os a b =
 {-# INLINE eqPath #-}
 eqPath :: (Unbox a, Integral a) =>
     (Stream Identity a -> Stream Identity Char)
-    -> OS -> (EqCfg -> EqCfg) -> Array a -> Array a -> Bool
-eqPath decoder os configMod a b =
+    -> OS -> EqCfg -> Array a -> Array a -> Bool
+eqPath decoder os EqCfg{..} a b =
     let (rootA, stemA) = splitRoot os a
         (rootB, stemB) = splitRoot os b
 
@@ -1570,5 +1570,3 @@ eqPath decoder os configMod a b =
            eqRelative
         && eqTrailingSep
         && eqComponentsWith _ignoreCase decoder os stemA stemB
-     where
-     EqCfg {..} = configMod eqCfg

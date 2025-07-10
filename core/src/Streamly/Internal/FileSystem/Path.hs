@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Internal.FileSystem.Path
 -- Copyright   : (c) 2023 Composewell Technologies

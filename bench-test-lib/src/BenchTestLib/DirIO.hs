@@ -61,7 +61,6 @@ import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.FileSystem.DirIO as Dir
 import qualified Streamly.FileSystem.Path as Path
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
-import qualified Streamly.Internal.FileSystem.Path as Path (toChunk)
 import qualified Streamly.Internal.FileSystem.Posix.ReadDir as Dir
 #endif
 
@@ -165,7 +164,7 @@ listDirChunkedWith
     -> [Char] -> Stream IO Word8
 listDirChunkedWith act inp = do
      Stream.unfoldEachEndBy 10 Array.reader
-        $ fmap (Array.asBytes . Path.toChunk)
+        $ fmap (Array.asBytes . Path.toArray)
         $ Stream.unfoldEach Unfold.fromList
         $ fmap (either id id)
         $ act
@@ -177,7 +176,7 @@ listDirWith
     -> [Char] -> Stream IO Word8
 listDirWith act inp = do
      Stream.unfoldEachEndBy 10 Array.reader
-        $ fmap (Array.asBytes . Path.toChunk . either id id)
+        $ fmap (Array.asBytes . Path.toArray . either id id)
         $ act
         $ Stream.fromPure (Left (fromJust $ Path.fromString inp))
 

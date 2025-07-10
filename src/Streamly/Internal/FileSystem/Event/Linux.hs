@@ -632,7 +632,7 @@ foreign import ccall unsafe
 -- manner. We should ultimately remove all usage of these.
 
 toUtf8 :: MonadIO m => Path -> m (Array Word8)
-toUtf8 path = pure $ Path.toChunk path
+toUtf8 path = pure $ Path.toArray path
 
 utf8ToString :: Array Word8 -> String
 utf8ToString = runIdentity . S.fold FL.toList . U.decodeUtf8' . A.read
@@ -732,7 +732,7 @@ addToWatch cfg@Config{..} watch0@(Watch handle wdMap) root0 path0 = do
     --
     -- XXX readDirs currently uses paths as String, we need to convert it
     -- to "/" separated by byte arrays.
-    let p = Path.unsafeFromChunk absPath
+    let p = Path.unsafeFromArray absPath
     -- XXX Need a FileSystem.Stat module to remove this
     pathIsDir <- doesDirectoryExist (Path.toString p)
     when (watchRec && pathIsDir) $ do
