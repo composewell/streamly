@@ -14,8 +14,9 @@
 module Streamly.Console.Stdio
     (
     -- * Streams (stdin)
-      readChunks
+      read
     , readChars
+    , readChunks
 
     -- * Streams (srdout)
     , putChunks
