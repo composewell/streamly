@@ -119,8 +119,8 @@ flag debug
   manual: True
   default: False
 
-flag dev
-  description: Development build
+flag internal-dev
+  description: DO NOT USE, ONLY FOR INTERNAL USE.
   manual: True
   default: False
 
@@ -139,8 +139,8 @@ flag limit-build-mem
   manual: True
   default: False
 
-flag use-unliftio
-  description: Use unliftio-core instead of monad-control
+flag internal-use-unliftio
+  description: DO NOT USE, ONLY FOR INTERNAL USE.
   manual: True
   default: False
 
@@ -167,7 +167,7 @@ common compile-options
     if flag(force-lstat-readdir)
       cpp-options:    -DFORCE_LSTAT_READDIR
 
-    if flag(dev)
+    if flag(internal-dev)
       cpp-options:    -DDEVBUILD
 
     if flag(use-unfolds)
@@ -207,14 +207,14 @@ common compile-options
     if flag(has-llvm)
       ghc-options: -fllvm
 
-    if flag(dev)
+    if flag(internal-dev)
       ghc-options:    -Wmissed-specialisations
                       -Wall-missed-specialisations
 
     if flag(limit-build-mem)
         ghc-options: +RTS -M1000M -RTS
 
-    if flag(use-unliftio)
+    if flag(internal-use-unliftio)
       cpp-options: -DUSE_UNLIFTIO
 
 common default-extensions
@@ -293,7 +293,7 @@ common optimization-options
                  -fmax-worker-args=16
 
   -- For this to be effective it must come after the -O2 option
-  if flag(dev) || flag(debug) || !flag(opt)
+  if flag(internal-dev) || flag(debug) || !flag(opt)
     cpp-options: -DDEBUG
     ghc-options: -fno-ignore-asserts
 
@@ -566,7 +566,7 @@ library
                     , Streamly.Internal.Data.Time.Clock.Type
                     , Streamly.Internal.FileSystem.Path.Common
 
-    if flag(dev)
+    if flag(internal-dev)
       exposed-modules:
                         Streamly.Internal.Data.StreamK.Alt
                         -- XXX Compilation needs to be fixed
@@ -603,7 +603,7 @@ library
     else
       build-depends:  integer-gmp >= 1.0 && < 1.2
 
-    if !flag(use-unliftio)
+    if !flag(internal-use-unliftio)
       build-depends:   monad-control     >= 1.0 && < 1.1
 
     if os(windows)

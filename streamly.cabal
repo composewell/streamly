@@ -214,8 +214,8 @@ flag debug
   manual: True
   default: False
 
-flag dev
-  description: Development build
+flag internal-dev
+  description: DO NOT USE, ONLY FOR INTERNAL USE.
   manual: True
   default: False
 
@@ -234,8 +234,8 @@ flag limit-build-mem
   manual: True
   default: False
 
-flag use-unliftio
-  description: Use unliftio-core instead of monad-control
+flag internal-use-unliftio
+  description: DO NOT USE, ONLY FOR INTERNAL USE.
   manual: True
   default: False
 
@@ -253,7 +253,7 @@ common compile-options
     if os(windows)
       cpp-options:    -DCABAL_OS_WINDOWS
 
-    if flag(dev)
+    if flag(internal-dev)
       cpp-options:    -DDEVBUILD
 
     if flag(inspection)
@@ -286,14 +286,14 @@ common compile-options
     if flag(has-llvm)
       ghc-options: -fllvm
 
-    if flag(dev)
+    if flag(internal-dev)
       ghc-options:    -Wmissed-specialisations
                       -Wall-missed-specialisations
 
     if flag(limit-build-mem)
         ghc-options: +RTS -M1000M -RTS
 
-    if flag(use-unliftio)
+    if flag(internal-use-unliftio)
       cpp-options: -DUSE_UNLIFTIO
 
 common default-extensions
@@ -369,7 +369,7 @@ common optimization-options
                  -fmax-worker-args=16
 
   -- For this to be effective it must come after the -O2 option
-  if flag(dev) || flag(debug) || !flag(opt)
+  if flag(internal-dev) || flag(debug) || !flag(opt)
     ghc-options: -fno-ignore-asserts
     cpp-options: -DDEBUG
 
@@ -454,14 +454,14 @@ library
 
                      , Streamly.Internal.Data.Stream.IsStream
 
-    if !impl(ghcjs) && flag(dev)
+    if !impl(ghcjs) && flag(internal-dev)
         other-modules:
                        Streamly.Internal.System.IOVec.Type
                      , Streamly.Internal.System.IOVec
                      , Streamly.Internal.FileSystem.FDIO
                      , Streamly.Internal.FileSystem.FD
 
-    if flag(dev)
+    if flag(internal-dev)
         exposed-modules: Streamly.Internal.Data.SmallArray
         -- Exposed modules show up on hackage irrespective of the flag, so keep
         -- it hidden.
@@ -571,12 +571,12 @@ library
     if impl(ghc < 9.6)
       build-depends:   transformers-base >= 0.4   && < 0.5
 
-    if flag(use-unliftio)
+    if flag(internal-use-unliftio)
       build-depends:   unliftio-core     >= 0.2 && < 0.3
     else
       build-depends:   monad-control     >= 1.0 && < 1.1
 
-    if flag(dev)
+    if flag(internal-dev)
       build-depends: primitive >= 0.5.4 && < 0.9
 
     -- For FileSystem.Event module
@@ -595,5 +595,5 @@ library
 
     -- Array uses a Storable constraint in dev build making several inspection
     -- tests fail
-    if flag(dev) && flag(inspection)
+    if flag(internal-dev) && flag(inspection)
       build-depends: inspection-and-dev-flags-cannot-be-used-together
