@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.FileSystem.Path
 -- Copyright   : (c) 2023 Composewell Technologies
@@ -68,11 +69,20 @@
 
 module Streamly.FileSystem.Path
     (
+    -- * Setup
+    -- | To execute the code examples provided in this module in ghci, please
+    -- run the following commands first.
+    --
+    -- $setup
+
     -- * Type
       Path
+    , OsWord
 
     -- * Construction
-    , fromChunk
+    , isValidPath
+    , validatePath
+    , fromArray
     , fromString
 
     -- * Statically Verified String Literals
@@ -84,19 +94,20 @@ module Streamly.FileSystem.Path
     , pathE
 
     -- * Elimination
-    , toChunk
+    , toArray
     , toChars
     , toString
-    , asOsCString
+    -- , asOsCString
 
     -- * Path Info
     , isRooted
     , isBranch
 
-    -- * Separators
-    , dropTrailingSeparators
-    , hasTrailingSeparator
-    , addTrailingSeparator
+    -- These are unstable APIs, see comments in the internal module.
+    -- -- * Separators
+    -- , dropTrailingSeparators
+    -- , hasTrailingSeparator
+    -- , addTrailingSeparator
 
     -- * Joining
     , unsafeExtend
@@ -123,14 +134,11 @@ module Streamly.FileSystem.Path
 
     -- * Equality
     , EqCfg
-    , eqPath
-
-#ifndef IS_WINDOWS
-    -- ** Config options (Posix)
     , ignoreTrailingSeparators
     , ignoreCase
     , allowRelativeEquality
-#endif
+
+    , eqPath
     )
 where
 
@@ -186,3 +194,5 @@ where
 -}
 
 import Streamly.Internal.FileSystem.Path
+
+#include "DocTestFileSystemPath.hs"

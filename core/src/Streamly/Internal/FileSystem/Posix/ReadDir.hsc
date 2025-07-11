@@ -237,7 +237,7 @@ openDirStreamCString s = do
 -- {-# INLINE openDirStream #-}
 openDirStream :: PosixPath -> IO DirStream
 openDirStream p =
-    Array.asCStringUnsafe (Path.toChunk p) $ \s -> do
+    Array.asCStringUnsafe (Path.toArray p) $ \s -> do
         -- openDirStreamCString s
         dirp <- throwErrnoPathIfNullRetry "openDirStream" p $ c_opendir s
         return (DirStream dirp)
@@ -296,7 +296,7 @@ statEntryType conf parent dname = do
     -- XXX We can create a pinned array right here since the next call pins
     -- it anyway.
     path <- appendCString parent dname
-    Array.asCStringUnsafe (Path.toChunk path) $ \cStr -> do
+    Array.asCStringUnsafe (Path.toArray path) $ \cStr -> do
         res <- stat (_followSymlinks conf) cStr
         case res of
             Right mode -> pure $
@@ -368,7 +368,7 @@ readDirStreamEither confMod (curdir, (DirStream dirp)) = loop
   -- mkPath :: IsPath (Rel (a Path)) => Array Word8 -> Rel (a Path)
   -- {-# INLINE mkPath #-}
   mkPath :: Array Word8 -> PosixPath
-  mkPath = Path.unsafeFromChunk
+  mkPath = Path.unsafeFromArray
 
   loop = do
     resetErrno
@@ -920,7 +920,7 @@ readEitherByteChunksAt confMod (ppath, alldirs) =
                                     dname pfd dirp curdir xs dirs ndirs mbarr pos)
                 EntryIsDir -> do
                     arr <- Array.fromCString (castPtr dname)
-                    let path = Path.unsafeFromChunk arr
+                    let path = Path.unsafeFromArray arr
                     let dirs1 = path : dirs
                         ndirs1 = ndirs + 1
                     r <- copyToBuf mbarr pos curdir dname
