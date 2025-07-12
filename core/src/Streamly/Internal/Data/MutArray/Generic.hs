@@ -17,6 +17,7 @@ module Streamly.Internal.Data.MutArray.Generic
     -- * Constructing and Writing
     -- ** Construction
     , nil
+    , replicate
 
     -- *** Uninitialized Arrays
     , emptyOf
@@ -210,7 +211,7 @@ import qualified Streamly.Internal.Data.Stream.Generate as D
 import qualified Streamly.Internal.Data.Stream.Lift as D
 import qualified Streamly.Internal.Data.StreamK.Type as K
 
-import Prelude hiding (read, length)
+import Prelude hiding (read, length, replicate)
 
 #include "DocTestDataMutArrayGeneric.hs"
 
@@ -250,20 +251,29 @@ bottomElement =
 -- XXX Would be nice if GHC can provide something like newUninitializedArray# so
 -- that we do not have to write undefined or error in the whole array.
 
+{-# INLINE replicateWithEnd #-}
+replicateWithEnd :: MonadIO m => Int -> Int -> a -> m (MutArray a)
+replicateWithEnd n@(I# n#) end val =
+    liftIO
+        $ IO
+        $ \s# ->
+              case newArray# n# val s# of
+                  (# s1#, arr# #) ->
+                      let ma = MutArray arr# 0 end n
+                       in (# s1#, ma #)
+
+
+{-# INLINE replicate #-}
+replicate :: MonadIO m => Int -> a -> m (MutArray a)
+replicate n = replicateWithEnd n n
+
 -- | @emptyOf count@ allocates a zero length array that can be extended to hold
 -- up to 'count' items without reallocating.
 --
 -- /Pre-release/
 {-# INLINE emptyOf #-}
 emptyOf :: MonadIO m => Int -> m (MutArray a)
-emptyOf n@(I# n#) =
-    liftIO
-        $ IO
-        $ \s# ->
-              case newArray# n# bottomElement s# of
-                  (# s1#, arr# #) ->
-                      let ma = MutArray arr# 0 0 n
-                       in (# s1#, ma #)
+emptyOf n = replicateWithEnd n 0 bottomElement
 
 {-# DEPRECATED new "Please use emptyOf instead." #-}
 {-# INLINE new #-}
