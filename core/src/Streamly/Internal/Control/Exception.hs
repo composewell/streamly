@@ -31,6 +31,7 @@ module Streamly.Internal.Control.Exception
     , withAcquireIO
     , acquireWith
     , acquire
+    , acquire_
     , registerWith
     , register
     , hook
@@ -301,6 +302,11 @@ acquireWith pri (AcquireIO f) = f pri
 --
 acquire :: AcquireIO -> IO b -> (b -> IO c) -> IO (b, IO ())
 acquire = acquireWith Priority2
+
+-- | Like 'acquire' but does not return a release action. The resource is freed
+-- automatically only.
+acquire_ :: AcquireIO -> IO b -> (b -> IO c) -> IO b
+acquire_ a b c = fmap fst $ acquire a b c
 
 -- | Like 'register' but specifies a 'Priority' for calling the hook.
 {-# INLINE registerWith #-}
