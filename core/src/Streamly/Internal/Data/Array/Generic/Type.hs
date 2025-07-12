@@ -9,6 +9,10 @@
 module Streamly.Internal.Data.Array.Generic.Type
     ( Array(..)
 
+    -- * Conversion
+    , unsafeFreeze
+    , unsafeThaw
+
     -- * Construction
     , nil
     , createOf
