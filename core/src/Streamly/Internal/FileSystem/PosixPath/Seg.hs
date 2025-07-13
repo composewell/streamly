@@ -19,10 +19,10 @@
 --
 -- This module provides a type safe path append operation by distinguishing
 -- paths between rooted paths and branches. Rooted paths are represented by the
--- @Rooted OS_PATH@ type and branches are represented by the @Branch OS_PATH@
+-- @Rooted OS_PATH@ type and branches are represented by the @Unrooted OS_PATH@
 -- type. Rooted paths are paths that are attached to specific roots in the file
 -- system. Rooted paths could be absolute or relative e.g. @\/usr\/bin@,
--- @.\/local\/bin@, or @.@. Branches are a paths that are not attached to a
+-- @.\/local\/bin@, or @.@. Unrootedes are a paths that are not attached to a
 -- specific root e.g. @usr\/bin@, @local\/bin@, or @../bin@ are branches.
 --
 -- This distinction provides a safe path append operation which cannot fail.
@@ -33,18 +33,18 @@ module Streamly.Internal.FileSystem.OS_PATH.Seg
     (
     -- * Types
       Rooted (..)
-    , Branch (..)
+    , Unrooted (..)
     , IsSeg
 
     -- * Statically Verified Path Literals
     -- | Quasiquoters.
     , rt
-    , br
+    , ur
 
     -- * Statically Verified Path Strings
     -- | Template Haskell expression splices.
     , rtE
-    , brE
+    , urE
 
     -- * Operations
     , extend
@@ -68,13 +68,13 @@ import qualified Streamly.Internal.FileSystem.OS_PATH as OsPath
 For APIs that have not been released yet.
 
 >>> import Streamly.Internal.FileSystem.PosixPath (PosixPath)
->>> import Streamly.Internal.FileSystem.PosixPath.Seg (Rooted, Branch, rt, br)
+>>> import Streamly.Internal.FileSystem.PosixPath.Seg (Rooted, Unrooted, rt, ur)
 >>> import qualified Streamly.Internal.FileSystem.PosixPath as Path
 >>> import qualified Streamly.Internal.FileSystem.PosixPath.Seg as Seg
 -}
 
 newtype Rooted a = Rooted a
-newtype Branch a = Branch a
+newtype Unrooted a = Unrooted a
 
 instance IsPath OS_PATH (Rooted OS_PATH) where
     unsafeFromPath = Rooted
@@ -87,22 +87,22 @@ instance IsPath OS_PATH (Rooted OS_PATH) where
                 ++ OsPath.toString p
     toPath (Rooted p) = p
 
-instance IsPath OS_PATH (Branch OS_PATH) where
-    unsafeFromPath = Branch
+instance IsPath OS_PATH (Unrooted OS_PATH) where
+    unsafeFromPath = Unrooted
     fromPath p =
-        if OsPath.isBranch p
-        then pure (Branch p)
+        if OsPath.isUnrooted p
+        then pure (Unrooted p)
         -- XXX Add more detailed error msg with all valid examples.
         else throwM $ InvalidPath
                 $ "Must be a path segment, not a specific location: "
                 ++ OsPath.toString p
-    toPath (Branch p) = p
+    toPath (Unrooted p) = p
 
--- | Constraint to check if a type has Rooted or Branch annotations.
+-- | Constraint to check if a type has Rooted or Unrooted annotations.
 class IsSeg a
 
 instance IsSeg (Rooted a)
-instance IsSeg (Branch a)
+instance IsSeg (Unrooted a)
 
 ------------------------------------------------------------------------------
 -- Statically Verified Strings
@@ -112,19 +112,19 @@ liftRooted :: Rooted OS_PATH -> Q Exp
 liftRooted (Rooted p) =
     [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Rooted OS_PATH |]
 
-liftBranch :: Branch OS_PATH -> Q Exp
-liftBranch (Branch p) =
-    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Branch OS_PATH |]
+lifUntooted :: Unrooted OS_PATH -> Q Exp
+lifUntooted (Unrooted p) =
+    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Unrooted OS_PATH |]
 
 -- | Generates a Haskell expression of type @Rooted OS_PATH@.
 --
 rtE :: String -> Q Exp
 rtE = either (error . show) liftRooted . OsPath.fromString
 
--- | Generates a Haskell expression of type @Branch OS_PATH@.
+-- | Generates a Haskell expression of type @Unrooted OS_PATH@.
 --
-brE :: String -> Q Exp
-brE = either (error . show) liftBranch . OsPath.fromString
+urE :: String -> Q Exp
+urE = either (error . show) lifUntooted . OsPath.fromString
 
 ------------------------------------------------------------------------------
 -- Statically Verified Literals
@@ -143,22 +143,22 @@ brE = either (error . show) liftBranch . OsPath.fromString
 rt :: QuasiQuoter
 rt = mkQ rtE
 
--- | Generates a @Branch Path@ type from a quoted literal.
+-- | Generates a @Unrooted Path@ type from a quoted literal.
 --
--- >>> Path.toString ([br|usr|] :: Branch PosixPath)
+-- >>> Path.toString ([ur|usr|] :: Unrooted PosixPath)
 -- "usr"
 --
-br :: QuasiQuoter
-br = mkQ brE
+ur :: QuasiQuoter
+ur = mkQ urE
 
 -- The only safety we need for paths is: (1) The first path can only be a Dir
--- type path, and (2) second path can only be a Branch path.
+-- type path, and (2) second path can only be a Unrooted path.
 
--- | Append a 'Branch' type path to a 'Rooted' path or 'Branch' path.
+-- | Append a 'Unrooted' type path to a 'Rooted' path or 'Unrooted' path.
 --
--- >>> Path.toString (Seg.extend [rt|/usr|] [br|bin|] :: Rooted PosixPath)
+-- >>> Path.toString (Seg.extend [rt|/usr|] [ur|bin|] :: Rooted PosixPath)
 -- "/usr/bin"
--- >>> Path.toString (Seg.extend [br|usr|] [br|bin|] :: Branch PosixPath)
+-- >>> Path.toString (Seg.extend [ur|usr|] [ur|bin|] :: Unrooted PosixPath)
 -- "usr/bin"
 --
 {-# INLINE extend #-}
@@ -166,6 +166,6 @@ extend ::
     (
       IsSeg (a OS_PATH)
     , IsPath OS_PATH (a OS_PATH)
-    ) => a OS_PATH -> Branch OS_PATH -> a OS_PATH
-extend a (Branch c) =
+    ) => a OS_PATH -> Unrooted OS_PATH -> a OS_PATH
+extend a (Unrooted c) =
     unsafeFromPath $ OsPath.unsafeExtend (toPath a) (toPath c)

@@ -5,7 +5,7 @@
 -- Maintainer  : streamly@composewell.com
 -- Portability : GHC
 --
--- Represent 'Rooted' or 'Branch' type path segments explicitly as separate
+-- Represent 'Rooted' or 'Unrooted' type path segments explicitly as separate
 -- types for the safety of path append operation. A Rooted path is an absolute
 -- path or a path that is relative to the current directory with a leading dot.
 -- Rooted paths cannot be appended to other paths.
@@ -16,18 +16,18 @@ module Streamly.FileSystem.Path.Seg
     (
     -- * Types
       Rooted
-    , Branch
+    , Unrooted
     , IsSeg
 
     -- * Statically Verified Path Literals
     -- | Quasiquoters.
     , rt
-    , br
+    , ur
 
     -- * Statically Verified Path Strings
     -- | Template Haskell expression splices.
     , rtE
-    , brE
+    , urE
 
     -- * Operations
     , extend

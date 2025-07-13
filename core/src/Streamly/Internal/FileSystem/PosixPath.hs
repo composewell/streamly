@@ -156,7 +156,7 @@ module Streamly.Internal.FileSystem.OS_PATH_TYPE
 
     -- * Path Segment Types
     , isRooted
-    , isBranch
+    , isUnrooted
 
     -- * Joining
     , extendByString
@@ -873,21 +873,21 @@ isRooted (OS_PATH arr) = Common.isRooted Common.OS_NAME arr
 
 -- | A path that is not attached to a root e.g. @a\/b\/c@ or @..\/b\/c@.
 --
--- >>> isBranch = not . Path.isRooted
+-- >>> isUnrooted = not . Path.isRooted
 --
--- >>> isBranch = Path.isBranch . Path.fromString_
+-- >>> isUnrooted = Path.isUnrooted . Path.fromString_
 --
--- >>> isBranch "x"
+-- >>> isUnrooted "x"
 -- True
--- >>> isBranch "x/y"
+-- >>> isUnrooted "x/y"
 -- True
--- >>> isBranch ".."
+-- >>> isUnrooted ".."
 -- True
--- >>> isBranch "../x"
+-- >>> isUnrooted "../x"
 -- True
 --
-isBranch :: OS_PATH_TYPE -> Bool
-isBranch = not . isRooted
+isUnrooted :: OS_PATH_TYPE -> Bool
+isUnrooted = not . isRooted
 
 #ifndef IS_WINDOWS
 -- | Like 'extend' but does not check if the second path is rooted.

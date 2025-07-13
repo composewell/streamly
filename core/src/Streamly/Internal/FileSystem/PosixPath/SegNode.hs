@@ -18,7 +18,7 @@
 -- Maintainer  : streamly@composewell.com
 -- Portability : GHC
 --
--- When @Rooted/Branch@ and @File/Dir@ both are present, @Rooted/Branch@ must be
+-- When @Rooted/Unrooted@ and @File/Dir@ both are present, @Rooted/Unrooted@ must be
 -- outermost constructors and @File/Dir@ as inner. Thus the types File (Rooted
 -- a) or Dir (Rooted a) are not allowed but Rooted (Dir a) and Rooted (File a) are
 -- allowed.
@@ -28,16 +28,16 @@ module Streamly.Internal.FileSystem.OS_PATH.SegNode
     -- * Statically Verified Path Literals
     -- | Quasiquoters.
       rtdir
-    , brdir
+    , urdir
     , rtfile
-    , brfile
+    , urfile
 
     -- * Statically Verified Path Strings
     -- | Template Haskell expression splices.
     , rtdirE
-    , brdirE
+    , urdirE
     , rtfileE
-    , brfileE
+    , urfileE
 
     -- * Operations
     , extend
@@ -47,7 +47,7 @@ where
 import Language.Haskell.TH.Syntax (lift)
 import Streamly.Internal.FileSystem.Path.Common (mkQ)
 import Streamly.Internal.FileSystem.OS_PATH (OS_PATH(..))
-import Streamly.Internal.FileSystem.OS_PATH.Seg (Rooted(..), Branch(..))
+import Streamly.Internal.FileSystem.OS_PATH.Seg (Rooted(..), Unrooted(..))
 import Streamly.Internal.FileSystem.OS_PATH.Node (File(..), Dir(..))
 
 import qualified Streamly.Internal.FileSystem.OS_PATH as OsPath
@@ -64,8 +64,8 @@ For APIs that have not been released yet.
 
 >>> import Streamly.Internal.FileSystem.PosixPath (PosixPath)
 >>> import Streamly.Internal.FileSystem.PosixPath.Node (Dir, File, dir, file)
->>> import Streamly.Internal.FileSystem.PosixPath.Seg (Rooted, Branch, rt, br)
->>> import Streamly.Internal.FileSystem.PosixPath.SegNode (rtdir, brdir, rtfile, brfile)
+>>> import Streamly.Internal.FileSystem.PosixPath.Seg (Rooted, Unrooted, rt, ur)
+>>> import Streamly.Internal.FileSystem.PosixPath.SegNode (rtdir, urdir, rtfile, urfile)
 >>> import qualified Streamly.Internal.FileSystem.PosixPath as Path
 >>> import qualified Streamly.Internal.FileSystem.PosixPath.SegNode as SegNode
 -}
@@ -80,7 +80,7 @@ class HasDir a
 
 instance HasDir (Dir a)
 instance HasDir (Rooted (Dir a))
-instance HasDir (Branch (Dir a))
+instance HasDir (Unrooted (Dir a))
 -}
 
 -- Design notes:
@@ -116,7 +116,7 @@ instance IsPath (Rooted OS_PATH) (Rooted (File OS_PATH)) where
     toPath (Rooted p) = p
 -}
 
--- Assuming that lifting from Dir/File to Rooted/Branch is not common and even if it
+-- Assuming that lifting from Dir/File to Rooted/Unrooted is not common and even if it
 -- is then the combined cost of doing Dir/Rooted checks would be almost the same
 -- as individual checks, we take the first approach.
 
@@ -136,21 +136,21 @@ instance IsPath OS_PATH (Rooted (Dir OS_PATH)) where
         pure $ Rooted (Dir p)
     toPath (Rooted (Dir p)) = p
 
-instance IsPath OS_PATH (Branch (File OS_PATH)) where
-    unsafeFromPath p = Branch (File p)
+instance IsPath OS_PATH (Unrooted (File OS_PATH)) where
+    unsafeFromPath p = Unrooted (File p)
     fromPath p = do
         _ :: File OS_PATH <- fromPath p
-        _ :: Branch OS_PATH <- fromPath p
-        pure $ Branch (File p)
-    toPath (Branch (File p)) = p
+        _ :: Unrooted OS_PATH <- fromPath p
+        pure $ Unrooted (File p)
+    toPath (Unrooted (File p)) = p
 
-instance IsPath OS_PATH (Branch (Dir OS_PATH)) where
-    unsafeFromPath p = Branch (Dir p)
+instance IsPath OS_PATH (Unrooted (Dir OS_PATH)) where
+    unsafeFromPath p = Unrooted (Dir p)
     fromPath p = do
         _ :: Dir OS_PATH <- fromPath p
-        _ :: Branch OS_PATH <- fromPath p
-        pure $ Branch (Dir p)
-    toPath (Branch (Dir p)) = p
+        _ :: Unrooted OS_PATH <- fromPath p
+        pure $ Unrooted (Dir p)
+    toPath (Unrooted (Dir p)) = p
 
 ------------------------------------------------------------------------------
 -- Statically Verified Strings
@@ -163,37 +163,37 @@ liftRootedDir :: Rooted (Dir OS_PATH) -> Q Exp
 liftRootedDir (Rooted (Dir p)) =
     [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Rooted (Dir OS_PATH)|]
 
-liftBranchDir :: Branch (Dir OS_PATH) -> Q Exp
-liftBranchDir (Branch (Dir p)) =
-    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Branch (Dir OS_PATH) |]
+liftUnrootedDir :: Unrooted (Dir OS_PATH) -> Q Exp
+liftUnrootedDir (Unrooted (Dir p)) =
+    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Unrooted (Dir OS_PATH) |]
 
 liftRootedFile :: Rooted (File OS_PATH) -> Q Exp
 liftRootedFile (Rooted (File p)) =
     [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Rooted (File OS_PATH)|]
 
-liftBranchFile :: Branch (File OS_PATH) -> Q Exp
-liftBranchFile (Branch (File p)) =
-    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Branch (File OS_PATH)|]
+liftUnrootedFile :: Unrooted (File OS_PATH) -> Q Exp
+liftUnrootedFile (Unrooted (File p)) =
+    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Unrooted (File OS_PATH)|]
 
 -- | Generates a Haskell expression of type @Rooted (Dir OS_PATH)@.
 --
 rtdirE :: String -> Q Exp
 rtdirE = either (error . show) liftRootedDir . OsPath.fromString
 
--- | Generates a Haskell expression of type @Branch (Dir OS_PATH)@.
+-- | Generates a Haskell expression of type @Unrooted (Dir OS_PATH)@.
 --
-brdirE :: String -> Q Exp
-brdirE = either (error . show) liftBranchDir . OsPath.fromString
+urdirE :: String -> Q Exp
+urdirE = either (error . show) liftUnrootedDir . OsPath.fromString
 
 -- | Generates a Haskell expression of type @Rooted (File OS_PATH)@.
 --
 rtfileE :: String -> Q Exp
 rtfileE = either (error . show) liftRootedFile . OsPath.fromString
 
--- | Generates a Haskell expression of type @Branch (File OS_PATH)@.
+-- | Generates a Haskell expression of type @Unrooted (File OS_PATH)@.
 --
-brfileE :: String -> Q Exp
-brfileE = either (error . show) liftBranchFile . OsPath.fromString
+urfileE :: String -> Q Exp
+urfileE = either (error . show) liftUnrootedFile . OsPath.fromString
 
 ------------------------------------------------------------------------------
 -- Statically Verified Literals
@@ -212,13 +212,13 @@ brfileE = either (error . show) liftBranchFile . OsPath.fromString
 rtdir :: QuasiQuoter
 rtdir = mkQ rtdirE
 
--- | Generates a @Branch (Dir OS_PATH)@ type from a quoted literal.
+-- | Generates a @Unrooted (Dir OS_PATH)@ type from a quoted literal.
 --
--- >>> Path.toString ([brdir|usr|] :: Branch (Dir PosixPath))
+-- >>> Path.toString ([urdir|usr|] :: Unrooted (Dir PosixPath))
 -- "usr"
 --
-brdir :: QuasiQuoter
-brdir = mkQ brdirE
+urdir :: QuasiQuoter
+urdir = mkQ urdirE
 
 -- | Generates a @Rooted (File OS_PATH)@ type from a quoted literal.
 --
@@ -228,16 +228,16 @@ brdir = mkQ brdirE
 rtfile :: QuasiQuoter
 rtfile = mkQ rtfileE
 
--- | Generates a @Branch (File OS_PATH)@ type from a quoted literal.
+-- | Generates a @Unrooted (File OS_PATH)@ type from a quoted literal.
 --
--- >>> Path.toString ([brfile|x.txt|] :: Branch (File PosixPath))
+-- >>> Path.toString ([urfile|x.txt|] :: Unrooted (File PosixPath))
 -- "x.txt"
 --
-brfile :: QuasiQuoter
-brfile = mkQ brfileE
+urfile :: QuasiQuoter
+urfile = mkQ urfileE
 
 -- The only safety we need for paths is: (1) The first path can only be a Dir
--- type path, and (2) second path can only be a Branch path.
+-- type path, and (2) second path can only be a Unrooted path.
 
 {-
 -- If the first path is 'Rooted' then the return type is also 'Rooted'.
@@ -247,30 +247,30 @@ brfile = mkQ brfileE
 --
 -- >> Path.toString (SegNode.extend [rtdir|/usr|] [br|bin|] :: Rooted PosixPath)
 -- "/usr/bin"
--- >> Path.toString (SegNode.extend [brdir|usr|] [br|bin|] :: Branch PosixPath)
+-- >> Path.toString (SegNode.extend [urdir|usr|] [br|bin|] :: Unrooted PosixPath)
 -- "usr/bin"
 --
 -- >> Path.toString (SegNode.extend [rt|/usr|] [br|bin|] :: Rooted PosixPath)
 -- "/usr/bin"
--- >> Path.toString (SegNode.extend [br|usr|] [br|bin|] :: Branch PosixPath)
+-- >> Path.toString (SegNode.extend [br|usr|] [br|bin|] :: Unrooted PosixPath)
 -- "usr/bin"
 --
 -- If the second path has 'File' or 'Dir' information then the return type
 -- also has it.
 --
--- >> Path.toString (SegNode.extend [rt|/usr|] [brdir|bin|] :: Rooted (Dir PosixPath))
+-- >> Path.toString (SegNode.extend [rt|/usr|] [urdir|bin|] :: Rooted (Dir PosixPath))
 -- "/usr/bin"
--- >> Path.toString (SegNode.extend [rt|/usr|] [brfile|bin|] :: Rooted (File PosixPath))
+-- >> Path.toString (SegNode.extend [rt|/usr|] [urfile|bin|] :: Rooted (File PosixPath))
 -- "/usr/bin"
--- >> Path.toString (SegNode.extend [br|usr|] [brdir|bin|] :: Branch (Dir PosixPath))
+-- >> Path.toString (SegNode.extend [br|usr|] [urdir|bin|] :: Unrooted (Dir PosixPath))
 -- "usr/bin"
--- >> Path.toString (SegNode.extend [br|usr|] [brfile|bin|] :: Branch (File PosixPath))
+-- >> Path.toString (SegNode.extend [br|usr|] [urfile|bin|] :: Unrooted (File PosixPath))
 -- "usr/bin"
 --
 -- Type error cases:
 --
--- >> SegNode.extend [dir|/usr|] [br|bin|] -- first arg must be Rooted/Branch
--- >> SegNode.extend [file|/usr|] [br|bin|] -- first arg must be Rooted/Branch
+-- >> SegNode.extend [dir|/usr|] [br|bin|] -- first arg must be Rooted/Unrooted
+-- >> SegNode.extend [file|/usr|] [br|bin|] -- first arg must be Rooted/Unrooted
 -- >> SegNode.extend [rtfile|/usr|] [br|bin|] -- first arg must be a dir
 -- >> SegNode.extend [rt|/usr|] [rt|/bin|] -- second arg must be seg
 -- >> SegNode.extend [rt|/usr|] [dir|bin|] -- second arg must be seg
@@ -284,19 +284,19 @@ extend ::
     , IsPath OS_PATH (a b)
     , IsPath OS_PATH c
     , IsPath OS_PATH (a c)
-    ) => a b -> Branch c -> a c
-extend a (Branch c) = unsafeFromPath $ OS_NAME.unsafeExtend (toPath a) (toPath c)
+    ) => a b -> Unrooted c -> a c
+extend a (Unrooted c) = unsafeFromPath $ OS_NAME.unsafeExtend (toPath a) (toPath c)
 -}
 
 -- | Append a branch type path to a directory.
 --
--- >>> Path.toString (SegNode.extend [rtdir|/usr|] [brdir|bin|] :: Rooted (Dir PosixPath))
+-- >>> Path.toString (SegNode.extend [rtdir|/usr|] [urdir|bin|] :: Rooted (Dir PosixPath))
 -- "/usr/bin"
--- >>> Path.toString (SegNode.extend [rtdir|/usr|] [brfile|bin|] :: Rooted (File PosixPath))
+-- >>> Path.toString (SegNode.extend [rtdir|/usr|] [urfile|bin|] :: Rooted (File PosixPath))
 -- "/usr/bin"
--- >>> Path.toString (SegNode.extend [brdir|usr|] [brdir|bin|] :: Branch (Dir PosixPath))
+-- >>> Path.toString (SegNode.extend [urdir|usr|] [urdir|bin|] :: Unrooted (Dir PosixPath))
 -- "usr/bin"
--- >>> Path.toString (SegNode.extend [brdir|usr|] [brfile|bin|] :: Branch (File PosixPath))
+-- >>> Path.toString (SegNode.extend [urdir|usr|] [urfile|bin|] :: Unrooted (File PosixPath))
 -- "usr/bin"
 --
 {-# INLINE extend #-}
@@ -305,6 +305,6 @@ extend ::
       IsPath OS_PATH (a (Dir OS_PATH))
     , IsPath OS_PATH (b OS_PATH)
     , IsPath OS_PATH (a (b OS_PATH))
-    ) => a (Dir OS_PATH) -> Branch (b OS_PATH) -> a (b OS_PATH)
-extend p1 (Branch p2) =
+    ) => a (Dir OS_PATH) -> Unrooted (b OS_PATH) -> a (b OS_PATH)
+extend p1 (Unrooted p2) =
     unsafeFromPath $ OsPath.unsafeExtend (toPath p1) (toPath p2)

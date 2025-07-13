@@ -5,7 +5,7 @@
 -- Maintainer  : streamly@composewell.com
 -- Portability : GHC
 --
--- Use 'Rooted' or 'Branch' path segment type annotations as well as 'File' and
+-- Use 'Rooted' or 'Unrooted' path segment type annotations as well as 'File' and
 -- 'Dir' node type annotations on the same path for the safety of path append
 -- operation. A Rooted path cannot be appended to other paths, and you canno
 -- append a path to a 'File' type path.
@@ -18,16 +18,16 @@ module Streamly.FileSystem.Path.SegNode
     -- * Statically Verified Path Literals
     -- | Quasiquoters.
       rtdir
-    , brdir
+    , urdir
     , rtfile
-    , brfile
+    , urfile
 
     -- * Statically Verified Path Strings
     -- | Template Haskell expression splices.
     , rtdirE
-    , brdirE
+    , urdirE
     , rtfileE
-    , brfileE
+    , urfileE
 
     -- * Operations
     , extend
