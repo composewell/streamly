@@ -189,7 +189,7 @@ module Streamly.Internal.FileSystem.OS_PATH_TYPE
 
     -- ** Path View
     , takeFileName
-    , takeDirectory
+    , dropFileName
     , takeExtension
     , takeBaseName
 
@@ -770,8 +770,6 @@ path = mkQ pathE
 ------------------------------------------------------------------------------
 -- Eimination
 ------------------------------------------------------------------------------
-
--- XXX unPath?
 
 -- | Convert the path to an array.
 toArray :: IsPath OS_PATH_TYPE a => a -> Array OS_WORD_TYPE
@@ -1394,24 +1392,21 @@ takeFileName = fmap snd . splitFile
 takeBaseName :: OS_PATH_TYPE -> Maybe OS_PATH_TYPE
 takeBaseName = fmap dropExtension . takeFileName
 
--- XXX rename to dropFileName
-
 -- | Returns the parent directory of the given OS_PATH_TYPE, if any.
 --
--- >>> takeDirectory x = Path.splitFile x >>= fst
--- >>> replaceFileName p x = fmap (flip Path.extend x) (takeDirectory p)
+-- >>> dropFileName x = Path.splitFile x >>= fst
+-- >>> replaceFileName p x = fmap (flip Path.extend x) (dropFileName p)
 --
--- Note that this is equivalent to dropFileName operation from the filepath
--- package, to get an equivalent to takeDirectory from filepath use
+-- To get an equivalent to dropFileName from filepath use
 -- 'dropTrailingSeparators' on the result.
 --
--- >>> fmap Path.toString $ Path.takeDirectory [path|/home/user/file.txt|]
+-- >>> fmap Path.toString $ Path.dropFileName [path|/home/user/file.txt|]
 -- Just "/home/user/"
--- >>> fmap Path.toString $ Path.takeDirectory [path|file.txt|]
+-- >>> fmap Path.toString $ Path.dropFileName [path|file.txt|]
 -- Nothing
 --
-takeDirectory :: OS_PATH_TYPE -> Maybe OS_PATH_TYPE
-takeDirectory x = splitFile x >>= fst
+dropFileName :: OS_PATH_TYPE -> Maybe OS_PATH_TYPE
+dropFileName x = splitFile x >>= fst
 
 ------------------------------------------------------------------------------
 -- Path equality

@@ -109,22 +109,24 @@ module Streamly.FileSystem.Path
     , extend
     , extendByString
 
-    -- * Splitting
+    -- * Splitting root
     , splitRoot
+
+    -- * Splitting path components
     , splitPath
     , splitPath_
-    , splitFile
 
-    -- * Extension
+    -- * Splitting file extension
     , splitExtension
+    , takeExtension
     , dropExtension
     -- , addExtension
     -- , replaceExtension
 
-    -- ** Path View
+    -- * Splitting file and dir
+    , splitFile
     , takeFileName
-    , takeDirectory
-    , takeExtension
+    , dropFileName
     , takeBaseName
 
     -- * Equality
