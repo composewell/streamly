@@ -131,8 +131,8 @@ module Streamly.FileSystem.Path
 
     -- * Equality
     , EqCfg
-    , ignoreTrailingSeparators
     , ignoreCase
+    , ignoreTrailingSeparators
     , allowRelativeEquality
 
     , eqPath

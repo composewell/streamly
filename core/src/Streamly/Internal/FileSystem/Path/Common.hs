@@ -86,9 +86,6 @@ module Streamly.Internal.FileSystem.Path.Common
  -- , normalize -- separators and /./ components (split/combine)
     , eqPathBytes
     , EqCfg(..)
-    , ignoreTrailingSeparators
-    , ignoreCase
-    , allowRelativeEquality
     , eqPath
  -- , commonPrefix -- common prefix of two paths
  -- , eqPrefix -- common prefix is equal to first path
@@ -147,7 +144,7 @@ import qualified Streamly.Internal.Unicode.Stream as Unicode
 >>> import qualified Streamly.Internal.Data.Array as Array
 >>> import qualified Streamly.Internal.FileSystem.Path.Common as Common
 >>> import qualified Streamly.Internal.Unicode.Stream as Unicode
->>> import Streamly.Internal.FileSystem.Path.Common (ignoreTrailingSeparators, allowRelativeEquality, ignoreCase)
+>>> import Streamly.Internal.FileSystem.Path (ignoreTrailingSeparators, allowRelativeEquality, ignoreCase)
 
 >>> packPosix = unsafePerformIO . Stream.fold Array.create . Unicode.encodeUtf8' . Stream.fromList
 >>> unpackPosix = runIdentity . Stream.toList . Unicode.decodeUtf8' . Array.read
@@ -1403,40 +1400,6 @@ data EqCfg =
     -- , noIgnoreRedundantSeparators -- "x\/\/y" \/= "x\/y"
     -- , noIgnoreRedundantDot -- "x\/.\/" \/= "x"
     }
-
--- XXX ignoreTrailingSeparator -- like ignoreLeadingDot
-
--- | When set to 'False', a path with a trailing slash and a path without are
--- treated as unequal e.g. "x" is not the same as "x\/". The latter is a
--- directory.
---
--- /Default/: False
-ignoreTrailingSeparators :: Bool -> EqCfg -> EqCfg
-ignoreTrailingSeparators val conf = conf { _ignoreTrailingSeparators = val }
-
--- | When set to 'False', comparison is case sensitive.
---
--- /Posix Default/: False
---
--- /Windows Default/: True
-ignoreCase :: Bool -> EqCfg -> EqCfg
-ignoreCase val conf = conf { _ignoreCase = val }
-
--- XXX ignoreLeadingDot? "Dots" may be confused with "..".
-
--- | When set to 'False':
---
--- * paths with a leading "." and without a leading "." e.g. ".\/x\/y" and
--- "x\/y" are treated as unequal. The first one is a dynamically rooted path
--- and the second one is a branch or free path segment.
---
--- * Two paths starting with a leading "." may not actually be equal even if
--- they are literally equal, depending on the meaning of ".". We return unequal
--- even though they may be equal sometimes.
---
--- /Default/: False
-allowRelativeEquality :: Bool -> EqCfg -> EqCfg
-allowRelativeEquality val conf = conf { _allowRelativeEquality = val }
 
 data PosixRoot = PosixRootAbs | PosixRootRel deriving Eq
 

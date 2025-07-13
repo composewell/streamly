@@ -195,9 +195,9 @@ module Streamly.Internal.FileSystem.OS_PATH_TYPE
 
     -- * Equality
     , EqCfg
-    , Common.ignoreTrailingSeparators
-    , Common.ignoreCase
-    , Common.allowRelativeEquality
+    , ignoreTrailingSeparators
+    , ignoreCase
+    , allowRelativeEquality
     , eqPath
     , eqPathBytes
     , normalize
@@ -219,7 +219,7 @@ import Foreign.C (CWString)
 import Language.Haskell.TH.Syntax (lift)
 import Streamly.Internal.Data.Array (Array(..))
 import Streamly.Internal.Data.Stream (Stream)
-import Streamly.Internal.FileSystem.Path.Common (mkQ, EqCfg)
+import Streamly.Internal.FileSystem.Path.Common (mkQ, EqCfg(..))
 
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Stream as Stream
@@ -1442,6 +1442,73 @@ eqCfg = Common.EqCfg
 #endif
     }
 
+-- | When set to 'False' (default):
+--
+-- >>> cfg = Path.ignoreTrailingSeparators False
+-- >>> eq a b = Path.eqPath cfg (Path.fromString_ a) (Path.fromString_ b)
+--
+-- >>> eq "x/"  "x"
+-- False
+--
+-- When set to 'True':
+--
+-- >>> cfg = Path.ignoreTrailingSeparators True
+-- >>> eq a b = Path.eqPath cfg (Path.fromString_ a) (Path.fromString_ b)
+--
+-- >>> eq "x/"  "x"
+-- True
+--
+-- /Default/: False
+ignoreTrailingSeparators :: Bool -> EqCfg -> EqCfg
+ignoreTrailingSeparators val conf = conf { _ignoreTrailingSeparators = val }
+
+-- | When set to 'False', comparison is case sensitive.
+--
+-- /Posix Default/: False
+--
+-- /Windows Default/: True
+ignoreCase :: Bool -> EqCfg -> EqCfg
+ignoreCase val conf = conf { _ignoreCase = val }
+
+-- Note: ignoreLeadingDot or similar names are not good because we want to
+-- convey that when it is False "./x" and "./x" are not strictly equal.
+-- Similarly, "treatDotRootsEqual" has a problem with the "./x" and "x"
+-- comparison, there is not dor root in the second path.
+
+-- | Allow relative paths to be treated as equal. When this is 'False' relative
+-- paths will never match even if they are literally equal e.g. "./x" will not
+-- match "./x" because the meaning of "." in both cases could be different
+-- depending on what the user meant by current directory in each case.
+--
+-- When set to 'False' (default):
+--
+-- >>> cfg = Path.allowRelativeEquality False
+-- >>> eq a b = Path.eqPath cfg (Path.fromString_ a) (Path.fromString_ b)
+-- >>> eq "."  "."
+-- False
+-- >>> eq "./x"  "./x"
+-- False
+-- >>> eq "./x"  "x"
+-- False
+--
+-- When set to 'False' (default):
+--
+-- >>> cfg = Path.allowRelativeEquality True
+-- >>> eq a b = Path.eqPath cfg (Path.fromString_ a) (Path.fromString_ b)
+-- >>> eq "."  "."
+-- True
+-- >>> eq "./x"  "./x"
+-- True
+-- >>> eq "./x"  "x"
+-- True
+--
+-- >> eq "./x"  "././x" -- XXX needs to be fixed
+-- True
+--
+-- /Default/: False
+allowRelativeEquality :: Bool -> EqCfg -> EqCfg
+allowRelativeEquality val conf = conf { _allowRelativeEquality = val }
+
 #ifndef IS_WINDOWS
 -- | Checks whether two paths are logically equal. This function takes a
 -- configuration modifier to customize the notion of equality. For using the
@@ -1475,70 +1542,40 @@ eqCfg = Common.EqCfg
 --  eq a b = Path.eqPath id (Path.fromString_ a) (Path.fromString_ b)
 -- :}
 --
--- >>> eq "/x"  "//x"
--- True
---
--- >>> eq "x//y"  "x/y"
--- True
---
--- >>> eq "x/./y"  "x/y"
--- True
---
--- >>> eq "./x"  "x"
--- False
---
--- >>> eq "x/"  "x"
--- False
---
 -- >>> eq "x"  "x"
 -- True
---
--- >>> eq "x"  "X"
--- False
---
 -- >>> eq ".."  ".."
 -- True
 --
--- >>> eq "."  "."
--- False
+-- Non-trailing separators and non-leading "." segments are ignored:
 --
--- >>> eq "./x"  "./x"
--- False
---
--- We can change the configuration using the available config modifiers.
---
--- >>> :{
---  cfg = Path.ignoreTrailingSeparators True
---      . Path.allowRelativeEquality True
---  eq a b = Path.eqPath cfg (Path.fromString_ a) (Path.fromString_ b)
--- :}
---
--- >>> eq "."  "."
+-- >>> eq "/x"  "//x"
 -- True
---
--- >>> eq "./"  ".//"
--- True
---
--- >>> eq "./x"  "./x"
--- True
---
--- >>> eq "./x"  "x"
--- True
---
--- >>> eq "x/"  "x"
--- True
---
--- >>> eq "x/"  "X"
--- False
---
 -- >>> eq "x//y"  "x/y"
 -- True
---
 -- >>> eq "x/./y"  "x/y"
 -- True
---
--- >>> eq "x"  "x"
+-- >>> eq "x/y/."  "x/y"
 -- True
+--
+-- Leading dot, relative paths are not equal by default:
+--
+-- >>> eq "."  "."
+-- False
+-- >>> eq "./x"  "./x"
+-- False
+-- >>> eq "./x"  "x"
+-- False
+--
+-- Trailing separators are significant by default:
+--
+-- >>> eq "x/"  "x"
+-- False
+--
+-- Match is case sensitive by default:
+--
+-- >>> eq "x"  "X"
+-- False
 --
 eqPath :: (EqCfg -> EqCfg) -> OS_PATH_TYPE -> OS_PATH_TYPE -> Bool
 eqPath cfg (OS_PATH a) (OS_PATH b) =
