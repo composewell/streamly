@@ -191,7 +191,7 @@ module Streamly.Internal.FileSystem.OS_PATH_TYPE
     , takeFileName
     , dropFileName
     , takeExtension
-    , takeBaseName
+    , takeFileBase
 
     -- * Equality
     , EqCfg
@@ -1371,26 +1371,24 @@ replaceExtension (OS_PATH _a) = undefined
 takeFileName :: OS_PATH_TYPE -> Maybe OS_PATH_TYPE
 takeFileName = fmap snd . splitFile
 
--- XXX takeBaseFileName - avoids confusion with coreutils basename
-
 -- | Extracts the file name dropping the extension, if any, from a
 -- OS_PATH_TYPE.
 --
--- >>> takeBaseName = fmap Path.dropExtension . Path.takeFileName
+-- >>> takeFileBase = fmap Path.dropExtension . Path.takeFileName
 --
--- >>> fmap Path.toString $ Path.takeBaseName [path|/home/user/file.txt|]
+-- >>> fmap Path.toString $ Path.takeFileBase [path|/home/user/file.txt|]
 -- Just "file"
--- >>> fmap Path.toString $ Path.takeBaseName [path|/home/user/file|]
+-- >>> fmap Path.toString $ Path.takeFileBase [path|/home/user/file|]
 -- Just "file"
--- >>> fmap Path.toString $ Path.takeBaseName [path|/home/user/.txt|]
+-- >>> fmap Path.toString $ Path.takeFileBase [path|/home/user/.txt|]
 -- Just ".txt"
--- >>> fmap Path.toString $ Path.takeBaseName [path|/home/user/|]
+-- >>> fmap Path.toString $ Path.takeFileBase [path|/home/user/|]
 -- Nothing
 --
 -- See 'splitFile' for more examples.
 --
-takeBaseName :: OS_PATH_TYPE -> Maybe OS_PATH_TYPE
-takeBaseName = fmap dropExtension . takeFileName
+takeFileBase :: OS_PATH_TYPE -> Maybe OS_PATH_TYPE
+takeFileBase = fmap dropExtension . takeFileName
 
 -- | Returns the parent directory of the given OS_PATH_TYPE, if any.
 --

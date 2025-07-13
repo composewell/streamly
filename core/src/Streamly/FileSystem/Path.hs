@@ -127,7 +127,7 @@ module Streamly.FileSystem.Path
     , splitFile
     , takeFileName
     , dropFileName
-    , takeBaseName
+    , takeFileBase
 
     -- * Equality
     , EqCfg
