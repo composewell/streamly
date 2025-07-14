@@ -9,15 +9,24 @@
 
 module Streamly.Internal.Console.Stdio
     (
-    -- * Streams
+    -- * Singleton APIs
+      -- getChunk
+    -- , putChunk
+
+    -- * Stream reads
       read
-    , readChars
+    -- , readWith -- buffer
     , readChunks
-    -- , getChunksLn
-    -- , getStringsWith -- get strings using the supplied decoding
-    -- , getStrings -- get strings of complete chars,
-                  -- leave any partial chars for next string
-    -- , getStringsLn -- get lines decoded as char strings
+    -- , readChunksWith -- buffer
+    -- , readChunksLn -- chunks with line buffering -- repeatM Text.getLine
+
+    -- -- ** Encoding specific
+    -- , readCharsWith
+    -- , readStringsLnWith
+
+    -- ** UTF-8 decoded
+    , readChars
+    -- , readStringsLn -- strings with line buffering -- repeatM getLine
 
     -- * Unfolds
     , reader
@@ -31,11 +40,18 @@ module Streamly.Internal.Console.Stdio
 
     -- * Stream writes
     , putBytes  -- Buffered (32K)
-    , putChars
     , putChunks -- Unbuffered
+
+    -- ** Encoding specific
+    -- , putCharsWith
     , putStringsWith
+    -- , putStringsLnWith
+
+    -- ** UTF-8 encoded
+    , putChars
     , putStrings
     , putStringsLn
+    -- , putChunksLn
     )
 where
 
@@ -193,7 +209,7 @@ putChunks = Handle.putChunks stdout
 -- folds as well as unfolds/streams. Non-backtracking (one-to-one, one-to-many,
 -- filters, reducers) transformations may be easy so we can possibly start with
 -- those.
---
+
 -- | Write a stream of strings to standard output using the supplied encoding.
 -- Output is flushed to the device for each string.
 --
