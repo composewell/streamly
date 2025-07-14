@@ -44,6 +44,7 @@ module Streamly.Internal.FileSystem.OS_PATH.SegNode
     )
 where
 
+import Control.Monad ((>=>))
 import Language.Haskell.TH.Syntax (lift)
 import Streamly.Internal.FileSystem.Path.Common (mkQ)
 import Streamly.Internal.FileSystem.OS_PATH (OS_PATH(..))
@@ -161,39 +162,39 @@ instance IsPath OS_PATH (Unrooted (Dir OS_PATH)) where
 
 liftRootedDir :: Rooted (Dir OS_PATH) -> Q Exp
 liftRootedDir (Rooted (Dir p)) =
-    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Rooted (Dir OS_PATH)|]
+    [| unsafeFromPath (OsPath.unsafeFromString $(lift $ OsPath.toString $ toPath p)) :: Rooted (Dir OS_PATH)|]
 
 liftUnrootedDir :: Unrooted (Dir OS_PATH) -> Q Exp
 liftUnrootedDir (Unrooted (Dir p)) =
-    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Unrooted (Dir OS_PATH) |]
+    [| unsafeFromPath (OsPath.unsafeFromString $(lift $ OsPath.toString $ toPath p)) :: Unrooted (Dir OS_PATH) |]
 
 liftRootedFile :: Rooted (File OS_PATH) -> Q Exp
 liftRootedFile (Rooted (File p)) =
-    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Rooted (File OS_PATH)|]
+    [| unsafeFromPath (OsPath.unsafeFromString $(lift $ OsPath.toString $ toPath p)) :: Rooted (File OS_PATH)|]
 
 liftUnrootedFile :: Unrooted (File OS_PATH) -> Q Exp
 liftUnrootedFile (Unrooted (File p)) =
-    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Unrooted (File OS_PATH)|]
+    [| unsafeFromPath (OsPath.unsafeFromString $(lift $ OsPath.toString $ toPath p)) :: Unrooted (File OS_PATH)|]
 
 -- | Generates a Haskell expression of type @Rooted (Dir OS_PATH)@.
 --
 rtdirE :: String -> Q Exp
-rtdirE = either (error . show) liftRootedDir . OsPath.fromString
+rtdirE = either (error . show) liftRootedDir . (OsPath.fromString >=> fromPath)
 
 -- | Generates a Haskell expression of type @Unrooted (Dir OS_PATH)@.
 --
 urdirE :: String -> Q Exp
-urdirE = either (error . show) liftUnrootedDir . OsPath.fromString
+urdirE = either (error . show) liftUnrootedDir . (OsPath.fromString >=> fromPath)
 
 -- | Generates a Haskell expression of type @Rooted (File OS_PATH)@.
 --
 rtfileE :: String -> Q Exp
-rtfileE = either (error . show) liftRootedFile . OsPath.fromString
+rtfileE = either (error . show) liftRootedFile . (OsPath.fromString >=> fromPath)
 
 -- | Generates a Haskell expression of type @Unrooted (File OS_PATH)@.
 --
 urfileE :: String -> Q Exp
-urfileE = either (error . show) liftUnrootedFile . OsPath.fromString
+urfileE = either (error . show) liftUnrootedFile . (OsPath.fromString >=> fromPath)
 
 ------------------------------------------------------------------------------
 -- Statically Verified Literals
@@ -206,7 +207,7 @@ urfileE = either (error . show) liftUnrootedFile . OsPath.fromString
 
 -- | Generates a @Rooted (Dir OS_PATH)@ type from a quoted literal.
 --
--- >>> Path.toString ([rtdir|/usr|] :: Rooted (Dir PosixPath))
+-- >>> Path.toString (Path.toPath ([rtdir|/usr|] :: Rooted (Dir PosixPath)))
 -- "/usr"
 --
 rtdir :: QuasiQuoter
@@ -214,7 +215,7 @@ rtdir = mkQ rtdirE
 
 -- | Generates a @Unrooted (Dir OS_PATH)@ type from a quoted literal.
 --
--- >>> Path.toString ([urdir|usr|] :: Unrooted (Dir PosixPath))
+-- >>> Path.toString (Path.toPath ([urdir|usr|] :: Unrooted (Dir PosixPath)))
 -- "usr"
 --
 urdir :: QuasiQuoter
@@ -222,7 +223,7 @@ urdir = mkQ urdirE
 
 -- | Generates a @Rooted (File OS_PATH)@ type from a quoted literal.
 --
--- >>> Path.toString ([rtfile|/x.txt|] :: Rooted (File PosixPath))
+-- >>> Path.toString (Path.toPath ([rtfile|/x.txt|] :: Rooted (File PosixPath)))
 -- "/x.txt"
 --
 rtfile :: QuasiQuoter
@@ -230,7 +231,7 @@ rtfile = mkQ rtfileE
 
 -- | Generates a @Unrooted (File OS_PATH)@ type from a quoted literal.
 --
--- >>> Path.toString ([urfile|x.txt|] :: Unrooted (File PosixPath))
+-- >>> Path.toString (Path.toPath ([urfile|x.txt|] :: Unrooted (File PosixPath)))
 -- "x.txt"
 --
 urfile :: QuasiQuoter
@@ -245,26 +246,26 @@ urfile = mkQ urfileE
 -- If the second path does not have 'File' or 'Dir' information then the return
 -- type too cannot have it.
 --
--- >> Path.toString (SegNode.join [rtdir|/usr|] [br|bin|] :: Rooted PosixPath)
+-- >> Path.toString (Path.toPath (SegNode.join [rtdir|/usr|] [br|bin|] :: Rooted PosixPath))
 -- "/usr/bin"
--- >> Path.toString (SegNode.join [urdir|usr|] [br|bin|] :: Unrooted PosixPath)
+-- >> Path.toString (Path.toPath (SegNode.join [urdir|usr|] [br|bin|] :: Unrooted PosixPath))
 -- "usr/bin"
 --
--- >> Path.toString (SegNode.join [rt|/usr|] [br|bin|] :: Rooted PosixPath)
+-- >> Path.toString (Path.toPath (SegNode.join [rt|/usr|] [br|bin|] :: Rooted PosixPath))
 -- "/usr/bin"
--- >> Path.toString (SegNode.join [br|usr|] [br|bin|] :: Unrooted PosixPath)
+-- >> Path.toString (Path.toPath (SegNode.join [br|usr|] [br|bin|] :: Unrooted PosixPath))
 -- "usr/bin"
 --
 -- If the second path has 'File' or 'Dir' information then the return type
 -- also has it.
 --
--- >> Path.toString (SegNode.join [rt|/usr|] [urdir|bin|] :: Rooted (Dir PosixPath))
+-- >> Path.toString (Path.toPath (SegNode.join [rt|/usr|] [urdir|bin|] :: Rooted (Dir PosixPath)))
 -- "/usr/bin"
--- >> Path.toString (SegNode.join [rt|/usr|] [urfile|bin|] :: Rooted (File PosixPath))
+-- >> Path.toString (Path.toPath (SegNode.join [rt|/usr|] [urfile|bin|] :: Rooted (File PosixPath)))
 -- "/usr/bin"
--- >> Path.toString (SegNode.join [br|usr|] [urdir|bin|] :: Unrooted (Dir PosixPath))
+-- >> Path.toString (Path.toPath (SegNode.join [br|usr|] [urdir|bin|] :: Unrooted (Dir PosixPath)))
 -- "usr/bin"
--- >> Path.toString (SegNode.join [br|usr|] [urfile|bin|] :: Unrooted (File PosixPath))
+-- >> Path.toString (Path.toPath (SegNode.join [br|usr|] [urfile|bin|] :: Unrooted (File PosixPath)))
 -- "usr/bin"
 --
 -- Type error cases:
@@ -290,13 +291,13 @@ join a (Unrooted c) = unsafeFromPath $ OS_NAME.unsafeJoin (toPath a) (toPath c)
 
 -- | Append a branch type path to a directory.
 --
--- >>> Path.toString (SegNode.join [rtdir|/usr|] [urdir|bin|] :: Rooted (Dir PosixPath))
+-- >>> Path.toString (Path.toPath (SegNode.join [rtdir|/usr|] [urdir|bin|] :: Rooted (Dir PosixPath)))
 -- "/usr/bin"
--- >>> Path.toString (SegNode.join [rtdir|/usr|] [urfile|bin|] :: Rooted (File PosixPath))
+-- >>> Path.toString (Path.toPath (SegNode.join [rtdir|/usr|] [urfile|bin|] :: Rooted (File PosixPath)))
 -- "/usr/bin"
--- >>> Path.toString (SegNode.join [urdir|usr|] [urdir|bin|] :: Unrooted (Dir PosixPath))
+-- >>> Path.toString (Path.toPath (SegNode.join [urdir|usr|] [urdir|bin|] :: Unrooted (Dir PosixPath)))
 -- "usr/bin"
--- >>> Path.toString (SegNode.join [urdir|usr|] [urfile|bin|] :: Unrooted (File PosixPath))
+-- >>> Path.toString (Path.toPath (SegNode.join [urdir|usr|] [urfile|bin|] :: Unrooted (File PosixPath)))
 -- "usr/bin"
 --
 {-# INLINE join #-}

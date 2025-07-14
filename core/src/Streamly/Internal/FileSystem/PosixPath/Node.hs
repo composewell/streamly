@@ -46,6 +46,7 @@ module Streamly.Internal.FileSystem.OS_PATH.Node
     )
 where
 
+import Control.Monad ((>=>))
 import Language.Haskell.TH (Q, Exp)
 import Language.Haskell.TH.Syntax (lift)
 import Language.Haskell.TH.Quote (QuasiQuoter)
@@ -101,21 +102,21 @@ instance IsPath OS_PATH (Dir OS_PATH) where
 
 liftDir :: Dir OS_PATH -> Q Exp
 liftDir (Dir p) =
-    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Dir OS_PATH |]
+    [| unsafeFromPath (OsPath.unsafeFromString $(lift $ OsPath.toString $ toPath p)) :: Dir OS_PATH |]
 
 liftFile :: File OS_PATH -> Q Exp
 liftFile (File p) =
-    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: File OS_PATH |]
+    [| unsafeFromPath (OsPath.unsafeFromString $(lift $ OsPath.toString $ toPath p)) :: File OS_PATH |]
 
 -- | Generates a Haskell expression of type @Dir OS_PATH@.
 --
 dirE :: String -> Q Exp
-dirE = either (error . show) liftDir . OsPath.fromString
+dirE = either (error . show) liftDir . (OsPath.fromString >=> fromPath)
 
 -- | Generates a Haskell expression of type @File OS_PATH@.
 --
 fileE :: String -> Q Exp
-fileE = either (error . show) liftFile . OsPath.fromString
+fileE = either (error . show) liftFile . (OsPath.fromString >=> fromPath)
 
 ------------------------------------------------------------------------------
 -- Statically Verified Literals
@@ -128,7 +129,7 @@ fileE = either (error . show) liftFile . OsPath.fromString
 
 -- | Generates a @Dir OS_PATH@ type from a quoted literal.
 --
--- >>> Path.toString ([dir|usr|] :: Dir PosixPath)
+-- >>> Path.toString (Path.toPath ([dir|usr|] :: Dir PosixPath))
 -- "usr"
 --
 dir :: QuasiQuoter
@@ -136,7 +137,7 @@ dir = mkQ dirE
 
 -- | Generates a @File OS_PATH@ type from a quoted literal.
 --
--- >>> Path.toString ([file|usr|] :: File PosixPath)
+-- >>> Path.toString (Path.toPath ([file|usr|] :: File PosixPath))
 -- "usr"
 --
 file :: QuasiQuoter
@@ -147,9 +148,9 @@ file = mkQ fileE
 
 -- | Append a 'Dir' or 'File' path to a 'Dir' path.
 --
--- >>> Path.toString (Node.join [dir|/usr|] [dir|bin|] :: Dir PosixPath)
+-- >>> Path.toString (Path.toPath (Node.join [dir|/usr|] [dir|bin|] :: Dir PosixPath))
 -- "/usr/bin"
--- >>> Path.toString (Node.join [dir|/usr|] [file|bin|] :: File PosixPath)
+-- >>> Path.toString (Path.toPath (Node.join [dir|/usr|] [file|bin|] :: File PosixPath))
 -- "/usr/bin"
 --
 -- Fails if the second path is a specific location and not a path segment.
