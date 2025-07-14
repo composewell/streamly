@@ -51,6 +51,7 @@ module Streamly.Internal.FileSystem.OS_PATH.Seg
     )
 where
 
+import Control.Monad ((>=>))
 import Control.Monad.Catch (MonadThrow(..))
 import Language.Haskell.TH (Q, Exp)
 import Language.Haskell.TH.Syntax (lift)
@@ -110,21 +111,21 @@ instance IsSeg (Unrooted a)
 
 liftRooted :: Rooted OS_PATH -> Q Exp
 liftRooted (Rooted p) =
-    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Rooted OS_PATH |]
+    [| unsafeFromPath (OsPath.unsafeFromString $(lift $ OsPath.toString $ toPath p)) :: Rooted OS_PATH |]
 
-lifUntooted :: Unrooted OS_PATH -> Q Exp
-lifUntooted (Unrooted p) =
-    [| OsPath.unsafeFromString $(lift $ OsPath.toString p) :: Unrooted OS_PATH |]
+liftUnrooted :: Unrooted OS_PATH -> Q Exp
+liftUnrooted (Unrooted p) =
+    [| unsafeFromPath (OsPath.unsafeFromString $(lift $ OsPath.toString $ toPath p)) :: Unrooted OS_PATH |]
 
 -- | Generates a Haskell expression of type @Rooted OS_PATH@.
 --
 rtE :: String -> Q Exp
-rtE = either (error . show) liftRooted . OsPath.fromString
+rtE = either (error . show) liftRooted . (OsPath.fromString >=> fromPath)
 
 -- | Generates a Haskell expression of type @Unrooted OS_PATH@.
 --
 urE :: String -> Q Exp
-urE = either (error . show) lifUntooted . OsPath.fromString
+urE = either (error . show) liftUnrooted . (OsPath.fromString >=> fromPath)
 
 ------------------------------------------------------------------------------
 -- Statically Verified Literals
@@ -137,7 +138,7 @@ urE = either (error . show) lifUntooted . OsPath.fromString
 
 -- | Generates a @Rooted Path@ type from a quoted literal.
 --
--- >>> Path.toString ([rt|/usr|] :: Rooted PosixPath)
+-- >>> Path.toString (Path.toPath ([rt|/usr|] :: Rooted PosixPath))
 -- "/usr"
 --
 rt :: QuasiQuoter
@@ -145,7 +146,7 @@ rt = mkQ rtE
 
 -- | Generates a @Unrooted Path@ type from a quoted literal.
 --
--- >>> Path.toString ([ur|usr|] :: Unrooted PosixPath)
+-- >>> Path.toString (Path.toPath ([ur|usr|] :: Unrooted PosixPath))
 -- "usr"
 --
 ur :: QuasiQuoter
@@ -156,9 +157,9 @@ ur = mkQ urE
 
 -- | Append a 'Unrooted' type path to a 'Rooted' path or 'Unrooted' path.
 --
--- >>> Path.toString (Seg.join [rt|/usr|] [ur|bin|] :: Rooted PosixPath)
+-- >>> Path.toString (Path.toPath (Seg.join [rt|/usr|] [ur|bin|] :: Rooted PosixPath))
 -- "/usr/bin"
--- >>> Path.toString (Seg.join [ur|usr|] [ur|bin|] :: Unrooted PosixPath)
+-- >>> Path.toString (Path.toPath (Seg.join [ur|usr|] [ur|bin|] :: Unrooted PosixPath))
 -- "usr/bin"
 --
 {-# INLINE join #-}

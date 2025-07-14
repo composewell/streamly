@@ -52,7 +52,7 @@ isValidPath' = isJust . validatePath'
 -- "fromList [104,101,108,108,111]"
 --
 -- See also: 'showArray'.
-readArray :: IsPath OS_PATH_TYPE a => [Char] -> a
+readArray :: [Char] -> OS_PATH_TYPE
 readArray = fromJust . fromArray . read
 
 -- | A path that is attached to a root. "C:\\" is considered an absolute root

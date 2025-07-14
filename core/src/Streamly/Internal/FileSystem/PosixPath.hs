@@ -615,10 +615,10 @@ isValidPath = isJust . validatePath
 -- per 'validatePath'.
 --
 {-# INLINE unsafeFromArray #-}
-unsafeFromArray :: IsPath OS_PATH_TYPE a => Array OS_WORD_TYPE -> a
+unsafeFromArray :: Array OS_WORD_TYPE -> OS_PATH_TYPE
 unsafeFromArray =
 #ifndef DEBUG
-    unsafeFromPath . OS_PATH . Common.unsafeFromArray
+    OS_PATH . Common.unsafeFromArray
 #else
     fromJust . fromArray
 #endif
@@ -655,8 +655,8 @@ unsafeFromArray =
 -- Throws 'InvalidPath' if 'validatePath' fails on the resulting path.
 --
 #endif
-fromArray :: (MonadThrow m, IsPath OS_PATH_TYPE a) => Array OS_WORD_TYPE -> m a
-fromArray arr = Common.fromArray Common.OS_NAME arr >>= fromPath . OS_PATH
+fromArray :: MonadThrow m => Array OS_WORD_TYPE -> m OS_PATH_TYPE
+fromArray arr = OS_PATH <$> Common.fromArray Common.OS_NAME arr
 
 -- XXX Should be a Fold instead?
 
@@ -673,10 +673,9 @@ fromArray arr = Common.fromArray Common.OS_NAME arr >>= fromPath . OS_PATH
 -- Unicode normalization is not done. If normalization is needed the user can
 -- normalize it and then use the 'fromArray' API.
 {-# INLINE fromChars #-}
-fromChars :: (MonadThrow m, IsPath OS_PATH_TYPE a) => Stream Identity Char -> m a
+fromChars :: MonadThrow m => Stream Identity Char -> m OS_PATH_TYPE
 fromChars s =
-    Common.fromChars Common.OS_NAME Unicode.UNICODE_ENCODER s
-        >>= fromPath . OS_PATH
+    OS_PATH <$> Common.fromChars Common.OS_NAME Unicode.UNICODE_ENCODER s
 
 -- | Create an array from a path string using strict CODEC_NAME encoding. The
 -- path is not validated, therefore, it may not be valid according to
@@ -690,11 +689,10 @@ encodeString =
 
 -- | Like 'fromString' but does not perform any validations mentioned under
 -- 'validatePath'. Fails only if unicode encoding fails.
-unsafeFromString :: IsPath OS_PATH_TYPE a => [Char] -> a
+unsafeFromString :: [Char] -> OS_PATH_TYPE
 unsafeFromString =
 #ifndef DEBUG
-      unsafeFromPath
-    . OS_PATH
+      OS_PATH
     . encodeString
 #else
     fromJust . fromString
@@ -706,7 +704,7 @@ unsafeFromString =
 -- * Throws 'InvalidPath' if 'validatePath' fails on the path
 -- * Fails if the stream contains invalid unicode characters
 --
-fromString :: (MonadThrow m, IsPath OS_PATH_TYPE a) => [Char] -> m a
+fromString :: MonadThrow m => [Char] -> m OS_PATH_TYPE
 fromString = fromChars . Stream.fromList
 
 -- | Like fromString but a pure and partial function that throws an
@@ -773,40 +771,34 @@ path = mkQ pathE
 ------------------------------------------------------------------------------
 
 -- | Convert the path to an array.
-toArray :: IsPath OS_PATH_TYPE a => a -> Array OS_WORD_TYPE
-toArray p = let OS_PATH arr = toPath p in arr
+toArray :: OS_PATH_TYPE -> Array OS_WORD_TYPE
+toArray (OS_PATH arr) = arr
 
 -- | Decode the path to a stream of Unicode chars using strict CODEC_NAME decoding.
 {-# INLINE toChars #-}
-toChars :: (Monad m, IsPath OS_PATH_TYPE a) => a -> Stream m Char
-toChars p =
-    let (OS_PATH arr) =
-            toPath p in Common.toChars Unicode.UNICODE_DECODER arr
+toChars :: Monad m => OS_PATH_TYPE -> Stream m Char
+toChars (OS_PATH arr) = Common.toChars Unicode.UNICODE_DECODER arr
 
 -- | Decode the path to a stream of Unicode chars using lax CODEC_NAME decoding.
-toChars_ :: (Monad m, IsPath OS_PATH_TYPE a) => a -> Stream m Char
-toChars_ p =
-    let (OS_PATH arr) =
-            toPath p in Common.toChars Unicode.UNICODE_DECODER_LAX arr
+toChars_ :: Monad m => OS_PATH_TYPE -> Stream m Char
+toChars_ (OS_PATH arr) = Common.toChars Unicode.UNICODE_DECODER_LAX arr
 
 -- XXX When showing, append a "/" to dir types?
 
 -- | Decode the path to a Unicode string using strict CODEC_NAME decoding.
-toString :: IsPath OS_PATH_TYPE a => a -> [Char]
+toString :: OS_PATH_TYPE -> [Char]
 toString = runIdentity . Stream.toList . toChars
 
 -- | Decode the path to a Unicode string using lax CODEC_NAME decoding.
-toString_ :: IsPath OS_PATH_TYPE a => a -> [Char]
+toString_ :: OS_PATH_TYPE -> [Char]
 toString_ = runIdentity . Stream.toList . toChars_
 
 -- | Show the path as raw characters without any specific decoding.
 --
 -- See also: 'readArray'.
 --
-showArray :: IsPath OS_PATH_TYPE a => a -> [Char]
-showArray p =
-    let (OS_PATH arr) =
-            toPath p in show arr
+showArray :: OS_PATH_TYPE -> [Char]
+showArray (OS_PATH arr) = show arr
 
 #ifndef IS_WINDOWS
 #ifdef IS_PORTABLE
@@ -820,7 +812,7 @@ showArray p =
 --
 -- See also: 'showArray'.
 #endif
-readArray :: IsPath OS_PATH_TYPE a => [Char] -> a
+readArray :: [Char] -> OS_PATH_TYPE
 readArray = fromJust . fromArray . read
 #endif
 
