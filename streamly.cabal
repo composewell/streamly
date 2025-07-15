@@ -1,49 +1,45 @@
 cabal-version:      2.2
 name:               streamly
 version:            0.11.0
-synopsis:           Streaming, dataflow programming and declarative concurrency
+synopsis:           Streaming data pipelines with declarative concurrency
 description:
   For upgrading to streamly-0.9.0+ please read the
   <https://github.com/composewell/streamly/blob/streamly-0.10.0/docs/User/Project/Upgrading-0.8-to-0.9.md Streamly-0.9.0 upgrade guide>.
   .
-  Streamly is a standard library for Haskell that focuses on C-like
-  performance, modular combinators, and streaming data flow model.
-  Streamly consists of two packages, the
-  <https://hackage.haskell.org/package/streamly-core streamly-core> package
-  provides functionality that depends only on boot libraries, and
-  the <https://hackage.haskell.org/package/streamly streamly> package
-  provides additional functionality like concurrency, time, lifted
-  exceptions, and networking.  For unified documentation visit
-  <https://streamly.composewell.com the streamly website>.
+  Streamly is a high-performance, beginner-friendly standard library
+  for Haskell. It unifies streaming with list transformers and logic
+  programming; unifies streaming with concurrency and reactive
+  programming; unifies arrays with ring arrays, text, bytestring
+  and vector use cases; unifies arrays with builders and binary
+  serialization; generalizes parsers to any input type and unifies
+  attoparsec, parsec use cases with better performance; provides
+  streaming fileIO — all with a clean, consistent, well-integrated and
+  streaming enabled API.
   .
-  Streamly provides unified, modular building blocks to build
-  high-performance, concurrent, scalable applications in Haskell.  Stream
-  fusion optimizations in streamly enable exceptional modularity with
-  high performance comparable to C. Streamly complements the Haskell
-  <https://hackage.haskell.org/package/base base> package, supplying
-  additional functionality to quickly build general-purpose applications
-  in Haskell. For high-level functionality built over streamly like
-  streaming OS processes, shell programming, GNU coreutils,
-  statistics, and compression libraries please see the streamly
-  ecosystem packages.
+  Streams are designed to have a list like interface — no steep
+  learning curve, no complex types. Streamly is designed to build
+  general purpose applications in a truly functional manner, from
+  simple hello-world to advanced high-performance systems. The design
+  emphasizes simplicity, modularity, and code reuse with minimal
+  building blocks. Performance is on par with C, tuning is easy, and
+  it’s hard to get it wrong.
   .
-  Performance with modularity:
+  Streamly is serial by default, with seamless declarative concurrency
+  that scales automatically when needed. It provides prompt and safe
+  resource management, works well with other streaming libraries as well
+  as core libraries like bytestring and text, and is backed by solid
+  documentation.
   .
-  * Performance on par with C (<https://github.com/composewell/streaming-benchmarks Benchmarks>)
-  * API close to standard Haskell lists (<https://github.com/composewell/streamly-examples Examples>)
-  * Declarative concurrency with automatic scaling
-  * Filesystem, fsnotify, network, and Unicode support included
-  * Fast binary serialization (with optional JSON like features)
-  * More functionality is provided via many ecosystem packages
+  The @streamly@ package is built on top of the @streamly-core@ package
+  and offers high-level capabilities such as concurrency, reactive
+  programming, time-related combinators, lifted exceptions, and
+  networking. It provides streaming with concurrency, and is a more
+  powerful, higher-level and more expressive alternative to the @async@
+  package.
   .
-  Unified and powerful abstractions:
+  Performant. Unified. Modular. Powerful. Simple.
   .
-  * Unifies streams, arrays, folds, and parsers
-  * Unifies @Data.List@, @list-t@, and @logict@ with streaming
-  * Unifies concurrency with standard streaming abstractions
-  * Unifies reactive, time-domain programming with streaming
-  * Unifies binary serialization and unboxed arrays
-  * Interworks with other streaming libraries
+  Learn more at <https://streamly.composewell.com the streamly website>.
 
 homepage:            https://streamly.composewell.com
 bug-reports:         https://github.com/composewell/streamly/issues
