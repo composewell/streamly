@@ -11,12 +11,12 @@
 --------------------------------------------------------------------------------
 
 import Data.Char (chr)
-import Streamly.Internal.Unicode.Utf8 (Utf8)
+import Streamly.Internal.Unicode.Utf8 (Text)
 
 import Test.Tasty.Bench hiding (env)
 import Streamly.Benchmark.Common
 
-import qualified Streamly.Internal.Unicode.Utf8 as Utf8
+import qualified Streamly.Internal.Unicode.Utf8 as Text
 
 --------------------------------------------------------------------------------
 -- Utilities
@@ -30,12 +30,12 @@ moduleName = "Unicode.Stream"
 --------------------------------------------------------------------------------
 
 {-# INLINE pack #-}
-pack :: Int -> Utf8
-pack i = Utf8.pack $ chr <$> [1 .. i]
+pack :: Int -> Text
+pack i = Text.pack $ chr <$> [1 .. i]
 
 {-# INLINE packUnpack #-}
 packUnpack :: Int -> String
-packUnpack = Utf8.unpack . pack
+packUnpack = Text.unpack . pack
 
 --------------------------------------------------------------------------------
 -- Main function

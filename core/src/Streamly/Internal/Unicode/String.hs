@@ -40,6 +40,9 @@ module Streamly.Internal.Unicode.String
     -- $setup
 
       str
+
+    -- * Internals
+    , strWith
     ) where
 
 
@@ -92,30 +95,42 @@ strParser = Parser.many content Fold.toList
     -- order is important
     content = plainText <|> escHash <|> lineCont <|> var <|> plainHash
 
-strSegmentExp :: StrSegment -> Q Exp
-strSegmentExp (StrText text) = stringE text
-strSegmentExp (StrVar name) = do
+strSegmentExp ::
+    (Q Exp -> Q Exp) -> (Q Exp -> Q Exp) -> StrSegment -> Q Exp
+strSegmentExp f _ (StrText text) = f (stringE text)
+strSegmentExp _ f (StrVar name) = do
     valueName <- lookupValueName name
     case valueName of
-        Just vn -> varE vn
+        Just vn -> f (varE vn)
         Nothing ->
             fail
                 $ "str quote: Haskell symbol `" ++ name
                 ++ "` is not in scope"
 
-strExp :: [StrSegment] -> Q Exp
-strExp xs = appE [| concat |] $ listE $ map strSegmentExp xs
+strExp :: Q Exp -> (Q Exp -> Q Exp) -> (Q Exp -> Q Exp) -> [StrSegment] -> Q Exp
+strExp c f g xs = appE c $ listE $ map (strSegmentExp f g) xs
 
 parseStr :: String -> Either ParseError [StrSegment]
 parseStr = runIdentity . Stream.parse strParser . Stream.fromList
 
-expandVars :: String -> Q Exp
-expandVars input =
+expandVars :: Q Exp -> (Q Exp -> Q Exp) -> (Q Exp -> Q Exp) -> String -> Q Exp
+expandVars c f g input =
     case parseStr input of
-        Left e ->
-            fail $ "str QuasiQuoter parse error: " ++ displayException e
-        Right x ->
-            strExp x
+        Left e -> fail $ "str QuasiQuoter parse error: " ++ displayException e
+        Right x -> strExp c f g x
+
+strWith :: Q Exp -> (Q Exp -> Q Exp) -> (Q Exp -> Q Exp) -> QuasiQuoter
+strWith c f g =
+    QuasiQuoter
+        { quoteExp = expandVars c f g
+        , quotePat = notSupported
+        , quoteType = notSupported
+        , quoteDec = notSupported
+        }
+
+    where
+
+    notSupported = error "str: Not supported."
 
 -- | A QuasiQuoter that treats the input as a string literal:
 --
@@ -145,14 +160,4 @@ expandVars input =
 -- "hello world!"
 --
 str :: QuasiQuoter
-str =
-    QuasiQuoter
-        { quoteExp = expandVars
-        , quotePat = notSupported
-        , quoteType = notSupported
-        , quoteDec = notSupported
-        }
-
-    where
-
-    notSupported = error "str: Not supported."
+str = strWith  [|concat|] id id
