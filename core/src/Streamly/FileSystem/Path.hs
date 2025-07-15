@@ -112,7 +112,7 @@ module Streamly.FileSystem.Path
 
     -- * Splitting path components
     , splitPath
-    , splitPath_
+    -- , splitPath_
 
     -- * Splitting file extension
     , splitExtension
