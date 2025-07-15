@@ -42,7 +42,7 @@ module Streamly.Internal.FileSystem.OS_PATH.Node
     , fileE
 
     -- * Operations
-    , extend
+    , join
     )
 where
 
@@ -147,15 +147,15 @@ file = mkQ fileE
 
 -- | Append a 'Dir' or 'File' path to a 'Dir' path.
 --
--- >>> Path.toString (Node.extend [dir|/usr|] [dir|bin|] :: Dir PosixPath)
+-- >>> Path.toString (Node.join [dir|/usr|] [dir|bin|] :: Dir PosixPath)
 -- "/usr/bin"
--- >>> Path.toString (Node.extend [dir|/usr|] [file|bin|] :: File PosixPath)
+-- >>> Path.toString (Node.join [dir|/usr|] [file|bin|] :: File PosixPath)
 -- "/usr/bin"
 --
 -- Fails if the second path is a specific location and not a path segment.
 --
-{-# INLINE extend #-}
-extend :: (IsPath OS_PATH (a OS_PATH), IsNode (a OS_PATH)) =>
+{-# INLINE join #-}
+join :: (IsPath OS_PATH (a OS_PATH), IsNode (a OS_PATH)) =>
     Dir OS_PATH -> a OS_PATH -> a OS_PATH
-extend (Dir a) b =
-    unsafeFromPath $ OsPath.unsafeExtend (toPath a) (toPath b)
+join (Dir a) b =
+    unsafeFromPath $ OsPath.unsafeJoin (toPath a) (toPath b)

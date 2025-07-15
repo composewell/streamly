@@ -159,19 +159,19 @@ module Streamly.Internal.FileSystem.OS_PATH_TYPE
     , isUnrooted
 
     -- * Joining
-    , extendByString
+    , joinStr
  -- , concat
-    , unsafeExtend
+    , unsafeJoin
 #ifndef IS_WINDOWS
-    , extendByCString
-    , extendByCString'
+    , joinCStr
+    , joinCStr'
 #endif
-    , extend
-    , extendDir
+    , join
+    , joinDir
     , unsafeJoinPaths
 
     -- * Splitting
-    -- | Note: you can use 'unsafeExtend' as a replacement for the joinDrive
+    -- | Note: you can use 'unsafeJoin' as a replacement for the joinDrive
     -- function in the filepath package.
     , splitRoot
     , splitPath
@@ -417,9 +417,9 @@ addTrailingSeparator p@(OS_PATH _arr) =
 #ifdef IS_WINDOWS
     if Array.unsafeGetIndexRev 0 _arr == Common.charToWord ':'
     then p
-    else unsafeExtend p sep
+    else unsafeJoin p sep
 #else
-    unsafeExtend p sep
+    unsafeJoin p sep
 #endif
 
     where
@@ -717,13 +717,13 @@ fromString_ x =
             Left e -> throw e
             Right v -> v
 
--- | Extend a path by adding a separator followed by the supplied string to it.
+-- | Append a separator followed by the supplied string to a path.
 --
 --  Throws 'InvalidPath' if the resulting path is not a valid path as per
 --  'validatePath'.
 --
-extendByString :: OS_PATH_TYPE -> [Char] -> OS_PATH_TYPE
-extendByString (OS_PATH a) b =
+joinStr :: OS_PATH_TYPE -> [Char] -> OS_PATH_TYPE
+joinStr (OS_PATH a) b =
     OS_PATH $
         Common.append Common.OS_NAME
             (Common.toString Unicode.UNICODE_DECODER) a (encodeString b)
@@ -891,9 +891,9 @@ isUnrooted :: OS_PATH_TYPE -> Bool
 isUnrooted = not . isRooted
 
 #ifndef IS_WINDOWS
--- | Like 'extend' but does not check if the second path is rooted.
+-- | Like 'join' but does not check if the second path is rooted.
 --
--- >>> f a b = Path.toString $ Path.unsafeExtend (Path.fromString_ a) (Path.fromString_ b)
+-- >>> f a b = Path.toString $ Path.unsafeJoin (Path.fromString_ a) (Path.fromString_ b)
 --
 -- >>> f "x" "y"
 -- "x/y"
@@ -904,9 +904,9 @@ isUnrooted = not . isRooted
 -- >>> f "x/" "/y"
 -- "x/y"
 --
-{-# INLINE unsafeExtend #-}
-unsafeExtend :: OS_PATH_TYPE -> OS_PATH_TYPE -> OS_PATH_TYPE
-unsafeExtend (OS_PATH a) (OS_PATH b) =
+{-# INLINE unsafeJoin #-}
+unsafeJoin :: OS_PATH_TYPE -> OS_PATH_TYPE -> OS_PATH_TYPE
+unsafeJoin (OS_PATH a) (OS_PATH b) =
     OS_PATH
         $ Common.unsafeAppend
             Common.OS_NAME (Common.toString Unicode.UNICODE_DECODER) a b
@@ -914,11 +914,11 @@ unsafeExtend (OS_PATH a) (OS_PATH b) =
 -- If you want to avoid runtime failure use the typesafe
 -- Streamly.FileSystem.OS_PATH_TYPE.Seg module.
 
--- | Extend a OS_PATH_TYPE by adding a separator followed by another path to
--- it. Fails if the second path is a rooted path. Use 'unsafeExtend' to avoid
--- failure if you know it is ok to append the rooted path.
+-- | Append a separator followed by another path to a OS_PATH_TYPE. Fails if
+-- the second path is a rooted path. Use 'unsafeJoin' to avoid failure if you
+-- know it is ok to append the rooted path.
 --
--- >>> f a b = Path.toString $ Path.extend a b
+-- >>> f a b = Path.toString $ Path.join a b
 --
 -- >>> f [path|/usr|] [path|bin|]
 -- "/usr/bin"
@@ -927,23 +927,23 @@ unsafeExtend (OS_PATH a) (OS_PATH b) =
 -- >>> fails (f [path|/usr|] [path|/bin|])
 -- True
 --
-extend :: OS_PATH_TYPE -> OS_PATH_TYPE -> OS_PATH_TYPE
-extend (OS_PATH a) (OS_PATH b) =
+join :: OS_PATH_TYPE -> OS_PATH_TYPE -> OS_PATH_TYPE
+join (OS_PATH a) (OS_PATH b) =
     OS_PATH
         $ Common.append
             Common.OS_NAME (Common.toString Unicode.UNICODE_DECODER) a b
 
--- | A stricter version of 'extend' which requires the first path to be a
+-- | A stricter version of 'join' which requires the first path to be a
 -- directory like path i.e. having a trailing separator.
 --
--- >>> f a b = Path.toString $ Path.extendDir a b
+-- >>> f a b = Path.toString $ Path.joinDir a b
 --
 -- >>> fails $ f [path|/usr|] [path|bin|]
 -- True
 --
-extendDir ::
+joinDir ::
     OS_PATH_TYPE -> OS_PATH_TYPE -> OS_PATH_TYPE
-extendDir
+joinDir
     (OS_PATH a) (OS_PATH b) =
     OS_PATH
         $ Common.append'
@@ -954,21 +954,21 @@ extendDir
 -- XXX add appendCWString for Windows?
 
 #ifndef IS_WINDOWS
--- | Append a separator and a CString to the Array. This is like 'unsafeExtend'
+-- | Append a separator and a CString to the Array. This is like 'unsafeJoin'
 -- but always inserts a separator between the two paths even if the first path
 -- has a trailing separator or second path has a leading separator.
 --
-extendByCString :: OS_PATH_TYPE -> CString -> IO OS_PATH_TYPE
-extendByCString (OS_PATH a) str =
+joinCStr :: OS_PATH_TYPE -> CString -> IO OS_PATH_TYPE
+joinCStr (OS_PATH a) str =
     fmap OS_PATH
         $ Common.appendCString
             Common.OS_NAME a str
 
--- | Like 'appendCString' but creates a pinned path.
+-- | Like 'joinCStr' but creates a pinned path.
 --
-extendByCString' ::
+joinCStr' ::
     OS_PATH_TYPE -> CString -> IO OS_PATH_TYPE
-extendByCString'
+joinCStr'
     (OS_PATH a) str =
     fmap OS_PATH
         $ Common.appendCString'
@@ -998,7 +998,7 @@ unsafeJoinPaths = undefined
 -- Some filepath package equivalent idioms:
 --
 -- >>> splitDrive = Path.splitRoot
--- >>> joinDrive = Path.unsafeExtend
+-- >>> joinDrive = Path.unsafeJoin
 -- >>> takeDrive = fmap fst . Path.splitRoot
 -- >>> dropDrive x = Path.splitRoot x >>= snd
 -- >>> hasDrive = isJust . Path.splitRoot
@@ -1360,7 +1360,7 @@ replaceExtension (OS_PATH _a) = undefined
 -- present.
 --
 -- >>> takeFileName = fmap snd . Path.splitFile
--- >>> replaceDirectory p x = fmap (flip Path.extend x) (takeFileName p)
+-- >>> replaceDirectory p x = fmap (flip Path.join x) (takeFileName p)
 --
 -- >>> fmap Path.toString $ Path.takeFileName [path|/home/user/file.txt|]
 -- Just "file.txt"
@@ -1394,7 +1394,7 @@ takeFileBase = fmap dropExtension . takeFileName
 -- | Returns the parent directory of the given OS_PATH_TYPE, if any.
 --
 -- >>> takeDirectory x = Path.splitFile x >>= fst
--- >>> replaceFileName p x = fmap (flip Path.extend x) (takeDirectory p)
+-- >>> replaceFileName p x = fmap (flip Path.join x) (takeDirectory p)
 --
 -- To get an equivalent to takeDirectory from filepath use
 -- 'dropTrailingSeparators' on the result.

@@ -47,7 +47,7 @@ module Streamly.Internal.FileSystem.OS_PATH.Seg
     , urE
 
     -- * Operations
-    , extend
+    , join
     )
 where
 
@@ -156,16 +156,16 @@ ur = mkQ urE
 
 -- | Append a 'Unrooted' type path to a 'Rooted' path or 'Unrooted' path.
 --
--- >>> Path.toString (Seg.extend [rt|/usr|] [ur|bin|] :: Rooted PosixPath)
+-- >>> Path.toString (Seg.join [rt|/usr|] [ur|bin|] :: Rooted PosixPath)
 -- "/usr/bin"
--- >>> Path.toString (Seg.extend [ur|usr|] [ur|bin|] :: Unrooted PosixPath)
+-- >>> Path.toString (Seg.join [ur|usr|] [ur|bin|] :: Unrooted PosixPath)
 -- "usr/bin"
 --
-{-# INLINE extend #-}
-extend ::
+{-# INLINE join #-}
+join ::
     (
       IsSeg (a OS_PATH)
     , IsPath OS_PATH (a OS_PATH)
     ) => a OS_PATH -> Unrooted OS_PATH -> a OS_PATH
-extend a (Unrooted c) =
-    unsafeFromPath $ OsPath.unsafeExtend (toPath a) (toPath c)
+join a (Unrooted c) =
+    unsafeFromPath $ OsPath.unsafeJoin (toPath a) (toPath c)

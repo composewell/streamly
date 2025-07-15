@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
--- For constraints on "extend"
+-- For constraints on "join"
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -40,7 +40,7 @@ module Streamly.Internal.FileSystem.OS_PATH.SegNode
     , urfileE
 
     -- * Operations
-    , extend
+    , join
     )
 where
 
@@ -245,39 +245,39 @@ urfile = mkQ urfileE
 -- If the second path does not have 'File' or 'Dir' information then the return
 -- type too cannot have it.
 --
--- >> Path.toString (SegNode.extend [rtdir|/usr|] [br|bin|] :: Rooted PosixPath)
+-- >> Path.toString (SegNode.join [rtdir|/usr|] [br|bin|] :: Rooted PosixPath)
 -- "/usr/bin"
--- >> Path.toString (SegNode.extend [urdir|usr|] [br|bin|] :: Unrooted PosixPath)
+-- >> Path.toString (SegNode.join [urdir|usr|] [br|bin|] :: Unrooted PosixPath)
 -- "usr/bin"
 --
--- >> Path.toString (SegNode.extend [rt|/usr|] [br|bin|] :: Rooted PosixPath)
+-- >> Path.toString (SegNode.join [rt|/usr|] [br|bin|] :: Rooted PosixPath)
 -- "/usr/bin"
--- >> Path.toString (SegNode.extend [br|usr|] [br|bin|] :: Unrooted PosixPath)
+-- >> Path.toString (SegNode.join [br|usr|] [br|bin|] :: Unrooted PosixPath)
 -- "usr/bin"
 --
 -- If the second path has 'File' or 'Dir' information then the return type
 -- also has it.
 --
--- >> Path.toString (SegNode.extend [rt|/usr|] [urdir|bin|] :: Rooted (Dir PosixPath))
+-- >> Path.toString (SegNode.join [rt|/usr|] [urdir|bin|] :: Rooted (Dir PosixPath))
 -- "/usr/bin"
--- >> Path.toString (SegNode.extend [rt|/usr|] [urfile|bin|] :: Rooted (File PosixPath))
+-- >> Path.toString (SegNode.join [rt|/usr|] [urfile|bin|] :: Rooted (File PosixPath))
 -- "/usr/bin"
--- >> Path.toString (SegNode.extend [br|usr|] [urdir|bin|] :: Unrooted (Dir PosixPath))
+-- >> Path.toString (SegNode.join [br|usr|] [urdir|bin|] :: Unrooted (Dir PosixPath))
 -- "usr/bin"
--- >> Path.toString (SegNode.extend [br|usr|] [urfile|bin|] :: Unrooted (File PosixPath))
+-- >> Path.toString (SegNode.join [br|usr|] [urfile|bin|] :: Unrooted (File PosixPath))
 -- "usr/bin"
 --
 -- Type error cases:
 --
--- >> SegNode.extend [dir|/usr|] [br|bin|] -- first arg must be Rooted/Unrooted
--- >> SegNode.extend [file|/usr|] [br|bin|] -- first arg must be Rooted/Unrooted
--- >> SegNode.extend [rtfile|/usr|] [br|bin|] -- first arg must be a dir
--- >> SegNode.extend [rt|/usr|] [rt|/bin|] -- second arg must be seg
--- >> SegNode.extend [rt|/usr|] [dir|bin|] -- second arg must be seg
--- >> SegNode.extend [rt|/usr|] [file|bin|] -- second arg must be seg
+-- >> SegNode.join [dir|/usr|] [br|bin|] -- first arg must be Rooted/Unrooted
+-- >> SegNode.join [file|/usr|] [br|bin|] -- first arg must be Rooted/Unrooted
+-- >> SegNode.join [rtfile|/usr|] [br|bin|] -- first arg must be a dir
+-- >> SegNode.join [rt|/usr|] [rt|/bin|] -- second arg must be seg
+-- >> SegNode.join [rt|/usr|] [dir|bin|] -- second arg must be seg
+-- >> SegNode.join [rt|/usr|] [file|bin|] -- second arg must be seg
 --
-{-# INLINE extend #-}
-extend ::
+{-# INLINE join #-}
+join ::
     (
       IsSeg (a b)
     , HasDir (a b)
@@ -285,26 +285,26 @@ extend ::
     , IsPath OS_PATH c
     , IsPath OS_PATH (a c)
     ) => a b -> Unrooted c -> a c
-extend a (Unrooted c) = unsafeFromPath $ OS_NAME.unsafeExtend (toPath a) (toPath c)
+join a (Unrooted c) = unsafeFromPath $ OS_NAME.unsafeJoin (toPath a) (toPath c)
 -}
 
 -- | Append a branch type path to a directory.
 --
--- >>> Path.toString (SegNode.extend [rtdir|/usr|] [urdir|bin|] :: Rooted (Dir PosixPath))
+-- >>> Path.toString (SegNode.join [rtdir|/usr|] [urdir|bin|] :: Rooted (Dir PosixPath))
 -- "/usr/bin"
--- >>> Path.toString (SegNode.extend [rtdir|/usr|] [urfile|bin|] :: Rooted (File PosixPath))
+-- >>> Path.toString (SegNode.join [rtdir|/usr|] [urfile|bin|] :: Rooted (File PosixPath))
 -- "/usr/bin"
--- >>> Path.toString (SegNode.extend [urdir|usr|] [urdir|bin|] :: Unrooted (Dir PosixPath))
+-- >>> Path.toString (SegNode.join [urdir|usr|] [urdir|bin|] :: Unrooted (Dir PosixPath))
 -- "usr/bin"
--- >>> Path.toString (SegNode.extend [urdir|usr|] [urfile|bin|] :: Unrooted (File PosixPath))
+-- >>> Path.toString (SegNode.join [urdir|usr|] [urfile|bin|] :: Unrooted (File PosixPath))
 -- "usr/bin"
 --
-{-# INLINE extend #-}
-extend ::
+{-# INLINE join #-}
+join ::
     (
       IsPath OS_PATH (a (Dir OS_PATH))
     , IsPath OS_PATH (b OS_PATH)
     , IsPath OS_PATH (a (b OS_PATH))
     ) => a (Dir OS_PATH) -> Unrooted (b OS_PATH) -> a (b OS_PATH)
-extend p1 (Unrooted p2) =
-    unsafeFromPath $ OsPath.unsafeExtend (toPath p1) (toPath p2)
+join p1 (Unrooted p2) =
+    unsafeFromPath $ OsPath.unsafeJoin (toPath p1) (toPath p2)

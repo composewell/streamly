@@ -103,9 +103,9 @@ module Streamly.FileSystem.Path
     , isUnrooted
 
     -- * Joining
-    , unsafeExtend
-    , extend
-    , extendByString
+    , unsafeJoin
+    , join
+    , joinStr
 
     -- * Splitting root
     , splitRoot

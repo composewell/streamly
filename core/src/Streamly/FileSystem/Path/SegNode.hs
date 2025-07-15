@@ -30,7 +30,7 @@ module Streamly.FileSystem.Path.SegNode
     , urfileE
 
     -- * Operations
-    , extend
+    , join
     )
 where
 
