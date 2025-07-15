@@ -124,7 +124,7 @@ module Streamly.FileSystem.Path
     -- * Splitting file and dir
     , splitFile
     , takeFileName
-    , dropFileName
+    , takeDirectory
     , takeFileBase
 
     -- * Equality

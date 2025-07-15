@@ -189,7 +189,8 @@ module Streamly.Internal.FileSystem.OS_PATH_TYPE
 
     -- ** Path View
     , takeFileName
-    , dropFileName
+    , takeDirectory
+ -- , takeDirectory_ -- drops the trailing /
     , takeExtension
     , takeFileBase
 
@@ -1392,19 +1393,19 @@ takeFileBase = fmap dropExtension . takeFileName
 
 -- | Returns the parent directory of the given OS_PATH_TYPE, if any.
 --
--- >>> dropFileName x = Path.splitFile x >>= fst
--- >>> replaceFileName p x = fmap (flip Path.extend x) (dropFileName p)
+-- >>> takeDirectory x = Path.splitFile x >>= fst
+-- >>> replaceFileName p x = fmap (flip Path.extend x) (takeDirectory p)
 --
--- To get an equivalent to dropFileName from filepath use
+-- To get an equivalent to takeDirectory from filepath use
 -- 'dropTrailingSeparators' on the result.
 --
--- >>> fmap Path.toString $ Path.dropFileName [path|/home/user/file.txt|]
+-- >>> fmap Path.toString $ Path.takeDirectory [path|/home/user/file.txt|]
 -- Just "/home/user/"
--- >>> fmap Path.toString $ Path.dropFileName [path|file.txt|]
+-- >>> fmap Path.toString $ Path.takeDirectory [path|file.txt|]
 -- Nothing
 --
-dropFileName :: OS_PATH_TYPE -> Maybe OS_PATH_TYPE
-dropFileName x = splitFile x >>= fst
+takeDirectory :: OS_PATH_TYPE -> Maybe OS_PATH_TYPE
+takeDirectory x = splitFile x >>= fst
 
 ------------------------------------------------------------------------------
 -- Path equality
