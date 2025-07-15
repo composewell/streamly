@@ -36,7 +36,7 @@ are highly optimized providing similar performance as hand written C.
 ### Fusion Plugin
 
 Stream fusion optimization depends on proper inlining of the combinators
-involved. Totake full advantage of stream fusion in streamly you should
+involved. To take full advantage of stream fusion in streamly you should
 compile your code with the `fusion-plugin` enabled. The fusion-plugin
 package fills the gaps for several optimizations that GHC does not
 perform automatically. It automatically inlines the internal definitions
@@ -269,6 +269,10 @@ this transformation manually when appropriate. Fortunately, it's simple
 to do by habit, and in practice, we've observed substantial performance
 improvements from applying it by hand in certain critical code paths.
 
+See the `loopDir` function in [this example](https://github.com/composewell/streamly-examples/blob/ebf9470ce2e96f9882653bb1e0ae1b1a239487e3/examples/BasicDirStream.hsc)
+for a case where static argument transformation was used to acheive
+performance equivalent to C.
+
 <!--
 It will be nice if compiler can automatically detect and point out such
 opportunities instead of doing it, the programmer can do it selectively.
@@ -413,6 +417,11 @@ each C thread requires a dedicated stack (with potential memory limits),
 whereas Haskell uses the heap for all memory needs, avoiding stack-size
 constraints. This makes memory use in Haskell more flexible and often
 more efficient in highly concurrent applications.
+
+See the `loopDir0` function in [this example](https://github.com/composewell/streamly-examples/blob/ebf9470ce2e96f9882653bb1e0ae1b1a239487e3/examples/BasicDirStream.hsc)
+for a case where a mutable `buffer` is passed to the function which is
+reused in each iteration of the loop to avoid unnecessary allocation
+work to achieve performance equivalent to C.
 
 ## `unsafePerformIO`
 
