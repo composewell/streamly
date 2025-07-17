@@ -32,8 +32,7 @@ import Control.Monad.Trans.State.Strict (get, put)
 import Data.Function ((&))
 import Data.Maybe (isJust)
 import Streamly.Internal.Data.Stream.Step (Step(..))
-import Streamly.Internal.Data.Stream.Type
-    (Stream(..), mkCross, unCross)
+import Streamly.Internal.Data.Stream.Type (Stream(..), Cross(..))
 
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -136,24 +135,24 @@ innerOrdJoin s1 s2 =
 leftJoin :: Monad m =>
     (a -> b -> Bool) -> Stream m a -> Stream m b -> Stream m (a, Maybe b)
 leftJoin eq s1 s2 = Stream.evalStateT (return False) $ unCross $ do
-    a <- mkCross (Stream.liftInner s1)
+    a <- Cross (Stream.liftInner s1)
     -- XXX should we use StreamD monad here?
     -- XXX Is there a better way to perform some action at the end of a loop
     -- iteration?
-    mkCross (Stream.fromEffect $ put False)
+    Cross (Stream.fromEffect $ put False)
     let final = Stream.concatEffect $ do
             r <- get
             if r
             then pure Stream.nil
             else pure (Stream.fromPure Nothing)
-    b <- mkCross (fmap Just (Stream.liftInner s2) `Stream.append` final)
+    b <- Cross (fmap Just (Stream.liftInner s2) `Stream.append` final)
     case b of
         Just b1 ->
             if a `eq` b1
             then do
-                mkCross (Stream.fromEffect $ put True)
+                Cross (Stream.fromEffect $ put True)
                 return (a, Just b1)
-            else mkCross Stream.nil
+            else Cross Stream.nil
         Nothing -> return (a, Nothing)
 
 -- | 'leftJoin' specialized to 'Ord' types for better performance.
@@ -232,11 +231,11 @@ outerJoin eq s1 s2 =
     evalState = Stream.evalStateT (return False) . unCross
 
     go inputArr foundArr = evalState $ do
-        a <- mkCross (Stream.liftInner s1)
+        a <- Cross (Stream.liftInner s1)
         -- XXX should we use StreamD monad here?
         -- XXX Is there a better way to perform some action at the end of a loop
         -- iteration?
-        mkCross (Stream.fromEffect $ put False)
+        Cross (Stream.fromEffect $ put False)
         let final = Stream.concatEffect $ do
                 r <- get
                 if r
@@ -244,17 +243,17 @@ outerJoin eq s1 s2 =
                 else pure (Stream.fromPure Nothing)
         (i, b) <-
             let stream = Array.read inputArr
-             in mkCross
+             in Cross
                 (Stream.indexed $ fmap Just (Stream.liftInner stream) `Stream.append` final)
 
         case b of
             Just b1 ->
                 if a `eq` b1
                 then do
-                    mkCross (Stream.fromEffect $ put True)
+                    Cross (Stream.fromEffect $ put True)
                     MA.putIndex i foundArr True
                     return (Just a, Just b1)
-                else mkCross Stream.nil
+                else Cross Stream.nil
             Nothing -> return (Just a, Nothing)
 
 -- Put the b's that have been paired, in another hash or mutate the hash to set
