@@ -82,10 +82,8 @@ module Streamly.Data.StreamK
     -- * Type
       StreamK
 
-    -- * CrossStreamK
-    , CrossStreamK
-    , unCross
-    , mkCross
+    -- * Cross (List Transformer)
+    , Cross(..)
 
     -- * Construction
     -- ** Primitives
@@ -195,6 +193,8 @@ module Streamly.Data.StreamK
     -- * Deprecated
     , parseBreakChunks
     , parseChunks
+    , CrossStreamK
+    , mkCross
     )
 where
 

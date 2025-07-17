@@ -23,10 +23,8 @@ module Streamly.Internal.Data.StreamK.Type
       Stream
     , StreamK (..)
 
-    -- * CrossStreamK type wrapper
-    , CrossStreamK
-    , unCross
-    , mkCross
+    -- * Cross type wrapper
+    , Cross(..)
 
     -- * foldr/build Fusion
     , mkStream
@@ -149,6 +147,8 @@ module Streamly.Internal.Data.StreamK.Type
     -- * Deprecated
     , interleaveFst
     , interleaveMin
+    , CrossStreamK
+    , mkCross
     )
 where
 
@@ -1980,8 +1980,8 @@ tailNonEmpty m = mkStream $ \st yld sng stp ->
 --     where
 --     f action = StreamK.unCross $ do
 --         let incr n act = fmap ((+n) . snd) $ unsafeInterleaveIO act
---         x <- StreamK.mkCross $ StreamK.fromStream $ Stream.sequence $ Stream.fromList [incr 1 action, incr 2 action]
---         y <- StreamK.mkCross $ StreamK.fromStream $ Stream.fromList [4,5]
+--         x <- StreamK.Cross $ StreamK.fromStream $ Stream.sequence $ Stream.fromList [incr 1 action, incr 2 action]
+--         y <- StreamK.Cross $ StreamK.fromStream $ Stream.fromList [4,5]
 --         return (x, y)
 -- :}
 --
@@ -2136,7 +2136,7 @@ concatMapEffect f action =
 --
 -- >>> :{
 -- Stream.fold Fold.toList $ StreamK.toStream $ StreamK.unCross $ do
---     x <- StreamK.mkCross $ StreamK.fromStream $ Stream.fromList [1,2]
+--     x <- StreamK.Cross $ StreamK.fromStream $ Stream.fromList [1,2]
 --     -- Perform the following actions for each x in the stream
 --     return x
 -- :}
@@ -2146,47 +2146,44 @@ concatMapEffect f action =
 --
 -- >>> :{
 -- Stream.fold Fold.toList $ StreamK.toStream $ StreamK.unCross $ do
---     x <- StreamK.mkCross $ StreamK.fromStream $ Stream.fromList [1,2]
---     y <- StreamK.mkCross $ StreamK.fromStream $ Stream.fromList [3,4]
+--     x <- StreamK.Cross $ StreamK.fromStream $ Stream.fromList [1,2]
+--     y <- StreamK.Cross $ StreamK.fromStream $ Stream.fromList [3,4]
 --     -- Perform the following actions for each x, for each y
 --     return (x, y)
 -- :}
 -- [(1,3),(1,4),(2,3),(2,4)]
 --
-newtype CrossStreamK m a = CrossStreamK {unCrossStreamK :: StreamK m a}
+newtype Cross m a = Cross {unCross :: StreamK m a}
         deriving (Functor, Semigroup, Monoid, Foldable)
 
--- | Wrap the 'StreamK' type in a 'CrossStreamK' newtype to enable cross
+{-# DEPRECATED CrossStreamK "Use Cross instead." #-}
+type CrossStreamK = Cross
+
+{-# DEPRECATED mkCross "Use Cross instead." #-}
+-- | Wrap the 'StreamK' type in a 'Cross' newtype to enable cross
 -- product style applicative and monad instances.
 --
 -- This is a type level operation with no runtime overhead.
 {-# INLINE mkCross #-}
-mkCross :: StreamK m a -> CrossStreamK m a
-mkCross = CrossStreamK
-
--- | Unwrap the 'StreamK' type from 'CrossStreamK' newtype.
---
--- This is a type level operation with no runtime overhead.
-{-# INLINE unCross #-}
-unCross :: CrossStreamK m a -> StreamK m a
-unCross = unCrossStreamK
+mkCross :: StreamK m a -> Cross m a
+mkCross = Cross
 
 -- Pure (Identity monad) stream instances
-deriving instance Traversable (CrossStreamK Identity)
-deriving instance IsList (CrossStreamK Identity a)
-deriving instance (a ~ Char) => IsString (CrossStreamK Identity a)
--- deriving instance Eq a => Eq (CrossStreamK Identity a)
--- deriving instance Ord a => Ord (CrossStreamK Identity a)
+deriving instance Traversable (Cross Identity)
+deriving instance IsList (Cross Identity a)
+deriving instance (a ~ Char) => IsString (Cross Identity a)
+-- deriving instance Eq a => Eq (Cross Identity a)
+-- deriving instance Ord a => Ord (Cross Identity a)
 
 -- Do not use automatic derivation for this to show as "fromList" rather than
 -- "fromList Identity".
-instance Show a => Show (CrossStreamK Identity a) where
+instance Show a => Show (Cross Identity a) where
     {-# INLINE show #-}
-    show (CrossStreamK xs) = show xs
+    show (Cross xs) = show xs
 
-instance Read a => Read (CrossStreamK Identity a) where
+instance Read a => Read (Cross Identity a) where
     {-# INLINE readPrec #-}
-    readPrec = fmap CrossStreamK readPrec
+    readPrec = fmap Cross readPrec
 
 ------------------------------------------------------------------------------
 -- Applicative
@@ -2194,30 +2191,30 @@ instance Read a => Read (CrossStreamK Identity a) where
 
 -- Note: we need to define all the typeclass operations because we want to
 -- INLINE them.
-instance Monad m => Applicative (CrossStreamK m) where
+instance Monad m => Applicative (Cross m) where
     {-# INLINE pure #-}
-    pure x = CrossStreamK (fromPure x)
+    pure x = Cross (fromPure x)
 
     {-# INLINE (<*>) #-}
-    (CrossStreamK s1) <*> (CrossStreamK s2) =
-        CrossStreamK (crossApply s1 s2)
+    (Cross s1) <*> (Cross s2) =
+        Cross (crossApply s1 s2)
 
     {-# INLINE liftA2 #-}
     liftA2 f x = (<*>) (fmap f x)
 
     {-# INLINE (*>) #-}
-    (CrossStreamK s1) *> (CrossStreamK s2) =
-        CrossStreamK (crossApplySnd s1 s2)
+    (Cross s1) *> (Cross s2) =
+        Cross (crossApplySnd s1 s2)
 
     {-# INLINE (<*) #-}
-    (CrossStreamK s1) <* (CrossStreamK s2) =
-        CrossStreamK (crossApplyFst s1 s2)
+    (Cross s1) <* (Cross s2) =
+        Cross (crossApplyFst s1 s2)
 
 ------------------------------------------------------------------------------
 -- Monad
 ------------------------------------------------------------------------------
 
-instance Monad m => Monad (CrossStreamK m) where
+instance Monad m => Monad (Cross m) where
     return = pure
 
     -- Benchmarks better with CPS bind and pure:
@@ -2225,8 +2222,8 @@ instance Monad m => Monad (CrossStreamK m) where
     -- n binds, breakAfterSome, filterAllIn, state transformer (~2x)
     --
     {-# INLINE (>>=) #-}
-    (>>=) (CrossStreamK m) f =
-        CrossStreamK (bindWith append m (unCrossStreamK . f))
+    (>>=) (Cross m) f =
+        Cross (bindWith append m (unCross . f))
 
     {-# INLINE (>>) #-}
     (>>) = (*>)
@@ -2235,12 +2232,12 @@ instance Monad m => Monad (CrossStreamK m) where
 -- Transformers
 ------------------------------------------------------------------------------
 
-instance (MonadIO m) => MonadIO (CrossStreamK m) where
-    liftIO x = CrossStreamK (fromEffect $ liftIO x)
+instance (MonadIO m) => MonadIO (Cross m) where
+    liftIO x = Cross (fromEffect $ liftIO x)
 
-instance MonadTrans CrossStreamK where
+instance MonadTrans Cross where
     {-# INLINE lift #-}
-    lift x = CrossStreamK (fromEffect x)
+    lift x = Cross (fromEffect x)
 
-instance (MonadThrow m) => MonadThrow (CrossStreamK m) where
+instance (MonadThrow m) => MonadThrow (Cross m) where
     throwM = lift . throwM
