@@ -11,7 +11,7 @@
 --
 -- The 'Path' type is built on top of Streamly's 'Array' type, leveraging all
 -- its operations — including support for both pinned and unpinned
--- representations. The API integrates with streaming, prioritizes safety,
+-- representations. The API integrates with streams, prioritizes safety,
 -- flexibility, and performance. It supports configurable equality for
 -- cross-platform compatibility and user-defined path matching. It is designed
 -- for extensibility and fine-grained type safety as well. For type-safe

@@ -12,15 +12,6 @@
 -- Style (CPS), suitable for dynamically and recursively composing potentially
 -- large number of streams. The 'K' in 'StreamK' stands for Kontinuation.
 --
--- Unlike the statically fused operations in "Streamly.Data.Stream", StreamK
--- operations are less efficient, involving a function call overhead for each
--- element, but they exhibit linear O(n) time complexity wrt to the number of
--- stream compositions. Therefore, they are suitable for dynamically composing
--- streams e.g. appending potentially infinite streams in recursive loops.
--- While fused streams can be used efficiently to process elements as small as
--- a single byte, CPS streams are typically used on bigger chunks of data to
--- avoid the larger overhead per element.
---
 -- In addition to the combinators in this module, you can use operations from
 -- "Streamly.Data.Stream" for StreamK as well by converting StreamK to Stream
 -- ('toStream'), and vice-versa ('fromStream'). Please refer to
@@ -31,6 +22,17 @@
 -- "Streamly.Data.Stream". Documentation has been omitted in this module unless
 -- there is a difference worth mentioning or if the combinator does not exist
 -- in "Streamly.Data.Stream".
+--
+-- == Fused vs CPS Streams
+--
+-- Unlike the statically fused operations in "Streamly.Data.Stream", StreamK
+-- operations are less efficient, involving a function call overhead for each
+-- element, but they exhibit linear O(n) time complexity wrt to the number of
+-- stream compositions. Therefore, they are suitable for dynamically composing
+-- streams e.g. appending potentially infinite streams in recursive loops.
+-- While fused streams can be used efficiently to process elements as small as
+-- a single byte, CPS streams are typically used on bigger chunks of data to
+-- avoid the larger overhead per element.
 --
 -- = Overview
 --

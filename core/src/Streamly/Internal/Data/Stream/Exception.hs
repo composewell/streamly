@@ -453,7 +453,7 @@ data GbracketIO'State s ref release
 -- * the bracketed stream is partially consumed and abandoned
 -- * pipeline is aborted due to an exception
 --
--- This is the recommended default bracket operation.
+-- __This is the recommended default bracket operation.__
 --
 -- Note: You can use 'Streamly.Control.Exception.acquire' directly, instead of using this combinator, if
 -- you don’t need to release the resource when the stream ends. However, if
