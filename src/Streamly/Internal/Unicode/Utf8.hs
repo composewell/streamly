@@ -17,33 +17,34 @@ module Streamly.Internal.Unicode.Utf8
     (
     -- * Type
       Text
-    , Display(..)
+    , TextB
+    , Render(..)
     , text
+    , build
+    , force
+    , force'
+    , byteLength
+    , toArray
 
-    -- * Combinators
-    , length
+    -- * Construction
     , snoc
+    , singleton
+    , cons
+    , pack
+    , concat
+    , empty
+
+    -- * Elimination
+    , length
     , unsnoc
     , head
     , last
     , tail
     , init
     , null
-    , byteLength
-    , singleton
-    , empty
-    , cons
     , uncons
-    , toArray
     , read
-    , create
-    , fromStream
-    , pack
     , unpack
-    , concatM
-    , concat
-    , rightSizeM
-    , rightSize
 
     -- * Internals
     , readEncoding
@@ -58,14 +59,12 @@ module Streamly.Internal.Unicode.Utf8
 -- Imports
 --------------------------------------------------------------------------------
 
-import Data.Function ((&))
+import Control.Monad ((>=>))
 import Data.Word (Word8)
 import Streamly.Data.MutArray (MutArray)
 import Streamly.Data.Array (Array)
 import System.IO.Unsafe (unsafePerformIO)
-import Control.Monad.IO.Class (MonadIO(..))
 import Streamly.Data.Stream (Stream)
-import Streamly.Data.Fold (Fold)
 import Language.Haskell.TH (appE)
 import Language.Haskell.TH.Quote (QuasiQuoter)
 import Streamly.Internal.Unicode.String (strWith)
@@ -86,32 +85,41 @@ import Prelude hiding
 --------------------------------------------------------------------------------
 
 -- | A space efficient, packed, unboxed Unicode container.
-newtype Text = Text (MutArray Word8)
-
-instance Semigroup Text where
-    (<>) = append
-
-instance Monoid Text where
-    mempty = Text (Array.unsafeThaw Array.empty)
-    mconcat = concat
+newtype Text = Text (Array Word8)
 
 {-# INLINE toArray #-}
 toArray :: Text -> Array Word8
-toArray t =
-    unsafePerformIO $ do
-        (Text arr) <- rightSizeM t
-        pure $ Array.unsafeFreeze arr
+toArray (Text arr) = arr
 
-{-# INLINE toMutArray #-}
-toMutArray :: Text -> MutArray Word8
-toMutArray (Text arr) = arr
+--------------------------------------------------------------------------------
+-- Builder
+--------------------------------------------------------------------------------
+
+data TextB = TextB Int (MutArray Word8 -> IO (MutArray Word8))
+
+byteLength :: TextB -> Int
+byteLength (TextB i _) = i
+
+build :: Array Word8 -> TextB
+build t =
+    TextB (Array.byteLength t) (`MutArray.unsafeSplice` (Array.unsafeThaw t))
+
+force :: TextB -> Text
+force (TextB i f) =
+    unsafePerformIO
+        $ MutArray.emptyOf i >>= fmap (Text . Array.unsafeFreeze) . f
+
+force' :: TextB -> Text
+force' (TextB i f) =
+    unsafePerformIO
+        $ MutArray.emptyOf' i >>= fmap (Text . Array.unsafeFreeze) . f
 
 --------------------------------------------------------------------------------
 -- Class
 --------------------------------------------------------------------------------
 
-class Display a where
-    display :: a -> Text
+class Render a where
+    render :: a -> TextB
 
 --------------------------------------------------------------------------------
 -- Decoding Utils
@@ -132,116 +140,85 @@ readEncodingRev :: {- Monad m => -} Text -> Stream m Encoding
 readEncodingRev = undefined
 
 --------------------------------------------------------------------------------
--- Streaming
+-- Construction
+--------------------------------------------------------------------------------
+
+{-# INLINEABLE pack #-}
+pack :: String -> TextB
+pack =
+    build
+        . unsafePerformIO
+        . Stream.fold Array.create
+        . Unicode.encodeUtf8'
+        . Stream.fromList
+
+{-# INLINEABLE append #-}
+append :: TextB -> TextB -> TextB
+append (TextB i f) (TextB j g) = TextB (i + j) (f >=> g)
+
+{-# INLINE ord #-}
+ord :: Char -> Array Word8
+ord =
+    unsafePerformIO
+        . Stream.fold (Array.createOf 4)
+        . Stream.unfold Unicode.readCharUtf8'
+
+{-# INLINEABLE singleton #-}
+singleton :: Char -> TextB
+singleton = build . ord
+
+{-# INLINEABLE empty #-}
+empty :: TextB
+empty = TextB 0 pure
+
+{-# INLINEABLE cons #-}
+cons :: Char -> TextB -> TextB
+cons c s = append (singleton c) s
+
+{-# INLINEABLE snoc #-}
+snoc :: TextB -> Char -> TextB
+snoc s c = append s (singleton c)
+
+{-# INLINEABLE concat #-}
+concat :: [TextB] -> TextB
+concat = foldr mappend mempty
+
+--------------------------------------------------------------------------------
+-- Elimination
 --------------------------------------------------------------------------------
 
 {-# INLINE read #-}
 read :: Monad m => Text -> Stream m Char
 read = Unicode.decodeUtf8 . Array.read . toArray
 
-{-# INLINE ordM #-}
-ordM :: MonadIO m => Char -> m (MutArray Word8)
-ordM = Stream.fold (MutArray.createOf 4) . Stream.unfold Unicode.readCharUtf8'
-
-{-# INLINEABLE appendM #-}
-appendM :: MonadIO m => Text -> Text -> m Text
-appendM (Text a) (Text b) = Text <$> MutArray.spliceExp a b
-
-{-# INLINEABLE append #-}
-append :: Text -> Text -> Text
-append a b = unsafePerformIO $ appendM a b
-
-{-# INLINE create #-}
-create :: MonadIO m => Fold m Char Text
-create =
-    Fold.foldlM' MutArray.spliceExp (MutArray.emptyOf MutArray.blockSize)
-        & Fold.lmapM ordM
-        & fmap Text
-
-{-# INLINE fromStream #-}
-fromStream :: MonadIO m => Stream m Char -> m Text
-fromStream = fmap Text . Stream.fold MutArray.create . Unicode.encodeUtf8'
-
---------------------------------------------------------------------------------
--- Creation and elimination
---------------------------------------------------------------------------------
-
-{-# INLINEABLE pack #-}
-pack :: String -> Text
-pack = unsafePerformIO . fromStream . Stream.fromList
-
 {-# INLINEABLE unpack #-}
 unpack :: Text -> String
 unpack = unsafePerformIO . Stream.fold Fold.toList . read
 
-{-# INLINEABLE singleton #-}
-singleton :: Char -> Text
-singleton = unsafePerformIO . fmap Text . ordM
-
-{-# INLINEABLE empty #-}
-empty :: Text
-empty = Text (Array.unsafeThaw Array.empty)
-
-{-# INLINEABLE rightSizeM #-}
-rightSizeM :: MonadIO m => Text -> m Text
-rightSizeM (Text arr) = Text <$> MutArray.rightSize arr
-
-{-# INLINEABLE rightSize #-}
-rightSize :: Text -> Text
-rightSize = unsafePerformIO . rightSizeM
-
 --------------------------------------------------------------------------------
--- Instances
+-- Elimination
 --------------------------------------------------------------------------------
-
-instance Display Text where
-    display = id
-
-instance Display String where
-    display = pack
-
-instance Display Int where
-    display = pack . show
-
---------------------------------------------------------------------------------
--- QuasiQuoter
---------------------------------------------------------------------------------
-
-text :: QuasiQuoter
-text = strWith [|mconcat|] (appE [|pack|]) (appE [|display|])
-
---------------------------------------------------------------------------------
--- Basic interface
---------------------------------------------------------------------------------
-
-{-# INLINEABLE cons #-}
-cons :: Char -> Text -> Text
-cons c s = append (singleton c) s
-
-{-# INLINEABLE snoc #-}
-snoc :: Text -> Char -> Text
-snoc s c = append s (singleton c)
 
 {-# INLINE uncons #-}
 uncons :: Text -> Maybe (Char, Text)
 uncons txt@(Text arr) = unsafePerformIO $ do
-    let blen = MutArray.byteLength arr
+    let blen = Array.byteLength arr
     val <- Stream.fold Fold.one $ readEncoding txt
     pure $ case val of
         Just (Encoding {..}) ->
             Just ( eChar
-                 , Text (MutArray.unsafeSliceOffLen eSize (blen - eSize) arr)
+                 , Text (Array.unsafeSliceOffLen eSize (blen - eSize) arr)
                  )
         Nothing -> Nothing
 
 {-# INLINE unsnoc #-}
 unsnoc :: Text -> Maybe (Text, Char)
 unsnoc txt@(Text arr) = unsafePerformIO $ do
-    let blen = MutArray.byteLength arr
+    let blen = Array.byteLength arr
     val <- Stream.fold Fold.one $ readEncodingRev txt
     pure $ case val of
         Just (Encoding {..}) ->
-            Just ( Text (MutArray.unsafeSliceOffLen 0 (blen - eSize) arr)
+            Just ( Text (Array.unsafeSliceOffLen 0 (blen - eSize) arr)
                  , eChar
                  )
         Nothing -> Nothing
@@ -264,34 +241,53 @@ init = fmap fst . unsnoc
 
 {-# INLINEABLE null #-}
 null :: Text -> Bool
-null (Text arr) = MutArray.length arr == 0
+null (Text arr) = Array.length arr == 0
 
 {-# INLINEABLE length #-}
 length :: Text -> Int
 length = unsafePerformIO . Stream.fold Fold.length . read
 
-{-# INLINEABLE byteLength #-}
-byteLength :: Text -> Int
-byteLength (Text arr) = MutArray.length arr
-
 --------------------------------------------------------------------------------
--- Appending
+-- Text Instances
 --------------------------------------------------------------------------------
 
-{-# INLINEABLE concatM #-}
-concatM :: MonadIO m => Stream m Text -> m Text
-concatM = fmap Text . MutArray.fromChunksRealloced . fmap toMutArray
+instance Semigroup TextB where
+    (<>) = append
 
-{-# INLINEABLE concat #-}
-concat :: [Text] -> Text
-concat = unsafePerformIO . concatM . Stream.fromList
+instance Monoid TextB where
+    mempty = empty
+    mconcat = foldr mappend mempty
+
+--------------------------------------------------------------------------------
+-- Render Instances
+--------------------------------------------------------------------------------
+
+instance Render TextB where
+    render = id
+
+instance Render Text where
+    render (Text arr) = build arr
+
+instance Render String where
+    render = pack
+
+instance Render Int where
+    render = pack . show
+
+--------------------------------------------------------------------------------
+-- QuasiQuoter
+--------------------------------------------------------------------------------
+
+text :: QuasiQuoter
+text = strWith [|mconcat|] (appE [|render|]) (appE [|render|])
 
 --------------------------------------------------------------------------------
 -- IO
 --------------------------------------------------------------------------------
 
-print :: Display a => a -> IO ()
-print = Handle.putChunk stdout . toArray . display
+print :: Render a => a -> IO ()
+print = Handle.putChunk stdout . toArray . force' . render
 
-printLn :: Display a => a -> IO ()
-printLn = Handle.putChunk stdout . toArray . (<> pack "\n")  . display
+printLn :: Render a => a -> IO ()
+printLn =
+    Handle.putChunk stdout . toArray . force'. (<> singleton '\n') . render

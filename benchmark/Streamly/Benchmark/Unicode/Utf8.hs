@@ -11,7 +11,7 @@
 --------------------------------------------------------------------------------
 
 import Data.Char (chr)
-import Streamly.Internal.Unicode.Utf8 (Text)
+import Streamly.Internal.Unicode.Utf8 (TextB)
 
 import Test.Tasty.Bench hiding (env)
 import Streamly.Benchmark.Common
@@ -30,12 +30,12 @@ moduleName = "Unicode.Stream"
 --------------------------------------------------------------------------------
 
 {-# INLINE pack #-}
-pack :: Int -> Text
+pack :: Int -> TextB
 pack i = Text.pack $ chr <$> [1 .. i]
 
 {-# INLINE packUnpack #-}
 packUnpack :: Int -> String
-packUnpack = Text.unpack . pack
+packUnpack = Text.unpack . Text.force . pack
 
 --------------------------------------------------------------------------------
 -- Main function
