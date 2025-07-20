@@ -1487,15 +1487,14 @@ eqRootLax ignCase Windows a b =
 
 {-# INLINE eqComponentsWith #-}
 eqComponentsWith :: (Unbox a, Integral a) =>
-       Bool
-    -> Bool
+       EqCfg
     -> (Stream Identity a -> Stream Identity Char)
     -> OS
     -> Array a
     -> Array a
     -> Bool
-eqComponentsWith ignCase relEq decoder os a b =
-    if ignCase
+eqComponentsWith EqCfg{..} decoder os a b =
+    if _ignoreCase
     then
         let streamEq x y = runIdentity $ Stream.eqBy (==) x y
             toComponents = fmap (normalizeCaseWith decoder) . splitter os
@@ -1507,7 +1506,7 @@ eqComponentsWith ignCase relEq decoder os a b =
             $ Stream.eqBy
                 Array.byteEq (splitter os a) (splitter os b)
     where
-    splitter = splitPathUsing False (not relEq)
+    splitter = splitPathUsing False (not _allowRelativeEquality)
 
 -- XXX can we do something like SpecConstr for such functions e.g. without
 -- inlining the function we can use two copies one for _allowRelativeEquality
@@ -1517,7 +1516,7 @@ eqComponentsWith ignCase relEq decoder os a b =
 eqPath :: (Unbox a, Integral a) =>
     (Stream Identity a -> Stream Identity Char)
     -> OS -> EqCfg -> Array a -> Array a -> Bool
-eqPath decoder os EqCfg{..} a b =
+eqPath decoder os eqCfg@(EqCfg{..}) a b =
     let (rootA, stemA) = splitRoot os a
         (rootB, stemB) = splitRoot os b
 
@@ -1538,4 +1537,4 @@ eqPath decoder os EqCfg{..} a b =
      in
            eqRelative
         && eqTrailingSep
-        && eqComponentsWith _ignoreCase _allowRelativeEquality decoder os stemA stemB
+        && eqComponentsWith eqCfg decoder os stemA stemB
