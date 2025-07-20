@@ -697,14 +697,17 @@ splitCompact withSep os arr =
 splitPathUsing
     :: (Unbox a, Integral a, Monad m)
     => Bool
+    -> Bool
     -> OS
     -> Array a
     -> Stream m (Array a)
-splitPathUsing withSep os arr =
+splitPathUsing withSep keepLeadingRelRoot os arr =
     let stream = splitCompact withSep os rest
-    in if Array.null root
-       then stream
-       else Stream.cons root1 stream
+    in if keepLeadingRelRoot
+       then if Array.null root
+            then stream
+            else Stream.cons root1 stream
+       else stream
 
     where
 
@@ -721,13 +724,13 @@ splitPathUsing withSep os arr =
 splitPath_
     :: (Unbox a, Integral a, Monad m)
     => OS -> Array a -> Stream m (Array a)
-splitPath_ = splitPathUsing False
+splitPath_ = splitPathUsing False True
 
 {-# INLINE splitPath #-}
 splitPath
     :: (Unbox a, Integral a, Monad m)
     => OS -> Array a -> Stream m (Array a)
-splitPath = splitPathUsing True
+splitPath = splitPathUsing True True
 
 -- | Split the first non-empty path component.
 --
@@ -1485,23 +1488,26 @@ eqRootLax ignCase Windows a b =
 {-# INLINE eqComponentsWith #-}
 eqComponentsWith :: (Unbox a, Integral a) =>
        Bool
+    -> Bool
     -> (Stream Identity a -> Stream Identity Char)
     -> OS
     -> Array a
     -> Array a
     -> Bool
-eqComponentsWith ignCase decoder os a b =
+eqComponentsWith ignCase relEq decoder os a b =
     if ignCase
     then
         let streamEq x y = runIdentity $ Stream.eqBy (==) x y
-            toComponents = fmap (normalizeCaseWith decoder) . splitPath_ os
+            toComponents = fmap (normalizeCaseWith decoder) . splitter os
         -- XXX check perf/fusion
          in runIdentity
                 $ Stream.eqBy streamEq (toComponents a) (toComponents b)
     else
         runIdentity
             $ Stream.eqBy
-                Array.byteEq (splitPath_ os a) (splitPath_ os b)
+                Array.byteEq (splitter os a) (splitter os b)
+    where
+    splitter = splitPathUsing False (not relEq)
 
 -- XXX can we do something like SpecConstr for such functions e.g. without
 -- inlining the function we can use two copies one for _allowRelativeEquality
@@ -1532,4 +1538,4 @@ eqPath decoder os EqCfg{..} a b =
      in
            eqRelative
         && eqTrailingSep
-        && eqComponentsWith _ignoreCase decoder os stemA stemB
+        && eqComponentsWith _ignoreCase _allowRelativeEquality decoder os stemA stemB
