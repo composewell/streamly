@@ -127,7 +127,7 @@ In general, using scans, we can split the stream into multiple streams
 and perform different stateful computations in each branch and then
 merge them back into a single stream.
 
-See "Streamly.Data.Scan" module.
+See "Streamly.Data.Scanl" module.
 
 ### Parser Type
 

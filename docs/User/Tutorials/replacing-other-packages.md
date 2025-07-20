@@ -35,12 +35,12 @@ The streamly modules `Streamly.Data.Stream`, `Streamly.Data.Fold` cover
 the entire `Data.List` functionality as well as split and string search
 functionality. String interpolation is provided by `Streamly.Unicode.String`.
 
-| Package        | Streamly Type | Combinators                  |
-|----------------|---------------|------------------------------|
-| base/Data.List | Stream        |                              |
-| interpolate    |               | str                          |
-| split          | Stream, Fold  | splitOn, takeEndBy etc       |
-| stringsearch   | Stream, Fold  | splitOnSeq, takeEndBySeq etc |
+| Package        | Streamly Type | Combinators                      |
+|----------------|---------------|----------------------------------|
+| base/Data.List | Stream        |                                  |
+| interpolate    |               | str                              |
+| split          | Stream, Fold  | splitSepBy_, takeEndBy etc       |
+| stringsearch   | Stream, Fold  | splitSepBySeq_, takeEndBySeq etc |
 
 Note that `Data.List` can be easy to use and just enough in many use
 cases. However, it can be limiting in other cases e.g. if you have to
@@ -57,16 +57,16 @@ the Rust ripgrep performance.
 
 ## Streaming
 
-The streamly modules `Streamly.Data.Stream`, `Streamly.Data.Scan` and
+The streamly modules `Streamly.Data.Stream`, `Streamly.Data.Scanl` and
 `Streamly.Data.Fold` cover the streaming functionality with superior
 performance compared to any other packages.
 
 | Package        | Streamly Type                     |
 |----------------|-----------------------------------|
-| streaming      | Stream, Scan, Fold                |
-| pipes          | Stream, Scan, Fold                |
-| conduit        | Stream, Scan, Fold                |
-| foldl          | Scan, Fold                        |
+| streaming      | Stream, Scanl, Fold                |
+| pipes          | Stream, Scanl, Fold                |
+| conduit        | Stream, Scanl, Fold                |
+| foldl          | Scanl, Fold                        |
 
 ## List Transformer and Logic Programming
 
@@ -225,23 +225,15 @@ The relevant modules in streamly are:
 * `Streamly.FileSystem.DirIO`
 * `Streamly.FileSystem.FileIO`
 * `Streamly.FileSystem.Handle`
-* `Streamly.Internal.FileSystem.Event`
-* `Streamly.Internal.FileSystem.Event.Linux`
-* `Streamly.Internal.FileSystem.Event.Darwin`
-* `Streamly.Internal.FileSystem.Event.Windows`
 
 | Package               | Streamly Module                            |
 |-----------------------|--------------------------------------------|
 | base/System.IO        | Streamly.FileSystem.FileIO,Handle          |
 | filepath              | Streamly.FileSystem.Path                   |
-| path                  | Streamly.Internal.FileSystem.Path.LocSeg   |
-| path                  | Streamly.Internal.FileSystem.Path.FileDir  |
-| path                  | Streamly.Internal.FileSystem.Path.Typed    |
+| path                  | Streamly.Internal.FileSystem.Path.SegNode  |
+| path                  | Streamly.Internal.FileSystem.Path.Seg      |
+| path                  | Streamly.Internal.FileSystem.Path.Node     |
 | directory             | Streamly.FileSystem.DirIO                  |
-| fsnotify              | Streamly.Internal.FileSystem.Event         |
-| fsnotify              | Streamly.Internal.FileSystem.Event.Windows |
-| hinotify              | Streamly.Internal.FileSystem.Event.Linux   |
-| hfsevents             | Streamly.Internal.FileSystem.Event.Darwin  |
 
 ## Network
 
