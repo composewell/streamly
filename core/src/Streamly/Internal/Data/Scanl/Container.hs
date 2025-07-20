@@ -22,9 +22,9 @@ module Streamly.Internal.Data.Scanl.Container
     -- , frequency
 
     -- ** Demultiplexing
-    -- | Direct values in the input stream to different folds using an n-ary
-    -- fold selector. 'demux' is a generalization of 'classify' (and
-    -- 'partition') where each key of the classifier can use a different fold.
+    -- | Direct values in the input stream to different scans using an n-ary
+    -- scan selector. 'demux' is a generalization of 'classify' (and
+    -- 'partition') where each key of the classifier can use a different scan.
     --
     -- You need to see only 'demux' if you are looking to find the capabilities
     -- of these combinators, all others are variants of that.
@@ -62,7 +62,7 @@ module Streamly.Internal.Data.Scanl.Container
     -- | In an input stream of key value pairs fold values for different keys
     -- in individual output buckets using the given fold. 'classify' is a
     -- special case of 'demux' where all the branches of the demultiplexer use
-    -- the same fold.
+    -- the same scan.
     --
     -- Different types of maps can be used with these combinators via the IsMap
     -- type class. Hashmap performs better when there are more collisions, trie
@@ -374,7 +374,7 @@ demux getKey = fmap snd . demuxUsingMap getKey
 -- XXX We can use the Scan drain step to drain the buffered map in the end.
 
 -- | This is specialized version of 'demuxGeneric' that uses mutable IO cells
--- as fold accumulators for better performance.
+-- as scan accumulators for better performance.
 --
 -- Keep in mind that the values in the returned Map may be changed by the
 -- ongoing scan if you are using those concurrently in another thread.
@@ -584,8 +584,8 @@ classifyGeneric f (Scanl step1 initial1 extract1 final1) =
 
     where
 
-    -- XXX Instead of keeping a Set, after a fold terminates just install a
-    -- fold that always returns Partial/Nothing.
+    -- XXX Instead of keeping a Set, after a scan terminates just install a
+    -- scan that always returns Partial/Nothing.
     initial = return $ Tuple3' IsMap.mapEmpty Set.empty Nothing
 
     {-# INLINE initFold #-}

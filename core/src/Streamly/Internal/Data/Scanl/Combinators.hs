@@ -30,14 +30,14 @@ module Streamly.Internal.Data.Scanl.Combinators
     -- , rollingHashLastN
 
     -- *** Saturating Reducers
-    -- | 'product' terminates if it becomes 0. Other folds can theoretically
+    -- | 'product' terminates if it becomes 0. Other scans can theoretically
     -- saturate on bounded types, and therefore terminate, however, they will
     -- run forever on unbounded types like Integer/Double.
     , sum
     , product
 
     -- *** Collectors
-    -- | Avoid using these folds in scalable or performance critical
+    -- | Avoid using these scans in scalable or performance critical
     -- applications, they buffer all the input in GC memory which can be
     -- detrimental to performance if the input is large.
     , toListRev
@@ -51,7 +51,7 @@ module Streamly.Internal.Data.Scanl.Combinators
 
     -- *** Scanners
     -- | Stateful transformation of the elements. Useful in combination with
-    -- the 'postscanlMaybe' combinator. For scanners the result of the fold is
+    -- the 'postscanlMaybe' combinator. For scanners the result of the scan is
     -- usually a transformation of the current element rather than an
     -- aggregation of all elements till now.
  -- , nthLast -- using RingArray array
@@ -71,16 +71,16 @@ module Streamly.Internal.Data.Scanl.Combinators
     , elemIndices
 
     {-
-    -- *** Singleton folds
-    -- | Folds that terminate after consuming exactly one input element. All
-    -- these can be implemented in terms of the 'maybe' fold.
+    -- *** Singleton scans
+    -- | Scans that terminate after consuming exactly one input element. All
+    -- these can be implemented in terms of the 'maybe' scan.
     , one
     , null -- XXX not very useful and could be problematic, remove it?
     , satisfy
     , maybe
     -}
 
-    -- *** Multi folds
+    -- *** Multi scans
     -- | Terminate after consuming one or more elements.
     , drainN
     {-
@@ -111,7 +111,7 @@ module Streamly.Internal.Data.Scanl.Combinators
     , droppingWhile
     , prune
 
-    -- -- * Running A Fold
+    -- -- * Running A Scanl
     -- , drive
     -- , breakStream
 
@@ -356,8 +356,8 @@ addStream stream = drive stream . duplicate
 mapMaybeM :: Monad m => (a -> m (Maybe b)) -> Scanl m b r -> Scanl m a r
 mapMaybeM f = lmapM f . catMaybes
 
--- | @mapMaybe f fold@ maps a 'Maybe' returning function @f@ on the input of
--- the fold, filters out 'Nothing' elements, and return the values extracted
+-- | @mapMaybe f scan@ maps a 'Maybe' returning function @f@ on the input of
+-- the scan, filters out 'Nothing' elements, and return the values extracted
 -- from 'Just'.
 --
 -- >>> mapMaybe f = Scanl.lmap f . Scanl.catMaybes
@@ -373,7 +373,7 @@ mapMaybe :: Monad m => (a -> Maybe b) -> Scanl m b r -> Scanl m a r
 mapMaybe f = lmap f . catMaybes
 
 ------------------------------------------------------------------------------
--- Transformations on fold inputs
+-- Transformations on scan inputs
 ------------------------------------------------------------------------------
 
 -- XXX rather scanl the input of a pipe? And scanr the output?
@@ -381,7 +381,7 @@ mapMaybe f = lmap f . catMaybes
 -- Can we do this too (in the pipe module):
 -- pipe :: Monad m => Scanl m a b -> Pipe m b c -> Pipe m a c
 
--- | Attach a 'Pipe' on the input of a 'Fold'.
+-- | Attach a 'Pipe' on the input of a 'Scanl'.
 --
 -- /Pre-release/
 {-# INLINE pipe #-}
@@ -407,8 +407,8 @@ pipe (Pipe consume produce pinitial) (Scanl fstep finitial fextract ffinal) =
                       Partial s -> Partial $ Tuple' cs1 s
                       Done b1 -> Done b1
         -- XXX this case is recursive may cause fusion issues.
-        -- To remove recursion we will need a produce mode in folds which makes
-        -- folds similar to pipes except that they do not yield intermediate
+        -- To remove recursion we will need a produce mode in scans which makes
+        -- scans similar to pipes except that they do not yield intermediate
         -- values.
         go acc (Pipe.YieldP ps1 b) = do
             acc1 <- fstep acc b
@@ -424,7 +424,7 @@ pipe (Pipe consume produce pinitial) (Scanl fstep finitial fextract ffinal) =
             go acc r
         -- XXX a Stop in consumer means we dropped the input.
         -- XXX Need to use a "Done b" in pipes as well to represent the same
-        -- behavior as folds.
+        -- behavior as scans.
         go acc Pipe.Stop = Done <$> ffinal acc
 
     extract (Tuple' _ fs) = fextract fs
@@ -687,7 +687,7 @@ repeated :: -- (Monad m, Eq a) =>
 repeated = error "Not implemented yet!"
 
 ------------------------------------------------------------------------------
--- Left folds
+-- Left scans
 ------------------------------------------------------------------------------
 
 ------------------------------------------------------------------------------
@@ -745,7 +745,7 @@ sum :: (Monad m, Num a) => Scanl m a a
 sum = Scanl.cumulativeScan Scanl.incrSum
 
 -- | Determine the product of all elements of a stream of numbers. Returns
--- multiplicative identity (@1@) when the stream is empty. The fold terminates
+-- multiplicative identity (@1@) when the stream is empty. The scan terminates
 -- when it encounters (@0@) in its input.
 --
 -- Same as the following but terminates on multiplication by @0@:
@@ -829,7 +829,7 @@ rollingHashFirstN :: (Monad m, Enum a) => Int -> Scanl m a Int64
 rollingHashFirstN n = take n rollingHash
 
 ------------------------------------------------------------------------------
--- Monoidal left folds
+-- Monoidal left scans
 ------------------------------------------------------------------------------
 
 -- | Semigroup concat. Append the elements of an input stream to a provided
@@ -847,7 +847,7 @@ rollingHashFirstN n = take n rollingHash
 sconcat :: (Monad m, Semigroup a) => a -> Scanl m a a
 sconcat = mkScanl (<>)
 
--- | Monoid concat. Fold an input stream consisting of monoidal elements using
+-- | Monoid concat. Scan an input stream consisting of monoidal elements using
 -- 'mappend' and 'mempty'.
 --
 -- Definition:
@@ -869,7 +869,7 @@ mconcat = sconcat mempty
 --
 -- >>> foldMap f = Scanl.lmap f Scanl.mconcat
 --
--- Make a fold from a pure function that folds the output of the function
+-- Make a scan from a pure function that scans the output of the function
 -- using 'mappend' and 'mempty'.
 --
 -- >>> sum = Scanl.foldMap Data.Monoid.Sum
@@ -885,7 +885,7 @@ foldMap f = lmap f mconcat
 --
 -- >>> foldMapM f = Scanl.lmapM f Scanl.mconcat
 --
--- Make a fold from a monadic function that folds the output of the function
+-- Make a scan from a monadic function that scans the output of the function
 -- using 'mappend' and 'mempty'.
 --
 -- >>> sum = Scanl.foldMapM (return . Data.Monoid.Sum)
@@ -926,10 +926,10 @@ toListRev :: Monad m => Scanl m a [a]
 toListRev = mkScanl (flip (:)) []
 
 ------------------------------------------------------------------------------
--- Partial Folds
+-- Partial Scans
 ------------------------------------------------------------------------------
 
--- | A fold that drains the first n elements of its input, running the effects
+-- | A scan that drains the first n elements of its input, running the effects
 -- and discarding the results.
 --
 -- Definition:
@@ -1729,7 +1729,7 @@ tee = teeWith (,)
 
 -- XXX use unboxed Array for output to scale it to a large number of consumers?
 
--- | Distribute one copy of the stream to each fold and collect the results in
+-- | Distribute one copy of the stream to each scan and collect the results in
 -- a container.
 --
 -- @
@@ -1788,7 +1788,7 @@ data PartState sL sR = PartLeft !sL !sR | PartRight !sL !sR
 --                                     |-------Scanl c y--------|
 -- @
 --
--- Example, send input to either fold randomly:
+-- Example, send input to either scan randomly:
 --
 -- >>> :set -package random
 -- >>> import System.Random (randomIO)
@@ -1797,7 +1797,7 @@ data PartState sL sR = PartLeft !sL !sR | PartRight !sL !sR
 -- >>> Stream.toList $ Stream.scanl f (Stream.enumerateFromTo 1 10)
 -- ...
 --
--- Example, send input to the two folds in a proportion of 2:1:
+-- Example, send input to the two scans in a proportion of 2:1:
 --
 -- >>> :set -fno-warn-unrecognised-warning-flags
 -- >>> :set -fno-warn-x-partial
@@ -1888,7 +1888,7 @@ partitionByMinM = partitionByMUsing teeWithMin
 -}
 
 -- Note: we could use (a -> Bool) instead of (a -> Either b c), but the latter
--- makes the signature clearer as to which case belongs to which fold.
+-- makes the signature clearer as to which case belongs to which scan.
 -- XXX need to check the performance in both cases.
 
 -- | Same as 'partitionByM' but with a pure partition function.
@@ -1909,9 +1909,9 @@ partitionBy :: Monad m
     => (a -> Either b c) -> Scanl m b x -> Scanl m c x -> Scanl m a x
 partitionBy f = partitionByM (return . f)
 
--- | Compose two folds such that the combined fold accepts a stream of 'Either'
--- and routes the 'Left' values to the first fold and 'Right' values to the
--- second fold.
+-- | Compose two scans such that the combined scan accepts a stream of 'Either'
+-- and routes the 'Left' values to the first scan and 'Right' values to the
+-- second scan.
 --
 -- Definition:
 --
@@ -1946,8 +1946,8 @@ unzipWithMUsing :: Monad m =>
     -> Scanl m c y
     -> Scanl m a (x, y)
 unzipWithMUsing t f fld1 fld2 =
-    let f1 = lmap fst fld1  -- :: Fold m (b, c) b
-        f2 = lmap snd fld2  -- :: Fold m (b, c) c
+    let f1 = lmap fst fld1  -- :: Scanl m (b, c) b
+        f2 = lmap snd fld2  -- :: Scanl m (b, c) c
      in lmapM f (t (,) f1 f2)
 
 -- | Like 'unzipWith' but with a monadic splitter function.
@@ -1979,7 +1979,7 @@ unzipWithMaxM = unzipWithMUsing teeWithMax
 -}
 
 -- | Split elements in the input stream into two parts using a pure splitter
--- function, direct each part to a different fold and zip the results.
+-- function, direct each part to a different scan and zip the results.
 --
 -- Definitions:
 --
@@ -1995,7 +1995,7 @@ unzipWith :: Monad m
 unzipWith f = unzipWithM (return . f)
 
 -- | Send the elements of tuples in a stream of tuples through two different
--- folds.
+-- scans.
 --
 -- @
 --
@@ -2016,7 +2016,7 @@ unzip :: Monad m => Scanl m a x -> Scanl m b y -> Scanl m (a,b) (x,y)
 unzip = unzipWith id
 
 ------------------------------------------------------------------------------
--- Combining streams and folds - Zipping
+-- Combining streams and scans - Zipping
 ------------------------------------------------------------------------------
 
 -- XXX These can be implemented using the fold scan, using the stream as a
@@ -2028,7 +2028,7 @@ unzip = unzipWith id
 -- cmpBy, eqBy, isPrefixOf, isSubsequenceOf etc can be implemented using
 -- zipStream.
 
--- | Zip a stream with the input of a fold using the supplied function.
+-- | Zip a stream with the input of a scan using the supplied function.
 --
 -- /Unimplemented/
 --
@@ -2037,7 +2037,7 @@ zipStreamWithM :: -- Monad m =>
     (a -> b -> m c) -> Stream m a -> Scanl m c x -> Scanl m b x
 zipStreamWithM = undefined
 
--- | Zip a stream with the input of a fold.
+-- | Zip a stream with the input of a scan.
 --
 -- >>> zip = Scanl.zipStreamWithM (curry return)
 --
@@ -2074,7 +2074,7 @@ indexing = indexingWith 0 (+ 1)
 indexingRev :: Monad m => Int -> Scanl m a (Maybe (Int, a))
 indexingRev n = indexingWith n (subtract 1)
 
--- | Pair each element of a fold input with its index, starting from index 0.
+-- | Pair each element of a scan input with its index, starting from index 0.
 --
 -- >>> indexed = Scanl.postscanlMaybe Scanl.indexing
 --
@@ -2082,7 +2082,7 @@ indexingRev n = indexingWith n (subtract 1)
 indexed :: Monad m => Scanl m (Int, a) b -> Scanl m a b
 indexed = postscanlMaybe indexing
 
--- | Change the predicate function of a Fold from @a -> b@ to accept an
+-- | Change the predicate function of a Scanl from @a -> b@ to accept an
 -- additional state input @(s, a) -> b@. Convenient to filter with an
 -- addiitonal index or time input.
 --
@@ -2146,7 +2146,7 @@ chunksBetween :: -- Monad m =>
 chunksBetween _low _high _f1 _f2 = undefined
 -}
 
--- | A fold that buffers its input to a pure stream.
+-- | A scan that buffers its input to a pure stream.
 --
 -- /Warning!/ working on large streams accumulated as buffers in memory could
 -- be very inefficient, consider using "Streamly.Data.Array" instead.
@@ -2179,7 +2179,7 @@ toStreamRev = fmap StreamD.fromList toListRev
 -- XXX This does not fuse. It contains a recursive step function. We will need
 -- a Skip input constructor in the fold type to make it fuse.
 
--- | Unfold and flatten the input stream of a fold.
+-- | Unfold and flatten the input stream of a scan.
 --
 -- @
 -- Stream.scanl (unfoldMany u f) == Stream.scanl f . Stream.unfoldMany u
@@ -2264,7 +2264,7 @@ topBy :: (MonadIO m, Unbox a) =>
     -> Scanl m a (MutArray a)
 topBy cmp = bottomBy (flip cmp)
 
--- | Fold the input stream to top n elements.
+-- | Scan the input stream to top n elements.
 --
 -- Definition:
 --
@@ -2279,7 +2279,7 @@ topBy cmp = bottomBy (flip cmp)
 top :: (MonadIO m, Unbox a, Ord a) => Int -> Scanl m a (MutArray a)
 top = bottomBy $ flip compare
 
--- | Fold the input stream to bottom n elements.
+-- | Scan the input stream to bottom n elements.
 --
 -- Definition:
 --
