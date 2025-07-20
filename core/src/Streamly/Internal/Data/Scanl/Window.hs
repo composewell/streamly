@@ -19,8 +19,8 @@
 -- For more advanced statistical measures see the @streamly-statistics@
 -- package.
 
--- XXX A window fold can be driven either using the RingArray.slidingWindow
--- combinator or by zipping nthLast fold and last fold.
+-- XXX A window scan can be driven either using the RingArray.slidingWindow
+-- combinator or by zipping nthLast scan and last scan.
 
 module Streamly.Internal.Data.Scanl.Window
     (
@@ -37,7 +37,7 @@ module Streamly.Internal.Data.Scanl.Window
     -- inserted in the window, the window size remains the same. The window
     -- size can only increase and never decrease.
     --
-    -- You can compute the statistics over the entire stream using window folds
+    -- You can compute the statistics over the entire stream using window scans
     -- by always supplying input of type @Insert a@.
     --
     -- The incremental scans are converted into scans over a window using the
@@ -221,7 +221,7 @@ incrScanWith n (Scanl step1 initial1 extract1 final1) =
 -- require all the intermediate elements in each step of the scan computation.
 -- This maintains @n@ elements in the window, when a new element comes it
 -- slides out the oldest element. The new element along with the old element
--- are supplied to the collector fold.
+-- are supplied to the collector scan.
 --
 {-# INLINE incrScan #-}
 incrScan :: forall m a b. (MonadIO m, Unbox a)
@@ -453,7 +453,7 @@ windowRange n = Scanl step initial extract extract
         RingArray _ _ rh1 <- RingArray.replace_ (RingArray mba (n * SIZE_OF(a)) rh) a
         return $ Partial $ Tuple3Fused' mba rh1 (i + 1)
 
-    -- XXX exitify optimization causes a problem here when modular folds are
+    -- XXX exitify optimization causes a problem here when modular scans are
     -- used. Sometimes inlining "extract" is helpful.
     -- {-# INLINE extract #-}
     extract (Tuple3Fused' mba rh i) =

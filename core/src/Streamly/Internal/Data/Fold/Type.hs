@@ -791,7 +791,7 @@ foldtM' step initial extract = Fold step initial extract extract
 ------------------------------------------------------------------------------
 
 -- This is similar to how we run an Unfold to generate a Stream. A Fold is like
--- a Stream and a Fold2 is like an Unfold.
+-- a Stream and a Refold is like an Unfold.
 --
 -- | Make a fold from a consumer.
 --

@@ -80,7 +80,7 @@ module Streamly.Data.Scanl
     , nub
     , nubInt
 
-    -- ** Terminating Folds
+    -- ** Terminating Scans
     -- , satisfy
     -- , maybe
 

@@ -74,7 +74,7 @@ module Streamly.Internal.Data.Scanl.Type
     (
       module Streamly.Internal.Data.Fold.Step
 
-    -- * Fold Type
+    -- * Scanl Type
     , Scanl (..)
 
     -- * Constructors
@@ -211,7 +211,7 @@ import Streamly.Internal.Data.Fold.Step
 #include "DocTestDataScanl.hs"
 
 ------------------------------------------------------------------------------
--- The Fold type
+-- The Scanl type
 ------------------------------------------------------------------------------
 
 -- An fold is akin to a writer. It is the streaming equivalent of a writer.
@@ -242,44 +242,39 @@ import Streamly.Internal.Data.Fold.Step
 -- scan generates an ouput at each input, there should be nothing remaining to
 -- be emitted during finalization.
 
--- | The type @Fold m a b@ represents a consumer of an input stream of values
+-- | The type @Scanl m a b@ represents a consumer of an input stream of values
 -- of type @a@ and returning a final value of type @b@ in 'Monad' @m@. The
--- constructor of a fold is @Fold step initial extract final@.
+-- constructor of a scan is @Scanl step initial extract final@.
 --
--- The fold uses an internal state of type @s@. The initial value of the state
+-- The scan uses an internal state of type @s@. The initial value of the state
 -- @s@ is created by @initial@. This function is called once and only once
--- before the fold starts consuming input. Any resource allocation can be done
+-- before the scan starts consuming input. Any resource allocation can be done
 -- in this function.
 --
 -- The @step@ function is called on each input, it consumes an input and
 -- returns the next intermediate state (see 'Step') or the final result @b@ if
--- the fold terminates.
+-- the scan terminates.
 --
--- If the fold is used as a scan, the @extract@ function is used by the scan
--- driver to map the current state @s@ of the fold to the fold result. Thus
--- @extract@ can be called multiple times. In some folds, where scanning does
--- not make sense, this function is left unimplemented; such folds cannot be
--- used as scans.
+-- The @extract@ function is used by the scan
+-- driver to map the current state @s@ of the scan to the scan result. Thus
+-- @extract@ can be called multiple times.
 --
--- Before a fold terminates, @final@ is called once and only once (unless the
--- fold terminated in @initial@ itself). Any resources allocated by @initial@
--- can be released in @final@. In folds that do not require any cleanup
+-- Before a scan terminates, @final@ is called once and only once (unless the
+-- scan terminated in @initial@ itself). Any resources allocated by @initial@
+-- can be released in @final@. In scan that do not require any cleanup
 -- @extract@ and @final@ are typically the same.
 --
--- When implementing fold combinators, care should be taken to cleanup any
+-- When implementing scan combinators, care should be taken to cleanup any
 -- state of the argument folds held by the fold by calling the respective
--- @final@ at all exit points of the fold. Also, @final@ should not be called
--- more than once. Note that if a fold terminates by 'Done' constructor, there
+-- @final@ at all exit points of the scan. Also, @final@ should not be called
+-- more than once. Note that if a scan terminates by 'Done' constructor, there
 -- is no state to cleanup.
 --
 -- NOTE: The constructor is not yet released, smart constructors are provided
--- to create folds.
+-- to create scans.
 --
 data Scanl m a b =
-  -- XXX Since we have scans now, we can remove the extract function.
-  -- XXX initial can be made pure, like in streams, we can add effects by using
-  -- bracket like operations.
-  -- | @Fold@ @step@ @initial@ @extract@ @final@
+  -- | @Scanl@ @step@ @initial@ @extract@ @final@
   forall s. Scanl (s -> a -> m (Step s b)) (m (Step s b)) (s -> m b) (s -> m b)
 
 {-
@@ -304,7 +299,7 @@ data Scanl m a b =
 -- Mapping on the output
 ------------------------------------------------------------------------------
 
--- | Map a monadic function on the output of a fold.
+-- | Map a monadic function on the output of a scan.
 --
 {-# INLINE rmapM #-}
 rmapM :: Monad m => (b -> m c) -> Scanl m a b -> Scanl m a c
@@ -343,7 +338,7 @@ mkScanlM :: Monad m => (b -> a -> m b) -> m b -> Scanl m a b
 mkScanlM step initial =
     Scanl (\s a -> Partial <$> step s a) (Partial <$> initial) return return
 
--- | Maps a function on the output of the fold (the type @b@).
+-- | Maps a function on the output of the scan (the type @b@).
 instance Functor m => Functor (Scanl m a) where
     {-# INLINE fmap #-}
     fmap f (Scanl step1 initial1 extract final) =
@@ -461,7 +456,7 @@ mkScanrM g z =
     rmapM (z >>=) $ mkScanlM (\f x -> return $ g x >=> f) (return return)
 
 ------------------------------------------------------------------------------
--- General fold constructors
+-- General scan constructors
 ------------------------------------------------------------------------------
 
 -- XXX If the Step yield gives the result each time along with the state then
@@ -478,7 +473,7 @@ mkScanrM g z =
 -- XXX The above text would apply to
 -- Streamly.Internal.Data.Parser.ParserD.Type.parser
 
--- | Make a terminating fold using a pure step function, a pure initial state
+-- | Make a terminating scan using a pure step function, a pure initial state
 -- and a pure state extraction function.
 --
 -- /Pre-release/
@@ -492,7 +487,7 @@ mkScant step initial extract =
         (return . extract)
         (return . extract)
 
--- | Make a terminating fold with an effectful step function and initial state,
+-- | Make a terminating scan with an effectful step function and initial state,
 -- and a state extraction function.
 --
 -- >>> mkScantM = Scanl.Scanl
@@ -512,7 +507,7 @@ mkScantM step initial extract = Scanl step initial extract extract
 -- This is similar to how we run an Unfold to generate a Stream. A Fold is like
 -- a Stream and a Fold2 is like an Unfold.
 
--- | Make a fold from a consumer.
+-- | Make a scan from a consumer.
 --
 -- /Internal/
 fromRefold :: Refold m c a b -> c -> Scanl m a b
@@ -520,7 +515,7 @@ fromRefold (Refold step inject extract) c =
     Scanl step (inject c) extract extract
 
 ------------------------------------------------------------------------------
--- Basic Folds
+-- Basic Scans
 ------------------------------------------------------------------------------
 
 -- | A scan that drains all its input, running the effects and discarding the
