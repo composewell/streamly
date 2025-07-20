@@ -1495,7 +1495,7 @@ ignoreCase val conf = conf { _ignoreCase = val }
 -- >>> eq "./x"  "x"
 -- True
 --
--- >> eq "./x"  "././x" -- XXX needs to be fixed
+-- >>> eq "./x"  "././x"
 -- True
 --
 -- /Default/: False
