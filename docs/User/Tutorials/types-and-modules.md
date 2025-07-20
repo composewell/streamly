@@ -10,7 +10,7 @@ The following table lists the modules and types for monadic stream producers
 | Streamly.Data.Stream  | Stream m a    | Streams using stream fusion, for static composition        |
 | Streamly.Data.Unfold  | Unfold m a b  | Streams using nested stream fusion, for static composition |
 | Streamly.Data.StreamK | StreamK m a   | Streams using CPS, for dynamic composition                 |
-| Streamly.Data.Scan    | Scan m a b    | Scans using stream fusion, for static composition          |
+| Streamly.Data.Scanl   | Scanl m a b   | Scans using stream fusion, for static composition          |
 | Streamly.Data.Fold    | Fold m a b    | Folds using stream fusion, for static composition          |
 | Streamly.Data.Parser  | Parser a m b  | Parsers using stream fusion, for static composition        |
 | Streamly.Data.ParserK | ParserK a m b | Parsers using CPS, for dynamic composition                 |
@@ -62,16 +62,12 @@ File system path representation:
 
 Console and file system operations:
 
-| Module                                     | Description                                      |
-|--------------------------------------------|--------------------------------------------------|
-| Streamly.Console.Stdio                     | Console standard input, output, error operations |
-| Streamly.FileSystem.Handle                 | Handle based read/write operations               |
-| Streamly.FileSystem.FileIO                 | File path based read, write operations           |
-| Streamly.FileSystem.DirIO                  | Directory read operations                        |
-| Streamly.Internal.FileSystem.Event         | File system event notification streams           |
-| Streamly.Internal.FileSystem.Event.Windows | Event notification streams for Windows           |
-| Streamly.Internal.FileSystem.Event.Linux   | Event notification streams for Linux             |
-| Streamly.Internal.FileSystem.Event.Darwin  | Event notification streams for macOS             |
+| Module                     | Description                                      |
+|----------------------------|--------------------------------------------------|
+| Streamly.Console.Stdio     | Console standard input, output, error operations |
+| Streamly.FileSystem.Handle | Handle based read/write operations               |
+| Streamly.FileSystem.FileIO | File path based read, write operations           |
+| Streamly.FileSystem.DirIO  | Directory read operations                        |
 
 ## Network Operations
 
