@@ -693,6 +693,29 @@ splitCompact withSep os arr =
             -- is False.
             || (withSep && sepFilter (off, len))
 
+-- Split a path into its components.
+--
+-- Usage:
+-- @
+-- splitPathUsing withSep ignoreLeading os arr
+-- @
+--
+-- if withSep == True then keep the trailing separators.
+--
+-- if ignoreLeading == True we drop all leading separators and relative paths.
+-- Example behaviour (psuedo-code):
+-- @
+-- > f = splitPathUsing (withSep = False) (ignoreLeading = True)
+-- > f "./a/b/c" == ["a","b","c"]
+-- > f "./a/./b/c" == ["a","b","c"]
+-- > f "/a/./b/c" == ["a","b","c"]
+-- > f "/./a/./b/c" == ["a","b","c"]
+-- > f "././a/./b/c" == ["a","b","c"]
+-- > f "a/./b/c" == ["a","b","c"]
+-- @
+--
+-- We can safely set @ignoreLeading = True@ if we splitRoot prior and only pass
+-- the stem of the path to this function.
 {-# INLINE splitPathUsing #-}
 splitPathUsing
     :: (Unbox a, Integral a, Monad m)
@@ -701,13 +724,11 @@ splitPathUsing
     -> OS
     -> Array a
     -> Stream m (Array a)
-splitPathUsing withSep keepLeadingRelRoot os arr =
+splitPathUsing withSep ignoreLeading os arr =
     let stream = splitCompact withSep os rest
-    in if keepLeadingRelRoot
-       then if Array.null root
-            then stream
-            else Stream.cons root1 stream
-       else stream
+    in if ignoreLeading || Array.null root
+       then stream
+       else Stream.cons root1 stream
 
     where
 
@@ -724,13 +745,13 @@ splitPathUsing withSep keepLeadingRelRoot os arr =
 splitPath_
     :: (Unbox a, Integral a, Monad m)
     => OS -> Array a -> Stream m (Array a)
-splitPath_ = splitPathUsing False True
+splitPath_ = splitPathUsing False False
 
 {-# INLINE splitPath #-}
 splitPath
     :: (Unbox a, Integral a, Monad m)
     => OS -> Array a -> Stream m (Array a)
-splitPath = splitPathUsing True True
+splitPath = splitPathUsing True False
 
 -- | Split the first non-empty path component.
 --
@@ -1506,7 +1527,7 @@ eqComponentsWith EqCfg{..} decoder os a b =
             $ Stream.eqBy
                 Array.byteEq (splitter os a) (splitter os b)
     where
-    splitter = splitPathUsing False (not _allowRelativeEquality)
+    splitter = splitPathUsing False _allowRelativeEquality
 
 -- XXX can we do something like SpecConstr for such functions e.g. without
 -- inlining the function we can use two copies one for _allowRelativeEquality
