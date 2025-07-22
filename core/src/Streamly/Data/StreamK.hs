@@ -82,8 +82,10 @@ module Streamly.Data.StreamK
     -- * Type
       StreamK
 
-    -- * Cross (List Transformer)
+    -- * Cross
+    -- | List transformers and logic programming monads.
     , Cross(..)
+    , FairCross(..)
 
     -- * Construction
     -- ** Primitives
@@ -175,6 +177,8 @@ module Streamly.Data.StreamK
     , bindWith
     , concatMapWith
     , mergeMapWith
+    , concatMapInterleave
+    , concatMapDiagonal
 
     -- * Buffered Operations
     , reverse
