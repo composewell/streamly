@@ -25,6 +25,7 @@ module Streamly.Internal.Data.StreamK.Type
 
     -- * Cross type wrapper
     , Cross(..)
+    , FairCross(..)
 
     -- * foldr/build Fusion
     , mkStream
@@ -106,6 +107,7 @@ module Streamly.Internal.Data.StreamK.Type
     , map
     , mapMWith
     , mapMSerial
+    , mapMAccum
 
     -- * Combining Two Streams
     -- ** Appending
@@ -130,8 +132,11 @@ module Streamly.Internal.Data.StreamK.Type
     , concatEffect
     , concatMapEffect
     , concatMapWith
-    , concatMap
     , bindWith
+    , concatMap
+    , concatMapInterleave
+    , concatMapDiagonal
+    , concatMapMAccum
     , concatIterateWith
     , concatIterateLeftsWith
     , concatIterateScanWith
@@ -155,7 +160,7 @@ where
 #include "inline.hs"
 
 -- import Control.Applicative (liftA2)
-import Control.Monad ((>=>))
+import Control.Monad ((>=>), ap)
 import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.Trans.Class (MonadTrans(lift))
 #if !MIN_VERSION_base(4,18,0)
@@ -205,6 +210,8 @@ import Prelude hiding
 -- single element.  We build singleton streams in the implementation of 'pure'
 -- for Applicative and Monad, and in 'lift' for MonadTrans.
 
+-- XXX can we replace it with a direct style type? With foldr/build fusion.
+-- StreamK (m (Maybe (a, StreamK m a)))
 -- XXX remove the State param.
 
 -- | Continuation Passing Style (CPS) version of "Streamly.Data.Stream.Stream".
@@ -901,10 +908,24 @@ null m =
 
 infixr 6 `append`
 
--- | Unlike "Streamly.Data.Stream" append StreamK append can be used
--- recursively:
+-- | Unlike the fused "Streamly.Data.Stream" append, StreamK append can be used
+-- at scale, recursively, with linear performance:
 --
 -- >>> cycle xs = let ys = xs `StreamK.append` ys in ys
+--
+-- 'concatMapWith' 'append' (same as concatMap) flattens a stream of streams in a
+-- depth-first manner i.e. it yields each stream fully and then the next and so
+-- on. Given a stream of three streams:
+--
+-- @
+-- 1. [1,2,3]
+-- 2. [4,5,6]
+-- 3. [7,8,9]
+-- @
+--
+-- The resulting stream will be @[1,2,3,4,5,6,7,8,9]@.
+--
+-- Best used in a right associative manner.
 --
 {-# INLINE append #-}
 append :: StreamK m a -> StreamK m a -> StreamK m a
@@ -1020,6 +1041,76 @@ mapMWith cns f = go
 -- high level modules/prelude.
 instance Monad m => Functor (StreamK m) where
     fmap = map
+
+-- $smapM_Notes
+--
+-- The stateful step function can be simplified to @(s -> a -> m b)@ to provide
+-- a read-only environment. However, that would just be 'mapM'.
+--
+-- The initial action could be @m (s, Maybe b)@, and we can also add a final
+-- action @s -> m (Maybe b)@. This can be used to get pre/post scan like
+-- functionality and also to flush the state in the end like scanlMAfter'.
+-- We can also use it along with a fusible version of bracket to get
+-- scanlMAfter' like functionality. See issue #677.
+--
+-- This can be further generalized to a type similar to Fold/Parser, giving it
+-- filtering and parsing capability as well (this is in fact equivalent to
+-- parseMany):
+--
+-- smapM :: (s -> a -> m (Step s b)) -> m s -> t m a -> t m b
+--
+
+-- | A stateful map aka scan but with a slight difference.
+--
+-- This is similar to a scan except that instead of emitting the state it emits
+-- a separate result. This is also similar to mapAccumL but does not return the
+-- final value of the state.
+--
+-- Separation of state from the output makes it easier to think in terms of a
+-- shared state, and also makes it easier to keep the state fully strict and
+-- the output lazy.
+--
+-- /Unimplemented/
+--
+{-# INLINE mapMAccum #-}
+mapMAccum :: -- Monad m =>
+       (s -> a -> m (s, b))
+    -> m s
+    -> StreamK m a
+    -> StreamK m b
+mapMAccum _step _initial _stream = undefined
+{-
+    -- XXX implement this directly instead of using scanlM'
+    -- Once we have postscanlM' with monadic initial we can use this code
+    -- let r = postscanlM'
+    --              (\(s, _) a -> step s a)
+    --              (fmap (,undefined) initial)
+    --              stream
+    let r = postscanlM'
+                (\(s, _) a -> step s a)
+                (fmap (,undefined) initial)
+                stream
+     in map snd r
+-}
+
+-- | Like 'concatMapWith' but carries a state which can be used to share
+-- information across multiple steps of concat.
+--
+-- @
+-- concatSmapMWith combine f initial = concatMapWith combine id . smapM f initial
+-- @
+--
+-- /Unimplemented/
+--
+{-# INLINE concatMapMAccum #-}
+concatMapMAccum :: -- (Monad m) =>
+       (StreamK m b -> StreamK m b -> StreamK m b)
+    -> (s -> a -> m (s, StreamK m b))
+    -> m s
+    -> StreamK m a
+    -> StreamK m b
+concatMapMAccum combine f initial =
+    concatMapWith combine id . mapMAccum f initial
 
 ------------------------------------------------------------------------------
 -- Lists
@@ -1371,13 +1462,11 @@ bindWith par m1 f = go m1
 --
 -- For example, interleaving n streams in a left biased manner:
 --
--- >>> fromList = StreamK.fromStream . Stream.fromList
--- >>> toList = Stream.toList . StreamK.toStream
--- >>> lists = fromList [[1,5],[2,6],[3,7],[4,8]]
--- >>> toList $ StreamK.concatMapWith StreamK.interleave fromList lists
+-- >>> lists = mk [[1,5],[2,6],[3,7],[4,8]]
+-- >>> un $ StreamK.concatMapWith StreamK.interleave mk lists
 -- [1,2,5,3,6,4,7,8]
 --
--- For a fair interleaving example see 'mergeMapWith'.
+-- For a fair interleaving example see 'concatMapInterleave' and 'mergeMapWith'.
 --
 {-# INLINE concatMapWith #-}
 concatMapWith
@@ -1420,28 +1509,33 @@ concatMap_ f xs = buildS
 -- are then combined again in pairs recursively until we get to a single
 -- combined stream. The composition would thus form a binary tree.
 --
--- For example, sorting a stream using merge sort:
+-- For example, 'mergeMapWith interleave' gives the following result:
 --
--- >>> fromList = StreamK.fromStream . Stream.fromList
--- >>> toList = Stream.toList . StreamK.toStream
--- >>> generate = StreamK.fromPure
+-- >>> lists = mk [[1,2,3],[4,5,6],[7,8,9],[10,11,12]]
+-- >>> un $ StreamK.mergeMapWith StreamK.interleave mk lists
+-- [1,7,4,10,2,8,5,11,3,9,6,12]
+--
+-- The above example is equivalent to the following pairings:
+--
+-- >>> pair1 = mk [1,2,3] `StreamK.interleave` mk [4,5,6]
+-- >>> pair2 = mk [7,8,9] `StreamK.interleave` mk [10,11,12]
+-- >>> un $ pair1 `StreamK.interleave` pair2
+-- [1,7,4,10,2,8,5,11,3,9,6,12]
+--
+-- If the number of streams being combined is not a power of 2, the binary tree
+-- composed by mergeMapWith is not balanced, therefore, the output may not look
+-- fairly interleaved, it will be biased towards the unpaired streams:
+--
+-- >>> lists = mk [[1,2,3],[4,5,6],[7,8,9]]
+-- >>> un $ StreamK.mergeMapWith StreamK.interleave mk lists
+-- [1,7,4,8,2,9,5,3,6]
+--
+-- An efficient merge sort can be implemented by using 'mergeBy' as the
+-- combining function:
+--
 -- >>> combine = StreamK.mergeBy compare
--- >>> toList $ StreamK.mergeMapWith combine generate (fromList [5,1,7,9,2])
+-- >>> un $ StreamK.mergeMapWith combine StreamK.fromPure (mk [5,1,7,9,2])
 -- [1,2,5,7,9]
---
--- Interleaving n streams in a balanced manner:
---
--- >>> lists = fromList [[1,4,7],[2,5,8],[3,6,9]]
--- >>> toList $ StreamK.mergeMapWith StreamK.interleave fromList lists
--- [1,3,2,6,4,9,5,7,8]
---
--- See 'Streamly.Data.Stream.unfoldEachInterleave' for a much faster fused
--- version of the above example.
---
--- Note that if the stream length is not a power of 2, the binary tree composed
--- by mergeMapWith is not balanced, which may or may not be important depending
--- on what you are trying to achieve. This also explains the order of the
--- output in the interleaving example above.
 --
 -- /Caution: the stream of streams must be finite/
 --
@@ -1504,6 +1598,153 @@ mergeMapWith combine f str = go (leafPairs str)
                 single a = sng (a1 `combine` a)
                 yieldk a r = yld (a1 `combine` a) $ nonLeafPairs r
             in foldStream (adaptState st) yieldk single stop stream
+
+-- XXX check if bindInterleave has better perf like bindWith?
+
+-- | While concatMap flattens a stream of streams in a depth first manner,
+-- 'concatMapInterleave' flattens it in a breadth-first manner. It yields one
+-- item from the first stream, then one item from the next stream and so on.
+-- Given a stream of three streams:
+--
+-- @
+-- 1. [1,2,3]
+-- 2. [4,5,6]
+-- 3. [7,8,9]
+-- @
+--
+-- The resulting stream is @[1,4,7,2,5,8,3,6,9]@.
+--
+-- For example:
+--
+-- >>> stream = mk [[1,2,3],[4,5,6],[7,8,9]]
+-- >>> un $ StreamK.concatMapInterleave mk stream
+-- [1,4,7,2,5,8,3,6,9]
+--
+-- Compare with 'concatMapWith' 'interleave' which explores the depth
+-- exponentially more compared to the breadth, such that each stream yields
+-- twice as many items compared to the next stream.
+--
+-- See also the equivalent fused version 'Data.Stream.unfoldEachInterleave'.
+--
+{-# INLINE concatMapInterleave #-}
+concatMapInterleave ::
+       (a -> StreamK m b)
+    -> StreamK m a
+    -> StreamK m b
+concatMapInterleave f m1 = go id m1
+
+    where
+
+    go xs m =
+        mkStream $ \st yld sng stp ->
+            let foldShared = foldStreamShared st yld sng stp
+                stop       = foldStream st yld sng stp (goLoop id (xs []))
+                single a   = foldShared $ goLast xs (f a)
+                yieldk a r = foldShared $ goNext xs r (f a)
+            in foldStream (adaptState st) yieldk single stop m
+
+    -- generate first element from cur stream, and then put it back in the
+    -- queue xs.
+    goNext xs m cur =
+        mkStream $ \st yld sng stp -> do
+            let stop       = foldStream st yld sng stp (go xs m)
+                single a   = yld a (go xs m)
+                yieldk a r = yld a (go (xs . (r :)) m)
+            foldStream st yieldk single stop cur
+
+    goLast xs cur =
+        mkStream $ \st yld sng stp -> do
+            let stop       = foldStream st yld sng stp (goLoop id (xs []))
+                single a   = yld a (goLoop id (xs []))
+                yieldk a r = yld a (goLoop id ((xs . (r :)) []))
+            foldStream st yieldk single stop cur
+
+    -- Loop through all streams in the queue ys until they are over
+    goLoop ys [] =
+            -- We will do this optimization only after two iterations are
+            -- over, if doing this earlier is helpful we can do it in
+            -- goLast as well, before calling goLoop.
+           let xs = ys []
+            in case xs of
+                    [] -> nil
+                    (z:[]) -> z
+                    (z1:z2:[]) -> interleave z1 z2
+                    zs -> goLoop id zs
+    goLoop ys (x:xs) =
+        mkStream $ \st yld sng stp -> do
+            let stop       = foldStream st yld sng stp (goLoop ys xs)
+                single a   = yld a (goLoop ys xs)
+                yieldk a r = yld a (goLoop (ys . (r :)) xs)
+            foldStream st yieldk single stop x
+
+-- | 'concatMapDiagonal' flattens a stream of streams in a diagonal manner.
+-- Every previous stream yields one more item than the next. Therefore, the
+-- depth and breadth of traversal is equally balanced.
+-- Given a stream of three streams:
+--
+-- @
+-- 1. [1,2,3]
+-- 2. [4,5,6]
+-- 3. [7,8,9]
+-- @
+--
+-- The resulting stream is @[1,2,4,3,5,7,6,8,9]@.
+--
+-- This is useful when producing cross products of streams such that both the
+-- dimensions are explored equally.
+--
+-- For example:
+--
+-- >>> stream = mk [[1,2,3],[4,5,6],[7,8,9]]
+-- >>> un $ StreamK.concatMapDiagonal mk stream
+-- [1,2,4,3,5,7,6,8,9]
+--
+-- Compare with 'concatMapWith interleave' which explores the depth
+-- exponentially more compared to the breadth, such that each stream yields
+-- twice as many items compared to the next stream.
+--
+{-# INLINE concatMapDiagonal #-}
+concatMapDiagonal ::
+       (a -> StreamK m b)
+    -> StreamK m a
+    -> StreamK m b
+concatMapDiagonal f m1 = go id m1
+
+    where
+
+    go xs m =
+        mkStream $ \st yld sng stp ->
+            let foldShared = foldStreamShared st yld sng stp
+                stop       = foldStream st yld sng stp (goLoop id (xs []))
+                single a   = foldShared $ goLoop id (xs [f a])
+                yieldk a r = foldShared $ goNext r id (xs [f a])
+            in foldStream (adaptState st) yieldk single stop m
+
+    goNext m ys [] = go ys m
+    goNext m ys (x:xs) =
+        mkStream $ \st yld sng stp -> do
+            let stop       = foldStream st yld sng stp (goNext m ys xs)
+                single a   = yld a (goNext m ys xs)
+                yieldk a r = yld a (goNext m (ys . (r :)) xs)
+            foldStream st yieldk single stop x
+
+    -- Loop through all streams in the queue ys until they are over
+    goLoop ys [] =
+            -- We will do this optimization only after two iterations are
+            -- over, if doing this earlier is helpful we can do it in
+            -- goLast as well, before calling goLoop.
+           let xs = ys []
+            in case xs of
+                    [] -> nil
+                    (z:[]) -> z
+                    (z1:z2:[]) -> interleave z1 z2
+                    zs -> goLoop id zs
+    goLoop ys (x:xs) =
+        mkStream $ \st yld sng stp -> do
+            let stop       = foldStream st yld sng stp (goLoop ys xs)
+                single a   = yld a (goLoop ys xs)
+                yieldk a r = yld a (goLoop (ys . (r :)) xs)
+            foldStream st yieldk single stop x
 
 {-
 instance Monad m => Applicative (StreamK m) where
@@ -1609,6 +1850,8 @@ mergeIterateWith combine f = iterateStream
 -- To traverse graphs we need a state to be carried around in the traversal.
 -- For example, we can use a hashmap to store the visited status of nodes.
 
+-- XXX rename to concateIterateAccum? Like mapMAccum
+
 -- | Like 'iterateMap' but carries a state in the stream generation function.
 -- This can be used to traverse graph like structures, we can remember the
 -- visited nodes in the state to avoid cycles.
@@ -1693,16 +1936,63 @@ concatIterateLeftsWith combine f =
 
 infixr 6 `interleave`
 
--- Additionally we can have m elements yield from the first stream and n
--- elements yielding from the second stream. We can also have time slicing
--- variants of positional interleaving, e.g. run first stream for m seconds and
--- run the second stream for n seconds.
-
--- | Note: When joining many streams in a left associative manner earlier
--- streams will get exponential priority than the ones joining later. Because
--- of exponentially high weighting of left streams it can be used with
--- 'concatMapWith' even on a large number of streams.
+-- We can have a variant of interleave where m elements yield from the first
+-- stream and n elements yielding from the second stream. We can also have time
+-- slicing variants of positional interleaving, e.g. run first stream for m
+-- seconds and run the second stream for n seconds.
 --
+-- TBD; give an example to show second stream is half consumed.
+--
+-- a1,a2,a3,a4,a5,a6,a7,a8
+-- b1,b2,b3,b4,b5,b6,b7,b8
+-- c1,c2,c3,c4,c5,c6,c7,c8
+-- d1,d2,d3,d4,d5,d6,d7,d8
+-- e1,e2,e3,e4,e5,e6,e7,e8
+-- f1,f2,f3,f4,f5,f6,f7,f8
+-- g1,g2,g3,g4,g5,g6,g7,g8
+-- h1,h2,h3,h4,h5,h6,h7,h8
+--
+-- Produces: (..)
+--
+
+-- | Interleave two streams fairly, yielding one item from each in a
+-- round-robin fashion:
+--
+-- >>> un $ StreamK.interleave (mk [1,3,5]) (mk [2,4,6])
+-- [1,2,3,4,5,6]
+-- >>> un $ StreamK.interleave (mk [1,3]) (mk [2,4,6])
+-- [1,2,3,4,6]
+-- >>> un $ StreamK.interleave (mk []) (mk [2,4,6])
+-- [2,4,6]
+--
+-- 'interleave' is right associative when used as an infix operator.
+--
+-- >>> un $ mk [1,2,3] `StreamK.interleave` mk [4,5,6] `StreamK.interleave` mk [7,8,9]
+-- [1,4,2,7,3,5,8,6,9]
+--
+-- Because of right association, the first stream yields as many items as the
+-- next two streams combined.
+--
+-- 'concatMapWith' 'interleave' flattens a stream of streams using 'interleave'
+-- in a right associative manner. Given a stream of three streams:
+--
+-- @
+-- 1. [1,2,3]
+-- 2. [4,5,6]
+-- 3. [7,8,9]
+-- @
+--
+-- The resulting sequence is @[1,4,2,7,3,5,8,6,9]@.
+--
+-- For this reason, the right associated flattening with 'interleave' can work
+-- with infinite streams. Each stream is consumed twice as much as the next
+-- one. If we are combining an infinite number of streams of size @n@ then at
+-- most @log n@ streams will be opened at any given time, because the first
+-- stream will finish by the time the stream after @log n@ th stream is opened.
+--
+-- Compare with 'concatMapInterleave' and 'mergeMapWith' 'interleave'.
+--
+-- See also the fused version 'Streamly.Data.Stream.interleave'.
 {-# INLINE interleave #-}
 interleave :: StreamK m a -> StreamK m a -> StreamK m a
 interleave m1 m2 = mkStream $ \st yld sng stp -> do
@@ -2129,30 +2419,78 @@ concatMapEffect f action =
 -- Stream with a cross product style monad instance
 ------------------------------------------------------------------------------
 
--- | A newtype wrapper for the 'StreamK' type adding a cross product style
--- monad instance.
+-- XXX add Alternative, MonadPlus - should we use interleave as the Semigroup
+-- append operation in FairCross?
+
+-- | 'Cross' is a list-transformer monad, it serves the same purpose as the
+-- @ListT@ type from the @list-t@ package. It is similar to the standard
+-- Haskell lists' monad instance. 'Cross' behaves like nested @for@ loops
+-- implementing a cross product based computation over multiple streams.
 --
--- A 'Monad' bind behaves like a @for@ loop:
+-- >>> mk = StreamK.Cross . StreamK.fromStream . Stream.fromList
+-- >>> un = Stream.toList . StreamK.toStream . StreamK.unCross
+--
+-- In the following code the variable @x@ assumes values of the elements of the
+-- stream one at a time and runs the code that follows; using that value. It is
+-- equivalent to a @for@ loop:
 --
 -- >>> :{
--- Stream.fold Fold.toList $ StreamK.toStream $ StreamK.unCross $ do
---     x <- StreamK.Cross $ StreamK.fromStream $ Stream.fromList [1,2]
---     -- Perform the following actions for each x in the stream
+-- un $ do
+--     x <- mk [1,2,3] -- for each element in the stream
 --     return x
 -- :}
--- [1,2]
+-- [1,2,3]
 --
--- Nested monad binds behave like nested @for@ loops:
+-- Multiple streams can be nested like nested @for@ loops. The result is a
+-- cross product of the streams.
 --
 -- >>> :{
--- Stream.fold Fold.toList $ StreamK.toStream $ StreamK.unCross $ do
---     x <- StreamK.Cross $ StreamK.fromStream $ Stream.fromList [1,2]
---     y <- StreamK.Cross $ StreamK.fromStream $ Stream.fromList [3,4]
---     -- Perform the following actions for each x, for each y
+-- un $ do
+--     x <- mk [1,2,3] -- outer loop, for each element in the stream
+--     y <- mk [4,5,6] -- inner loop, for each element in the stream
 --     return (x, y)
 -- :}
--- [(1,3),(1,4),(2,3),(2,4)]
+-- [(1,4),(1,5),(1,6),(2,4),(2,5),(2,6),(3,4),(3,5),(3,6)]
 --
+-- The bind operation of the monad is flipped 'concatMapWith' 'append'. The
+-- concatMap operation maps the lines involving y as a function of x over the
+-- stream [1,2,3]. The streams generated so are combined using the 'append'
+-- operation. If we desugar the above monad code using bind explicitly, it
+-- becomes clear how it works:
+--
+-- >>> import Streamly.Internal.Data.StreamK (Cross(..))
+-- >>> (Cross m) >>= f = Cross $ StreamK.concatMapWith StreamK.append (unCross . f) m
+-- >>> un (mk [1,2,3] >>= (\x -> (mk [4,5,6] >>= \y -> return (x,y))))
+-- [(1,4),(1,5),(1,6),(2,4),(2,5),(2,6),(3,4),(3,5),(3,6)]
+--
+-- If we look at the cross product of [1,2,3], [4,5,6], the streams being
+-- combined using 'append' are the @for@ loop iterations as follows:
+--
+-- @
+-- (1,4) (1,5) (1,6) -- first iteration of the outer loop
+-- (2,4) (2,5) (2,6) -- second iteration of the outer loop
+-- (3,4) (3,5) (3,6) -- third iteration of the outer loop
+-- @
+--
+-- The result is equivalent to sequentially appending all the iterations of the
+-- nested @for@ loop:
+-- @[(1,4),(1,5),(1,6),(2,4),(2,5),(2,6),(3,4),(3,5),(3,6)]@
+--
+-- An infinite stream in an inner loop will block the chance of any outer
+-- streams to go to the next iteration.
+--
+-- If we use 'concatMapInterleave' as the monad bind operation then the nested
+-- loops would get inverted - the innermost loop becomes the outermost and vice
+-- versa.
+--
+-- 'Cross' also serves the purpose of 'LogicT' type from the 'logict' package.
+-- The @MonadLogic@ operations can be implemented using the available stream
+-- operations. For example, 'interleave' is the fair interleave logic
+-- operation. However, the 'FairCross' type is even better as a logic
+-- programming monad, providing fair conjunction as part of the monad itself.
+--
+-- See 'FairCross' if you want all the streams to get equal chance to execute
+-- even if they are infinite.
 newtype Cross m a = Cross {unCross :: StreamK m a}
         deriving (Functor, Semigroup, Monoid, Foldable)
 
@@ -2240,4 +2578,152 @@ instance MonadTrans Cross where
     lift x = Cross (fromEffect x)
 
 instance (MonadThrow m) => MonadThrow (Cross m) where
+    throwM = lift . throwM
+
+------------------------------------------------------------------------------
+-- Stream with a fair cross product style monad instance
+------------------------------------------------------------------------------
+
+-- | 'FairCross' serves the same purpose as the @LogicT@ type in the 'logict'
+-- package, with better performance and ergonomics. It is like the 'Cross' type
+-- but explores the depth and breadth of the cross product grid equally, so
+-- that each of the stream being crossed is consumed equally. It can be used
+-- fairly with infinite streams.
+--
+-- >>> mk = StreamK.FairCross . StreamK.fromStream . Stream.fromList
+-- >>> un = Stream.toList . StreamK.toStream . StreamK.unFairCross
+--
+-- A single stream case is equivalent to 'Cross', it is a simple @for@ loop
+-- over the stream:
+--
+-- >>> :{
+-- un $ do
+--     x <- mk [1,2] -- for each element in the stream
+--     return x
+-- :}
+-- [1,2]
+--
+-- Multiple streams nest like @for@ loops. The result is a cross product of the
+-- streams. However, the ordering of the results of the cross product is such
+-- that each stream gets consumed equally. In other words, inner iterations of
+-- a nested loop get the same priority as the outer iterations. Inner
+-- iterations do not finish completely before the outer iterations start.
+--
+-- >>> :{
+-- un $ do
+--     x <- mk [1,2,3] -- outer, for each element in the stream
+--     y <- mk [4,5,6] -- inner, for each element in the stream
+--     -- Perform the following actions for each x, for each y
+--     return (x, y)
+-- :}
+-- [(1,4),(1,5),(2,4),(1,6),(2,5),(3,4),(2,6),(3,5),(3,6)]
+--
+-- Example with infinite streams. Print all pairs in the cross product with sum
+-- less than a specified number.
+--
+-- >>> :{
+-- Stream.toList
+--  $ Stream.takeWhile (\(x,y) -> x + y < 6)
+--  $ StreamK.toStream $ StreamK.unFairCross
+--  $ do
+--     x <- mk [1..] -- infinite stream
+--     y <- mk [1..] -- infinite stream
+--     return (x, y)
+-- :}
+-- [(1,1),(1,2),(2,1),(1,3),(2,2),(3,1),(1,4),(2,3),(3,2),(4,1)]
+--
+-- 'FairCross' uses flipped 'concatMapDiagonal' as the monad bind operation.
+-- If we look at the cross product of [1,2,3], [4,5,6], the streams being
+-- combined using 'concatMapDigaonal' are the sequential loop iterations:
+--
+-- @
+-- (1,4) (1,5) (1,6) -- first iteration of the outer loop
+-- (2,4) (2,5) (2,6) -- second iteration of the outer loop
+-- (3,4) (3,5) (3,6) -- third iteration of the outer loop
+-- @
+--
+-- The result is a triangular or diagonal traversal of these iterations:
+-- @[(1,4),(1,5),(2,4),(1,6),(2,5),(3,4),(2,6),(3,5),(3,6)]@
+--
+-- If we use 'concatMapWith' 'interleave' as the monad bind operation then the
+-- inner iterations get exponentially more priority over the outer iterations
+-- of the nested loop.
+
+newtype FairCross m a = FairCross {unFairCross :: StreamK m a}
+        deriving (Functor, Semigroup, Monoid, Foldable)
+
+-- Pure (Identity monad) stream instances
+deriving instance Traversable (FairCross Identity)
+deriving instance IsList (FairCross Identity a)
+deriving instance (a ~ Char) => IsString (FairCross Identity a)
+-- deriving instance Eq a => Eq (FairCross Identity a)
+-- deriving instance Ord a => Ord (FairCross Identity a)
+
+-- Do not use automatic derivation for this to show as "fromList" rather than
+-- "fromList Identity".
+instance Show a => Show (FairCross Identity a) where
+    {-# INLINE show #-}
+    show (FairCross xs) = show xs
+
+instance Read a => Read (FairCross Identity a) where
+    {-# INLINE readPrec #-}
+    readPrec = fmap FairCross readPrec
+
+------------------------------------------------------------------------------
+-- Applicative
+------------------------------------------------------------------------------
+
+-- Note: we need to define all the typeclass operations because we want to
+-- INLINE them.
+instance Monad m => Applicative (FairCross m) where
+    {-# INLINE pure #-}
+    pure x = FairCross (fromPure x)
+
+    -- XXX implement more efficient version of these
+    (<*>) = ap
+    {-
+    {-# INLINE (<*>) #-}
+    (FairCross s1) <*> (FairCross s2) =
+        FairCross (crossApply s1 s2)
+
+    {-# INLINE liftA2 #-}
+    liftA2 f x = (<*>) (fmap f x)
+
+    {-# INLINE (*>) #-}
+    (FairCross s1) *> (FairCross s2) =
+        FairCross (crossApplySnd s1 s2)
+
+    {-# INLINE (<*) #-}
+    (FairCross s1) <* (FairCross s2) =
+        FairCross (crossApplyFst s1 s2)
+    -}
+
+------------------------------------------------------------------------------
+-- Monad
+------------------------------------------------------------------------------
+
+instance Monad m => Monad (FairCross m) where
+    return = pure
+
+    {-# INLINE (>>=) #-}
+    (>>=) (FairCross m) f = FairCross (concatMapDiagonal (unFairCross . f) m)
+    -- (>>=) (FairCross m) f = FairCross (concatMapInterleave (unFairCross . f) m)
+    -- (>>=) (FairCross m) f = FairCross (concatMapWith interleave (unFairCross . f) m)
+    -- (>>=) (FairCross m) f = FairCross (mergeMapWith interleave (unFairCross . f) m)
+
+    {-# INLINE (>>) #-}
+    (>>) = (*>)
+
+------------------------------------------------------------------------------
+-- Transformers
+------------------------------------------------------------------------------
+
+instance (MonadIO m) => MonadIO (FairCross m) where
+    liftIO x = FairCross (fromEffect $ liftIO x)
+
+instance MonadTrans FairCross where
+    {-# INLINE lift #-}
+    lift x = FairCross (fromEffect x)
+
+instance (MonadThrow m) => MonadThrow (FairCross m) where
     throwM = lift . throwM
