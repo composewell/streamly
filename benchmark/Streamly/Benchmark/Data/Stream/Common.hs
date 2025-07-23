@@ -112,11 +112,11 @@ unCross = id
 #else
 type MonadAsync = Monad
 
-mkCross :: Stream m a -> Stream.CrossStream m a
-mkCross = Stream.mkCross
+mkCross :: Stream m a -> Stream.Nested m a
+mkCross = Stream.Nested
 
-unCross :: Stream.CrossStream m a -> Stream m a
-unCross = Stream.unCross
+unCross :: Stream.Nested m a -> Stream m a
+unCross = Stream.unNested
 #endif
 
 #ifdef USE_PRELUDE

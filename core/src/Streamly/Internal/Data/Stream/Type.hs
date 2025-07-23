@@ -28,8 +28,8 @@ module Streamly.Internal.Data.Stream.Type
     -- combinators if we use the pattern synonym "Stream".
     , Stream (Stream, UnStream)
 
-    -- * Cross
-    , Cross(..)
+    -- * Nested
+    , Nested(..)
 
     -- * To StreamK
     , fromStreamK
@@ -168,6 +168,7 @@ module Streamly.Internal.Data.Stream.Type
     , indexOnSuffix
     , CrossStream
     , mkCross
+    , unCross
     )
 where
 
@@ -2260,8 +2261,8 @@ indexEndBy predicate =
 -- Stream with a cross product style monad instance
 ------------------------------------------------------------------------------
 
--- XXX Cross performs better than the CrossK when nesting two
--- loops, however, CrossK seems to be better for more than two nestings,
+-- XXX Nested performs better than the StreamK.Nested when nesting two
+-- loops, however, StreamK.Nested seems to be better for more than two nestings,
 -- need to do more perf investigation.
 
 -- | A newtype wrapper for the 'Stream' type with a cross product style monad
@@ -2270,8 +2271,8 @@ indexEndBy predicate =
 -- A 'Monad' bind behaves like a @for@ loop:
 --
 -- >>> :{
--- Stream.fold Fold.toList $ Stream.unCross $ do
---     x <- Stream.Cross $ Stream.fromList [1,2]
+-- Stream.fold Fold.toList $ Stream.unNested $ do
+--     x <- Stream.Nested $ Stream.fromList [1,2]
 --     -- Perform the following actions for each x in the stream
 --     return x
 -- :}
@@ -2280,39 +2281,44 @@ indexEndBy predicate =
 -- Nested monad binds behave like nested @for@ loops:
 --
 -- >>> :{
--- Stream.fold Fold.toList $ Stream.unCross $ do
---     x <- Stream.Cross $ Stream.fromList [1,2]
---     y <- Stream.Cross $ Stream.fromList [3,4]
+-- Stream.fold Fold.toList $ Stream.unNested $ do
+--     x <- Stream.Nested $ Stream.fromList [1,2]
+--     y <- Stream.Nested $ Stream.fromList [3,4]
 --     -- Perform the following actions for each x, for each y
 --     return (x, y)
 -- :}
 -- [(1,3),(1,4),(2,3),(2,4)]
 --
-newtype Cross m a = Cross {unCross :: Stream m a}
+newtype Nested m a = Nested {unNested :: Stream m a}
         deriving (Functor, Foldable)
 
-type CrossStream = Cross
+{-# DEPRECATED CrossStream "Use Nested instead." #-}
+type CrossStream = Nested
 
-{-# DEPRECATED mkCross "Use Cross instead." #-}
+{-# DEPRECATED mkCross "Use Nested instead." #-}
 {-# INLINE mkCross #-}
-mkCross :: Stream m a -> Cross m a
-mkCross = Cross
+mkCross :: Stream m a -> Nested m a
+mkCross = Nested
+
+{-# INLINE unCross #-}
+unCross :: Nested m a -> Stream m a
+unCross = unNested
 
 -- Pure (Identity monad) stream instances
-deriving instance IsList (Cross Identity a)
-deriving instance (a ~ Char) => IsString (Cross Identity a)
-deriving instance Eq a => Eq (Cross Identity a)
-deriving instance Ord a => Ord (Cross Identity a)
+deriving instance IsList (Nested Identity a)
+deriving instance (a ~ Char) => IsString (Nested Identity a)
+deriving instance Eq a => Eq (Nested Identity a)
+deriving instance Ord a => Ord (Nested Identity a)
 
 -- Do not use automatic derivation for this to show as "fromList" rather than
 -- "fromList Identity".
-instance Show a => Show (Cross Identity a) where
+instance Show a => Show (Nested Identity a) where
     {-# INLINE show #-}
-    show (Cross xs) = show xs
+    show (Nested xs) = show xs
 
-instance Read a => Read (Cross Identity a) where
+instance Read a => Read (Nested Identity a) where
     {-# INLINE readPrec #-}
-    readPrec = fmap Cross readPrec
+    readPrec = fmap Nested readPrec
 
 ------------------------------------------------------------------------------
 -- Applicative
@@ -2320,30 +2326,30 @@ instance Read a => Read (Cross Identity a) where
 
 -- Note: we need to define all the typeclass operations because we want to
 -- INLINE them.
-instance Monad m => Applicative (Cross m) where
+instance Monad m => Applicative (Nested m) where
     {-# INLINE pure #-}
-    pure x = Cross (fromPure x)
+    pure x = Nested (fromPure x)
 
     {-# INLINE (<*>) #-}
-    (Cross s1) <*> (Cross s2) =
-        Cross (crossApply s1 s2)
+    (Nested s1) <*> (Nested s2) =
+        Nested (crossApply s1 s2)
 
     {-# INLINE liftA2 #-}
     liftA2 f x = (<*>) (fmap f x)
 
     {-# INLINE (*>) #-}
-    (Cross s1) *> (Cross s2) =
-        Cross (crossApplySnd s1 s2)
+    (Nested s1) *> (Nested s2) =
+        Nested (crossApplySnd s1 s2)
 
     {-# INLINE (<*) #-}
-    (Cross s1) <* (Cross s2) =
-        Cross (crossApplyFst s1 s2)
+    (Nested s1) <* (Nested s2) =
+        Nested (crossApplyFst s1 s2)
 
 ------------------------------------------------------------------------------
 -- Monad
 ------------------------------------------------------------------------------
 
-instance Monad m => Monad (Cross m) where
+instance Monad m => Monad (Nested m) where
     return = pure
 
     -- Benchmarks better with StreamD bind and pure:
@@ -2355,7 +2361,7 @@ instance Monad m => Monad (Cross m) where
     -- n binds, breakAfterSome, filterAllIn, state transformer (~2x)
     --
     {-# INLINE (>>=) #-}
-    (>>=) (Cross m) f = Cross (concatMap (unCross . f) m)
+    (>>=) (Nested m) f = Nested (concatMap (unNested . f) m)
 
     {-# INLINE (>>) #-}
     (>>) = (*>)
@@ -2364,14 +2370,14 @@ instance Monad m => Monad (Cross m) where
 -- Transformers
 ------------------------------------------------------------------------------
 
-instance (MonadIO m) => MonadIO (Cross m) where
-    liftIO x = Cross (fromEffect $ liftIO x)
+instance (MonadIO m) => MonadIO (Nested m) where
+    liftIO x = Nested (fromEffect $ liftIO x)
 
-instance MonadTrans Cross where
+instance MonadTrans Nested where
     {-# INLINE lift #-}
-    lift x = Cross (fromEffect x)
+    lift x = Nested (fromEffect x)
 
-instance (MonadThrow m) => MonadThrow (Cross m) where
+instance (MonadThrow m) => MonadThrow (Nested m) where
     throwM = lift . throwM
 
 ------------------------------------------------------------------------------

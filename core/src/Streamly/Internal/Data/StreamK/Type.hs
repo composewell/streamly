@@ -23,9 +23,9 @@ module Streamly.Internal.Data.StreamK.Type
       Stream
     , StreamK (..)
 
-    -- * Cross type wrapper
-    , Cross(..)
-    , FairCross(..) -- experimental, do not release, associativity issues
+    -- * Nested type wrapper
+    , Nested(..)
+    , FairNested(..) -- experimental, do not release, associativity issues
 
     -- * foldr/build Fusion
     , mkStream
@@ -154,6 +154,7 @@ module Streamly.Internal.Data.StreamK.Type
     , interleaveMin
     , CrossStreamK
     , mkCross
+    , unCross
     )
 where
 
@@ -183,6 +184,7 @@ import Text.Read
        ( Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec
        , readListPrecDefault)
 
+import qualified Control.Monad.Fail as Fail
 import qualified Prelude
 
 import Prelude hiding
@@ -2283,10 +2285,10 @@ tailNonEmpty m = mkStream $ \st yld sng stp ->
 -- >>> :{
 -- main = Stream.fold (Fold.drainMapM print) $ StreamK.toStream $ StreamK.mfix f
 --     where
---     f action = StreamK.unCross $ do
+--     f action = StreamK.unNested $ do
 --         let incr n act = fmap ((+n) . snd) $ unsafeInterleaveIO act
---         x <- StreamK.Cross $ StreamK.fromStream $ Stream.sequence $ Stream.fromList [incr 1 action, incr 2 action]
---         y <- StreamK.Cross $ StreamK.fromStream $ Stream.fromList [4,5]
+--         x <- StreamK.Nested $ StreamK.fromStream $ Stream.sequence $ Stream.fromList [incr 1 action, incr 2 action]
+--         y <- StreamK.Nested $ StreamK.fromStream $ Stream.fromList [4,5]
 --         return (x, y)
 -- :}
 --
@@ -2435,15 +2437,15 @@ concatMapEffect f action =
 ------------------------------------------------------------------------------
 
 -- XXX add Alternative, MonadPlus - should we use interleave as the Semigroup
--- append operation in FairCross?
+-- append operation in FairNested?
 
--- | 'Cross' is a list-transformer monad, it serves the same purpose as the
+-- | 'Nested' is a list-transformer monad, it serves the same purpose as the
 -- @ListT@ type from the @list-t@ package. It is similar to the standard
--- Haskell lists' monad instance. 'Cross' monad behaves like nested @for@ loops
+-- Haskell lists' monad instance. 'Nested' monad behaves like nested @for@ loops
 -- implementing a computation based on a cross product over multiple streams.
 --
--- >>> mk = StreamK.Cross . StreamK.fromStream . Stream.fromList
--- >>> un = Stream.toList . StreamK.toStream . StreamK.unCross
+-- >>> mk = StreamK.Nested . StreamK.fromStream . Stream.fromList
+-- >>> un = Stream.toList . StreamK.toStream . StreamK.unNested
 --
 -- == Looping
 --
@@ -2482,8 +2484,8 @@ concatMapEffect f action =
 -- operation. If we desugar the above monad code using bind explicitly, it
 -- becomes clear how it works:
 --
--- >>> import Streamly.Internal.Data.StreamK (Cross(..))
--- >>> (Cross m) >>= f = Cross $ StreamK.concatMapWith StreamK.append (unCross . f) m
+-- >>> import Streamly.Internal.Data.StreamK (Nested(..))
+-- >>> (Nested m) >>= f = Nested $ StreamK.concatMapWith StreamK.append (unNested . f) m
 -- >>> un (mk [1,2,3] >>= (\x -> (mk [4,5,6] >>= \y -> return (x,y))))
 -- [(1,4),(1,5),(1,6),(2,4),(2,5),(2,6),(3,4),(3,5),(3,6)]
 --
@@ -2510,11 +2512,11 @@ concatMapEffect f action =
 --
 -- == Logic Programming
 --
--- 'Cross' also serves the purpose of 'LogicT' type from the 'logict' package.
+-- 'Nested' also serves the purpose of 'LogicT' type from the 'logict' package.
 -- The @MonadLogic@ operations can be implemented using the available stream
 -- operations. For example, 'uncons' is @msplit@, 'interleave' corresponds to
 -- the @interleave@ operation of MonadLogic, 'concatMapDiagonal' is a flipped
--- fair bind (@>>-@) operation. The 'FairCross' type provides a monad with fair
+-- fair bind (@>>-@) operation. The 'FairNested' type provides a monad with fair
 -- bind.
 --
 -- == Related Functionality
@@ -2523,39 +2525,46 @@ concatMapEffect f action =
 -- operation then the nested loops would get inverted - the innermost loop
 -- becomes the outermost and vice versa.
 --
--- See 'FairCross' if you want all the streams to get equal chance to execute
+-- See 'FairNested' if you want all the streams to get equal chance to execute
 -- even if they are infinite.
-newtype Cross m a = Cross {unCross :: StreamK m a}
+newtype Nested m a = Nested {unNested :: StreamK m a}
         deriving (Functor, Semigroup, Monoid, Foldable)
 
-{-# DEPRECATED CrossStreamK "Use Cross instead." #-}
-type CrossStreamK = Cross
+{-# DEPRECATED CrossStreamK "Use Nested instead." #-}
+type CrossStreamK = Nested
 
-{-# DEPRECATED mkCross "Use Cross instead." #-}
--- | Wrap the 'StreamK' type in a 'Cross' newtype to enable cross
+{-# DEPRECATED mkCross "Use Nested instead." #-}
+-- | Wrap the 'StreamK' type in a 'Nested' newtype to enable cross
 -- product style applicative and monad instances.
 --
 -- This is a type level operation with no runtime overhead.
 {-# INLINE mkCross #-}
-mkCross :: StreamK m a -> Cross m a
-mkCross = Cross
+mkCross :: StreamK m a -> Nested m a
+mkCross = Nested
+
+-- | Unwrap the 'StreamK' type from 'CrossStreamK' newtype.
+--
+-- This is a type level operation with no runtime overhead.
+{-# INLINE unCross #-}
+unCross :: CrossStreamK m a -> StreamK m a
+unCross = unNested
 
 -- Pure (Identity monad) stream instances
-deriving instance Traversable (Cross Identity)
-deriving instance IsList (Cross Identity a)
-deriving instance (a ~ Char) => IsString (Cross Identity a)
--- deriving instance Eq a => Eq (Cross Identity a)
--- deriving instance Ord a => Ord (Cross Identity a)
+deriving instance Traversable (Nested Identity)
+deriving instance IsList (Nested Identity a)
+deriving instance (a ~ Char) => IsString (Nested Identity a)
+-- deriving instance Eq a => Eq (Nested Identity a)
+-- deriving instance Ord a => Ord (Nested Identity a)
 
 -- Do not use automatic derivation for this to show as "fromList" rather than
 -- "fromList Identity".
-instance Show a => Show (Cross Identity a) where
+instance Show a => Show (Nested Identity a) where
     {-# INLINE show #-}
-    show (Cross xs) = show xs
+    show (Nested xs) = show xs
 
-instance Read a => Read (Cross Identity a) where
+instance Read a => Read (Nested Identity a) where
     {-# INLINE readPrec #-}
-    readPrec = fmap Cross readPrec
+    readPrec = fmap Nested readPrec
 
 ------------------------------------------------------------------------------
 -- Applicative
@@ -2563,30 +2572,30 @@ instance Read a => Read (Cross Identity a) where
 
 -- Note: we need to define all the typeclass operations because we want to
 -- INLINE them.
-instance Monad m => Applicative (Cross m) where
+instance Monad m => Applicative (Nested m) where
     {-# INLINE pure #-}
-    pure x = Cross (fromPure x)
+    pure x = Nested (fromPure x)
 
     {-# INLINE (<*>) #-}
-    (Cross s1) <*> (Cross s2) =
-        Cross (crossApply s1 s2)
+    (Nested s1) <*> (Nested s2) =
+        Nested (crossApply s1 s2)
 
     {-# INLINE liftA2 #-}
     liftA2 f x = (<*>) (fmap f x)
 
     {-# INLINE (*>) #-}
-    (Cross s1) *> (Cross s2) =
-        Cross (crossApplySnd s1 s2)
+    (Nested s1) *> (Nested s2) =
+        Nested (crossApplySnd s1 s2)
 
     {-# INLINE (<*) #-}
-    (Cross s1) <* (Cross s2) =
-        Cross (crossApplyFst s1 s2)
+    (Nested s1) <* (Nested s2) =
+        Nested (crossApplyFst s1 s2)
 
 ------------------------------------------------------------------------------
 -- Monad
 ------------------------------------------------------------------------------
 
-instance Monad m => Monad (Cross m) where
+instance Monad m => Monad (Nested m) where
     return = pure
 
     -- Benchmarks better with CPS bind and pure:
@@ -2594,8 +2603,8 @@ instance Monad m => Monad (Cross m) where
     -- n binds, breakAfterSome, filterAllIn, state transformer (~2x)
     --
     {-# INLINE (>>=) #-}
-    (>>=) (Cross m) f =
-        Cross (bindWith append m (unCross . f))
+    (>>=) (Nested m) f =
+        Nested (bindWith append m (unNested . f))
 
     {-# INLINE (>>) #-}
     (>>) = (*>)
@@ -2604,14 +2613,14 @@ instance Monad m => Monad (Cross m) where
 -- Alternative and MonadPlus
 ------------------------------------------------------------------------------
 
-instance (Monad m) => MonadFail (Cross m) where
+instance (Monad m) => Fail.MonadFail (Nested m) where
   fail _ = inline mempty
 
-instance (Monad m, Functor m) => Alternative (Cross m) where
+instance (Monad m, Functor m) => Alternative (Nested m) where
   empty = inline mempty
   (<|>) = inline mappend
 
-instance (Monad m) => MonadPlus (Cross m) where
+instance (Monad m) => MonadPlus (Nested m) where
   mzero = inline mempty
   mplus = inline mappend
 
@@ -2619,14 +2628,14 @@ instance (Monad m) => MonadPlus (Cross m) where
 -- Transformers
 ------------------------------------------------------------------------------
 
-instance (MonadIO m) => MonadIO (Cross m) where
-    liftIO x = Cross (fromEffect $ liftIO x)
+instance (MonadIO m) => MonadIO (Nested m) where
+    liftIO x = Nested (fromEffect $ liftIO x)
 
-instance MonadTrans Cross where
+instance MonadTrans Nested where
     {-# INLINE lift #-}
-    lift x = Cross (fromEffect x)
+    lift x = Nested (fromEffect x)
 
-instance (MonadThrow m) => MonadThrow (Cross m) where
+instance (MonadThrow m) => MonadThrow (Nested m) where
     throwM = lift . throwM
 
 ------------------------------------------------------------------------------
@@ -2637,17 +2646,17 @@ instance (MonadThrow m) => MonadThrow (Cross m) where
 -- stream. Adding a "block" continuation can allow for blocking IO. Both of
 -- these together will provide a co-operative scheduling.
 
--- | 'FairCross' is like the 'Cross' type but explores the depth and breadth of
+-- | 'FairNested' is like the 'Nested' type but explores the depth and breadth of
 -- the cross product grid equally, so that each of the stream being crossed is
 -- consumed equally. It can be used to nest infinite streams without starving
 -- one due to the other.
 --
--- >>> mk = StreamK.FairCross . StreamK.fromStream . Stream.fromList
--- >>> un = Stream.toList . StreamK.toStream . StreamK.unFairCross
+-- >>> mk = StreamK.FairNested . StreamK.fromStream . Stream.fromList
+-- >>> un = Stream.toList . StreamK.toStream . StreamK.unFairNested
 --
 -- == Looping
 --
--- A single stream case is equivalent to 'Cross', it is a simple @for@ loop
+-- A single stream case is equivalent to 'Nested', it is a simple @for@ loop
 -- over the stream:
 --
 -- >>> :{
@@ -2682,7 +2691,7 @@ instance (MonadThrow m) => MonadThrow (Cross m) where
 -- >>> :{
 -- Stream.toList
 --  $ Stream.takeWhile (\(x,y) -> x + y < 6)
---  $ StreamK.toStream $ StreamK.unFairCross
+--  $ StreamK.toStream $ StreamK.unFairNested
 --  $ do
 --     x <- mk [1..] -- infinite stream
 --     y <- mk [1..] -- infinite stream
@@ -2692,7 +2701,7 @@ instance (MonadThrow m) => MonadThrow (Cross m) where
 --
 -- == How it works?
 --
--- 'FairCross' uses flipped 'concatMapDiagonal' as the monad bind operation.
+-- 'FairNested' uses flipped 'concatMapDiagonal' as the monad bind operation.
 -- If we look at the cross product of [1,2,3], [4,5,6], the streams being
 -- combined using 'concatMapDigaonal' are the sequential loop iterations:
 --
@@ -2710,7 +2719,7 @@ instance (MonadThrow m) => MonadThrow (Cross m) where
 --
 -- == Associativity Issues
 --
--- WARNING! The FairCross monad breaks the associativity law intentionally for
+-- WARNING! The FairNested monad breaks the associativity law intentionally for
 -- usefulness, it is associative only up to permutation equivalence. In this
 -- monad the association order of statements might make a difference to the
 -- ordering of the results because of changing the way in which streams are
@@ -2741,9 +2750,9 @@ instance (MonadThrow m) => MonadThrow (Cross m) where
 -- is provided below.
 --
 -- >>> :{
--- toS = StreamK.toStream . StreamK.unFairCross
+-- toS = StreamK.toStream . StreamK.unFairNested
 -- odds x = mk (if x then [1,3..] else [2,4..])
--- filterEven x = if even x then pure x else StreamK.FairCross StreamK.nil
+-- filterEven x = if even x then pure x else StreamK.FairNested StreamK.nil
 -- :}
 --
 -- When writing code with do notation, keep in mind that when we bind a
@@ -2781,7 +2790,7 @@ instance (MonadThrow m) => MonadThrow (Cross m) where
 -- values in the outer loop and the inner loop keeps filtering them.
 --
 -- Care should be taken how you write your program, keep in mind the scheduling
--- implications. To avoid such scheduling problems in the serial FairCross type
+-- implications. To avoid such scheduling problems in the serial FairNested type
 -- use the concurrent version i.e. FairParallel described in
 -- 'Streamly.Data.Stream.MkType' module. Due to concurrent evaluation each
 -- branch will make progress even if one is an infinite loop producing nothing.
@@ -2794,25 +2803,25 @@ instance (MonadThrow m) => MonadThrow (Cross m) where
 -- fair, it is biased - this is exactly how the logic-t and list-t
 -- implementation of fair bind works.
 
-newtype FairCross m a = FairCross {unFairCross :: StreamK m a}
+newtype FairNested m a = FairNested {unFairNested :: StreamK m a}
         deriving (Functor, Foldable)
 
 -- Pure (Identity monad) stream instances
-deriving instance Traversable (FairCross Identity)
-deriving instance IsList (FairCross Identity a)
-deriving instance (a ~ Char) => IsString (FairCross Identity a)
--- deriving instance Eq a => Eq (FairCross Identity a)
--- deriving instance Ord a => Ord (FairCross Identity a)
+deriving instance Traversable (FairNested Identity)
+deriving instance IsList (FairNested Identity a)
+deriving instance (a ~ Char) => IsString (FairNested Identity a)
+-- deriving instance Eq a => Eq (FairNested Identity a)
+-- deriving instance Ord a => Ord (FairNested Identity a)
 
 -- Do not use automatic derivation for this to show as "fromList" rather than
 -- "fromList Identity".
-instance Show a => Show (FairCross Identity a) where
+instance Show a => Show (FairNested Identity a) where
     {-# INLINE show #-}
-    show (FairCross xs) = show xs
+    show (FairNested xs) = show xs
 
-instance Read a => Read (FairCross Identity a) where
+instance Read a => Read (FairNested Identity a) where
     {-# INLINE readPrec #-}
-    readPrec = fmap FairCross readPrec
+    readPrec = fmap FairNested readPrec
 
 ------------------------------------------------------------------------------
 -- Applicative
@@ -2820,41 +2829,41 @@ instance Read a => Read (FairCross Identity a) where
 
 -- Note: we need to define all the typeclass operations because we want to
 -- INLINE them.
-instance Monad m => Applicative (FairCross m) where
+instance Monad m => Applicative (FairNested m) where
     {-# INLINE pure #-}
-    pure x = FairCross (fromPure x)
+    pure x = FairNested (fromPure x)
 
     -- XXX implement more efficient version of these
     (<*>) = ap
     {-
     {-# INLINE (<*>) #-}
-    (FairCross s1) <*> (FairCross s2) =
-        FairCross (crossApply s1 s2)
+    (FairNested s1) <*> (FairNested s2) =
+        FairNested (crossApply s1 s2)
 
     {-# INLINE liftA2 #-}
     liftA2 f x = (<*>) (fmap f x)
 
     {-# INLINE (*>) #-}
-    (FairCross s1) *> (FairCross s2) =
-        FairCross (crossApplySnd s1 s2)
+    (FairNested s1) *> (FairNested s2) =
+        FairNested (crossApplySnd s1 s2)
 
     {-# INLINE (<*) #-}
-    (FairCross s1) <* (FairCross s2) =
-        FairCross (crossApplyFst s1 s2)
+    (FairNested s1) <* (FairNested s2) =
+        FairNested (crossApplyFst s1 s2)
     -}
 
 ------------------------------------------------------------------------------
 -- Monad
 ------------------------------------------------------------------------------
 
-instance Monad m => Monad (FairCross m) where
+instance Monad m => Monad (FairNested m) where
     return = pure
 
     {-# INLINE (>>=) #-}
-    (>>=) (FairCross m) f = FairCross (concatMapDiagonal (unFairCross . f) m)
-    -- (>>=) (FairCross m) f = FairCross (concatMapInterleave (unFairCross . f) m)
-    -- (>>=) (FairCross m) f = FairCross (concatMapWith interleave (unFairCross . f) m)
-    -- (>>=) (FairCross m) f = FairCross (mergeMapWith interleave (unFairCross . f) m)
+    (>>=) (FairNested m) f = FairNested (concatMapDiagonal (unFairNested . f) m)
+    -- (>>=) (FairNested m) f = FairNested (concatMapInterleave (unFairNested . f) m)
+    -- (>>=) (FairNested m) f = FairNested (concatMapWith interleave (unFairNested . f) m)
+    -- (>>=) (FairNested m) f = FairNested (mergeMapWith interleave (unFairNested . f) m)
 
     {-# INLINE (>>) #-}
     (>>) = (*>)
@@ -2863,12 +2872,12 @@ instance Monad m => Monad (FairCross m) where
 -- Transformers
 ------------------------------------------------------------------------------
 
-instance (MonadIO m) => MonadIO (FairCross m) where
-    liftIO x = FairCross (fromEffect $ liftIO x)
+instance (MonadIO m) => MonadIO (FairNested m) where
+    liftIO x = FairNested (fromEffect $ liftIO x)
 
-instance MonadTrans FairCross where
+instance MonadTrans FairNested where
     {-# INLINE lift #-}
-    lift x = FairCross (fromEffect x)
+    lift x = FairNested (fromEffect x)
 
-instance (MonadThrow m) => MonadThrow (FairCross m) where
+instance (MonadThrow m) => MonadThrow (FairNested m) where
     throwM = lift . throwM

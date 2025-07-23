@@ -82,10 +82,10 @@ module Streamly.Data.StreamK
     -- * Type
       StreamK
 
-    -- -- * Cross
+    -- -- * Nested
     -- -- | List transformers and logic programming monads.
-    -- , Cross(..) -- need to decide on mtl instances
-    -- , FairCross(..) -- bind is not associative
+    -- , Nested(..) -- need to decide on mtl instances
+    -- , FairNested(..) -- bind is not associative
 
     -- * Construction
     -- ** Primitives
@@ -197,8 +197,6 @@ module Streamly.Data.StreamK
     -- * Deprecated
     , parseBreakChunks
     , parseChunks
-    , CrossStreamK
-    , mkCross
     )
 where
 

@@ -32,7 +32,7 @@ import Control.Monad.Trans.State.Strict (get, put)
 import Data.Function ((&))
 import Data.Maybe (isJust)
 import Streamly.Internal.Data.Stream.Step (Step(..))
-import Streamly.Internal.Data.Stream.Type (Stream(..), Cross(..))
+import Streamly.Internal.Data.Stream.Type (Stream(..), Nested(..))
 
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -134,25 +134,25 @@ innerOrdJoin s1 s2 =
 {-# INLINE leftJoin #-}
 leftJoin :: Monad m =>
     (a -> b -> Bool) -> Stream m a -> Stream m b -> Stream m (a, Maybe b)
-leftJoin eq s1 s2 = Stream.evalStateT (return False) $ unCross $ do
-    a <- Cross (Stream.liftInner s1)
+leftJoin eq s1 s2 = Stream.evalStateT (return False) $ unNested $ do
+    a <- Nested (Stream.liftInner s1)
     -- XXX should we use StreamD monad here?
     -- XXX Is there a better way to perform some action at the end of a loop
     -- iteration?
-    Cross (Stream.fromEffect $ put False)
+    Nested (Stream.fromEffect $ put False)
     let final = Stream.concatEffect $ do
             r <- get
             if r
             then pure Stream.nil
             else pure (Stream.fromPure Nothing)
-    b <- Cross (fmap Just (Stream.liftInner s2) `Stream.append` final)
+    b <- Nested (fmap Just (Stream.liftInner s2) `Stream.append` final)
     case b of
         Just b1 ->
             if a `eq` b1
             then do
-                Cross (Stream.fromEffect $ put True)
+                Nested (Stream.fromEffect $ put True)
                 return (a, Just b1)
-            else Cross Stream.nil
+            else Nested Stream.nil
         Nothing -> return (a, Nothing)
 
 -- | 'leftJoin' specialized to 'Ord' types for better performance.
@@ -228,14 +228,14 @@ outerJoin eq s1 s2 =
                         ) stream1 stream2
                     ) & Stream.catMaybes
 
-    evalState = Stream.evalStateT (return False) . unCross
+    evalState = Stream.evalStateT (return False) . unNested
 
     go inputArr foundArr = evalState $ do
-        a <- Cross (Stream.liftInner s1)
+        a <- Nested (Stream.liftInner s1)
         -- XXX should we use StreamD monad here?
         -- XXX Is there a better way to perform some action at the end of a loop
         -- iteration?
-        Cross (Stream.fromEffect $ put False)
+        Nested (Stream.fromEffect $ put False)
         let final = Stream.concatEffect $ do
                 r <- get
                 if r
@@ -243,17 +243,17 @@ outerJoin eq s1 s2 =
                 else pure (Stream.fromPure Nothing)
         (i, b) <-
             let stream = Array.read inputArr
-             in Cross
+             in Nested
                 (Stream.indexed $ fmap Just (Stream.liftInner stream) `Stream.append` final)
 
         case b of
             Just b1 ->
                 if a `eq` b1
                 then do
-                    Cross (Stream.fromEffect $ put True)
+                    Nested (Stream.fromEffect $ put True)
                     MA.putIndex i foundArr True
                     return (Just a, Just b1)
-                else Cross Stream.nil
+                else Nested Stream.nil
             Nothing -> return (Just a, Nothing)
 
 -- Put the b's that have been paired, in another hash or mutate the hash to set
