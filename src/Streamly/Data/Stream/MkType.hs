@@ -24,62 +24,138 @@
 -- >>> import Streamly.Data.Stream.MkType
 -- >>> import qualified Streamly.Data.Stream.Prelude as Stream
 --
--- For 'Streamly.Prelude.AsyncT' monad type with a concurrent cross product
--- bind:
+-- We are describing below many useful types that can be created using macros
+-- in this module and the behavior of those types. These could be useful if you
+-- like to program using the monad \"do notation\" instead of using concatMap
+-- like operations.
+--
+-- == Parallel
+--
+-- An unordered concurrent version of the serial 'Nested' type. Runs multiple
+-- iterations of the nested loops concurrently, iterations may execute out of
+-- order. More outer iterations are started only if the existing inner
+-- iterations are not saturating the resources.
 --
 -- >>> :{
 --  bind = flip (Stream.parConcatMap id)
---  $(mkCrossType "AsyncT" "bind" True)
+--  $(mkCrossType "Parallel" "bind" True)
 -- :}
 --
--- For 'Streamly.Prelude.WAsyncT' monad type with a concurrent interleaved
--- bind:
+-- This is a bounded concurrent, unordered list-transformer (ListT) monad.
+--
+-- WARNING! By design, monad bind of this type is not associative, because of
+-- concurrency order of effects as well as results may be unpredictable.
+--
+-- Same as the deprecated 'Streamly.Prelude.AsyncT' type.
+--
+-- == FairParallel
+--
+-- Like Parallel but strikes a balance between going deeper into existing
+-- iterations of the loop and starting new iterations.
 --
 -- >>> :{
 --  bind = flip (Stream.parConcatMap (Stream.interleaved True))
---  $(mkCrossType "WAsyncT" "bind" True)
+--  $(mkCrossType "FairParallel" "bind" True)
 -- :}
 --
--- For 'Streamly.Prelude.AheadT' monad type with a concurrent ordered
--- cross product bind:
+-- This is a bounded concurrent, fair logic programming (LogicT) monad.
 --
--- >>> :{
---  bind = flip (Stream.parConcatMap (Stream.ordered True))
---  $(mkCrossType "AheadT" "bind" True)
--- :}
+-- WARNING! By design, monad bind of this type is not associative, because of
+-- concurrency order of effects as well as results may be unpredictable.
 --
--- For 'Streamly.Prelude.ParallelT' monad type with an eager concurrent cross
--- product bind:
+-- Same as the deprecated 'Streamly.Prelude.WAsyncT' type.
+--
+-- == EagerParallel
+--
+-- Like Parallel, but executes as many actions concurrently as possible. This
+-- is useful if you want all actions to be scheduled at the same time so that
+-- something does not get starved due to others.
 --
 -- >>> :{
 --  parBind = flip (Stream.parConcatMap (Stream.eager True))
---  $(mkCrossType "ParallelT" "parBind" True)
+--  $(mkCrossType "EagerParallel" "parBind" True)
 -- :}
 --
--- For 'Streamly.Prelude.ZipSerialM' serial zipping applicative type:
+-- This is an unbounded concurrent, unordered list transformer (ListT) monad.
+--
+-- WARNING! By design, monad bind of this type is not associative, because of
+-- concurrency order of effects as well as results may be unpredictable.
+--
+-- Same as the deprecated 'Streamly.Prelude.ParallelT' type.
+--
+-- == OrderedParallel
+--
+-- Like Parallel, runs many iterations concurrently, but stages the results
+-- such that the results of iterations are presented in the same order as
+-- specified in the code. This is closest to the serial Nested type in behavior
+-- among all the concurrent types.
+--
+-- >>> :{
+--  bind = flip (Stream.parConcatMap (Stream.ordered True))
+--  $(mkCrossType "OrderedParallel" "bind" True)
+-- :}
+--
+-- This is a bounded concurrent, ordered list transformer (ListT) monad.
+--
+-- WARNING! Monad bind of this type is associative for values, but because of
+-- concurrency, order of effects may be unpredictable.
+--
+-- Same as the deprecated 'Streamly.Prelude.AheadT' type.
+--
+-- == Zip
+--
+-- An applicative type to zip two streams.
 --
 -- >>> :{
 --  zipApply = Stream.zipWith ($)
---  $(mkZipType "ZipSerialM" "zipApply" False)
+--  $(mkZipType "Zip" "zipApply" False)
 -- :}
 --
--- For 'Streamly.Prelude.ZipAsync' concurrent zipping applicative type:
+-- Same as the deprcated 'Streamly.Prelude.ZipSerialM' type.
+--
+-- == ParZip
+--
+-- Like Zip but evaluates the two streams concurrently.
 --
 -- >>> :{
 --  parCrossApply = Stream.parCrossApply id
---  $(mkZipType "ZipAsync" "parCrossApply" True)
+--  $(mkZipType "ParZip" "parCrossApply" True)
 -- :}
 --
--- Instead of using these macros directly you could use the generated code as
--- well. Use these macros in ghci to generate the required code and paste it in
--- your package, you can customize the code as desired. See the docs of the
--- macros below for examples about how to view the generated code. For example:
+-- Same as the deprecated 'Streamly.Prelude.ZipAsync' type.
+--
+-- == Avoiding Template Haskell
+--
+-- Instead of using these macros directly you could copy and paste the
+-- generated code as well. Use these macros in ghci to generate the required
+-- code and paste it in your package, you can customize the code as desired.
+-- See the docs of the macros below for examples about how to view the
+-- generated code. For example:
 --
 -- >>> bind = flip (Stream.parConcatMap id)
 -- >>> expr <- runQ (mkCrossType "AsyncT" "bind" True)
 --
 -- >> putStrLn $ pprint expr
+
+-- XXX TBD
 --
+-- == Nested
+--
+-- A serial cross monad type, same as 'Streamly.Data.StreamK.Nested' but with
+-- mtl instances.
+--
+-- == FairNested
+--
+-- Like Nested but strikes a balance between going deeper into existing
+-- iterations of the loop and starting new iterations. Same as
+-- 'Streamly.Data.StreamK.FairNested' but additional with mtl instances.
+--
+-- == InvertedParallel
+--
+-- gives more priority to opening new iterations than to run existing
+-- iterations. The interleaved options should be diagonal, and interleaved can
+-- be for giving priority to iterations.
+
 module Streamly.Data.Stream.MkType
     (
     -- * Imports for Examples
