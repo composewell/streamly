@@ -82,10 +82,10 @@ module Streamly.Data.StreamK
     -- * Type
       StreamK
 
-    -- * Cross
-    -- | List transformers and logic programming monads.
-    , Cross(..)
-    , FairCross(..)
+    -- -- * Cross
+    -- -- | List transformers and logic programming monads.
+    -- , Cross(..) -- need to decide on mtl instances
+    -- , FairCross(..) -- bind is not associative
 
     -- * Construction
     -- ** Primitives
