@@ -1973,6 +1973,18 @@ infixr 6 `interleave`
 -- Because of right association, the first stream yields as many items as the
 -- next two streams combined.
 --
+-- Be careful when refactoring code involving a chain of three or more
+-- 'interleave' operations as it is not associative i.e. right associated code
+-- may not produce the same result as left associated. This is a direct
+-- consequence of the disbalance of scheduling in the previous example. If left
+-- associated the above example would produce:
+--
+-- >>> un $ (mk [1,2,3] `StreamK.interleave` mk [4,5,6]) `StreamK.interleave` mk [7,8,9]
+-- [1,7,4,8,2,9,5,3,6]
+--
+-- Note: Use concatMap based interleaving instead of the binary operator to
+-- interleave more than two streams to avoid associativity issues.
+--
 -- 'concatMapWith' 'interleave' flattens a stream of streams using 'interleave'
 -- in a right associative manner. Given a stream of three streams:
 --
@@ -1985,12 +1997,15 @@ infixr 6 `interleave`
 -- The resulting sequence is @[1,4,2,7,3,5,8,6,9]@.
 --
 -- For this reason, the right associated flattening with 'interleave' can work
--- with infinite streams. Each stream is consumed twice as much as the next
--- one. If we are combining an infinite number of streams of size @n@ then at
--- most @log n@ streams will be opened at any given time, because the first
--- stream will finish by the time the stream after @log n@ th stream is opened.
+-- with infinite number of streams without opening too many streams at the same
+-- time. Each stream is consumed twice as much as the next one; if we are
+-- combining an infinite number of streams of size @n@ then at most @log n@
+-- streams will be opened at any given time, because the first stream will
+-- finish by the time the stream after @log n@ th stream is opened.
 --
 -- Compare with 'concatMapInterleave' and 'mergeMapWith' 'interleave'.
+--
+-- For interleaving many streams, the best way is to use 'concatMapInterleave'.
 --
 -- See also the fused version 'Streamly.Data.Stream.interleave'.
 {-# INLINE interleave #-}
@@ -2424,11 +2439,13 @@ concatMapEffect f action =
 
 -- | 'Cross' is a list-transformer monad, it serves the same purpose as the
 -- @ListT@ type from the @list-t@ package. It is similar to the standard
--- Haskell lists' monad instance. 'Cross' behaves like nested @for@ loops
--- implementing a cross product based computation over multiple streams.
+-- Haskell lists' monad instance. 'Cross' monad behaves like nested @for@ loops
+-- implementing a computation based on a cross product over multiple streams.
 --
 -- >>> mk = StreamK.Cross . StreamK.fromStream . Stream.fromList
 -- >>> un = Stream.toList . StreamK.toStream . StreamK.unCross
+--
+-- == Looping
 --
 -- In the following code the variable @x@ assumes values of the elements of the
 -- stream one at a time and runs the code that follows; using that value. It is
@@ -2441,6 +2458,8 @@ concatMapEffect f action =
 -- :}
 -- [1,2,3]
 --
+-- == Nested Looping
+--
 -- Multiple streams can be nested like nested @for@ loops. The result is a
 -- cross product of the streams.
 --
@@ -2451,6 +2470,11 @@ concatMapEffect f action =
 --     return (x, y)
 -- :}
 -- [(1,4),(1,5),(1,6),(2,4),(2,5),(2,6),(3,4),(3,5),(3,6)]
+--
+-- Note that an infinite stream in an inner loop will block the outer streams
+-- from moving to the next iteration.
+--
+-- == How it works?
 --
 -- The bind operation of the monad is flipped 'concatMapWith' 'append'. The
 -- concatMap operation maps the lines involving y as a function of x over the
@@ -2463,6 +2487,11 @@ concatMapEffect f action =
 -- >>> un (mk [1,2,3] >>= (\x -> (mk [4,5,6] >>= \y -> return (x,y))))
 -- [(1,4),(1,5),(1,6),(2,4),(2,5),(2,6),(3,4),(3,5),(3,6)]
 --
+-- You can achieve the looping and nested looping by directly using concatMap
+-- but the monad and the \"do notation\" gives you better ergonomics.
+--
+-- == Interleaving of loop iterations
+--
 -- If we look at the cross product of [1,2,3], [4,5,6], the streams being
 -- combined using 'append' are the @for@ loop iterations as follows:
 --
@@ -2474,20 +2503,25 @@ concatMapEffect f action =
 --
 -- The result is equivalent to sequentially appending all the iterations of the
 -- nested @for@ loop:
--- @[(1,4),(1,5),(1,6),(2,4),(2,5),(2,6),(3,4),(3,5),(3,6)]@
 --
--- An infinite stream in an inner loop will block the chance of any outer
--- streams to go to the next iteration.
+-- @
+-- [(1,4),(1,5),(1,6),(2,4),(2,5),(2,6),(3,4),(3,5),(3,6)]
+-- @
 --
--- If we use 'concatMapInterleave' as the monad bind operation then the nested
--- loops would get inverted - the innermost loop becomes the outermost and vice
--- versa.
+-- == Logic Programming
 --
 -- 'Cross' also serves the purpose of 'LogicT' type from the 'logict' package.
 -- The @MonadLogic@ operations can be implemented using the available stream
--- operations. For example, 'interleave' is the fair interleave logic
--- operation. However, the 'FairCross' type is even better as a logic
--- programming monad, providing fair conjunction as part of the monad itself.
+-- operations. For example, 'uncons' is @msplit@, 'interleave' corresponds to
+-- the @interleave@ operation of MonadLogic, 'concatMapDiagonal' is a flipped
+-- fair bind (@>>-@) operation. The 'FairCross' type provides a monad with fair
+-- bind.
+--
+-- == Related Functionality
+--
+-- A custom type can be created using 'concatMapInterleave' as the monad bind
+-- operation then the nested loops would get inverted - the innermost loop
+-- becomes the outermost and vice versa.
 --
 -- See 'FairCross' if you want all the streams to get equal chance to execute
 -- even if they are infinite.
@@ -2584,14 +2618,19 @@ instance (MonadThrow m) => MonadThrow (Cross m) where
 -- Stream with a fair cross product style monad instance
 ------------------------------------------------------------------------------
 
--- | 'FairCross' serves the same purpose as the @LogicT@ type in the 'logict'
--- package, with better performance and ergonomics. It is like the 'Cross' type
--- but explores the depth and breadth of the cross product grid equally, so
--- that each of the stream being crossed is consumed equally. It can be used
--- fairly with infinite streams.
+-- XXX We can fix the termination issues by adding a "skip" continuation in the
+-- stream. Adding a "block" continuation can allow for blocking IO. Both of
+-- these together will provide a co-operative scheduling.
+
+-- | 'FairCross' is like the 'Cross' type but explores the depth and breadth of
+-- the cross product grid equally, so that each of the stream being crossed is
+-- consumed equally. It can be used to nest infinite streams without starving
+-- one due to the other.
 --
 -- >>> mk = StreamK.FairCross . StreamK.fromStream . Stream.fromList
 -- >>> un = Stream.toList . StreamK.toStream . StreamK.unFairCross
+--
+-- == Looping
 --
 -- A single stream case is equivalent to 'Cross', it is a simple @for@ loop
 -- over the stream:
@@ -2602,6 +2641,8 @@ instance (MonadThrow m) => MonadThrow (Cross m) where
 --     return x
 -- :}
 -- [1,2]
+--
+-- == Fair Nested Looping
 --
 -- Multiple streams nest like @for@ loops. The result is a cross product of the
 -- streams. However, the ordering of the results of the cross product is such
@@ -2618,6 +2659,8 @@ instance (MonadThrow m) => MonadThrow (Cross m) where
 -- :}
 -- [(1,4),(1,5),(2,4),(1,6),(2,5),(3,4),(2,6),(3,5),(3,6)]
 --
+-- == Nesting Infinite Streams
+--
 -- Example with infinite streams. Print all pairs in the cross product with sum
 -- less than a specified number.
 --
@@ -2632,6 +2675,8 @@ instance (MonadThrow m) => MonadThrow (Cross m) where
 -- :}
 -- [(1,1),(1,2),(2,1),(1,3),(2,2),(3,1),(1,4),(2,3),(3,2),(4,1)]
 --
+-- == How it works?
+--
 -- 'FairCross' uses flipped 'concatMapDiagonal' as the monad bind operation.
 -- If we look at the cross product of [1,2,3], [4,5,6], the streams being
 -- combined using 'concatMapDigaonal' are the sequential loop iterations:
@@ -2643,11 +2688,95 @@ instance (MonadThrow m) => MonadThrow (Cross m) where
 -- @
 --
 -- The result is a triangular or diagonal traversal of these iterations:
--- @[(1,4),(1,5),(2,4),(1,6),(2,5),(3,4),(2,6),(3,5),(3,6)]@
 --
--- If we use 'concatMapWith' 'interleave' as the monad bind operation then the
--- inner iterations get exponentially more priority over the outer iterations
--- of the nested loop.
+-- @
+-- [(1,4),(1,5),(2,4),(1,6),(2,5),(3,4),(2,6),(3,5),(3,6)]
+-- @
+--
+-- == Associativity Issues
+--
+-- WARNING! The FairCross monad breaks the associativity law intentionally for
+-- usefulness. In this monad the association order of statements might make a
+-- difference to the ordering of the results because of changing the way in
+-- which streams are scheduled. The same issues arise when you use the
+-- 'interleave' operation directly, association order matters - however, here
+-- it can be more subtle as the programmer may not see it directly.
+--
+-- >>> un (mk [1,2] >>= (\x -> mk [x, x + 1] >>= (\y -> mk [y, y + 2])))
+-- [1,3,2,2,4,4,3,5]
+-- >>> un ((mk [1,2] >>= (\x -> mk [x, x + 1])) >>= (\y -> mk [y, y + 2]))
+-- [1,3,2,4,2,4,3,5]
+--
+-- This type is designed to be used for use cases where ordering of results
+-- does not matter, we want to explore different streams to find specific
+-- results, but the order in which we find or present the results may not be
+-- important. Re-association of statements in this monad may change how different
+-- branches are scheduled, which may change the scheduling priority of some
+-- streams over others, this may end up starving some branches - in the worst
+-- case some branches may be fully starved by some infinite branches producing
+-- nothing - resulting in a non-terminating program.
+--
+-- == Non-Termination Cases
+--
+-- If an infinite stream that does not produce a value at all is interleaved
+-- with another stream then the entire computation gets stuck forever because
+-- the interleave operation schedules the second stream only after the first
+-- stream yields a value. This can lead to non-terminating programs, an example
+-- is provided below.
+--
+-- >>> :{
+-- toS = StreamK.toStream . StreamK.unFairCross
+-- odds x = mk (if x then [1,3..] else [2,4..])
+-- filterEven x = if even x then pure x else StreamK.FairCross StreamK.nil
+-- :}
+--
+-- When writing code with do notation, keep in mind that when we bind a
+-- variable to a monadic value, all the following code that depends on this
+-- variable is associated together and connected to it via a monad bind.
+-- Consider the following code:
+--
+-- >>> :{
+-- evens = toS $ do
+--     r <- mk [True,False]
+--     -- The next two statements depending on the variable r are associated
+--     -- together and bound to the previous line using a monad bind.
+--     x <- odds r
+--     filterEven x
+-- :}
+--
+-- This code does not terminate because, when r is True, @odds@ and
+-- @filterEven@ together constitute an infinite inner loop, coninuously working
+-- but not yielding any value at all, this stream is interleaved with the outer
+-- loop, therefore, the outer loop does not get a chance to move to the next
+-- iteration.
+--
+-- But the following code works as expected:
+--
+-- >>> :{
+-- evens = toS $ do
+--     x <- mk [True,False] >>= odds
+--     filterEven x
+-- :}
+--
+-- >>> Stream.toList $ Stream.take 3 $ evens
+-- [2,4,6]
+--
+-- This works because both the lists being interleaved continue to produce
+-- values in the outer loop and the inner loop keeps filtering them.
+--
+-- Care should be taken how you write your program, keep in mind the scheduling
+-- implications. To avoid such scheduling problems in the serial FairCross type
+-- use the concurrent version i.e. FairParallel described in
+-- 'Streamly.Data.Stream.MkType' module. Due to concurrent evaluation each
+-- branch will make progress even if one is an infinite loop producing nothing.
+--
+-- == Related Operations
+--
+-- We can create a custom type with 'concatMapWith' 'interleave' as the monad
+-- bind operation then the inner loop iterations get exponentially more
+-- priority over the outer iterations of the nested loop. This is not fully
+-- fair, it is biased - this is exactly how the logic-t and list-t
+-- implementation of fair bind works.
 
 newtype FairCross m a = FairCross {unFairCross :: StreamK m a}
         deriving (Functor, Semigroup, Monoid, Foldable)
