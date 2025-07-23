@@ -164,7 +164,7 @@ different ways. It is just non-determinism with different flavors of
 scheduling behavior. The scheduling behavior can be controlled as follows.
 
 ```haskell
-bindWSerialK = StreamK.bindWith StreamK.interleave
+bindWSerialK = StreamK.bfsConcatFor
 bindWSerial a f = StreamK.toStream $ bindWSerialK (StreamK.fromStream a) (StreamK.fromStream . f)
 $(mkCrossType "WSerialT" "bindWSerial" True)
 
