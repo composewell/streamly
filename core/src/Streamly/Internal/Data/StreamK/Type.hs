@@ -159,8 +159,8 @@ where
 
 #include "inline.hs"
 
--- import Control.Applicative (liftA2)
-import Control.Monad ((>=>), ap)
+import Control.Applicative (Alternative(..))
+import Control.Monad ((>=>), ap, MonadPlus(..))
 import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.Trans.Class (MonadTrans(lift))
 #if !MIN_VERSION_base(4,18,0)
@@ -175,7 +175,7 @@ import Data.Kind (Type)
 #endif
 import Data.Maybe (fromMaybe)
 import Data.Semigroup (Endo(..))
-import GHC.Exts (IsList(..), IsString(..), oneShot)
+import GHC.Exts (IsList(..), IsString(..), oneShot, inline)
 import Streamly.Internal.BaseCompat ((#.))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.SVar.Type (State, adaptState, defState)
@@ -2599,6 +2599,21 @@ instance Monad m => Monad (Cross m) where
 
     {-# INLINE (>>) #-}
     (>>) = (*>)
+
+------------------------------------------------------------------------------
+-- Alternative and MonadPlus
+------------------------------------------------------------------------------
+
+instance (Monad m) => MonadFail (Cross m) where
+  fail _ = inline mempty
+
+instance (Monad m, Functor m) => Alternative (Cross m) where
+  empty = inline mempty
+  (<|>) = inline mappend
+
+instance (Monad m) => MonadPlus (Cross m) where
+  mzero = inline mempty
+  mplus = inline mappend
 
 ------------------------------------------------------------------------------
 -- Transformers
