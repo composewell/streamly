@@ -25,7 +25,7 @@ module Streamly.Internal.Data.StreamK.Type
 
     -- * Cross type wrapper
     , Cross(..)
-    , FairCross(..)
+    , FairCross(..) -- experimental, do not release, associativity issues
 
     -- * foldr/build Fusion
     , mkStream
@@ -2696,11 +2696,12 @@ instance (MonadThrow m) => MonadThrow (Cross m) where
 -- == Associativity Issues
 --
 -- WARNING! The FairCross monad breaks the associativity law intentionally for
--- usefulness. In this monad the association order of statements might make a
--- difference to the ordering of the results because of changing the way in
--- which streams are scheduled. The same issues arise when you use the
--- 'interleave' operation directly, association order matters - however, here
--- it can be more subtle as the programmer may not see it directly.
+-- usefulness, it is associative only up to permutation equivalence. In this
+-- monad the association order of statements might make a difference to the
+-- ordering of the results because of changing the way in which streams are
+-- scheduled. The same issues arise when you use the 'interleave' operation
+-- directly, association order matters - however, here it can be more subtle as
+-- the programmer may not see it directly.
 --
 -- >>> un (mk [1,2] >>= (\x -> mk [x, x + 1] >>= (\y -> mk [y, y + 2])))
 -- [1,3,2,2,4,4,3,5]
@@ -2779,7 +2780,7 @@ instance (MonadThrow m) => MonadThrow (Cross m) where
 -- implementation of fair bind works.
 
 newtype FairCross m a = FairCross {unFairCross :: StreamK m a}
-        deriving (Functor, Semigroup, Monoid, Foldable)
+        deriving (Functor, Foldable)
 
 -- Pure (Identity monad) stream instances
 deriving instance Traversable (FairCross Identity)
