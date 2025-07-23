@@ -64,7 +64,7 @@ GHC typically uses three inline phases:
 - **Phase 0** (the latest).
 
 Inlining can be controlled with phase-specific annotations like:
-```haskell
+``` haskell
 {-# INLINE [1] functionName #-}
 ```
 to guide when inlining occurs during compilation.
@@ -318,7 +318,7 @@ only written once and reused across branches.
 
 Instead of:
 
-```haskell
+``` haskell
 if condition1
   then doSomething1
   else doCommonThing
@@ -330,7 +330,7 @@ if condition2
 
 Refactor to:
 
-```haskell
+``` haskell
     when condition1 doSomething1
     when condition2 doSomething2
     doCommonThing
@@ -338,7 +338,7 @@ Refactor to:
 
 Or, if multiple branches share a computation:
 
-```haskell
+``` haskell
     let common = doCommonThing
     in if condition
          then doSomething >> common
@@ -431,7 +431,7 @@ potentially duplicating side effects or violating assumptions about
 evaluation order—leading to unsafe or unpredictable behavior. It can
 also result in reduced performance.
 
-```haskell
+``` haskell
     {-# NOINLINE myGlobal #-}
     myGlobal :: IORef Int
     myGlobal = unsafePerformIO (newIORef 0)
@@ -458,7 +458,7 @@ and `text` libraries. These provide better performance than the default
 Consider the following fold function a Streamly user wanted to use for
 stream processing:
 
-```haskell
+``` haskell
     runQueryFold
       :: QueryRunner columns haskells
       -> Postgres.Connection
@@ -475,7 +475,7 @@ accumulated result `b`.
 The user proposed to use this fold to build a stream, then process that
 stream—for example:
 
-```haskell
+``` haskell
     runQueryFold conn q StreamK.nil $ \xs x -> pure $ StreamK.cons x xs
 ```
 
@@ -506,7 +506,7 @@ generation function into a stream with `unfoldrM`. For example, if your
 generation logic provides a step function returning `Maybe` values, you
 can convert it into a stream like this:
 
-```haskell
+``` haskell
     Stream.unfoldrM step  -- generate step in the pipeline
       & Stream.mapM transform  -- transform step
       & ...                   -- additional stream operations
@@ -535,7 +535,7 @@ consumer side stream rather than producer side stream.
 
 You can lift the `runQueryFold` function into a streaming `Fold` using:
 
-```haskell
+``` haskell
 foldlM' :: Monad m => (b -> a -> m b) -> m b -> Fold m a b
 ```
 
