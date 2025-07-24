@@ -134,8 +134,8 @@ module Streamly.Internal.Data.StreamK.Type
     , concatMapWith
     , bindWith
     , concatMap
-    , concatMapInterleave
-    , concatMapDiagonal
+    , bfsConcatMap
+    , fairConcatMap
     , concatMapMAccum
     , concatIterateWith
     , concatIterateLeftsWith
@@ -1471,7 +1471,7 @@ bindWith combine m1 f = go m1
 -- >>> un $ StreamK.concatMapWith StreamK.interleave mk lists
 -- [1,2,5,3,6,4,7,8]
 --
--- For a fair interleaving example see 'concatMapInterleave' and 'mergeMapWith'.
+-- For a fair interleaving example see 'bfsConcatMap' and 'mergeMapWith'.
 --
 {-# INLINE concatMapWith #-}
 concatMapWith
@@ -1607,7 +1607,7 @@ mergeMapWith combine f str = go (leafPairs str)
 -- XXX check if bindInterleave has better perf like bindWith?
 
 -- | While concatMap flattens a stream of streams in a depth first manner,
--- 'concatMapInterleave' flattens it in a breadth-first manner. It yields one
+-- 'bfsConcatMap' flattens it in a breadth-first manner. It yields one
 -- item from the first stream, then one item from the next stream and so on.
 -- Given a stream of three streams:
 --
@@ -1622,7 +1622,7 @@ mergeMapWith combine f str = go (leafPairs str)
 -- For example:
 --
 -- >>> stream = mk [[1,2,3],[4,5,6],[7,8,9]]
--- >>> un $ StreamK.concatMapInterleave mk stream
+-- >>> un $ StreamK.bfsConcatMap mk stream
 -- [1,4,7,2,5,8,3,6,9]
 --
 -- Compare with 'concatMapWith' 'interleave' which explores the depth
@@ -1631,12 +1631,12 @@ mergeMapWith combine f str = go (leafPairs str)
 --
 -- See also the equivalent fused version 'Data.Stream.unfoldEachInterleave'.
 --
-{-# INLINE concatMapInterleave #-}
-concatMapInterleave ::
+{-# INLINE bfsConcatMap #-}
+bfsConcatMap ::
        (a -> StreamK m b)
     -> StreamK m a
     -> StreamK m b
-concatMapInterleave f m1 = go id m1
+bfsConcatMap f m1 = go id m1
 
     where
 
@@ -1682,7 +1682,7 @@ concatMapInterleave f m1 = go id m1
                 yieldk a r = yld a (goLoop (ys . (r :)) xs)
             foldStream st yieldk single stop x
 
--- | 'concatMapDiagonal' flattens a stream of streams in a diagonal manner.
+-- | 'fairConcatMap' flattens a stream of streams in a diagonal manner.
 -- Every previous stream yields one more item than the next. Therefore, the
 -- depth and breadth of traversal is equally balanced.
 -- Given a stream of three streams:
@@ -1701,19 +1701,19 @@ concatMapInterleave f m1 = go id m1
 -- For example:
 --
 -- >>> stream = mk [[1,2,3],[4,5,6],[7,8,9]]
--- >>> un $ StreamK.concatMapDiagonal mk stream
+-- >>> un $ StreamK.fairConcatMap mk stream
 -- [1,2,4,3,5,7,6,8,9]
 --
 -- Compare with 'concatMapWith interleave' which explores the depth
 -- exponentially more compared to the breadth, such that each stream yields
 -- twice as many items compared to the next stream.
 --
-{-# INLINE concatMapDiagonal #-}
-concatMapDiagonal ::
+{-# INLINE fairConcatMap #-}
+fairConcatMap ::
        (a -> StreamK m b)
     -> StreamK m a
     -> StreamK m b
-concatMapDiagonal f m1 = go id m1
+fairConcatMap f m1 = go id m1
 
     where
 
@@ -2008,9 +2008,9 @@ infixr 6 `interleave`
 -- streams will be opened at any given time, because the first stream will
 -- finish by the time the stream after @log n@ th stream is opened.
 --
--- Compare with 'concatMapInterleave' and 'mergeMapWith' 'interleave'.
+-- Compare with 'bfsConcatMap' and 'mergeMapWith' 'interleave'.
 --
--- For interleaving many streams, the best way is to use 'concatMapInterleave'.
+-- For interleaving many streams, the best way is to use 'bfsConcatMap'.
 --
 -- See also the fused version 'Streamly.Data.Stream.interleave'.
 {-# INLINE interleave #-}
@@ -2518,13 +2518,13 @@ concatMapEffect f action =
 -- 'Nested' also serves the purpose of 'LogicT' type from the 'logict' package.
 -- The @MonadLogic@ operations can be implemented using the available stream
 -- operations. For example, 'uncons' is @msplit@, 'interleave' corresponds to
--- the @interleave@ operation of MonadLogic, 'concatMapDiagonal' is a flipped
+-- the @interleave@ operation of MonadLogic, 'fairConcatMap' is a flipped
 -- fair bind (@>>-@) operation. The 'FairNested' type provides a monad with fair
 -- bind.
 --
 -- == Related Functionality
 --
--- A custom type can be created using 'concatMapInterleave' as the monad bind
+-- A custom type can be created using 'bfsConcatMap' as the monad bind
 -- operation then the nested loops would get inverted - the innermost loop
 -- becomes the outermost and vice versa.
 --
@@ -2647,7 +2647,10 @@ instance (MonadThrow m) => MonadThrow (Nested m) where
 
 -- XXX We can fix the termination issues by adding a "skip" continuation in the
 -- stream. Adding a "block" continuation can allow for blocking IO. Both of
--- these together will provide a co-operative scheduling.
+-- these together will provide a co-operative scheduling. However, adding skip
+-- will regress performance in heavy filtering cases. If that's important we
+-- create another type StreamK' for skip continuation. That type can use
+-- conversion from Stream type for everything except append and concatMap.
 
 -- | 'FairNested' is like the 'Nested' type but explores the depth and breadth of
 -- the cross product grid equally, so that each of the stream being crossed is
@@ -2704,7 +2707,7 @@ instance (MonadThrow m) => MonadThrow (Nested m) where
 --
 -- == How it works?
 --
--- 'FairNested' uses flipped 'concatMapDiagonal' as the monad bind operation.
+-- 'FairNested' uses flipped 'fairConcatMap' as the monad bind operation.
 -- If we look at the cross product of [1,2,3], [4,5,6], the streams being
 -- combined using 'concatMapDigaonal' are the sequential loop iterations:
 --
@@ -2863,13 +2866,10 @@ instance Monad m => Monad (FairNested m) where
     return = pure
 
     {-# INLINE (>>=) #-}
-    (>>=) (FairNested m) f = FairNested (concatMapDiagonal (unFairNested . f) m)
-    -- (>>=) (FairNested m) f = FairNested (concatMapInterleave (unFairNested . f) m)
-    -- (>>=) (FairNested m) f = FairNested (concatMapWith interleave (unFairNested . f) m)
-    -- (>>=) (FairNested m) f = FairNested (mergeMapWith interleave (unFairNested . f) m)
+    (>>=) (FairNested m) f = FairNested (fairConcatMap (unFairNested . f) m)
 
-    {-# INLINE (>>) #-}
-    (>>) = (*>)
+    -- {-# INLINE (>>) #-}
+    -- (>>) = (*>)
 
 ------------------------------------------------------------------------------
 -- Transformers

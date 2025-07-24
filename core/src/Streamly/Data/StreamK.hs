@@ -177,8 +177,8 @@ module Streamly.Data.StreamK
     , bindWith
     , concatMapWith
     , mergeMapWith
-    , concatMapInterleave
-    , concatMapDiagonal
+    -- , bfsConcatMap
+    -- , fairConcatMap
 
     -- * Buffered Operations
     , reverse
