@@ -167,6 +167,10 @@ toList = StreamK.toList
 foldl' :: Monad m => StreamK m Int -> m Int
 foldl' = StreamK.foldl' (+) 0
 
+{-# INLINE foldlM' #-}
+foldlM' :: Monad m => StreamK m Int -> m Int
+foldlM' = StreamK.foldlM' (\b a -> return (b + a)) (return 0)
+
 {-# INLINE last #-}
 last :: Monad m => StreamK m Int -> m (Maybe Int)
 last = StreamK.last
@@ -593,6 +597,7 @@ o_1_space_elimination streamLen =
         , benchFold "uncons"   uncons   (unfoldrM streamLen)
         , benchFold "init"   init     (unfoldrM streamLen)
         , benchFold "foldl'" foldl'    (unfoldrM streamLen)
+        , benchFold "foldlM'" foldlM' (unfoldrM streamLen)
         , benchFold "last"   last     (unfoldrM streamLen)
         ]
 
