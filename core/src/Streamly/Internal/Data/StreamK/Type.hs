@@ -914,13 +914,21 @@ infixr 6 `append`
 append :: StreamK m a -> StreamK m a -> StreamK m a
 -- XXX This doubles the time of toNullAp benchmark, may not be fusing properly
 -- serial xs ys = augmentS (\c n -> foldrS c n xs) ys
-append m1 m2 = go m1
+append m1 m2 =
+    mkStream $ \st yld sng stp ->
+        let stop       = foldStream st yld sng stp m2
+            single a   = yld a m2
+            yieldk a r = yld a (go r)
+        in foldStream st yieldk single stop m1
+
     where
-    go m = mkStream $ \st yld sng stp ->
-               let stop       = foldStream st yld sng stp m2
-                   single a   = yld a m2
-                   yieldk a r = yld a (go r)
-               in foldStream st yieldk single stop m
+
+    go m =
+        mkStream $ \st yld sng stp ->
+            let stop       = foldStream st yld sng stp m2
+                single a   = yld a m2
+                yieldk a r = yld a (go r)
+            in foldStream st yieldk single stop m
 
 -- join/merge/append streams depending on consM
 {-# INLINE conjoin #-}
