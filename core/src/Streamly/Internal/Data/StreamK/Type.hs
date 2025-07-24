@@ -834,11 +834,15 @@ foldl' step begin = foldlx' step begin id
 {-# INLINE foldlMx' #-}
 foldlMx' :: Monad m
     => (x -> a -> m x) -> m x -> (x -> m b) -> StreamK m a -> m b
-foldlMx' step begin done stream = begin >>= go stream
+foldlMx' step begin done stream =
+    -- Note: Unrolling improves the last benchmark significantly.
+    let stop = begin >>= done
+        single a = begin >>= \x -> step x a >>= done
+        yieldk a r = begin >>= \x -> step x a >>= go r
+     in foldStream defState yieldk single stop stream
 
     where
 
-    -- Note: Unrolling one iteration does not improve perf.
     go m1 !acc =
         let stop = done $! acc
             single a = step acc a >>= done
