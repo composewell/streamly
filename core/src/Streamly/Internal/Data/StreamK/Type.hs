@@ -822,46 +822,27 @@ foldrMKWith f step acc = go
 {-# INLINE foldlx' #-}
 foldlx' :: forall m a b x. Monad m
     => (x -> a -> x) -> x -> (x -> b) -> StreamK m a -> m b
-foldlx' step begin done m = get $ go m begin
-    where
-    {-# NOINLINE get #-}
-    get :: StreamK m x -> m b
-    get m1 =
-        -- XXX we are not strictly evaluating the accumulator here. Is this
-        -- okay?
-        let single = return . done
-        -- XXX this is foldSingleton. why foldStreamShared?
-         in foldStreamShared undefined undefined single undefined m1
-
-    -- Note, this can be implemented by making a recursive call to "go",
-    -- however that is more expensive because of unnecessary recursion
-    -- that cannot be tail call optimized. Unfolding recursion explicitly via
-    -- continuations is much more efficient.
-    go :: StreamK m a -> x -> StreamK m x
-    go m1 !acc = mkStream $ \_ yld sng _ ->
-        let stop = sng acc
-            single a = sng $ step acc a
-            -- XXX this is foldNonEmptyStream
-            yieldk a r = foldStream defState yld sng undefined $
-                go r (step acc a)
-        in foldStream defState yieldk single stop m1
+foldlx' step begin done =
+    foldlMx' (\x a -> return (step x a)) (return begin) (return . done)
 
 -- | Strict left associative fold.
 {-# INLINE foldl' #-}
 foldl' :: Monad m => (b -> a -> b) -> b -> StreamK m a -> m b
 foldl' step begin = foldlx' step begin id
 
--- XXX replace the recursive "go" with explicit continuations.
 -- | Like 'foldx', but with a monadic step function.
-{-# INLINABLE foldlMx' #-}
+{-# INLINE foldlMx' #-}
 foldlMx' :: Monad m
     => (x -> a -> m x) -> m x -> (x -> m b) -> StreamK m a -> m b
-foldlMx' step begin done = go begin
+foldlMx' step begin done stream = begin >>= go stream
+
     where
-    go !acc m1 =
-        let stop = acc >>= done
-            single a = acc >>= \b -> step b a >>= done
-            yieldk a r = acc >>= \b -> step b a >>= \x -> go (return x) r
+
+    -- Note: Unrolling one iteration does not improve perf.
+    go m1 !acc =
+        let stop = done $! acc
+            single a = step acc a >>= done
+            yieldk a r = step acc a >>= go r
          in foldStream defState yieldk single stop m1
 
 -- | Like 'foldl'' but with a monadic step function.
@@ -875,7 +856,7 @@ foldlM' step begin = foldlMx' step begin return
 
 -- XXX use foldrM to implement folds where possible
 -- XXX This (commented) definition of drain and mapM_ perform much better on
--- some benchmarks but worse on others. Need to investigate why, may there is
+-- some benchmarks but worse on others. Need to investigate why, maybe there is
 -- an optimization opportunity that we can exploit.
 -- drain = foldrM (\_ xs -> return () >> xs) (return ())
 
