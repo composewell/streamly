@@ -63,7 +63,7 @@ module Streamly.Internal.Data.Stream.Nesting
 
     -- N-ary versions
     -- , schedMap
-    -- , bfsSchedMap
+    , bfsSchedMap
     -- , fairSchedMap
 
     -- Unfold versions
@@ -944,6 +944,62 @@ unfoldEachRoundRobin (Unfold istep inject) (Stream ostep ost) =
             Stop      -> Skip (ConcatUnfoldInterleaveInnerR ls rs)
 
 RENAME(unfoldRoundRobin,unfoldEachRoundRobin)
+
+-- | Round robin co-operative scheduling of multiple streams.
+--
+-- Like concatMap but schedules the generated streams in a round robin
+-- fashion. Note that it does not strive to interleave the outputs of the
+-- streams, just gives the streams a chance to run whether it produces an
+-- output or not. Therefore, the outputs may not seem to be fairly interleaved
+-- if a stream decides to skip the output.
+--
+{-# INLINE_NORMAL bfsSchedMap #-}
+bfsSchedMap :: Monad m => (a -> Stream m b) -> Stream m a -> Stream m b
+bfsSchedMap f (Stream ostep ost) =
+    Stream step (ConcatUnfoldInterleaveOuter ost [])
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (ConcatUnfoldInterleaveOuter o ls) = do
+        r <- ostep (adaptState gst) o
+        case r of
+            Yield a o' -> do
+                return (Skip (ConcatUnfoldInterleaveInner o' (f a : ls)))
+            Skip o' -> return $ Skip (ConcatUnfoldInterleaveInner o' ls)
+            Stop -> return $ Skip (ConcatUnfoldInterleaveInnerL ls [])
+
+    step _ (ConcatUnfoldInterleaveInner o []) =
+            return $ Skip (ConcatUnfoldInterleaveOuter o [])
+
+    step gst (ConcatUnfoldInterleaveInner o (UnStream istep st:ls)) = do
+        r <- istep gst st
+        return $ case r of
+            Yield x s -> Yield x (ConcatUnfoldInterleaveOuter o (Stream istep s:ls))
+            Skip s    -> Skip (ConcatUnfoldInterleaveOuter o (Stream istep s:ls))
+            Stop      -> Skip (ConcatUnfoldInterleaveOuter o ls)
+
+    step _ (ConcatUnfoldInterleaveInnerL [] []) = return Stop
+    step _ (ConcatUnfoldInterleaveInnerL [] rs) =
+        return $ Skip (ConcatUnfoldInterleaveInnerR [] rs)
+
+    step gst (ConcatUnfoldInterleaveInnerL (UnStream istep st:ls) rs) = do
+        r <- istep gst st
+        return $ case r of
+            Yield x s -> Yield x (ConcatUnfoldInterleaveInnerL ls (Stream istep s:rs))
+            Skip s    -> Skip (ConcatUnfoldInterleaveInnerL ls (Stream istep s:rs))
+            Stop      -> Skip (ConcatUnfoldInterleaveInnerL ls rs)
+
+    step _ (ConcatUnfoldInterleaveInnerR [] []) = return Stop
+    step _ (ConcatUnfoldInterleaveInnerR ls []) =
+        return $ Skip (ConcatUnfoldInterleaveInnerL ls [])
+
+    step gst (ConcatUnfoldInterleaveInnerR ls (UnStream istep st:rs)) = do
+        r <- istep gst st
+        return $ case r of
+            Yield x s -> Yield x (ConcatUnfoldInterleaveInnerR (Stream istep s:ls) rs)
+            Skip s    -> Skip (ConcatUnfoldInterleaveInnerR (Stream istep s:ls) rs)
+            Stop      -> Skip (ConcatUnfoldInterleaveInnerR ls rs)
 
 ------------------------------------------------------------------------------
 -- Combine N Streams - interpose
