@@ -21,6 +21,18 @@
 -- The zipWithM combinator in this module has been adapted from the vector
 -- package (c) Roman Leshchinskiy.
 --
+-- Flipped versions can be named as:
+-- mapFor, concatFor, unfoldStepFor (only step function)
+--
+-- Flipped versions for folding streams:
+-- groupsFor :: stream -> fold -> stream (flipped groupsWhile)
+--
+-- Flipped versions for folds:
+-- foldMany :: outer fold -> inner fold -> fold (original version)
+-- groupFoldFor :: inner fold -> outer fold -> fold (flipped version)
+-- groupStepFor :: inner fold -> outer fold step -> fold (flipped version)
+-- This can be convenient for defining the outer fold step using a lambda.
+--
 module Streamly.Internal.Data.Stream.Nesting
     (
     -- * Generate
@@ -43,11 +55,27 @@ module Streamly.Internal.Data.Stream.Nesting
     , interleaveEndBy
     , interleaveSepBy
 
-    -- *** Scheduling
+    -- *** Co-operative Scheduling
     -- | Execute streams alternately irrespective of whether they generate
     -- elements or not. Note 'interleave' would execute a stream until it
     -- yields an element. A special case of unfoldEachRoundRobin.
     , roundRobin -- interleaveFair?/ParallelFair
+
+    -- N-ary versions
+    -- , schedMap
+    -- , bfsSchedMap
+    -- , fairSchedMap
+
+    -- Unfold versions
+    -- , schedUnfold
+    -- , bfsSchedUnfold -- unfoldEachRoundRobin
+    -- , fairSchedUnfold
+    -- , altBfsSchedUnfold -- alternating directions
+
+    -- Flipped versions
+    -- , schedFor
+    -- , bfsSchedFor
+    -- , fairSchedFor
 
     -- *** Merging
     -- | Interleave elements from two streams based on a condition.
@@ -71,9 +99,9 @@ module Streamly.Internal.Data.Stream.Nesting
     -- intercalate.
     , unfoldEachFoldBy
     , ConcatUnfoldInterleaveState (..)
-    , unfoldEachInterleave
-    , unfoldEachInterleaveRev
-    , unfoldEachRoundRobin
+    , unfoldEachInterleave -- bfsUnfoldEach
+    , unfoldEachInterleaveRev -- altBfsUnfoldEach -- alternating directions
+    , unfoldEachRoundRobin -- bfsSchedUnfold
 
     -- *** unfoldEach joined by elements
     -- | Like unfoldEach but intersperses an element between the streams after
