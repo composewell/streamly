@@ -30,6 +30,7 @@ module Streamly.Internal.Data.Stream.Exception
 
     -- * Exceptions
     , onException
+    , onExceptionE
     , ghandle
     , handle
     )
@@ -285,6 +286,16 @@ onException action stream =
         (return ()) -- before
         return      -- after
         (\_ (e :: MC.SomeException) _ -> action >> MC.throwM e)
+        (inline MC.try)
+        (const stream)
+
+{-# INLINE_NORMAL onExceptionE #-}
+onExceptionE :: forall e m a. (Exception e, MonadCatch m) => (forall b. e -> m b) -> Stream m a -> Stream m a
+onExceptionE onE stream =
+    gbracket_
+        (return ()) -- before
+        return      -- after
+        (\_ (e :: e) _ -> onE e)
         (inline MC.try)
         (const stream)
 

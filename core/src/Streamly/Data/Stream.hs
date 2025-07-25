@@ -639,6 +639,7 @@ module Streamly.Data.Stream
     -- stream of arrays before flattening it to a stream of chars.
     --
     , onException
+    , onExceptionE
     , handle
 
     -- * Resource Management
