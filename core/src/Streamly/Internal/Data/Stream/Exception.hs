@@ -281,21 +281,16 @@ afterIO action (Stream step state) = Stream step' Nothing
 --
 {-# INLINE_NORMAL onException #-}
 onException :: MonadCatch m => m b -> Stream m a -> Stream m a
-onException action stream =
-    gbracket_
-        (return ()) -- before
-        return      -- after
-        (\_ (e :: MC.SomeException) _ -> action >> MC.throwM e)
-        (inline MC.try)
-        (const stream)
+onException action = onExceptionE $
+  \(e :: MC.SomeException) -> action >> MC.throwM e
 
 {-# INLINE_NORMAL onExceptionE #-}
-onExceptionE :: forall e m a. (Exception e, MonadCatch m) => (forall b. e -> m b) -> Stream m a -> Stream m a
+onExceptionE :: (Exception e, MonadCatch m) => (forall b. e -> m b) -> Stream m a -> Stream m a
 onExceptionE onE stream =
     gbracket_
         (return ()) -- before
         return      -- after
-        (\_ (e :: e) _ -> onE e)
+        (\_ e _ -> onE e)
         (inline MC.try)
         (const stream)
 
