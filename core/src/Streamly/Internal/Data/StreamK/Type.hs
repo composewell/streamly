@@ -1434,14 +1434,22 @@ bindWith ::
     -> StreamK m a
     -> (a -> StreamK m b)
     -> StreamK m b
-bindWith par m1 f = go m1
+bindWith combine m1 f =
+    -- There is a small improvement by unrolling the first iteration
+    mkStream $ \st yld sng stp ->
+        let foldShared = foldStreamShared st yld sng stp
+            single a   = foldShared $ unShare (f a)
+            yieldk a r = foldShared $ unShare (f a) `combine` go r
+        in foldStreamShared (adaptState st) yieldk single stp m1
+
     where
-        go m =
-            mkStream $ \st yld sng stp ->
-                let foldShared = foldStreamShared st yld sng stp
-                    single a   = foldShared $ unShare (f a)
-                    yieldk a r = foldShared $ unShare (f a) `par` go r
-                in foldStream (adaptState st) yieldk single stp m
+
+    go m =
+        mkStream $ \st yld sng stp ->
+            let foldShared = foldStreamShared st yld sng stp
+                single a   = foldShared $ unShare (f a)
+                yieldk a r = foldShared $ unShare (f a) `combine` go r
+            in foldStreamShared (adaptState st) yieldk single stp m
 
 -- XXX express in terms of foldrS?
 -- XXX can we use a different stream type for the generated stream being
