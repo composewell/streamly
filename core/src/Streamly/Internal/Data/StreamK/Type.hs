@@ -128,15 +128,32 @@ module Streamly.Internal.Data.StreamK.Type
     , cross
 
     -- * Concat
+
+    -- ** Concat Effects
     , before
     , concatEffect
     , concatMapEffect
+
+    -- ** ConcatMap
     , concatMapWith
-    , bindWith
     , concatMap
-    , concatMapInterleave
-    , concatMapDiagonal
+    , bfsConcatMap
+    , fairConcatMap
     , concatMapMAccum
+
+    -- ** concatFor (bind)
+    , concatFor
+    , bfsConcatFor
+    , fairConcatFor
+    , concatForWith
+
+    -- ** concatForM
+    , concatForM
+    , bfsConcatForM
+    , fairConcatForM
+    , concatForWithM
+
+    -- ** Iterated concat
     , concatIterateWith
     , concatIterateLeftsWith
     , concatIterateScanWith
@@ -155,10 +172,12 @@ module Streamly.Internal.Data.StreamK.Type
     , CrossStreamK
     , mkCross
     , unCross
+    , bindWith
     )
 where
 
 #include "inline.hs"
+#include "deprecation.h"
 
 import Control.Applicative (Alternative(..))
 import Control.Monad ((>=>), ap, MonadPlus(..))
@@ -1428,13 +1447,13 @@ cross = crossWith (,)
 -- instead of using a concatMap style definition because the bind
 -- implementation in Async and WAsync streams show significant perf degradation
 -- if the argument order is changed.
-{-# INLINE bindWith #-}
-bindWith ::
+{-# INLINE concatForWith #-}
+bindWith, concatForWith ::
        (StreamK m b -> StreamK m b -> StreamK m b)
     -> StreamK m a
     -> (a -> StreamK m b)
     -> StreamK m b
-bindWith combine m1 f = go m1
+concatForWith combine m1 f = go m1
 {-
     -- There is a small improvement by unrolling the first iteration
     mkStream $ \st yld sng stp ->
@@ -1452,6 +1471,8 @@ bindWith combine m1 f = go m1
                 single a   = foldShared $ unShare (f a)
                 yieldk a r = foldShared $ unShare (f a) `combine` go r
             in foldStreamShared (adaptState st) yieldk single stp m
+
+RENAME(bindWith,concatForWith)
 
 -- XXX express in terms of foldrS?
 -- XXX can we use a different stream type for the generated stream being
@@ -1471,7 +1492,7 @@ bindWith combine m1 f = go m1
 -- >>> un $ StreamK.concatMapWith StreamK.interleave mk lists
 -- [1,2,5,3,6,4,7,8]
 --
--- For a fair interleaving example see 'concatMapInterleave' and 'mergeMapWith'.
+-- For a fair interleaving example see 'bfsConcatMap' and 'mergeMapWith'.
 --
 {-# INLINE concatMapWith #-}
 concatMapWith
@@ -1480,7 +1501,16 @@ concatMapWith
     -> (a -> StreamK m b)
     -> StreamK m a
     -> StreamK m b
-concatMapWith par f xs = bindWith par xs f
+concatMapWith par f xs = concatForWith par xs f
+
+-- | Like 'concatForWith' but maps an effectful function.
+{-# INLINE concatForWithM #-}
+concatForWithM :: Monad m =>
+       (StreamK m b -> StreamK m b -> StreamK m b)
+    -> StreamK m a
+    -> (a -> m (StreamK m b))
+    -> StreamK m b
+concatForWithM combine s f = concatForWith combine s (concatEffect . f)
 
 {-# INLINE concatMap #-}
 concatMap :: (a -> StreamK m b) -> StreamK m a -> StreamK m b
@@ -1503,6 +1533,73 @@ concatMap_ :: IsStream t => (a -> t m b) -> t m a -> t m b
 concatMap_ f xs = buildS
      (\c n -> foldrSShared (\x b -> foldrSShared c b (unShare $ f x)) n xs)
 -}
+
+-- | Map a stream generating function on each element of a stream and
+-- concatenate the results. This is the same as the bind function of the monad
+-- instance. It is just a flipped 'concatMap' but more convenient to use for
+-- nested use case, feels like an imperative @for@ loop.
+--
+-- >>> concatFor = flip StreamK.concatMap
+--
+-- A concatenating @for@ loop:
+--
+-- >>> :{
+-- un $
+--     StreamK.concatFor (mk [1,2,3]) $ \x ->
+--       StreamK.fromPure x
+-- :}
+-- [1,2,3]
+--
+-- Nested concatenating @for@ loops:
+--
+-- >>> :{
+-- un $
+--     StreamK.concatFor (mk [1,2,3]) $ \x ->
+--      StreamK.concatFor (mk [4,5,6]) $ \y ->
+--       StreamK.fromPure (x, y)
+-- :}
+-- [(1,4),(1,5),(1,6),(2,4),(2,5),(2,6),(3,4),(3,5),(3,6)]
+--
+{-# INLINE concatFor #-}
+concatFor :: StreamK m a -> (a -> StreamK m b) -> StreamK m b
+concatFor = concatForWith append
+
+-- | Like 'concatFor' but maps an effectful function. It allows conveniently
+-- mixing monadic effects with streams.
+--
+-- >>> import Control.Monad.IO.Class (liftIO)
+-- >>> :{
+-- un $
+--     StreamK.concatForM (mk [1,2,3]) $ \x -> do
+--       liftIO $ putStrLn (show x)
+--       pure $ StreamK.fromPure x
+-- :}
+-- 1
+-- 2
+-- 3
+-- [1,2,3]
+--
+-- Nested concatentating @for@ loops:
+--
+-- >>> :{
+-- un $
+--     StreamK.concatForM (mk [1,2,3]) $ \x -> do
+--       liftIO $ putStrLn (show x)
+--       pure $ StreamK.concatFor (mk [4,5,6]) $ \y ->
+--         StreamK.fromPure (x, y)
+-- :}
+-- 1
+-- 2
+-- 3
+-- [(1,4),(1,5),(1,6),(2,4),(2,5),(2,6),(3,4),(3,5),(3,6)]
+--
+{-# INLINE concatForM #-}
+concatForM :: Monad m => StreamK m a -> (a -> m (StreamK m b)) -> StreamK m b
+concatForM s f =
+    -- This should be better than implementing a custom concatForWithM because
+    -- here we do not need to inline concatFor, "concatEffect . f" should get
+    -- fused right here.
+    concatFor s (concatEffect . f)
 
 -- XXX Instead of using "mergeMapWith interleave" we can implement an N-way
 -- interleaving CPS combinator which behaves like unfoldEachInterleave. Instead
@@ -1604,39 +1701,16 @@ mergeMapWith combine f str = go (leafPairs str)
                 yieldk a r = yld (a1 `combine` a) $ nonLeafPairs r
             in foldStream (adaptState st) yieldk single stop stream
 
--- XXX check if bindInterleave has better perf like bindWith?
-
--- | While concatMap flattens a stream of streams in a depth first manner,
--- 'concatMapInterleave' flattens it in a breadth-first manner. It yields one
--- item from the first stream, then one item from the next stream and so on.
--- Given a stream of three streams:
+-- | See 'bfsConcatFor' for detailed documentation.
 --
--- @
--- 1. [1,2,3]
--- 2. [4,5,6]
--- 3. [7,8,9]
--- @
+-- >>> bfsConcatMap = flip StreamK.bfsConcatFor
 --
--- The resulting stream is @[1,4,7,2,5,8,3,6,9]@.
---
--- For example:
---
--- >>> stream = mk [[1,2,3],[4,5,6],[7,8,9]]
--- >>> un $ StreamK.concatMapInterleave mk stream
--- [1,4,7,2,5,8,3,6,9]
---
--- Compare with 'concatMapWith' 'interleave' which explores the depth
--- exponentially more compared to the breadth, such that each stream yields
--- twice as many items compared to the next stream.
---
--- See also the equivalent fused version 'Data.Stream.unfoldEachInterleave'.
---
-{-# INLINE concatMapInterleave #-}
-concatMapInterleave ::
+{-# INLINE bfsConcatMap #-}
+bfsConcatMap ::
        (a -> StreamK m b)
     -> StreamK m a
     -> StreamK m b
-concatMapInterleave f m1 = go id m1
+bfsConcatMap f m1 = go id m1
 
     where
 
@@ -1682,9 +1756,11 @@ concatMapInterleave f m1 = go id m1
                 yieldk a r = yld a (goLoop (ys . (r :)) xs)
             foldStream st yieldk single stop x
 
--- | 'concatMapDiagonal' flattens a stream of streams in a diagonal manner.
--- Every previous stream yields one more item than the next. Therefore, the
--- depth and breadth of traversal is equally balanced.
+-- | While 'concatFor' flattens a stream of streams in a depth first manner,
+-- 'bfsConcatFor' flattens it in a breadth-first manner. It yields one item
+-- from the first stream, then one item from the next stream and so on. In
+-- nested loops it has the effect of prioritizing the new outer loop iteration
+-- over the inner loops, thus inverting the looping.
 -- Given a stream of three streams:
 --
 -- @
@@ -1693,27 +1769,44 @@ concatMapInterleave f m1 = go id m1
 -- 3. [7,8,9]
 -- @
 --
--- The resulting stream is @[1,2,4,3,5,7,6,8,9]@.
---
--- This is useful when producing cross products of streams such that both the
--- dimensions are explored equally.
+-- The resulting stream is @(1,4,7),(2,5,8),(3,6,9)@. The parenthesis are added
+-- to emphasize the iterations.
 --
 -- For example:
 --
 -- >>> stream = mk [[1,2,3],[4,5,6],[7,8,9]]
--- >>> un $ StreamK.concatMapDiagonal mk stream
--- [1,2,4,3,5,7,6,8,9]
+-- >>> :{
+--  un $
+--      StreamK.bfsConcatFor stream $ \x ->
+--          StreamK.fromStream $ Stream.fromList x
+-- :}
+-- [1,4,7,2,5,8,3,6,9]
 --
--- Compare with 'concatMapWith interleave' which explores the depth
+-- Compare with 'concatForWith' 'interleave' which explores the depth
 -- exponentially more compared to the breadth, such that each stream yields
 -- twice as many items compared to the next stream.
 --
-{-# INLINE concatMapDiagonal #-}
-concatMapDiagonal ::
+-- See also the equivalent fused version 'Data.Stream.unfoldEachInterleave'.
+--
+{-# INLINE bfsConcatFor #-}
+bfsConcatFor :: StreamK m a -> (a -> StreamK m b) -> StreamK m b
+bfsConcatFor = flip bfsConcatMap
+
+-- | Like 'bfsConcatFor' but maps a monadic function.
+{-# INLINE bfsConcatForM #-}
+bfsConcatForM :: Monad m => StreamK m a -> (a -> m (StreamK m b)) -> StreamK m b
+bfsConcatForM s f = bfsConcatMap (concatEffect . f) s
+
+-- | See 'fairConcatFor' for detailed documentation.
+--
+-- >>> fairConcatMap = flip StreamK.fairConcatFor
+--
+{-# INLINE fairConcatMap #-}
+fairConcatMap ::
        (a -> StreamK m b)
     -> StreamK m a
     -> StreamK m b
-concatMapDiagonal f m1 = go id m1
+fairConcatMap f m1 = go id m1
 
     where
 
@@ -1750,6 +1843,148 @@ concatMapDiagonal f m1 = go id m1
                 single a   = yld a (goLoop ys xs)
                 yieldk a r = yld a (goLoop (ys . (r :)) xs)
             foldStream st yieldk single stop x
+
+-- | 'fairConcatFor' is like 'concatFor' but traverses the depth and breadth of
+-- nesting equally. Therefore, the outer and the inner loops in a nested loop
+-- get equal priority. It can be used to nest infinite streams without starving
+-- outer streams due to inner ones.
+--
+-- Given a stream of three streams:
+--
+-- @
+-- 1. [1,2,3]
+-- 2. [4,5,6]
+-- 3. [7,8,9]
+-- @
+--
+-- Here, outer loop is the stream of streams and the inner loops are the
+-- individual streams. The traversal sweeps the diagonals in the above grid to
+-- give equal chance to outer and inner loops. The resulting stream is
+-- @(1),(2,4),(3,5,7),(6,8),(9)@, diagonals are parenthesized for emphasis.
+--
+-- == Looping
+--
+-- A single stream case is equivalent to 'concatFor':
+--
+-- >>> un $ StreamK.fairConcatFor (mk [1,2]) $ \x -> StreamK.fromPure x
+-- [1,2]
+--
+-- == Fair Nested Looping
+--
+-- Multiple streams nest like @for@ loops. The result is a cross product of the
+-- streams. However, the ordering of the results of the cross product is such
+-- that each stream gets consumed equally. In other words, inner iterations of
+-- a nested loop get the same priority as the outer iterations. Inner
+-- iterations do not finish completely before the outer iterations start.
+--
+-- >>> :{
+-- un $ do
+--     StreamK.fairConcatFor (mk [1,2,3]) $ \x ->
+--      StreamK.fairConcatFor (mk [4,5,6]) $ \y ->
+--       StreamK.fromPure (x, y)
+-- :}
+-- [(1,4),(1,5),(2,4),(1,6),(2,5),(3,4),(2,6),(3,5),(3,6)]
+--
+-- == Nesting Infinite Streams
+--
+-- Example with infinite streams. Print all pairs in the cross product with sum
+-- less than a specified number.
+--
+-- >>> :{
+-- Stream.toList
+--  $ Stream.takeWhile (\(x,y) -> x + y < 6)
+--  $ StreamK.toStream
+--  $ StreamK.fairConcatFor (mk [1..]) $ \x ->
+--     StreamK.fairConcatFor (mk [1..]) $ \y ->
+--      StreamK.fromPure (x, y)
+-- :}
+-- [(1,1),(1,2),(2,1),(1,3),(2,2),(3,1),(1,4),(2,3),(3,2),(4,1)]
+--
+-- == How the nesting works?
+--
+-- If we look at the cross product of [1,2,3], [4,5,6], the streams being
+-- combined using 'fairConcatFor' are the following sequential loop iterations:
+--
+-- @
+-- (1,4) (1,5) (1,6) -- first iteration of the outer loop
+-- (2,4) (2,5) (2,6) -- second iteration of the outer loop
+-- (3,4) (3,5) (3,6) -- third iteration of the outer loop
+-- @
+--
+-- The result is a triangular or diagonal traversal of these iterations:
+--
+-- @
+-- [(1,4),(1,5),(2,4),(1,6),(2,5),(3,4),(2,6),(3,5),(3,6)]
+-- @
+--
+-- == Non-Termination Cases
+--
+-- If one of the two interleaved streams does not produce an output at all and
+-- continues forever then the other stream will never get scheduled. This is
+-- because a stream is unscheduled only after it produces an output. This can
+-- lead to non-terminating programs, an example is provided below.
+--
+-- >>> :{
+-- oddsIf x = mk (if x then [1,3..] else [2,4..])
+-- filterEven x = if even x then StreamK.fromPure x else StreamK.nil
+-- :}
+--
+-- >>> :{
+-- evens =
+--     StreamK.fairConcatFor (mk [True,False]) $ \r ->
+--      StreamK.concatFor (oddsIf r) filterEven
+-- :}
+--
+-- The @evens@ function does not terminate because, when r is True, the nested
+-- 'concatFor' is a non-productive infinite loop, therefore, the outer loop
+-- never gets a chance to generate the @False@ value.
+--
+-- But the following refactoring of the above code works as expected:
+--
+-- >>> :{
+-- mixed =
+--      StreamK.fairConcatFor (mk [True,False]) $ \r ->
+--          StreamK.concatFor (oddsIf r) StreamK.fromPure
+-- :}
+--
+-- >>> evens = StreamK.fairConcatFor mixed filterEven
+-- >>> Stream.toList $ Stream.take 3 $ StreamK.toStream evens
+-- [2,4,6]
+--
+-- This works because in @mixed@ both the streams being interleaved are
+-- productive.
+--
+-- Care should be taken how you write your program, keep in mind the scheduling
+-- implications. To avoid such scheduling problems in serial interleaving, you
+-- can use concurrent interleaving instead i.e. parFairConcatFor. Due to
+-- concurrent threads the other branch will make progress even if one is an
+-- infinite loop producing nothing.
+--
+-- == Logic Programming
+--
+-- Streamly provides all operations for logic programming. It provides
+-- functionality equivalent to 'LogicT' type from the 'logict' package.
+-- The @MonadLogic@ operations can be implemented using the available stream
+-- operations. For example, 'uncons' is @msplit@, 'interleave' corresponds to
+-- the @interleave@ operation of MonadLogic, 'fairConcatFor' is the
+-- fair bind (@>>-@) operation.
+--
+-- == Related Operations
+--
+-- 'concatForWith' 'interleave' is another way to interleave two serial
+-- streams. In this case, the inner loop iterations get exponentially more
+-- priority over the outer iterations of the nested loop. This is biased
+-- towards the inner loops - this is exactly how the logic-t and list-t
+-- implementation of fair bind works.
+--
+{-# INLINE fairConcatFor #-}
+fairConcatFor :: StreamK m a -> (a -> StreamK m b) -> StreamK m b
+fairConcatFor = flip fairConcatMap
+
+-- | Like 'fairConcatFor' but maps a monadic function.
+{-# INLINE fairConcatForM #-}
+fairConcatForM :: Monad m => StreamK m a -> (a -> m (StreamK m b)) -> StreamK m b
+fairConcatForM s f = fairConcatMap (concatEffect . f) s
 
 {-
 instance Monad m => Applicative (StreamK m) where
@@ -2008,9 +2243,9 @@ infixr 6 `interleave`
 -- streams will be opened at any given time, because the first stream will
 -- finish by the time the stream after @log n@ th stream is opened.
 --
--- Compare with 'concatMapInterleave' and 'mergeMapWith' 'interleave'.
+-- Compare with 'bfsConcatMap' and 'mergeMapWith' 'interleave'.
 --
--- For interleaving many streams, the best way is to use 'concatMapInterleave'.
+-- For interleaving many streams, the best way is to use 'bfsConcatMap'.
 --
 -- See also the fused version 'Streamly.Data.Stream.interleave'.
 {-# INLINE interleave #-}
@@ -2423,6 +2658,7 @@ before action stream =
     mkStream $ \st yld sng stp ->
         action >> foldStreamShared st yld sng stp stream
 
+-- XXX Rename to "impure" (opposite of pure) or "purely".
 {-# INLINE concatEffect #-}
 concatEffect :: Monad m => m (StreamK m a) -> StreamK m a
 concatEffect action =
@@ -2518,13 +2754,13 @@ concatMapEffect f action =
 -- 'Nested' also serves the purpose of 'LogicT' type from the 'logict' package.
 -- The @MonadLogic@ operations can be implemented using the available stream
 -- operations. For example, 'uncons' is @msplit@, 'interleave' corresponds to
--- the @interleave@ operation of MonadLogic, 'concatMapDiagonal' is a flipped
+-- the @interleave@ operation of MonadLogic, 'fairConcatFor' is the
 -- fair bind (@>>-@) operation. The 'FairNested' type provides a monad with fair
 -- bind.
 --
 -- == Related Functionality
 --
--- A custom type can be created using 'concatMapInterleave' as the monad bind
+-- A custom type can be created using 'bfsConcatMap' as the monad bind
 -- operation then the nested loops would get inverted - the innermost loop
 -- becomes the outermost and vice versa.
 --
@@ -2647,7 +2883,10 @@ instance (MonadThrow m) => MonadThrow (Nested m) where
 
 -- XXX We can fix the termination issues by adding a "skip" continuation in the
 -- stream. Adding a "block" continuation can allow for blocking IO. Both of
--- these together will provide a co-operative scheduling.
+-- these together will provide a co-operative scheduling. However, adding skip
+-- will regress performance in heavy filtering cases. If that's important we
+-- can create another type StreamK' for skip continuation. That type can use
+-- conversion from Stream type for everything except append and concatMap.
 
 -- | 'FairNested' is like the 'Nested' type but explores the depth and breadth of
 -- the cross product grid equally, so that each of the stream being crossed is
@@ -2704,7 +2943,7 @@ instance (MonadThrow m) => MonadThrow (Nested m) where
 --
 -- == How it works?
 --
--- 'FairNested' uses flipped 'concatMapDiagonal' as the monad bind operation.
+-- 'FairNested' uses 'fairConcatFor' as the monad bind operation.
 -- If we look at the cross product of [1,2,3], [4,5,6], the streams being
 -- combined using 'concatMapDigaonal' are the sequential loop iterations:
 --
@@ -2863,13 +3102,10 @@ instance Monad m => Monad (FairNested m) where
     return = pure
 
     {-# INLINE (>>=) #-}
-    (>>=) (FairNested m) f = FairNested (concatMapDiagonal (unFairNested . f) m)
-    -- (>>=) (FairNested m) f = FairNested (concatMapInterleave (unFairNested . f) m)
-    -- (>>=) (FairNested m) f = FairNested (concatMapWith interleave (unFairNested . f) m)
-    -- (>>=) (FairNested m) f = FairNested (mergeMapWith interleave (unFairNested . f) m)
+    (>>=) (FairNested m) f = FairNested (fairConcatMap (unFairNested . f) m)
 
-    {-# INLINE (>>) #-}
-    (>>) = (*>)
+    -- {-# INLINE (>>) #-}
+    -- (>>) = (*>)
 
 ------------------------------------------------------------------------------
 -- Transformers

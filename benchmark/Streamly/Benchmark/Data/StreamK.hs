@@ -473,6 +473,20 @@ drainMonad s = drain $ do
     y <- s
     return $ x + y
 
+{-# INLINE drainConcatFor #-}
+drainConcatFor :: Monad m => StreamK m Int -> m ()
+drainConcatFor s = drain $ do
+    StreamK.concatFor s $ \x ->
+        StreamK.concatFor s $ \y ->
+            StreamK.fromPure $ x + y
+
+{-# INLINE drainConcatForM #-}
+drainConcatForM :: Monad m => StreamK m Int -> m ()
+drainConcatForM s = drain $ do
+    StreamK.concatForM s $ \x ->
+        pure $ StreamK.concatForM s $ \y ->
+            pure $ StreamK.fromPure $ x + y
+
 {-# INLINE drainMonad3 #-}
 drainMonad3 :: Monad m => StreamK m Int -> m ()
 drainMonad3 s = drain $ do
@@ -480,6 +494,22 @@ drainMonad3 s = drain $ do
     y <- s
     z <- s
     return $ x + y + z
+
+{-# INLINE drainConcatFor3 #-}
+drainConcatFor3 :: Monad m => StreamK m Int -> m ()
+drainConcatFor3 s = drain $ do
+    StreamK.concatFor s $ \x ->
+        StreamK.concatFor s $ \y ->
+            StreamK.concatFor s $ \z ->
+                StreamK.fromPure $ x + y + z
+
+{-# INLINE drainConcatFor3M #-}
+drainConcatFor3M :: Monad m => StreamK m Int -> m ()
+drainConcatFor3M s = drain $ do
+    StreamK.concatForM s $ \x ->
+        pure $ StreamK.concatForM s $ \y ->
+            pure $ StreamK.concatForM s $ \z ->
+                pure $ StreamK.fromPure $ x + y + z
 
 {-# INLINE filterAllOutMonad #-}
 filterAllOutMonad
@@ -493,6 +523,18 @@ filterAllOutMonad str = drain $ do
     then return s
     else StreamK.nil
 
+{-# INLINE filterAllOutConcatFor #-}
+filterAllOutConcatFor
+    :: Monad m
+    => StreamK m Int -> m ()
+filterAllOutConcatFor s = drain $ do
+    StreamK.concatFor s $ \x ->
+        StreamK.concatFor s $ \y ->
+            let s1 = x + y
+             in if s1 < 0
+                then StreamK.fromPure s1
+                else StreamK.nil
+
 {-# INLINE filterAllInMonad #-}
 filterAllInMonad
     :: Monad m
@@ -504,6 +546,18 @@ filterAllInMonad str = drain $ do
     if s > 0
     then return s
     else StreamK.nil
+
+{-# INLINE filterAllInConcatFor #-}
+filterAllInConcatFor
+    :: Monad m
+    => StreamK m Int -> m ()
+filterAllInConcatFor s = drain $ do
+    StreamK.concatFor s $ \x ->
+        StreamK.concatFor s $ \y ->
+            let s1 = x + y
+             in if s1 > 0
+                then StreamK.fromPure s1
+                else StreamK.nil
 
 -------------------------------------------------------------------------------
 -- Nested Composition Pure lists
@@ -606,9 +660,15 @@ o_1_space_nested streamLen =
     bgroup "nested"
         [ benchFold "drainApplicative" drainApplicative (unfoldrM streamLen2)
         , benchFold "drainMonad"   drainMonad   (unfoldrM streamLen2)
+        , benchFold "drainConcatFor"   drainConcatFor   (unfoldrM streamLen2)
+        , benchFold "drainConcatForM"   drainConcatForM   (unfoldrM streamLen2)
         , benchFold "drainMonad3"  drainMonad3  (unfoldrM streamLen3)
+        , benchFold "drainConcatFor3"   drainConcatFor3   (unfoldrM streamLen3)
+        , benchFold "drainConcatFor3M"   drainConcatFor3M   (unfoldrM streamLen3)
         , benchFold "filterAllInMonad"  filterAllInMonad  (unfoldrM streamLen2)
+        , benchFold "filterAllInConcatFor"  filterAllInConcatFor  (unfoldrM streamLen2)
         , benchFold "filterAllOutMonad" filterAllOutMonad (unfoldrM streamLen2)
+        , benchFold "filterAllOutConcatFor" filterAllOutConcatFor (unfoldrM streamLen2)
         , benchFold "drainApplicative (pure)" drainApplicative (unfoldr streamLen2)
         , benchFold "drainMonad (pure)"   drainMonad   (unfoldr streamLen2)
         , benchFold "drainMonad3 (pure)"  drainMonad3  (unfoldr streamLen3)
