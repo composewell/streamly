@@ -750,34 +750,34 @@ o_1_space_transformationX4 streamLen =
 o_1_space_concat :: Int -> Benchmark
 o_1_space_concat streamLen =
     bgroup "concat"
-        [ benchIOSrc1 "concatMapPure (n of 1)"
+        [ benchIOSrc1 "concatMapPure outer=Max inner=1"
             (concatMapPure streamLen 1)
-        , benchIOSrc1 "concatMapPure (sqrt n of sqrt n)"
+        , benchIOSrc1 "concatMapPure outer=inner=(sqrt Max)"
             (concatMapPure streamLen2 streamLen2)
-        , benchIOSrc1 "concatMapPure (1 of n)"
+        , benchIOSrc1 "concatMapPure outer=1 inner=Max"
             (concatMapPure 1 streamLen)
 
-        , benchIOSrc1 "concatMap (n of 1)"
+        , benchIOSrc1 "concatMap outer=Max inner=1"
             (concatMap streamLen 1)
-        , benchIOSrc1 "concatMap (sqrt n of sqrt n)"
+        , benchIOSrc1 "concatMap outer=inner=(sqrt Max)"
             (concatMap streamLen2 streamLen2)
-        , benchIOSrc1 "concatMap (1 of n)"
+        , benchIOSrc1 "concatMap outer=1 inner=Max"
             (concatMap 1 streamLen)
 
-        , benchIOSrc1 "concatMapRepl (sqrt n of sqrt n)"
+        , benchIOSrc1 "concatMapRepl outer=inner=(sqrt Max)"
             (concatMapRepl streamLen2 streamLen2)
 
         -- This is for comparison with concatMapFoldableWith
-        , benchIOSrc1 "concatMapWithId (n of 1) (fromFoldable)"
+        , benchIOSrc1 "concatMapWithId outer=Max inner=1 (fromFoldable)"
             (StreamK.drain
                 . StreamK.concatMapWith StreamK.append id
                 . sourceConcatMapId streamLen)
 
-        , benchIOSrc1 "concatMapBy serial (n of 1)"
+        , benchIOSrc1 "concatMapWith append outer=Max inner=1"
             (concatMapBySerial streamLen 1)
-        , benchIOSrc1 "concatMapBy serial (sqrt n of sqrt n)"
+        , benchIOSrc1 "concatMapWith append outer=inner=(sqrt Max)"
             (concatMapBySerial streamLen2 streamLen2)
-        , benchIOSrc1 "concatMapBy serial (1 of n)"
+        , benchIOSrc1 "concatMapWith append outer=1 inner=Max"
             (concatMapBySerial 1 streamLen)
         ]
     where

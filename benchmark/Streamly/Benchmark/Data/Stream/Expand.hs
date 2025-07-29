@@ -191,35 +191,35 @@ inspect $ 'unfoldManyRepl `hasNoType` ''SPEC
 o_1_space_concat :: Int -> [Benchmark]
 o_1_space_concat value = sqrtVal `seq`
     [ bgroup "concat"
-        [ benchIOSrc1 "concatMapPure (n of 1)"
+        [ benchIOSrc1 "concatMapPure outer=Max inner=1"
             (concatMapPure value 1)
-        , benchIOSrc1 "concatMapPure (sqrt n of sqrt n)"
+        , benchIOSrc1 "concatMapPure outer=inner=(sqrt Max)"
             (concatMapPure sqrtVal sqrtVal)
-        , benchIOSrc1 "concatMapPure (1 of n)"
+        , benchIOSrc1 "concatMapPure outer=1 inner=Max"
             (concatMapPure 1 value)
 
-        , benchIOSrc1 "concatMap (n of 1)"
+        , benchIOSrc1 "concatMap outer=max inner=1"
             (concatMap value 1)
-        , benchIOSrc1 "concatMap (sqrt n of sqrt n)"
+        , benchIOSrc1 "concatMap outer=inner=(sqrt Max)"
             (concatMap sqrtVal sqrtVal)
-        , benchIOSrc1 "concatMap (1 of n)"
+        , benchIOSrc1 "concatMap outer=1 inner=Max"
             (concatMap 1 value)
 
         -- This is for comparison with foldMapWith
-        , benchIOSrc "concatMapId (n of 1) (fromFoldable)"
+        , benchIOSrc "concatMapId outer=max inner=1 (fromFoldable)"
             (S.concatMap id . sourceConcatMapId value)
 
-        , benchIOSrc1 "concatMapM (n of 1)"
+        , benchIOSrc1 "concatMapM outer=max inner=1"
             (concatMapM value 1)
-        , benchIOSrc1 "concatMapM (sqrt n of sqrt n)"
+        , benchIOSrc1 "concatMapM outer=inner=(sqrt Max)"
             (concatMapM sqrtVal sqrtVal)
-        , benchIOSrc1 "concatMapM (1 of n)"
+        , benchIOSrc1 "concatMapM outer=1 inner=Max"
             (concatMapM 1 value)
 
         -- concatMap vs unfoldMany
-        , benchIOSrc1 "concatMapRepl (sqrt n of sqrt n)"
+        , benchIOSrc1 "concatMapRepl outer=inner=(sqrt Max)"
             (concatMapRepl sqrtVal sqrtVal)
-        , benchIOSrc1 "unfoldManyRepl (sqrt n of sqrt n)"
+        , benchIOSrc1 "unfoldManyRepl outer=inner=(sqrt Max)"
             (unfoldManyRepl sqrtVal sqrtVal)
         ]
     ]
