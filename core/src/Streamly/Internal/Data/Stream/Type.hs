@@ -188,6 +188,7 @@ import Control.Applicative (liftA2)
 import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Control.Monad.IO.Class (MonadIO(..))
+import Data.Bifunctor (first)
 import Data.Foldable (Foldable(foldl'), fold, foldr)
 import Data.Functor (($>))
 import Data.Functor.Identity (Identity(..))
@@ -262,8 +263,11 @@ pattern Stream step state <- (unShare -> UnStream step state)
 nilM :: Applicative m => m b -> Stream m a
 nilM m = Stream (\_ _ -> m $> Stop) ()
 
-
 infixr 5 `consM`
+
+-- XXX see https://github.com/composewell/streamly/issues/3126 - for using a
+-- list or maybe an effect "m (Stream m a)" along with "step" in the stream
+-- structure for better cons and append performance.
 
 -- | Like 'cons' but fuses an effect instead of a pure value.
 {-# INLINE_NORMAL consM #-}
@@ -911,6 +915,8 @@ cmpBy cmp (Stream step1 t1) (Stream step2 t2) = cmp_loop0 SPEC t1 t2
 -- >>> Stream.fold Fold.drain $ Stream.mapM putStr s
 -- abc
 --
+-- This is functional equivalent of an imperative loop.
+--
 {-# INLINE_NORMAL mapM #-}
 mapM :: Monad m => (a -> m b) -> Stream m a -> Stream m b
 mapM f (Stream step state) = Stream step' state
@@ -1360,6 +1366,9 @@ instance Applicative f => Applicative (Stream f) where
 --
 -- Note that the second stream is evaluated multiple times.
 --
+-- Also see "Streamly.Data.Unfold.crossWith" for fast fusible static cross
+-- product option.
+--
 {-# INLINE crossWith #-}
 crossWith :: Monad m => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
 crossWith f m1 m2 = fmap f m1 `crossApply` m2
@@ -1387,6 +1396,8 @@ cross = crossWith (,)
 -- we are transforming Stream m a using that. We provide loop with arguments
 -- flipped.
 
+-- crossMap or crossInner?
+
 -- | Loop the supplied stream (first argument) around each element of the input
 -- stream (second argument) generating tuples.  This is an argument flipped
 -- version of 'cross'.
@@ -1400,7 +1411,7 @@ loop = crossWith (\b a -> (a,b))
 loopBy :: Monad m => Unfold m x b -> x -> Stream m a -> Stream m (a, b)
 loopBy u x s =
     let u1 = Unfold.lmap snd u
-        u2 = Unfold.map2 (\i b -> (fst i, b)) u1
+        u2 = Unfold.map (first fst) (Unfold.carry u1)
      in unfoldEach u2 $ fmap (, x) s
 
 ------------------------------------------------------------------------------
@@ -1420,10 +1431,40 @@ data ConcatMapUState o i =
 -- generate the stream instead of a 'Stream' type generator. This allows better
 -- optimization via fusion.  This can be many times more efficient than
 -- 'concatMap'.
+--
+-- 'unfoldEach' is equivalent in expressive power to 'concatMap'. However,
+-- using it as concatMap — by lifting a function 'f :: a -> Stream m b' into
+-- an 'Unfold' — results in the same degraded performance as 'concatMap':
 
 -- | Like 'concatMap' but uses an 'Unfold' for stream generation. Unlike
 -- 'concatMap' this can fuse the 'Unfold' code with the inner loop and
 -- therefore provide many times better performance.
+--
+-- >>> concatMap f = Stream.unfoldEach (Unfold.lmap f Unfold.fromStream)
+--
+-- Here is an example of a two level nested loop much faster than
+-- 'concatMap' based nesting.
+--
+-- >>> :{
+-- outerLoop =
+--   flip Stream.mapM (Stream.fromList [1,2,3]) $ \x -> do
+--       liftIO $ putStrLn (show x)
+--       return x
+-- innerUnfold = Unfold.carry $ Unfold.lmap (const [4,5,6]) Unfold.fromList
+-- innerLoop =
+--      flip Unfold.mapM innerUnfold $ \(x, y) -> do
+--          when (x == 1) $ liftIO $ putStrLn (show y)
+--          pure $ (x, y)
+-- :}
+--
+-- >>> Stream.toList $ Stream.unfoldEach innerLoop outerLoop
+-- 1
+-- 4
+-- 5
+-- 6
+-- 2
+-- 3
+-- [(1,4),(1,5),(1,6),(2,4),(2,5),(2,6),(3,4),(3,5),(3,6)]
 --
 {-# INLINE_NORMAL unfoldEach #-}
 unfoldEach, unfoldMany :: Monad m => Unfold m a b -> Stream m a -> Stream m b
@@ -1449,9 +1490,12 @@ unfoldEach (Unfold istep inject) (Stream ostep ost) =
 
 RENAME(unfoldMany,unfoldEach)
 
+-- XXX unfoldEach generates faster code than unfoldCross with
+-- everything unboxed i.e. 0 allocations.
+
 -- | Generates a cross product of two streams and then unfolds each tuple.
 --
--- A two level loop nesting much faster than 'concatMap' based nesting.
+-- A two level nested loop much faster than 'concatMap' based nesting.
 --
 -- >>> :{
 -- outerLoop =
@@ -1477,6 +1521,10 @@ RENAME(unfoldMany,unfoldEach)
 -- 3
 -- [(1,4),(1,5),(1,6),(2,4),(2,5),(2,6),(3,4),(3,5),(3,6)]
 --
+-- Note: 'unfoldEach' may generate faster code, so use that when possible.
+-- Also see "Streamly.Data.Unfold.cross" for fast fusible static cross product
+-- option.
+--
 {-# INLINE unfoldCross #-}
 unfoldCross :: Monad m =>
     Unfold m (a,b) c -> Stream m a -> Stream m b -> Stream m c
@@ -1488,12 +1536,20 @@ unfoldCross unf m1 m2 = unfoldEach unf $ crossWith (,) m1 m2
 
 -- Adapted from the vector package.
 
+-- If we are iterating over n elements flat vs m nesting of n^{1/m} elements.
+-- The total iterations in the nesting case will be
+-- let x = n^{1/m} in {x + x^2 + x^3 + ... + x^m} = x * {(x^m - 1)/(x-1)}
+-- i.e. (n-1)/(1-1/x) which is not very high. However, the decision tree in the
+-- state of concatMap is traversed from root to leaf for each element, and the
+-- state updates also updates the tree from leaf to root upon yielding an
+-- element which makes the allocations as well as CPU performance quadratic.
+
 -- | Map a stream producing monadic function on each element of the stream
 -- and then flatten the results into a single stream. Since the stream
 -- generation function is monadic, unlike 'concatMap', it can produce an
 -- effect at the beginning of each iteration of the inner loop.
 --
--- See 'unfoldEach' for a fusible alternative.
+-- See 'unfoldEach' for a faster alternative.
 --
 {-# INLINE_NORMAL concatMapM #-}
 concatMapM :: Monad m => (a -> m (Stream m b)) -> Stream m a -> Stream m b
@@ -1509,10 +1565,6 @@ concatMapM f (Stream step state) = Stream step' (Left state)
             Skip s -> return $ Skip (Left s)
             Stop -> return Stop
 
-    -- XXX flattenArrays is 5x faster than "concatMap fromArray". if somehow we
-    -- can get inner_step to inline and fuse here we can perhaps get the same
-    -- performance using "concatMap fromArray".
-    --
     -- XXX using the pattern synonym "Stream" causes a major performance issue
     -- here even if the synonym does not include an adaptState call. Need to
     -- find out why. Is that something to be fixed in GHC?
@@ -1528,20 +1580,36 @@ concatMapM f (Stream step state) = Stream step' (Left state)
 -- | Map a stream producing function on each element of the stream and then
 -- flatten the results into a single stream.
 --
--- >>> concatMap f = Stream.concatMapM (return . f)
 -- >>> concatMap f = Stream.concat . fmap f
+-- >>> concatMap f = Stream.concatMapM (return . f)
 -- >>> concatMap f = Stream.unfoldEach (Unfold.lmap f Unfold.fromStream)
 --
--- See 'unfoldEach' for a fusible alternative.
+-- See argument flipped version 'concatFor' for more detailed documentation.
+--
+-- NOTE: We recommend using 'unfoldEach' or 'unfoldCross' instead of
+-- 'concatMap' especially in performance critical code. 'unfoldEach' is much
+-- faster than 'concatMap' and matches its expressive power in terms of
+-- generating dependent inner streams, there is one important distinction
+-- though: the nesting structure when using 'unfoldEach' is fixed statically in
+-- the code. In contrast, 'concatMap' allows dynamic and arbitrary nesting
+-- through monadic composition. This means that deeply nested or
+-- programmatically determined levels of nesting are easier to express and
+-- compose with 'concatMap', though often at the cost of performance and
+-- fusion.
 --
 {-# INLINE concatMap #-}
 concatMap :: Monad m => (a -> Stream m b) -> Stream m a -> Stream m b
 concatMap f = concatMapM (return . f)
 
+-- XXX Add smap/sfor (mapAccum) as a more ergonomic substitute for scan, not
+-- exposing the state in the output stream.
+-- XXX add sconcatMap/sconcatFor as stateful alternatives.
+
 -- | Map a stream generating function on each element of a stream and
 -- concatenate the results. This is the same as the bind function of the monad
 -- instance. It is just a flipped 'concatMap' but more convenient to use for
--- nested use case, feels like an imperative @for@ loop.
+-- nested use case, feels like an imperative @for@ loop. It is in fact
+-- equivalent to @concat . for@.
 --
 -- >>> concatFor = flip Stream.concatMap
 --
@@ -1554,6 +1622,9 @@ concatMap f = concatMapM (return . f)
 -- :}
 -- [1,2,3]
 --
+-- Use 'unfoldEach' instead of 'concatFor' where possible, unfoldEach is much
+-- faster due to fusion.
+--
 -- Nested concatenating @for@ loops:
 --
 -- >>> :{
@@ -1564,9 +1635,38 @@ concatMap f = concatMapM (return . f)
 -- :}
 -- [(1,4),(1,5),(1,6),(2,4),(2,5),(2,6),(3,4),(3,5),(3,6)]
 --
+-- If total iterations are kept the same, each increase in the nesting level
+-- increases the cost by roughly 2 times.
+--
+-- For significantly faster multi-level nesting, prefer using the better
+-- fusible, applicative-like 'crossWith' over 'concatFor' where possible.
+--
+-- 'concatFor' is monad-like: it allows expressing dependencies between the
+-- outer and the inner loops of the nesting, it means that the stream generated
+-- by the inner loop is dynamically governed by the outer loop. This expressive
+-- power comes at a significant performance cost.
+--
+-- NOTE: We recommend using 'unfoldEach' or 'unfoldCross' instead of
+-- 'concatFor' especially in performance critical code. 'unfoldEach' is much
+-- faster than 'concatFor' and matches its expressive power in terms of
+-- generating dependent inner streams, there is one important distinction
+-- though: the nesting structure when using 'unfoldEach' is fixed statically in
+-- the code. In contrast, 'concatFor' allows dynamic and arbitrary nesting
+-- through monadic composition. This means that deeply nested or
+-- programmatically determined levels of nesting are easier to express and
+-- compose with 'concatFor', though often at the cost of performance and
+-- fusion.
+--
+--
 {-# INLINE concatFor #-}
 concatFor :: Monad m => Stream m a -> (a -> Stream m b) -> Stream m b
 concatFor = flip concatMap
+
+-- NOTE: A monad instance can do with just concatMap because we lift an effect
+-- explicitly using liftIO and then bind/applicative concats it. Not sure if it
+-- gets fused and the overhead of additional concat removed. However, for
+-- explicit use concatForM is more ergonomic as we do not need to lift and
+-- concat, we can just use the do notation in the underlying monad..
 
 -- | Like 'concatFor' but maps an effectful function. It allows conveniently
 -- mixing monadic effects with streams.
@@ -1589,10 +1689,14 @@ concatFor = flip concatMap
 -- Stream.toList $
 --     Stream.concatForM (Stream.fromList [1,2,3]) $ \x -> do
 --       liftIO $ putStrLn (show x)
---       pure $ Stream.concatFor (Stream.fromList [4,5,6]) $ \y ->
---         Stream.fromPure (x, y)
+--       pure $ Stream.concatForM (Stream.fromList [4,5,6]) $ \y -> do
+--         when (x == 1) $ liftIO $ putStrLn (show y)
+--         pure $ Stream.fromPure (x, y)
 -- :}
 -- 1
+-- 4
+-- 5
+-- 6
 -- 2
 -- 3
 -- [(1,4),(1,5),(1,6),(2,4),(2,5),(2,6),(3,4),(3,5),(3,6)]
@@ -1609,17 +1713,6 @@ concatForM = flip concatMapM
 {-# INLINE concat #-}
 concat :: Monad m => Stream m (Stream m a) -> Stream m a
 concat = concatMap id
-
--- XXX The idea behind this rule is to rewrite any calls to "concatMap
--- fromArray" automatically to flattenArrays which is much faster.  However, we
--- need an INLINE_EARLY on concatMap for this rule to fire. But if we use
--- INLINE_EARLY on concatMap or fromArray then direct uses of
--- "concatMap fromArray" (without the RULE) become much slower, this means
--- "concatMap f" in general would become slower. Need to find a solution to
--- this.
---
--- {-# RULES "concatMap Array.toStreamD"
---      concatMap Array.toStreamD = Array.flattenArray #-}
 
 -- >>> concatEffect = Stream.concat . lift    -- requires (MonadTrans t)
 -- >>> concatEffect = join . lift             -- requires (MonadTrans t, Monad (Stream m))

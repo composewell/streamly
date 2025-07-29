@@ -1512,6 +1512,10 @@ concatForWithM :: Monad m =>
     -> StreamK m b
 concatForWithM combine s f = concatForWith combine s (concatEffect . f)
 
+-- |
+-- If total iterations are kept the same, each increase in the nesting level
+-- increases the cost by roughly 1.5 times.
+--
 {-# INLINE concatMap #-}
 concatMap :: (a -> StreamK m b) -> StreamK m a -> StreamK m b
 concatMap = concatMapWith append
