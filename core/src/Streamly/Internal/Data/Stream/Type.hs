@@ -117,13 +117,17 @@ module Streamly.Internal.Data.Stream.Type
     , ConcatMapUState (..)
     , unfoldEach
 
-    -- * Concat
+    -- * ConcatMap
     -- | Generate streams by mapping a stream generator on each element of an
     -- input stream, append the resulting streams and flatten.
     , concatEffect
     , concatMap
     , concatMapM
     , concat
+
+    -- * ConcatFor
+    , concatFor
+    , concatForM
 
     -- * Unfold Iterate
     , unfoldIterateDfs
@@ -1530,6 +1534,39 @@ concatMap f = concatMapM (return . f)
 {-# INLINE concatFor #-}
 concatFor :: Monad m => Stream m a -> (a -> Stream m b) -> Stream m b
 concatFor = flip concatMap
+
+-- | Like 'concatFor' but maps an effectful function. It allows conveniently
+-- mixing monadic effects with streams.
+--
+-- >>> import Control.Monad.IO.Class (liftIO)
+-- >>> :{
+-- Stream.toList $
+--     Stream.concatForM (Stream.fromList [1,2,3]) $ \x -> do
+--       liftIO $ putStrLn (show x)
+--       pure $ Stream.fromPure x
+-- :}
+-- 1
+-- 2
+-- 3
+-- [1,2,3]
+--
+-- Nested concatentating @for@ loops:
+--
+-- >>> :{
+-- Stream.toList $
+--     Stream.concatForM (Stream.fromList [1,2,3]) $ \x -> do
+--       liftIO $ putStrLn (show x)
+--       pure $ Stream.concatFor (Stream.fromList [4,5,6]) $ \y ->
+--         Stream.fromPure (x, y)
+-- :}
+-- 1
+-- 2
+-- 3
+-- [(1,4),(1,5),(1,6),(2,4),(2,5),(2,6),(3,4),(3,5),(3,6)]
+--
+{-# INLINE concatForM #-}
+concatForM :: Monad m => Stream m a -> (a -> m (Stream m b)) -> Stream m b
+concatForM = flip concatMapM
 
 -- | Flatten a stream of streams to a single stream.
 --
