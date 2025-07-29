@@ -248,32 +248,25 @@ o_1_space_applicative value =
 o_1_space_monad :: Int -> [Benchmark]
 o_1_space_monad value =
     [ bgroup "Monad"
-        [ benchIO "(>>) (sqrt n x sqrt n)" $ monadThen value
-        , benchIO "(>>=) (sqrt n x sqrt n)" $ toNullM value
-        , benchIO "(>>=) (sqrt n x sqrt n) (filterAllOut)" $
-            filterAllOutM value
-        , benchIO "(>>=) (sqrt n x sqrt n) (filterAllIn)" $
-            filterAllInM value
-        , benchIO "(>>=) (sqrt n x sqrt n) (filterSome)" $
-            filterSome value
-        , benchIO "(>>=) (sqrt n x sqrt n) (breakAfterSome)" $
-            breakAfterSome value
-        , benchIO "(>>=) (cubert n x cubert n x cubert n)" $
-            toNullM3 value
-        , benchIO "toNullPure" $ toNullMPure value
-        , benchIO "toNull3Pure" $ toNullM3Pure value
-        , benchIO "filterAllInPure" $ filterAllInMPure value
-        , benchIO "filterAllOutPure" $ filterAllOutMPure value
+        [ benchIO "then2" $ monadThen value
+        , benchIO "drain2" $ toNullM value
+        , benchIO "drain3" $ toNullM3 value
+        , benchIO "filterAllOut2" $ filterAllOutM value
+        , benchIO "filterAllIn2" $ filterAllInM value
+        , benchIO "filterSome2" $ filterSome value
+        , benchIO "breakAfterSome2" $ breakAfterSome value
+        , benchIO "pureDrain2" $ toNullMPure value
+        , benchIO "pureDrain3" $ toNullM3Pure value
+        , benchIO "pureFilterAllIn2" $ filterAllInMPure value
+        , benchIO "pureFilterAllOut2" $ filterAllOutMPure value
         ]
     ]
 
 o_n_space_monad :: Int -> [Benchmark]
 o_n_space_monad value =
     [ bgroup "Monad"
-        [ benchIO "(>>=) (sqrt n x sqrt n) (toList)" $
-            toListM value
-        , benchIO "(>>=) (sqrt n x sqrt n) (toListSome)" $
-            toListSome value
+        [ benchIO "toList2" $ toListM value
+        , benchIO "toListSome2" $ toListSome value
         ]
     ]
 

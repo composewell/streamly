@@ -655,25 +655,40 @@ o_1_space_elimination streamLen =
         , benchFold "last"   last     (unfoldrM streamLen)
         ]
 
-o_1_space_nested :: Int -> Benchmark
-o_1_space_nested streamLen =
-    bgroup "nested"
-        [ benchFold "drainApplicative" drainApplicative (unfoldrM streamLen2)
-        , benchFold "drainMonad"   drainMonad   (unfoldrM streamLen2)
-        , benchFold "drainConcatFor"   drainConcatFor   (unfoldrM streamLen2)
-        , benchFold "drainConcatForM"   drainConcatForM   (unfoldrM streamLen2)
-        , benchFold "drainMonad3"  drainMonad3  (unfoldrM streamLen3)
-        , benchFold "drainConcatFor3"   drainConcatFor3   (unfoldrM streamLen3)
-        , benchFold "drainConcatFor3M"   drainConcatFor3M   (unfoldrM streamLen3)
-        , benchFold "filterAllInMonad"  filterAllInMonad  (unfoldrM streamLen2)
-        , benchFold "filterAllInConcatFor"  filterAllInConcatFor  (unfoldrM streamLen2)
-        , benchFold "filterAllOutMonad" filterAllOutMonad (unfoldrM streamLen2)
-        , benchFold "filterAllOutConcatFor" filterAllOutConcatFor (unfoldrM streamLen2)
-        , benchFold "drainApplicative (pure)" drainApplicative (unfoldr streamLen2)
-        , benchFold "drainMonad (pure)"   drainMonad   (unfoldr streamLen2)
-        , benchFold "drainMonad3 (pure)"  drainMonad3  (unfoldr streamLen3)
-        , benchFold "filterAllInMonad (pure)"  filterAllInMonad  (unfoldr streamLen2)
-        , benchFold "filterAllOutMonad (pure)" filterAllOutMonad (unfoldr streamLen2)
+o_1_space_ap :: Int -> Benchmark
+o_1_space_ap streamLen =
+    bgroup "Applicative"
+        [ benchFold "drain2" drainApplicative (unfoldrM streamLen2)
+        , benchFold "pureDrain2" drainApplicative (unfoldr streamLen2)
+        ]
+    where
+    streamLen2 = round (P.fromIntegral streamLen**(1/2::P.Double)) -- double nested loop
+
+o_1_space_monad :: Int -> Benchmark
+o_1_space_monad streamLen =
+    bgroup "Monad"
+        [ benchFold "drain2"   drainMonad   (unfoldrM streamLen2)
+        , benchFold "drain3"  drainMonad3  (unfoldrM streamLen3)
+        , benchFold "filterAllIn2"  filterAllInMonad  (unfoldrM streamLen2)
+        , benchFold "filterAllOut2" filterAllOutMonad (unfoldrM streamLen2)
+        , benchFold "pureDrain2"   drainMonad   (unfoldr streamLen2)
+        , benchFold "pureDrain3"  drainMonad3  (unfoldr streamLen3)
+        , benchFold "pureFilterAllIn2"  filterAllInMonad  (unfoldr streamLen2)
+        , benchFold "pureFilterAllOut2" filterAllOutMonad (unfoldr streamLen2)
+        ]
+    where
+    streamLen2 = round (P.fromIntegral streamLen**(1/2::P.Double)) -- double nested loop
+    streamLen3 = round (P.fromIntegral streamLen**(1/3::P.Double)) -- triple nested loop
+
+o_1_space_bind :: Int -> Benchmark
+o_1_space_bind streamLen =
+    bgroup "concatFor"
+        [ benchFold "drain2"   drainConcatFor   (unfoldrM streamLen2)
+        , benchFold "drainM2"   drainConcatForM   (unfoldrM streamLen2)
+        , benchFold "drain3"   drainConcatFor3   (unfoldrM streamLen3)
+        , benchFold "drainM3"   drainConcatFor3M   (unfoldrM streamLen3)
+        , benchFold "filterAllIn2"  filterAllInConcatFor  (unfoldrM streamLen2)
+        , benchFold "filterAllOut2" filterAllOutConcatFor (unfoldrM streamLen2)
         ]
     where
     streamLen2 = round (P.fromIntegral streamLen**(1/2::P.Double)) -- double nested loop
@@ -824,12 +839,14 @@ o_1_space_list streamLen =
       [ bgroup "elimination"
         [ benchList "last" (\xs -> [List.last xs]) (unfoldrList streamLen)
         ]
-      , bgroup "nested"
-        [ benchList "toNullAp" toNullApNestedList (unfoldrList streamLen2)
-        , benchList "toNull"   toNullNestedList (unfoldrList streamLen2)
-        , benchList "toNull3"  toNullNestedList3 (unfoldrList streamLen3)
-        , benchList "filterAllIn"  filterAllInNestedList (unfoldrList streamLen2)
-        , benchList "filterAllOut"  filterAllOutNestedList (unfoldrList streamLen2)
+      , bgroup "Applicative"
+        [ benchList "drain2" toNullApNestedList (unfoldrList streamLen2)
+        ]
+      , bgroup "Monad"
+        [ benchList "drain2"   toNullNestedList (unfoldrList streamLen2)
+        , benchList "drain3"  toNullNestedList3 (unfoldrList streamLen3)
+        , benchList "filterAllIn2"  filterAllInNestedList (unfoldrList streamLen2)
+        , benchList "filterAllOut2"  filterAllOutNestedList (unfoldrList streamLen2)
         ]
       ]
     where
@@ -842,7 +859,9 @@ o_1_space streamLen =
     bgroup (o_1_space_prefix moduleName)
       [ o_1_space_generation streamLen
       , o_1_space_elimination streamLen
-      , o_1_space_nested streamLen
+      , o_1_space_ap streamLen
+      , o_1_space_monad streamLen
+      , o_1_space_bind streamLen
       , o_1_space_transformation streamLen
       , o_1_space_transformationX4 streamLen
       , o_1_space_concat streamLen
