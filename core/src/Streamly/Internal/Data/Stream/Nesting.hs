@@ -22,7 +22,9 @@
 -- package (c) Roman Leshchinskiy.
 --
 -- Flipped versions can be named as:
--- mapFor, concatFor, unfoldStepFor (only step function)
+-- mapFor/forEach, concatFor, unfoldStepFor (only step function)
+-- foreach would be better for streams than mapFor as map could be used for any
+-- type not just containers with multiple elements.
 --
 -- Flipped versions for folding streams:
 -- groupsFor :: stream -> fold -> stream (flipped groupsWhile)

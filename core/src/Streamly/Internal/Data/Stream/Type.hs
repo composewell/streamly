@@ -1501,6 +1501,36 @@ concatMapM f (Stream step state) = Stream step' (Left state)
 concatMap :: Monad m => (a -> Stream m b) -> Stream m a -> Stream m b
 concatMap f = concatMapM (return . f)
 
+-- | Map a stream generating function on each element of a stream and
+-- concatenate the results. This is the same as the bind function of the monad
+-- instance. It is just a flipped 'concatMap' but more convenient to use for
+-- nested use case, feels like an imperative @for@ loop.
+--
+-- >>> concatFor = flip Stream.concatMap
+--
+-- A concatenating @for@ loop:
+--
+-- >>> :{
+-- Stream.toList $
+--     Stream.concatFor (Stream.fromList [1,2,3]) $ \x ->
+--       Stream.fromPure x
+-- :}
+-- [1,2,3]
+--
+-- Nested concatenating @for@ loops:
+--
+-- >>> :{
+-- Stream.toList $
+--     Stream.concatFor (Stream.fromList [1,2,3]) $ \x ->
+--      Stream.concatFor (Stream.fromList [4,5,6]) $ \y ->
+--       Stream.fromPure (x, y)
+-- :}
+-- [(1,4),(1,5),(1,6),(2,4),(2,5),(2,6),(3,4),(3,5),(3,6)]
+--
+{-# INLINE concatFor #-}
+concatFor :: Monad m => Stream m a -> (a -> Stream m b) -> Stream m b
+concatFor = flip concatMap
+
 -- | Flatten a stream of streams to a single stream.
 --
 -- >>> concat = Stream.concatMap id
