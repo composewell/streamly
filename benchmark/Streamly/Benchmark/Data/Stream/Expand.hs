@@ -216,11 +216,15 @@ o_1_space_concat value = sqrtVal `seq`
         , benchIOSrc1 "concatMapM outer=1 inner=Max"
             (concatMapM 1 value)
 
-        -- concatMap vs unfoldMany
-        , benchIOSrc1 "concatMapRepl outer=inner=(sqrt Max)"
+        -- concatMap vs unfoldEach
+        , benchIOSrc1 "concatMap replicate outer=inner=(sqrt Max)"
             (concatMapRepl sqrtVal sqrtVal)
-        , benchIOSrc1 "unfoldManyRepl outer=inner=(sqrt Max)"
+        , benchIOSrc1 "unfoldEach replicate outer=Max inner=1"
+            (unfoldManyRepl value 1)
+        , benchIOSrc1 "unfoldEach replicate outer=inner=(sqrt Max)"
             (unfoldManyRepl sqrtVal sqrtVal)
+        , benchIOSrc1 "unfoldEach replicate outer=1 inner=Max"
+            (unfoldManyRepl 1 value)
         ]
     ]
 
