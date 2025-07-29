@@ -40,7 +40,9 @@ import Streamly.Benchmark.Prelude
     ( sourceFoldMapM, sourceFoldMapWith, sourceFoldMapWithM
     , sourceFoldMapWithStream, concatFoldableWith, concatForFoldableWith)
 #else
+import Streamly.Data.Stream (Stream)
 import qualified Streamly.Internal.Data.Stream as S
+import qualified Streamly.Internal.Data.Stream as Stream
 #endif
 
 import Test.Tasty.Bench
@@ -270,6 +272,107 @@ o_n_space_monad value =
         ]
     ]
 
+{-# INLINE drainConcatFor1 #-}
+drainConcatFor1 :: Monad m => Stream m Int -> m ()
+drainConcatFor1 s = drain $ do
+    Stream.concatFor s $ \x ->
+            Stream.fromPure $ x + 1
+
+{-# INLINE drainConcatFor #-}
+drainConcatFor :: Monad m => Stream m Int -> m ()
+drainConcatFor s = drain $ do
+    Stream.concatFor s $ \x ->
+        Stream.concatFor s $ \y ->
+            Stream.fromPure $ x + y
+
+{-# INLINE drainConcatForM #-}
+drainConcatForM :: Monad m => Stream m Int -> m ()
+drainConcatForM s = drain $ do
+    Stream.concatForM s $ \x ->
+        pure $ Stream.concatForM s $ \y ->
+            pure $ Stream.fromPure $ x + y
+
+{-# INLINE drainConcatFor3 #-}
+drainConcatFor3 :: Monad m => Stream m Int -> m ()
+drainConcatFor3 s = drain $ do
+    Stream.concatFor s $ \x ->
+        Stream.concatFor s $ \y ->
+            Stream.concatFor s $ \z ->
+                Stream.fromPure $ x + y + z
+
+{-# INLINE drainConcatFor4 #-}
+drainConcatFor4 :: Monad m => Stream m Int -> m ()
+drainConcatFor4 s = drain $ do
+    Stream.concatFor s $ \x ->
+        Stream.concatFor s $ \y ->
+            Stream.concatFor s $ \z ->
+                Stream.concatFor s $ \w ->
+                    Stream.fromPure $ x + y + z + w
+
+{-# INLINE drainConcatFor5 #-}
+drainConcatFor5 :: Monad m => Stream m Int -> m ()
+drainConcatFor5 s = drain $ do
+    Stream.concatFor s $ \x ->
+        Stream.concatFor s $ \y ->
+            Stream.concatFor s $ \z ->
+                Stream.concatFor s $ \w ->
+                    Stream.concatFor s $ \u ->
+                        Stream.fromPure $ x + y + z + w + u
+
+{-# INLINE drainConcatFor3M #-}
+drainConcatFor3M :: Monad m => Stream m Int -> m ()
+drainConcatFor3M s = drain $ do
+    Stream.concatForM s $ \x ->
+        pure $ Stream.concatForM s $ \y ->
+            pure $ Stream.concatForM s $ \z ->
+                pure $ Stream.fromPure $ x + y + z
+
+{-# INLINE filterAllInConcatFor #-}
+filterAllInConcatFor
+    :: Monad m
+    => Stream m Int -> m ()
+filterAllInConcatFor s = drain $ do
+    Stream.concatFor s $ \x ->
+        Stream.concatFor s $ \y ->
+            let s1 = x + y
+             in if s1 > 0
+                then Stream.fromPure s1
+                else Stream.nil
+
+{-# INLINE filterAllOutConcatFor #-}
+filterAllOutConcatFor
+    :: Monad m
+    => Stream m Int -> m ()
+filterAllOutConcatFor s = drain $ do
+    Stream.concatFor s $ \x ->
+        Stream.concatFor s $ \y ->
+            let s1 = x + y
+             in if s1 < 0
+                then Stream.fromPure s1
+                else Stream.nil
+
+o_1_space_bind :: Int -> [Benchmark]
+o_1_space_bind streamLen =
+    [ bgroup "concatFor"
+        [ benchFold "drain1" drainConcatFor1   (sourceUnfoldrM streamLen)
+        , benchFold "drain2" drainConcatFor   (sourceUnfoldrM streamLen2)
+        , benchFold "drain3" drainConcatFor3   (sourceUnfoldrM streamLen3)
+        , benchFold "drain4" drainConcatFor4   (sourceUnfoldrM streamLen4)
+        , benchFold "drain5" drainConcatFor5   (sourceUnfoldrM streamLen5)
+        , benchFold "drainM2" drainConcatForM   (sourceUnfoldrM streamLen2)
+        , benchFold "drainM3" drainConcatFor3M   (sourceUnfoldrM streamLen3)
+        , benchFold "filterAllIn2"  filterAllInConcatFor  (sourceUnfoldrM streamLen2)
+        , benchFold "filterAllOut2" filterAllOutConcatFor (sourceUnfoldrM streamLen2)
+        ]
+    ]
+
+    where
+
+    streamLen2 = round (fromIntegral streamLen**(1/2::Double)) -- double nested loop
+    streamLen3 = round (fromIntegral streamLen**(1/3::Double)) -- triple nested loop
+    streamLen4 = round (fromIntegral streamLen**(1/4::Double)) -- 4 times nested loop
+    streamLen5 = round (fromIntegral streamLen**(1/5::Double)) -- 5 times nested loop
+
 -------------------------------------------------------------------------------
 -- Joining
 -------------------------------------------------------------------------------
@@ -348,6 +451,7 @@ benchmarks moduleName size =
             , o_1_space_concat size
             , o_1_space_applicative size
             , o_1_space_monad size
+            , o_1_space_bind size
             ]
         , bgroup (o_n_space_prefix moduleName) $ Prelude.concat
             [
