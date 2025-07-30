@@ -249,14 +249,26 @@ o_1_space_concat value = sqrtVal `seq`
 -- Applicative
 -------------------------------------------------------------------------------
 
+{-# INLINE cross2 #-}
+cross2 :: MonadAsync m => Int -> Int -> m ()
+cross2 linearCount start = drain $
+    Stream.crossWith (+)
+        (sourceUnfoldr nestedCount2 start)
+        (sourceUnfoldr nestedCount2 start)
+
+    where
+
+    nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
+
 o_1_space_applicative :: Int -> [Benchmark]
 o_1_space_applicative value =
     [ bgroup "Applicative"
-        [ benchIO "(*>) (sqrt n x sqrt n)" $ apDiscardFst value
-        , benchIO "(<*) (sqrt n x sqrt n)" $ apDiscardSnd value
-        , benchIO "(<*>) (sqrt n x sqrt n)" $ toNullAp value
-        , benchIO "liftA2 (sqrt n x sqrt n)" $ apLiftA2 value
-        , benchIO "toNullApPure" $ toNullApPure value
+        [ benchIO "(*>)" $ apDiscardFst value
+        , benchIO "(<*)" $ apDiscardSnd value
+        , benchIO "(<*>)" $ toNullAp value
+        , benchIO "liftA2" $ apLiftA2 value
+        , benchIO "pureDrain2" $ toNullApPure value
+        , benchIO "pureCross2" $ cross2 value
         ]
     ]
 
