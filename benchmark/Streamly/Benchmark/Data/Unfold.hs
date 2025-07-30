@@ -203,9 +203,9 @@ _const :: Monad m => Int -> Int -> m ()
 _const size start =
     drainGeneration (UF.take size (UF.fromEffect (return start))) undefined
 
-{-# INLINE unfoldrM #-}
-unfoldrM :: Monad m => Int -> Int -> m ()
-unfoldrM size start = drainGeneration (UF.unfoldrM step) start
+{-# INLINE sourceUnfoldrM #-}
+sourceUnfoldrM :: Monad m => Int -> Int -> Unfold m Int Int
+sourceUnfoldrM size start = UF.unfoldrM step
 
     where
 
@@ -214,6 +214,10 @@ unfoldrM size start = drainGeneration (UF.unfoldrM step) start
             $ if i < start + size
               then Just (i, i + 1)
               else Nothing
+
+{-# INLINE unfoldrM #-}
+unfoldrM :: Monad m => Int -> Int -> m ()
+unfoldrM size start = drainGeneration (sourceUnfoldrM size start) start
 
 {-# INLINE fromList #-}
 fromList :: Monad m => Int -> Int -> m ()
@@ -443,16 +447,17 @@ _apDiscardSnd = undefined
 -- Monad
 -------------------------------------------------------------------------------
 
+-- XXX to keep the benchmarks same as Stream we should use sourceUnfoldrM in
+-- all of these, and other benchmarks too.
 {-# INLINE concatMapM #-}
-concatMapM :: Monad m => Int -> Int -> m ()
-concatMapM value start =
-    val `seq` drainGeneration (UF.concatMapM unfoldInGen unfoldOut) start
+concatMapM :: Monad m => Int -> Int -> Int -> m ()
+concatMapM inner outer start =
+    drainGeneration (UF.concatMapM unfoldInGen unfoldOut) start
 
     where
 
-    val = nthRoot 2 value
-    unfoldInGen i = return (UF.second (i + val) UF.enumerateFromToIntegral)
-    unfoldOut = UF.second (start + val) UF.enumerateFromToIntegral
+    unfoldInGen i = return (UF.second (i + inner) UF.enumerateFromToIntegral)
+    unfoldOut = UF.second (start + outer) UF.enumerateFromToIntegral
 
 {-# INLINE toNull #-}
 toNull :: Monad m => Int -> Int -> m ()
@@ -599,16 +604,13 @@ breakAfterSome value start =
 -- Benchmark ops
 -------------------------------------------------------------------------------
 
--- n * (n + 1) / 2 == linearCount
-concatCount :: Int -> Int
-concatCount linearCount =
-    round (((1 + 8 * fromIntegral linearCount)**(1/2::Double) - 1) / 2)
-
-{-# INLINE many #-}
-many :: Monad m => Int -> Int -> m ()
-many linearCount start = do
-    let end = start + concatCount linearCount
-    UF.fold FL.drain (UF.unfoldEach (source end) (source end)) start
+{-# INLINE unfoldEach #-}
+unfoldEach :: Monad m => Int -> Int -> Int -> m ()
+unfoldEach inner outer start = do
+    UF.fold
+        FL.drain
+        (UF.unfoldEach (sourceUnfoldrM inner start) (sourceUnfoldrM outer start))
+        start
 
 -------------------------------------------------------------------------------
 -- Benchmarks
@@ -723,7 +725,7 @@ o_1_space_nested env size =
           -- , benchIO "apDiscardFst" $ apDiscardFst size
           -- , benchIO "apDiscardSnd" $ apDiscardSnd size
 
-          , benchIO "concatMapM outer=inner=(sqrt Max)" $ concatMapM size
+          , benchIO "concatMapM outer=inner=(sqrt Max)" $ concatMapM sqrtVal sqrtVal
           , benchIO "bind2" $ toNull size
           , benchIO "bind3" $ toNull3 size
           , benchIO "breakAfterSome2" $ breakAfterSome size
@@ -731,11 +733,17 @@ o_1_space_nested env size =
           , benchIO "filterAllIn2" $ filterAllIn size
           , benchIO "filterSome2" $ filterSome size
 
-          , benchIO "unfoldEach" $ many size
+          , benchIO "unfoldEach inner=outer=(sqrt Max)" $ unfoldEach sqrtVal sqrtVal
+          , benchIO "unfoldEach inner=1 outer=Max" $ unfoldEach 1 size
+          , benchIO "unfoldEach inner=Max outer=1" $ unfoldEach size 1
           , mkBench "foldMany (Fold.takeEndBy_ (== lf) Fold.drain)" env
             $ \inh _ -> foldManySepBy inh
           ]
     ]
+
+    where
+
+    sqrtVal = round $ sqrt (fromIntegral size :: Double)
 
 o_n_space_nested :: Int -> [Benchmark]
 o_n_space_nested size =

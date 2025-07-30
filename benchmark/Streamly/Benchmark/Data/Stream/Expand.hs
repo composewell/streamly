@@ -41,6 +41,7 @@ import Streamly.Benchmark.Prelude
     , sourceFoldMapWithStream, concatFoldableWith, concatForFoldableWith)
 #else
 import Streamly.Data.Stream (Stream)
+import Streamly.Data.Unfold (Unfold)
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream as Stream
 #endif
@@ -173,11 +174,26 @@ inspect $ 'concatMapRepl `hasNoType` ''SPEC
 
 -- unfoldMany replicate/unfoldrM
 
+{-# INLINE sourceUnfoldrMUnfold #-}
+sourceUnfoldrMUnfold :: Monad m => Int -> Int -> Unfold m Int Int
+sourceUnfoldrMUnfold size start = UF.unfoldrM step
+
+    where
+
+    step i =
+        return
+            $ if i < start + size
+              then Just (i, i + 1)
+              else Nothing
+
 {-# INLINE unfoldManyRepl #-}
 unfoldManyRepl :: Int -> Int -> Int -> IO ()
-unfoldManyRepl outer inner n = drain $
-     S.unfoldEach (UF.lmap ((inner,) . return) UF.replicateM)
-        $ sourceUnfoldrM outer n
+unfoldManyRepl outer inner start = drain $
+     -- XXX this takes much more time compared to unfoldrM, is there a perf
+     -- issue or this is just because of accing outer loop variables?
+     -- S.unfoldEach (UF.lmap ((inner,) . return) UF.replicateM)
+     S.unfoldEach (sourceUnfoldrMUnfold inner start)
+        $ sourceUnfoldrM outer start
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'unfoldManyRepl
