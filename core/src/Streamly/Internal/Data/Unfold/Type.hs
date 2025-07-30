@@ -224,6 +224,8 @@ data Unfold m a b =
 -- Basic constructors
 ------------------------------------------------------------------------------
 
+-- XXX unfoldWith?
+
 -- | Make an unfold from @step@ and @inject@ functions.
 --
 -- /Pre-release/
@@ -506,6 +508,7 @@ fromEffect m = Unfold step inject
 -- > fromPure = fromEffect . pure
 --
 -- /Pre-release/
+{-# INLINE fromPure #-}
 fromPure :: Applicative m => b -> Unfold m a b
 fromPure = fromEffect Prelude.. pure
 
@@ -662,6 +665,7 @@ crossWith f = crossWithM (\b c -> return $ f b c)
 cross :: Monad m => Unfold m a b -> Unfold m a c -> Unfold m a (b, c)
 cross = crossWith (,)
 
+{-# INLINE crossApply #-}
 crossApply :: Monad m => Unfold m a (b -> c) -> Unfold m a b -> Unfold m a c
 crossApply u1 u2 = fmap (\(a, b) -> a b) (cross u1 u2)
 

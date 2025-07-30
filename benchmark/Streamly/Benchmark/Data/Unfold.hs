@@ -31,7 +31,9 @@ import qualified Prelude
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as UF
+#ifndef USE_STREAMLY_CORE
 import qualified Streamly.Internal.Data.Unfold.Prelude as UF
+#endif
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.StreamK as K
@@ -427,7 +429,7 @@ toNullAp value start =
     let end = start + nthRoot 2 value
         s = source end
     -- in UF.fold ((+) <$> s <*> s) FL.drain start
-    in UF.fold FL.drain ((+) `fmap` s `UF.crossApply` s) start
+    in UF.fold FL.drain (((+) `fmap` s) `UF.crossApply` s) start
 
 {-# INLINE _apDiscardFst #-}
 _apDiscardFst :: Int -> Int -> m ()
@@ -483,7 +485,8 @@ toNull3 value start =
         -}
         u = src `UF.bind` \x ->
             src `UF.bind` \y ->
-                UF.fromPure (x + y)
+            src `UF.bind` \z ->
+                UF.fromPure (x + y + z)
      in UF.fold FL.drain u start
 
 {-# INLINE toList #-}
@@ -715,20 +718,20 @@ o_1_space_nested :: BenchEnv -> Int -> [Benchmark]
 o_1_space_nested env size =
     [ bgroup
           "nested"
-          [ benchIO "(<*>) (sqrt n x sqrt n)" $ toNullAp size
+          [ benchIO "crossApply outer=inner=(sqrt Max)" $ toNullAp size
           -- Unimplemented
           -- , benchIO "apDiscardFst" $ apDiscardFst size
           -- , benchIO "apDiscardSnd" $ apDiscardSnd size
 
-          , benchIO "concatMapM (sqrt n x sqrt n)" $ concatMapM size
-          , benchIO "(>>=) (sqrt n x sqrt n)" $ toNull size
-          , benchIO "(>>=) (cubert n x cubert n x cubert n)" $ toNull3 size
-          , benchIO "breakAfterSome" $ breakAfterSome size
-          , benchIO "filterAllOut" $ filterAllOut size
-          , benchIO "filterAllIn" $ filterAllIn size
-          , benchIO "filterSome" $ filterSome size
+          , benchIO "concatMapM outer=inner=(sqrt Max)" $ concatMapM size
+          , benchIO "bind2" $ toNull size
+          , benchIO "bind3" $ toNull3 size
+          , benchIO "breakAfterSome2" $ breakAfterSome size
+          , benchIO "filterAllOut2" $ filterAllOut size
+          , benchIO "filterAllIn2" $ filterAllIn size
+          , benchIO "filterSome2" $ filterSome size
 
-          , benchIO "many" $ many size
+          , benchIO "unfoldEach" $ many size
           , mkBench "foldMany (Fold.takeEndBy_ (== lf) Fold.drain)" env
             $ \inh _ -> foldManySepBy inh
           ]
@@ -738,8 +741,8 @@ o_n_space_nested :: Int -> [Benchmark]
 o_n_space_nested size =
     [ bgroup
           "nested"
-          [ benchIO "toList" $ toList size
-          , benchIO "toListSome" $ toListSome size
+          [ benchIO "toList2" $ toList size
+          , benchIO "toListSome2" $ toListSome size
           ]
     ]
 
@@ -785,10 +788,12 @@ inspect $ hasNoTypeClasses 'readWriteFinally_Unfold
 -- inspect $ 'readWriteFinallyUnfold `hasNoType` ''Step
 #endif
 
+#ifndef USE_STREAMLY_CORE
 readWriteFinallyUnfold :: Handle -> Handle -> IO ()
 readWriteFinallyUnfold inh devNull =
     let readEx = UF.finally (\_ -> hClose inh) FH.reader
     in S.fold (FH.write devNull) $ S.unfold readEx inh
+#endif
 
 -- | Send the file contents to /dev/null with exception handling
 readWriteBracket_Unfold :: Handle -> Handle -> IO ()
@@ -805,10 +810,12 @@ inspect $ hasNoTypeClasses 'readWriteBracket_Unfold
 -- inspect $ 'readWriteBracketUnfold `hasNoType` ''Step
 #endif
 
+#ifndef USE_STREAMLY_CORE
 readWriteBracketUnfold :: Handle -> Handle -> IO ()
 readWriteBracketUnfold inh devNull =
     let readEx = UF.bracket return (\_ -> hClose inh) FH.reader
     in S.fold (FH.write devNull) $ S.unfold readEx inh
+#endif
 
 o_1_space_copy_read_exceptions :: BenchEnv -> [Benchmark]
 o_1_space_copy_read_exceptions env =
@@ -819,12 +826,14 @@ o_1_space_copy_read_exceptions env =
            readWriteHandleExceptionUnfold inh (nullH env)
        , mkBenchSmall "UF.finally_" env $ \inh _ ->
            readWriteFinally_Unfold inh (nullH env)
-       , mkBenchSmall "UF.finally" env $ \inh _ ->
-           readWriteFinallyUnfold inh (nullH env)
        , mkBenchSmall "UF.bracket_" env $ \inh _ ->
            readWriteBracket_Unfold inh (nullH env)
+#ifndef USE_STREAMLY_CORE
+       , mkBenchSmall "UF.finally" env $ \inh _ ->
+           readWriteFinallyUnfold inh (nullH env)
        , mkBenchSmall "UF.bracket" env $ \inh _ ->
            readWriteBracketUnfold inh (nullH env)
+#endif
         ]
     ]
 
