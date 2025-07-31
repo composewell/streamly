@@ -123,6 +123,17 @@ concatMap outer inner n =
         (\_ -> sourceUnfoldrM inner n)
         (sourceUnfoldrM outer n)
 
+{-# INLINE concatMapViaUnfoldEach #-}
+concatMapViaUnfoldEach :: Int -> Int -> Int -> IO ()
+concatMapViaUnfoldEach outer inner n =
+    drain $ cmap
+        (\_ -> sourceUnfoldrM inner n)
+        (sourceUnfoldrM outer n)
+
+    where
+
+    cmap f = Stream.unfoldEach (UF.lmap f UF.fromStream)
+
 {-# INLINE concatMapM #-}
 concatMapM :: Int -> Int -> Int -> IO ()
 concatMapM outer inner n =
@@ -228,6 +239,13 @@ o_1_space_concat value = sqrtVal `seq`
             (concatMapM sqrtVal sqrtVal)
         , benchIOSrc1 "concatMapM outer=1 inner=Max"
             (concatMapM 1 value)
+
+        , benchIOSrc1 "concatMapViaUnfoldEach outer=max inner=1"
+            (concatMapViaUnfoldEach value 1)
+        , benchIOSrc1 "concatMapViaUnfoldEach outer=inner=(sqrt Max)"
+            (concatMapViaUnfoldEach sqrtVal sqrtVal)
+        , benchIOSrc1 "concatMapViaUnfoldEach outer=1 inner=Max"
+            (concatMapViaUnfoldEach 1 value)
 
         -- concatMap vs unfoldEach
         , benchIOSrc1 "concatMap replicate outer=inner=(sqrt Max)"
