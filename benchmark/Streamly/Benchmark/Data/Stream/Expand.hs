@@ -191,6 +191,14 @@ inspect $ 'unfoldEach `hasNoType` ''D.ConcatMapUState
 inspect $ 'unfoldEach `hasNoType` ''SPEC
 #endif
 
+{-# INLINE unfoldCross #-}
+unfoldCross :: Int -> Int -> Int -> IO ()
+unfoldCross outer inner start = drain $
+    Stream.unfoldCross
+        UF.identity
+        (sourceUnfoldrM outer start)
+        (sourceUnfoldrM inner start)
+
 o_1_space_concat :: Int -> [Benchmark]
 o_1_space_concat value = sqrtVal `seq`
     [ bgroup "concat"
@@ -225,6 +233,13 @@ o_1_space_concat value = sqrtVal `seq`
             (concatMapViaUnfoldEach sqrtVal sqrtVal)
         , benchIOSrc1 "concatMapViaUnfoldEach outer=1 inner=Max"
             (concatMapViaUnfoldEach 1 value)
+
+        , benchIOSrc1 "unfoldCross outer=max inner=1"
+            (unfoldCross value 1)
+        , benchIOSrc1 "unfoldCross outer=inner=(sqrt Max)"
+            (unfoldCross sqrtVal sqrtVal)
+        , benchIOSrc1 "unfoldCross outer=1 inner=Max"
+            (unfoldCross 1 value)
 
         -- concatMap vs unfoldEach
         , benchIOSrc1 "unfoldEach outer=Max inner=1"
