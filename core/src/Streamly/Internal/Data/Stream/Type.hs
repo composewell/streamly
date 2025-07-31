@@ -117,6 +117,9 @@ module Streamly.Internal.Data.Stream.Type
     , ConcatMapUState (..)
     , unfoldEach
 
+    -- * UnfoldCross
+    , unfoldCross
+
     -- * ConcatMap
     -- | Generate streams by mapping a stream generator on each element of an
     -- input stream, append the resulting streams and flatten.
@@ -1373,9 +1376,6 @@ crossWith f m1 m2 = fmap f m1 `crossApply` m2
 -- calling this function. Caching may also improve performance if the stream is
 -- expensive to evaluate.
 --
--- See 'Streamly.Internal.Data.Unfold.cross' for a much faster fused
--- alternative.
---
 -- Time: O(m x n)
 --
 -- /Pre-release/
@@ -1448,6 +1448,39 @@ unfoldEach (Unfold istep inject) (Stream ostep ost) =
             Stop       -> Skip (ConcatMapUOuter o)
 
 RENAME(unfoldMany,unfoldEach)
+
+-- | Generates a cross product of two streams and then unfolds each tuple.
+--
+-- A two level loop nesting much faster than 'concatMap' based nesting.
+--
+-- >>> :{
+-- outerLoop =
+--   flip Stream.mapM (Stream.fromList [1,2,3]) $ \x -> do
+--       liftIO $ putStrLn (show x)
+--       return x
+-- innerLoop =
+--   flip Stream.mapM (Stream.fromList [4,5,6]) $ \y -> do
+--       -- liftIO $ putStrLn (show y)
+--       return y
+-- innerUnfold =
+--   flip Unfold.mapM Unfold.identity $ \(x,y) -> do
+--      when (x == 1) $ liftIO $ putStrLn (show y)
+--      pure $ (x, y)
+-- :}
+--
+-- >>> Stream.toList $ Stream.unfoldCross innerUnfold outerLoop innerLoop
+-- 1
+-- 4
+-- 5
+-- 6
+-- 2
+-- 3
+-- [(1,4),(1,5),(1,6),(2,4),(2,5),(2,6),(3,4),(3,5),(3,6)]
+--
+{-# INLINE unfoldCross #-}
+unfoldCross :: Monad m =>
+    Unfold m (a,b) c -> Stream m a -> Stream m b -> Stream m c
+unfoldCross unf m1 m2 = unfoldEach unf $ crossWith (,) m1 m2
 
 ------------------------------------------------------------------------------
 -- Combine N Streams - concatMap
