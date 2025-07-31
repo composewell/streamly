@@ -164,27 +164,6 @@ inspect $ hasNoTypeClasses 'concatMapPure
 inspect $ 'concatMapPure `hasNoType` ''SPEC
 #endif
 
--- concatMap replicate/unfoldrM
-
-{-# INLINE concatMapRepl #-}
-concatMapRepl :: Int -> Int -> Int -> IO ()
-concatMapRepl outer inner n =
-    drain $ S.concatMap
-        (S.replicate inner) (sourceUnfoldrM outer n)
-
-#ifdef INSPECTION
-#if __GLASGOW_HASKELL__ >= 906
-inspect $ hasNoTypeClassesExcept 'concatMapRepl [''Applicative]
-#else
-inspect $ hasNoTypeClasses 'concatMapRepl
-#endif
-inspect $ 'concatMapRepl `hasNoType` ''SPEC
-#endif
-
--- unfoldMany
-
--- unfoldMany replicate/unfoldrM
-
 {-# INLINE sourceUnfoldrMUnfold #-}
 sourceUnfoldrMUnfold :: Monad m => Int -> Int -> Unfold m Int Int
 sourceUnfoldrMUnfold size start = UF.unfoldrM step
@@ -197,9 +176,9 @@ sourceUnfoldrMUnfold size start = UF.unfoldrM step
               then Just (i, i + 1)
               else Nothing
 
-{-# INLINE unfoldManyRepl #-}
-unfoldManyRepl :: Int -> Int -> Int -> IO ()
-unfoldManyRepl outer inner start = drain $
+{-# INLINE unfoldEach #-}
+unfoldEach :: Int -> Int -> Int -> IO ()
+unfoldEach outer inner start = drain $
      -- XXX this takes much more time compared to unfoldrM, is there a perf
      -- issue or this is just because of accing outer loop variables?
      -- S.unfoldEach (UF.lmap ((inner,) . return) UF.replicateM)
@@ -207,9 +186,9 @@ unfoldManyRepl outer inner start = drain $
         $ sourceUnfoldrM outer start
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'unfoldManyRepl
-inspect $ 'unfoldManyRepl `hasNoType` ''D.ConcatMapUState
-inspect $ 'unfoldManyRepl `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'unfoldEach
+inspect $ 'unfoldEach `hasNoType` ''D.ConcatMapUState
+inspect $ 'unfoldEach `hasNoType` ''SPEC
 #endif
 
 o_1_space_concat :: Int -> [Benchmark]
@@ -248,14 +227,12 @@ o_1_space_concat value = sqrtVal `seq`
             (concatMapViaUnfoldEach 1 value)
 
         -- concatMap vs unfoldEach
-        , benchIOSrc1 "concatMap replicate outer=inner=(sqrt Max)"
-            (concatMapRepl sqrtVal sqrtVal)
-        , benchIOSrc1 "unfoldEach replicate outer=Max inner=1"
-            (unfoldManyRepl value 1)
-        , benchIOSrc1 "unfoldEach replicate outer=inner=(sqrt Max)"
-            (unfoldManyRepl sqrtVal sqrtVal)
-        , benchIOSrc1 "unfoldEach replicate outer=1 inner=Max"
-            (unfoldManyRepl 1 value)
+        , benchIOSrc1 "unfoldEach outer=Max inner=1"
+            (unfoldEach value 1)
+        , benchIOSrc1 "unfoldEach outer=inner=(sqrt Max)"
+            (unfoldEach sqrtVal sqrtVal)
+        , benchIOSrc1 "unfoldEach outer=1 inner=Max"
+            (unfoldEach 1 value)
         ]
     ]
 
