@@ -8,7 +8,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE TupleSections #-}
 
 #ifdef USE_PRELUDE
 #endif
@@ -179,8 +178,8 @@ sourceUnfoldrMUnfold size start = UF.unfoldrM step
 {-# INLINE unfoldEach #-}
 unfoldEach :: Int -> Int -> Int -> IO ()
 unfoldEach outer inner start = drain $
-     -- XXX this takes much more time compared to unfoldrM, is there a perf
-     -- issue or this is just because of accing outer loop variables?
+     -- XXX the replicateM takes much more time compared to unfoldrM, is there
+     -- a perf issue or this is just because of accessing outer loop variables?
      -- S.unfoldEach (UF.lmap ((inner,) . return) UF.replicateM)
      S.unfoldEach (sourceUnfoldrMUnfold inner start)
         $ sourceUnfoldrM outer start
@@ -194,8 +193,18 @@ inspect $ 'unfoldEach `hasNoType` ''SPEC
 {-# INLINE unfoldEach2 #-}
 unfoldEach2 :: Int -> Int -> Int -> IO ()
 unfoldEach2 outer inner start = drain $
-     S.unfoldEach (UF.map2 (,) (sourceUnfoldrMUnfold inner start))
+     S.unfoldEach (UF.carry (sourceUnfoldrMUnfold inner start))
         $ sourceUnfoldrM outer start
+
+{-# INLINE unfoldEach3 #-}
+unfoldEach3 :: Int -> Int -> IO ()
+unfoldEach3 linearCount start = drain $ do
+    S.unfoldEach (UF.carry (UF.lmap snd (sourceUnfoldrMUnfold nestedCount3 start)))
+         $ S.unfoldEach (UF.carry (sourceUnfoldrMUnfold nestedCount3 start))
+            $ sourceUnfoldrM nestedCount3 start
+    where
+
+    nestedCount3 = round (fromIntegral linearCount**(1/3::Double))
 
 {-# INLINE unfoldCross #-}
 unfoldCross :: Int -> Int -> Int -> IO ()
@@ -261,6 +270,9 @@ o_1_space_concat value = sqrtVal `seq`
             (unfoldEach2 sqrtVal sqrtVal)
         , benchIOSrc1 "unfoldEach2 outer=1 inner=Max"
             (unfoldEach2 1 value)
+
+        , benchIOSrc1 "unfoldEach3 outer=inner=(cubert Max)"
+            (unfoldEach3 value)
         ]
     ]
 
