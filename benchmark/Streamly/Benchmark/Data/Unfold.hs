@@ -316,7 +316,7 @@ mapM2 :: Monad m => Int -> Int -> m ()
 mapM2 size start =
     drainTransformationDefault
         size
-        (UF.mapM2 (\a b -> return $ a + b))
+        (UF.mapM (\(a, b) -> return $ a + b) . UF.carry)
         start
 
 -------------------------------------------------------------------------------

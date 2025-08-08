@@ -468,8 +468,8 @@ mapM2 =
     property
         $ \f list ->
               let fA = applyFun2 f :: [Int] -> Int -> Int
-                  fM x y = modify (+ 1) >> return (fA x y)
-                  unf = UF.mapM2 fM UF.fromList
+                  fM (x, y) = modify (+ 1) >> return (fA x y)
+                  unf = UF.mapM fM (UF.carry UF.fromList)
                   mList = Prelude.map (fA list) list
                in testUnfoldMD unf list 0 (length list) mList
 
