@@ -85,8 +85,8 @@ module Streamly.Internal.Data.Stream.Nesting
     -- intercalate.
     , unfoldEachFoldBy
     , ConcatUnfoldInterleaveState (..)
-    , unfoldEachInterleave -- bfsUnfoldEach
-    , unfoldEachInterleaveRev -- altBfsUnfoldEach -- alternating directions
+    , bfsUnfoldEach
+    , altBfsUnfoldEach
 
     -- *** unfoldEach joined by elements
     -- | Like unfoldEach but intersperses an element between the streams after
@@ -112,7 +112,7 @@ module Streamly.Internal.Data.Stream.Nesting
 
     -- | Like unfoldEach but schedules the generated streams based on time
     -- slice instead of based on the outputs.
-    , unfoldEachRoundRobin -- unfoldSched
+    , unfoldSched
     -- , altUnfoldSched -- alternating directions
     -- , fairUnfoldSched
 
@@ -198,6 +198,9 @@ module Streamly.Internal.Data.Stream.Nesting
     , parseIterateD
     , groupsBy
     , splitOnSeq
+    , unfoldEachInterleave
+    , unfoldEachInterleaveRev
+    , unfoldEachRoundRobin
     )
 where
 
@@ -764,23 +767,18 @@ data ConcatUnfoldInterleaveState o i =
 -- XXX Instead of using "reverse" build the list in the correct order to begin
 -- with.
 
--- | Like 'unfoldEach' but interleaves the resulting streams instead of
--- appending them. Unfolds each element in the input stream to a stream and
--- then interleave the resulting streams.
+-- | Like 'unfoldEach' but interleaves the resulting streams in a breadth first
+-- manner instead of appending them. Unfolds each element in the input stream
+-- to a stream and then interleave the resulting streams.
 --
 -- >>> lists = Stream.fromList [[1,4,7],[2,5,8],[3,6,9]]
--- >>> Stream.toList $ Stream.unfoldEachInterleave Unfold.fromList lists
+-- >>> Stream.toList $ Stream.bfsUnfoldEach Unfold.fromList lists
 -- [1,2,3,4,5,6,7,8,9]
 --
--- This is similar to 'mergeMapWith' using 'Streamly.Data.StreamK.interleave'
--- but an order of magnitude more efficient due to fusion.
---
--- See also 'mergeMapWith'.
---
-{-# INLINE_NORMAL unfoldEachInterleave #-}
-unfoldEachInterleave :: Monad m =>
+{-# INLINE_NORMAL bfsUnfoldEach #-}
+bfsUnfoldEach, unfoldEachInterleave :: Monad m =>
     Unfold m a b -> Stream m a -> Stream m b
-unfoldEachInterleave (Unfold istep inject) (Stream ostep ost) =
+bfsUnfoldEach (Unfold istep inject) (Stream ostep ost) =
     Stream step (ConcatUnfoldInterleaveOuter ost [])
 
     where
@@ -825,18 +823,21 @@ unfoldEachInterleave (Unfold istep inject) (Stream ostep ost) =
             Skip s    -> Skip (ConcatUnfoldInterleaveInnerR ls (s:rs))
             Stop      -> Skip (ConcatUnfoldInterleaveInnerR ls rs)
 
--- | Like 'unfoldEachInterleave' but reverses the traversal direction after
--- reaching the last stream. This could be little bit more efficient if the
--- order of traversal is not important.
+RENAME(unfoldEachInterleave, bfsUnfoldEach)
+
+-- | Like 'bfsUnfoldEach' but reverses the traversal direction after reaching
+-- the last stream and then after reaching the first stream, thus alternating
+-- the directions. This could be a little bit more efficient if the order of
+-- traversal is not important.
 --
 -- >>> lists = Stream.fromList [[1,4,7],[2,5,8],[3,6,9]]
--- >>> Stream.toList $ Stream.unfoldEachInterleaveRev Unfold.fromList lists
+-- >>> Stream.toList $ Stream.altBfsUnfoldEach Unfold.fromList lists
 -- [1,2,3,6,5,4,7,8,9]
 --
-{-# INLINE_NORMAL unfoldEachInterleaveRev #-}
-unfoldEachInterleaveRev, unfoldInterleave :: Monad m =>
+{-# INLINE_NORMAL altBfsUnfoldEach #-}
+altBfsUnfoldEach, unfoldEachInterleaveRev, unfoldInterleave :: Monad m =>
     Unfold m a b -> Stream m a -> Stream m b
-unfoldEachInterleaveRev (Unfold istep inject) (Stream ostep ost) =
+altBfsUnfoldEach (Unfold istep inject) (Stream ostep ost) =
     Stream step (ConcatUnfoldInterleaveOuter ost [])
 
     where
@@ -881,7 +882,8 @@ unfoldEachInterleaveRev (Unfold istep inject) (Stream ostep ost) =
             Skip s    -> Skip (ConcatUnfoldInterleaveInnerR ls (s:rs))
             Stop      -> Skip (ConcatUnfoldInterleaveInnerR ls rs)
 
-RENAME(unfoldInterleave,unfoldEachInterleaveRev)
+RENAME(unfoldInterleave,altBfsUnfoldEach)
+RENAME(unfoldEachInterleaveRev,altBfsUnfoldEach)
 
 -- XXX In general we can use different scheduling strategies e.g. how to
 -- schedule the outer vs inner loop or assigning weights to different streams
@@ -891,16 +893,18 @@ RENAME(unfoldInterleave,unfoldEachInterleaveRev)
 --
 -- Compared to unfoldEachInterleave this one switches streams on Skips.
 
--- | 'unfoldEachInterleave' switches to the next stream whenever a value from a
+-- | 'bfdUnfoldEach' switches to the next stream whenever a value from a
 -- stream is yielded, it does not switch on a 'Skip'. So if a stream keeps
 -- skipping for long time other streams won't get a chance to run.
--- 'unfoldEachRoundRobin' switches on Skip as well. So it basically schedules each
+-- 'unfoldSched' switches on Skip as well. So it basically schedules each
 -- stream fairly irrespective of whether it produces a value or not.
 --
-{-# INLINE_NORMAL unfoldEachRoundRobin #-}
-unfoldEachRoundRobin, unfoldRoundRobin :: Monad m =>
+-- An N-ary version of 'roundRobin'.
+--
+{-# INLINE_NORMAL unfoldSched #-}
+unfoldSched, unfoldEachRoundRobin, unfoldRoundRobin :: Monad m =>
     Unfold m a b -> Stream m a -> Stream m b
-unfoldEachRoundRobin (Unfold istep inject) (Stream ostep ost) =
+unfoldSched (Unfold istep inject) (Stream ostep ost) =
     Stream step (ConcatUnfoldInterleaveOuter ost [])
   where
     {-# INLINE_LATE step #-}
@@ -945,7 +949,8 @@ unfoldEachRoundRobin (Unfold istep inject) (Stream ostep ost) =
             Skip s    -> Skip (ConcatUnfoldInterleaveInnerR (s:ls) rs)
             Stop      -> Skip (ConcatUnfoldInterleaveInnerR ls rs)
 
-RENAME(unfoldRoundRobin,unfoldEachRoundRobin)
+RENAME(unfoldRoundRobin,unfoldSched)
+RENAME(unfoldEachRoundRobin,unfoldSched)
 
 -- | Round robin co-operative scheduling of multiple streams.
 --
