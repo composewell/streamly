@@ -63,22 +63,6 @@ module Streamly.Internal.Data.Stream.Nesting
     -- yields an element. A special case of unfoldEachRoundRobin.
     , roundRobin -- interleaveFair?/ParallelFair
 
-    -- N-ary versions
-    -- , schedMap
-    , bfsSchedMap
-    -- , fairSchedMap
-
-    -- Unfold versions
-    -- , schedUnfold
-    -- , bfsSchedUnfold -- unfoldEachRoundRobin
-    -- , fairSchedUnfold
-    -- , altBfsSchedUnfold -- alternating directions
-
-    -- Flipped versions
-    -- , schedFor
-    -- , bfsSchedFor
-    -- , fairSchedFor
-
     -- *** Merging
     -- | Interleave elements from two streams based on a condition.
     , mergeBy
@@ -103,7 +87,6 @@ module Streamly.Internal.Data.Stream.Nesting
     , ConcatUnfoldInterleaveState (..)
     , unfoldEachInterleave -- bfsUnfoldEach
     , unfoldEachInterleaveRev -- altBfsUnfoldEach -- alternating directions
-    , unfoldEachRoundRobin -- bfsSchedUnfold
 
     -- *** unfoldEach joined by elements
     -- | Like unfoldEach but intersperses an element between the streams after
@@ -123,6 +106,23 @@ module Streamly.Internal.Data.Stream.Nesting
     -- | Like unfoldEach but intersperses streams between the unfolded streams.
     , intercalateSepBy
     , intercalateEndBy
+
+    -- *** unfoldSched
+    -- Note appending does not make sense for sched, only bfs or diagonal.
+
+    -- | Like unfoldEach but schedules the generated streams based on time
+    -- slice instead of based on the outputs.
+    , unfoldEachRoundRobin -- unfoldSched
+    -- , altUnfoldSched -- alternating directions
+    -- , fairUnfoldSched
+
+    -- *** schedMap
+    , schedMap
+    -- , fairSchedMap
+
+    -- -- *** schedFor
+    -- , schedFor
+    -- , fairSchedFor
 
     -- * Eliminate
     -- | Folding and Parsing chunks of streams to eliminate nested streams.
@@ -955,9 +955,9 @@ RENAME(unfoldRoundRobin,unfoldEachRoundRobin)
 -- output or not. Therefore, the outputs may not seem to be fairly interleaved
 -- if a stream decides to skip the output.
 --
-{-# INLINE_NORMAL bfsSchedMap #-}
-bfsSchedMap :: Monad m => (a -> Stream m b) -> Stream m a -> Stream m b
-bfsSchedMap f (Stream ostep ost) =
+{-# INLINE_NORMAL schedMap #-}
+schedMap :: Monad m => (a -> Stream m b) -> Stream m a -> Stream m b
+schedMap f (Stream ostep ost) =
     Stream step (ConcatUnfoldInterleaveOuter ost [])
 
     where
