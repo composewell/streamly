@@ -8,7 +8,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE TupleSections #-}
 
 #ifdef USE_PRELUDE
 #endif
@@ -40,7 +39,10 @@ import Streamly.Benchmark.Prelude
     ( sourceFoldMapM, sourceFoldMapWith, sourceFoldMapWithM
     , sourceFoldMapWithStream, concatFoldableWith, concatForFoldableWith)
 #else
+import Streamly.Data.Stream (Stream)
+import Streamly.Data.Unfold (Unfold)
 import qualified Streamly.Internal.Data.Stream as S
+import qualified Streamly.Internal.Data.Stream as Stream
 #endif
 
 import Test.Tasty.Bench
@@ -120,6 +122,17 @@ concatMap outer inner n =
         (\_ -> sourceUnfoldrM inner n)
         (sourceUnfoldrM outer n)
 
+{-# INLINE concatMapViaUnfoldEach #-}
+concatMapViaUnfoldEach :: Int -> Int -> Int -> IO ()
+concatMapViaUnfoldEach outer inner n =
+    drain $ cmap
+        (\_ -> sourceUnfoldrM inner n)
+        (sourceUnfoldrM outer n)
+
+    where
+
+    cmap f = Stream.unfoldEach (UF.lmap f UF.fromStream)
+
 {-# INLINE concatMapM #-}
 concatMapM :: Int -> Int -> Int -> IO ()
 concatMapM outer inner n =
@@ -150,75 +163,116 @@ inspect $ hasNoTypeClasses 'concatMapPure
 inspect $ 'concatMapPure `hasNoType` ''SPEC
 #endif
 
--- concatMap replicate/unfoldrM
+{-# INLINE sourceUnfoldrMUnfold #-}
+sourceUnfoldrMUnfold :: Monad m => Int -> Int -> Unfold m Int Int
+sourceUnfoldrMUnfold size start = UF.unfoldrM step
 
-{-# INLINE concatMapRepl #-}
-concatMapRepl :: Int -> Int -> Int -> IO ()
-concatMapRepl outer inner n =
-    drain $ S.concatMap
-        (S.replicate inner) (sourceUnfoldrM outer n)
+    where
 
-#ifdef INSPECTION
-#if __GLASGOW_HASKELL__ >= 906
-inspect $ hasNoTypeClassesExcept 'concatMapRepl [''Applicative]
-#else
-inspect $ hasNoTypeClasses 'concatMapRepl
-#endif
-inspect $ 'concatMapRepl `hasNoType` ''SPEC
-#endif
+    step i =
+        return
+            $ if i < start + size
+              then Just (i, i + 1)
+              else Nothing
 
--- unfoldMany
-
--- unfoldMany replicate/unfoldrM
-
-{-# INLINE unfoldManyRepl #-}
-unfoldManyRepl :: Int -> Int -> Int -> IO ()
-unfoldManyRepl outer inner n =
-    drain
-         $ S.unfoldEach
-               UF.replicateM
-               (fmap ((inner,) . return) (sourceUnfoldrM outer n))
-
+{-# INLINE unfoldEach #-}
+unfoldEach :: Int -> Int -> Int -> IO ()
+unfoldEach outer inner start = drain $
+     -- XXX the replicateM takes much more time compared to unfoldrM, is there
+     -- a perf issue or this is just because of accessing outer loop variables?
+     -- S.unfoldEach (UF.lmap ((inner,) . return) UF.replicateM)
+     S.unfoldEach (sourceUnfoldrMUnfold inner start)
+        $ sourceUnfoldrM outer start
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'unfoldManyRepl
-inspect $ 'unfoldManyRepl `hasNoType` ''D.ConcatMapUState
-inspect $ 'unfoldManyRepl `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'unfoldEach
+inspect $ 'unfoldEach `hasNoType` ''D.ConcatMapUState
+inspect $ 'unfoldEach `hasNoType` ''SPEC
 #endif
+
+{-# INLINE unfoldEach2 #-}
+unfoldEach2 :: Int -> Int -> Int -> IO ()
+unfoldEach2 outer inner start = drain $
+     S.unfoldEach (UF.carry (sourceUnfoldrMUnfold inner start))
+        $ sourceUnfoldrM outer start
+
+{-# INLINE unfoldEach3 #-}
+unfoldEach3 :: Int -> Int -> IO ()
+unfoldEach3 linearCount start = drain $ do
+    S.unfoldEach (UF.carry (UF.lmap snd (sourceUnfoldrMUnfold nestedCount3 start)))
+         $ S.unfoldEach (UF.carry (sourceUnfoldrMUnfold nestedCount3 start))
+            $ sourceUnfoldrM nestedCount3 start
+    where
+
+    nestedCount3 = round (fromIntegral linearCount**(1/3::Double))
+
+{-# INLINE unfoldCross #-}
+unfoldCross :: Int -> Int -> Int -> IO ()
+unfoldCross outer inner start = drain $
+    Stream.unfoldCross
+        UF.identity
+        (sourceUnfoldrM outer start)
+        (sourceUnfoldrM inner start)
 
 o_1_space_concat :: Int -> [Benchmark]
 o_1_space_concat value = sqrtVal `seq`
     [ bgroup "concat"
-        [ benchIOSrc1 "concatMapPure (n of 1)"
+        [ benchIOSrc1 "concatMapPure outer=Max inner=1"
             (concatMapPure value 1)
-        , benchIOSrc1 "concatMapPure (sqrt n of sqrt n)"
+        , benchIOSrc1 "concatMapPure outer=inner=(sqrt Max)"
             (concatMapPure sqrtVal sqrtVal)
-        , benchIOSrc1 "concatMapPure (1 of n)"
+        , benchIOSrc1 "concatMapPure outer=1 inner=Max"
             (concatMapPure 1 value)
 
-        , benchIOSrc1 "concatMap (n of 1)"
+        , benchIOSrc1 "concatMap outer=max inner=1"
             (concatMap value 1)
-        , benchIOSrc1 "concatMap (sqrt n of sqrt n)"
+        , benchIOSrc1 "concatMap outer=inner=(sqrt Max)"
             (concatMap sqrtVal sqrtVal)
-        , benchIOSrc1 "concatMap (1 of n)"
+        , benchIOSrc1 "concatMap outer=1 inner=Max"
             (concatMap 1 value)
 
         -- This is for comparison with foldMapWith
-        , benchIOSrc "concatMapId (n of 1) (fromFoldable)"
+        , benchIOSrc "concatMapId outer=max inner=1 (fromFoldable)"
             (S.concatMap id . sourceConcatMapId value)
 
-        , benchIOSrc1 "concatMapM (n of 1)"
+        , benchIOSrc1 "concatMapM outer=max inner=1"
             (concatMapM value 1)
-        , benchIOSrc1 "concatMapM (sqrt n of sqrt n)"
+        , benchIOSrc1 "concatMapM outer=inner=(sqrt Max)"
             (concatMapM sqrtVal sqrtVal)
-        , benchIOSrc1 "concatMapM (1 of n)"
+        , benchIOSrc1 "concatMapM outer=1 inner=Max"
             (concatMapM 1 value)
 
-        -- concatMap vs unfoldMany
-        , benchIOSrc1 "concatMapRepl (sqrt n of sqrt n)"
-            (concatMapRepl sqrtVal sqrtVal)
-        , benchIOSrc1 "unfoldManyRepl (sqrt n of sqrt n)"
-            (unfoldManyRepl sqrtVal sqrtVal)
+        , benchIOSrc1 "concatMapViaUnfoldEach outer=max inner=1"
+            (concatMapViaUnfoldEach value 1)
+        , benchIOSrc1 "concatMapViaUnfoldEach outer=inner=(sqrt Max)"
+            (concatMapViaUnfoldEach sqrtVal sqrtVal)
+        , benchIOSrc1 "concatMapViaUnfoldEach outer=1 inner=Max"
+            (concatMapViaUnfoldEach 1 value)
+
+        , benchIOSrc1 "unfoldCross outer=max inner=1"
+            (unfoldCross value 1)
+        , benchIOSrc1 "unfoldCross outer=inner=(sqrt Max)"
+            (unfoldCross sqrtVal sqrtVal)
+        , benchIOSrc1 "unfoldCross outer=1 inner=Max"
+            (unfoldCross 1 value)
+
+        -- concatMap vs unfoldEach
+        , benchIOSrc1 "unfoldEach outer=Max inner=1"
+            (unfoldEach value 1)
+        , benchIOSrc1 "unfoldEach outer=inner=(sqrt Max)"
+            (unfoldEach sqrtVal sqrtVal)
+        , benchIOSrc1 "unfoldEach outer=1 inner=Max"
+            (unfoldEach 1 value)
+
+        , benchIOSrc1 "unfoldEach2 outer=Max inner=1"
+            (unfoldEach2 value 1)
+        , benchIOSrc1 "unfoldEach2 outer=inner=(sqrt Max)"
+            (unfoldEach2 sqrtVal sqrtVal)
+        , benchIOSrc1 "unfoldEach2 outer=1 inner=Max"
+            (unfoldEach2 1 value)
+
+        , benchIOSrc1 "unfoldEach3 outer=inner=(cubert Max)"
+            (unfoldEach3 value)
         ]
     ]
 
@@ -230,14 +284,26 @@ o_1_space_concat value = sqrtVal `seq`
 -- Applicative
 -------------------------------------------------------------------------------
 
+{-# INLINE cross2 #-}
+cross2 :: MonadAsync m => Int -> Int -> m ()
+cross2 linearCount start = drain $
+    Stream.crossWith (+)
+        (sourceUnfoldr nestedCount2 start)
+        (sourceUnfoldr nestedCount2 start)
+
+    where
+
+    nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
+
 o_1_space_applicative :: Int -> [Benchmark]
 o_1_space_applicative value =
     [ bgroup "Applicative"
-        [ benchIO "(*>) (sqrt n x sqrt n)" $ apDiscardFst value
-        , benchIO "(<*) (sqrt n x sqrt n)" $ apDiscardSnd value
-        , benchIO "(<*>) (sqrt n x sqrt n)" $ toNullAp value
-        , benchIO "liftA2 (sqrt n x sqrt n)" $ apLiftA2 value
-        , benchIO "toNullApPure" $ toNullApPure value
+        [ benchIO "(*>)" $ apDiscardFst value
+        , benchIO "(<*)" $ apDiscardSnd value
+        , benchIO "(<*>)" $ toNullAp value
+        , benchIO "liftA2" $ apLiftA2 value
+        , benchIO "pureDrain2" $ toNullApPure value
+        , benchIO "pureCross2" $ cross2 value
         ]
     ]
 
@@ -248,34 +314,128 @@ o_1_space_applicative value =
 o_1_space_monad :: Int -> [Benchmark]
 o_1_space_monad value =
     [ bgroup "Monad"
-        [ benchIO "(>>) (sqrt n x sqrt n)" $ monadThen value
-        , benchIO "(>>=) (sqrt n x sqrt n)" $ toNullM value
-        , benchIO "(>>=) (sqrt n x sqrt n) (filterAllOut)" $
-            filterAllOutM value
-        , benchIO "(>>=) (sqrt n x sqrt n) (filterAllIn)" $
-            filterAllInM value
-        , benchIO "(>>=) (sqrt n x sqrt n) (filterSome)" $
-            filterSome value
-        , benchIO "(>>=) (sqrt n x sqrt n) (breakAfterSome)" $
-            breakAfterSome value
-        , benchIO "(>>=) (cubert n x cubert n x cubert n)" $
-            toNullM3 value
-        , benchIO "toNullPure" $ toNullMPure value
-        , benchIO "toNull3Pure" $ toNullM3Pure value
-        , benchIO "filterAllInPure" $ filterAllInMPure value
-        , benchIO "filterAllOutPure" $ filterAllOutMPure value
+        [ benchIO "then2" $ monadThen value
+        , benchIO "drain2" $ toNullM value
+        , benchIO "drain3" $ toNullM3 value
+        , benchIO "filterAllOut2" $ filterAllOutM value
+        , benchIO "filterAllIn2" $ filterAllInM value
+        , benchIO "filterSome2" $ filterSome value
+        , benchIO "breakAfterSome2" $ breakAfterSome value
+        , benchIO "pureDrain2" $ toNullMPure value
+        , benchIO "pureDrain3" $ toNullM3Pure value
+        , benchIO "pureFilterAllIn2" $ filterAllInMPure value
+        , benchIO "pureFilterAllOut2" $ filterAllOutMPure value
         ]
     ]
 
 o_n_space_monad :: Int -> [Benchmark]
 o_n_space_monad value =
     [ bgroup "Monad"
-        [ benchIO "(>>=) (sqrt n x sqrt n) (toList)" $
-            toListM value
-        , benchIO "(>>=) (sqrt n x sqrt n) (toListSome)" $
-            toListSome value
+        [ benchIO "toList2" $ toListM value
+        , benchIO "toListSome2" $ toListSome value
         ]
     ]
+
+{-# INLINE drainConcatFor1 #-}
+drainConcatFor1 :: Monad m => Stream m Int -> m ()
+drainConcatFor1 s = drain $ do
+    Stream.concatFor s $ \x ->
+            Stream.fromPure $ x + 1
+
+{-# INLINE drainConcatFor #-}
+drainConcatFor :: Monad m => Stream m Int -> m ()
+drainConcatFor s = drain $ do
+    Stream.concatFor s $ \x ->
+        Stream.concatFor s $ \y ->
+            Stream.fromPure $ x + y
+
+{-# INLINE drainConcatForM #-}
+drainConcatForM :: Monad m => Stream m Int -> m ()
+drainConcatForM s = drain $ do
+    Stream.concatForM s $ \x ->
+        pure $ Stream.concatForM s $ \y ->
+            pure $ Stream.fromPure $ x + y
+
+{-# INLINE drainConcatFor3 #-}
+drainConcatFor3 :: Monad m => Stream m Int -> m ()
+drainConcatFor3 s = drain $ do
+    Stream.concatFor s $ \x ->
+        Stream.concatFor s $ \y ->
+            Stream.concatFor s $ \z ->
+                Stream.fromPure $ x + y + z
+
+{-# INLINE drainConcatFor4 #-}
+drainConcatFor4 :: Monad m => Stream m Int -> m ()
+drainConcatFor4 s = drain $ do
+    Stream.concatFor s $ \x ->
+        Stream.concatFor s $ \y ->
+            Stream.concatFor s $ \z ->
+                Stream.concatFor s $ \w ->
+                    Stream.fromPure $ x + y + z + w
+
+{-# INLINE drainConcatFor5 #-}
+drainConcatFor5 :: Monad m => Stream m Int -> m ()
+drainConcatFor5 s = drain $ do
+    Stream.concatFor s $ \x ->
+        Stream.concatFor s $ \y ->
+            Stream.concatFor s $ \z ->
+                Stream.concatFor s $ \w ->
+                    Stream.concatFor s $ \u ->
+                        Stream.fromPure $ x + y + z + w + u
+
+{-# INLINE drainConcatFor3M #-}
+drainConcatFor3M :: Monad m => Stream m Int -> m ()
+drainConcatFor3M s = drain $ do
+    Stream.concatForM s $ \x ->
+        pure $ Stream.concatForM s $ \y ->
+            pure $ Stream.concatForM s $ \z ->
+                pure $ Stream.fromPure $ x + y + z
+
+{-# INLINE filterAllInConcatFor #-}
+filterAllInConcatFor
+    :: Monad m
+    => Stream m Int -> m ()
+filterAllInConcatFor s = drain $ do
+    Stream.concatFor s $ \x ->
+        Stream.concatFor s $ \y ->
+            let s1 = x + y
+             in if s1 > 0
+                then Stream.fromPure s1
+                else Stream.nil
+
+{-# INLINE filterAllOutConcatFor #-}
+filterAllOutConcatFor
+    :: Monad m
+    => Stream m Int -> m ()
+filterAllOutConcatFor s = drain $ do
+    Stream.concatFor s $ \x ->
+        Stream.concatFor s $ \y ->
+            let s1 = x + y
+             in if s1 < 0
+                then Stream.fromPure s1
+                else Stream.nil
+
+o_1_space_bind :: Int -> [Benchmark]
+o_1_space_bind streamLen =
+    [ bgroup "concatFor"
+        [ benchFold "drain1" drainConcatFor1   (sourceUnfoldrM streamLen)
+        , benchFold "drain2" drainConcatFor   (sourceUnfoldrM streamLen2)
+        , benchFold "drain3" drainConcatFor3   (sourceUnfoldrM streamLen3)
+        , benchFold "drain4" drainConcatFor4   (sourceUnfoldrM streamLen4)
+        , benchFold "drain5" drainConcatFor5   (sourceUnfoldrM streamLen5)
+        , benchFold "drainM2" drainConcatForM   (sourceUnfoldrM streamLen2)
+        , benchFold "drainM3" drainConcatFor3M   (sourceUnfoldrM streamLen3)
+        , benchFold "filterAllIn2"  filterAllInConcatFor  (sourceUnfoldrM streamLen2)
+        , benchFold "filterAllOut2" filterAllOutConcatFor (sourceUnfoldrM streamLen2)
+        ]
+    ]
+
+    where
+
+    streamLen2 = round (fromIntegral streamLen**(1/2::Double)) -- double nested loop
+    streamLen3 = round (fromIntegral streamLen**(1/3::Double)) -- triple nested loop
+    streamLen4 = round (fromIntegral streamLen**(1/4::Double)) -- 4 times nested loop
+    streamLen5 = round (fromIntegral streamLen**(1/5::Double)) -- 5 times nested loop
 
 -------------------------------------------------------------------------------
 -- Joining
@@ -355,6 +515,7 @@ benchmarks moduleName size =
             , o_1_space_concat size
             , o_1_space_applicative size
             , o_1_space_monad size
+            , o_1_space_bind size
             ]
         , bgroup (o_n_space_prefix moduleName) $ Prelude.concat
             [

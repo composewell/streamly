@@ -166,7 +166,6 @@ import Streamly.Internal.FileSystem.Posix.ReadDir
 #endif
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Data.Unfold as UF
-import qualified Streamly.Internal.Data.Unfold as UF (mapM2)
 import qualified Streamly.Internal.FileSystem.Path as Path
 
 import Prelude hiding (read)
@@ -315,7 +314,8 @@ eitherReaderPaths ::(MonadIO m, MonadCatch m) => (ReadOptions -> ReadOptions) ->
     Unfold m Path (Either Path Path)
 eitherReaderPaths f =
     let (</>) = Path.join
-     in UF.mapM2 (\dir -> return . bimap (dir </>) (dir </>)) (eitherReader f)
+     in fmap (\(dir, x) -> bimap (dir </>) (dir </>) x)
+            $ UF.carry (eitherReader f)
 
 --
 -- | Read files only.

@@ -58,10 +58,6 @@ module Streamly.Internal.Data.Unfold
     -- * Folding
     , fold
 
-    -- XXX Add "WithInput" versions of all these, map2, postscan2, takeWhile2,
-    -- filter2 etc.  Alternatively, we can use the default operations with
-    -- input, but that might make the common case more inconvenient.
-
     -- ** Mapping on Output
     , postscanlM'
     , postscan
