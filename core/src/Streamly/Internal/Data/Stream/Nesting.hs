@@ -59,8 +59,13 @@ module Streamly.Internal.Data.Stream.Nesting
 
     -- *** Co-operative Scheduling
     -- | Execute streams alternately irrespective of whether they generate
-    -- elements or not. Note 'interleave' would execute a stream until it
-    -- yields an element. A special case of unfoldEachRoundRobin.
+    -- elements or not. Note that scheduling is affected by the Skip
+    -- constructor; implementations with more skips receive proportionally less
+    -- scheduling time. A more programmer controlled approach would be to emit
+    -- a Maybe in a stream and use the output driven scheduling combinators
+    -- instead of Skip driven, even if a stream emits Nothing, the output will
+    -- force scheduling of another stream.
+    --
     , roundRobin -- interleaveFair?/ParallelFair
 
     -- *** Merging
@@ -110,6 +115,9 @@ module Streamly.Internal.Data.Stream.Nesting
 
     -- *** concatMap
     , fairConcatMapM
+    , fairConcatMap
+    , fairConcatForM
+    , fairConcatFor
 
     -- *** unfoldSched
     -- Note appending does not make sense for sched, only bfs or diagonal.
@@ -121,12 +129,16 @@ module Streamly.Internal.Data.Stream.Nesting
     , fairUnfoldSched
 
     -- *** schedMap
+    , schedMapM
     , schedMap
     , fairSchedMapM
+    , fairSchedMap
 
-    -- -- *** schedFor
-    -- , schedFor
-    -- , fairSchedFor
+    -- *** schedFor
+    , schedForM
+    , schedFor
+    , fairSchedForM
+    , fairSchedFor
 
     -- * Eliminate
     -- | Folding and Parsing chunks of streams to eliminate nested streams.
@@ -573,7 +585,8 @@ interleaveFst = flip interleaveSepBy
 -- co-operative multitasking without using explicit threads. This can be used
 -- as an alternative to `async`.
 --
--- Do not use dynamically.
+-- Scheduling is affected by the Skip constructor; implementations with more
+-- skips receive proportionally less scheduling time.
 --
 -- /Pre-release/
 {-# INLINE_NORMAL roundRobin #-}
@@ -774,6 +787,8 @@ data BfsUnfoldEachState o i =
 -- >>> Stream.toList $ Stream.bfsUnfoldEach Unfold.fromList lists
 -- [1,2,3,4,5,6,7,8,9]
 --
+-- CAUTION! Do not use on infinite streams.
+--
 {-# INLINE_NORMAL bfsUnfoldEach #-}
 bfsUnfoldEach, unfoldEachInterleave :: Monad m =>
     Unfold m a b -> Stream m a -> Stream m b
@@ -820,6 +835,8 @@ data ConcatUnfoldInterleaveState o i =
 -- >>> lists = Stream.fromList [[1,4,7],[2,5,8],[3,6,9]]
 -- >>> Stream.toList $ Stream.altBfsUnfoldEach Unfold.fromList lists
 -- [1,2,3,6,5,4,7,8,9]
+--
+-- CAUTION! Do not use on infinite streams.
 --
 {-# INLINE_NORMAL altBfsUnfoldEach #-}
 altBfsUnfoldEach, unfoldEachInterleaveRev, unfoldInterleave :: Monad m =>
@@ -880,13 +897,18 @@ RENAME(unfoldEachInterleaveRev,altBfsUnfoldEach)
 --
 -- Compared to unfoldEachInterleave this one switches streams on Skips.
 
--- | 'bfsUnfoldEach' switches to the next stream whenever a value from a
--- stream is yielded, it does not switch on a 'Skip'. So if a stream keeps
--- skipping for long time other streams won't get a chance to run.
--- 'unfoldSched' switches on Skip as well. So it basically schedules each
--- stream fairly irrespective of whether it produces a value or not.
+-- | Similar to 'bfsUnfoldEach' but scheduling is independent of output.
 --
--- An N-ary version of 'roundRobin'.
+-- This is an N-ary version of 'roundRobin'.
+--
+-- >>> lists = Stream.fromList [[1,4,7],[2,5,8],[3,6,9]]
+-- >>> Stream.toList $ Stream.unfoldSched Unfold.fromList lists
+-- [1,2,3,4,5,6,7,8,9]
+--
+-- Scheduling is affected by the Skip constructor; implementations with more
+-- skips receive proportionally less scheduling time.
+--
+-- CAUTION! Do not use on infinite streams.
 --
 {-# INLINE_NORMAL unfoldSched #-}
 unfoldSched, unfoldEachRoundRobin, unfoldRoundRobin :: Monad m =>
@@ -929,9 +951,14 @@ RENAME(unfoldEachRoundRobin,unfoldSched)
 -- output or not. Therefore, the outputs may not seem to be fairly interleaved
 -- if a stream decides to skip the output.
 --
-{-# INLINE_NORMAL schedMap #-}
-schedMap :: Monad m => (a -> Stream m b) -> Stream m a -> Stream m b
-schedMap f (Stream ostep ost) =
+-- Scheduling is affected by the Skip constructor; implementations with more
+-- skips receive proportionally less scheduling time.
+--
+-- CAUTION! Do not use on infinite streams.
+--
+{-# INLINE_NORMAL schedMapM #-}
+schedMapM :: Monad m => (a -> m (Stream m b)) -> Stream m a -> Stream m b
+schedMapM f (Stream ostep ost) =
     Stream step (BfsUnfoldEachOuter ost id)
 
     where
@@ -941,7 +968,7 @@ schedMap f (Stream ostep ost) =
         r <- ostep (adaptState gst) o
         case r of
             Yield a o' -> do
-                let i = f a
+                i <- f a
                 return (Skip (BfsUnfoldEachOuter o' (ls . (i :))))
             Skip o' -> return $ Skip (BfsUnfoldEachOuter o' ls)
             Stop -> return $ Skip (BfsUnfoldEachInner (ls []) id)
@@ -958,12 +985,60 @@ schedMap f (Stream ostep ost) =
             Skip s    -> Skip (BfsUnfoldEachInner ls (rs . (Stream istep s :)))
             Stop      -> Skip (BfsUnfoldEachInner ls rs)
 
+-- | See 'SchedFor' for documentation.
+--
+-- Scheduling is affected by the Skip constructor; implementations with more
+-- skips receive proportionally less scheduling time.
+--
+-- CAUTION! Do not use on infinite streams.
+--
+{-# INLINE schedMap #-}
+schedMap :: Monad m => (a -> Stream m b) -> Stream m a -> Stream m b
+schedMap f = schedMapM (return . f)
+
+-- | See 'SchedFor' for documentation.
+--
+-- Scheduling is affected by the Skip constructor; implementations with more
+-- skips receive proportionally less scheduling time.
+--
+-- CAUTION! Do not use on infinite streams.
+--
+{-# INLINE schedForM #-}
+schedForM :: Monad m => Stream m a -> (a -> m (Stream m b)) -> Stream m b
+schedForM = flip schedMapM
+
+-- | Similar to 'bfsConcatFor' but scheduling is independent of output.
+--
+-- >>> lists = Stream.fromList [[1,4,7],[2,5,8],[3,6,9]]
+-- >>> Stream.toList $ Stream.schedFor lists $ \xs -> Stream.fromList xs
+-- [1,2,3,4,5,6,7,8,9]
+--
+-- Scheduling is affected by the Skip constructor; implementations with more
+-- skips receive proportionally less scheduling time.
+--
+-- CAUTION! Do not use on infinite streams.
+--
+{-# INLINE schedFor #-}
+schedFor :: Monad m => Stream m a -> (a -> Stream m b) -> Stream m b
+schedFor = flip schedMap
+
 data FairUnfoldState o i =
       FairUnfoldInit o ([i] -> [i])
     | FairUnfoldNext o ([i] -> [i]) [i]
     | FairUnfoldDrain ([i] -> [i]) [i]
 
--- |
+-- | Similar to 'fairUnfoldEach' but scheduling is independent of the output.
+--
+-- >>> :{
+-- outerLoop = Stream.fromList [1,2,3]
+-- innerLoop = Unfold.carry $ Unfold.lmap (const [4,5,6]) Unfold.fromList
+-- :}
+--
+-- >>> Stream.toList $ Stream.fairUnfoldSched innerLoop outerLoop
+-- [(1,4),(1,5),(2,4),(1,6),(2,5),(3,4),(2,6),(3,5),(3,6)]
+--
+-- Scheduling is affected by the Skip constructor; implementations with more
+-- skips receive proportionally less scheduling time.
 --
 {-# INLINE_NORMAL fairUnfoldSched #-}
 fairUnfoldSched :: Monad m =>
@@ -994,7 +1069,9 @@ fairUnfoldSched (Unfold istep inject) (Stream ostep ost) =
             Stop      -> Skip (FairUnfoldNext o ys ls)
 
     step _ (FairUnfoldDrain ys []) =
-        return $ Skip (FairUnfoldDrain id (ys []))
+        case ys [] of
+            [] -> return Stop
+            xs -> return $ Skip (FairUnfoldDrain id xs)
 
     step _ (FairUnfoldDrain ys (st:ls)) = do
         r <- istep st
@@ -1003,6 +1080,17 @@ fairUnfoldSched (Unfold istep inject) (Stream ostep ost) =
             Skip s    -> Skip (FairUnfoldDrain (ys . (s :)) ls)
             Stop      -> Skip (FairUnfoldDrain ys ls)
 
+-- | See 'fairConcatFor' for more details. This is similar except that this
+-- uses unfolds, therefore, it is much faster due to fusion.
+--
+-- >>> :{
+-- outerLoop = Stream.fromList [1,2,3]
+-- innerLoop = Unfold.carry $ Unfold.lmap (const [4,5,6]) Unfold.fromList
+-- :}
+--
+-- >>> Stream.toList $ Stream.fairUnfoldEach innerLoop outerLoop
+-- [(1,4),(1,5),(2,4),(1,6),(2,5),(3,4),(2,6),(3,5),(3,6)]
+--
 {-# INLINE_NORMAL fairUnfoldEach #-}
 fairUnfoldEach :: Monad m =>
     Unfold m a b -> Stream m a -> Stream m b
@@ -1032,7 +1120,9 @@ fairUnfoldEach (Unfold istep inject) (Stream ostep ost) =
             Stop      -> Skip (FairUnfoldNext o ys ls)
 
     step _ (FairUnfoldDrain ys []) =
-        return $ Skip (FairUnfoldDrain id (ys []))
+        case ys [] of
+            [] -> return Stop
+            xs -> return $ Skip (FairUnfoldDrain id xs)
 
     step _ (FairUnfoldDrain ys (st:ls)) = do
         r <- istep st
@@ -1041,6 +1131,11 @@ fairUnfoldEach (Unfold istep inject) (Stream ostep ost) =
             Skip s    -> Skip (FairUnfoldDrain ys (s : ls))
             Stop      -> Skip (FairUnfoldDrain ys ls)
 
+-- | See 'fairSchedFor' for documentation.
+--
+-- Scheduling is affected by the Skip constructor; implementations with more
+-- skips receive proportionally less scheduling time.
+--
 {-# INLINE_NORMAL fairSchedMapM #-}
 fairSchedMapM :: Monad m =>
     (a -> m (Stream m b)) -> Stream m a -> Stream m b
@@ -1070,7 +1165,9 @@ fairSchedMapM f (Stream ostep ost) =
             Stop      -> Skip (FairUnfoldNext o ys ls)
 
     step _ (FairUnfoldDrain ys []) =
-        return $ Skip (FairUnfoldDrain id (ys []))
+        case ys [] of
+            [] -> return Stop
+            xs -> return $ Skip (FairUnfoldDrain id xs)
 
     step gst (FairUnfoldDrain ys (UnStream istep st:ls)) = do
         r <- istep gst st
@@ -1079,6 +1176,80 @@ fairSchedMapM f (Stream ostep ost) =
             Skip s    -> Skip (FairUnfoldDrain (ys . (Stream istep s :)) ls)
             Stop      -> Skip (FairUnfoldDrain ys ls)
 
+-- | See 'fairSchedFor' for documentation.
+--
+-- Scheduling is affected by the Skip constructor; implementations with more
+-- skips receive proportionally less scheduling time.
+--
+{-# INLINE fairSchedMap #-}
+fairSchedMap :: Monad m => (a -> Stream m b) -> Stream m a -> Stream m b
+fairSchedMap f = fairSchedMapM (return . f)
+
+-- | See 'fairSchedFor' for documentation.
+--
+-- Scheduling is affected by the Skip constructor; implementations with more
+-- skips receive proportionally less scheduling time.
+--
+{-# INLINE fairSchedForM #-}
+fairSchedForM :: Monad m => Stream m a -> (a -> m (Stream m b)) -> Stream m b
+fairSchedForM = flip fairSchedMapM
+
+-- | 'fairSchedFor' is just like 'fairConcatFor', it traverses the depth and
+-- breadth of nesting equally. It maintains fairness among different levels of
+-- loop iterations.  Therefore, the outer and the inner loops in a nested loop
+-- get equal priority. It can be used to nest infinite streams without starving
+-- outer streams due to inner ones.
+--
+-- There is one crucial difference, while 'fairConcatFor' necessarily produces
+-- an output from one stream before it schedules the next, 'fairSchedFor'
+-- schedules the next stream even if a stream did not produce an output. Thus
+-- it interleaves the CPU rather than the outputs of the streams. Thus even if
+-- an infinite stream does not produce an output it can not block all other
+-- streams.
+--
+-- Note that the order of emitting the output from different streams may not be
+-- predictable, it depends on the skip points inside the stream. Scheduling is
+-- affected by the Skip constructor; implementations with more skips receive
+-- proportionally less scheduling time.
+--
+-- == Non-Productive Streams
+--
+-- Unlike in 'fairConcatFor', if one of the two interleaved streams does not
+-- produce an output at all and continues forever then the other stream will
+-- still get scheduled. The following program will hang forever for
+-- 'fairConcatFor' but will work fine with 'fairSchedFor'.
+--
+-- >>> :{
+-- oddsIf x = Stream.fromList (if x then [1,3..] else [2,4..])
+-- filterEven x = if even x then Stream.fromPure x else Stream.nil
+-- :}
+--
+-- >>> :{
+-- evens =
+--     Stream.fairSchedFor (Stream.fromList [True,False]) $ \r ->
+--      Stream.fairSchedFor (oddsIf r) filterEven
+-- :}
+--
+-- >>> Stream.toList $ Stream.take 3 $ evens
+-- [2,4,6]
+--
+-- When @r@ is True, the nested 'fairSchedFor' is a non-productive infinite
+-- loop, but still the outer loop gets a chance to generate the @False@ value,
+-- and the @evens@ function can produce output. The same code won't terminate
+-- if we use 'fairConcatFor' instead of 'fairSchedFor'. Thus even without
+-- explicit concurrency we can schedule multiple streams on the same CPU.
+--
+-- == Logic Programming
+--
+-- When exploring large streams in logic programming, 'fairSchedFor' can be
+-- used as a safe alternative to 'fairConcatFor' as it cannot block due to
+-- non-productive infinite streams.
+--
+{-# INLINE fairSchedFor #-}
+fairSchedFor :: Monad m => Stream m a -> (a -> Stream m b) -> Stream m b
+fairSchedFor = flip fairSchedMap
+
+-- | See 'fairConcatFor' for documentation.
 {-# INLINE_NORMAL fairConcatMapM #-}
 fairConcatMapM :: Monad m =>
     (a -> m (Stream m b)) -> Stream m a -> Stream m b
@@ -1108,7 +1279,9 @@ fairConcatMapM f (Stream ostep ost) =
             Stop      -> Skip (FairUnfoldNext o ys ls)
 
     step _ (FairUnfoldDrain ys []) =
-        return $ Skip (FairUnfoldDrain id (ys []))
+        case ys [] of
+            [] -> return Stop
+            xs -> return $ Skip (FairUnfoldDrain id xs)
 
     step gst (FairUnfoldDrain ys (UnStream istep st:ls)) = do
         r <- istep gst st
@@ -1116,6 +1289,150 @@ fairConcatMapM f (Stream ostep ost) =
             Yield x s -> Yield x (FairUnfoldDrain (ys . (Stream istep s :)) ls)
             Skip s    -> Skip (FairUnfoldDrain ys (Stream istep s : ls))
             Stop      -> Skip (FairUnfoldDrain ys ls)
+
+-- | See 'fairConcatFor' for documentation.
+{-# INLINE fairConcatMap #-}
+fairConcatMap :: Monad m => (a -> Stream m b) -> Stream m a -> Stream m b
+fairConcatMap f = fairConcatMapM (return . f)
+
+-- | See 'fairConcatFor' for documentation.
+{-# INLINE fairConcatForM #-}
+fairConcatForM :: Monad m => Stream m a -> (a -> m (Stream m b)) -> Stream m b
+fairConcatForM = flip fairConcatMapM
+
+-- | 'fairConcatFor' is like 'concatFor' but traverses the depth and breadth of
+-- nesting equally. Therefore, the outer and the inner loops in a nested loop
+-- get equal priority. It can be used to nest infinite streams without starving
+-- outer streams due to inner ones.
+--
+-- Given a stream of three streams:
+--
+-- @
+-- 1. [1,2,3]
+-- 2. [4,5,6]
+-- 3. [7,8,9]
+-- @
+--
+-- Here, outer loop is the stream of streams and the inner loops are the
+-- individual streams. The traversal sweeps the diagonals in the above grid to
+-- give equal chance to outer and inner loops. The resulting stream is
+-- @(1),(2,4),(3,5,7),(6,8),(9)@, diagonals are parenthesized for emphasis.
+--
+-- == Looping
+--
+-- A single stream case is equivalent to 'concatFor':
+--
+-- >>> Stream.toList $ Stream.fairConcatFor (Stream.fromList [1,2]) $ \x -> Stream.fromPure x
+-- [1,2]
+--
+-- == Fair Nested Looping
+--
+-- Multiple streams nest like @for@ loops. The result is a cross product of the
+-- streams. However, the ordering of the results of the cross product is such
+-- that each stream gets consumed equally. In other words, inner iterations of
+-- a nested loop get the same priority as the outer iterations. Inner
+-- iterations do not finish completely before the outer iterations start.
+--
+-- >>> :{
+-- Stream.toList $ do
+--     Stream.fairConcatFor (Stream.fromList [1,2,3]) $ \x ->
+--      Stream.fairConcatFor (Stream.fromList [4,5,6]) $ \y ->
+--       Stream.fromPure (x, y)
+-- :}
+-- [(1,4),(1,5),(2,4),(1,6),(2,5),(3,4),(2,6),(3,5),(3,6)]
+--
+-- == Nesting Infinite Streams
+--
+-- Example with infinite streams. Print all pairs in the cross product with sum
+-- less than a specified number.
+--
+-- >>> :{
+-- Stream.toList
+--  $ Stream.takeWhile (\(x,y) -> x + y < 6)
+--  $ Stream.fairConcatFor (Stream.fromList [1..]) $ \x ->
+--     Stream.fairConcatFor (Stream.fromList [1..]) $ \y ->
+--      Stream.fromPure (x, y)
+-- :}
+-- [(1,1),(1,2),(2,1),(1,3),(2,2),(3,1),(1,4),(2,3),(3,2),(4,1)]
+--
+-- == How the nesting works?
+--
+-- If we look at the cross product of [1,2,3], [4,5,6], the streams being
+-- combined using 'fairConcatFor' are the following sequential loop iterations:
+--
+-- @
+-- (1,4) (1,5) (1,6) -- first iteration of the outer loop
+-- (2,4) (2,5) (2,6) -- second iteration of the outer loop
+-- (3,4) (3,5) (3,6) -- third iteration of the outer loop
+-- @
+--
+-- The result is a triangular or diagonal traversal of these iterations:
+--
+-- @
+-- [(1,4),(1,5),(2,4),(1,6),(2,5),(3,4),(2,6),(3,5),(3,6)]
+-- @
+--
+-- == Non-Termination Cases
+--
+-- If one of the two interleaved streams does not produce an output at all and
+-- continues forever then the other stream will never get scheduled. This is
+-- because a stream is unscheduled only after it produces an output. This can
+-- lead to non-terminating programs, an example is provided below.
+--
+-- >>> :{
+-- oddsIf x = Stream.fromList (if x then [1,3..] else [2,4..])
+-- filterEven x = if even x then Stream.fromPure x else Stream.nil
+-- :}
+--
+-- >>> :{
+-- evens =
+--     Stream.fairConcatFor (Stream.fromList [True,False]) $ \r ->
+--      Stream.concatFor (oddsIf r) filterEven
+-- :}
+--
+-- The @evens@ function does not terminate because, when r is True, the nested
+-- 'concatFor' is a non-productive infinite loop, therefore, the outer loop
+-- never gets a chance to generate the @False@ value.
+--
+-- But the following refactoring of the above code works as expected:
+--
+-- >>> :{
+-- mixed =
+--      Stream.fairConcatFor (Stream.fromList [True,False]) $ \r ->
+--          Stream.concatFor (oddsIf r) Stream.fromPure
+-- :}
+--
+-- >>> evens = Stream.fairConcatFor mixed filterEven
+-- >>> Stream.toList $ Stream.take 3 $ evens
+-- [2,4,6]
+--
+-- This works because in @mixed@ both the streams being interleaved are
+-- productive.
+--
+-- Care should be taken how you write your program, keep in mind the scheduling
+-- implications. To avoid such scheduling problems in serial interleaving, you
+-- can use 'fairSchedFor' or concurrent scheduling i.e. parFairConcatFor. Due
+-- to concurrent scheduling the other branch will make progress even if one is
+-- an infinite loop producing nothing.
+--
+-- == Logic Programming
+--
+-- Streamly provides all operations for logic programming. It provides
+-- functionality equivalent to 'LogicT' type from the 'logict' package.
+-- The @MonadLogic@ operations can be implemented using the available stream
+-- operations. For example, 'uncons' is @msplit@, 'interleave' corresponds to
+-- the @interleave@ operation of MonadLogic, 'fairConcatFor' is the
+-- fair bind (@>>-@) operation. 'fairSchedFor' is an even better alternative
+-- for fair bind, it guarantees that non-productive infinite streams cannot
+-- block progress.
+--
+-- == Related Operations
+--
+-- See also "Streamly.Internal.Data.StreamK.fairConcatFor".
+--
+{-# INLINE fairConcatFor #-}
+fairConcatFor :: Monad m => Stream m a -> (a -> Stream m b) -> Stream m b
+fairConcatFor = flip fairConcatMap
 
 ------------------------------------------------------------------------------
 -- Combine N Streams - interpose
