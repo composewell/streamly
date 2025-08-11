@@ -153,7 +153,7 @@ createDirStucture root d w = do
 listDirByteChunked :: FilePath -> Stream IO (Array Word8)
 listDirByteChunked inp = do
      Stream.catRights
-        $ Stream.concatIterateDfs (streamDirByteChunkedMaybe id)
+        $ Stream.concatIterate (streamDirByteChunkedMaybe id)
         $ Stream.fromPure (Left [fromJust $ Path.fromString inp])
 #endif
 
@@ -187,33 +187,33 @@ listDirWith act inp = do
 {-# INLINE listDirUnfoldDfs #-}
 listDirUnfoldDfs
     :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
-listDirUnfoldDfs f = listDirWith (Stream.unfoldIterateDfs (unfoldDir f))
+listDirUnfoldDfs f = listDirWith (Stream.unfoldIterate (unfoldDir f))
 
 {-# INLINE listDirUnfoldBfs #-}
 listDirUnfoldBfs
     :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
-listDirUnfoldBfs f = listDirWith (Stream.unfoldIterateBfs (unfoldDir f))
+listDirUnfoldBfs f = listDirWith (Stream.bfsUnfoldIterate (unfoldDir f))
 
 {-# INLINE listDirUnfoldBfsRev #-}
 listDirUnfoldBfsRev
     :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
-listDirUnfoldBfsRev f = listDirWith (Stream.unfoldIterateBfsRev (unfoldDir f))
+listDirUnfoldBfsRev f = listDirWith (Stream.altBfsUnfoldIterate (unfoldDir f))
 
 {-# INLINE listDirConcatDfs #-}
 listDirConcatDfs
     :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
-listDirConcatDfs f = listDirWith (Stream.concatIterateDfs (streamDirMaybe f))
+listDirConcatDfs f = listDirWith (Stream.concatIterate (streamDirMaybe f))
 
 {-# INLINE listDirConcatBfs #-}
 listDirConcatBfs
     :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
-listDirConcatBfs f = listDirWith (Stream.concatIterateBfs (streamDirMaybe f))
+listDirConcatBfs f = listDirWith (Stream.bfsConcatIterate (streamDirMaybe f))
 
 {-# INLINE listDirConcatBfsRev #-}
 listDirConcatBfsRev
     :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
 listDirConcatBfsRev f =
-    listDirWith (Stream.concatIterateBfsRev (streamDirMaybe f))
+    listDirWith (Stream.altBfsConcatIterate (streamDirMaybe f))
 
 {-# INLINE listDirAppend #-}
 listDirAppend
@@ -252,19 +252,19 @@ listDirParOrdered f =
 listDirChunkDfs
     :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
 listDirChunkDfs f =
-    listDirChunkedWith (Stream.concatIterateDfs (streamDirChunkedMaybe f))
+    listDirChunkedWith (Stream.concatIterate (streamDirChunkedMaybe f))
 
 {-# INLINE listDirChunkBfs #-}
 listDirChunkBfs
     :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
 listDirChunkBfs f =
-    listDirChunkedWith (Stream.concatIterateBfs (streamDirChunkedMaybe f))
+    listDirChunkedWith (Stream.bfsConcatIterate (streamDirChunkedMaybe f))
 
 {-# INLINE listDirChunkBfsRev #-}
 listDirChunkBfsRev
     :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
 listDirChunkBfsRev f =
-    listDirChunkedWith (Stream.concatIterateBfsRev (streamDirChunkedMaybe f))
+    listDirChunkedWith (Stream.altBfsConcatIterate (streamDirChunkedMaybe f))
 
 {-# INLINE listDirChunkAppend #-}
 listDirChunkAppend

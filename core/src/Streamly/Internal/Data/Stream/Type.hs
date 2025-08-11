@@ -133,15 +133,15 @@ module Streamly.Internal.Data.Stream.Type
     , concatForM
 
     -- * Unfold Iterate
-    , unfoldIterateDfs
-    , unfoldIterateBfs
-    , unfoldIterateBfsRev
+    , unfoldIterate
+    , bfsUnfoldIterate
+    , altBfsUnfoldIterate
 
     -- * Concat Iterate
     , concatIterateScan
-    , concatIterateDfs
-    , concatIterateBfs
-    , concatIterateBfsRev
+    , concatIterate
+    , bfsConcatIterate
+    , altBfsConcatIterate
 
     -- * Fold Many
     , FoldMany (..) -- for inspection testing
@@ -154,8 +154,8 @@ module Streamly.Internal.Data.Stream.Type
     , refoldIterateM
 
     -- * Fold Iterate
-    , reduceIterateBfs
-    , foldIterateBfs
+    , bfsReduceIterate
+    , bfsFoldIterate
 
     -- * Splitting
     , indexEndBy
@@ -176,6 +176,13 @@ module Streamly.Internal.Data.Stream.Type
     , CrossStream
     , mkCross
     , unCross
+    , reduceIterateBfs
+    , unfoldIterateDfs
+    , unfoldIterateBfs
+    , unfoldIterateBfsRev
+    , concatIterateDfs
+    , concatIterateBfs
+    , concatIterateBfsRev
     )
 where
 
@@ -1794,12 +1801,12 @@ concatIterateScan scanner generate initial = Stream step (Left initial)
 -- element (reversed ordering). This may be slightly faster than
 -- 'concatIterateBfs'.
 --
-{-# INLINE_NORMAL concatIterateBfsRev #-}
-concatIterateBfsRev :: Monad m =>
+{-# INLINE_NORMAL altBfsConcatIterate #-}
+altBfsConcatIterate, concatIterateBfsRev :: Monad m =>
        (a -> Maybe (Stream m a))
     -> Stream m a
     -> Stream m a
-concatIterateBfsRev f stream = Stream step (stream, [])
+altBfsConcatIterate f stream = Stream step (stream, [])
 
     where
 
@@ -1819,7 +1826,9 @@ concatIterateBfsRev f stream = Stream step (stream, [])
                     (y:ys) -> return $ Skip (y, ys)
                     [] -> return Stop
 
--- | Similar to 'concatIterateDfs' except that it traverses the stream in
+RENAME(concatIterateBfsRev,altBfsConcatIterate)
+
+-- | Similar to 'concatIterate' except that it traverses the stream in
 -- breadth first style (BFS). First, all the elements in the input stream are
 -- emitted, and then their traversals are emitted.
 --
@@ -1827,15 +1836,15 @@ concatIterateBfsRev f stream = Stream step (stream, [])
 --
 -- >>> f = either (Just . Dir.readEitherPaths id) (const Nothing)
 -- >>> input = Stream.fromEffect (Left <$> Path.fromString ".")
--- >>> ls = Stream.concatIterateBfs f input
+-- >>> ls = Stream.bfsConcatIterate f input
 --
 -- /Pre-release/
-{-# INLINE_NORMAL concatIterateBfs #-}
-concatIterateBfs :: Monad m =>
+{-# INLINE_NORMAL bfsConcatIterate #-}
+bfsConcatIterate, concatIterateBfs :: Monad m =>
        (a -> Maybe (Stream m a))
     -> Stream m a
     -> Stream m a
-concatIterateBfs f stream = Stream step (stream, [], [])
+bfsConcatIterate f stream = Stream step (stream, [], [])
 
     where
 
@@ -1858,6 +1867,8 @@ concatIterateBfs f stream = Stream step (stream, [], [])
                             (x:xs1) -> return $ Skip (x, xs1, [])
                             [] -> return Stop
 
+RENAME(concatIterateBfs,bfsConcatIterate)
+
 -- | Traverse the stream in depth first style (DFS). Map each element in the
 -- input stream to a stream and flatten, recursively map the resulting elements
 -- as well to a stream and flatten until no more streams are generated.
@@ -1866,17 +1877,17 @@ concatIterateBfs f stream = Stream step (stream, [], [])
 --
 -- >>> f = either (Just . Dir.readEitherPaths id) (const Nothing)
 -- >>> input = Stream.fromEffect (Left <$> Path.fromString ".")
--- >>> ls = Stream.concatIterateDfs f input
+-- >>> ls = Stream.concatIterate f input
 --
 -- This is equivalent to using @concatIterateWith StreamK.append@.
 --
 -- /Pre-release/
-{-# INLINE_NORMAL concatIterateDfs #-}
-concatIterateDfs :: Monad m =>
+{-# INLINE_NORMAL concatIterate #-}
+concatIterate, concatIterateDfs :: Monad m =>
        (a -> Maybe (Stream m a))
     -> Stream m a
     -> Stream m a
-concatIterateDfs f stream = Stream step (stream, [])
+concatIterate f stream = Stream step (stream, [])
 
     where
 
@@ -1896,26 +1907,28 @@ concatIterateDfs f stream = Stream step (stream, [])
                     (y:ys) -> return $ Skip (y, ys)
                     [] -> return Stop
 
+RENAME(concatIterateDfs,concatIterate)
+
 {-# ANN type IterateUnfoldState Fuse #-}
 data IterateUnfoldState o i =
       IterateUnfoldOuter o
     | IterateUnfoldInner o i [i]
 
--- | Same as @concatIterateDfs@ but more efficient due to stream fusion.
+-- | Same as 'concatIterate' but more efficient due to stream fusion.
 --
 -- Example, list a directory tree using DFS:
 --
 -- >>> f = Unfold.either (Dir.eitherReaderPaths id) Unfold.nil
 -- >>> input = Stream.fromEffect (Left <$> Path.fromString ".")
--- >>> ls = Stream.unfoldIterateDfs f input
+-- >>> ls = Stream.unfoldIterate f input
 --
 -- /Pre-release/
-{-# INLINE_NORMAL unfoldIterateDfs #-}
-unfoldIterateDfs :: Monad m =>
+{-# INLINE_NORMAL unfoldIterate #-}
+unfoldIterate, unfoldIterateDfs :: Monad m =>
        Unfold m a a
     -> Stream m a
     -> Stream m a
-unfoldIterateDfs (Unfold istep inject) (Stream ostep ost) =
+unfoldIterate (Unfold istep inject) (Stream ostep ost) =
     Stream step (IterateUnfoldOuter ost)
 
     where
@@ -1942,21 +1955,23 @@ unfoldIterateDfs (Unfold istep inject) (Stream ostep ost) =
                     (y:ys) -> return $ Skip (IterateUnfoldInner o y ys)
                     [] -> return $ Skip (IterateUnfoldOuter o)
 
+RENAME(unfoldIterateDfs,unfoldIterate)
+
 {-# ANN type IterateUnfoldBFSRevState Fuse #-}
 data IterateUnfoldBFSRevState o i =
       IterateUnfoldBFSRevOuter o [i]
     | IterateUnfoldBFSRevInner i [i]
 
--- | Like 'unfoldIterateBfs' but processes the children in reverse order,
+-- | Like 'bfsUnfoldIterate' but processes the children in reverse order,
 -- therefore, may be slightly faster.
 --
 -- /Pre-release/
-{-# INLINE_NORMAL unfoldIterateBfsRev #-}
-unfoldIterateBfsRev :: Monad m =>
+{-# INLINE_NORMAL altBfsUnfoldIterate #-}
+altBfsUnfoldIterate, unfoldIterateBfsRev :: Monad m =>
        Unfold m a a
     -> Stream m a
     -> Stream m a
-unfoldIterateBfsRev (Unfold istep inject) (Stream ostep ost) =
+altBfsUnfoldIterate (Unfold istep inject) (Stream ostep ost) =
     Stream step (IterateUnfoldBFSRevOuter ost [])
 
     where
@@ -1986,20 +2001,22 @@ unfoldIterateBfsRev (Unfold istep inject) (Stream ostep ost) =
                     (y:ys) -> return $ Skip (IterateUnfoldBFSRevInner y ys)
                     [] -> return Stop
 
+RENAME(unfoldIterateBfsRev,altBfsUnfoldIterate)
+
 {-# ANN type IterateUnfoldBFSState Fuse #-}
 data IterateUnfoldBFSState o i =
       IterateUnfoldBFSOuter o [i]
     | IterateUnfoldBFSInner i [i] [i]
 
--- | Like 'unfoldIterateDfs' but uses breadth first style traversal.
+-- | Like 'unfoldIterate' but uses breadth first style traversal.
 --
 -- /Pre-release/
-{-# INLINE_NORMAL unfoldIterateBfs #-}
-unfoldIterateBfs :: Monad m =>
+{-# INLINE_NORMAL bfsUnfoldIterate #-}
+bfsUnfoldIterate, unfoldIterateBfs :: Monad m =>
        Unfold m a a
     -> Stream m a
     -> Stream m a
-unfoldIterateBfs (Unfold istep inject) (Stream ostep ost) =
+bfsUnfoldIterate (Unfold istep inject) (Stream ostep ost) =
     Stream step (IterateUnfoldBFSOuter ost [])
 
     where
@@ -2032,6 +2049,8 @@ unfoldIterateBfs (Unfold istep inject) (Stream ostep ost) =
                             (y:ys) -> return $ Skip (IterateUnfoldBFSInner y ys [])
                             [] -> return Stop
 
+RENAME(unfoldIterateBfs,bfsUnfoldIterate)
+
 ------------------------------------------------------------------------------
 -- Folding a tree bottom up
 ------------------------------------------------------------------------------
@@ -2040,10 +2059,10 @@ unfoldIterateBfs (Unfold istep inject) (Stream ostep ost) =
 -- function, collecting the outputs as next level of the tree, then repeats the
 -- same process on the next level. The last elements of a previously folded
 -- level are folded first.
-{-# INLINE_NORMAL reduceIterateBfs #-}
-reduceIterateBfs :: Monad m =>
+{-# INLINE_NORMAL bfsReduceIterate #-}
+bfsReduceIterate, reduceIterateBfs :: Monad m =>
     (a -> a -> m a) -> Stream m a -> m (Maybe a)
-reduceIterateBfs f (Stream step state) = go SPEC state [] Nothing
+bfsReduceIterate f (Stream step state) = go SPEC state [] Nothing
 
     where
 
@@ -2079,14 +2098,16 @@ reduceIterateBfs f (Stream step state) = go SPEC state [] Nothing
         y <- f x1 x2
         goBuf SPEC xs (y:ys)
 
+RENAME(reduceIterateBfs,bfsReduceIterate)
+
 -- | N-Ary BFS style iterative fold, if the input stream finished before the
 -- fold then it returns Left otherwise Right. If the fold returns Left we
 -- terminate.
 --
 -- /Unimplemented/
-foldIterateBfs ::
+bfsFoldIterate ::
     Fold m a (Either a a) -> Stream m a -> m (Maybe a)
-foldIterateBfs = undefined
+bfsFoldIterate = undefined
 
 ------------------------------------------------------------------------------
 -- Grouping/Splitting
