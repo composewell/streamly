@@ -745,11 +745,9 @@ unfoldEachFoldBy :: -- Monad m =>
     Fold m b c -> Unfold m a b -> Stream m a -> Stream m c
 unfoldEachFoldBy = undefined
 
-data ConcatUnfoldInterleaveState o i =
-      ConcatUnfoldInterleaveOuter o [i]
-    | ConcatUnfoldInterleaveInner o [i]
-    | ConcatUnfoldInterleaveInnerL [i] [i]
-    | ConcatUnfoldInterleaveInnerR [i] [i]
+data BfsUnfoldEachState o i =
+      BfsUnfoldEachOuter o ([i] -> [i])
+    | BfsUnfoldEachInner [i] ([i] -> [i])
 
 -- XXX use arrays to store state instead of lists?
 --
@@ -768,10 +766,6 @@ data ConcatUnfoldInterleaveState o i =
 -- Ideally, we need some scheduling bias to inner streams vs outer stream.
 -- Maybe we can configure the behavior.
 
--- XXX do this
--- XXX Instead of using "reverse" build the list in the correct order to begin
--- with.
-
 -- | Like 'unfoldEach' but interleaves the resulting streams in a breadth first
 -- manner instead of appending them. Unfolds each element in the input stream
 -- to a stream and then interleave the resulting streams.
@@ -784,51 +778,39 @@ data ConcatUnfoldInterleaveState o i =
 bfsUnfoldEach, unfoldEachInterleave :: Monad m =>
     Unfold m a b -> Stream m a -> Stream m b
 bfsUnfoldEach (Unfold istep inject) (Stream ostep ost) =
-    Stream step (ConcatUnfoldInterleaveOuter ost [])
+    Stream step (BfsUnfoldEachOuter ost id)
 
     where
 
     {-# INLINE_LATE step #-}
-    step gst (ConcatUnfoldInterleaveOuter o ls) = do
+    step gst (BfsUnfoldEachOuter o ls) = do
         r <- ostep (adaptState gst) o
         case r of
             Yield a o' -> do
                 i <- inject a
-                i `seq` return (Skip (ConcatUnfoldInterleaveInner o' (i : ls)))
-            Skip o' -> return $ Skip (ConcatUnfoldInterleaveOuter o' ls)
-            Stop -> return $ Skip (ConcatUnfoldInterleaveInnerL (reverse ls) [])
+                i `seq` return (Skip (BfsUnfoldEachOuter o' (ls . (i :))))
+            Skip o' -> return $ Skip (BfsUnfoldEachOuter o' ls)
+            Stop -> return $ Skip (BfsUnfoldEachInner (ls []) id)
 
-    step _ (ConcatUnfoldInterleaveInner _ []) = undefined
-    step _ (ConcatUnfoldInterleaveInner o (st:ls)) = do
+    step _ (BfsUnfoldEachInner [] rs) =
+        case rs [] of
+            [] -> return Stop
+            ls -> return $ Skip (BfsUnfoldEachInner ls id)
+
+    step _ (BfsUnfoldEachInner (st:ls) rs) = do
         r <- istep st
         return $ case r of
-            Yield x s -> Yield x (ConcatUnfoldInterleaveOuter o (s:ls))
-            Skip s    -> Skip (ConcatUnfoldInterleaveInner o (s:ls))
-            Stop      -> Skip (ConcatUnfoldInterleaveOuter o ls)
-
-    step _ (ConcatUnfoldInterleaveInnerL [] []) = return Stop
-    step _ (ConcatUnfoldInterleaveInnerL [] rs) =
-        return $ Skip (ConcatUnfoldInterleaveInnerR [] (reverse rs))
-
-    step _ (ConcatUnfoldInterleaveInnerL (st:ls) rs) = do
-        r <- istep st
-        return $ case r of
-            Yield x s -> Yield x (ConcatUnfoldInterleaveInnerL ls (s:rs))
-            Skip s    -> Skip (ConcatUnfoldInterleaveInnerL (s:ls) rs)
-            Stop      -> Skip (ConcatUnfoldInterleaveInnerL ls rs)
-
-    step _ (ConcatUnfoldInterleaveInnerR [] []) = return Stop
-    step _ (ConcatUnfoldInterleaveInnerR ls []) =
-        return $ Skip (ConcatUnfoldInterleaveInnerL (reverse ls) [])
-
-    step _ (ConcatUnfoldInterleaveInnerR ls (st:rs)) = do
-        r <- istep st
-        return $ case r of
-            Yield x s -> Yield x (ConcatUnfoldInterleaveInnerR (s:ls) rs)
-            Skip s    -> Skip (ConcatUnfoldInterleaveInnerR ls (s:rs))
-            Stop      -> Skip (ConcatUnfoldInterleaveInnerR ls rs)
+            Yield x s -> Yield x (BfsUnfoldEachInner ls (rs . (s :)))
+            Skip s    -> Skip (BfsUnfoldEachInner (s:ls) rs)
+            Stop      -> Skip (BfsUnfoldEachInner ls rs)
 
 RENAME(unfoldEachInterleave, bfsUnfoldEach)
+
+data ConcatUnfoldInterleaveState o i =
+      ConcatUnfoldInterleaveOuter o [i]
+    | ConcatUnfoldInterleaveInner o [i]
+    | ConcatUnfoldInterleaveInnerL [i] [i]
+    | ConcatUnfoldInterleaveInnerR [i] [i]
 
 -- | Like 'bfsUnfoldEach' but reverses the traversal direction after reaching
 -- the last stream and then after reaching the first stream, thus alternating
@@ -910,49 +892,31 @@ RENAME(unfoldEachInterleaveRev,altBfsUnfoldEach)
 unfoldSched, unfoldEachRoundRobin, unfoldRoundRobin :: Monad m =>
     Unfold m a b -> Stream m a -> Stream m b
 unfoldSched (Unfold istep inject) (Stream ostep ost) =
-    Stream step (ConcatUnfoldInterleaveOuter ost [])
-  where
+    Stream step (BfsUnfoldEachOuter ost id)
+
+    where
+
     {-# INLINE_LATE step #-}
-    step gst (ConcatUnfoldInterleaveOuter o ls) = do
+    step gst (BfsUnfoldEachOuter o ls) = do
         r <- ostep (adaptState gst) o
         case r of
             Yield a o' -> do
                 i <- inject a
-                i `seq` return (Skip (ConcatUnfoldInterleaveInner o' (i : ls)))
-            Skip o' -> return $ Skip (ConcatUnfoldInterleaveInner o' ls)
-            Stop -> return $ Skip (ConcatUnfoldInterleaveInnerL ls [])
+                i `seq` return (Skip (BfsUnfoldEachOuter o' (ls . (i :))))
+            Skip o' -> return $ Skip (BfsUnfoldEachOuter o' ls)
+            Stop -> return $ Skip (BfsUnfoldEachInner (ls []) id)
 
-    step _ (ConcatUnfoldInterleaveInner o []) =
-            return $ Skip (ConcatUnfoldInterleaveOuter o [])
+    step _ (BfsUnfoldEachInner [] rs) =
+        case rs [] of
+            [] -> return Stop
+            ls -> return $ Skip (BfsUnfoldEachInner ls id)
 
-    step _ (ConcatUnfoldInterleaveInner o (st:ls)) = do
+    step _ (BfsUnfoldEachInner (st:ls) rs) = do
         r <- istep st
         return $ case r of
-            Yield x s -> Yield x (ConcatUnfoldInterleaveOuter o (s:ls))
-            Skip s    -> Skip (ConcatUnfoldInterleaveOuter o (s:ls))
-            Stop      -> Skip (ConcatUnfoldInterleaveOuter o ls)
-
-    step _ (ConcatUnfoldInterleaveInnerL [] []) = return Stop
-    step _ (ConcatUnfoldInterleaveInnerL [] rs) =
-        return $ Skip (ConcatUnfoldInterleaveInnerR [] rs)
-
-    step _ (ConcatUnfoldInterleaveInnerL (st:ls) rs) = do
-        r <- istep st
-        return $ case r of
-            Yield x s -> Yield x (ConcatUnfoldInterleaveInnerL ls (s:rs))
-            Skip s    -> Skip (ConcatUnfoldInterleaveInnerL ls (s:rs))
-            Stop      -> Skip (ConcatUnfoldInterleaveInnerL ls rs)
-
-    step _ (ConcatUnfoldInterleaveInnerR [] []) = return Stop
-    step _ (ConcatUnfoldInterleaveInnerR ls []) =
-        return $ Skip (ConcatUnfoldInterleaveInnerL ls [])
-
-    step _ (ConcatUnfoldInterleaveInnerR ls (st:rs)) = do
-        r <- istep st
-        return $ case r of
-            Yield x s -> Yield x (ConcatUnfoldInterleaveInnerR (s:ls) rs)
-            Skip s    -> Skip (ConcatUnfoldInterleaveInnerR (s:ls) rs)
-            Stop      -> Skip (ConcatUnfoldInterleaveInnerR ls rs)
+            Yield x s -> Yield x (BfsUnfoldEachInner ls (rs . (s :)))
+            Skip s    -> Skip (BfsUnfoldEachInner ls (rs . (s :)))
+            Stop      -> Skip (BfsUnfoldEachInner ls rs)
 
 RENAME(unfoldRoundRobin,unfoldSched)
 RENAME(unfoldEachRoundRobin,unfoldSched)
@@ -968,50 +932,31 @@ RENAME(unfoldEachRoundRobin,unfoldSched)
 {-# INLINE_NORMAL schedMap #-}
 schedMap :: Monad m => (a -> Stream m b) -> Stream m a -> Stream m b
 schedMap f (Stream ostep ost) =
-    Stream step (ConcatUnfoldInterleaveOuter ost [])
+    Stream step (BfsUnfoldEachOuter ost id)
 
     where
 
     {-# INLINE_LATE step #-}
-    step gst (ConcatUnfoldInterleaveOuter o ls) = do
+    step gst (BfsUnfoldEachOuter o ls) = do
         r <- ostep (adaptState gst) o
         case r of
             Yield a o' -> do
-                return (Skip (ConcatUnfoldInterleaveInner o' (f a : ls)))
-            Skip o' -> return $ Skip (ConcatUnfoldInterleaveInner o' ls)
-            Stop -> return $ Skip (ConcatUnfoldInterleaveInnerL ls [])
+                let i = f a
+                return (Skip (BfsUnfoldEachOuter o' (ls . (i :))))
+            Skip o' -> return $ Skip (BfsUnfoldEachOuter o' ls)
+            Stop -> return $ Skip (BfsUnfoldEachInner (ls []) id)
 
-    step _ (ConcatUnfoldInterleaveInner o []) =
-            return $ Skip (ConcatUnfoldInterleaveOuter o [])
+    step _ (BfsUnfoldEachInner [] rs) =
+        case rs [] of
+            [] -> return Stop
+            ls -> return $ Skip (BfsUnfoldEachInner ls id)
 
-    step gst (ConcatUnfoldInterleaveInner o (UnStream istep st:ls)) = do
+    step gst (BfsUnfoldEachInner (UnStream istep st:ls) rs) = do
         r <- istep gst st
         return $ case r of
-            Yield x s -> Yield x (ConcatUnfoldInterleaveOuter o (Stream istep s:ls))
-            Skip s    -> Skip (ConcatUnfoldInterleaveOuter o (Stream istep s:ls))
-            Stop      -> Skip (ConcatUnfoldInterleaveOuter o ls)
-
-    step _ (ConcatUnfoldInterleaveInnerL [] []) = return Stop
-    step _ (ConcatUnfoldInterleaveInnerL [] rs) =
-        return $ Skip (ConcatUnfoldInterleaveInnerR [] rs)
-
-    step gst (ConcatUnfoldInterleaveInnerL (UnStream istep st:ls) rs) = do
-        r <- istep gst st
-        return $ case r of
-            Yield x s -> Yield x (ConcatUnfoldInterleaveInnerL ls (Stream istep s:rs))
-            Skip s    -> Skip (ConcatUnfoldInterleaveInnerL ls (Stream istep s:rs))
-            Stop      -> Skip (ConcatUnfoldInterleaveInnerL ls rs)
-
-    step _ (ConcatUnfoldInterleaveInnerR [] []) = return Stop
-    step _ (ConcatUnfoldInterleaveInnerR ls []) =
-        return $ Skip (ConcatUnfoldInterleaveInnerL ls [])
-
-    step gst (ConcatUnfoldInterleaveInnerR ls (UnStream istep st:rs)) = do
-        r <- istep gst st
-        return $ case r of
-            Yield x s -> Yield x (ConcatUnfoldInterleaveInnerR (Stream istep s:ls) rs)
-            Skip s    -> Skip (ConcatUnfoldInterleaveInnerR (Stream istep s:ls) rs)
-            Stop      -> Skip (ConcatUnfoldInterleaveInnerR ls rs)
+            Yield x s -> Yield x (BfsUnfoldEachInner ls (rs . (Stream istep s :)))
+            Skip s    -> Skip (BfsUnfoldEachInner ls (rs . (Stream istep s :)))
+            Stop      -> Skip (BfsUnfoldEachInner ls rs)
 
 data FairUnfoldState o i =
       FairUnfoldInit o ([i] -> [i])
