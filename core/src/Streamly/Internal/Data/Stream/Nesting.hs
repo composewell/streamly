@@ -87,6 +87,7 @@ module Streamly.Internal.Data.Stream.Nesting
     , ConcatUnfoldInterleaveState (..)
     , bfsUnfoldEach
     , altBfsUnfoldEach
+    , fairUnfoldEach
 
     -- *** unfoldEach joined by elements
     -- | Like unfoldEach but intersperses an element between the streams after
@@ -107,6 +108,9 @@ module Streamly.Internal.Data.Stream.Nesting
     , intercalateSepBy
     , intercalateEndBy
 
+    -- *** concatMap
+    , fairConcatMapM
+
     -- *** unfoldSched
     -- Note appending does not make sense for sched, only bfs or diagonal.
 
@@ -114,11 +118,11 @@ module Streamly.Internal.Data.Stream.Nesting
     -- slice instead of based on the outputs.
     , unfoldSched
     -- , altUnfoldSched -- alternating directions
-    -- , fairUnfoldSched
+    , fairUnfoldSched
 
     -- *** schedMap
     , schedMap
-    -- , fairSchedMap
+    , fairSchedMapM
 
     -- -- *** schedFor
     -- , schedFor
@@ -764,6 +768,7 @@ data ConcatUnfoldInterleaveState o i =
 -- Ideally, we need some scheduling bias to inner streams vs outer stream.
 -- Maybe we can configure the behavior.
 
+-- XXX do this
 -- XXX Instead of using "reverse" build the list in the correct order to begin
 -- with.
 
@@ -893,7 +898,7 @@ RENAME(unfoldEachInterleaveRev,altBfsUnfoldEach)
 --
 -- Compared to unfoldEachInterleave this one switches streams on Skips.
 
--- | 'bfdUnfoldEach' switches to the next stream whenever a value from a
+-- | 'bfsUnfoldEach' switches to the next stream whenever a value from a
 -- stream is yielded, it does not switch on a 'Skip'. So if a stream keeps
 -- skipping for long time other streams won't get a chance to run.
 -- 'unfoldSched' switches on Skip as well. So it basically schedules each
@@ -1007,6 +1012,165 @@ schedMap f (Stream ostep ost) =
             Yield x s -> Yield x (ConcatUnfoldInterleaveInnerR (Stream istep s:ls) rs)
             Skip s    -> Skip (ConcatUnfoldInterleaveInnerR (Stream istep s:ls) rs)
             Stop      -> Skip (ConcatUnfoldInterleaveInnerR ls rs)
+
+data FairUnfoldState o i =
+      FairUnfoldInit o ([i] -> [i])
+    | FairUnfoldNext o ([i] -> [i]) [i]
+    | FairUnfoldDrain ([i] -> [i]) [i]
+
+-- |
+--
+{-# INLINE_NORMAL fairUnfoldSched #-}
+fairUnfoldSched :: Monad m =>
+    Unfold m a b -> Stream m a -> Stream m b
+fairUnfoldSched (Unfold istep inject) (Stream ostep ost) =
+    Stream step (FairUnfoldInit ost id)
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (FairUnfoldInit o ls) = do
+        r <- ostep (adaptState gst) o
+        case r of
+            Yield a o' -> do
+                i <- inject a
+                i `seq` return (Skip (FairUnfoldNext o' id (ls [i])))
+            Skip o' -> return $ Skip (FairUnfoldNext o' id (ls []))
+            Stop -> return $ Skip (FairUnfoldDrain id (ls []))
+
+    step _ (FairUnfoldNext o ys []) =
+            return $ Skip (FairUnfoldInit o ys)
+
+    step _ (FairUnfoldNext o ys (st:ls)) = do
+        r <- istep st
+        return $ case r of
+            Yield x s -> Yield x (FairUnfoldNext o (ys . (s :)) ls)
+            Skip s    -> Skip (FairUnfoldNext o (ys . (s :)) ls)
+            Stop      -> Skip (FairUnfoldNext o ys ls)
+
+    step _ (FairUnfoldDrain ys []) =
+        return $ Skip (FairUnfoldDrain id (ys []))
+
+    step _ (FairUnfoldDrain ys (st:ls)) = do
+        r <- istep st
+        return $ case r of
+            Yield x s -> Yield x (FairUnfoldDrain (ys . (s :)) ls)
+            Skip s    -> Skip (FairUnfoldDrain (ys . (s :)) ls)
+            Stop      -> Skip (FairUnfoldDrain ys ls)
+
+{-# INLINE_NORMAL fairUnfoldEach #-}
+fairUnfoldEach :: Monad m =>
+    Unfold m a b -> Stream m a -> Stream m b
+fairUnfoldEach (Unfold istep inject) (Stream ostep ost) =
+    Stream step (FairUnfoldInit ost id)
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (FairUnfoldInit o ls) = do
+        r <- ostep (adaptState gst) o
+        case r of
+            Yield a o' -> do
+                i <- inject a
+                i `seq` return (Skip (FairUnfoldNext o' id (ls [i])))
+            Skip o' -> return $ Skip (FairUnfoldInit o' ls)
+            Stop -> return $ Skip (FairUnfoldDrain id (ls []))
+
+    step _ (FairUnfoldNext o ys []) =
+            return $ Skip (FairUnfoldInit o ys)
+
+    step _ (FairUnfoldNext o ys (st:ls)) = do
+        r <- istep st
+        return $ case r of
+            Yield x s -> Yield x (FairUnfoldNext o (ys . (s :)) ls)
+            Skip s    -> Skip (FairUnfoldNext o ys (s : ls))
+            Stop      -> Skip (FairUnfoldNext o ys ls)
+
+    step _ (FairUnfoldDrain ys []) =
+        return $ Skip (FairUnfoldDrain id (ys []))
+
+    step _ (FairUnfoldDrain ys (st:ls)) = do
+        r <- istep st
+        return $ case r of
+            Yield x s -> Yield x (FairUnfoldDrain (ys . (s :)) ls)
+            Skip s    -> Skip (FairUnfoldDrain ys (s : ls))
+            Stop      -> Skip (FairUnfoldDrain ys ls)
+
+{-# INLINE_NORMAL fairSchedMapM #-}
+fairSchedMapM :: Monad m =>
+    (a -> m (Stream m b)) -> Stream m a -> Stream m b
+fairSchedMapM f (Stream ostep ost) =
+    Stream step (FairUnfoldInit ost id)
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (FairUnfoldInit o ls) = do
+        r <- ostep (adaptState gst) o
+        case r of
+            Yield a o' -> do
+                i <- f a
+                i `seq` return (Skip (FairUnfoldNext o' id (ls [i])))
+            Skip o' -> return $ Skip (FairUnfoldNext o' id (ls []))
+            Stop -> return $ Skip (FairUnfoldDrain id (ls []))
+
+    step _ (FairUnfoldNext o ys []) =
+            return $ Skip (FairUnfoldInit o ys)
+
+    step gst (FairUnfoldNext o ys (UnStream istep st:ls)) = do
+        r <- istep gst st
+        return $ case r of
+            Yield x s -> Yield x (FairUnfoldNext o (ys . (Stream istep s :)) ls)
+            Skip s    -> Skip (FairUnfoldNext o (ys . (Stream istep s :)) ls)
+            Stop      -> Skip (FairUnfoldNext o ys ls)
+
+    step _ (FairUnfoldDrain ys []) =
+        return $ Skip (FairUnfoldDrain id (ys []))
+
+    step gst (FairUnfoldDrain ys (UnStream istep st:ls)) = do
+        r <- istep gst st
+        return $ case r of
+            Yield x s -> Yield x (FairUnfoldDrain (ys . (Stream istep s :)) ls)
+            Skip s    -> Skip (FairUnfoldDrain (ys . (Stream istep s :)) ls)
+            Stop      -> Skip (FairUnfoldDrain ys ls)
+
+{-# INLINE_NORMAL fairConcatMapM #-}
+fairConcatMapM :: Monad m =>
+    (a -> m (Stream m b)) -> Stream m a -> Stream m b
+fairConcatMapM f (Stream ostep ost) =
+    Stream step (FairUnfoldInit ost id)
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (FairUnfoldInit o ls) = do
+        r <- ostep (adaptState gst) o
+        case r of
+            Yield a o' -> do
+                i <- f a
+                i `seq` return (Skip (FairUnfoldNext o' id (ls [i])))
+            Skip o' -> return $ Skip (FairUnfoldInit o' ls)
+            Stop -> return $ Skip (FairUnfoldDrain id (ls []))
+
+    step _ (FairUnfoldNext o ys []) =
+            return $ Skip (FairUnfoldInit o ys)
+
+    step gst (FairUnfoldNext o ys (UnStream istep st:ls)) = do
+        r <- istep gst st
+        return $ case r of
+            Yield x s -> Yield x (FairUnfoldNext o (ys . (Stream istep s :)) ls)
+            Skip s    -> Skip (FairUnfoldNext o ys (UnStream istep s:ls))
+            Stop      -> Skip (FairUnfoldNext o ys ls)
+
+    step _ (FairUnfoldDrain ys []) =
+        return $ Skip (FairUnfoldDrain id (ys []))
+
+    step gst (FairUnfoldDrain ys (UnStream istep st:ls)) = do
+        r <- istep gst st
+        return $ case r of
+            Yield x s -> Yield x (FairUnfoldDrain (ys . (Stream istep s :)) ls)
+            Skip s    -> Skip (FairUnfoldDrain ys (Stream istep s : ls))
+            Stop      -> Skip (FairUnfoldDrain ys ls)
 
 ------------------------------------------------------------------------------
 -- Combine N Streams - interpose
