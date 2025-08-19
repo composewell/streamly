@@ -42,7 +42,10 @@ import Streamly.Benchmark.Prelude
 import Streamly.Data.Stream (Stream)
 import Streamly.Data.Unfold (Unfold)
 import qualified Streamly.Internal.Data.Stream as S
+import qualified Streamly.Internal.Data.Unfold as Unfold
+import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Internal.Data.StreamK as StreamK
 #endif
 
 import Test.Tasty.Bench
@@ -437,6 +440,203 @@ o_1_space_bind streamLen =
     streamLen4 = round (fromIntegral streamLen**(1/4::Double)) -- 4 times nested loop
     streamLen5 = round (fromIntegral streamLen**(1/5::Double)) -- 5 times nested loop
 
+-- search space |x| = 1000, |y| = 1000
+{-# INLINE boundedInts #-}
+boundedInts :: Monad m => Int -> Int -> Stream m Int
+boundedInts n _ =
+    Stream.interleave
+        (Stream.enumerateFromTo (0 :: Int) n)
+        (Stream.enumerateFromThenTo (-1) (-2) (-n))
+
+{-# INLINE infiniteInts #-}
+infiniteInts :: Monad m => Int -> Int -> Stream m Int
+infiniteInts _ _ =
+    Stream.interleave
+        (Stream.enumerateFrom (0 :: Int))
+        (Stream.enumerateFromThen (-1) (-2))
+
+{-# INLINE boundedIntsUnfold #-}
+boundedIntsUnfold :: Monad m => Int -> Int -> Unfold m ((), ()) Int
+boundedIntsUnfold n _ =
+    Unfold.interleave
+        (Unfold.supply (0 :: Int, n) Unfold.enumerateFromTo)
+        (Unfold.supply (-1, -2, -n) Unfold.enumerateFromThenTo)
+
+{-# INLINE infiniteIntsUnfold #-}
+infiniteIntsUnfold :: Monad m => Int -> Int -> Unfold m ((), ()) Int
+infiniteIntsUnfold _ _ =
+    Unfold.interleave
+        (Unfold.supply (0 :: Int) Unfold.enumerateFrom)
+        (Unfold.supply (-1, -2) Unfold.enumerateFromThen)
+
+{-# INLINE checkStream #-}
+checkStream :: Applicative m =>
+    Int -> Int -> Stream m (Maybe (Maybe (Int, Int)))
+checkStream x y =
+    let eq1 = x + y == 0
+        eq2 = x - y == 1994
+     in if eq1 && eq2
+        then Stream.fromPure (Just (Just (x,y)))
+        else if abs x > 1000 && abs y > 1000
+        then Stream.fromPure (Just Nothing)
+        else Stream.fromPure Nothing
+
+{-# INLINE checkStreamK #-}
+checkStreamK :: Int -> Int -> StreamK.StreamK m (Maybe (Maybe (Int, Int)))
+checkStreamK x y =
+    let eq1 = x + y == 0
+        eq2 = x - y == 1994
+     in if eq1 && eq2
+        then StreamK.fromPure (Just (Just (x,y)))
+        else if abs x > 1000 && abs y > 1000
+        then StreamK.fromPure (Just Nothing)
+        else StreamK.fromPure Nothing
+
+{-# INLINE checkPair #-}
+checkPair :: Monad m => (Int, Int) -> m (Maybe (Maybe (Int, Int)))
+checkPair (x, y) =
+    let eq1 = x + y == 0
+        eq2 = x - y == 1994
+     in if eq1 && eq2
+        then pure (Just (Just (x,y)))
+        else if abs x > 1000 && abs y > 1000
+        then pure (Just Nothing)
+        else pure Nothing
+
+result :: Monad m => Stream m (Maybe a) -> m ()
+result = Stream.fold (Fold.take 1 Fold.drain) . Stream.catMaybes
+
+fairConcatForEqn :: Monad m => Stream m Int -> m ()
+fairConcatForEqn input =
+    result
+        $ Stream.fairConcatFor input $ \x ->
+              Stream.fairConcatForM input $ \y -> do
+                return $ checkStream x y
+
+fairConcatForEqnK :: Monad m => Stream m Int -> m ()
+fairConcatForEqnK input =
+    let inputK = StreamK.fromStream input
+    in result
+        $ StreamK.toStream
+        $ StreamK.fairConcatFor inputK $ \x ->
+              StreamK.fairConcatForM inputK $ \y -> do
+                return $ checkStreamK x y
+
+concatForEqn :: Monad m => Stream m Int -> m ()
+concatForEqn input =
+    result
+        $ Stream.concatFor input $ \x ->
+              Stream.concatForM input $ \y -> do
+                return $ checkStream x y
+
+fairSchedForEqn :: Monad m => Stream m Int -> m ()
+fairSchedForEqn input =
+    result
+        $ Stream.fairSchedFor input $ \x ->
+              Stream.fairSchedForM input $ \y -> do
+                return $ checkStream x y
+
+_schedForEqn :: Monad m => Stream m Int -> m ()
+_schedForEqn input =
+    result
+        $ Stream.schedFor input $ \x ->
+              Stream.schedForM input $ \y -> do
+                return $ checkStream x y
+
+streamCrossEqn :: Monad m => Stream m Int -> m ()
+streamCrossEqn input =
+    result
+        $ Stream.mapM checkPair
+        $ Stream.cross input input
+
+fairStreamCrossEqn :: Monad m => Stream m Int -> m ()
+fairStreamCrossEqn input =
+    result
+        $ Stream.mapM checkPair
+        $ Stream.fairCross input input
+
+unfoldCrossEqn :: Monad m => Unfold m ((), ()) Int -> m ()
+unfoldCrossEqn input =
+    result
+        $ Stream.mapM checkPair
+        $ Stream.unfold (Unfold.cross input input) (undefined, undefined)
+
+fairUnfoldCrossEqn :: Monad m => Unfold m ((), ()) Int -> m ()
+fairUnfoldCrossEqn input =
+    result
+        $ Stream.mapM checkPair
+        $ Stream.unfold (Unfold.fairCross input input) (undefined, undefined)
+
+unfoldEachEqn :: Monad m => Unfold m ((), ()) Int -> Stream m Int -> m ()
+unfoldEachEqn input ints =
+    let intu = Unfold.carry $ Unfold.lmap (const (undefined, undefined)) input
+     in result
+        $ Stream.mapM checkPair
+        $ Stream.unfoldEach intu ints
+
+fairUnfoldEachEqn :: Monad m => Unfold m ((), ()) Int -> Stream m Int -> m ()
+fairUnfoldEachEqn input ints =
+    let intu = Unfold.carry $ Unfold.lmap (const (undefined, undefined)) input
+     in result
+        $ Stream.mapM checkPair
+        $ Stream.fairUnfoldEach intu ints
+
+unfoldSchedEqn :: Monad m => Unfold m ((), ()) Int -> Stream m Int -> m ()
+unfoldSchedEqn input ints =
+    let intu = Unfold.carry $ Unfold.lmap (const (undefined, undefined)) input
+     in result
+        $ Stream.mapM checkPair
+        $ Stream.unfoldSched intu ints
+
+fairUnfoldSchedEqn :: Monad m => Unfold m ((), ()) Int -> Stream m Int -> m ()
+fairUnfoldSchedEqn input ints =
+    let intu = Unfold.carry $ Unfold.lmap (const (undefined, undefined)) input
+     in result
+        $ Stream.mapM checkPair
+        $ Stream.fairUnfoldSched intu ints
+
+-- Solve simultaneous equations by exploring all possibilities
+o_1_space_equations :: Int -> [Benchmark]
+o_1_space_equations _ =
+    [ bgroup "equations"
+        [ benchFold "concatFor (bounded)" concatForEqn (boundedInts 1000)
+        , benchFold "fairConcatFor (bounded)"
+            fairConcatForEqn (boundedInts 1000)
+        , benchFold "fairConcatForK (bounded)"
+            fairConcatForEqnK (boundedInts 1000)
+        , benchFold "fairConcatFor (infinite)"
+            fairConcatForEqn (infiniteInts 1000)
+        , benchFold "fairSchedFor (bounded)"
+            fairSchedForEqn (boundedInts 1000)
+        , benchFold "fairSchedFor (infinite)"
+            fairSchedForEqn (infiniteInts 1000)
+        , benchFold "streamCross (bounded)"
+            streamCrossEqn (boundedInts 1000)
+        , benchFold "fairStreamCross (bounded)"
+            fairStreamCrossEqn (boundedInts 1000)
+        , benchFold "fairStreamCross (infinite)"
+            fairStreamCrossEqn (infiniteInts 1000)
+        , bench "unfoldCross (bounded)"
+            $ nfIO $ unfoldCrossEqn (boundedIntsUnfold 1000 0)
+        , bench "fairUnfoldCross (bounded)"
+            $ nfIO $ fairUnfoldCrossEqn (boundedIntsUnfold 1000 0)
+        , bench "fairUnfoldCross (infinite)"
+            $ nfIO $ fairUnfoldCrossEqn (infiniteIntsUnfold 1000 0)
+        , benchFold "unfoldEach (bounded)"
+            (unfoldEachEqn (boundedIntsUnfold 1000 0)) (boundedInts 1000)
+        , benchFold "fairUnfoldEach (bounded)"
+            (fairUnfoldEachEqn (boundedIntsUnfold 1000 0)) (boundedInts 1000)
+        , benchFold "fairUnfoldEach (infinite)"
+            (fairUnfoldEachEqn (infiniteIntsUnfold 1000 0)) (infiniteInts 1000)
+        , benchFold "unfoldSched (bounded)"
+            (unfoldSchedEqn (boundedIntsUnfold 1000 0)) (boundedInts 1000)
+        , benchFold "fairUnfoldSched (bounded)"
+            (fairUnfoldSchedEqn (boundedIntsUnfold 1000 0)) (boundedInts 1000)
+        , benchFold "fairUnfoldSched (infinite)"
+            (fairUnfoldSchedEqn (infiniteIntsUnfold 1000 0)) (infiniteInts 1000)
+        ]
+    ]
+
 -------------------------------------------------------------------------------
 -- Joining
 -------------------------------------------------------------------------------
@@ -486,6 +686,9 @@ o_n_heap_buffering value =
             $ joinWith S.filterInStreamGenericBy sqrtVal
         , benchIOSrc1 "filterInStreamAscBy"
             $ joinMapWith (S.filterInStreamAscBy compare) halfVal
+        -- Note: schedFor does a bfs scheduling, therefore, can take a lot of
+        -- memory.
+        , benchFold "schedFor (bounded)" schedForEqn (boundedInts 1000)
         ]
     ]
 
@@ -516,6 +719,7 @@ benchmarks moduleName size =
             , o_1_space_applicative size
             , o_1_space_monad size
             , o_1_space_bind size
+            , o_1_space_equations size
             ]
         , bgroup (o_n_space_prefix moduleName) $ Prelude.concat
             [
