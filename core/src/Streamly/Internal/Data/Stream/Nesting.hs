@@ -1022,11 +1022,6 @@ schedForM = flip schedMapM
 schedFor :: Monad m => Stream m a -> (a -> Stream m b) -> Stream m b
 schedFor = flip schedMap
 
-data FairUnfoldState o i =
-      FairUnfoldInit o ([i] -> [i])
-    | FairUnfoldNext o ([i] -> [i]) [i]
-    | FairUnfoldDrain ([i] -> [i]) [i]
-
 -- | Similar to 'fairUnfoldEach' but scheduling is independent of the output.
 --
 -- >>> :{

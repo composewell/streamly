@@ -110,6 +110,10 @@ module Streamly.Internal.Data.Stream.Type
     , crossApplySnd
     , crossWith
     , cross
+    , FairUnfoldState (..)
+    , fairCrossWithM
+    , fairCrossWith
+    , fairCross
     , loop -- forEach
     , loopBy
 
@@ -1298,6 +1302,59 @@ crossApply (Stream stepa statea) (Stream stepb stateb) =
             Stop      -> Skip (Left os))
         (stepb (adaptState gst) st)
 
+-- This is shared by all fairUnfold, fairConcat combinators.
+data FairUnfoldState o i =
+      FairUnfoldInit o ([i] -> [i])
+    | FairUnfoldNext o ([i] -> [i]) [i]
+    | FairUnfoldDrain ([i] -> [i]) [i]
+
+-- XXX will it perform better if we write it in the same way as crossApply?
+-- crossApply is faster than unfoldCross in equation solving benchmarks.
+
+-- | Like 'fairCrossWith' but with monadic function argument.
+--
+{-# INLINE_NORMAL fairCrossWithM #-}
+fairCrossWithM :: Monad m =>
+    (a -> b -> m c) -> Stream m a -> Stream m b -> Stream m c
+fairCrossWithM f (Stream step1 state1) (Stream step2 state2) =
+    Stream step (FairUnfoldInit state1 id)
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (FairUnfoldInit o ls) = do
+        r <- step1 (adaptState gst) o
+        return $ case r of
+            Yield b o' -> Skip (FairUnfoldNext o' id (ls [(b,state2)]))
+            Skip o' -> Skip (FairUnfoldInit o' ls)
+            Stop -> Skip (FairUnfoldDrain id (ls []))
+
+    step _ (FairUnfoldNext o ys []) =
+            return $ Skip (FairUnfoldInit o ys)
+
+    step gst (FairUnfoldNext o ys ((b,st):ls)) = do
+        r <- step2 (adaptState gst) st
+        case r of
+            Yield c s ->
+                f b c >>= \x ->
+                    return $ Yield x (FairUnfoldNext o (ys . ((b, s) :)) ls)
+            Skip s    -> return $ Skip (FairUnfoldNext o ys ((b,s) : ls))
+            Stop      -> return $ Skip (FairUnfoldNext o ys ls)
+
+    step _ (FairUnfoldDrain ys []) =
+        case ys [] of
+            [] -> return Stop
+            xs -> return $ Skip (FairUnfoldDrain id xs)
+
+    step gst (FairUnfoldDrain ys ((b,st):ls)) = do
+        r <- step2 (adaptState gst) st
+        case r of
+            Yield c s ->
+                f b c >>= \x ->
+                    return $ Yield x (FairUnfoldDrain (ys . ((b,s) :)) ls)
+            Skip s    -> return $ Skip (FairUnfoldDrain ys ((b,s) : ls))
+            Stop      -> return $ Skip (FairUnfoldDrain ys ls)
+
 {-# INLINE_NORMAL crossApplySnd #-}
 crossApplySnd :: Functor f => Stream f a -> Stream f b -> Stream f b
 crossApplySnd (Stream stepa statea) (Stream stepb stateb) =
@@ -1380,6 +1437,14 @@ instance Applicative f => Applicative (Stream f) where
 crossWith :: Monad m => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
 crossWith f m1 m2 = fmap f m1 `crossApply` m2
 
+-- | Like 'crossWith' but interleaves the outer and inner loops fairly. See
+-- 'fairConcatFor' for more details.
+--
+{-# INLINE fairCrossWith #-}
+fairCrossWith :: Monad m =>
+    (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
+fairCrossWith f = fairCrossWithM (\a b -> return $ f a b)
+
 -- | Given a @Stream m a@ and @Stream m b@ generate a stream with all possible
 -- combinations of the tuple @(a, b)@.
 --
@@ -1398,6 +1463,12 @@ crossWith f m1 m2 = fmap f m1 `crossApply` m2
 {-# INLINE cross #-}
 cross :: Monad m => Stream m a -> Stream m b -> Stream m (a, b)
 cross = crossWith (,)
+
+-- | Like 'cross' but interleaves the outer and inner loops fairly. See
+-- 'fairConcatFor' for more details.
+{-# INLINE fairCross #-}
+fairCross :: Monad m => Stream m a -> Stream m b -> Stream m (a, b)
+fairCross = fairCrossWith (,)
 
 -- crossWith/cross should ideally use Stream m b as the first stream, because
 -- we are transforming Stream m a using that. We provide loop with arguments
