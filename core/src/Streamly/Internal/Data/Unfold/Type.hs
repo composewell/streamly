@@ -79,6 +79,7 @@ module Streamly.Internal.Data.Unfold.Type
     , takeWhile
 
     -- * Nesting
+    , interleave
     , ConcatState (..)
     , unfoldEach
     , unfoldEachInterleave
@@ -87,6 +88,9 @@ module Streamly.Internal.Data.Unfold.Type
     , crossApplySnd
     , crossApplyFst
     , crossWithM
+    , fairCrossWithM
+    , fairCrossWith
+    , fairCross
     , crossWith
     , cross
     , crossApply
@@ -96,6 +100,8 @@ module Streamly.Internal.Data.Unfold.Type
     , concatMap
     , bind
 
+    , zipArrowWithM
+    , zipArrowWith
     , zipWithM
     , zipWith
 
@@ -438,7 +444,10 @@ mapM f (Unfold ustep uinject) = Unfold step uinject
             Skip s    -> return $ Skip s
             Stop      -> return Stop
 
--- | Carry the input along with the output.
+-- | Carry the input along with the output as the first element of the output
+-- tuple.
+--
+-- carry = Unfold.lmap (\x -> (x,x)) . Unfold.zipRepeat
 --
 -- Note that the input seed may mutate (e.g. if the seed is a Handle or IORef)
 -- as stream is generated from it, so we need to be careful when reusing the
@@ -640,6 +649,59 @@ crossWithM f (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
             Skip s    -> return $ Skip (CrossInner a s1 b s)
             Stop      -> return $ Skip (CrossOuter a s1)
 
+data FairUnfoldState a o i =
+      FairUnfoldInit a o ([i] -> [i])
+    | FairUnfoldNext a o ([i] -> [i]) [i]
+    | FairUnfoldDrain ([i] -> [i]) [i]
+
+{-# INLINE_NORMAL fairCrossWithM #-}
+fairCrossWithM :: Monad m =>
+    (b -> c -> m d) -> Unfold m a b -> Unfold m a c -> Unfold m a d
+fairCrossWithM f (Unfold step1 inject1) (Unfold step2 inject2) =
+    Unfold step inject
+
+    where
+
+    inject a = do
+        s1 <- inject1 a
+        return $ FairUnfoldInit a s1 id
+
+    {-# INLINE_LATE step #-}
+    step (FairUnfoldInit a o ls) = do
+        r <- step1 o
+        case r of
+            Yield b o' -> do
+                i <- inject2 a
+                i `seq` return (Skip (FairUnfoldNext a o' id (ls [(b,i)])))
+            Skip o' -> return $ Skip (FairUnfoldInit a o' ls)
+            Stop -> return $ Skip (FairUnfoldDrain id (ls []))
+
+    step (FairUnfoldNext a o ys []) =
+            return $ Skip (FairUnfoldInit a o ys)
+
+    step (FairUnfoldNext a o ys ((b,st):ls)) = do
+        r <- step2 st
+        case r of
+            Yield c s ->
+                f b c >>= \x ->
+                    return $ Yield x (FairUnfoldNext a o (ys . ((b, s) :)) ls)
+            Skip s    -> return $ Skip (FairUnfoldNext a o ys ((b,s) : ls))
+            Stop      -> return $ Skip (FairUnfoldNext a o ys ls)
+
+    step (FairUnfoldDrain ys []) =
+        case ys [] of
+            [] -> return Stop
+            xs -> return $ Skip (FairUnfoldDrain id xs)
+
+    step (FairUnfoldDrain ys ((b,st):ls)) = do
+        r <- step2 st
+        case r of
+            Yield c s ->
+                f b c >>= \x ->
+                    return $ Yield x (FairUnfoldDrain (ys . ((b,s) :)) ls)
+            Skip s    -> return $ Skip (FairUnfoldDrain ys ((b,s) : ls))
+            Stop      -> return $ Skip (FairUnfoldDrain ys ls)
+
 -- | Like 'crossWithM' but uses a pure combining function.
 --
 -- > crossWith f = crossWithM (\b c -> return $ f b c)
@@ -654,6 +716,11 @@ crossWithM f (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
 crossWith :: Monad m =>
     (b -> c -> d) -> Unfold m a b -> Unfold m a c -> Unfold m a d
 crossWith f = crossWithM (\b c -> return $ f b c)
+
+{-# INLINE fairCrossWith #-}
+fairCrossWith :: Monad m =>
+    (b -> c -> d) -> Unfold m a b -> Unfold m a c -> Unfold m a d
+fairCrossWith f = fairCrossWithM (\b c -> return $ f b c)
 
 -- | See 'crossWith'.
 --
@@ -673,6 +740,10 @@ crossWith f = crossWithM (\b c -> return $ f b c)
 {-# INLINE_NORMAL cross #-}
 cross :: Monad m => Unfold m a b -> Unfold m a c -> Unfold m a (b, c)
 cross = crossWith (,)
+
+{-# INLINE_NORMAL fairCross #-}
+fairCross :: Monad m => Unfold m a b -> Unfold m a c -> Unfold m a (b, c)
+fairCross = fairCrossWith (,)
 
 {-# INLINE crossApply #-}
 crossApply :: Monad m => Unfold m a (b -> c) -> Unfold m a b -> Unfold m a c
@@ -878,8 +949,43 @@ instance Monad m => Category (Unfold m) where
 -- Zipping
 -------------------------------------------------------------------------------
 
+-- XXX call the original zipWith as distribute and this one as zip? or this
+-- could be called divide.
+--
+{-# INLINE_NORMAL zipArrowWithM #-}
+zipArrowWithM :: Monad m
+    => (b -> c -> m d) -> Unfold m a1 b -> Unfold m a2 c -> Unfold m (a1,a2) d
+zipArrowWithM f (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
+
+    where
+
+    inject (x,y) = do
+        s1 <- inject1 x
+        s2 <- inject2 y
+        return (s1, s2, Nothing)
+
+    {-# INLINE_LATE step #-}
+    step (s1, s2, Nothing) = do
+        r <- step1 s1
+        return $
+          case r of
+            Yield x s -> Skip (s, s2, Just x)
+            Skip s    -> Skip (s, s2, Nothing)
+            Stop      -> Stop
+
+    step (s1, s2, Just x) = do
+        r <- step2 s2
+        case r of
+            Yield y s -> do
+                z <- f x y
+                return $ Yield z (s1, s, Nothing)
+            Skip s -> return $ Skip (s1, s, Just x)
+            Stop   -> return Stop
+
 -- | Distribute the input to two unfolds and then zip the outputs to a single
 -- stream using a monadic zip function.
+--
+-- >>> zipWithM f u1 u2 = Unfold.lmap (\x -> (x,x)) (Unfold.zipArrowWithM f u1 u2)
 --
 -- Stops as soon as any of the unfolds stops.
 --
@@ -887,6 +993,8 @@ instance Monad m => Category (Unfold m) where
 {-# INLINE_NORMAL zipWithM #-}
 zipWithM :: Monad m
     => (b -> c -> m d) -> Unfold m a b -> Unfold m a c -> Unfold m a d
+zipWithM f u1 u2 = lmap (\x -> (x,x)) (zipArrowWithM f u1 u2)
+{-
 zipWithM f (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
 
     where
@@ -913,6 +1021,7 @@ zipWithM f (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
                 return $ Yield z (s1, s, Nothing)
             Skip s -> return $ Skip (s1, s, Just x)
             Stop   -> return Stop
+-}
 
 -- | Like 'zipWithM' but with a pure zip function.
 --
@@ -928,6 +1037,11 @@ zipWithM f (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
 zipWith :: Monad m
     => (b -> c -> d) -> Unfold m a b -> Unfold m a c -> Unfold m a d
 zipWith f = zipWithM (\a b -> return (f a b))
+
+{-# INLINE zipArrowWith #-}
+zipArrowWith :: Monad m
+    => (b -> c -> d) -> Unfold m a1 b -> Unfold m a2 c -> Unfold m (a1,a2) d
+zipArrowWith f = zipArrowWithM (\a b -> return (f a b))
 
 -------------------------------------------------------------------------------
 -- Arrow
@@ -969,7 +1083,54 @@ instance Monad m => Arrow (Unfold m) where
 --
 -- Similarly we can also have other binary combining ops like append, mergeBy.
 -- We already have zipWith.
---
+
+data InterleaveState s1 s2 =
+      InterleaveFirst s1 s2
+    | InterleaveSecond s1 s2
+    | InterleaveSecondOnly s2
+    | InterleaveFirstOnly s1
+
+-- | Interleave the streams generated by two unfolds.
+{-# INLINE_NORMAL interleave #-}
+interleave :: Monad m => Unfold m a c -> Unfold m b c -> Unfold m (a,b) c
+interleave (Unfold step1 inject1) (Unfold step2 inject2) =
+    Unfold step inject
+
+    where
+
+    inject (a,b) = do
+        s1 <- inject1 a
+        s2 <- inject2 b
+        return (InterleaveFirst s1 s2)
+
+    {-# INLINE_LATE step #-}
+    step (InterleaveFirst st1 st2) = do
+        r <- step1 st1
+        return $ case r of
+            Yield a s -> Yield a (InterleaveSecond s st2)
+            Skip s -> Skip (InterleaveFirst s st2)
+            Stop -> Skip (InterleaveSecondOnly st2)
+
+    step (InterleaveSecond st1 st2) = do
+        r <- step2 st2
+        return $ case r of
+            Yield a s -> Yield a (InterleaveFirst st1 s)
+            Skip s -> Skip (InterleaveSecond st1 s)
+            Stop -> Skip (InterleaveFirstOnly st1)
+
+    step (InterleaveFirstOnly st1) = do
+        r <- step1 st1
+        return $ case r of
+            Yield a s -> Yield a (InterleaveFirstOnly s)
+            Skip s -> Skip (InterleaveFirstOnly s)
+            Stop -> Stop
+
+    step (InterleaveSecondOnly st2) = do
+        r <- step2 st2
+        return $ case r of
+            Yield a s -> Yield a (InterleaveSecondOnly s)
+            Skip s -> Skip (InterleaveSecondOnly s)
+            Stop -> Stop
 
 data ManyInterleaveState o i =
       ManyInterleaveOuter o [i]

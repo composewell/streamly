@@ -29,6 +29,7 @@ module Streamly.Internal.Data.Unfold
     -- ** Generators
     -- | Generate a monadic stream from a seed.
     , repeatM
+    , repeat
     , replicateM
     , fromIndicesM
     , iterateM
@@ -79,6 +80,9 @@ module Streamly.Internal.Data.Unfold
 
     -- ** Cross product
     , innerJoin
+
+    -- ** Zip
+    , zipRepeat
 
     -- ** Resource Management
     -- | 'bracket' is the most general resource management operation, all other
@@ -135,7 +139,7 @@ import Streamly.Internal.Data.Unfold.Enumeration
 import Streamly.Internal.Data.Unfold.Type
 import Prelude
        hiding (map, mapM, takeWhile, take, filter, const, zipWith
-              , drop, dropWhile, either, scanl)
+              , drop, dropWhile, either, scanl, repeat)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Foreign (Storable, peek, sizeOf)
 import Foreign.Ptr
@@ -550,6 +554,32 @@ repeatM = Unfold step pure
 
     {-# INLINE_LATE step #-}
     step action = (`Yield` action) <$> action
+
+{-# INLINE repeat #-}
+repeat :: Applicative m => Unfold m a a
+repeat = lmap pure repeatM
+
+-- | Takes a tuple whose first element is repeated and the second element is
+-- passed through the supplied unfold.
+--
+-- >>> zipRepeat = fmap (\(x,y) -> (fst x, y)) . Unfold.carry . Unfold.lmap snd
+-- >>> zipRepeat = Unfold.zipArrowWith (,) Unfold.repeat
+--
+{-# INLINE_NORMAL zipRepeat #-}
+zipRepeat :: Functor m => Unfold m a b -> Unfold m (c,a) (c,b)
+-- zipRepeat = zipArrowWith (,) repeat
+zipRepeat (Unfold ustep uinject) = Unfold step (\(c,a) -> (c,) <$> uinject a)
+
+    where
+
+    func a r =
+        case r of
+            Yield x s -> Yield (a, x) (a, s)
+            Skip s    -> Skip (a, s)
+            Stop      -> Stop
+
+    {-# INLINE_LATE step #-}
+    step (a, st) = fmap (func a) (ustep st)
 
 -- | Generates an infinite stream starting with the given seed and applying the
 -- given function repeatedly.
