@@ -72,8 +72,8 @@ lmapM =
 
 both :: Bool
 both =
-    let unf = UF.both 1 (UF.function id)
-     in testUnfold unf undefined ([1] :: [Int])
+    let unf = UF.supply 1 (UF.function id)
+     in testUnfold unf () ([1] :: [Int])
 
 first :: Bool
 first =

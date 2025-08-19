@@ -70,6 +70,7 @@ module Streamly.Internal.Data.Unfold.Type
     , map
     , mapM
     , both
+    , supply
     , first
     , second
     , carry
@@ -309,12 +310,15 @@ lmapM f (Unfold ustep uinject) = Unfold ustep (f >=> uinject)
 
 -- | Supply the seed to an unfold closing the input end of the unfold.
 --
--- @
--- both a = Unfold.lmap (Prelude.const a)
--- @
+-- >>> supply a = Unfold.lmap (Prelude.const a)
 --
 -- /Pre-release/
 --
+{-# INLINE_NORMAL supply #-}
+supply :: a -> Unfold m a b -> Unfold m () b
+supply a = lmap (Prelude.const a)
+
+{-# DEPRECATED both "Use supply instead." #-}
 {-# INLINE_NORMAL both #-}
 both :: a -> Unfold m a b -> Unfold m Void b
 both a = lmap (Prelude.const a)

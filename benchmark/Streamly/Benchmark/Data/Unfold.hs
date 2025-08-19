@@ -120,7 +120,7 @@ lmapM size start =
 {-# INLINE both #-}
 both :: Monad m => Int -> Int -> m ()
 both size start =
-    drainTransformationDefault (size + start) (UF.both start) undefined
+    drainTransformationDefault (size + start) (UF.supply start) ()
 
 
 {-# INLINE first #-}
