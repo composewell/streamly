@@ -4,8 +4,26 @@
 
 ## Unreleased
 
-* Add several concurrent combinators for folds in `Streamly.Data.Fold.Prelude`.
-* Fix rate control for ordered streams.
+### Breaking Changes
+
+* Concurrent streams and folds now use separate concurrency config types. If you
+  were importing `Config` from the wrong module, you will need to update it.
+
+### Enhancements
+
+* Support for prompt cleanup of concurrent threads, allowing guaranteed
+  cleanup as an alternative to GC-based cleanup.
+* Introduced `Streamly.Data.Scanl.Prelude` for using concurrent
+  operations with the new `Scanl` type. Scans can split a stream into
+  multiple streams, process them concurrently, and merge the results.
+* Added new concurrent fold combinators in `Streamly.Data.Fold.Prelude`.
+* Fixed rate control for ordered streams.
+
+### Internal
+
+* Internal `FileSystem.Event.*` modules are deprecated; use the
+  [streamly-fsevents](https://github.com/composewell/streamly-fsevents) package.
+  instead.
 
 ## 0.10.1 (Jan 2024)
 

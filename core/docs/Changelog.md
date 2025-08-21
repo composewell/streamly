@@ -2,82 +2,60 @@
 
 ## Unreleased
 
-### Breaking Changes
-
-* In the `Streamly.Internal.Data.Parser` module, constructors `Partial`,
-  `Continue`, `Done` have been deprecated and replaced by `SPartial`,
-  `SContinue` and `SDone`.  Old code can be changed to use new
-  constructors as follows:
-  * In the step function of a parser the constructors should be replaced as
-    follows:
-    - `Partial n` by `SPartial (1-n)`
-    - `Continue n` by `SContinue (1-n)`
-    - `Done n` by `SDone (1-n)`
-    - `Error` by `SError`
-  * The signature for the extract function is changed. It now returns
-    `Parser.Final` instead of `Parser.Step`. The constructors should be
-    replaced as follows:
-    - `Contine n` by `FContinue (-n)`
-    - `Done n` by `FDone (-n)`
-    - `Partial n` by `FContinue (-n)`
-    - `Error` by `FError`
-  * If the `n` returned by these constructors is used in making some decisions,
-    that will have to be modified accordingly. See the docs for more details.
-
-* Concurrent streams and folds now use separate types for concurrency
-  config. If you are importing the `Config` type from an incorrect module,
-  you will have to fix that.
-
-### Enhancements
-
-* Add APIs for prompt cleanup of allocated resources as well as cleanup of
-  concurrent threads. You can choose to use guaranteed prompt cleanup over GC
-  based cleanup by using the new APIs.
-* Add several new concurrent combinators for folds in
-  `Streamly.Data.Fold.Prelude`.
-* Add `Streamly.Data.Scanl` module is added for the new `Scanl` type. Composable
-  scans can be used to split streams into multiple streams, process them
-  independently (concurrently too) and merge the results. The `Fold` type has
-  been split in two types, `Fold` and `Scanl`.
-* Add a `Path` type and some type wrappers for flexibly typed file
-  system paths, following modules are added:
-  - Streamly.FileSystem.Path
-  - Streamly.FileSystem.Path.Node
-  - Streamly.FileSystem.Path.Seg
-  - Streamly.FileSystem.Path.SegNode
-* Add `Streamly.FileSystem.DirIO` and `Streamly.FileSystem.FileIO`
-  modules. These new module replace `Streamly.FileSystem.Dir`,
-  `Streamly.FileSystem.File` modules which have been deprecated.  The
-  new modules have the same API as old ones except that they use
-  the streamly native `Path` type instead of `FilePath` for path
-  representation. The DirIO module API takes an additional ReadOptions
-  argument to modify the behavior.  Please note that the directory read
-  APIs in the new module do not follow symlinks by default.
-* Remove the `Storable` constraint from the following functions:
-  - Streamly.Data.Stream.isInfixOf
-  - Streamly.Data.Array.writeLastN
-
-### Deprecations and API changes
-
-* `Streamly.FileSystem.Dir`, `Streamly.FileSystem.File` modules have
-  been deprecated.
-* Rename `writeN`-like APIs to `createOf`-like in Array modules.
-* Rename `new`-like APIs to `emptyOf`-like in Array modules.
-* In the Fold module `indexGeneric`, `lengthGeneric`, and `foldlM1'` to
-   `genericIndex`, `genericLength`, and `foldl1M'` respectively.
-
 See [0.2.2-0.3.0 API Changelog](/core/docs/ApiChangelogs/0.2.2-0.3.0.txt) for a
 full list of deprecations, additions, and changes to the function signatures.
 
+### Enhancements
+
+* Added APIs for prompt cleanup of resources, allowing guaranteed
+  cleanup as an alternative to GC-based cleanup.
+* Introduced `Streamly.Data.Scanl` with a new `Scanl` type. Scans can
+  split a stream into multiple streams, process them independently, and
+  merge the results. The `Fold` type is now split into `Fold` and `Scanl`.
+* Added `Streamly.FileSystem.Path` module with a `Path` type for flexibly typed
+  file system paths.
+* Added `Streamly.FileSystem.DirIO` and `Streamly.FileSystem.FileIO` to replace
+  the deprecated `Streamly.FileSystem.Dir` and `Streamly.FileSystem.File`. The
+  new modules use Streamly’s native `Path` type instead of `FilePath`. `DirIO`
+  APIs take a `ReadOptions` argument, and its directory read APIs do not follow
+  symlinks by default.
+* Removed `Storable` constraint from:
+  - `Streamly.Data.Stream.isInfixOf`
+  - `Streamly.Data.Array.writeLastN`
+
+### Deprecations
+
+Following APIs/modules are deprecated and renamed or replaced with new
+APIs.
+* `Streamly.FileSystem.Dir`, `Streamly.FileSystem.File` have been replaced by
+  new modules.
+* Renamed `writeN`-like APIs to `createOf`-like in Array modules.
+* Renamed `new`-like APIs to `emptyOf`-like in Array modules.
+* In the Fold module renamed `indexGeneric`, `lengthGeneric`, and `foldlM1'` to
+  `genericIndex`, `genericLength`, and `foldl1M'` respectively.
+
 ### Internal API Changes
 
-* Functions in internal (mut)array modules now explicitly use
-  `IO` callback instead of a lifted callback.
-* The internal `FileSystem.Event.*` modules have been deprecated in favor of the
-  [streamly-fsevents](https://github.com/composewell/streamly-fsevents) package.
-* Remove the `Storable` constraint from several functions involving the ring
-  buffer.
-* `Streamly.Internal.Data.IORef` is a new module exposing `IORef` and friends.
+* In `Streamly.Internal.Data.Parser`, constructors `Partial`, `Continue`, and
+  `Done` are deprecated and replaced with `SPartial`, `SContinue`, and `SDone`.
+  Migration steps:
+  * In parser step functions:
+    - `Partial n` -> `SPartial (1-n)`
+    - `Continue n` -> `SContinue (1-n)`
+    - `Done n` -> `SDone (1-n)`
+    - `Error` -> `SError`
+  * Extract function now returns `Parser.Final` (instead of `Parser.Step`):
+    - `Continue n` -> `FContinue (-n)`
+    - `Done n` -> `FDone (-n)`
+    - `Partial n` -> `FContinue (-n)`
+    - `Error` -> `FError`
+  * If `n` is used for decision-making, the logic must be updated accordingly.
+    See docs for details.
+* Internal (mut)array functions now use explicit IO callbacks instead of lifted
+  callbacks.
+* Removed `Storable` constraint from several ring buffer functions.
+* Added `Streamly.Internal.Data.IORef` module exposing `IORef` and related
+  functions.
 
 ## 0.2.2 (Jan 2024)
 
