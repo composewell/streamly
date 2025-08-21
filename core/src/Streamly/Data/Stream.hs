@@ -566,7 +566,9 @@ module Streamly.Data.Stream
     -- transformed stream at the end we can have a flipped version called
     -- "crossMap" or "nestWith".
     , crossWith
-    -- , cross
+    , cross
+    , fairCrossWith
+    , fairCross
     -- , joinInner
     -- , CrossStream (..)
 
@@ -580,6 +582,8 @@ module Streamly.Data.Stream
     -- >>> unwords = Stream.unfoldEachSepBySeq " " Unfold.fromList
     --
     , unfoldEach
+    , bfsUnfoldEach
+    , fairUnfoldEach
     , unfoldEachSepBySeq
     , unfoldEachEndBySeq
 
@@ -608,6 +612,16 @@ module Streamly.Data.Stream
     , concatEffect
     , concatMap
     , concatMapM
+    -- , bfsConcatMap
+    , fairConcatMap
+
+    , concatFor
+    -- , bfsConcatFor
+    , fairConcatFor
+
+    , concatForM
+    -- , bfsConcatForM
+    , fairConcatForM
 
     -- * Repeated Fold
     -- | Idioms and equivalents of Data.List APIs:
