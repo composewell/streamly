@@ -82,6 +82,13 @@ module Streamly.Unicode.Stream
     , decodeUtf8'
     , decodeUtf8Chunks
 
+    -- ** Resumable UTF-8 Decoding
+    , DecodeError(..)
+    , DecodeState
+    , CodePoint
+    , decodeUtf8Either
+    , resumeDecodeUtf8Either
+
     -- * Elimination (Encoding)
     , encodeLatin1
     , encodeLatin1'
