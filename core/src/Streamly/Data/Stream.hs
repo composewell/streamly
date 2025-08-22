@@ -690,7 +690,7 @@ module Streamly.Data.Stream
     , isSubsequenceOf
 
     -- trimming sequences
-    -- , stripPrefix
+    , stripPrefix
     -- , stripSuffix
     -- , stripSuffixUnbox
 
