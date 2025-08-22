@@ -404,7 +404,6 @@ library
                      , Streamly.Internal.Data.Scanl
 
                      -- streamly-core-data-arrays
-                     , Streamly.Internal.Data.Array.Generic.Type
                      , Streamly.Internal.Data.Array.Generic
                      , Streamly.Internal.Data.Array
 
@@ -453,24 +452,18 @@ library
 
                      -- To be implemented
                      -- , Streamly.Data.Refold
-                     -- , Streamly.Data.Binary.Encode -- Stream types
 
                      -- Pre-release modules
                      -- , Streamly.Data.Pipe
-                     -- , Streamly.Data.Array.Stream
-                     -- , Streamly.Data.Array.Fold
-                     -- , Streamly.Data.Array.Mut.Stream
                      -- , Streamly.Data.RingArray
                      -- , Streamly.Data.RingArray.Generic
-                     -- , Streamly.Data.IORef.Unboxed
+                     -- , Streamly.Data.IORef
                      -- , Streamly.Data.List
-                     -- , Streamly.Data.Binary.Decode
                      -- , Streamly.Data.Time.Units
                      -- , Streamly.Data.Time.Clock
                      -- , Streamly.Data.Tuple.Strict
                      -- , Streamly.Data.Maybe.Strict
                      -- , Streamly.Data.Either.Strict
-                     -- , Streamly.Data.Scanr
 
                      -- streamly-core released modules in alphabetic order
                      -- NOTE: these must be added to streamly.cabal as well
@@ -556,6 +549,7 @@ library
                     , Streamly.Internal.Data.MutArray.Type
 
                     , Streamly.Internal.Data.Array.Type
+                    , Streamly.Internal.Data.Array.Generic.Type
 
                     , Streamly.Internal.Data.MutByteArray.Type
                     , Streamly.Internal.Data.Unbox
