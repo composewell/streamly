@@ -80,6 +80,8 @@ module Streamly.Unicode.Stream
       decodeLatin1
     , decodeUtf8
     , decodeUtf8'
+    , decodeUtf16le
+    , decodeUtf16le'
     , decodeUtf8Chunks
 
     -- * Elimination (Encoding)
@@ -87,6 +89,8 @@ module Streamly.Unicode.Stream
     , encodeLatin1'
     , encodeUtf8
     , encodeUtf8'
+    , encodeUtf16le
+    , encodeUtf16le'
     , encodeStrings
     {-
     -- * Operations on character strings
