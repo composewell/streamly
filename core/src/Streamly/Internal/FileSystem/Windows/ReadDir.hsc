@@ -206,6 +206,13 @@ readDirStreamEither _ (DirStream (h, ref, fdata)) =
 
     where
 
+    -- XXX: for a symlink the attribute may have a FILE_ATTRIBUTE_DIRECTORY if
+    -- the symlink was created as a directory symlink, but it might have
+    -- changed later. To find the real type of the symlink when we have
+    -- followSymlinks option on we need to check if it is a
+    -- FILE_ATTRIBUTE_REPARSE_POINT, we need to open the reparse point and find
+    -- the type.
+
     processEntry ptr = do
         let dname = #{ptr WIN32_FIND_DATAW, cFileName} ptr
         dattrs :: #{type DWORD} <-

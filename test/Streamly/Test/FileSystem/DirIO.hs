@@ -118,13 +118,13 @@ testSymLinkFollow = do
             testCorrectness
                 sortedAnswerFollowSym
                 (listDirUnfoldDfs
-                     (Dir.followSymlinks True . Dir.ignoreNonExisting True)
+                     (Dir.followSymlinks True . Dir.ignoreMissing True)
                      fp)
         it "followSymlinks False" $
             testCorrectness
                 sortedAnswerNoFollowSym
                 (listDirUnfoldDfs
-                     (Dir.followSymlinks False . Dir.ignoreNonExisting True)
+                     (Dir.followSymlinks False . Dir.ignoreMissing True)
                      fp)
 
 -- | List the current directory recursively

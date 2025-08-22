@@ -85,9 +85,9 @@ module Streamly.Internal.FileSystem.DirIO
     , defaultReadOptions
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
     , followSymlinks
-    , ignoreNonExisting
-    , ignoreLoopErrors
-    , ignoreInAccessible
+    , ignoreMissing
+    , ignoreSymlinkLoops
+    , ignoreInaccessible
 #endif
 
     -- * Streams
@@ -161,7 +161,7 @@ import Streamly.Internal.FileSystem.Windows.ReadDir
 #else
 import Streamly.Internal.FileSystem.Posix.ReadDir
     ( readEitherChunks, eitherReader, reader, ReadOptions, defaultReadOptions
-    , followSymlinks, ignoreNonExisting, ignoreLoopErrors, ignoreInAccessible
+    , followSymlinks, ignoreMissing, ignoreSymlinkLoops, ignoreInaccessible
     )
 #endif
 import qualified Streamly.Internal.Data.Stream as S

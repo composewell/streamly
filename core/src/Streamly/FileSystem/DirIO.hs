@@ -22,9 +22,9 @@ module Streamly.FileSystem.DirIO
 #else
       ReadOptions
     , followSymlinks
-    , ignoreNonExisting
-    , ignoreLoopErrors
-    , ignoreInAccessible
+    , ignoreMissing
+    , ignoreSymlinkLoops
+    , ignoreInaccessible
 #endif
     -- * Streams
     , read
