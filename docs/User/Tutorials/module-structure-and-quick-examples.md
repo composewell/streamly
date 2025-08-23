@@ -421,7 +421,7 @@ import qualified Streamly.Console.Stdio as Console
 import qualified Streamly.FileSystem.FileIO as File
 
 main =
-  Dir.read id [path|.|]                -- Stream IO Path
+  Dir.read [path|.|]                   -- Stream IO Path
     & Stream.concatMap File.readChunks -- Stream IO (Array Word8)
     & Console.putChunks                -- IO ()
 ```

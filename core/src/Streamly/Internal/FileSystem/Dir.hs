@@ -136,7 +136,7 @@ pMapUnfoldE = fmap ePathMap . Unfold.lmapM Path.fromString
 --
 {-# INLINE reader #-}
 reader :: (MonadIO m, MonadCatch m) => Unfold m FilePath FilePath
-reader = fmap Path.toString $ Unfold.lmapM Path.fromString (DirIO.reader CONF)
+reader = fmap Path.toString $ Unfold.lmapM Path.fromString DirIO.reader
 
 -- | Read directories as Left and files as Right. Filter out "." and ".."
 -- entries.

@@ -331,9 +331,9 @@ dirReader f = fmap (fromLeft undefined) $ UF.filter isLeft (eitherReader f)
 --
 -- /Pre-release/
 {-# INLINE read #-}
-read :: (MonadIO m, MonadCatch m) => (ReadOptions -> ReadOptions) ->
+read :: (MonadIO m, MonadCatch m) =>
     Path -> Stream m Path
-read f = S.unfold (reader f)
+read = S.unfold reader
 
 -- | Read directories as Left and files as Right. Filter out "." and ".."
 -- entries. The output contains the names of the directories and files.

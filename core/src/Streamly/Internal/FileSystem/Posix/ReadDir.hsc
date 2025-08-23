@@ -378,10 +378,8 @@ streamEitherReader confMod = Unfold step return
             Just x -> return $ Yield x s
 
 {-# INLINE streamReader #-}
-streamReader
-    :: MonadIO m
-    => (ReadOptions -> ReadOptions) -> Unfold m (PosixPath, DirStream) Path
-streamReader confMod = fmap (either id id) (streamEitherReader confMod)
+streamReader :: MonadIO m => Unfold m (PosixPath, DirStream) Path
+streamReader = fmap (either id id) (streamEitherReader id)
 
 {-# INLINE before #-}
 before :: PosixPath -> IO (PosixPath, DirStream)
@@ -397,14 +395,13 @@ after (_, dirStream) = closeDirStream dirStream
 --  /Internal/
 --
 {-# INLINE reader #-}
-reader :: (MonadIO m, MonadCatch m)
-       => (ReadOptions -> ReadOptions) -> Unfold m Path Path
-reader confMod =
+reader :: (MonadIO m, MonadCatch m) => Unfold m Path Path
+reader =
     -- XXX Instead of using bracketIO for each iteration of the loop we should
     -- instead yield a buffer of dir entries in each iteration and then use an
     -- unfold and concat to flatten those entries. That should improve the
     -- performance.
-    UF.bracketIO before after (streamReader confMod)
+    UF.bracketIO before after (streamReader)
 
 -- | Read directories as Left and files as Right. Filter out "." and ".."
 -- entries.
