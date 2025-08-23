@@ -455,7 +455,6 @@ library
 
                      -- Pre-release modules
                      -- , Streamly.Data.Pipe
-                     -- , Streamly.Data.RingArray
                      -- , Streamly.Data.RingArray.Generic
                      -- , Streamly.Data.IORef
                      -- , Streamly.Data.List
@@ -466,18 +465,18 @@ library
                      -- , Streamly.Data.Either.Strict
 
                      -- streamly-core released modules in alphabetic order
-                     -- NOTE: these must be added to streamly.cabal as well
                      , Streamly.Console.Stdio
                      , Streamly.Control.Exception
-                     , Streamly.Data.MutByteArray
                      , Streamly.Data.Array
                      , Streamly.Data.Array.Generic
+                     , Streamly.Data.Fold
                      , Streamly.Data.MutArray
                      , Streamly.Data.MutArray.Generic
-                     , Streamly.Data.Fold
-                     , Streamly.Data.Scanl
+                     , Streamly.Data.MutByteArray
                      , Streamly.Data.Parser
                      , Streamly.Data.ParserK
+                     , Streamly.Data.RingArray
+                     , Streamly.Data.Scanl
                      , Streamly.Data.Stream
                      , Streamly.Data.StreamK
                      , Streamly.Data.Unfold

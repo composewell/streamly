@@ -107,8 +107,6 @@ module Streamly.Data.Array
     )
 where
 
-#include "inline.hs"
-
 import Streamly.Internal.Data.Array
 import Streamly.Internal.Data.MutByteArray (Unbox(..), Serialize(..))
 

@@ -285,16 +285,22 @@ unsafeCastMutArray = unsafeCastMutArrayWith 0
 -- field in the ring. For copying we can have another API though.
 
 -- XXX castMutArray is called unsafeFreeze in the Array module. Make the naming
--- consistent? Also we can use castMutArrayWith to specify the index and use
--- the default index 0.
+-- consistent?
 
--- | @castMutArray arr index@ casts a mutable array to a ring array having
--- the ring head at @index@ position in the array.
+-- | @castMutArrayWith index arr@ casts a mutable array to a ring array, and
+-- positions the ring head at the given @index@ in the array.
+--
+-- A MutArray can be a slice which means its memory starts from some offset in
+-- the underlying MutableByteArray, and not from 0 offset. RingArray always
+-- uses the memory from offset zero in the MutableByteArray, therefore, it
+-- refuses to cast if it finds the array does not start from offset zero i.e.
+-- if the array was created from some slicing operation over another array. In
+-- such cases it returns 'Nothing'.
+--
+-- To create a RingArray from a sliced MutArray use 'createOfLast', or clone
+-- the MutArray and then cast it.
 --
 -- This operation throws an error if the index is not within the array bounds.
--- It returns Nothing if the array cannot be cast into ring because the array
--- is a slice. In that case clone the array and cast it or stream the array and
--- use 'createOfLast' to create a ring.
 --
 {-# INLINE castMutArrayWith #-}
 castMutArrayWith :: forall a. Unbox a => Int -> MutArray a -> Maybe (RingArray a)
@@ -306,8 +312,10 @@ castMutArrayWith i arr
     | otherwise = Nothing
 
 -- | Cast a MutArray to a ring sharing the same memory without copying. The
--- ring head is at index 0 of the array. Cast fails with Nothing if the array
--- is a slice.
+-- ring head is positioned at index 0 of the array. The size of the ring is
+-- equal to the MutArray length.
+--
+-- See 'castMutArrayWith' for failure scenarios.
 --
 -- >>> castMutArray = RingArray.castMutArrayWith 0
 --
@@ -667,7 +675,8 @@ eqArrayN RingArray{..} Array.Array{..} nBytes
 {-# INLINE eqArray #-}
 eqArray :: RingArray a -> Array a -> IO Bool
 eqArray RingArray{..} Array.Array{..}
-    | arrEnd - arrStart < ringSize = error "eqArrayN: array is shorter than ring"
+    | arrEnd - arrStart < ringSize =
+        error "eqArrayN: array is shorter than ring"
     | otherwise = do
           part1 <-
               MutByteArray.unsafeByteCmp
@@ -832,6 +841,10 @@ asMutArray rb =
     , ringHead rb
     )
 
+-- | Like 'asMutArray' but does not return the ring head.
+--
+-- >>> asMutArray_ = fst . RingArray.asMutArray
+--
 {-# INLINE asMutArray_ #-}
 asMutArray_ :: RingArray a -> MutArray a
 asMutArray_ rb =
