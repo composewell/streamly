@@ -9,10 +9,7 @@
 module Streamly.Internal.FileSystem.Windows.ReadDir
     (
 #if defined(mingw32_HOST_OS) || defined(__MINGW32__)
-      ReadOptions
-    , defaultReadOptions
-
-    , DirStream
+      DirStream
     , openDirStream
     , closeDirStream
     , readDirStreamEither
@@ -43,6 +40,7 @@ import qualified Streamly.Internal.Data.Unfold as UF (bracketIO)
 import qualified Streamly.Internal.FileSystem.WindowsPath as Path
 import qualified System.Win32 as Win32 (failWith)
 
+import Streamly.Internal.FileSystem.DirOptions
 import Foreign hiding (void)
 
 #include <windows.h>
@@ -136,15 +134,6 @@ failIf p wh act = do
 
 iNVALID_HANDLE_VALUE :: HANDLE
 iNVALID_HANDLE_VALUE = castUINTPtrToPtr maxBound
-
-------------------------------------------------------------------------------
--- Config
-------------------------------------------------------------------------------
-
-data ReadOptions = ReadOptions
-
-defaultReadOptions :: ReadOptions
-defaultReadOptions = ReadOptions
 
 ------------------------------------------------------------------------------
 -- Dir stream implementation

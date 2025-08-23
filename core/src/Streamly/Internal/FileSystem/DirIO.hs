@@ -81,14 +81,7 @@ module Streamly.Internal.FileSystem.DirIO
     -- getMetadata GetMetadata (followSymlinks, noAutoMount - see fstatat)
 
     -- * Configuration
-      ReadOptions
-    , defaultReadOptions
-#if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
-    , followSymlinks
-    , ignoreMissing
-    , ignoreSymlinkLoops
-    , ignoreInaccessible
-#endif
+      module Streamly.Internal.FileSystem.DirOptions
 
     -- * Streams
     , read
@@ -156,18 +149,16 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.FileSystem.Path (Path)
 #if defined(mingw32_HOST_OS) || defined(__MINGW32__)
 import qualified Streamly.Internal.Data.Fold as Fold
-import Streamly.Internal.FileSystem.Windows.ReadDir
-    (eitherReader, reader, ReadOptions, defaultReadOptions)
+import Streamly.Internal.FileSystem.Windows.ReadDir (eitherReader, reader)
 #else
 import Streamly.Internal.FileSystem.Posix.ReadDir
-    ( readEitherChunks, eitherReader, reader, ReadOptions, defaultReadOptions
-    , followSymlinks, ignoreMissing, ignoreSymlinkLoops, ignoreInaccessible
-    )
+    ( readEitherChunks, eitherReader, reader)
 #endif
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.FileSystem.Path as Path
 
+import Streamly.Internal.FileSystem.DirOptions
 import Prelude hiding (read)
 
 {-

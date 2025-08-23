@@ -564,6 +564,7 @@ library
 
                     , Streamly.Internal.Data.Time.Clock.Type
                     , Streamly.Internal.FileSystem.Path.Common
+                    , Streamly.Internal.FileSystem.DirOptions
 
     if flag(internal-dev)
       exposed-modules:
