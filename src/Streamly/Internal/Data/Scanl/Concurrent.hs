@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Streamly.Internal.Data.Scanl.Concurrent
 -- Copyright   : (c) 2024 Composewell Technologies
@@ -37,12 +38,7 @@ import qualified Streamly.Internal.Data.Stream as Stream
 import Streamly.Internal.Data.Fold.Channel.Type
 import Streamly.Internal.Data.Channel.Types
 
--- $setup
--- >>> :set -fno-warn-deprecations
--- >>> import Control.Concurrent (threadDelay)
--- >>> import qualified Streamly.Internal.Data.Stream as Stream
--- >>> import qualified Streamly.Internal.Data.Scanl as Scanl
--- >>> import qualified Streamly.Internal.Data.Scanl.Concurrent as Scanl
+#include "DocTestDataScanl.hs"
 
 -------------------------------------------------------------------------------
 -- Concurrent scans
