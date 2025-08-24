@@ -427,6 +427,7 @@ library
                      , Streamly.Data.Stream.MkType
                      , Streamly.Data.Stream.Prelude
                      , Streamly.Data.Fold.Prelude
+                     , Streamly.Data.Scanl.Prelude
 
                      -- Network/IO
                      , Streamly.Network.Socket
