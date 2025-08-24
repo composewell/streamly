@@ -74,24 +74,7 @@ extra-source-files:
     configure.ac
 
    -- doctest include files
-    src/DocTestControlException.hs
-    src/DocTestDataArray.hs
-    src/DocTestDataFold.hs
-    src/DocTestDataMutArray.hs
-    src/DocTestDataMutArrayGeneric.hs
-    src/DocTestDataParser.hs
-    src/DocTestDataParserK.hs
-    src/DocTestDataScanl.hs
-    src/DocTestDataStream.hs
-    src/DocTestDataStreamK.hs
-    src/DocTestDataUnfold.hs
-    src/DocTestFileSystemHandle.hs
-    src/DocTestFileSystemPath.hs
-    src/DocTestFileSystemPosixPath.hs
-    src/DocTestFileSystemWindowsPath.hs
-    src/DocTestUnicodeParser.hs
-    src/DocTestUnicodeStream.hs
-    src/DocTestUnicodeString.hs
+    src/doctest/*.hs
 
     -- This is duplicated
     src/Streamly/Internal/Data/Array/ArrayMacros.h
@@ -327,6 +310,7 @@ library
 
     include-dirs:
           src
+        , src/doctest
         , src/Streamly/Internal/Data
         , src/Streamly/Internal/Data/Array
         , src/Streamly/Internal/Data/Stream
