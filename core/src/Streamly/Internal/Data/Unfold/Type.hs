@@ -113,7 +113,6 @@ module Streamly.Internal.Data.Unfold.Type
     , map2
     , mapM2
     , takeWhileMWithInput
-    , unfoldEach2
     )
 where
 
@@ -581,11 +580,11 @@ crossApplyFst (Unfold _step1 _inject1) (Unfold _step2 _inject2) = undefined
 data Many2State x s1 s2 = Many2Outer x s1 | Many2Inner x s1 s2
 -}
 
-{-# DEPRECATED unfoldEach2 "Use carry with unfoldEach instead." #-}
-{-# INLINE_NORMAL unfoldEach2 #-}
-unfoldEach2, many2 :: Monad m =>
+{-# DEPRECATED many2 "Use carry with unfoldEach instead." #-}
+{-# INLINE_NORMAL many2 #-}
+many2 :: Monad m =>
     Unfold m (a, b) c -> Unfold m a b -> Unfold m a c
-unfoldEach2 u1 u2 = unfoldEach u1 (carry u2)
+many2 u1 u2 = unfoldEach u1 (carry u2)
 {-
 unfoldEach2 (Unfold step2 inject2) (Unfold step1 inject1) = Unfold step inject
 
@@ -612,8 +611,6 @@ unfoldEach2 (Unfold step2 inject2) (Unfold step1 inject1) = Unfold step inject
             Skip s    -> Skip (Many2Inner a ost s)
             Stop      -> Skip (Many2Outer a ost)
 -}
-
-RENAME(many2,unfoldEach2)
 
 data Cross a s1 b s2 = CrossOuter a s1 | CrossInner a s1 b s2
 

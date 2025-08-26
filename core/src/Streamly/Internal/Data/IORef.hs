@@ -34,9 +34,6 @@ module Streamly.Internal.Data.IORef
     , readIORef
     , pollGenericIORef
     , pollIORefInt
-
-    -- Deprecated
-    , pollIntIORef
     )
 where
 
@@ -102,11 +99,6 @@ pollGenericIORef var = D.Stream step ()
 
     {-# INLINE_LATE step #-}
     step _ () = liftIO (readIORef var) >>= \x -> return $ D.Yield x ()
-
-{-# DEPRECATED pollIntIORef "Use pollIORefInt instead." #-}
-{-# INLINE_NORMAL pollIntIORef #-}
-pollIntIORef :: (MonadIO m, Unbox a) => IORef a -> D.Stream m a
-pollIntIORef = pollGenericIORef
 
 -- | Generate a stream by continuously reading the IORef.
 --

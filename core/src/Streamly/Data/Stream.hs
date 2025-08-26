@@ -763,7 +763,6 @@ module Streamly.Data.Stream
     , scanMaybe
     , postscan
     , splitOn
-    , splitOnSeq
     , unfoldMany
     , intercalate
     , intercalateSuffix
