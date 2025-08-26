@@ -56,7 +56,6 @@ module Streamly.Internal.Data.Array.Generic.Type
     , strip
     , getIndexUnsafe
     , getSliceUnsafe
-    , unsafeGetSlice
     , writeN
     , write
     , fromByteStr#
@@ -302,7 +301,7 @@ createOfLast n = FL.rmapM f (RB.createOf n)
         return $ unsafeFreeze arr
 
 {-# INLINE unsafeSliceOffLen #-}
-unsafeSliceOffLen, getSliceUnsafe, unsafeGetSlice
+unsafeSliceOffLen, getSliceUnsafe
     :: Int -> Int -> Array a -> Array a
 unsafeSliceOffLen offset len =
     unsafeFreeze . MArray.unsafeSliceOffLen offset len . unsafeThaw
@@ -372,7 +371,6 @@ instance Read a => Read (Array a) where
 
 RENAME(strip,dropAround)
 RENAME(getSliceUnsafe,unsafeSliceOffLen)
-RENAME(unsafeGetSlice,unsafeSliceOffLen)
 RENAME(getIndexUnsafe,unsafeGetIndex)
 
 --------------------------------------------------------------------------------

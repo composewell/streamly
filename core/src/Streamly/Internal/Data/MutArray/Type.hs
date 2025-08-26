@@ -421,15 +421,10 @@ module Streamly.Internal.Data.MutArray.Type
     , roundUpToPower2
 
     -- * Deprecated
-    , unsafeGetSlice
     , getSlice
-    , sliceEndBy_
     , strip
-    , stripStart
-    , stripEnd
     , breakOn
     , splitAt
-    , unsafeSplitAt
     , realloc
     , createOfWith
     , peekUncons
@@ -1615,7 +1610,7 @@ getIndices = indexReader
 --
 -- /Pre-release/
 {-# INLINE unsafeSliceOffLen #-}
-unsafeSliceOffLen, getSliceUnsafe, unsafeGetSlice :: forall a. Unbox a
+unsafeSliceOffLen, getSliceUnsafe  :: forall a. Unbox a
     => Int -- ^ from index
     -> Int -- ^ length of the slice
     -> MutArray a
@@ -3325,12 +3320,11 @@ splitUsing f predicate arr =
 --
 -- /Pre-release/
 {-# INLINE splitEndBy_ #-}
-splitEndBy_, sliceEndBy_, splitOn :: (MonadIO m, Unbox a) =>
+splitEndBy_, splitOn :: (MonadIO m, Unbox a) =>
     (a -> Bool) -> MutArray a -> Stream m (MutArray a)
 splitEndBy_ = splitUsing D.indexEndBy_
 
 RENAME(splitOn,splitEndBy_)
-RENAME(sliceEndBy_,splitEndBy_)
 
 -- | Generate a stream of array slices using a predicate. The array element
 -- matching the predicate is included.
@@ -3484,7 +3478,7 @@ RENAME(breakOn,breakEndByWord8_)
 -- >>> unsafeBreakAt i arr = (MutArray.unsafeSliceOffLen 0 i arr, MutArray.unsafeSliceOffLen i (MutArray.length arr - i) arr)
 --
 {-# INLINE unsafeBreakAt #-}
-unsafeBreakAt, unsafeSplitAt :: forall a. Unbox a =>
+unsafeBreakAt :: forall a. Unbox a =>
     Int -> MutArray a -> (MutArray a, MutArray a)
 unsafeBreakAt i MutArray{..} =
     -- (unsafeSliceOffLen 0 i arr, unsafeSliceOffLen i (length arr - i) arr)
@@ -3503,7 +3497,6 @@ unsafeBreakAt i MutArray{..} =
           , arrBound = arrBound
           }
         )
-RENAME(unsafeSplitAt,unsafeBreakAt)
 
 -- | Create two slices of an array without copying the original array. The
 -- specified index @i@ is the first index of the second slice.
@@ -4131,7 +4124,7 @@ retractEndTill eq MutArray{..} = go arrEnd
 --
 -- /Pre-release/
 {-# INLINE dropWhile #-}
-dropWhile, stripStart :: forall a m. (Unbox a, MonadIO m) =>
+dropWhile :: forall a m. (Unbox a, MonadIO m) =>
     (a -> Bool) -> MutArray a -> m (MutArray a)
 dropWhile eq arr@MutArray{..} = liftIO $ do
     st <- advanceStartTill eq arr
@@ -4140,7 +4133,6 @@ dropWhile eq arr@MutArray{..} = liftIO $ do
         if st >= arrEnd
         then empty
         else arr{arrStart = st}
-RENAME(stripStart,dropWhile)
 
 -- | Strip elements which match the predicate, from the end of the array.
 --
@@ -4151,7 +4143,7 @@ RENAME(stripStart,dropWhile)
 --
 -- /Pre-release/
 {-# INLINE revDropWhile #-}
-revDropWhile, stripEnd :: forall a m. (Unbox a, MonadIO m) =>
+revDropWhile :: forall a m. (Unbox a, MonadIO m) =>
     (a -> Bool) -> MutArray a -> m (MutArray a)
 revDropWhile eq arr@MutArray{..} = liftIO $ do
     end <- retractEndTill eq arr
@@ -4160,7 +4152,6 @@ revDropWhile eq arr@MutArray{..} = liftIO $ do
         if end <= arrStart
         then empty
         else arr{arrEnd = end}
-RENAME(stripEnd,revDropWhile)
 
 -- | Strip elements which match the predicate, from both ends.
 --
@@ -4211,7 +4202,6 @@ RENAME(realloc,reallocBytes)
 RENAME(castUnsafe,unsafeCast)
 RENAME(newArrayWith,emptyWithAligned)
 RENAME(getSliceUnsafe,unsafeSliceOffLen)
-RENAME(unsafeGetSlice,unsafeSliceOffLen)
 RENAME(getSlice,sliceOffLen)
 RENAME(putIndexUnsafe,unsafePutIndex)
 RENAME(modifyIndexUnsafe,unsafeModifyIndex)

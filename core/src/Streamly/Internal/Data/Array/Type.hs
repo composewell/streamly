@@ -169,13 +169,8 @@ module Streamly.Internal.Data.Array.Type
     , compactMin
 
     -- ** Deprecated
-    , unsafeGetSlice
-    , strip
-    , stripStart
-    , stripEnd
     , breakOn
     , splitAt
-    , unsafeSplitAt
     , asPtrUnsafe
     , unsafeIndex
     , bufferChunks
@@ -550,7 +545,7 @@ fromStreamD = fromStream
 --
 -- /Pre-release/
 {-# INLINE unsafeSliceOffLen #-}
-unsafeSliceOffLen, unsafeGetSlice ::
+unsafeSliceOffLen ::
        forall a. Unbox a
     => Int -- ^ starting index
     -> Int -- ^ length of the slice
@@ -561,7 +556,6 @@ unsafeSliceOffLen index len (Array contents start e) =
         start1 = start + (index * size)
         end1 = start1 + (len * size)
      in assert (end1 <= e) (Array contents start1 end1)
-RENAME(unsafeGetSlice,unsafeSliceOffLen)
 
 -------------------------------------------------------------------------------
 -- Elimination
@@ -1022,14 +1016,13 @@ foldr f z arr = runIdentity $ D.foldr f z $ toStreamD arr
 -- | Like 'breakAt' but does not check whether the index is valid.
 --
 {-# INLINE unsafeBreakAt #-}
-unsafeBreakAt, unsafeSplitAt :: Unbox a =>
+unsafeBreakAt :: Unbox a =>
     Int -> Array a -> (Array a, Array a)
 unsafeBreakAt i arr = (unsafeFreeze a, unsafeFreeze b)
 
     where
 
     (a, b) = MA.unsafeBreakAt i (unsafeThaw arr)
-RENAME(unsafeSplitAt,unsafeBreakAt)
 
 -- | Create two slices of an array without copying the original array. The
 -- specified index @i@ is the first index of the second slice.
@@ -1081,28 +1074,25 @@ revBreakEndBy_ p arr = (unsafeFreeze a, unsafeFreeze b)
 --
 -- /Pre-release/
 {-# INLINE dropAround #-}
-dropAround, strip :: Unbox a => (a -> Bool) -> Array a -> Array a
+dropAround :: Unbox a => (a -> Bool) -> Array a -> Array a
 dropAround eq arr =
     unsafeFreeze $ unsafePerformIO $ MA.dropAround eq (unsafeThaw arr)
-RENAME(strip,dropAround)
 
 -- | Strip elements which match the predicate, from the start of the array.
 --
 -- /Pre-release/
 {-# INLINE dropWhile #-}
-dropWhile, stripStart :: Unbox a => (a -> Bool) -> Array a -> Array a
+dropWhile :: Unbox a => (a -> Bool) -> Array a -> Array a
 dropWhile eq arr =
     unsafeFreeze $ unsafePerformIO $ MA.dropWhile eq (unsafeThaw arr)
-RENAME(stripStart,dropWhile)
 
 -- | Strip elements which match the predicate, from the end of the array.
 --
 -- /Pre-release/
 {-# INLINE revDropWhile #-}
-revDropWhile, stripEnd :: Unbox a => (a -> Bool) -> Array a -> Array a
+revDropWhile :: Unbox a => (a -> Bool) -> Array a -> Array a
 revDropWhile eq arr =
     unsafeFreeze $ unsafePerformIO $ MA.revDropWhile eq (unsafeThaw arr)
-RENAME(stripEnd,revDropWhile)
 
 -- Use foldr/build fusion to fuse with list consumers
 -- This can be useful when using the IsList instance
