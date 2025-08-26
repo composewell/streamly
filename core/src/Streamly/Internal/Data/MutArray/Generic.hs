@@ -165,7 +165,6 @@ module Streamly.Internal.Data.MutArray.Generic
     , clone
 
     -- * Deprecated
-    , unsafeGetSlice
     , getSlice
     , strip
     , new
@@ -537,7 +536,7 @@ getIndex i arr =
 --
 -- /Pre-release/
 {-# INLINE unsafeSliceOffLen #-}
-unsafeSliceOffLen, getSliceUnsafe, unsafeGetSlice
+unsafeSliceOffLen, getSliceUnsafe
     :: Int -- ^ from index
     -> Int -- ^ length of the slice
     -> MutArray a
@@ -977,7 +976,6 @@ RENAME(modifyIndexUnsafe, unsafeModifyIndex)
 RENAME(getIndexUnsafe, unsafeGetIndex)
 RENAME(getIndexUnsafeWith, unsafeGetIndexWith)
 RENAME(getSliceUnsafe,unsafeSliceOffLen)
-RENAME(unsafeGetSlice,unsafeSliceOffLen)
 RENAME(putSliceUnsafe, unsafePutSlice)
 RENAME(getSlice,sliceOffLen)
 RENAME(snocUnsafe, unsafeSnoc)

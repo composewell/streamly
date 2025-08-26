@@ -88,7 +88,6 @@ module Streamly.Internal.Data.Array
     , deserialize
 
     -- * Deprecated
-    , sliceEndBy_
     , slicerFromLen
     , sliceIndexerFromLen
     , castUnsafe
@@ -267,10 +266,9 @@ getSliceUnsafe ::
     -> Array a
 RENAME(getSliceUnsafe,unsafeSliceOffLen)
 
-sliceEndBy_, splitOn :: (Monad m, Unbox a) =>
+splitOn :: (Monad m, Unbox a) =>
     (a -> Bool) -> Array a -> Stream m (Array a)
 RENAME(splitOn,splitEndBy_)
-RENAME(sliceEndBy_,splitEndBy_)
 
 {-# INLINE indexerFromLen #-}
 indexerFromLen, sliceIndexerFromLen :: forall m a. (Monad m, Unbox a)

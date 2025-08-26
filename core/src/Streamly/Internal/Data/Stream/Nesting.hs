@@ -214,9 +214,6 @@ module Streamly.Internal.Data.Stream.Nesting
     , parseIterateD
     , groupsBy
     , splitOnSeq
-    , unfoldEachInterleave
-    , unfoldEachInterleaveRev
-    , unfoldEachRoundRobin
     )
 where
 
@@ -790,7 +787,7 @@ data BfsUnfoldEachState o i =
 -- CAUTION! Do not use on infinite streams.
 --
 {-# INLINE_NORMAL bfsUnfoldEach #-}
-bfsUnfoldEach, unfoldEachInterleave :: Monad m =>
+bfsUnfoldEach :: Monad m =>
     Unfold m a b -> Stream m a -> Stream m b
 bfsUnfoldEach (Unfold istep inject) (Stream ostep ost) =
     Stream step (BfsUnfoldEachOuter ost id)
@@ -819,8 +816,6 @@ bfsUnfoldEach (Unfold istep inject) (Stream ostep ost) =
             Skip s    -> Skip (BfsUnfoldEachInner (s:ls) rs)
             Stop      -> Skip (BfsUnfoldEachInner ls rs)
 
-RENAME(unfoldEachInterleave, bfsUnfoldEach)
-
 data ConcatUnfoldInterleaveState o i =
       ConcatUnfoldInterleaveOuter o [i]
     | ConcatUnfoldInterleaveInner o [i]
@@ -839,7 +834,7 @@ data ConcatUnfoldInterleaveState o i =
 -- CAUTION! Do not use on infinite streams.
 --
 {-# INLINE_NORMAL altBfsUnfoldEach #-}
-altBfsUnfoldEach, unfoldEachInterleaveRev, unfoldInterleave :: Monad m =>
+altBfsUnfoldEach, unfoldInterleave :: Monad m =>
     Unfold m a b -> Stream m a -> Stream m b
 altBfsUnfoldEach (Unfold istep inject) (Stream ostep ost) =
     Stream step (ConcatUnfoldInterleaveOuter ost [])
@@ -887,7 +882,6 @@ altBfsUnfoldEach (Unfold istep inject) (Stream ostep ost) =
             Stop      -> Skip (ConcatUnfoldInterleaveInnerR ls rs)
 
 RENAME(unfoldInterleave,altBfsUnfoldEach)
-RENAME(unfoldEachInterleaveRev,altBfsUnfoldEach)
 
 -- XXX In general we can use different scheduling strategies e.g. how to
 -- schedule the outer vs inner loop or assigning weights to different streams
@@ -911,7 +905,7 @@ RENAME(unfoldEachInterleaveRev,altBfsUnfoldEach)
 -- CAUTION! Do not use on infinite streams.
 --
 {-# INLINE_NORMAL unfoldSched #-}
-unfoldSched, unfoldEachRoundRobin, unfoldRoundRobin :: Monad m =>
+unfoldSched, unfoldRoundRobin :: Monad m =>
     Unfold m a b -> Stream m a -> Stream m b
 unfoldSched (Unfold istep inject) (Stream ostep ost) =
     Stream step (BfsUnfoldEachOuter ost id)
@@ -941,7 +935,6 @@ unfoldSched (Unfold istep inject) (Stream ostep ost) =
             Stop      -> Skip (BfsUnfoldEachInner ls rs)
 
 RENAME(unfoldRoundRobin,unfoldSched)
-RENAME(unfoldEachRoundRobin,unfoldSched)
 
 -- | Round robin co-operative scheduling of multiple streams.
 --
