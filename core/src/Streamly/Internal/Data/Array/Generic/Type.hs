@@ -50,7 +50,7 @@ module Streamly.Internal.Data.Array.Generic.Type
     , dropAround
 
     -- * Parsing Stream of Arrays
-    , parserK
+    , toParserK
 
     -- * Deprecated
     , strip
@@ -489,7 +489,7 @@ adaptCGWith pstep initial extract cont !offset0 !usedCount !input = do
 --
 -- /Pre-release/
 --
-{-# INLINE_LATE parserK #-}
-parserK :: Monad m => ParserD.Parser a m b -> ParserK (Array a) m b
-parserK (ParserD.Parser step initial extract) =
+{-# INLINE_LATE toParserK #-}
+toParserK :: Monad m => ParserD.Parser a m b -> ParserK (Array a) m b
+toParserK (ParserD.Parser step initial extract) =
     ParserK.MkParser $ adaptCGWith step initial extract

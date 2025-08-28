@@ -57,7 +57,7 @@ parseBreak = do
                                 $ chunksOf
                                 clen (Array.createOf clen) (Stream.fromList ls)
                         parser = Parser.fromFold (Fold.take tlen Fold.toList)
-                     in run $ Array.parseBreak (Array.parserK parser) input
+                     in run $ Array.parseBreak (Array.toParserK parser) input
                 ls2 <- run $ Stream.fold Fold.toList (Array.concat $ Stream.fromStreamK str)
                 case ls1 of
                     Right x -> listEquals (==) (x ++ ls2) ls

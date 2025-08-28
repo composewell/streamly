@@ -76,7 +76,7 @@ module Streamly.Data.Array
 
     -- * Stream of Arrays
     , chunksOf
-    , parserK
+    , toParserK
     , parse
     , parseBreak
     , parsePos

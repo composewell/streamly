@@ -240,7 +240,7 @@ fold s = void $ Array.foldBreak Fold.drain $ StreamK.fromStream s
 parse :: Int -> Stream IO (Array.Array Int) -> IO ()
 parse value s =
     void $ Array.parseBreak
-            (Array.parserK (drainWhile (< value)))
+            (Array.toParserK (drainWhile (< value)))
             (StreamK.fromStream s)
 
 {-# INLINE foldBreak #-}
@@ -252,7 +252,7 @@ foldBreak s = do
 {-# INLINE parseBreak #-}
 parseBreak :: StreamK IO (Array.Array Int) -> IO ()
 parseBreak s = do
-    r <- Array.parseBreak (Array.parserK Parser.one) s
+    r <- Array.parseBreak (Array.toParserK Parser.one) s
     case r of
         (Left _, _) -> return ()
         (Right _, s1) -> parseBreak s1

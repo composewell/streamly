@@ -341,7 +341,7 @@ sanityParseBreak jumps = it (show jumps) $ do
 
 sanityParseDBreak :: [Move] -> SpecWith ()
 sanityParseDBreak jumps = it (show jumps) $ do
-    (val, rest) <- K.parseBreakPos (PK.parserK (jumpParser jumps)) $ K.fromList tape
+    (val, rest) <- K.parseBreakPos (PK.toParserK (jumpParser jumps)) $ K.fromList tape
     lst <- K.toList rest
     (val, lst) `shouldBe` (expectedResult jumps tape)
 
@@ -399,11 +399,11 @@ takeWhileFailD predicate (Fold fstep finitial _ ffinal) =
 {-# INLINE takeWhileFail #-}
 takeWhileFail :: MonadIO m =>
     (a -> Bool) -> Fold m a b -> PK.ParserK a m b
-takeWhileFail p f = PK.parserK (takeWhileFailD p f)
+takeWhileFail p f = PK.toParserK (takeWhileFailD p f)
 
 {-# INLINE takeWhileK #-}
 takeWhileK :: MonadIO m => (a -> Bool) -> PK.ParserK a m [a]
-takeWhileK p = PK.parserK $ P.takeWhile p FL.toList
+takeWhileK p = PK.toParserK $ P.takeWhile p FL.toList
 
 {-# INLINE alt2 #-}
 alt2 :: MonadIO m => K.StreamK m Int -> m (Either ParseError [Int])

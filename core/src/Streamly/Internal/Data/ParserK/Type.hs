@@ -33,7 +33,7 @@ module Streamly.Internal.Data.ParserK.Type
 
     -- * Adapting from Parser
     , parserDone
-    , parserK -- XXX move to StreamK module
+    , toParserK -- XXX move to StreamK module
     , toParser -- XXX unParserK, unK, unPK
 
     -- * Basic Parsers
@@ -503,12 +503,12 @@ adaptWith pstep initial extract cont !relPos !usedCount !input = do
 --
 -- /Pre-release/
 --
-{-# INLINE_LATE parserK #-}
-parserK, adapt :: Monad m => ParserD.Parser a m b -> ParserK a m b
-parserK (ParserD.Parser step initial extract) =
+{-# INLINE_LATE toParserK #-}
+toParserK, adapt :: Monad m => ParserD.Parser a m b -> ParserK a m b
+toParserK (ParserD.Parser step initial extract) =
     MkParser $ adaptWith step initial extract
 
-RENAME(adapt,parserK)
+RENAME(adapt,toParserK)
 
 -------------------------------------------------------------------------------
 -- Convert CPS style 'Parser' to direct style 'D.Parser'
@@ -527,7 +527,7 @@ parserDone (Failure n e) _ _ =
 
 -- XXX Note that this works only for single element parsers and not for Array
 -- input parsers. The asserts will fail for array parsers.
--- XXX We should move this to StreamK module along with parserK
+-- XXX We should move this to StreamK module along with toParserK
 
 -- | Convert a CPS style 'ParserK' to a direct style 'Parser'.
 --
@@ -558,10 +558,10 @@ toParser parser = ParserD.Parser step initial extract
             Continue n cont1 ->
                 assert (n <= 0) (return $ ParserD.FContinue n cont1)
 
-{-# RULES "parserK/toParser fusion" [2]
-    forall s. toParser (parserK s) = s #-}
-{-# RULES "toParser/parserK fusion" [2]
-    forall s. parserK (toParser s) = s #-}
+{-# RULES "toParserK/toParser fusion" [2]
+    forall s. toParser (toParserK s) = s #-}
+{-# RULES "toParser/toParserK fusion" [2]
+    forall s. toParserK (toParser s) = s #-}
 
 -- | @chainl1 p op x@ parses /one/ or more occurrences of @p@, separated by
 -- @op@. Returns a value obtained by a /left/ associative application of all
@@ -569,7 +569,7 @@ toParser parser = ParserD.Parser step initial extract
 --
 -- >>> num = Parser.decimal
 -- >>> plus = Parser.char '+' *> pure (+)
--- >>> expr = ParserK.chainl1 (StreamK.parserK num) (StreamK.parserK plus)
+-- >>> expr = ParserK.chainl1 (StreamK.toParserK num) (StreamK.toParserK plus)
 -- >>> StreamK.parse expr $ StreamK.fromStream $ Stream.fromList "1+2+3"
 -- Right 6
 --
@@ -604,7 +604,7 @@ chainl p op x = chainl1 p op <|> pure x
 --
 -- >>> num = Parser.decimal
 -- >>> pow = Parser.char '^' *> pure (^)
--- >>> expr = ParserK.chainr1 (StreamK.parserK num) (StreamK.parserK pow)
+-- >>> expr = ParserK.chainr1 (StreamK.toParserK num) (StreamK.toParserK pow)
 -- >>> StreamK.parse expr $ StreamK.fromStream $ Stream.fromList "2^3^2"
 -- Right 512
 --

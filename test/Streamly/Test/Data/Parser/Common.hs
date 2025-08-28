@@ -1088,18 +1088,18 @@ runParserTC tm runner =
             runner $ \p -> mapMTup S.toList . S.parseBreakPos p . S.fromList
         TMParserKStreamK ->
             runner $ \p ->
-                mapMTup K.toList . K.parseBreakPos (PK.parserK p) . K.fromList
+                mapMTup K.toList . K.parseBreakPos (PK.toParserK p) . K.fromList
         TMParserKStreamKChunks ->
             runner $ \p ->
                 mapMTup
                     (fmap (concatMap A.toList) . K.toList)
-                        . A.parseBreakPos (A.parserK p)
+                        . A.parseBreakPos (A.toParserK p)
                         . producerChunks A.fromList
         TMParserKStreamKChunksGeneric ->
             runner $ \p ->
                 mapMTup
                     (fmap (concatMap GA.toList) . K.toList)
-                        . GA.parseBreakPos (GA.parserK p)
+                        . GA.parseBreakPos (GA.toParserK p)
                         . producerChunks GA.fromList
 
     where
@@ -1118,13 +1118,13 @@ runParserTC_temp :: (Unbox a, Monad m) => TestMode -> ParserTestCase_Temp a m b 
 runParserTC_temp tm runner =
     case tm of
         TMParserStream -> runner S.fromList S.parsePos
-        TMParserKStreamK -> runner K.fromList (K.parsePos . PK.parserK)
+        TMParserKStreamK -> runner K.fromList (K.parsePos . PK.toParserK)
         TMParserKStreamKChunks ->
-            runner (producerChunks A.fromList) (A.parsePos . A.parserK)
+            runner (producerChunks A.fromList) (A.parsePos . A.toParserK)
         TMParserKStreamKChunksGeneric ->
             runner
                 (producerChunks GA.fromList)
-                (GA.parsePos . GA.parserK)
+                (GA.parsePos . GA.toParserK)
 
     where
     cSize = 50

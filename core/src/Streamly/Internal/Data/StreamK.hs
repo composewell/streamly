@@ -40,7 +40,7 @@ module Streamly.Internal.Data.StreamK
     , foldBreak
     , foldEither
     , foldConcat
-    , ParserK.parserK -- XXX move the code to this module
+    , ParserK.toParserK -- XXX move the code to this module
     , parseDBreak
     , parseD
     , parseBreak
@@ -1273,7 +1273,7 @@ parseD f = fmap fst . parseDBreak f
 -- ParserK Chunked
 -------------------------------------------------------------------------------
 
--- XXX parseDBreakChunks may be faster than converting parserD to parserK and
+-- XXX parseDBreakChunks may be faster than converting parserD to toParserK and
 -- using parseBreakChunks. We can also use parseBreak as an alternative to the
 -- monad instance of ParserD.
 

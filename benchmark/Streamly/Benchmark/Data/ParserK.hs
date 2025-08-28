@@ -62,7 +62,7 @@ import Streamly.Benchmark.Common
 #ifdef BENCH_CHUNKED
 
 #define PARSE_OP Array.parse
-#define FROM_PARSER Array.parserK
+#define FROM_PARSER Array.toParserK
 #define INPUT (Array a)
 #define PARSE_ELEM (Array Int)
 #define CONSTRAINT_IO (MonadIO m, Unbox a)
@@ -74,7 +74,7 @@ import Streamly.Benchmark.Common
 #ifdef BENCH_CHUNKED_GENERIC
 
 #define PARSE_OP GenArr.parse
-#define FROM_PARSER GenArr.parserK
+#define FROM_PARSER GenArr.toParserK
 #define INPUT (Array a)
 #define PARSE_ELEM (Array Int)
 #define CONSTRAINT_IO (MonadIO m)
@@ -86,7 +86,7 @@ import Streamly.Benchmark.Common
 #ifdef BENCH_SINGULAR
 
 #define PARSE_OP StreamK.parse
-#define FROM_PARSER PR.parserK
+#define FROM_PARSER PR.toParserK
 #define INPUT a
 #define PARSE_ELEM Int
 #define CONSTRAINT_IO (MonadIO m)

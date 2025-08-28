@@ -27,9 +27,9 @@ maxTestCount = 100
 
 toParser :: Spec
 toParser = do
-    let p = ParserK.toParser (ParserK.parserK Parser.one)
+    let p = ParserK.toParser (ParserK.toParserK Parser.one)
         runP xs = Stream.parsePos p (Stream.fromList xs)
-    describe "toParser . parserK" $ do
+    describe "toParser . toParserK" $ do
         it "empty stream" $ do
             r1 <- runP ([] :: [Int])
             case r1 of
@@ -43,9 +43,9 @@ toParser = do
             r3 <- runP [0,1::Int]
             fromRight undefined r3 `shouldBe` 0
 
-    let p1 = ParserK.parserK $ ParserK.toParser (ParserK.parserK Parser.one)
+    let p1 = ParserK.toParserK $ ParserK.toParser (ParserK.toParserK Parser.one)
         runP1 xs = StreamK.parsePos p1 (StreamK.fromStream $ Stream.fromList xs)
-    describe "parserK . toParser . parserK" $ do
+    describe "toParserK . toParser . toParserK" $ do
         it "empty stream" $ do
             r1 <- runP1 ([] :: [Int])
             case r1 of
@@ -64,15 +64,15 @@ toParser = do
     let p2 = Parser.takeWhile (<= 3) FL.toList
         runP2 xs = Stream.parseBreakPos p2 (Stream.fromList xs)
 
-        p3 = ParserK.parserK (Parser.takeWhile (<= 3) FL.toList)
+        p3 = ParserK.toParserK (Parser.takeWhile (<= 3) FL.toList)
         runP3 xs = StreamK.parseBreakPos p3 (StreamK.fromList xs)
 
         p4 =
             ParserK.toParser
                 $ fusionBreaker
-                $ ParserK.parserK (Parser.takeWhile (<= 3) FL.toList)
+                $ ParserK.toParserK (Parser.takeWhile (<= 3) FL.toList)
         runP4 xs = Stream.parseBreakPos p4 (Stream.fromList xs)
-    describe "toParser . parserK" $ do
+    describe "toParser . toParserK" $ do
         it "(<= 3) for [1, 2, 3, 4, 5]" $ do
             (a, b) <- runP2 ([1, 2, 3, 4, 5] :: [Int])
             fromRight undefined a `shouldBe` [1, 2, 3]
@@ -105,7 +105,7 @@ fusionBreaker = id
 sanityParseBreak :: [Move] -> H.SpecWith ()
 sanityParseBreak jumps = it (show jumps) $ do
     (val, rest) <-
-        StreamK.parseBreakPos (ParserK.parserK (jumpParser jumps))
+        StreamK.parseBreakPos (ParserK.toParserK (jumpParser jumps))
             $ StreamK.fromList tape
     lst <- StreamK.toList rest
     (val, lst) `shouldBe` (expectedResult jumps tape)
@@ -113,7 +113,7 @@ sanityParseBreak jumps = it (show jumps) $ do
 sanityParseBreakChunks :: [Move] -> H.SpecWith ()
 sanityParseBreakChunks jumps = it (show jumps) $ do
     (val, rest) <-
-        A.parseBreakPos (A.parserK (jumpParser jumps))
+        A.parseBreakPos (A.toParserK (jumpParser jumps))
             $ StreamK.fromList $ Prelude.map A.fromList chunkedTape
     lst <- Prelude.map A.toList <$> StreamK.toList rest
     (val, concat lst) `shouldBe` (expectedResult jumps tape)
@@ -121,7 +121,7 @@ sanityParseBreakChunks jumps = it (show jumps) $ do
 sanityParseBreakChunksGeneric :: [Move] -> H.SpecWith ()
 sanityParseBreakChunksGeneric jumps = it (show jumps) $ do
     (val, rest) <-
-        AG.parseBreakPos (AG.parserK (jumpParser jumps))
+        AG.parseBreakPos (AG.toParserK (jumpParser jumps))
             $ StreamK.fromList $ Prelude.map AG.fromList chunkedTape
     lst <- Prelude.map AG.toList <$> StreamK.toList rest
     (val, concat lst) `shouldBe` (expectedResult jumps tape)

@@ -94,13 +94,13 @@
 -- ParserK is suitable for recursive definitions:
 --
 -- >>> import Streamly.Data.ParserK (ParserK)
--- >>> import Streamly.Data.StreamK (parserK)
+-- >>> import Streamly.Data.StreamK (toParserK)
 -- >>> import qualified Streamly.Data.StreamK as StreamK
 --
 -- >>> :{
 -- >>> p, p1, p2 :: Monad m => ParserK Char m String
--- >>> p1 = parserK (Parser.satisfy (== '(')) *> p
--- >>> p2 = parserK (Parser.fromFold Fold.toList)
+-- >>> p1 = toParserK (Parser.satisfy (== '(')) *> p
+-- >>> p2 = toParserK (Parser.fromFold Fold.toList)
 -- >>> p = p1 <|> p2
 -- >>> :}
 --

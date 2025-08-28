@@ -35,7 +35,7 @@ module Streamly.Data.Array.Generic
 
     -- * Stream of Arrays
     , chunksOf
-    , parserK
+    , toParserK
     , parse
     , parseBreak
     , parsePos

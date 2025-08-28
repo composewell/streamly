@@ -32,9 +32,10 @@
 -- All the fused parsers from the "Streamly.Data.Parser" module can be
 -- converted to the CPS ParserK, for use with different types of parser
 -- drivers, using
--- the @parserK@ combinators - Streamly.Data.Array.'Streamly.Data.Array.parserK',
--- Streamly.Data.StreamK.'Streamly.Data.StreamK.parserK', and
--- Streamly.Data.Array.Generic.'Streamly.Data.Array.Generic.parserK'.
+-- the @toParserK@ combinators -
+-- Streamly.Data.Array.'Streamly.Data.Array.toParserK',
+-- Streamly.Data.StreamK.'Streamly.Data.StreamK.toParserK', and
+-- Streamly.Data.Array.Generic.'Streamly.Data.Array.Generic.toParserK'
 --
 -- To parse a stream of unboxed arrays, use
 -- Streamly.Data.Array.'Streamly.Data.Array.parse' for running the parser, this
@@ -63,7 +64,7 @@
 -- >>> token p1 p2 = ((:) <$> p1 <*> ((:) <$> p2 <*> pure []))
 -- >>> :{
 -- backtracking :: Monad m => ParserK Char m String
--- backtracking = StreamK.parserK $
+-- backtracking = StreamK.toParserK $
 --     token (Parser.satisfy isDigit) (Parser.satisfy isAlpha) -- e.g. "9a"
 --     <|>
 --     token (Parser.satisfy isAlpha) (Parser.satisfy isDigit) -- e.g. "a9"
@@ -86,11 +87,11 @@
 -- >>> :{
 -- lookbehind :: Monad m => ParserK Char m String
 -- lookbehind = do
---     x1 <- StreamK.parserK $
+--     x1 <- StreamK.toParserK $
 --              Digit <$> Parser.satisfy isDigit
 --          <|> Alpha <$> Parser.satisfy isAlpha
 --     -- Note: the parse depends on what we parsed already
---     x2 <- StreamK.parserK $
+--     x2 <- StreamK.toParserK $
 --           case x1 of
 --              Digit _ -> Parser.satisfy isAlpha
 --              Alpha _ -> Parser.satisfy isDigit
@@ -143,13 +144,13 @@ import Streamly.Internal.Data.ParserK
 
 #include "DocTestDataParserK.hs"
 
-{-# DEPRECATED fromFold "Please use \"Array.parserK . Parser.fromFold\" instead." #-}
+{-# DEPRECATED fromFold "Please use \"Array.toParserK . Parser.fromFold\" instead." #-}
 {-# INLINE fromFold #-}
 fromFold :: (MonadIO m, Unbox a) => Fold m a b -> ParserK (Array a) m b
-fromFold = Array.parserK . ParserD.fromFold
+fromFold = Array.toParserK . ParserD.fromFold
 
-{-# DEPRECATED fromParser "Please use \"Array.parserK\" instead." #-}
+{-# DEPRECATED fromParser "Please use \"Array.toParserK\" instead." #-}
 {-# INLINE fromParser #-}
 fromParser ::
        (MonadIO m, Unbox a) => ParserD.Parser a m b -> ParserK (Array a) m b
-fromParser = Array.parserK
+fromParser = Array.toParserK

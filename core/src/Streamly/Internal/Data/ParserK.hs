@@ -27,13 +27,13 @@ import qualified Streamly.Internal.Data.Array.Generic as GenArray
 
 #include "inline.hs"
 
-{-# DEPRECATED adaptC "Use Streamly.Data.Array.parserK" #-}
+{-# DEPRECATED adaptC "Use Streamly.Data.Array.toParserK" #-}
 {-# INLINE_LATE adaptC #-}
 adaptC :: (Monad m, Unbox a) => Parser a m b -> ParserK (Array a) m b
-adaptC = Array.parserK
+adaptC = Array.toParserK
 
-{-# DEPRECATED adaptCG "Use Streamly.Data.Array.Generic.parserK" #-}
+{-# DEPRECATED adaptCG "Use Streamly.Data.Array.Generic.toParserK" #-}
 {-# INLINE_LATE adaptCG #-}
 adaptCG ::
        Monad m => Parser a m b -> ParserK (GenArray.Array a) m b
-adaptCG = GenArray.parserK
+adaptCG = GenArray.toParserK
