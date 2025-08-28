@@ -567,7 +567,7 @@ module Streamly.Data.Stream
     -- "crossMap" or "nestWith".
     , crossWith
     , cross
-    , fairCrossWith
+    -- , fairCrossWith
     , fairCross
     -- , joinInner
     -- , CrossStream (..)
