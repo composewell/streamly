@@ -12,6 +12,7 @@ full list of deprecations, additions, and changes to the function signatures.
 * Introduced `Streamly.Data.Scanl` with a new `Scanl` type. Scans can
   split a stream into multiple streams, process them independently, and
   merge the results. The `Fold` type is now split into `Fold` and `Scanl`.
+* Added `RingArray` module for high-performance, unboxed circular buffers.
 * Added `Streamly.FileSystem.Path` module with a `Path` type for flexibly typed
   file system paths.
 * Added `Streamly.FileSystem.DirIO` and `Streamly.FileSystem.FileIO` to replace
