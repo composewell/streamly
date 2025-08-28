@@ -1,5 +1,13 @@
 # Types and Modules at a Glance
 
+## streamly-core package
+
+![Streamly Core Modules](./streamly-core.svg)
+
+## streamly package
+
+![Streamly Modules](./streamly.svg)
+
 ## Streams
 
 The following table lists the modules and types for monadic stream producers
