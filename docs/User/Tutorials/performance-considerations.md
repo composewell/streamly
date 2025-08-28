@@ -107,14 +107,13 @@ arrays store data without an additional heap pointer wrapper
 
 * Streamly.Data.Array
 * Streamly.Data.MutArray
-* Streamly.Internal.Data.RingArray
+* Streamly.Data.RingArray
 
 For storing boxed heap objects, boxed arrays are provided in the following
 modules:
 
 * Streamly.Data.Array.Generic
 * Streamly.Data.MutArray.Generic
-* Streamly.Internal.Data.RingArray.Generic
 
 Unboxed arrays can be pinned (cannot be moved by GC) or
 unpinned. However, pinned or unpinned nature of the memory is not
