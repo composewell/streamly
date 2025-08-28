@@ -15,14 +15,11 @@ navigating the library.
 ## Streams
 
 ### Sources
-- `Stream m a` — statically fused, composable source streams
-
+- `Stream m a` — statically fused, composable source streams<br>
   **Module:** `Streamly.Data.Stream`
-- `Unfold m a b` — statically fused streams, for nested fusion
-
+- `Unfold m a b` — statically fused streams, for nested fusion<br>
   **Module:** `Streamly.Data.Unfold`
-- `StreamK m a` — CPS based source streams for dynamic composition
-
+- `StreamK m a` — CPS based source streams for dynamic composition<br>
   **Module:** `Streamly.Data.StreamK`
 
 ### Transformations
