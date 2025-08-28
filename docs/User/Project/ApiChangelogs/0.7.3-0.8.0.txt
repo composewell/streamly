@@ -3,14 +3,6 @@
 # ~~ means deprecated symbol
 
 #----------------------------
-# Changes from 0.8.0 to 0.8.1
-#----------------------------
-
-@@@ Streamly.FileSystem.Handle
-++ getChunk :: MonadIO m => Int -> Handle -> m (Array Word8)
-++ putChunk :: (MonadIO m, Storable a) => Handle -> Array a -> m ()
-
-#----------------------------
 # Changes from 0.7.3 to 0.8.0
 #----------------------------
 

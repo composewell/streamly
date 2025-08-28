@@ -1,4 +1,4 @@
-cabal-version:      2.2
+cabal-version:      2.4
 name:               streamly-core
 version:            0.3.0
 synopsis:           Streaming, parsers, arrays, serialization and more
