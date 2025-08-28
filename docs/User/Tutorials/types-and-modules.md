@@ -58,11 +58,11 @@ navigating the library.
 
 ### Serialization
 
-- `Unbox a` — fixed length binary serialization<br>
+- `Unbox a` — type class for fixed length binary serialization<br>
   **Module:** `Streamly.Data.MutByteArray`
-- `Serialize a` — variable length binary serialization<br>
+- `Serialize a` — type class for variable length binary serialization<br>
   **Module:** `Streamly.Data.MutByteArray`
-- `MutByteArray` — mutable byte arrays<br>
+- `MutByteArray` — raw mutable byte arrays<br>
   **Module:** `Streamly.Data.MutByteArray`
 
 ---
@@ -70,18 +70,18 @@ navigating the library.
 ## Unicode Operations
 
 - `Streamly.Unicode.Stream` — encode/decode streams of text
-- `Streamly.Unicode.Parser` — parse Unicode chars/strings
+- `Streamly.Unicode.Parser` — parsers for Unicode chars/strings
 - `Streamly.Unicode.String` — string interpolation utilities
 
 ---
 
-## Concurrency
+## Concurrent Operations
 
 High-level concurrent, time-based, and lifted operations.
 
-- `Streamly.Data.Stream.Prelude` — concurrent, composable stream sources
-- `Streamly.Data.Scanl.Prelude` — concurrent, composable transformations
-- `Streamly.Data.Fold.Prelude` — concurrent composable stream consumers
+- `Streamly.Data.Stream.Prelude` — concurrent operations for `Stream` type
+- `Streamly.Data.Scanl.Prelude` — concurrent operations for `Scanl` type
+- `Streamly.Data.Fold.Prelude` — concurrent operations for `Fold` type
 - `Streamly.Data.Stream.MkType` — define custom monad/applicative stream types  
 
 ---
@@ -91,7 +91,7 @@ High-level concurrent, time-based, and lifted operations.
 - `Streamly.Console.Stdio` — console (stdin/stdout/stderr) streams
 - `Streamly.FileSystem.Handle` — handle-based I/O streams
 - `Streamly.FileSystem.FileIO` — path-based file I/O streams
-- `Streamly.FileSystem.DirIO` — directory read operations
+- `Streamly.FileSystem.DirIO` — directory read streams
 - `Streamly.FileSystem.Path` — file path operations
 
 ---
