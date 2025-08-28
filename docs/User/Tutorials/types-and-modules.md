@@ -1,4 +1,8 @@
-# Types and Modules at a Glance
+# Streamly: Types & Modules Cheat Sheet
+
+This guide gives you a quick overview of Streamly’s core modules,
+types, and their typical use cases. Use it as a reference map when
+navigating the library.
 
 ## streamly-core package
 
@@ -10,67 +14,89 @@
 
 ## Streams
 
-The following table lists the modules and types for monadic stream producers
-(streams), stream transformers (scans), stream consumers (folds and parsers).
+### Sources
+- `Stream m a` — statically fused, composable source streams<br>
+  **Module:** `Streamly.Data.Stream`
+- `Unfold m a b` — statically fused streams, for nested fusion<br>
+  **Module:** `Streamly.Data.Unfold`
+- `StreamK m a` — CPS based source streams for dynamic composition<br>
+  **Module:** `Streamly.Data.StreamK`
 
-| Module                | Type          | Description                                                |
-|-----------------------|---------------|------------------------------------------------------------|
-| Streamly.Data.Stream  | Stream m a    | Streams using stream fusion, for static composition        |
-| Streamly.Data.Unfold  | Unfold m a b  | Streams using nested stream fusion, for static composition |
-| Streamly.Data.StreamK | StreamK m a   | Streams using CPS, for dynamic composition                 |
-| Streamly.Data.Scanl   | Scanl m a b   | Scans using stream fusion, for static composition          |
-| Streamly.Data.Fold    | Fold m a b    | Folds using stream fusion, for static composition          |
-| Streamly.Data.Parser  | Parser a m b  | Parsers using stream fusion, for static composition        |
-| Streamly.Data.ParserK | ParserK a m b | Parsers using CPS, for dynamic composition                 |
+### Transformations
+
+- `Scanl m a b` — statically fused scans, for composable stateful transformation<br>
+  **Module:** `Streamly.Data.Scanl`
+
+### Consumers
+
+- `Fold m a b` — statically fused, composable stream consumers<br>
+  **Module:** `Streamly.Data.Fold`
+- `Parser a m b` — statically fused, composable parsers<br>
+  **Module:** `Streamly.Data.Parser`
+- `ParserK a m b` — CPS based parsers for dynamic composition<br>
+  **Module:** `Streamly.Data.ParserK`
+
+---
 
 ## Arrays
 
-| Module                                   | Type         | Description                                    |
-|------------------------------------------|--------------|------------------------------------------------|
-| Streamly.Data.Array                      | Array a      | Immutable, unboxed, pinned and unpinned arrays |
-| Streamly.Data.MutArray                   | MutArray a   | Mutable, unboxed, pinned and unpinned arrays   |
-| Streamly.Data.Array.Generic              | Array a      | Immutable, boxed arrays                        |
-| Streamly.Data.MutArray.Generic           | MutArray a   | Mutable, boxed arrays                          |
-| Streamly.Data.MutByteArray               | MutByteArray | Mutable byte arrays                            |
-|                                          | Unbox a      | Fixed length data serialization                |
-|                                          | Serialize a  | Variable length data serialization             |
-| Streamly.Data.RingArray                  | RingArray a  | Unboxed ring buffer                            |
-| Streamly.Data.RingArray.Generic          | RingArray a  | Boxed ring buffer                              |
+### Immutable
+
+- `Array a => Unbox a` — immutable, unboxed (pinned/unpinned)<br>
+  **Module:** `Streamly.Data.Array`
+- `Array a` — unconstrained type<br>
+  **Module:** `Streamly.Data.Array.Generic`
+
+### Mutable
+
+- `MutArray a => Unbox a` — mutable, unboxed (pinned/unpinned)<br>
+  **Module:** `Streamly.Data.MutArray`
+- `MutArray a` — unconstrained type<br>
+  **Module:** `Streamly.Data.MutArray.Generic`
+- `RingArray a => Unbox a` — unboxed, circular buffer (pinned/unpinned)<br>
+  **Module:** `Streamly.Data.RingArray`
+
+### Serialization
+
+- `Unbox a` — type class for fixed length binary serialization<br>
+  **Module:** `Streamly.Data.MutByteArray`
+- `Serialize a` — type class for variable length binary serialization<br>
+  **Module:** `Streamly.Data.MutByteArray`
+- `MutByteArray` — raw mutable byte arrays<br>
+  **Module:** `Streamly.Data.MutByteArray`
+
+---
 
 ## Unicode Operations
 
-| Module                  | Description                                |
-|-------------------------|--------------------------------------------|
-| Streamly.Unicode.Stream | Unicode stream operations, encode, decode  |
-| Streamly.Unicode.Parser | Parsers for Unicode characters and strings |
-| Streamly.Unicode.String | String interpolation                       |
+- `Streamly.Unicode.Stream` — encode/decode streams of text
+- `Streamly.Unicode.Parser` — parsers for Unicode chars/strings
+- `Streamly.Unicode.String` — string interpolation utilities
 
-## Concurrency Operations
+---
 
-High level stream operations including concurrent, time and lifted functions:
+## Concurrent Operations
 
-| Module                       | Description                                         |
-|------------------------------|-----------------------------------------------------|
-| Streamly.Data.Stream.Prelude | Concurrent stream sources, time related operations  |
-| Streamly.Data.Scanl.Prelude  | Concurrent, composable stream pipes                 |
-| Streamly.Data.Fold.Prelude   | Concurrent, composable stream consumers             |
-| Streamly.Data.Stream.MkType  | Make custom monad and applicative types for streams |
+High-level concurrent, time-based, and lifted operations.
 
-## File System Operations
+- `Streamly.Data.Stream.Prelude` — concurrent operations for `Stream` type
+- `Streamly.Data.Scanl.Prelude` — concurrent operations for `Scanl` type
+- `Streamly.Data.Fold.Prelude` — concurrent operations for `Fold` type
+- `Streamly.Data.Stream.MkType` — define custom monad/applicative stream types  
 
-Console and file system operations:
+---
 
-| Module                     | Description                                      |
-|----------------------------|--------------------------------------------------|
-| Streamly.Console.Stdio     | Console standard input, output, error operations |
-| Streamly.FileSystem.Handle | Handle based read/write operations               |
-| Streamly.FileSystem.FileIO | File path based read, write operations           |
-| Streamly.FileSystem.DirIO  | Directory read operations                        |
-| Streamly.FileSystem.Path   | File path representation and operations          |
+## File System
 
-## Network Operations
+- `Streamly.Console.Stdio` — console (stdin/stdout/stderr) streams
+- `Streamly.FileSystem.Handle` — handle-based I/O streams
+- `Streamly.FileSystem.FileIO` — path-based file I/O streams
+- `Streamly.FileSystem.DirIO` — directory read streams
+- `Streamly.FileSystem.Path` — file path operations
 
-| Module                       | Description                                   |
-|------------------------------|-----------------------------------------------|
-| Streamly.Network.Socket      | Socket level stream operations                |
-| Streamly.Network.Inet.TCP    | TCP level stream operations (accept, connect) |
+---
+
+## Network
+
+- `Streamly.Network.Socket` — socket-level stream operations
+- `Streamly.Network.Inet.TCP` — TCP accept streams/connect
