@@ -24,10 +24,10 @@ The following table lists the modules and types for monadic stream producers
 | Streamly.Data.Array.Generic              | Array a      | Immutable, boxed arrays                        |
 | Streamly.Data.MutArray.Generic           | MutArray a   | Mutable, boxed arrays                          |
 | Streamly.Data.MutByteArray               | MutByteArray | Mutable byte arrays                            |
-| Streamly.Data.MutByteArray               | Unbox a      | Fixed length data serialization                |
-| Streamly.Data.MutByteArray               | Serialize a  | Variable length data serialization             |
-| Streamly.Internal.Data.RingArray         | RingArray a  | Unboxed ring buffer                            |
-| Streamly.Internal.Data.RingArray.Generic | RingArray a  | Boxed ring buffer                              |
+|                                          | Unbox a      | Fixed length data serialization                |
+|                                          | Serialize a  | Variable length data serialization             |
+| Streamly.Data.RingArray                  | RingArray a  | Unboxed ring buffer                            |
+| Streamly.Data.RingArray.Generic          | RingArray a  | Boxed ring buffer                              |
 
 ## Unicode Operations
 
@@ -43,22 +43,12 @@ High level stream operations including concurrent, time and lifted functions:
 
 | Module                       | Description                                         |
 |------------------------------|-----------------------------------------------------|
-| Streamly.Data.Stream.Prelude | Concurrent, time and lifted functions for streams   |
+| Streamly.Data.Stream.Prelude | Concurrent stream sources, time related operations  |
+| Streamly.Data.Scanl.Prelude  | Concurrent, composable stream pipes                 |
+| Streamly.Data.Fold.Prelude   | Concurrent, composable stream consumers             |
 | Streamly.Data.Stream.MkType  | Make custom monad and applicative types for streams |
-| Streamly.Data.Fold.Prelude   | Concurrent, time and lifted functions for folds     |
 
 ## File System Operations
-
-File system path representation:
-
-| Module                            | Type               | Description                                                    |
-|-----------------------------------|--------------------|----------------------------------------------------------------|
-| Streamly.FileSystem.Path          | Path               | Untyped path for the current OS type                           |
-| Streamly.FileSystem.Path.Node     | File a, Dir a      | Typed path with File, Dir distinction                          |
-| Streamly.FileSystem.Path.Seg      | Rooted a, Branch a | Typed path with rooted and branch distinction                  |
-| Streamly.FileSystem.Path.SegNode  |                    | Fully typed path with file, dir, rooted and branch distinction |
-| Streamly.FileSystem.PosixPath.*   |                    | Posix specific path modules                                    |
-| Streamly.FileSystem.WindowsPath.* |                    | Windows specific path modules                                  |
 
 Console and file system operations:
 
@@ -68,6 +58,7 @@ Console and file system operations:
 | Streamly.FileSystem.Handle | Handle based read/write operations               |
 | Streamly.FileSystem.FileIO | File path based read, write operations           |
 | Streamly.FileSystem.DirIO  | Directory read operations                        |
+| Streamly.FileSystem.Path   | File path representation and operations          |
 
 ## Network Operations
 
