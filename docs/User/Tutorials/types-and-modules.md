@@ -24,16 +24,16 @@ navigating the library.
 
 ### Transformations
 
-- `Scanl m a b` — statically fused scans, for composable stateful transformation
+- `Scanl m a b` — statically fused scans, for composable stateful transformation<br>
   **Module:** `Streamly.Data.Scanl`
 
 ### Consumers
 
-- `Fold m a b` — statically fused, composable stream consumers
+- `Fold m a b` — statically fused, composable stream consumers<br>
   **Module:** `Streamly.Data.Fold`
-- `Parser a m b` — statically fused, composable parsers
+- `Parser a m b` — statically fused, composable parsers<br>
   **Module:** `Streamly.Data.Parser`
-- `ParserK a m b` — CPS based parsers for dynamic composition
+- `ParserK a m b` — CPS based parsers for dynamic composition<br>
   **Module:** `Streamly.Data.ParserK`
 
 ---
@@ -42,21 +42,21 @@ navigating the library.
 
 Arrays are for storing data with efficient random access.
 
-- `Array a => Unbox a` — immutable, unboxed (pinned/unpinned)
+- `Array a => Unbox a` — immutable, unboxed (pinned/unpinned)<br>
   **Module:** `Streamly.Data.Array`
-- `MutArray a => Unbox a` — mutable, unboxed (pinned/unpinned)
+- `MutArray a => Unbox a` — mutable, unboxed (pinned/unpinned)<br>
   **Module:** `Streamly.Data.MutArray`
-- `Array a` — unconstrained type
+- `Array a` — unconstrained type<br>
   **Module:** `Streamly.Data.Array.Generic`
-- `MutArray a` — unconstrained type
+- `MutArray a` — unconstrained type<br>
   **Module:** `Streamly.Data.MutArray.Generic`
-- `MutByteArray` — mutable byte arrays
+- `MutByteArray` — mutable byte arrays<br>
   **Module:** `Streamly.Data.MutByteArray`
-- `Unbox a` — fixed length binary serialization
+- `Unbox a` — fixed length binary serialization<br>
   **Module:** `Streamly.Data.MutByteArray`
-- `Serialize a` — variable length binary serialization
+- `Serialize a` — variable length binary serialization<br>
   **Module:** `Streamly.Data.MutByteArray`
-- `RingArray a => Unbox a` — unboxed, circular buffer (pinned/unpinned)
+- `RingArray a => Unbox a` — unboxed, circular buffer (pinned/unpinned)<br>
   **Module:** `Streamly.Data.RingArray`
 
 ---
