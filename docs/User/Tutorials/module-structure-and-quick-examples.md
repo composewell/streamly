@@ -6,16 +6,16 @@ performance.
 
 Streamly consists of two packages: "streamly-core" and "streamly".
 [streamly-core](https://hackage.haskell.org/package/streamly-core)
-provides basic features, and depends only on GHC boot libraries, while
+provides most of the core functionality, and depends only on GHC boot libraries, while
 [streamly](https://hackage.haskell.org/package/streamly) provides
 higher-level features like concurrency, time based streaming
 combinators, lifted exceptions, and streaming network operations.
 
-In streamly there are two core data structures, streams and arrays. They
-are computing duals of each other, streams are for dataflow style
-processing while arrays are for storing data.  Both taken together
-are powerful tools for general purpose programming in a functional or
-dataflow style.
+Streamly is built around two core data structures: streams and
+arrays. They are computational duals—streams enable dataflow-style
+processing, while arrays provide efficient data storage. Together, they
+form a powerful foundation for general-purpose programming in
+functional and dataflow paradigms.
 
 The general data processing functionality in `streamly` can be divided
 into following categories:
@@ -35,18 +35,18 @@ following categories:
 
 ## Streams
 
-In functional programming, stream processing paradigm is a higher level
-alternative to the low level looping paradigm found in imperative
-programming. The `Stream` abstraction in streamly represents data as a
-sequence of items of the same type.  Functional operations are used to
-process and transform each item in the stream to a new stream of the
-same or different type.
+In functional programming, the **stream processing paradigm** offers
+a higher-level alternative to the low-level looping constructs of
+imperative programming. In Streamly, the `Stream` abstraction models
+data as a sequence of items of the same type. Functional operations can
+then be applied to process and transform each item, producing a new
+stream of either the same or a different type.
 
 ### Stream Type
 
-Following is a contrived example which generates a stream consisting of a
-sequence of integers, then increments each one by 1, takes the first two
-elements, adds them and prints the result:
+The following contrived example generates a stream of integers,
+increments each element by 1, takes the first two elements, adds them
+together, and prints the result:
 
 ```haskell
 import Data.Function ((&))
@@ -73,9 +73,9 @@ output. The `Fold.sum` function above is a `Fold` which consumes an
 integer stream as input and returns their sum as output. The fold is
 driven using the `Stream.fold` combinator.
 
-Folds can be composed using combinators, for example, the `teeWith` combinator
-combines two folds such that the input of the resulting fold is passed through
-both of them.
+Folds can be composed using combinators. For example, the `teeWith`
+combinator combines two folds so that the input stream is fed into both
+the folds simultaneously.
 
 ```haskell
 f :: Monad m => Fold.Fold m Int (Int, Int)
