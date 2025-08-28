@@ -168,6 +168,7 @@ extra-doc-files:
     docs/User/*.md
     docs/User/Tutorials/*.md
     docs/User/Tutorials/*.link
+    docs/User/Tutorials/*.svg
     docs/User/Tutorials/all-your-base.jpg
     docs/User/HowTo/*.md
     docs/User/HowTo/*.svg
