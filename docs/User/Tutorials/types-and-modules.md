@@ -40,24 +40,30 @@ navigating the library.
 
 ## Arrays
 
-Arrays are for storing data with efficient random access.
+### Immutable
 
 - `Array a => Unbox a` — immutable, unboxed (pinned/unpinned)<br>
   **Module:** `Streamly.Data.Array`
-- `MutArray a => Unbox a` — mutable, unboxed (pinned/unpinned)<br>
-  **Module:** `Streamly.Data.MutArray`
 - `Array a` — unconstrained type<br>
   **Module:** `Streamly.Data.Array.Generic`
+
+### Mutable
+
+- `MutArray a => Unbox a` — mutable, unboxed (pinned/unpinned)<br>
+  **Module:** `Streamly.Data.MutArray`
 - `MutArray a` — unconstrained type<br>
   **Module:** `Streamly.Data.MutArray.Generic`
-- `MutByteArray` — mutable byte arrays<br>
-  **Module:** `Streamly.Data.MutByteArray`
+- `RingArray a => Unbox a` — unboxed, circular buffer (pinned/unpinned)<br>
+  **Module:** `Streamly.Data.RingArray`
+
+### Serialization
+
 - `Unbox a` — fixed length binary serialization<br>
   **Module:** `Streamly.Data.MutByteArray`
 - `Serialize a` — variable length binary serialization<br>
   **Module:** `Streamly.Data.MutByteArray`
-- `RingArray a => Unbox a` — unboxed, circular buffer (pinned/unpinned)<br>
-  **Module:** `Streamly.Data.RingArray`
+- `MutByteArray` — mutable byte arrays<br>
+  **Module:** `Streamly.Data.MutByteArray`
 
 ---
 
