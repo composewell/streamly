@@ -69,11 +69,11 @@ followSymlinks x opts = opts {_followSymlinks = x}
 -- This option controls the behavior when encountering symlink loop errors
 -- during resolution.
 --
--- When set to 'True', symlink loop errors are ignored, and the type is
--- reported as not a directory. When set to 'False', the directory read
--- operation fails with an error.
+-- When set to 'True', symlink loop errors are ignored, and the type of the
+-- entry is reported as not a directory. When set to 'False', the directory
+-- read operation fails with an error.
 --
--- The default is 'False'.
+-- The default is 'True'.
 --
 -- On Windows this option has no effect as of now, symlinks are not followed to
 -- determine the type.
@@ -85,11 +85,11 @@ ignoreSymlinkLoops x opts = opts {_ignoreELOOP = x}
 -- This option controls the behavior when encountering broken symlink errors
 -- during resolution.
 --
--- When set to 'True', broken symlink errors are ignored, and the type is
--- reported as not a directory. When set to 'False', the directory read
--- operation fails with an error.
+-- When set to 'True', broken symlink errors are ignored, and the type of the
+-- entry is reported as not a directory. When set to 'False', the directory
+-- read operation fails with an error.
 --
--- The default is 'False'.
+-- The default is 'True'.
 --
 -- On Windows this option has no effect as of now, symlinks are not followed to
 -- determine the type.
@@ -101,11 +101,11 @@ ignoreMissing x opts = opts {_ignoreENOENT = x}
 -- This option controls the behavior when encountering permission errors
 -- during resolution.
 --
--- When set to 'True', any permission errors are ignored, and the type is
--- reported as not a directory. When set to 'False', the directory read
--- operation fails with an error.
+-- When set to 'True', any permission errors are ignored, and the type of the
+-- entry is reported as not a directory. When set to 'False', the directory
+-- read operation fails with an error.
 --
--- The default is 'False'.
+-- The default is 'True'.
 --
 -- On Windows this option has no effect as of now, symlinks are not followed to
 -- determine the type.
@@ -119,7 +119,7 @@ defaultReadOptions :: ReadOptions
 defaultReadOptions =
     ReadOptions
     { _followSymlinks = False
-    , _ignoreELOOP = False
-    , _ignoreENOENT = False
-    , _ignoreEACCESS = False
+    , _ignoreELOOP = True
+    , _ignoreENOENT = True
+    , _ignoreEACCESS = True
     }
