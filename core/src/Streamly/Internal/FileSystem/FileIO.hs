@@ -68,9 +68,9 @@ module Streamly.Internal.FileSystem.FileIO
     , writeChunks
 
     -- ** Writing Streams
-    , fromBytes -- putBytes?
-    , fromBytesWith
-    , fromChunks
+    , fromBytes -- XXX putBytes?
+    , fromBytesWith -- putBytesWith
+    , fromChunks -- putChunks?
 
     -- ** Append To File
     , writeAppend
@@ -84,7 +84,7 @@ where
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Word (Word8)
-import System.IO (Handle, IOMode(..), hClose)
+import System.IO (Handle, IOMode(..), hClose, hSetBuffering, BufferMode(..))
 import Prelude hiding (read)
 
 import qualified Control.Monad.Catch as MC
@@ -130,32 +130,52 @@ import qualified Streamly.Internal.FileSystem.Windows.File as File
 -- Safe file reading
 -------------------------------------------------------------------------------
 
--- | @'withFile' name mode act@ opens a file using 'openFile' and passes
--- the resulting handle to the computation @act@.  The handle will be
--- closed on exit from 'withFile', whether by normal termination or by
--- raising an exception.  If closing the handle raises an exception, then
--- this exception will be raised by 'withFile' rather than any exception
--- raised by 'act'.
+-- | @'withFile' name mode act@ opens a file with NoBuffering set on the handle
+-- and passes the resulting handle to the computation @act@. The handle will be
+-- closed on exit from 'withFile', whether by normal termination or by raising
+-- an exception.  If closing the handle raises an exception, then that
+-- exception is raised by 'withFile' rather than any exception raised by 'act'.
+--
+-- The file is opened without buffering as buffering can be controlled by the
+-- streaming APIs.
 --
 -- /Pre-release/
 --
 {-# INLINE withFile #-}
 withFile :: (MonadIO m, MonadCatch m)
     => Path -> IOMode -> (Handle -> Stream m a) -> Stream m a
-withFile file mode = S.bracketIO (File.openFile file mode) hClose
+withFile file mode = S.bracketIO open hClose
 
--- | Transform an 'Unfold' from a 'Handle' to an unfold from a 'Path'.  The
--- resulting unfold opens a handle in 'ReadMode', uses it using the supplied
--- unfold and then makes sure that the handle is closed on normal termination
--- or in case of an exception.  If closing the handle raises an exception, then
--- this exception will be raised by 'usingFile'.
+    where
+
+    open = do
+        h <- File.openFile file mode
+        hSetBuffering h NoBuffering
+        return h
+
+-- | Transform an 'Unfold' that takes 'Handle' as input to an unfold that takes
+-- a 'Path' as input.  The resulting unfold opens the file in 'ReadMode',
+-- passes it to the supplied unfold and then makes sure that the handle is
+-- closed on normal termination or in case of an exception.  If closing the
+-- handle raises an exception, then this exception will be raised by
+-- 'usingFile'.
+--
+-- The file is opened without buffering as buffering can be controlled by the
+-- streaming APIs.
 --
 -- /Pre-release/
 --
 {-# INLINE usingFile #-}
 usingFile :: (MonadIO m, MonadCatch m)
     => Unfold m Handle a -> Unfold m Path a
-usingFile = UF.bracketIO (`File.openFile` ReadMode) hClose
+usingFile = UF.bracketIO open hClose
+
+    where
+
+    open file = do
+        h <- File.openFile file ReadMode
+        hSetBuffering h NoBuffering
+        return h
 
 {-# INLINE usingFile2 #-}
 usingFile2 :: (MonadIO m, MonadCatch m)
@@ -166,6 +186,7 @@ usingFile2 = UF.bracketIO before after
 
     before (x, file) =  do
         h <- File.openFile file ReadMode
+        hSetBuffering h NoBuffering
         return (x, h)
 
     after (_, h) = hClose h
@@ -179,6 +200,7 @@ usingFile3 = UF.bracketIO before after
 
     before (x, y, z, file) =  do
         h <- File.openFile file ReadMode
+        hSetBuffering h NoBuffering
         return (x, y, z, h)
 
     after (_, _, _, h) = hClose h
@@ -201,7 +223,7 @@ usingFile3 = UF.bracketIO before after
 putChunk :: Path -> Array a -> IO ()
 putChunk file arr = File.withFile file WriteMode (`FH.putChunk` arr)
 
--- | append an array to a file.
+-- | Append an array to a file.
 --
 -- /Pre-release/
 --
@@ -378,10 +400,10 @@ write :: (MonadIO m, Storable a) => Handle -> Stream m a -> m ()
 write = toHandleWith A.defaultChunkSize
 -}
 
--- | Write a stream of chunks to a handle. Each chunk in the stream is written
--- to the device as a separate IO request.
+-- | Write a stream of chunks to a file. Each chunk in the stream is written
+-- immediately to the device as a separate IO request, without coalescing or
+-- buffering.
 --
--- /Pre-release/
 {-# INLINE writeChunks #-}
 writeChunks :: (MonadIO m, MonadCatch m)
     => Path -> Fold m (Array a) ()
@@ -389,6 +411,7 @@ writeChunks path = Fold step initial extract final
     where
     initial = do
         h <- liftIO (File.openFile path WriteMode)
+        liftIO $ hSetBuffering h NoBuffering
         fld <- FL.reduce (FH.writeChunks h)
                 `MC.onException` liftIO (hClose h)
         return $ FL.Partial (fld, h)

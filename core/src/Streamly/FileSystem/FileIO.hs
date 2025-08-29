@@ -27,8 +27,9 @@ module Streamly.FileSystem.FileIO
     -- documentation. One IO request may or may not read the full
     -- chunk. If the whole stream is not consumed, it is possible that we may
     -- read slightly more from the IO device than what the consumer needed.
-    -- Unless specified otherwise in the API, writes are collected into chunks
-    -- of @defaultChunkSize@ before they are written to the IO device.
+    -- When writing, unless specified otherwise in the API, writes are
+    -- collected into chunks of @defaultChunkSize@ before they are written to
+    -- the IO device.
 
     -- Streaming APIs work for all kind of devices, seekable or non-seekable;
     -- including disks, files, memory devices, terminals, pipes, sockets and

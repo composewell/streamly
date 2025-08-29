@@ -98,7 +98,8 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Kind (Type)
 import Data.Word (Word8)
-import System.IO (Handle, openFile, IOMode(..), hClose)
+import System.IO
+    (Handle, IOMode(..), openFile, hClose, hSetBuffering, BufferMode(..))
 import Prelude hiding (read)
 
 import qualified Control.Monad.Catch as MC
@@ -150,7 +151,14 @@ import qualified Streamly.Internal.FileSystem.Handle as FH
 {-# INLINE withFile #-}
 withFile :: (MonadIO m, MonadCatch m)
     => FilePath -> IOMode -> (Handle -> Stream m a) -> Stream m a
-withFile file mode = S.bracketIO (openFile file mode) hClose
+withFile file mode = S.bracketIO open hClose
+
+    where
+
+    open = do
+        h <- openFile file mode
+        hSetBuffering h NoBuffering
+        return h
 
 -- | Transform an 'Unfold' from a 'Handle' to an unfold from a 'FilePath'.  The
 -- resulting unfold opens a handle in 'ReadMode', uses it using the supplied
@@ -163,7 +171,15 @@ withFile file mode = S.bracketIO (openFile file mode) hClose
 {-# INLINE usingFile #-}
 usingFile :: (MonadIO m, MonadCatch m)
     => Unfold m Handle a -> Unfold m FilePath a
-usingFile = UF.bracketIO (`openFile` ReadMode) hClose
+usingFile = UF.bracketIO open hClose
+
+    where
+
+    open file = do
+        h <- openFile file ReadMode
+        hSetBuffering h NoBuffering
+        return h
+
 
 {-# INLINE usingFile2 #-}
 usingFile2 :: (MonadIO m, MonadCatch m)
@@ -174,6 +190,7 @@ usingFile2 = UF.bracketIO before after
 
     before (x, file) =  do
         h <- openFile file ReadMode
+        hSetBuffering h NoBuffering
         return (x, h)
 
     after (_, h) = hClose h
@@ -187,6 +204,7 @@ usingFile3 = UF.bracketIO before after
 
     before (x, y, z, file) =  do
         h <- openFile file ReadMode
+        hSetBuffering h NoBuffering
         return (x, y, z, h)
 
     after (_, _, _, h) = hClose h
@@ -439,6 +457,7 @@ writeChunks path = Fold step initial extract final
     where
     initial = do
         h <- liftIO (openFile path WriteMode)
+        liftIO $ hSetBuffering h NoBuffering
         fld <- FL.reduce (FH.writeChunks h)
                 `MC.onException` liftIO (hClose h)
         return $ FL.Partial (fld, h)

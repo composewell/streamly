@@ -14,7 +14,11 @@
 -- Read and write byte streams and array streams to and from file handles
 -- ('Handle').
 --
--- The 'TextEncoding', 'NewLineMode', and 'Buffering' options of the underlying
+-- Please set NoBuffering mode on the handle as buffering is explicitly
+-- controlled by the streaming API and double buffering can sometimes cause
+-- unexpected results.
+--
+-- Also note that the 'TextEncoding', 'NewLineMode' options of the underlying
 -- GHC 'Handle' are ignored by these APIs. Please use "Streamly.Unicode.Stream"
 -- module for encoding and decoding a byte stream, use stream splitting
 -- operations in "Streamly.Data.Stream" to create a stream of lines or to split
