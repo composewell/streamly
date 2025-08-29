@@ -66,8 +66,8 @@ module Streamly.Internal.FileSystem.Posix.File
     -- * Handle based
     , openFile
     , withFile
-    -- , openBinaryFile
-    -- , withBinaryFile
+    , openBinaryFile
+    , withBinaryFile
 
     -- Re-exported
     , Fd
@@ -306,7 +306,6 @@ openFile = File.openFile False openFileHandle
 withFile :: PosixPath -> IOMode -> (Handle -> IO r) -> IO r
 withFile = File.withFile False openFileHandle
 
-{-
 -- | Like openBinaryFile in base package but using Path instead of FilePath.
 openBinaryFile :: PosixPath -> IOMode -> IO Handle
 openBinaryFile = File.openFile True openFileHandle
@@ -314,5 +313,4 @@ openBinaryFile = File.openFile True openFileHandle
 -- | Like withBinaryFile in base package but using Path instead of FilePath.
 withBinaryFile :: PosixPath -> IOMode -> (Handle -> IO r) -> IO r
 withBinaryFile = File.withFile True openFileHandle
--}
 #endif

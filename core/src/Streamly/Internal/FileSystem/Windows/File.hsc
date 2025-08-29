@@ -6,8 +6,8 @@ module Streamly.Internal.FileSystem.Windows.File
     -- * Handle based
       openFile
     , withFile
-    -- , openBinaryFile
-    -- , withBinaryFile
+    , openBinaryFile
+    , withBinaryFile
 #endif
     ) where
 
@@ -192,7 +192,6 @@ withFile = File.withFile False openFileHandle
 openFile :: WindowsPath -> IOMode -> IO Handle
 openFile = File.openFile False openFileHandle
 
-{-
 -- | Like withBinaryFile in base package but using Path instead of FilePath.
 withBinaryFile :: WindowsPath -> IOMode -> (Handle -> IO r) -> IO r
 withBinaryFile = File.withFile True openFileHandle
@@ -200,5 +199,4 @@ withBinaryFile = File.withFile True openFileHandle
 -- | Like openBinaryFile in base package but using Path instead of FilePath.
 openBinaryFile :: WindowsPath -> IOMode -> IO Handle
 openBinaryFile = File.openFile True openFileHandle
--}
 #endif

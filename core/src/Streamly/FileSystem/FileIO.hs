@@ -15,6 +15,12 @@
 -- the handle based APIs as there is no possibility of a file descriptor
 -- leakage.
 --
+-- The file is opened in binary mode as encoding, decoding, and newline
+-- translation can be handled explicitly by the streaming APIs.
+--
+-- The file is opened without buffering as buffering can be controlled
+-- explicitly by the streaming APIs.
+--
 -- >> import qualified Streamly.FileSystem.FileIO as File
 --
 module Streamly.FileSystem.FileIO

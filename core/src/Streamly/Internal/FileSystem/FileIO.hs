@@ -6,16 +6,6 @@
 -- Maintainer  : streamly@composewell.com
 -- Portability : GHC
 --
--- Read and write streams and arrays to and from files specified by their paths
--- in the file system. Unlike the handle based APIs which can have a read/write
--- session consisting of multiple reads and writes to the handle, these APIs
--- are one shot read or write APIs. These APIs open the file handle, perform
--- the requested operation and close the handle. Thease are safer compared to
--- the handle based APIs as there is no possibility of a file descriptor
--- leakage.
---
--- > import qualified Streamly.Internal.FileSystem.FileIO as File
---
 
 module Streamly.Internal.FileSystem.FileIO
     (
@@ -130,14 +120,17 @@ import qualified Streamly.Internal.FileSystem.Windows.File as File
 -- Safe file reading
 -------------------------------------------------------------------------------
 
--- | @'withFile' name mode act@ opens a file with NoBuffering set on the handle
--- and passes the resulting handle to the computation @act@. The handle will be
--- closed on exit from 'withFile', whether by normal termination or by raising
--- an exception.  If closing the handle raises an exception, then that
--- exception is raised by 'withFile' rather than any exception raised by 'act'.
+-- | @'withFile' name mode act@ opens a file and passes the resulting handle to
+-- the computation @act@. The handle is closed on exit from 'withFile', whether
+-- by normal termination or by raising an exception.  If closing the handle
+-- raises an exception, then that exception is raised by 'withFile' rather than
+-- any exception raised by 'act'.
 --
--- The file is opened without buffering as buffering can be controlled by the
--- streaming APIs.
+-- The file is opened in binary mode as encoding, decoding, and newline
+-- translation can be handled explicitly by the streaming APIs.
+--
+-- The file is opened without buffering as buffering can be controlled
+-- explicitly by the streaming APIs.
 --
 -- /Pre-release/
 --
@@ -149,7 +142,7 @@ withFile file mode = S.bracketIO open hClose
     where
 
     open = do
-        h <- File.openFile file mode
+        h <- File.openBinaryFile file mode
         hSetBuffering h NoBuffering
         return h
 
@@ -160,8 +153,11 @@ withFile file mode = S.bracketIO open hClose
 -- handle raises an exception, then this exception will be raised by
 -- 'usingFile'.
 --
--- The file is opened without buffering as buffering can be controlled by the
--- streaming APIs.
+-- The file is opened in binary mode as encoding, decoding, and newline
+-- translation can be handled explicitly by the streaming APIs.
+--
+-- The file is opened without buffering as buffering can be controlled
+-- explicitly by the streaming APIs.
 --
 -- /Pre-release/
 --
@@ -173,7 +169,7 @@ usingFile = UF.bracketIO open hClose
     where
 
     open file = do
-        h <- File.openFile file ReadMode
+        h <- File.openBinaryFile file ReadMode
         hSetBuffering h NoBuffering
         return h
 
@@ -185,7 +181,7 @@ usingFile2 = UF.bracketIO before after
     where
 
     before (x, file) =  do
-        h <- File.openFile file ReadMode
+        h <- File.openBinaryFile file ReadMode
         hSetBuffering h NoBuffering
         return (x, h)
 
@@ -199,7 +195,7 @@ usingFile3 = UF.bracketIO before after
     where
 
     before (x, y, z, file) =  do
-        h <- File.openFile file ReadMode
+        h <- File.openBinaryFile file ReadMode
         hSetBuffering h NoBuffering
         return (x, y, z, h)
 
@@ -410,7 +406,7 @@ writeChunks :: (MonadIO m, MonadCatch m)
 writeChunks path = Fold step initial extract final
     where
     initial = do
-        h <- liftIO (File.openFile path WriteMode)
+        h <- liftIO (File.openBinaryFile path WriteMode)
         liftIO $ hSetBuffering h NoBuffering
         fld <- FL.reduce (FH.writeChunks h)
                 `MC.onException` liftIO (hClose h)
