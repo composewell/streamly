@@ -83,6 +83,7 @@ module Streamly.FileSystem.Path
     , validatePath
     , fromArray
     , fromString
+    , fromString_
 
     -- * Statically Verified String Literals
     -- | Quasiquoters.

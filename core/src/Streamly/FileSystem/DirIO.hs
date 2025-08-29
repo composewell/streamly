@@ -9,6 +9,11 @@
 --
 -- High performance and streaming APIs for reading directories.
 --
+-- File system paths are specified using the 'Streamly.FileSystem.Path.Path'
+-- type. If you want to convert between 'String' or 'FilePath' and 'Path' use
+-- 'Streamly.FileSystem.Path.fromString_', 'Streamly.FileSystem.Path.toString'
+-- from the "Streamly.FileSystem.Path" module..
+--
 -- >>> import qualified Streamly.FileSystem.DirIO as Dir
 --
 

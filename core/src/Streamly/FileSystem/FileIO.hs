@@ -8,18 +8,22 @@
 -- Portability : GHC
 --
 -- Read and write streams and arrays to and from files specified by their paths
--- in the file system. Unlike the handle based APIs which can have a read/write
--- session consisting of multiple reads and writes to the handle, these APIs
--- are one shot read or write APIs. These APIs open the file handle, perform
--- the requested operation and close the handle. These are safer compared to
+-- in the file system. These APIs open the file handle, perform the requested
+-- operation and close the handle. These are higher level and safer compared to
 -- the handle based APIs as there is no possibility of a file descriptor
 -- leakage.
 --
--- The file is opened in binary mode as encoding, decoding, and newline
--- translation can be handled explicitly by the streaming APIs.
+-- Files are always opened in:
 --
--- The file is opened without buffering as buffering can be controlled
--- explicitly by the streaming APIs.
+-- * __Binary mode__ — encoding, decoding, and newline translation should be
+--   handled explicitly by the streaming APIs.
+-- * __Unbuffered mode__ — buffering can be managed explicitly via streaming
+--   APIs.
+--
+-- File system paths are specified using the 'Streamly.FileSystem.Path.Path'
+-- type. If you want to convert between 'String' or 'FilePath' and 'Path' use
+-- 'Streamly.FileSystem.Path.fromString_', 'Streamly.FileSystem.Path.toString'
+-- from the "Streamly.FileSystem.Path" module..
 --
 -- >> import qualified Streamly.FileSystem.FileIO as File
 --
