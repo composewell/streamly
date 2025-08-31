@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+See
+[0.10.1-0.11.0 API Changelog](https://github.com/composewell/streamly/blob/streamly-0.11.0/docs/User/Project/ApiChangelogs/0.10.1-0.11.0.txt)
+for detailed API changes in this release.
+
 ### Breaking Changes
 
 * Concurrent streams and folds now use separate concurrency config types. If you
