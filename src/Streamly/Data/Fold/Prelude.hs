@@ -32,6 +32,12 @@ module Streamly.Data.Fold.Prelude
 
     -- ** Combinators
     , parBuffered
+    , parTee
+    , parDistribute
+    , parDistributeScan
+    , parPartition
+    , parDemuxScan
+    , parUnzip
 
     -- * Container Related
     , toHashMapIO
