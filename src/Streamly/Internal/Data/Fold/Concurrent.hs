@@ -50,9 +50,11 @@ module Streamly.Internal.Data.Fold.Concurrent
       parBuffered
     , parLmapM
     , parTeeWith
+    , parTee
     , parDistribute
     , parPartition
     , parUnzipWithM
+    , parUnzip
     , parDistributeScan
     , parDemuxScan
 
@@ -224,6 +226,29 @@ parTeeWith :: MonadAsync m =>
     -> Fold m x c
 parTeeWith cfg f c1 c2 = Fold.teeWith f (parBuffered cfg c1) (parBuffered cfg c2)
 
+-- | Execute both the folds in a tee concurrently.
+--
+-- Definition:
+--
+-- >>> parTee cfg c1 c2 = Fold.teeWith (,) (Fold.parBuffered cfg c1) (Fold.parBuffered cfg c2)
+--
+-- Example:
+--
+-- >>> delay x = threadDelay 1000000 >> print x >> return x
+-- >>> c1 = Fold.lmapM delay Fold.sum
+-- >>> c2 = Fold.lmapM delay Fold.length
+-- >>> dst = Fold.parTee id c1 c2
+-- >>> Stream.fold dst src
+-- ...
+--
+{-# INLINABLE parTee #-}
+parTee :: MonadAsync m =>
+       (Config -> Config)
+    -> Fold m x a
+    -> Fold m x b
+    -> Fold m x (a, b)
+parTee cfg c1 c2 = Fold.teeWith (,) (parBuffered cfg c1) (parBuffered cfg c2)
+
 -- | Distribute the input to all the folds in the supplied list concurrently.
 --
 -- Definition:
@@ -284,6 +309,27 @@ parPartition cfg c1 c2 = Fold.partition (parBuffered cfg c1) (parBuffered cfg c2
 parUnzipWithM :: MonadAsync m
     => (Config -> Config) -> (a -> m (b,c)) -> Fold m b x -> Fold m c y -> Fold m a (x,y)
 parUnzipWithM cfg f c1 c2 = Fold.unzipWithM f (parBuffered cfg c1) (parBuffered cfg c2)
+
+-- | Split and distribute the output to two different folds and then zip the
+-- results. Both the consumer folds run concurrently.
+--
+-- Definition
+--
+-- >>> parUnzip cfg c1 c2 = Fold.unzip (Fold.parBuffered cfg c1) (Fold.parBuffered cfg c2)
+--
+-- Example:
+--
+-- >>> delay x = threadDelay 1000000 >> print x >> return x
+-- >>> c1 = Fold.lmapM delay Fold.sum
+-- >>> c2 = Fold.lmapM delay Fold.sum
+-- >>> dst = Fold.parUnzip id c1 c2
+-- >>> Stream.fold dst $ (fmap (\x -> (x, x * x))) src
+-- ...
+--
+{-# INLINABLE parUnzip #-}
+parUnzip :: MonadAsync m
+    => (Config -> Config) -> Fold m b x -> Fold m c y -> Fold m (b,c) (x,y)
+parUnzip cfg c1 c2 = Fold.unzip (parBuffered cfg c1) (parBuffered cfg c2)
 
 -- There are two ways to implement a concurrent scan.
 --
