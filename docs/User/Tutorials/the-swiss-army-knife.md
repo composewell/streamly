@@ -139,6 +139,23 @@ async, pipes-concurrency, streamling-concurrency etc. Take a look at the
 `Streamly.Data.Stream.Prelude`, `Streamly.Data.Scanl.Prelude`,
 `Streamly.Data.Fold.Prelude` modules in the streamly package.
 
+## Reactive Programming
+
+Streamly supports reactive (time domain) programming because of its support for
+declarative concurrency. Please see the `Streamly.Data.Stream.Prelude`
+module for time-specific and time based sampling combinators.
+
+Reactive programming is modeled beautifully using concurrent streaming in
+streamly. It involves generation of streams of events, merging concurrent
+streams and processing events concurrently.  Streamly provides native
+high-level facilities to do all this easily.
+
+The examples [AcidRain.hs][] and [CirclingSquare.hs][] demonstrate
+reactive programming using [Streamly][].
+
+[AcidRain.hs]: https://github.com/composewell/streamly-examples/tree/master/examples/AcidRain.hs
+[CirclingSquare.hs]: https://github.com/composewell/streamly-examples/tree/master/examples/CirclingSquare.hs
+
 ## Parsing
 
 Parsing in Streamly is first-class, high-performance, and integrated
