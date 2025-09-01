@@ -1,8 +1,8 @@
 # Streamly: The Swiss Army Knife for Haskell
 
-![All your base are belong to us!](./all-your-base.jpg)
 
 <!--
+![All your base are belong to us!](./all-your-base.jpg)
 # All your package are belong to us!
 Bring the docs from streamly-core/streamly cabal package description here.
 -->
