@@ -20,6 +20,44 @@ running Windows&trade; then you may need to run a command-line shell
 under `msys` and some of the commands below may also need to be changed
 in small ways to make them work.
 
+## Streamly Library Packages
+
+Streamly comprises two packages, the
+[streamly-core](https://hackage.haskell.org/package/streamly-core)
+package provides functionality that depends only on boot libraries, and
+the [streamly](https://hackage.haskell.org/package/streamly) package
+provides additional functionality like concurrency, time, lifted
+exceptions, and networking.
+
+For high-level functionality built over streamly like streaming
+system processes, shell programming, GNU coreutils, statistics,
+and compression libraries please see the [streamly ecosystem
+packages](https://streamly.composewell.com/module-listing.html).
+
+## Released and Pre-release modules
+
+Some of the examples in the tutorials may use modules from the
+`Internal` Streamly module hierarchy.  These modules are not really
+internal to the library.  We classify `Streamly` modules into two
+categories:
+
+* _Released modules and APIs_: These modules and APIs are
+  stable. Significant changes to these modules and APIs will cause
+  Streamly's version number to change according to the package versioning
+  policy.
+* _Pre-release modules and APIs_: These modules and APIs have not been
+  formally released yet.  They may change in the near future, and such
+  changes will not necessarily be reflected in Streamly's package
+  version number.  As yet unreleased modules and APIs reside in the
+  `Internal` namespace.
+
+Please use a minor release upper bound to adhere to the Haskell PVP when
+using a pre-release (internal) module.
+
+<!--
+Link References.
+-->
+
 ## Using `streamly` Interactively in REPL
 
 You can try out `streamly` using `GHCi`, the interactive Haskell
@@ -210,6 +248,11 @@ of streamly][streamly-hackage] on Hackage.
 If you need access to cutting edge features (and do not mind the
 occasional breakage), please use the [development version of
 streamly][streamly-github] from Github.
+
+## Building for Performance
+
+If you wish to run benchmarks, please be sure to build your
+application using the instructions in the [Build Guide](/docs/User/HowTo/Compiling.md).
 
 ## Next Steps
 
