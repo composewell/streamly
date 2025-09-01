@@ -166,18 +166,17 @@ extra-doc-files:
     docs/Developer/*.png
     docs/Developer/*.rst
     docs/User/*.md
+    docs/User/Explanatory/*.md
+    docs/User/Explanatory/streaming-pradigms.rst
+    docs/User/HowTo/*.md
+    docs/User/HowTo/*.svg
+    docs/User/Project/*.link
+    docs/User/Project/*.md
+    docs/User/Project/ApiChangelogs/*.txt
     docs/User/Tutorials/*.md
     docs/User/Tutorials/*.link
     docs/User/Tutorials/*.svg
     docs/User/Tutorials/all-your-base.jpg
-    docs/User/HowTo/*.md
-    docs/User/HowTo/*.svg
-    docs/User/Explanatory/*.md
-    docs/User/Explanatory/streaming-pradigms.rst
-    docs/User/Project/*.link
-    docs/User/Project/*.md
-    docs/User/Project/ApiChangelogs/*.txt
-    docs/User/Project/Upgrading-0.8-to-0.9.md
     test/README.md
 
 extra-tmp-files:
