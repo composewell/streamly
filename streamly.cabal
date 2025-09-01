@@ -53,6 +53,8 @@ tested-with:         GHC==8.6.5
                    , GHC==9.4.7
                    , GHC==9.6.3
                    , GHC==9.8.1
+                   , GHC==9.10.1
+                   , GHC==9.12.1
 author:              Composewell Technologies
 maintainer:          streamly@composewell.com
 copyright:           2017 Composewell Technologies

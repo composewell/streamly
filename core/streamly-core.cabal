@@ -60,6 +60,8 @@ tested-with:         GHC==8.6.5
                    , GHC==9.4.7
                    , GHC==9.6.3
                    , GHC==9.8.1
+                   , GHC==9.10.1
+                   , GHC==9.12.1
 author:              Composewell Technologies
 maintainer:          streamly@composewell.com
 copyright:           2017 Composewell Technologies
@@ -571,12 +573,12 @@ library
                      , base              >= 4.12  && < 4.22
                      , exceptions        >= 0.8.0 && < 0.11
                      , transformers      >= 0.5.5 && < 0.7
-                     , filepath          >= 1.4.2 && < 1.6
 
                     -- streamly-unicode-core
                      , template-haskell  >= 2.14  && < 2.24
 
                      -- XXX to be removed
+                     , filepath          >= 1.4.2 && < 1.6
                      , containers        >= 0.6.0 && < 0.8
                      , heaps             >= 0.3   && < 0.5
 
