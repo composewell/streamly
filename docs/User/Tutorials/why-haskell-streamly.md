@@ -3,116 +3,150 @@
 SPDX-License-Identifer: BSD-3-Clause
 -->
 
-# Why Haskell Streamly?
+# Why Haskell and Streamly?
 
-## Performance Matching C
+## Why Haskell?
 
-A computer programmer is faced with different types of programming tasks. A
-software project may involve programming tasks that have different
-characteristics. Usually programmers are forced to choose different programming
-tools for different tasks.
+Haskell provides a rock-solid foundation for building reliable,
+maintainable, and efficient systems. It combines the rigor of a strongly
+typed, purely functional language with the practicality of modern
+tooling.
 
-For example, you may be writing shell or python scripts to automate system
-administration or deployment tasks, or for managing cloud deployments,
-configuration. For such tasks you may not be worried about the performance but
-you may be worried about correctness and how quickly you can achieve what you
-want to do, and maintainability of the programs. For such tasks you would
-usually reach out for python, shell scripting or other such high level
-scripting languages.
+### Interactive Development (GHCi)
 
-On the other hand you may be writing a program that require very high
-performance and optimal use of resources so that the task can be finished
-faster and requires less resources to save cost. High level scripting languages
-(e.g. python or shell) may be unsuitable for such tasks because they could be
-10x-100x slower compared to lower level languages like `Rust`, `C`, `C++` or
-`Java`.
+Haskell is compiled for performance, but it also ships with an
+interpreter (GHCi). This gives you the convenience of interactive
+exploration—like Python or Ruby—while still compiling to fast native
+code when needed. Types are inferred automatically, so you often don’t
+need to write them explicitly, but they are always there to guarantee
+safety.
 
-If you would like to use the same language and tools for all your
-programming tasks, be it a quick script or a high performance system,
-or if you do not want to build different set of teams for programming
-tasks of different nature then Haskell Streamly is just the programming
-framework for you. The stream fusion optimization enabled by GHC's
-magical optimizing capabilities allows you to have the best of both
-worlds, a very high level language framework with performance matching
-C.
+### Fearless Refactoring
 
-## Higher level than Python
+Large systems inevitably evolve, and in many languages refactoring
+introduces new bugs. In Haskell, immutability and a strong static type
+system keep programs consistent, while the compiler catches errors early.
+This makes refactoring safe and reliable—a quality that experienced
+Haskell developers consistently vouch for in production systems.
 
-Whether you are writing scripts to manage your systems, or to automate mundane
-tasks like organizing photos or files on your computer, or to write tests for
-your software systems, or crawling the network to glean some information, or
-writing a quick network server, or writing algorithmic trading systems, or
-doing high performance intensive data processing, Haskell Streamly is just the
-right tool for you.
+### Correctness by Design
 
-Haskell Streamly is a very high level programming framework, like Python or
-Shell or Sed or AWK, in fact much higher level than those, but at the same time
-provides high performance like C or Rust. The ability to compose programs using
-high level combinators in Haskell is unmatched. Not just efficient programs but
-you can write programs that scale on multiple CPUs with the same ease. Streamly
-uses the full power of Haskell to make concurrency composable in declarative
-style, so that you can use concurrent programming fearlessly with the same ease
-as non-concurrent programming.
+Many common bugs in other languages—null pointer exceptions, data
+races, accidental mutation—simply don’t exist in Haskell. This frees
+you to focus on business logic instead of defensive programming.
 
-## Haskell Interepreter (GHCi)
+### Portability and Interoperability
 
-Although Haskell is a compiled programming language it comes with an
-interpreter (GHCi) which allows you to run Haskell code interactively like an
-interpreted language. Haskell has a strong static type system, yet in most
-cases you do not have to annotate the types because it infers the types
-automatically.
+Haskell is portable across Linux, macOS, Windows, and even the browser
+(via JavaScript or WebAssembly). It can seamlessly interoperate with C,
+Python, and many other languages, letting you reuse existing code and
+libraries.
 
-## Fearless Refactoring
+---
 
-You can keep systems written with Haskell Streamly extremely modular using
-reusable building blocks, modularity is the fundamental characteristic and
-a design goal of Streamly. At the same time Haskell allows you to do fearless
-refactoring of your program to continuously evolve it without the fear of
-introducing more bugs or breaking it every time you touch it.
+## Why Streamly?
 
-The type safety and immutability by default in Haskell avoids a lot of bugs
-that would otherwise find their way into your programs if you are using less
-safe languages. You focus on your business logic rather than the correctness
-issues imposed by the programming paradigm.
+Streamly builds on Haskell’s strengths to provide a single framework
+for everything from quick automation scripts to high-performance
+servers. It combines **Python’s ease of use, C’s performance,
+Rust’s safety, and Go’s concurrency model**—all in one framework,
+and goes even further.
 
-## Fearless Concurrency
+### Performance Matching Low-Level Languages
 
-Streamly is designed for concurrency, it lets you write concurrent
-code in a declarative manner. The high level concurrency abstractions
-in Streamly allow you to write concurrent code in such a way that
-you do not worry about the low level concurrency constructs like
-threads, locking and synchronization. There is little difference in
-non-concurrent or concurrent code. If the code is written using the
-streaming paradigm it can be made concurrent effortlessly.
+High-level scripting languages like Python or Bash can be **10x–100x
+slower** than optimized low-level languages such as C, Rust, or
+Java. For tasks where efficiency matters—data pipelines, servers,
+or numerical processing—this overhead is unacceptable.
 
-## Integrate with other Languages
+Streamly leverages GHC’s advanced optimizations and stream fusion to
+deliver performance on par with C, without sacrificing expressiveness.
+It gives you the best of both worlds: the productivity of high-level
+scripting languages like Python or Bash, with the performance of
+low-level languages like C and Rust.
 
-Haskell is extensible, you can integrate C programs with Haskell very easily.
-Programs written in Haskell work on `macOS`, `Windows`, `Linux` or any Unix
-like system and even on the browser using the Java Script and Web assembly
-backends.
+### More Expressive than Scripting Languages
 
-## Standard Library
+For scripting, system management, data wrangling, or even spinning up
+quick servers, Streamly offers high-level combinators that let you
+compose programs declaratively. Its design philosophy emphasizes
+**modularity**: a hierarchy of composable building blocks, where
+higher-level constructs are built from lower-level ones. This degree
+of modularity is possible in Haskell due to purity, which enables
+the compiler to reason about and combine components safely, creating
+higher-level functionality without compromising performance. The result
+is much more power and expressiveness than Python or shell scripting—
+while still compiling to efficient native code.
 
-Haskell Streamly is a standard library for Haskell and supplements the Haskell
-`base` package. It comes equipped with basic data structures and functions like
-Streams, Arrays, Folds, Parsers, file system facilities like directory IO, file
-IO, Unicode text processing, network processing using low level sockets or high
-level operations. Concurrent programming facilities or time domain programming
-facilities.
+### Fearless Concurrency
 
-## Streamly Ecosystem
+Streamly is designed for concurrency, allowing you to write concurrent
+code in a declarative style. Haskell’s purity lends itself
+particularly well to concurrency, and Streamly leverages this unique
+feature in Haskell. Its high-level abstractions free you from low-level
+concerns such as threads, locks, and synchronization. There is little
+distinction between concurrent and non-concurrent code—if your program
+follows the streaming paradigm, it can be made concurrent effortlessly.
 
-The collection of high level building blocks provided by the Streamly ecosystem
-allow you to write a variety of programs quickly. You can turn your shell or
-python scripts into safe, highly modular and high performance programs using
-`streamly-coreutils`. Moreover, you do not have to depend on any native OS
-packages installed on the system. Or if you would like to use native
-executables in your programs you can use `streamly-process` to invoke the
-executables and connect the data streams generated like pipes in a seamless
-manner. Or if you would like to use the shell to invoke and compose the
-executables and integrate it seamless in your program you can do that too using
-`streamly-shell`. If you would like to use statistical computation in your
-programs try out `streamly-statistics`. Streamly ecosystem is evolving and
-there are more useful packages in the works. In addition, you have thousands of
-Haskell packages that are available on Hackage.
+### Standard Library for Real-World Needs
+
+The streaming model is the truest form of functional programming,
+delivering the high composability that functional programming promises.
+Streamly extends Haskell’s base library with unified, streaming-capable
+APIs for everyday programming:
+
+- Streams, folds, and parsers for data processing
+- Arrays for random-access storage with streaming APIs
+- Binary serialization and deserialization
+- Streaming file and directory I/O
+- Streaming Unicode text processing
+- Streaming network APIs
+- Time-based streaming APIs for FRP
+- Concurrency built into all APIs
+
+With these tools, you can move seamlessly from quick prototypes to
+production-grade systems—without ever switching languages.
+
+### Streamly Ecosystem
+
+Beyond the core library, Streamly provides an ecosystem of packages:
+
+- **`streamly-process`**: Launch and compose executables, connect their
+  input and output streams, run shell commands, and integrate them
+  seamlessly into Haskell streaming pipelines.
+- **`streamly-coreutils`**: Replace shell or Python scripts with safe,
+  modular, high-performance Haskell equivalents.
+- **`streamly-statistics`**: Perform incremental statistical analysis on
+  sliding windows of data within streaming pipelines.
+- **`streamly-fsevents`**: Watch files or directories for file system
+  events (inotify) and generate event streams.
+
+More packages are continually evolving. Combined with the thousands of
+Haskell libraries on [Hackage](https://hackage.haskell.org), Streamly
+gives you a complete toolkit for building powerful applications.
+
+---
+
+## One Language for Everything
+
+Modern software projects demand many different kinds of programs:  
+
+- Quick scripts for automation  
+- High-performance data processing  
+- Concurrent or parallel applications  
+- Network servers and distributed systems  
+
+Traditionally, this forces programmers to juggle different tools: Python
+or shell for scripting, C/C++/Rust for performance, Java/Go for servers,
+and special frameworks for concurrency. This fragmentation leads to
+duplicated effort, larger teams, and higher maintenance costs.
+
+**Haskell Streamly provides a single framework for all of these
+tasks.** You can write concise, high-level programs that are safe,
+scalable, and easy to reason about—yet still achieve performance
+competitive with C.
+
+Haskell gives you correctness, safety, and interactive development.
+Streamly adds performance, concurrency, modularity, and practical
+libraries. Together, they remove the need to juggle multiple languages
+for different tasks.
