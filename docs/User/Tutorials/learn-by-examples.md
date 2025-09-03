@@ -30,7 +30,7 @@ It [concludes](#further-reading) with suggestions for further reading.
 ### Installing Streamly
 
 If you wish to follow along and run examples in this guide, please see
-the [Before You Begin](/docs/User/Tutorials/before-you-begin.md) guide
+the [Before You Begin](/docs/User/Tutorials/installing-haskell.md) guide
 for instructions on how to use the `streamly` package interactively or
 in a project.
 
