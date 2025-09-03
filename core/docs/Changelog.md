@@ -31,6 +31,7 @@ full list of deprecations, additions, and changes to the function signatures.
 
 Following APIs/modules are deprecated and renamed or replaced with new
 APIs.
+
 * `Streamly.FileSystem.Dir`, `Streamly.FileSystem.File` have been replaced by
   new modules.
 * Renamed `writeN`-like APIs to `createOf`-like in Array modules.
