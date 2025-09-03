@@ -258,7 +258,7 @@ application using the instructions in the [Build Guide](/docs/User/HowTo/Compili
 
 If you got this far successfully, congratulations!  For an overview
 of the `streamly` package, please read the [Streamly Quick
-Overview](/docs/User/Tutorials/quick-overview.md).
+Overview](/docs/User/Tutorials/learn-by-examples.md).
 
 <!-- Markdown Links -->
 

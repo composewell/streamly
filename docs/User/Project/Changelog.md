@@ -164,7 +164,7 @@ Following modules are moved to `streamly-core` package and renamed:
 
 ## 0.8.1 (Nov 2021)
 
-See ApiChangelogs/0.8.3.txt for new APIs introduced.
+See ApiChangelogs/0.8.0-0.8.1.txt for new APIs introduced.
 
 ### Bug Fixes
 
@@ -192,7 +192,7 @@ See ApiChangelogs/0.8.3.txt for new APIs introduced.
 
 ## 0.8.0 (Jun 2021)
 
-See [API Changelog](/docs/User/Project/ApiChangelogs/0.8.3.txt) for a complete list of signature
+See [API Changelog](/docs/User/Project/ApiChangelogs/0.7.3-0.8.0.txt) for a complete list of signature
 changes and new APIs introduced.
 
 ### Breaking changes
@@ -231,7 +231,7 @@ changes and new APIs introduced.
 
 ### Enhancements
 
-* See [API Changelog](/docs/User/Project/ApiChangelogs/0.8.3.txt) for a complete list of new
+* See [API Changelog](/docs/User/Project/ApiChangelogs/0.7.3-0.8.0.txt) for a complete list of new
   modules and APIs introduced.
 * The Fold type is now more powerful, the new termination behavior allows
   to express basic parsing of streams using folds.
