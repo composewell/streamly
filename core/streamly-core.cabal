@@ -591,4 +591,4 @@ library
       build-depends:   monad-control     >= 1.0 && < 1.1
 
     if os(windows)
-      build-depends: Win32            >= 2.6 && < 2.15
+      build-depends: Win32            >= 2.6 && < 2.14

@@ -577,7 +577,7 @@ library
       build-depends: directory >= 1.2.2 && < 1.4
 
     if os(windows)
-      build-depends: Win32 >= 2.6 && < 2.15
+      build-depends: Win32 >= 2.6 && < 2.14
 
     if os(darwin)
       build-depends: directory >= 1.2.2 && < 1.4
