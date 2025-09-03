@@ -1,8 +1,8 @@
 # Frequently Asked Questions
 
 This document provides idioms or examples to solve common programming
-problems using streamly. To start with please go through [Streamly Quick
-Overview](/docs/User/Tutorials/learn-by-examples.md) and [`Streamly examples repository`][streamly-examples].
+problems using streamly. To start with please go through the [Learn By
+Examples](/docs/User/Tutorials/learn-by-examples.md) page and [`Examples Package`](https://github.com/composewell/streamly-examples).
 This document provides additional examples.
 
 ## Distribute and Zip Concurrently
