@@ -24,11 +24,9 @@ comprising:
 * Fearless, declarative concurrency for seamless parallel execution.
 * A collection of ecosystem libraries for fast and efficient development.
 
-Check out the [Streamly Getting Started
-Guide](/docs/User/Tutorials/installing-haskell.md) and [Quick
-Overview](/docs/User/Tutorials/learn-by-examples.md) for an introduction
-to the library. For more detailed documentation, visit the [Haskell
-Streamly website][Streamly].
+Check out the [Learn By Examples](/docs/User/Tutorials/learn-by-examples.md)
+page for an introduction to the library. For more detailed documentation, visit
+the [Haskell Streamly website][Streamly].
 
 ## Blazing Fast
 
