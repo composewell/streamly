@@ -1,6 +1,6 @@
 cabal-version:      2.4
 name:               streamly-core
-version:            0.3.0
+version:            0.4.0
 synopsis:           Streaming, parsers, arrays, serialization and more
 description:
   For upgrading to streamly-0.9.0+ please read the
