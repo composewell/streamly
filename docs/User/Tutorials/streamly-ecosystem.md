@@ -94,7 +94,7 @@ interconversion.
 Package for converting streamly `Array` type to the bytestring package's
 `ByteString` type and vice-versa.
 
-👉 [streamly-bytestring on GitHub](https://github.com/composewell/streamly-bytestring)
+👉 [streamly-bytestring on GitHub](https://github.com/psibi/streamly-bytestring)
 
 ### streamly-text
 
