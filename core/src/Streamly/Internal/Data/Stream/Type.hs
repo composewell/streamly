@@ -930,10 +930,12 @@ cmpBy cmp (Stream step1 t1) (Stream step2 t2) = cmp_loop0 SPEC t1 t2
 --
 {-# INLINE_NORMAL mapM #-}
 mapM :: Monad m => (a -> m b) -> Stream m a -> Stream m b
-mapM f (Stream step state) = Stream step' state
-  where
-    {-# INLINE_LATE step' #-}
-    step' gst st = do
+mapM f (Stream step state) = Stream step1 state
+
+    where
+
+    {-# INLINE_LATE step1 #-}
+    step1 gst st = do
         r <- step (adaptState gst) st
         case r of
             Yield x s -> f x >>= \a -> return $ Yield a s
