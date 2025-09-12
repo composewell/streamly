@@ -155,6 +155,7 @@
             * `cabal v2-haddock --haddock-for-hackage --enable-doc; cabal upload -d <tarpath>`
           * Publish the package
             * `cabal v2-sdist`; `cabal upload --publish <tarpath>`
+            * `cabal v2-haddock --haddock-for-hackage --enable-doc; cabal upload --publish -d <tarpath>`
             * Run packcheck on the uploaded package. To get the latest uploaded
               version from hackage, run `cabal unpack <package-name>`. You might
               have to run `cabal update`.
