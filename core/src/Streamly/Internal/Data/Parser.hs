@@ -1772,7 +1772,7 @@ wordWithQuotes keepQuotes tr escChar toRight isSep
             case res of
                 FL.Partial s -> IPartial (WordQuotedSkipPre s)
                 FL.Done _ ->
-                    error "wordKeepQuotes: fold done without input"
+                    error "wordWithQuotes: fold done without input"
 
     {-# INLINE processQuoted #-}
     processQuoted s a n ql qr = do
@@ -1812,7 +1812,7 @@ wordWithQuotes keepQuotes tr escChar toRight isSep
                   else return $ SContinue 1 $ WordQuotedWord s 1 a qr
                 Nothing
                     | isInvalid a ->
-                        return $ SError "wordKeepQuotes: invalid unquoted char"
+                        return $ SError "wordWithQuotes: invalid unquoted char"
                     | otherwise -> processUnquoted s a
     step (WordUnquotedWord s) a
         | isEsc a = return $ SContinue 1 $ WordUnquotedEsc s
@@ -1827,7 +1827,7 @@ wordWithQuotes keepQuotes tr escChar toRight isSep
                     else return $ SContinue 1 $ WordQuotedWord s 1 a qr
                 Nothing ->
                     if isInvalid a
-                    then return $ SError "wordKeepQuotes: invalid unquoted char"
+                    then return $ SError "wordWithQuotes: invalid unquoted char"
                     else processUnquoted s a
     step (WordQuotedWord s n ql qr) a
         | isEsc a = return $ SContinue 1 $ WordQuotedEsc s n ql qr
