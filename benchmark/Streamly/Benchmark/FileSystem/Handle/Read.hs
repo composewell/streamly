@@ -195,7 +195,7 @@ getChunksConcatUnfoldCountLines inh =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'getChunksConcatUnfoldCountLines
 inspect $ 'getChunksConcatUnfoldCountLines `hasNoType` ''Step
-inspect $ 'getChunksConcatUnfoldCountLines `hasNoType` ''D.ConcatMapUState
+inspect $ 'getChunksConcatUnfoldCountLines `hasNoType` ''D.UnfoldEachState
 #endif
 
 o_1_space_reduce_toBytes :: BenchEnv -> [Benchmark]

@@ -454,7 +454,7 @@ unfoldManyRepl outer inner n =
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'unfoldManyRepl
-inspect $ 'unfoldManyRepl `hasNoType` ''S.ConcatMapUState
+inspect $ 'unfoldManyRepl `hasNoType` ''S.UnfoldEachState
 inspect $ 'unfoldManyRepl `hasNoType` ''SPEC
 #endif
 

@@ -189,7 +189,7 @@ unfoldEach outer inner start = drain $
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'unfoldEach
-inspect $ 'unfoldEach `hasNoType` ''D.ConcatMapUState
+inspect $ 'unfoldEach `hasNoType` ''D.UnfoldEachState
 inspect $ 'unfoldEach `hasNoType` ''SPEC
 #endif
 

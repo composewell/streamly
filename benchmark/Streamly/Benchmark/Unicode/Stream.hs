@@ -273,7 +273,7 @@ copyStreamUtf16 inh outh =
 inspect $ hasNoTypeClasses '_copyStreamUtf8'
 -- inspect $ '_copyStreamUtf8 `hasNoType` ''Step
 -- inspect $ '_copyStreamUtf8 `hasNoType` ''Array.FlattenState
--- inspect $ '_copyStreamUtf8 `hasNoType` ''D.ConcatMapUState
+-- inspect $ '_copyStreamUtf8 `hasNoType` ''D.UnfoldEachState
 #endif
 
 -- | Copy file
@@ -289,7 +289,7 @@ copyStreamUtf8 inh outh =
 inspect $ hasNoTypeClasses 'copyStreamUtf8
 -- inspect $ 'copyStreamUtf8Lax `hasNoType` ''Step
 -- inspect $ 'copyStreamUtf8Lax `hasNoType` ''Array.FlattenState
--- inspect $ 'copyStreamUtf8Lax `hasNoType` ''D.ConcatMapUState
+-- inspect $ 'copyStreamUtf8Lax `hasNoType` ''D.UnfoldEachState
 #endif
 
 {-# NOINLINE _copyStreamUtf8'Fold #-}
