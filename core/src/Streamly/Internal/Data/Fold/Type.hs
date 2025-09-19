@@ -409,6 +409,10 @@ module Streamly.Internal.Data.Fold.Type
     , takeEndBy
     , dropping
 
+    -- ** Transformation
+    , foldMaybes
+    , foldEithers
+
     -- ** Condition
     , ifThen
 
@@ -1736,6 +1740,59 @@ catMaybes (Fold step initial extract final) = Fold step1 initial extract final
         case a of
             Nothing -> return $ Partial s
             Just x -> step s x
+
+-- | Transform a fold so that it works on 'Maybe' inputs.
+--
+-- * If any input is 'Nothing', the fold terminates early and its result is
+-- 'Nothing'.
+-- * If all inputs are 'Just x', the underlying fold runs on the unwrapped @x@
+-- values and the result is wrapped in 'Just'.
+--
+-- This allows lifting a regular 'Fold' into one that can gracefully handle
+-- optional inputs.
+--
+{-# INLINE foldMaybes #-}
+foldMaybes :: Monad m => Fold m a b -> Fold m (Maybe a) (Maybe b)
+foldMaybes (Fold step1 initial1 extract1 final1) =
+    Fold step initial extract final
+
+    where
+
+    initial = fmap Just <$> initial1
+
+    step _ Nothing = pure $ Done Nothing
+    step st (Just x) = fmap Just <$> step1 st x
+
+    extract st = Just <$> extract1 st
+
+    final st  = Just <$> final1 st
+
+-- | Transform a fold so that it works on 'Either' inputs.
+--
+-- * If any input is a 'Left e', the fold terminates immediately and the
+--   result is @Left e@.
+-- * If all inputs are 'Right x', the underlying fold runs on the unwrapped
+--   @x@ values and its result is wrapped in 'Right'.
+--
+-- This allows lifting a regular 'Fold' into one that can propagate errors
+-- (using 'Left') while folding successful values (using 'Right').
+--
+{-# INLINE foldEithers #-}
+foldEithers :: Monad m =>
+    Fold m b c -> Fold m (Either a b) (Either a c)
+foldEithers (Fold step1 initial1 extract1 final1) =
+    Fold step initial extract final
+
+    where
+
+    initial = fmap Right <$> initial1
+
+    step _ (Left x) = pure $ Done (Left x)
+    step st (Right x) = fmap Right <$> step1 st x
+
+    extract st = Right <$> extract1 st
+
+    final st  = Right <$> final1 st
 
 -- | Use a 'Maybe' returning fold as a filtering scan.
 --

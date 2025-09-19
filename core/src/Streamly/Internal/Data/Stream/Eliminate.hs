@@ -44,6 +44,8 @@ module Streamly.Internal.Data.Stream.Eliminate
     , find
     , (!!)
     , the
+    , foldMaybes
+    , foldEithers
 
     -- * To containers
     , toListRev
@@ -70,6 +72,7 @@ where
 
 import Control.Monad.IO.Class (MonadIO(..))
 import GHC.Types (SPEC(..))
+import Streamly.Internal.Data.Fold (Fold)
 import Streamly.Internal.Data.Parser (ParseError(..), ParseErrorPos(..))
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
 import Streamly.Internal.Data.Unbox (Unbox)
@@ -105,6 +108,50 @@ foldr1 f m = do
      case r of
          Nothing   -> return Nothing
          Just (h, t) -> fmap Just (foldr f h t)
+
+-- | Fold a stream of optional values.
+--
+--   * If any element in the stream is 'Nothing', the fold terminates and the
+--     result is 'Nothing'.
+--   * If all elements are 'Just x', the supplied fold is applied to the
+--     unwrapped @x@ values and the result is wrapped in 'Just'.
+--
+-- >>> foldMaybes f = Stream.fold (Fold.foldMaybes f)
+--
+-- === __Examples__
+--
+-- >>> Stream.foldMaybes Fold.sum (Stream.fromList [Just 1, Just 2, Just 3])
+-- Just 6
+--
+-- >>> Stream.foldMaybes Fold.sum (Stream.fromList [Just 1, Nothing, Just 3])
+-- Nothing
+--
+{-# INLINE foldMaybes #-}
+foldMaybes :: Monad m =>
+    Fold m a b -> Stream m (Maybe a) -> m (Maybe b)
+foldMaybes f = fold (Fold.foldMaybes f)
+
+-- | Fold a stream of 'Either' values.
+--
+--   * If any element in the stream is @Left e@, the fold terminates immediately
+--     and the result is @Left e@.
+--   * If all elements are @Right x@, the supplied fold is applied to the
+--     unwrapped @x@ values and the result is wrapped in 'Right'.
+--
+-- >>> foldEithers f = Stream.fold (Fold.foldEithers f)
+--
+-- === __Examples__
+--
+-- >>> Stream.foldEithers Fold.sum (Stream.fromList [Right 1, Right 2, Right 3])
+-- Right 6
+--
+-- >>> Stream.foldEithers Fold.sum (Stream.fromList [Right 1, Left "oops", Right 3])
+-- Left "oops"
+--
+{-# INLINE foldEithers #-}
+foldEithers :: Monad m =>
+    Fold m b c -> Stream m (Either a b) -> m (Either a c)
+foldEithers f = fold (Fold.foldEithers f)
 
 ------------------------------------------------------------------------------
 -- Parsers
