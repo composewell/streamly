@@ -59,7 +59,7 @@ module Streamly.Internal.Data.Stream.Type
     , foldBreak
     , foldAddLazy
     , foldAdd
-    , foldEither
+    , foldBreakEither
 
     , Streamly.Internal.Data.Stream.Type.foldl'
     , foldlM'
@@ -187,6 +187,7 @@ module Streamly.Internal.Data.Stream.Type
     , concatIterateDfs
     , concatIterateBfs
     , concatIterateBfsRev
+    , foldEither -- XXX to be marked as deprecated
     )
 where
 
@@ -463,10 +464,10 @@ toStreamK (Stream step state) = go state
 -- returns the fold result and the residual stream.
 --
 -- /Internal/
-{-# INLINE_NORMAL foldEither #-}
-foldEither :: Monad m =>
+{-# INLINE_NORMAL foldBreakEither #-}
+foldBreakEither, foldEither :: Monad m =>
     Fold m a b -> Stream m a -> m (Either (Fold m a b) (b, Stream m a))
-foldEither (Fold fstep begin done final) (UnStream step state) = do
+foldBreakEither (Fold fstep begin done final) (UnStream step state) = do
     res <- begin
     case res of
         FL.Partial fs -> go SPEC fs state
@@ -487,6 +488,10 @@ foldEither (Fold fstep begin done final) (UnStream step state) = do
             Stop ->
                 let f = Fold fstep (return $ FL.Partial fs) done final
                  in return $! Left f
+
+-- XXX deprecate in next major release
+-- Renamed because we need a foldEithers to fold a stream of Either
+foldEither = foldBreakEither
 
 -- | Like 'fold' but also returns the remaining stream. The resulting stream
 -- would be 'Stream.nil' if the stream finished before the fold.
