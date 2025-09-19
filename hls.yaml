@@ -1,0 +1,33 @@
+# specified in hie.yaml
+#cradle:
+#  cabal:
+#    - path: "./src"
+#      component: "lib:streamly"
+
+plugins:
+  brittany:
+    globalOn: false
+  floskell:
+    globalOn: false
+  fourmolu:
+    globalOn: false
+  ormolu:
+    globalOn: false
+  stylish-haskell:
+    globalOn: false
+  retrie:
+    globalOn: false
+  eval:
+    globalOn: false
+  haddockComments:
+    globalOn: false
+  pragmas:
+    globalOn: false
+  refineImports:
+    globalOn: false
+  rename:
+    globalOn: false
+  tactic:
+    globalOn: false
+  hlint:
+    globalOn: false
