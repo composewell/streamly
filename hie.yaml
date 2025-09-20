@@ -126,6 +126,8 @@ cradle:
               component: "test:Data.Unbox"
             - path: "./test/Streamly/Test/Data/Unfold.hs"
               component: "test:Data.Unfold"
+            - path: "./test/Streamly/Test/FileSystem/DirIO.hs"
+              component: "test:FileSystem.DirIO"
             - path: "./test/Streamly/Test/FileSystem/Event.hs"
               component: "test:FileSystem.Event"
             - path: "./test/Streamly/Test/FileSystem/Event/Common.hs"

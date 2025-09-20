@@ -30,7 +30,7 @@ import qualified Streamly.Internal.Unicode.Stream as Unicode (lines)
 import qualified Streamly.Data.Stream.Prelude as Stream
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Data.StreamK as StreamK
-import qualified Streamly.Internal.FileSystem.DirIO as Dir
+import qualified Streamly.FileSystem.DirIO as Dir
 
 import Prelude hiding (last, length)
 import BenchTestLib.DirIO
