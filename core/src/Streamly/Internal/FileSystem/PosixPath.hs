@@ -41,7 +41,11 @@
 #define SEPARATORS @/@
 #endif
 
--- |
+
+-- XXX Do not start a module haddock comment here as this file gets included in
+-- Path.hs and then we have duplicate module level comment in that file,
+-- generating a haddock warning.
+
 -- Module      : Streamly.Internal.FileSystem.OS_PATH_TYPE
 -- Copyright   : (c) 2023 Composewell Technologies
 -- License     : BSD3
