@@ -284,7 +284,7 @@ new = emptyOf
 -- >>> nil = MutArray.emptyOf 0
 {-# INLINE nil #-}
 nil :: MonadIO m => m (MutArray a)
-nil = new 0
+nil = emptyOf 0
 
 -------------------------------------------------------------------------------
 -- Random writes
@@ -384,7 +384,7 @@ modifyIndex i arr f = do
 --
 realloc :: MonadIO m => Int -> MutArray a -> m (MutArray a)
 realloc n arr = do
-    arr1 <- new n
+    arr1 <- emptyOf n
     let !newLen@(I# newLen#) = min n (length arr)
         !(I# arrS#) = arrStart arr
         !(I# arr1S#) = arrStart arr1
@@ -637,7 +637,7 @@ unsafeCreateOf n = Fold step initial return return
 
     where
 
-    initial = FL.Partial <$> new (max n 0)
+    initial = FL.Partial <$> emptyOf (max n 0)
 
     step arr x = FL.Partial <$> unsafeSnoc arr x
 
@@ -681,7 +681,7 @@ createWith elemCount = FL.rmapM extract $ FL.foldlM' step initial
 
     initial = do
         when (elemCount < 0) $ error "createWith: elemCount is negative"
-        new elemCount
+        emptyOf elemCount
 
     step arr@(MutArray _ start end bound) x
         | end == bound = do
@@ -783,7 +783,7 @@ chunksOf n (D.Stream step state) =
             error $ "Streamly.Internal.Data.Array.Generic.Mut.Type.chunksOf: "
                     ++ "the size of arrays [" ++ show n
                     ++ "] must be a natural number"
-        (MutArray contents start end bound :: MutArray a) <- new n
+        (MutArray contents start end bound :: MutArray a) <- emptyOf n
         return $ D.Skip (GroupBuffer st contents start end bound)
 
     step' gst (GroupBuffer st contents start end bound) = do
@@ -872,7 +872,7 @@ unsafePutSlice src srcStart dst dstStart len = liftIO $ do
 clone :: MonadIO m => MutArray a -> m (MutArray a)
 clone src = do
     let len = length src
-    dst <- new len
+    dst <- emptyOf len
     unsafePutSlice src 0 dst 0 len
     return dst
 
