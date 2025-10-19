@@ -550,7 +550,7 @@ library
                     -- concurrency
                      , lockfree-queue    >= 0.2.4 && < 0.3
 
-                     , unicode-data      >= 0.1 && < 0.7
+                     , unicode-data      >= 0.1 && < 0.9
 
                     -- Network
                      , network           >= 2.6   && < 3.3
