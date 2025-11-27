@@ -9,9 +9,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
 
-#ifdef USE_PRELUDE
-#endif
-
 #ifdef __HADDOCK_VERSION__
 #undef INSPECTION
 #endif
@@ -33,12 +30,6 @@ import qualified Streamly.Internal.Data.Stream as D
 import qualified Stream.Common as Common
 import qualified Streamly.Internal.Data.Unfold as UF
 
-#ifdef USE_PRELUDE
-import qualified Streamly.Internal.Data.Stream.IsStream as S
-import Streamly.Benchmark.Prelude
-    ( sourceFoldMapM, sourceFoldMapWith, sourceFoldMapWithM
-    , sourceFoldMapWithStream, concatFoldableWith, concatForFoldableWith)
-#else
 import Streamly.Data.Stream (Stream)
 import Streamly.Data.Unfold (Unfold)
 import qualified Streamly.Internal.Data.Stream as S
@@ -46,8 +37,6 @@ import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.StreamK as StreamK
-#endif
-
 import Test.Tasty.Bench
 import Stream.Common
 import Streamly.Benchmark.Common
@@ -88,29 +77,6 @@ o_1_space_joining value =
         , benchIOSrc1 "serial (2,2,x/4)" (serial4 (value `div` 4))
         ]
     ]
-
--------------------------------------------------------------------------------
--- Concat Foldable containers
--------------------------------------------------------------------------------
-
-#ifdef USE_PRELUDE
-o_1_space_concatFoldable :: Int -> [Benchmark]
-o_1_space_concatFoldable value =
-    [ bgroup "concat-foldable"
-        [ benchIOSrc "foldMapWith (<>) (List)"
-            (sourceFoldMapWith value)
-        , benchIOSrc "foldMapWith (<>) (Stream)"
-            (sourceFoldMapWithStream value)
-        , benchIOSrc "foldMapWithM (<>) (List)"
-            (sourceFoldMapWithM value)
-        , benchIOSrc "S.concatFoldableWith (<>) (List)"
-            (concatFoldableWith value)
-        , benchIOSrc "S.concatForFoldableWith (<>) (List)"
-            (concatForFoldableWith value)
-        , benchIOSrc "foldMapM (List)" (sourceFoldMapM value)
-        ]
-    ]
-#endif
 
 -------------------------------------------------------------------------------
 -- Concat
@@ -712,9 +678,6 @@ benchmarks moduleName size =
             [
             -- multi-stream
               o_1_space_joining size
-#ifdef USE_PRELUDE
-            , o_1_space_concatFoldable size
-#endif
             , o_1_space_concat size
             , o_1_space_applicative size
             , o_1_space_monad size

@@ -11,9 +11,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RankNTypes #-}
 
-#ifdef USE_PRELUDE
-#endif
-
 module Stream.Reduce (benchmarks) where
 
 import Control.DeepSeq (NFData(..))
@@ -33,23 +30,11 @@ import Data.Proxy (Proxy(..))
 import Streamly.Internal.Data.IsMap.HashMap ()
 #endif
 
-#ifdef USE_PRELUDE
-import qualified Streamly.Internal.Data.Stream.IsStream as S
-import qualified Streamly.Prelude as S
-import Streamly.Prelude (fromSerial)
-import Streamly.Benchmark.Prelude hiding
-    ( benchIO, benchIOSrc, sourceUnfoldrM, apDiscardFst, apDiscardSnd, apLiftA2
-    , toNullAp, monadThen, toNullM, toNullM3, filterAllInM, filterAllOutM
-    , filterSome, breakAfterSome, toListM, toListSome, transformMapM
-    , transformComposeMapM, transformTeeMapM, transformZipMapM)
-#else
-
 import Streamly.Internal.Data.Stream (Stream)
 import qualified Streamly.Internal.Data.Stream as S
 #ifndef USE_STREAMLY_CORE
 import qualified Streamly.Data.Stream.Prelude as S
 import qualified Streamly.Internal.Data.Stream.Prelude as S
-#endif
 #endif
 
 import Test.Tasty.Bench
@@ -57,9 +42,7 @@ import Streamly.Benchmark.Common
 import Stream.Common
 import Prelude hiding (reverse, tail)
 
-#ifdef USE_PRELUDE
-type Stream = S.SerialT
-#endif
+
 
 -- Apply transformation g count times on a stream of length len
 {-# INLINE iterateSource #-}
@@ -83,49 +66,23 @@ iterateSource g count len n = f count (sourceUnfoldrM len n)
 
 {-# INLINE groups #-}
 groups :: MonadIO m => Stream m Int -> m ()
-groups =
-#ifdef USE_PRELUDE
-    Common.drain . S.groups FL.drain
-#else
-    Common.drain . S.groupsWhile (==) FL.drain
-#endif
+groups = Common.drain . S.groupsWhile (==) FL.drain
 
 {-# INLINE groupsWhileLT #-}
 groupsWhileLT :: MonadIO m => Stream m Int -> m ()
-groupsWhileLT =
-#ifdef USE_PRELUDE
-    Common.drain . S.groupsBy (>) FL.drain
-#else
-    Common.drain . S.groupsWhile (<) FL.drain
-#endif
+groupsWhileLT = Common.drain . S.groupsWhile (<) FL.drain
 
 {-# INLINE groupsWhileEq #-}
 groupsWhileEq :: MonadIO m => Stream m Int -> m ()
-groupsWhileEq =
-#ifdef USE_PRELUDE
-    Common.drain . S.groupsBy (==) FL.drain
-#else
-    Common.drain . S.groupsWhile (==) FL.drain
-#endif
-
+groupsWhileEq = Common.drain . S.groupsWhile (==) FL.drain
 
 {-# INLINE groupsByRollingLT #-}
 groupsByRollingLT :: MonadIO m => Stream m Int -> m ()
-groupsByRollingLT =
-#ifdef USE_PRELUDE
-    Common.drain . S.groupsByRolling (<) FL.drain
-#else
-    Common.drain . S.groupsRollingBy (<) FL.drain
-#endif
+groupsByRollingLT = Common.drain . S.groupsRollingBy (<) FL.drain
 
 {-# INLINE groupsByRollingEq #-}
 groupsByRollingEq :: MonadIO m => Stream m Int -> m ()
-groupsByRollingEq =
-#ifdef USE_PRELUDE
-    Common.drain . S.groupsByRolling (==) FL.drain
-#else
-    Common.drain . S.groupsRollingBy (==) FL.drain
-#endif
+groupsByRollingEq = Common.drain . S.groupsRollingBy (==) FL.drain
 
 {-# INLINE foldMany #-}
 foldMany :: Monad m => Stream m Int -> m ()
@@ -135,7 +92,6 @@ foldMany =
     . S.foldMany (FL.take 2 FL.mconcat)
     . fmap Sum
 
-#ifndef USE_PRELUDE
 {-# INLINE foldMany1 #-}
 foldMany1 :: Monad m => Stream m Int -> m ()
 foldMany1 =
@@ -143,7 +99,6 @@ foldMany1 =
     . fmap getSum
     . S.foldManyPost (FL.take 2 FL.mconcat)
     . fmap Sum
-#endif
 
 {-# INLINE refoldMany #-}
 refoldMany :: Monad m => Stream m Int -> m ()
@@ -187,9 +142,7 @@ o_1_space_grouping value =
         -- modules we can bring those here. chunksOf benchmarks are in
         -- Parser/ParserD/Array.Stream/FileSystem.Handle.
           benchIOSink value "foldMany" foldMany
-#ifndef USE_PRELUDE
         , benchIOSink value "foldMany1" foldMany1
-#endif
         , benchIOSink value "refoldMany" refoldMany
         , benchIOSink value "foldIterateM" foldIterateM
         , benchIOSink value "refoldIterateM" refoldIterateM
@@ -218,7 +171,6 @@ o_1_space_grouping value =
 -- Size conserving transformations (reordering, buffering, etc.)
 -------------------------------------------------------------------------------
 
-#ifndef USE_PRELUDE
 {-# INLINE reverse #-}
 reverse :: MonadIO m => Int -> Stream m Int -> m ()
 reverse n = composeN n S.reverse
@@ -226,19 +178,14 @@ reverse n = composeN n S.reverse
 {-# INLINE reverse' #-}
 reverse' :: MonadIO m => Int -> Stream m Int -> m ()
 reverse' n = composeN n S.reverseUnbox
-#endif
 
 o_n_heap_buffering :: Int -> [Benchmark]
 o_n_heap_buffering value =
     [ bgroup "buffered"
         [
-#ifndef USE_PRELUDE
         -- Reversing a stream
           benchIOSink value "reverse" (reverse 1)
         , benchIOSink value "reverse'" (reverse' 1)
-#else
-          benchIOSink value "mkAsync" (mkAsync fromSerial)
-#endif
         ]
     ]
 
@@ -308,11 +255,9 @@ filterTake value n = composeN n $ S.take (value + 1) . S.filter (<= (value + 1))
 filterScan :: MonadIO m => Int -> Stream m Int -> m ()
 filterScan n = composeN n $ Common.scanl' (+) 0 . S.filter (<= maxBound)
 
-#ifdef USE_PRELUDE
 {-# INLINE filterScanl1 #-}
 filterScanl1 :: MonadIO m => Int -> Stream m Int -> m ()
 filterScanl1 n = composeN n $ S.scanl1' (+) . S.filter (<= maxBound)
-#endif
 
 {-# INLINE filterMap #-}
 filterMap :: MonadIO m => Int -> Int -> Stream m Int -> m ()
@@ -375,9 +320,7 @@ o_1_space_transformations_mixedX2 value =
         , benchIOSink value "filter-drop" (filterDrop value 2)
         , benchIOSink value "filter-take" (filterTake value 2)
         , benchIOSink value "filter-scan" (filterScan 2)
-#ifdef USE_PRELUDE
         , benchIOSink value "filter-scanl1" (filterScanl1 2)
-#endif
         , benchIOSink value "filter-map" (filterMap value 2)
         ]
     ]
@@ -394,9 +337,7 @@ o_1_space_transformations_mixedX4 value =
         , benchIOSink value "filter-drop" (filterDrop value 4)
         , benchIOSink value "filter-take" (filterTake value 4)
         , benchIOSink value "filter-scan" (filterScan 4)
-#ifdef USE_PRELUDE
         , benchIOSink value "filter-scanl1" (filterScanl1 4)
-#endif
         , benchIOSink value "filter-map" (filterMap value 4)
         ]
     ]
@@ -410,13 +351,10 @@ o_1_space_transformations_mixedX4 value =
 iterateScan :: MonadAsync m => Int -> Int -> Int -> Stream m Int
 iterateScan = iterateSource (Common.scanl' (+) 0)
 
-#ifdef USE_PRELUDE
 -- this is quadratic
 {-# INLINE iterateScanl1 #-}
 iterateScanl1 :: MonadAsync m => Int -> Int -> Int -> Stream m Int
 iterateScanl1 = iterateSource (S.scanl1' (+))
-#endif
-
 {-# INLINE iterateMapM #-}
 iterateMapM :: MonadAsync m => Int -> Int -> Int -> Stream m Int
 iterateMapM = iterateSource (S.mapM return)
@@ -472,9 +410,7 @@ o_n_stack_iterated value = by10 `seq` by100 `seq`
         [ benchIOSrc "mapM (n/10 x 10)" $ iterateMapM by10 10
         , benchIOSrc "scanl' (quadratic) (n/100 x 100)" $
             iterateScan by100 100
-#ifdef USE_PRELUDE
         , benchIOSrc "scanl1' (n/10 x 10)" $ iterateScanl1 by10 10
-#endif
         , benchIOSrc "filterEven (n/10 x 10)" $
             iterateFilterEven by10 10
         , benchIOSrc "takeAll (n/10 x 10)" $
@@ -530,7 +466,6 @@ o_1_space_pipesX4 value =
 -- Scans
 -------------------------------------------------------------------------------
 
-#ifndef USE_PRELUDE
 o_1_space_scans :: Int -> [Benchmark]
 o_1_space_scans value =
     [ bgroup "scans"
@@ -549,7 +484,6 @@ o_1_space_scansX4 value =
         , benchIOSink value "tee" (scanTeeMapM 4)
         ]
     ]
-#endif
 
 -------------------------------------------------------------------------------
 -- Main
@@ -570,11 +504,9 @@ benchmarks moduleName size =
             , o_1_space_pipes size
             , o_1_space_pipesX4 size
 
-#ifndef USE_PRELUDE
             -- scans
             , o_1_space_scans size
             , o_1_space_scansX4 size
-#endif
             ]
         , bgroup (o_n_stack_prefix moduleName) (o_n_stack_iterated size)
         , bgroup (o_n_heap_prefix moduleName) (o_n_heap_buffering size)

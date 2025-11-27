@@ -9,9 +9,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
 
-#ifdef USE_PRELUDE
-#endif
-
 module Stream.Lift (benchmarks) where
 
 import Control.DeepSeq (NFData(..))
@@ -23,20 +20,12 @@ import System.Random (randomRIO)
 import qualified Stream.Common as Common
 import qualified Streamly.Internal.Data.Fold as Fold
 
-#ifdef USE_PRELUDE
-import qualified Streamly.Internal.Data.Stream.IsStream as Stream
-#else
 import Streamly.Internal.Data.Stream (Stream)
 import qualified Streamly.Internal.Data.Stream as Stream
-#endif
 
 import Test.Tasty.Bench
 import Streamly.Benchmark.Common
 import Prelude hiding (reverse, tail)
-
-#ifdef USE_PRELUDE
-type Stream = Stream.SerialT
-#endif
 
 -------------------------------------------------------------------------------
 -- Monad transformation (hoisting etc.)
@@ -78,11 +67,9 @@ o_1_space_hoisting value =
     [ bgroup "hoisting"
         [ benchIOSrc "evalState" (evalStateT value)
         , benchIOSrc "withState" (withState value)
-#ifndef USE_PRELUDE
         , benchHoistSink value "generalizeInner"
             ((\xs -> Stream.fold Fold.length xs :: IO Int)
                 . Stream.generalizeInner)
-#endif
         ]
     ]
 

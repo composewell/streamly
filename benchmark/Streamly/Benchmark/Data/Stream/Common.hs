@@ -9,15 +9,13 @@
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 
-#ifdef USE_PRELUDE
-#endif
-
 module Stream.Common
     ( MonadAsync
 
     -- Generation
     , fromListM
     , fromFoldableM
+    , repeat
 
     , append
     , append2
@@ -67,11 +65,9 @@ module Stream.Common
     , transformComposeMapM
     , transformTeeMapM
     -- , transformZipMapM
-#ifndef USE_PRELUDE
     , scanMapM
     , scanComposeMapM
     , scanTeeMapM
-#endif
     )
 where
 
@@ -88,28 +84,14 @@ import qualified Streamly.Internal.Data.Pipe as Pipe
 import qualified Streamly.Internal.Data.Scanl as Scanl
 import qualified Streamly.Internal.Data.Scanr as Scanr
 
-#ifdef USE_PRELUDE
-import Streamly.Prelude (foldl', scanl')
-import qualified Streamly.Internal.Data.Stream.IsStream as Stream
-import qualified Streamly.Prelude as Stream
-import Streamly.Benchmark.Prelude
-    ( composeN, sourceConcatMapId, benchIOSink
-    )
-#else
+
 import Streamly.Internal.Data.Stream (Stream)
 import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.Stream as Stream
-#endif
 
 import Test.Tasty.Bench
-import Prelude hiding (Foldable(..), mapM, replicate)
+import Prelude hiding (Foldable(..), mapM, replicate, repeat)
 
-#ifdef USE_PRELUDE
-type Stream = Stream.SerialT
-type MonadAsync m = Stream.MonadAsync m
-mkCross = id
-unCross = id
-#else
 type MonadAsync = Monad
 
 mkCross :: Stream m a -> Stream.Nested m a
@@ -117,52 +99,34 @@ mkCross = Stream.Nested
 
 unCross :: Stream.Nested m a -> Stream m a
 unCross = Stream.unNested
-#endif
 
-#ifdef USE_PRELUDE
 {-# INLINE append #-}
 append :: Monad m => Stream m a -> Stream m a -> Stream m a
-append = Stream.serial
-#else
-append :: Monad m => Stream m a -> Stream m a -> Stream m a
 append = Stream.append
-#endif
 
 {-# INLINE append2 #-}
 append2 :: Monad m => Stream m a -> Stream m a -> Stream m a
-#ifdef USE_PRELUDE
-append2 = Stream.append
-#else
 append2 = D.append
-#endif
 
 {-# INLINE drain #-}
 drain :: Monad m => Stream m a -> m ()
+drain = Stream.drain
+
 {-# INLINE toList #-}
 toList :: Monad m => Stream m a -> m [a]
-#ifdef USE_PRELUDE
-drain = Stream.drain
 toList = Stream.toList
-#else
-drain = Stream.fold Fold.drain
-toList = Stream.fold Fold.toList
-#endif
+
+{-# INLINE repeat #-}
+repeat :: Monad m => Int -> Int -> Stream m Int
+repeat count = Stream.take count . Stream.repeat
 
 {-# INLINE fromListM #-}
 fromListM :: MonadAsync m => [m a] -> Stream m a
-#ifdef USE_PRELUDE
-fromListM = Stream.fromListM
-#else
 fromListM = Stream.sequence . Stream.fromList
-#endif
 
 {-# INLINE fromFoldableM #-}
 fromFoldableM :: MonadAsync m => [m a] -> Stream m a
-#ifdef USE_PRELUDE
-fromFoldableM = Stream.fromFoldableM
-#else
 fromFoldableM = Stream.sequence . Stream.fromFoldable
-#endif
 
 {-# INLINE sourceUnfoldrM #-}
 sourceUnfoldrM :: MonadAsync m => Int -> Int -> Stream m Int
@@ -201,7 +165,6 @@ sourceUnfoldrAction value n = Stream.unfoldr step n
 sourceFromFoldable :: Monad m => Int -> Int -> Stream m Int
 sourceFromFoldable value n = Stream.fromFoldable [n..n+value]
 
-#ifndef USE_PRELUDE
 {-# INLINE benchIOSink #-}
 benchIOSink
     :: (NFData b)
@@ -215,7 +178,6 @@ benchIOSinkPureSrc
     => Int -> String -> (Stream IO Int -> IO b) -> Benchmark
 benchIOSinkPureSrc value name f =
     bench name $ nfIO $ randomRIO (1,1) >>= f . sourceUnfoldr value
-#endif
 
 -- | Takes a source, and uses it with a default drain/fold method.
 {-# INLINE benchIOSrc #-}
@@ -230,13 +192,11 @@ benchIOSrc name f =
 benchIO :: (NFData b) => String -> (Int -> IO b) -> Benchmark
 benchIO name f = bench name $ nfIO $ randomRIO (1,1) >>= f
 
-#ifndef USE_PRELUDE
 {-# INLINE sourceConcatMapId #-}
 sourceConcatMapId :: (Monad m)
     => Int -> Int -> Stream m (Stream m Int)
 sourceConcatMapId value n =
     Stream.fromList $ fmap (D.fromEffect . return) [n..n+value]
-#endif
 
 {-# INLINE apDiscardFst #-}
 apDiscardFst :: MonadAsync m =>
@@ -436,7 +396,6 @@ toListSome linearCount start =
   where
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
-#ifndef USE_PRELUDE
 {-# INLINE composeN #-}
 composeN ::
        (Monad m)
@@ -451,7 +410,6 @@ composeN n f =
         3 -> drain . f . f . f
         4 -> drain . f . f . f . f
         _ -> undefined
-#endif
 
 {-# INLINE mapN #-}
 mapN ::
@@ -469,13 +427,11 @@ mapM ::
     -> m ()
 mapM n = composeN n $ Stream.mapM return
 
-#ifndef USE_PRELUDE
 foldl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> m b
 foldl' f z = Stream.fold (Fold.foldl' f z)
 
 scanl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> Stream m b
 scanl' f z = Stream.scanl (Scanl.mkScanl f z)
-#endif
 
 {-# INLINE transformMapM #-}
 transformMapM ::
@@ -483,13 +439,8 @@ transformMapM ::
     => Int
     -> Stream m Int
     -> m ()
-#ifndef USE_PRELUDE
 transformMapM n = composeN n $ Stream.pipe (Pipe.mapM return)
-#else
-transformMapM n = composeN n $ Stream.transform (Pipe.mapM return)
-#endif
 
-#ifndef USE_PRELUDE
 {-# INLINE scanMapM #-}
 scanMapM ::
        (Monad m)
@@ -497,7 +448,6 @@ scanMapM ::
     -> Stream m Int
     -> m ()
 scanMapM n = composeN n $ Stream.scanr (Scanr.functionM return)
-#endif
 
 {-# INLINE transformComposeMapM #-}
 transformComposeMapM ::
@@ -507,15 +457,10 @@ transformComposeMapM ::
     -> m ()
 transformComposeMapM n =
     composeN n $
-#ifndef USE_PRELUDE
     Stream.pipe
-#else
-    Stream.transform
-#endif
         (Pipe.mapM (\x -> return (x + 1)) `Pipe.compose`
          Pipe.mapM (\x -> return (x + 2)))
 
-#ifndef USE_PRELUDE
 {-# INLINE scanComposeMapM #-}
 scanComposeMapM ::
        (Monad m)
@@ -527,7 +472,6 @@ scanComposeMapM n =
     Stream.scanr
         (Scanr.functionM (\x -> return (x + 1)) `Scanr.compose`
          Scanr.functionM (\x -> return (x + 2)))
-#endif
 
 {-# INLINE transformTeeMapM #-}
 transformTeeMapM ::
@@ -537,15 +481,10 @@ transformTeeMapM ::
     -> m ()
 transformTeeMapM n =
     composeN n $
-#ifndef USE_PRELUDE
     Stream.pipe
-#else
-    Stream.transform
-#endif
         (Pipe.mapM (\x -> return (x + 1)) `Pipe.teeMerge`
          Pipe.mapM (\x -> return (x + 2)))
 
-#ifndef USE_PRELUDE
 {-# INLINE scanTeeMapM #-}
 scanTeeMapM ::
        (Monad m)
@@ -557,7 +496,6 @@ scanTeeMapM n =
     Stream.scanr
         (Scanr.teeWith (+) (Scanr.functionM (\x -> return (x + 1)))
          (Scanr.functionM (\x -> return (x + 2))))
-#endif
 
 {-
 {-# INLINE transformZipMapM #-}

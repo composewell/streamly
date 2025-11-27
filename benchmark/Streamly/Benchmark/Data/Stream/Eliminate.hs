@@ -11,8 +11,6 @@
 {-# LANGUAGE RankNTypes #-}
 
 {-# OPTIONS_GHC -Wno-orphans #-}
-#ifdef USE_PRELUDE
-#endif
 
 #ifdef __HADDOCK_VERSION__
 #undef INSPECTION
@@ -40,30 +38,15 @@ import Test.Inspection
 import qualified Streamly.Internal.Data.Stream as D
 #endif
 
-#ifdef USE_PRELUDE
-import Streamly.Prelude (fromSerial)
-import Streamly.Benchmark.Prelude
-import qualified Streamly.Internal.Data.Stream.IsStream as S
-#else
 import Stream.Common
 import Streamly.Internal.Data.Stream (Stream)
 import qualified Streamly.Internal.Data.Stream as S
-#endif
 
 import Test.Tasty.Bench
 import Streamly.Benchmark.Common
 import Prelude hiding (length, sum, or, and, any, all, notElem, elem, (!!),
     lookup, repeat, minimum, maximum, product, last, mapM_, init)
 import qualified Prelude
-
-#ifdef USE_PRELUDE
-type Stream = S.SerialT
-fromStream = id
-
-{-# INLINE repeat #-}
-repeat :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
-repeat count = S.take count . S.repeat
-#endif
 
 -------------------------------------------------------------------------------
 -- Elimination
@@ -239,11 +222,9 @@ o_1_space_elimination_foldable value =
 -- Stream folds
 -------------------------------------------------------------------------------
 
-#ifndef USE_PRELUDE
 instance NFData a => NFData (Stream Identity a) where
     {-# INLINE rnf #-}
     rnf xs = runIdentity $ S.fold (Fold.foldl' (\_ x -> rnf x) ()) xs
-#endif
 
 {-# INLINE benchPureSink #-}
 benchPureSink :: NFData b
@@ -277,17 +258,12 @@ uncons s = do
         Nothing -> return ()
         Just (_, t) -> uncons t
 
-#ifndef USE_PRELUDE
 {-# INLINE toNull #-}
 toNull :: Monad m => Stream m Int -> m ()
 toNull = S.drain
-#endif
-
-#ifdef USE_PRELUDE
 {-# INLINE init #-}
 init :: Monad m => Stream m a -> m ()
 init s = S.init s >>= Prelude.mapM_ S.drain
-#endif
 
 {-# INLINE mapM_ #-}
 mapM_ :: Monad m => Stream m Int -> m ()
@@ -325,10 +301,9 @@ foldl'Reduce = S.foldl' (+) 0
 last :: Monad m => Stream m Int -> m (Maybe Int)
 last = S.last
 
-#ifdef USE_PRELUDE
 {-# INLINE foldl1'Reduce #-}
 foldl1'Reduce :: Monad m => Stream m Int -> m (Maybe Int)
-foldl1'Reduce = S.foldl1' (+)
+foldl1'Reduce = S.fold (Fold.foldl1' (+))
 
 {-# INLINE foldlM'Reduce #-}
 foldlM'Reduce :: Monad m => Stream m Int -> m Int
@@ -348,7 +323,7 @@ notElem value = S.notElem (value + 1)
 
 {-# INLINE length #-}
 length :: Monad m => Stream m Int -> m Int
-length = S.length
+length = S.fold Fold.length
 
 {-# INLINE all #-}
 all :: Monad m => Int -> Stream m Int -> m Bool
@@ -360,11 +335,11 @@ any value = S.any (> (value + 1))
 
 {-# INLINE and #-}
 and :: Monad m => Int -> Stream m Int -> m Bool
-and value = S.and . S.map (<= (value + 1))
+and value = S.fold Fold.and . S.map (<= (value + 1))
 
 {-# INLINE or #-}
 or :: Monad m => Int -> Stream m Int -> m Bool
-or value = S.or . S.map (> (value + 1))
+or value = S.fold Fold.or . S.map (> (value + 1))
 
 {-# INLINE find #-}
 find :: Monad m => Int -> Stream m Int -> m (Maybe Int)
@@ -376,11 +351,11 @@ findM value = S.findM (\z -> return $ z == (value + 1))
 
 {-# INLINE findIndex #-}
 findIndex :: Monad m => Int -> Stream m Int -> m (Maybe Int)
-findIndex value = S.findIndex (== (value + 1))
+findIndex value = S.head . S.findIndices (== (value + 1))
 
 {-# INLINE elemIndex #-}
 elemIndex :: Monad m => Int -> Stream m Int -> m (Maybe Int)
-elemIndex value = S.elemIndex (value + 1)
+elemIndex value = S.head . S.elemIndices (value + 1)
 
 {-# INLINE maximum #-}
 maximum :: Monad m => Stream m Int -> m (Maybe Int)
@@ -392,11 +367,11 @@ minimum = S.minimum
 
 {-# INLINE sum #-}
 sum :: Monad m => Stream m Int -> m Int
-sum = S.sum
+sum = S.fold Fold.sum
 
 {-# INLINE product #-}
 product :: Monad m => Stream m Int -> m Int
-product = S.product
+product = S.fold Fold.product
 
 {-# INLINE minimumBy #-}
 minimumBy :: Monad m => Stream m Int -> m (Maybe Int)
@@ -412,11 +387,7 @@ the = S.the
 
 {-# INLINE drainN #-}
 drainN :: Monad m => Int -> Stream m Int -> m ()
-drainN = S.drainN
-
-{-# INLINE drainWhile #-}
-drainWhile :: Monad m => Stream m Int -> m ()
-drainWhile = S.drainWhile (const True)
+drainN n = S.fold (Fold.drainN n)
 
 {-# INLINE (!!) #-}
 (!!) :: Monad m => Int -> Stream m Int -> m (Maybe Int)
@@ -425,14 +396,11 @@ drainWhile = S.drainWhile (const True)
 {-# INLINE lookup #-}
 lookup :: Monad m => Int -> Stream m Int -> m (Maybe Int)
 lookup val = S.lookup val . S.map (\x -> (x, x))
-#endif
-
 o_1_space_elimination_folds :: Int -> [Benchmark]
 o_1_space_elimination_folds value =
     [ bgroup "elimination"
         -- Basic folds
         [
-#ifdef USE_PRELUDE
             bgroup "reduce"
             [ bgroup
                   "IO"
@@ -448,7 +416,6 @@ o_1_space_elimination_folds value =
                   , benchIdentitySink value "foldlM'" foldlM'Reduce
                   ]
             ] ,
-#endif
          bgroup "build"
             [ bgroup "IO"
                   [ benchIOSink value "foldrMElem" (foldrMElem value)
@@ -472,20 +439,14 @@ o_1_space_elimination_folds value =
         , benchIOSink value "uncons" uncons
         , benchIOSink value "mapM_" mapM_
         , benchIOSink value "last" last
-#ifndef USE_PRELUDE
         , benchHoistSink value "length . generalizeInner"
               (S.fold Fold.length . S.generalizeInner)
         , benchIOSink value "toNull" toNull
         , benchIOSink value "foldBreak" foldBreak
-        , benchIOSink value "foldl" foldl'Reduce
-#endif
-#ifdef USE_PRELUDE
         , benchIOSink value "init" init
 
         -- draining
-        , benchIOSink value "drain" $ toNull fromSerial
         , benchIOSink value "drainN" $ drainN value
-        , benchIOSink value "drainWhile" drainWhile
         , benchPureSink value "drain (pure)" id
 
         -- this is too fast, causes all benchmarks reported in ns
@@ -514,7 +475,6 @@ o_1_space_elimination_folds value =
         , benchIOSink value "any" (any value)
         , benchIOSink value "and" (and value)
         , benchIOSink value "or" (or value)
-#endif
 
         -- length is used to check for foldr/build fusion
         , benchPureSink value "length . IsList.toList" (Prelude.length . GHC.toList)
@@ -525,7 +485,6 @@ o_1_space_elimination_folds value =
 -- Buffered Transformations by fold
 -------------------------------------------------------------------------------
 
-#ifdef USE_PRELUDE
 {-# INLINE foldl'Build #-}
 foldl'Build :: Monad m => Stream m Int -> m [Int]
 foldl'Build = S.foldl' (flip (:)) []
@@ -545,8 +504,6 @@ o_n_heap_elimination_foldl value =
         , benchIdentitySink value "foldlM'/build/Identity" foldlM'Build
         ]
     ]
-#endif
-
 -- For comparisons
 {-# INLINE showInstanceList #-}
 showInstanceList :: [Int] -> String
@@ -585,14 +542,13 @@ o_n_space_elimination_foldr value =
         ]
     ]
 
-#ifdef USE_PRELUDE
 o_n_heap_elimination_toList :: Int -> [Benchmark]
 o_n_heap_elimination_toList value =
     [ bgroup "toList"
         -- Converting the stream to a list or pure stream in a strict monad
         [ benchIOSink value "toListRev" S.toListRev
         , benchIOSink value "toStreamRev"
-            (S.toStreamRev :: (Stream IO Int -> IO (Stream Identity Int)))
+            (S.fold Fold.toStreamRev :: (Stream IO Int -> IO (Stream Identity Int)))
         ]
     ]
 
@@ -601,14 +557,10 @@ o_n_space_elimination_toList value =
     [ bgroup "toList"
         -- Converting the stream to a list or pure stream in a strict monad
         [ benchIOSink value "toList" S.toList
-#ifndef USE_PRELUDE
         , benchIOSink value "toStream"
-            (S.toStream :: (Stream IO Int -> IO (Stream Identity Int)))
-#endif
+            (S.fold Fold.toStream :: (Stream IO Int -> IO (Stream Identity Int)))
         ]
     ]
-#endif
-
 -------------------------------------------------------------------------------
 -- Multi-stream folds
 -------------------------------------------------------------------------------
@@ -731,11 +683,9 @@ benchmarks moduleName size =
 
         , bgroup (o_n_heap_prefix moduleName) $
                o_n_heap_elimination_buffered size
-#ifdef USE_PRELUDE
             ++ o_n_heap_elimination_foldl size
             ++ o_n_heap_elimination_toList size
             ++ o_n_space_elimination_toList size
-#endif
         , bgroup (o_n_space_prefix moduleName) $
             o_n_space_elimination_foldr size
         ]

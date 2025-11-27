@@ -11,28 +11,20 @@
 {-# LANGUAGE RankNTypes #-}
 
 {-# OPTIONS_GHC -Wno-orphans #-}
-#ifdef USE_PRELUDE
-#endif
 
 module Stream.Generate (benchmarks) where
 
 import Control.DeepSeq (NFData(..))
+import Control.Monad.IO.Class (MonadIO)
 import Data.Functor.Identity (Identity(..))
+import Streamly.Internal.Data.Time.Units (AbsTime)
 
 import qualified GHC.Exts as GHC
 import qualified Streamly.Internal.Data.Fold as Fold
 
-#ifdef USE_PRELUDE
-import Streamly.Prelude (MonadAsync)
-import Stream.Common hiding (MonadAsync)
-import Streamly.Benchmark.Prelude (sourceFromFoldableM, absTimes)
-import qualified Streamly.Prelude as S
-import qualified Streamly.Internal.Data.Stream.IsStream as Stream
-#else
 import Stream.Common
 import Streamly.Internal.Data.Stream (Stream)
 import qualified Streamly.Internal.Data.Stream as Stream
-#endif
 
 import Test.Tasty.Bench
 import Streamly.Benchmark.Common
@@ -44,13 +36,8 @@ import Prelude hiding (repeat, replicate, iterate)
 -- Generation
 -------------------------------------------------------------------------------
 
-#ifdef USE_PRELUDE
-type Stream = Stream.SerialT
-toStreamD = Stream.toStream
-#else
 toStreamD :: a -> a
 toStreamD = id
-#endif
 
 -------------------------------------------------------------------------------
 -- fromList
@@ -88,10 +75,6 @@ readInstanceList str =
     in case r of
         [(x,"")] -> x
         _ -> error "readInstance: no parse"
-
-{-# INLINE repeat #-}
-repeat :: Monad m => Int -> Int -> Stream m Int
-repeat count = Stream.take count . Stream.repeat
 
 {-# INLINE replicate #-}
 replicate :: Monad m => Int -> Int -> Stream m Int
@@ -166,15 +149,21 @@ repeatM count = Stream.take count . Stream.repeatM . return
 replicateM :: MonadAsync m => Int -> Int -> Stream m Int
 replicateM count = Stream.replicateM count . return
 
-#ifdef USE_PRELUDE
 {-# INLINE fromIndices #-}
-fromIndices :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
-fromIndices value n = S.take value $ S.fromIndices (+ n)
+fromIndices :: Monad m => Int -> Int -> Stream m Int
+fromIndices value n = Stream.take value $ Stream.fromIndices (+ n)
 
 {-# INLINE fromIndicesM #-}
-fromIndicesM :: (MonadAsync m, S.IsStream t) => Int -> Int -> t m Int
-fromIndicesM value n = S.take value $ S.fromIndicesM (return <$> (+ n))
-#endif
+fromIndicesM :: Monad m => Int -> Int -> Stream m Int
+fromIndicesM value n = Stream.take value $ Stream.fromIndicesM (return <$> (+ n))
+
+{-# INLINE absTimes #-}
+absTimes :: MonadIO m => Int -> Int -> Stream m AbsTime
+absTimes value _ = Stream.take value Stream.absTimes
+
+{-# INLINE sourceFromFoldableM #-}
+sourceFromFoldableM :: Monad m => Int -> Int -> Stream m Int
+sourceFromFoldableM value n = Stream.fromFoldableM (fmap return [n..n+value])
 
 o_1_space_generation :: Int -> [Benchmark]
 o_1_space_generation value =
@@ -202,26 +191,19 @@ o_1_space_generation value =
         , benchIOSrc "enumerateTo" (enumerateTo value)
         , benchIOSrc "repeatM" (repeatM value)
         , benchIOSrc "replicateM" (replicateM value)
-#ifdef USE_PRELUDE
         , benchIOSrc "fromIndices" (fromIndices value)
         , benchIOSrc "fromIndicesM" (fromIndicesM value)
-#endif
 
         -- These essentially test cons and consM
         -- , benchIOSrc "fromFoldable 16" (sourceFromFoldable 16)
-
-#ifdef USE_PRELUDE
         , benchIOSrc "fromFoldableM" (sourceFromFoldableM value)
         , benchIOSrc "absTimes" $ absTimes value
-#endif
         ]
     ]
 
-#ifndef USE_PRELUDE
 instance NFData a => NFData (Stream Identity a) where
     {-# INLINE rnf #-}
     rnf xs = runIdentity $ Stream.fold (Fold.foldl' (\_ x -> rnf x) ()) xs
-#endif
 
 o_n_heap_generation :: Int -> [Benchmark]
 o_n_heap_generation value =

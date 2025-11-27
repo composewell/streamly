@@ -11,8 +11,6 @@
 {-# LANGUAGE RankNTypes #-}
 
 {-# OPTIONS_GHC -Wno-orphans #-}
-#ifdef USE_PRELUDE
-#endif
 
 #ifdef __HADDOCK_VERSION__
 #undef INSPECTION
@@ -35,20 +33,10 @@ import qualified Streamly.Internal.Data.Scanl as Scanl
 import qualified Stream.Common as Common
 import qualified Streamly.Internal.Data.Unfold as Unfold
 
-#ifdef USE_PRELUDE
-import Control.DeepSeq (NFData(..))
-import Data.Functor.Identity (Identity(..))
-import qualified Prelude
-import qualified Streamly.Internal.Data.Fold as Fold
-import qualified Streamly.Internal.Data.Scanl as Scanl
-import qualified Streamly.Internal.Data.Stream.IsStream as Stream
-import Streamly.Internal.Data.Time.Units
-#else
 import Streamly.Internal.Data.Stream (Stream)
 import qualified Streamly.Internal.Data.Stream as Stream
 #ifndef USE_STREAMLY_CORE
 import qualified Streamly.Internal.Data.Stream.Prelude as Stream
-#endif
 #endif
 
 import Test.Tasty.Bench
@@ -56,9 +44,7 @@ import Stream.Common hiding (scanl')
 import Streamly.Benchmark.Common
 import Prelude hiding (sequence, mapM)
 
-#ifdef USE_PRELUDE
-type Stream = Stream.SerialT
-#endif
+
 
 -------------------------------------------------------------------------------
 -- Pipelines (stream-to-stream transformations)
@@ -72,7 +58,6 @@ type Stream = Stream.SerialT
 -- maps and scans
 -------------------------------------------------------------------------------
 
-#ifdef USE_PRELUDE
 {-# INLINE scanl' #-}
 scanl' :: MonadIO m => Int -> Stream m Int -> m ()
 scanl' n = composeN n $ Stream.scanl' (+) 0
@@ -88,9 +73,7 @@ scanl1' n = composeN n $ Stream.scanl1' (+)
 {-# INLINE scanl1M' #-}
 scanl1M' :: MonadIO m => Int -> Stream m Int -> m ()
 scanl1M' n = composeN n $ Stream.scanl1M' (\b a -> return $ b + a)
-#endif
 
-#ifndef USE_PRELUDE
 {-# INLINE scan #-}
 scan :: MonadIO m => Int -> Stream m Int -> m ()
 scan n = composeN n $ Stream.scanl Scanl.sum
@@ -98,9 +81,7 @@ scan n = composeN n $ Stream.scanl Scanl.sum
 {-# INLINE postscan #-}
 postscan :: MonadIO m => Int -> Stream m Int -> m ()
 postscan n = composeN n $ Stream.postscanl Scanl.sum
-#endif
 
-#ifdef USE_PRELUDE
 {-# INLINE postscanl' #-}
 postscanl' :: MonadIO m => Int -> Stream m Int -> m ()
 postscanl' n = composeN n $ Stream.postscanl' (+) 0
@@ -108,7 +89,6 @@ postscanl' n = composeN n $ Stream.postscanl' (+) 0
 {-# INLINE postscanlM' #-}
 postscanlM' :: MonadIO m => Int -> Stream m Int -> m ()
 postscanlM' n = composeN n $ Stream.postscanlM' (\b a -> return $ b + a) (return 0)
-#endif
 
 {-# INLINE sequence #-}
 sequence :: MonadAsync m => Stream m (m Int) -> m ()
@@ -118,21 +98,18 @@ sequence = Common.drain . Stream.sequence
 tap :: MonadIO m => Int -> Stream m Int -> m ()
 tap n = composeN n $ Stream.tap FL.sum
 
-#ifdef USE_PRELUDE
 {-# INLINE pollCounts #-}
 pollCounts :: Int -> Stream IO Int -> IO ()
 pollCounts n =
-    composeN n (Stream.pollCounts (const True) f)
+    composeN n (Stream.parTapCount (const True) f)
 
     where
 
     f = Stream.drain . Stream.rollingMap2 (-) . Stream.delayPost 1
 
 {-# INLINE timestamped #-}
-timestamped :: (MonadAsync m) => Stream m Int -> m ()
+timestamped :: MonadIO m => Stream m Int -> m ()
 timestamped = Stream.drain . Stream.timestamped
-#endif
-
 {-
 {-# INLINE foldrT #-}
 foldrT :: MonadIO m => Int -> Stream m Int -> m ()
@@ -163,10 +140,8 @@ o_1_space_mapping value =
               sequence (sourceUnfoldrAction value n)
         , benchIOSink value "mapM" (mapM 1)
         , benchIOSink value "tap" (tap 1)
-#ifdef USE_PRELUDE
-        , benchIOSink value "pollCounts 1 second" (pollCounts 1)
+        , benchIOSink value "parTapCount 1 second" (pollCounts 1)
         , benchIOSink value "timestamped" timestamped
-
         -- Scanning
         , benchIOSink value "scanl'" (scanl' 1)
         , benchIOSink value "scanl1'" (scanl1' 1)
@@ -174,11 +149,8 @@ o_1_space_mapping value =
         , benchIOSink value "scanl1M'" (scanl1M' 1)
         , benchIOSink value "postscanl'" (postscanl' 1)
         , benchIOSink value "postscanlM'" (postscanlM' 1)
-#endif
-#ifndef USE_PRELUDE
         , benchIOSink value "scan" (scan 1)
         , benchIOSink value "postscan" (postscan 1)
-#endif
         ]
     ]
 
@@ -189,15 +161,12 @@ o_1_space_mappingX4 value =
         , benchIOSink value "mapM" (mapM 4)
         , benchIOSink value "trace" (trace 4)
 
-#ifdef USE_PRELUDE
         , benchIOSink value "scanl'" (scanl' 4)
         , benchIOSink value "scanl1'" (scanl1' 4)
         , benchIOSink value "scanlM'" (scanlM' 4)
         , benchIOSink value "scanl1M'" (scanl1M' 4)
         , benchIOSink value "postscanl'" (postscanl' 4)
         , benchIOSink value "postscanlM'" (postscanlM' 4)
-#endif
-#ifndef USE_PRELUDE
         , benchIOSink value "scan" (scan 4)
         , benchIOSink value "postscan" (postscan 4)
 {-
@@ -205,11 +174,9 @@ o_1_space_mappingX4 value =
         , let value16 = round (fromIntegral value**(1/16::Double))
            benchFold "concatMap" (concatMap 4) (sourceUnfoldrMN value16)
 -}
-#endif
         ]
     ]
 
-#ifndef USE_PRELUDE
 {-# INLINE sieveScan #-}
 sieveScan :: Monad m => Stream m Int -> Stream m Int
 sieveScan =
@@ -220,16 +187,13 @@ sieveScan =
                  in if all (\p -> n `mod` p /= 0) ps
                     then (primes ++ [n], Just n)
                     else (primes, Nothing)) (return ([2], Just 2)))
-#endif
 
 o_n_space_mapping :: Int -> [Benchmark]
 o_n_space_mapping value =
     [ bgroup "mapping"
         [
-#ifndef USE_PRELUDE
           benchIO "naive prime sieve"
             (\n -> Stream.fold FL.sum $ sieveScan $ Stream.enumerateFromTo 2 (value + n))
-#endif
         ]
     ]
 
@@ -345,7 +309,7 @@ takeWhileTrue value n = composeN n $ Stream.takeWhile (<= (value + 1))
 takeWhileMTrue :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 takeWhileMTrue value n = composeN n $ Stream.takeWhileM (return . (<= (value + 1)))
 
-#if !defined(USE_STREAMLY_CORE) && !defined(USE_PRELUDE)
+#if !defined(USE_STREAMLY_CORE)
 {-# INLINE takeInterval #-}
 takeInterval :: Double -> Int -> Stream IO Int -> IO ()
 takeInterval i n = composeN n (Stream.takeInterval i)
@@ -390,13 +354,10 @@ dropWhileMTrue value n = composeN n $ Stream.dropWhileM (return . (<= (value + 1
 dropWhileFalse :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 dropWhileFalse value n = composeN n $ Stream.dropWhile (> (value + 1))
 
-#ifdef USE_PRELUDE
 -- XXX Decide on the time interval
 {-# INLINE _intervalsOfSum #-}
-_intervalsOfSum :: MonadAsync m => Double -> Int -> Stream m Int -> m ()
+_intervalsOfSum :: Stream.MonadAsync m => Double -> Int -> Stream m Int -> m ()
 _intervalsOfSum i n = composeN n (Stream.intervalsOf i FL.sum)
-#endif
-
 {-# INLINE findIndices #-}
 findIndices :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 findIndices value n = composeN n $ Stream.findIndices (== (value + 1))
@@ -451,7 +412,7 @@ o_1_space_filtering value =
      -- , benchIOSink value "takeWhileM-true" (_takeWhileMTrue value 1)
         , benchIOSink value "drop-one" (dropOne 1)
         , benchIOSink value "drop-all" (dropAll value 1)
-#if !defined(USE_STREAMLY_CORE) && !defined(USE_PRELUDE)
+#if !defined(USE_STREAMLY_CORE)
         , benchIOSink value "takeInterval-all" (takeInterval 10000 1)
         , benchIOSink value "dropInterval-all" (dropInterval 10000 1)
 #endif

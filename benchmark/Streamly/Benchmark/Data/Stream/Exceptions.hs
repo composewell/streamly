@@ -10,9 +10,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-#ifdef USE_PRELUDE
-#endif
-
 #ifdef __HADDOCK_VERSION__
 #undef INSPECTION
 #endif
@@ -37,12 +34,8 @@ import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Internal.Data.Unfold as IUF
 import qualified Streamly.Internal.Data.Unfold.Prelude as IUF
 
-#ifdef USE_PRELUDE
-import qualified Streamly.Internal.Data.Stream.IsStream as Stream
-#else
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.Prelude as Stream
-#endif
 
 import Test.Tasty.Bench hiding (env)
 import Prelude hiding (last, length)
@@ -56,30 +49,18 @@ import Test.Inspection
 import qualified Streamly.Internal.Data.Stream as D
 #endif
 
-#ifdef USE_PRELUDE
-type Stream = Stream.SerialT
-toStreamD = Stream.toStream
-fromStreamD = Stream.fromStream
-#else
 type Stream = Stream.Stream
 toStreamD :: a -> a
 toStreamD = id
 fromStreamD :: a -> a
 fromStreamD = id
-#endif
 
 afterUnsafe :: IO b -> Stream IO a -> Stream IO a
 finallyUnsafe :: IO b -> Stream IO a -> Stream IO a
 bracketUnsafe :: IO b -> (b -> IO c) -> (b -> Stream IO a) -> Stream IO a
-#ifdef USE_PRELUDE
-afterUnsafe = Stream.after_
-finallyUnsafe = Stream.finally_
-bracketUnsafe = Stream.bracket_
-#else
 afterUnsafe = Stream.afterUnsafe
 finallyUnsafe = Stream.finallyUnsafe
 bracketUnsafe = Stream.bracketUnsafe
-#endif
 
 -------------------------------------------------------------------------------
 -- stream exceptions
@@ -178,11 +159,7 @@ inspect $ hasNoTypeClasses 'readWriteOnExceptionStream
 readWriteHandleExceptionStream :: Handle -> Handle -> IO ()
 readWriteHandleExceptionStream inh devNull =
     let handler (_e :: SomeException) =
-#ifndef USE_PRELUDE
             return $ Stream.fromEffect (hClose inh >> return 10)
-#else
-            Stream.fromEffect (hClose inh >> return 10)
-#endif
         readEx = Stream.handle handler (Stream.unfold FH.reader inh)
     in Stream.fold (FH.write devNull) readEx
 
