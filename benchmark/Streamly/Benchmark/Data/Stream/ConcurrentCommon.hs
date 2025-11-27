@@ -200,6 +200,7 @@ allBenchmarks moduleName wide modifier value =
         , o_1_space_concatFoldable value modifier
         , o_1_space_concatMap "" value modifier
         , o_1_space_concatMap "-maxThreads-1" value (modifier . Async.maxThreads 1)
+        , o_1_space_concatMap "-maxBuffer-1 1/10" (value `div` 10) (modifier . Async.maxBuffer 1)
         , o_1_space_concatMap "-rate-Nothing" value (modifier . Async.rate Nothing)
         , o_1_space_joining value modifier
         ] ++ if wide then [] else o_1_space_outerProduct value modifier
