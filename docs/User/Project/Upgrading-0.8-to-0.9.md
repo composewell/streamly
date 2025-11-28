@@ -390,3 +390,5 @@ new release is `parConcatMap`. The config argument in `parConcatMap` can
 specify an equivalent of the combining operation. Similarly, concurrent
 `concatFoldableWith`, `concatMapFoldableWith`, `concatForFoldableWith` can also
 be expressed using `parConcatMap`.
+
+The equivalent of `tapAsync` is `tap` with a `parBuffered` fold.
