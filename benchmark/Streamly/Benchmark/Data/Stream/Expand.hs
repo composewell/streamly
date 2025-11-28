@@ -98,6 +98,64 @@ inspect $ 'roundRobin2 `hasNoType` ''SPEC
 inspect $ 'roundRobin2 `hasNoType` ''S.InterleaveState
 #endif
 
+-------------------------------------------------------------------------------
+-- Merging
+-------------------------------------------------------------------------------
+
+{-# INLINE mergeWith #-}
+mergeWith ::
+    (  (Int -> Int -> Ordering)
+    -> Stream IO Int
+    -> Stream IO Int
+    -> Stream IO Int
+    )
+    -> (Int -> Int -> Ordering)
+    -> Int -> Int -> IO ()
+mergeWith g cmp count n =
+    Stream.drain
+        $ g
+            cmp
+            (sourceUnfoldrM count n)
+            (sourceUnfoldrM count (n + 1))
+
+{-# INLINE mergeWithM #-}
+mergeWithM ::
+    (  (Int -> Int -> IO Ordering)
+    -> Stream IO Int
+    -> Stream IO Int
+    -> Stream IO Int
+    )
+    -> (Int -> Int -> Ordering)
+    -> Int -> Int -> IO ()
+mergeWithM g cmp count n =
+    Stream.drain
+        $ g
+            (\a b -> return $ cmp a b)
+            (sourceUnfoldrM count n)
+            (sourceUnfoldrM count (n + 1))
+
+{-# INLINE mergeBy #-}
+mergeBy :: (Int -> Int -> Ordering) -> Int -> Int -> IO ()
+mergeBy = mergeWith Stream.mergeBy
+
+{-# INLINE mergeByM #-}
+mergeByM :: (Int -> Int -> Ordering) -> Int -> Int -> IO ()
+mergeByM = mergeWithM Stream.mergeByM
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'mergeBy
+inspect $ 'mergeBy `hasNoType` ''SPEC
+inspect $ 'mergeBy `hasNoType` ''S.Step
+
+inspect $ hasNoTypeClasses 'mergeByM
+inspect $ 'mergeByM `hasNoType` ''SPEC
+inspect $ 'mergeByM `hasNoType` ''S.Step
+#endif
+
+-------------------------------------------------------------------------------
+-- joining 2 streams using n-ary ops
+-------------------------------------------------------------------------------
+
 {-# INLINE sourceUnfoldrMUF #-}
 -- unfold input is (count, value)
 sourceUnfoldrMUF :: Monad m => Int -> UF.Unfold m (Int, Int) Int
@@ -141,13 +199,28 @@ inspect $ hasNoTypeClasses 'unfoldSched
 
 o_1_space_joining :: Int -> [Benchmark]
 o_1_space_joining value =
-    [ bgroup "joining"
-        [ benchIOSrc1 "serial (2,x/2)" (serial2 (value `div` 2))
+    [ bgroup "joining (2 of n/2)"
+        [ benchIOSrc1 "serial" (serial2 (value `div` 2))
         , benchIOSrc1 "serial (2,2,x/4)" (serial4 (value `div` 4))
-        , benchIOSrc1 "interleave (2,x/2)" (interleave2 (value `div` 2))
-        , benchIOSrc1 "roundRobin (2,x/2)" (roundRobin2 (value `div` 2))
-        , benchIOSrc1 "bfsUnfoldEach (2,x/2)" (bfsUnfoldEach 2 (value `div` 2))
-        , benchIOSrc1 "unfoldSched (2,x/2)" (unfoldSched 2 (value `div` 2))
+        , benchIOSrc1 "interleave" (interleave2 (value `div` 2))
+        , benchIOSrc1 "roundRobin" (roundRobin2 (value `div` 2))
+        , benchIOSrc1
+            "mergeBy compare"
+            (mergeBy compare (value `div` 2))
+        , benchIOSrc1
+            "mergeByM compare"
+            (mergeByM compare (value `div` 2))
+        , benchIOSrc1
+            "mergeBy (flip compare)"
+            (mergeBy (flip compare) (value `div` 2))
+        , benchIOSrc1
+            "mergeByM (flip compare)"
+            (mergeByM (flip compare) (value `div` 2))
+
+        -- join 2 streams using n-ary ops
+        , benchIOSrc1 "bfsUnfoldEach" (bfsUnfoldEach 2 (value `div` 2))
+        , benchIOSrc1 "unfoldSched" (unfoldSched 2 (value `div` 2))
+        , benchIOSrc1 "concatMap" (concatMap 2 (value `div` 2))
         ]
     ]
 

@@ -29,7 +29,7 @@ import Data.Maybe (isJust)
 import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.StreamK (StreamK)
 import System.Random (randomRIO)
-import Test.Tasty.Bench (bench, nfIO, bgroup, Benchmark)
+import Test.Tasty.Bench (bench, nf, nfIO, bgroup, Benchmark)
 
 import qualified Data.List as List
 import qualified Prelude as P
@@ -326,12 +326,12 @@ zipWithM :: Monad m => StreamK m Int -> m ()
 zipWithM src = drain $ StreamK.zipWithM (curry return) src src
 
 {-# INLINE sortByK #-}
-sortByK :: (a -> a -> Ordering) -> StreamK m a -> StreamK m a
+sortByK :: (Int -> Int -> Ordering) -> StreamK m Int -> StreamK m Int
 sortByK f = StreamK.mergeMapWith (StreamK.mergeBy f) StreamK.fromPure
 
 {-# INLINE sortBy #-}
-sortBy :: Monad m => StreamK m Int -> m ()
-sortBy = drain . sortByK compare
+sortBy :: Monad m => (Int -> Int -> Ordering) -> StreamK m Int -> m ()
+sortBy f = drain . sortByK f
 
 -------------------------------------------------------------------------------
 -- Joining
@@ -399,6 +399,58 @@ mergeMapWithD op outer inner n =
     where
 
     op1 s1 s2 = StreamK.fromStream $ op (StreamK.toStream s1) (StreamK.toStream s2)
+
+-------------------------------------------------------------------------------
+-- Merging
+-------------------------------------------------------------------------------
+
+{-# INLINE mergeWith #-}
+mergeWith ::
+    (  (Int -> Int -> Ordering)
+    -> StreamK IO Int
+    -> StreamK IO Int
+    -> StreamK IO Int
+    )
+    -> (Int -> Int -> Ordering)
+    -> Int -> Int -> IO ()
+mergeWith g cmp count n =
+    StreamK.drain
+        $ g
+            cmp
+            (unfoldrM count n)
+            (unfoldrM count (n + 1))
+
+{-# INLINE mergeWithM #-}
+mergeWithM ::
+    (  (Int -> Int -> IO Ordering)
+    -> StreamK IO Int
+    -> StreamK IO Int
+    -> StreamK IO Int
+    )
+    -> (Int -> Int -> Ordering)
+    -> Int -> Int -> IO ()
+mergeWithM g cmp count n =
+    StreamK.drain
+        $ g
+            (\a b -> return $ cmp a b)
+            (unfoldrM count n)
+            (unfoldrM count (n + 1))
+
+{-# INLINE mergeBy #-}
+mergeBy :: (Int -> Int -> Ordering) -> Int -> Int -> IO ()
+mergeBy = mergeWith StreamK.mergeBy
+
+{-# INLINE mergeByM #-}
+mergeByM :: (Int -> Int -> Ordering) -> Int -> Int -> IO ()
+mergeByM = mergeWithM StreamK.mergeByM
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'mergeBy
+inspect $ 'mergeBy `hasNoType` ''SPEC
+
+inspect $ hasNoTypeClasses 'mergeByM
+inspect $ 'mergeByM `hasNoType` ''SPEC
+#endif
 
 -------------------------------------------------------------------------------
 -- Mixed Composition
@@ -811,32 +863,56 @@ o_1_space_transformationX4 streamLen =
 
 o_1_space_joining :: Int -> Benchmark
 o_1_space_joining streamLen =
-    bgroup "joining"
-        [ bgroup "(2 of n/2)"
-            [ benchIOSrc1 "interleave" (interleave2 streamLen)
+    bgroup "joining (2 of n/2)"
+        [ benchIOSrc1 "interleave" (interleave2 streamLen)
 
-            -- join 2 streams using concatMapWith
-            , benchIOSrc1
-                  "concatMapWith interleave"
-                  (concatMapWith StreamK.interleave 2 (streamLen `div` 2))
-            , benchIOSrc1
-                  "concatMapWith D.interleave"
-                  (concatMapWithD Stream.interleave 2 (streamLen `div` 2))
-            , benchIOSrc1
-                  "concatMapWith D.roundRobin"
-                  (concatMapWithD Stream.roundRobin 2 (streamLen `div` 2))
+        , benchIOSrc1
+            "mergeBy compare"
+            (mergeBy compare (streamLen `div` 2))
+        , benchIOSrc1
+            "mergeByM compare"
+            (mergeByM compare (streamLen `div` 2))
+        , benchIOSrc1
+            "mergeBy (flip compare)"
+            (mergeBy (flip compare) (streamLen `div` 2))
+        , benchIOSrc1
+            "mergeByM (flip compare)"
+            (mergeByM (flip compare) (streamLen `div` 2))
 
-            -- join 2 streams using mergeMapWith
-            , benchIOSrc1
-                "mergeMapWith interleave"
-                (mergeMapWith StreamK.interleave 2 (streamLen `div` 2))
-            , benchIOSrc1
-                "mergeMapWith D.interleave"
-                (mergeMapWithD Stream.interleave 2 (streamLen `div` 2))
-            , benchIOSrc1
-                "mergeMapWith D.roundRobin"
-                (mergeMapWithD Stream.roundRobin 2 (streamLen `div` 2))
-            ]
+        -- join 2 streams using concatMapWith
+        , benchIOSrc1
+              "concatMapWith interleave"
+              (concatMapWith StreamK.interleave 2 (streamLen `div` 2))
+        , benchIOSrc1
+              "concatMapWith D.interleave"
+              (concatMapWithD Stream.interleave 2 (streamLen `div` 2))
+        , benchIOSrc1
+              "concatMapWith D.roundRobin"
+              (concatMapWithD Stream.roundRobin 2 (streamLen `div` 2))
+
+        -- join 2 streams using mergeMapWith
+        , benchIOSrc1
+            "mergeMapWith interleave"
+            (mergeMapWith StreamK.interleave 2 (streamLen `div` 2))
+        , benchIOSrc1
+            "mergeMapWith D.interleave"
+            (mergeMapWithD Stream.interleave 2 (streamLen `div` 2))
+        , benchIOSrc1
+            "mergeMapWith D.roundRobin"
+            (mergeMapWithD Stream.roundRobin 2 (streamLen `div` 2))
+
+        , benchIOSrc1
+            "mergeMapWith (mergeBy compare)"
+            (mergeMapWith (StreamK.mergeBy compare) 2 (streamLen `div` 2))
+        , benchIOSrc1
+            "mergeMapWith (mergeBy (flip compare))"
+            (mergeMapWith (StreamK.mergeBy (flip compare)) 2 (streamLen `div` 2))
+        , benchIOSrc1
+            "mergeMapWithD (D.mergeBy compare)"
+            (mergeMapWithD (Stream.mergeBy compare) 2 (streamLen `div` 2))
+        , benchIOSrc1
+            "mergeMapWithD (D.mergeBy (flip compare))"
+            (mergeMapWithD (Stream.mergeBy (flip compare)) 2 (streamLen `div` 2))
         ]
 
 o_1_space_concat :: Int -> Benchmark
@@ -916,11 +992,48 @@ o_n_heap_concat streamLen =
             (mergeMapWithD Stream.interleave streamLen2 streamLen2)
         , benchIOSrc1 "mergeMapWithD D.roundRobin outer=inner=(sqrt Max)"
             (mergeMapWithD Stream.roundRobin streamLen2 streamLen2)
+
+        , benchIOSrc1 "mergeMapWith (mergeBy compare) outer=Max inner=1"
+            (mergeMapWith (StreamK.mergeBy compare) streamLen 1)
+        , benchIOSrc1 "mergeMapWith (mergeBy compare) outer=inner=(sqrt Max)"
+            (mergeMapWith (StreamK.mergeBy compare) streamLen2 streamLen2)
+        , benchIOSrc1 "mergeMapWith (mergeBy compare) outer=1 inner=Max"
+            (mergeMapWith (StreamK.mergeBy compare) 1 streamLen)
+
+        , benchIOSrc1 "mergeMapWith (mergeBy (flip compare)) outer=Max inner=1"
+            (mergeMapWith (StreamK.mergeBy (flip compare)) streamLen 1)
+        , benchIOSrc1 "mergeMapWith (mergeBy (flip compare)) outer=inner=(sqrt Max)"
+            (mergeMapWith (StreamK.mergeBy (flip compare)) streamLen2 streamLen2)
+        , benchIOSrc1 "mergeMapWith (mergeBy (flip compare)) outer=1 inner=Max"
+            (mergeMapWith (StreamK.mergeBy (flip compare)) 1 streamLen)
         ]
 
     where
 
     streamLen2 = round (P.fromIntegral streamLen**(1/2::P.Double)) -- double nested loop
+
+o_n_heap_sorting :: Int -> Benchmark
+o_n_heap_sorting streamLen =
+    bgroup "sorting"
+        [ benchFold "sortBy compare"
+            (sortBy compare)
+            (unfoldrM streamLen)
+        , benchFold "sortBy (flip compare)"
+            (sortBy (flip compare))
+            (unfoldrM streamLen)
+        , benchFold "sortBy compare randomized"
+            (sortBy compare . fmap (\x -> if even x then x + 2 else x))
+            (unfoldrM streamLen)
+        , bench "List.sortBy compare"
+            $ nf (\x -> List.sortBy compare [1..x]) streamLen
+        , bench "List.sortBy (flip compare)"
+            $ nf (\x -> List.sortBy (flip compare) [1..x]) streamLen
+        , bench "sortByLists compare randomized"
+            $ nf (\x -> List.sortBy compare
+                    (List.map (\n -> if even n then n + 2 else n) [1..x])
+                 )
+                 streamLen
+        ]
 
 o_1_space_filtering :: Int -> Benchmark
 o_1_space_filtering streamLen =
@@ -1055,10 +1168,8 @@ o_n_heap streamLen =
       [ bgroup "transformation"
         [ benchFold "foldlS" (foldlS 1) (unfoldrM streamLen)
         ]
-      , bgroup "concat"
-        [ benchFold "sortBy" sortBy (unfoldrM streamLen)
-        ]
       , o_n_heap_concat streamLen
+      , o_n_heap_sorting streamLen
       ]
 
 {-# INLINE benchK #-}
