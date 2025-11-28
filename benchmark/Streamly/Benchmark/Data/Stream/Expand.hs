@@ -40,7 +40,7 @@ import qualified Streamly.Internal.Data.StreamK as StreamK
 import Test.Tasty.Bench
 import Stream.Common
 import Streamly.Benchmark.Common
-import Prelude hiding (concatMap)
+import Prelude hiding (concatMap, zipWith)
 
 -------------------------------------------------------------------------------
 -- Multi-Stream
@@ -153,6 +153,30 @@ inspect $ 'mergeByM `hasNoType` ''S.Step
 #endif
 
 -------------------------------------------------------------------------------
+-- Zipping
+-------------------------------------------------------------------------------
+
+{-# INLINE zipWith #-}
+zipWith :: Monad m => Stream m Int -> m ()
+zipWith src = drain $ S.zipWith (,) src src
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'zipWith
+inspect $ 'zipWith `hasNoType` ''SPEC
+inspect $ 'zipWith `hasNoType` ''S.Step
+#endif
+
+{-# INLINE zipWithM #-}
+zipWithM :: Monad m => Stream m Int -> m ()
+zipWithM src = drain $ S.zipWithM (curry return) src src
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'zipWithM
+inspect $ 'zipWithM `hasNoType` ''SPEC
+inspect $ 'zipWithM `hasNoType` ''S.Step
+#endif
+
+-------------------------------------------------------------------------------
 -- joining 2 streams using n-ary ops
 -------------------------------------------------------------------------------
 
@@ -216,6 +240,9 @@ o_1_space_joining value =
         , benchIOSrc1
             "mergeByM (flip compare)"
             (mergeByM (flip compare) (value `div` 2))
+
+        , benchFold "zipWith" zipWith (sourceUnfoldrM value)
+        , benchFold "zipWithM" zipWithM (sourceUnfoldrM value)
 
         -- join 2 streams using n-ary ops
         , benchIOSrc1 "bfsUnfoldEach" (bfsUnfoldEach 2 (value `div` 2))

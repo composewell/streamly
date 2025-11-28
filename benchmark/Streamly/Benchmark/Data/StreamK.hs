@@ -325,6 +325,10 @@ zipWith src = drain $ StreamK.zipWith (,) src src
 zipWithM :: Monad m => StreamK m Int -> m ()
 zipWithM src = drain $ StreamK.zipWithM (curry return) src src
 
+-------------------------------------------------------------------------------
+-- Sorting
+-------------------------------------------------------------------------------
+
 {-# INLINE sortByK #-}
 sortByK :: (Int -> Int -> Ordering) -> StreamK m Int -> StreamK m Int
 sortByK f = StreamK.mergeMapWith (StreamK.mergeBy f) StreamK.fromPure
@@ -879,6 +883,9 @@ o_1_space_joining streamLen =
             "mergeByM (flip compare)"
             (mergeByM (flip compare) (streamLen `div` 2))
 
+        , benchFold "zipWith" zipWith (unfoldrM streamLen)
+        , benchFold "zipWithM" zipWithM (unfoldrM streamLen)
+
         -- join 2 streams using concatMapWith
         , benchIOSrc1
               "concatMapWith interleave"
@@ -913,6 +920,9 @@ o_1_space_joining streamLen =
         , benchIOSrc1
             "mergeMapWithD (D.mergeBy (flip compare))"
             (mergeMapWithD (Stream.mergeBy (flip compare)) 2 (streamLen `div` 2))
+
+        , benchIOSrc1 "mergeMapWith (zipWith (+))"
+            (mergeMapWith (StreamK.zipWith (+)) 2 (streamLen `div` 2))
         ]
 
 o_1_space_concat :: Int -> Benchmark
@@ -1006,6 +1016,18 @@ o_n_heap_concat streamLen =
             (mergeMapWith (StreamK.mergeBy (flip compare)) streamLen2 streamLen2)
         , benchIOSrc1 "mergeMapWith (mergeBy (flip compare)) outer=1 inner=Max"
             (mergeMapWith (StreamK.mergeBy (flip compare)) 1 streamLen)
+
+          {- -- This fails with stack overflow.
+            benchIOSrc1 "concatMapWithZip (n of 1)"
+            (concatMapWithZip value 1)
+        -- Not correct because of nil stream at end issue.
+        , benchIOSrc1 "concatMapWithZip (sqrtVal of sqrtVal)"
+            (concatMapWithZip sqrtVal sqrtVal)
+        -}
+        , benchIOSrc1 "mergeMapWith (zipWith (+)) outer=Max inner=1"
+            (mergeMapWith (StreamK.zipWith (+)) streamLen 1)
+        , benchIOSrc1 "mergeMapWith (zipWith (+)) outer=inner=(sqrt Max)"
+            (mergeMapWith (StreamK.zipWith (+)) streamLen2 streamLen2)
         ]
 
     where
@@ -1061,13 +1083,6 @@ o_1_space_filteringX4 streamLen =
         , benchFold "drop-all"        (dropAll streamLen        4) (unfoldrM streamLen)
         , benchFold "dropWhile-true"  (dropWhileTrue streamLen  4) (unfoldrM streamLen)
         , benchFold "dropWhile-false" (dropWhileFalse 4) (unfoldrM streamLen)
-        ]
-
-o_1_space_zipping :: Int -> Benchmark
-o_1_space_zipping streamLen =
-    bgroup "zipping"
-        [ benchFold "zipWith" zipWith (unfoldrM streamLen)
-        , benchFold "zipWithM" zipWithM (unfoldrM streamLen)
         ]
 
 o_1_space_mixed :: Int -> Benchmark
@@ -1154,7 +1169,6 @@ o_1_space streamLen =
       , o_1_space_concat streamLen
       , o_1_space_filtering streamLen
       , o_1_space_filteringX4 streamLen
-      , o_1_space_zipping streamLen
       , o_1_space_joining streamLen
       , o_1_space_mixed streamLen
       , o_1_space_mixedX2 streamLen
