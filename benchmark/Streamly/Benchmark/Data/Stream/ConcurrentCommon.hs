@@ -18,6 +18,7 @@ import Streamly.Internal.Data.Stream.Prelude (MonadAsync, Config)
 
 import qualified Data.List as List
 import qualified Streamly.Data.Fold as Fold
+import qualified Streamly.Data.Fold.Prelude as Fold
 import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.Prelude as Async
 
@@ -57,6 +58,8 @@ o_n_heap_buffering value f =
     [ bgroup "buffered"
         [ benchIOSink value "mkAsync"
             (Stream.fold Fold.drain . Async.parBuffered f)
+        , benchIOSink value "fmap"
+            (Stream.fold Fold.drain . fmap (+1) . Async.parBuffered f)
         ]
     ]
 
@@ -79,11 +82,39 @@ concatAsync2 f count n =
         $ Stream.fromList
             [sourceUnfoldrM count n, sourceUnfoldrM count (n + 1)]
 
+{-# INLINE parMergeByM #-}
+parMergeByM :: (Config -> Config) -> Int -> Int -> IO ()
+parMergeByM f count n =
+    Stream.fold Fold.drain
+        $ Async.parMergeByM f
+        (\a b -> return (a `compare` b))
+        (sourceUnfoldrM count n)
+        (sourceUnfoldrM count (n + 1))
+
+{-# INLINE parMergeBy #-}
+parMergeBy :: (Config -> Config) -> Int -> Int -> IO ()
+parMergeBy f count n =
+    Stream.fold Fold.drain
+        $ Async.parMergeBy f
+        compare
+        (sourceUnfoldrM count n)
+        (sourceUnfoldrM count (n + 1))
+
+{-# INLINE parTap #-}
+parTap :: (Fold.Config -> Fold.Config) -> Int -> Int -> IO ()
+parTap f count n =
+    Stream.fold Fold.drain
+        $ Stream.tap (Fold.parBuffered f Fold.sum) (sourceUnfoldrM count n)
+
 o_1_space_joining :: Int -> (Config -> Config) -> [Benchmark]
 o_1_space_joining value f =
     [ bgroup "joining"
         [ benchIOSrc1 "async (2 of n/2)" (async2 f (value `div` 2))
         , benchIOSrc1 "concat async (2 of n/2)" (concatAsync2 f (value `div` 2))
+        , benchIOSrc1 "parMergeByM (2 of n/2)" (parMergeByM f (value `div` 2))
+        , benchIOSrc1 "parMergeBy (2 of n/2)" (parMergeBy f (value `div` 2))
+        -- XXX use configurable modifier, put this in concurrent fold benchmarks
+        , benchIOSrc1 "parTap" (parTap id value)
         ]
     ]
 
