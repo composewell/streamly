@@ -1,4 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE UndecidableInstances #-}
+
 -- |
 -- Module      : Main
 -- Copyright   : (c) 2018 Composewell Technologies
@@ -21,10 +24,12 @@ import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Data.Fold.Prelude as Fold
 import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.Prelude as Async
+import qualified Streamly.Internal.Data.Stream.Prelude as Stream
 
 import Test.Tasty.Bench
 import Prelude hiding (mapM)
 import Streamly.Benchmark.Common
+import Streamly.Data.Stream.MkType
 
 -- XXX Write inspection tests to make sure no dictionaries are being passed
 -- around to find specialization issues. Could be really bad for perf.
@@ -100,6 +105,24 @@ parMergeBy f count n =
         (sourceUnfoldrM count n)
         (sourceUnfoldrM count (n + 1))
 
+{-# INLINE parZipWithM #-}
+parZipWithM :: (Config -> Config) -> Int -> Int -> IO ()
+parZipWithM f count n =
+    Stream.fold Fold.drain
+        $ Async.parZipWithM f
+        (curry return)
+        (sourceUnfoldrM count n)
+        (sourceUnfoldrM count (n + 1))
+
+{-# INLINE parZipWith #-}
+parZipWith :: (Config -> Config) -> Int -> Int -> IO ()
+parZipWith f count n =
+    Stream.fold Fold.drain
+        $ Async.parZipWith f
+        (,)
+        (sourceUnfoldrM count n)
+        (sourceUnfoldrM count (n + 1))
+
 {-# INLINE parTap #-}
 parTap :: (Fold.Config -> Fold.Config) -> Int -> Int -> IO ()
 parTap f count n =
@@ -108,14 +131,16 @@ parTap f count n =
 
 o_1_space_joining :: Int -> (Config -> Config) -> [Benchmark]
 o_1_space_joining value f =
-    [ bgroup "joining"
-        [ benchIOSrc1 "async (2 of n/2)" (async2 f (value `div` 2))
-        , benchIOSrc1 "concat async (2 of n/2)" (concatAsync2 f (value `div` 2))
-        , benchIOSrc1 "parMergeByM (2 of n/2)" (parMergeByM f (value `div` 2))
-        , benchIOSrc1 "parMergeBy (2 of n/2)" (parMergeBy f (value `div` 2))
-        -- XXX use configurable modifier, put this in concurrent fold benchmarks
-        , benchIOSrc1 "parTap" (parTap id value)
+    [ bgroup "joining (2 of n/2)"
+        [ benchIOSrc1 "parTwo" (async2 f (value `div` 2))
+        , benchIOSrc1 "parConcat" (concatAsync2 f (value `div` 2))
+        , benchIOSrc1 "parMergeByM" (parMergeByM f (value `div` 2))
+        , benchIOSrc1 "parMergeBy" (parMergeBy f (value `div` 2))
+        , benchIOSrc1 "parZipWithM" (parZipWithM f (value `div` 2))
+        , benchIOSrc1 "parZipWith" (parZipWith f (value `div` 2))
         ]
+    -- XXX use configurable modifier, put this in concurrent fold benchmarks
+    , benchIOSrc1 "tap (Fold.parBuffered id Fold.sum)" (parTap id value)
     ]
 
 -------------------------------------------------------------------------------
@@ -201,9 +226,9 @@ o_1_space_concatMap label value f =
 -- Monadic outer product
 -------------------------------------------------------------------------------
 
-{-# INLINE toNullAp #-}
-toNullAp :: (Config -> Config) -> Int -> Int -> IO ()
-toNullAp f linearCount start =
+{-# INLINE drainApply #-}
+drainApply :: (Config -> Config) -> Int -> Int -> IO ()
+drainApply f linearCount start =
     Stream.fold Fold.drain
         $ Async.parCrossApply f
             (fmap (+) (sourceUnfoldrM nestedCount2 start))
@@ -213,10 +238,26 @@ toNullAp f linearCount start =
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
+-- XXX Move to a Zip specific module so that it is not added to all concurrent
+-- stream types.
+parCrossApply :: MonadAsync m => Stream m (a -> b) -> Stream m a -> Stream m b
+parCrossApply = Stream.parCrossApply id
+
+$(mkZipType "ParZip" "parCrossApply" True)
+
+{-# INLINE zipApplicative #-}
+zipApplicative
+    :: MonadAsync m => Int -> Int -> m ()
+zipApplicative count start =
+    Stream.fold Fold.drain $ unParZip $
+        (+) <$> mkParZip (sourceUnfoldrM count start)
+            <*> mkParZip (sourceUnfoldrM count (start + 1))
+
 o_1_space_outerProduct :: Int -> (Config -> Config) -> [Benchmark]
 o_1_space_outerProduct value f =
-    [ bgroup "monad-outer-product"
-        [ benchIO "toNullAp" $ toNullAp f value
+    [ bgroup "outer-product"
+        [ benchIO "parCrossApply" $ drainApply f value
+        , benchIO "ZipApplicative" $ zipApplicative value
         ]
     ]
 
