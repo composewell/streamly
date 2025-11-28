@@ -70,11 +70,84 @@ serial4 count n =
               (sourceUnfoldrM count (n + 2))
               (sourceUnfoldrM count (n + 3)))
 
+{-# INLINE interleave2 #-}
+interleave2 :: Int -> Int -> IO ()
+interleave2 count n =
+    drain $
+        S.interleave
+            (sourceUnfoldrM count n)
+            (sourceUnfoldrM count (n + 1))
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'interleave2
+inspect $ 'interleave2 `hasNoType` ''SPEC
+inspect $ 'interleave2 `hasNoType` ''S.InterleaveState
+#endif
+
+{-# INLINE roundRobin2 #-}
+roundRobin2 :: Int -> Int -> IO ()
+roundRobin2 value n =
+    S.drain $
+    S.roundRobin
+        (sourceUnfoldrM (value `div` 2) n)
+        (sourceUnfoldrM (value `div` 2) (n + 1))
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'roundRobin2
+inspect $ 'roundRobin2 `hasNoType` ''SPEC
+inspect $ 'roundRobin2 `hasNoType` ''S.InterleaveState
+#endif
+
+{-# INLINE sourceUnfoldrMUF #-}
+-- unfold input is (count, value)
+sourceUnfoldrMUF :: Monad m => Int -> UF.Unfold m (Int, Int) Int
+sourceUnfoldrMUF count = UF.unfoldrM step
+    where
+    step (cnt, start) =
+        return $
+            if cnt > start + count
+            then Nothing
+            else Just (cnt, (cnt + 1, start))
+
+{-# INLINE bfsUnfoldEach #-}
+bfsUnfoldEach :: Int -> Int -> Int -> IO ()
+bfsUnfoldEach outer inner n =
+    S.drain $ S.bfsUnfoldEach
+        -- (UF.lmap return (UF.replicateM inner))
+        (UF.lmap (\x -> (x,x)) (sourceUnfoldrMUF inner))
+        (sourceUnfoldrM outer n)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'bfsUnfoldEach
+-- inspect $ 'bfsUnfoldEach `hasNoType` ''SPEC
+-- inspect $ 'bfsUnfoldEach `hasNoType`
+--      ''S.ConcatUnfoldInterleaveState
+#endif
+
+{-# INLINE unfoldSched #-}
+unfoldSched :: Int -> Int -> Int -> IO ()
+unfoldSched outer inner n =
+    S.drain $ S.unfoldSched
+        -- (UF.lmap return (UF.replicateM inner))
+        (UF.lmap (\x -> (x,x)) (sourceUnfoldrMUF inner))
+        (sourceUnfoldrM outer n)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'unfoldSched
+-- inspect $ 'unfoldSched `hasNoType` ''SPEC
+-- inspect $ 'unfoldSched `hasNoType`
+--      ''D.ConcatUnfoldInterleaveState
+#endif
+
 o_1_space_joining :: Int -> [Benchmark]
 o_1_space_joining value =
     [ bgroup "joining"
         [ benchIOSrc1 "serial (2,x/2)" (serial2 (value `div` 2))
         , benchIOSrc1 "serial (2,2,x/4)" (serial4 (value `div` 4))
+        , benchIOSrc1 "interleave (2,x/2)" (interleave2 (value `div` 2))
+        , benchIOSrc1 "roundRobin (2,x/2)" (roundRobin2 (value `div` 2))
+        , benchIOSrc1 "bfsUnfoldEach (2,x/2)" (bfsUnfoldEach 2 (value `div` 2))
+        , benchIOSrc1 "unfoldSched (2,x/2)" (unfoldSched 2 (value `div` 2))
         ]
     ]
 
@@ -242,6 +315,31 @@ o_1_space_concat value = sqrtVal `seq`
 
         , benchIOSrc1 "unfoldEach3 outer=inner=(cubert Max)"
             (unfoldEach3 value)
+        ]
+    ]
+
+    where
+
+    sqrtVal = round $ sqrt (fromIntegral value :: Double)
+
+o_n_heap_concat :: Int -> [Benchmark]
+o_n_heap_concat value = sqrtVal `seq`
+    [ bgroup "concat"
+        [
+          benchIOSrc1
+              "bfsUnfoldEach (n of 1)"
+              (bfsUnfoldEach value 1)
+        , benchIOSrc1
+              "bfsUnfoldEach (sqrtVal of sqrtVal)"
+              (bfsUnfoldEach sqrtVal sqrtVal)
+
+        , benchIOSrc1
+              "unfoldSched (n of 1)"
+              (unfoldSched value 1)
+        , benchIOSrc1
+              "unfoldSched (sqrtVal of sqrtVal)"
+              (unfoldSched sqrtVal sqrtVal)
+
         ]
     ]
 
@@ -689,9 +787,10 @@ benchmarks moduleName size =
             -- multi-stream
               o_n_space_monad size
             ]
-       {-
        , bgroup (o_n_heap_prefix moduleName) $
+       {-
             -- multi-stream
             o_n_heap_buffering size
        -}
+            (o_n_heap_concat size)
         ]

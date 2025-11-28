@@ -26,12 +26,14 @@ import Control.Applicative (liftA2)
 #endif
 import Control.Monad (when)
 import Data.Maybe (isJust)
+import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.StreamK (StreamK)
 import System.Random (randomRIO)
 import Test.Tasty.Bench (bench, nfIO, bgroup, Benchmark)
 
 import qualified Data.List as List
 import qualified Prelude as P
+import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.StreamK as StreamK
 
 import Prelude hiding
@@ -332,6 +334,73 @@ sortBy :: Monad m => StreamK m Int -> m ()
 sortBy = drain . sortByK compare
 
 -------------------------------------------------------------------------------
+-- Joining
+-------------------------------------------------------------------------------
+
+{-# INLINE interleave2 #-}
+interleave2 :: Int -> Int -> IO ()
+interleave2 value n =
+    StreamK.drain $ StreamK.interleave
+        (unfoldrM (value `div` 2) n)
+        (unfoldrM (value `div` 2) (n + 1))
+
+{-# INLINE concatMapWith #-}
+concatMapWith
+    :: (StreamK IO Int -> StreamK IO Int -> StreamK IO Int)
+    -> Int
+    -> Int
+    -> Int
+    -> IO ()
+concatMapWith op outer inner n =
+    StreamK.drain $ StreamK.concatMapWith op
+        (unfoldrM inner)
+        (unfoldrM outer n)
+
+{-# INLINE concatMapWithD #-}
+concatMapWithD
+    :: (Stream IO Int -> Stream IO Int -> Stream IO Int)
+    -> Int
+    -> Int
+    -> Int
+    -> IO ()
+concatMapWithD op outer inner n =
+    StreamK.drain $ StreamK.concatMapWith op1
+        (unfoldrM inner)
+        (unfoldrM outer n)
+
+    where
+
+    op1 s1 s2 = StreamK.fromStream $ op (StreamK.toStream s1) (StreamK.toStream s2)
+
+{-# INLINE mergeMapWith #-}
+mergeMapWith
+    :: (StreamK IO Int -> StreamK IO Int -> StreamK IO Int)
+    -> Int
+    -> Int
+    -> Int
+    -> IO ()
+mergeMapWith op outer inner n =
+    StreamK.drain $ StreamK.mergeMapWith op
+        (unfoldrM inner)
+        (unfoldrM outer n)
+
+{-# INLINE mergeMapWithD #-}
+mergeMapWithD
+    :: (Stream IO Int -> Stream IO Int -> Stream IO Int)
+    -> Int
+    -> Int
+    -> Int
+    -> IO ()
+mergeMapWithD op outer inner n =
+    StreamK.drain $ StreamK.mergeMapWith op1
+        (unfoldrM inner)
+        (unfoldrM outer n)
+
+    where
+
+    op1 s1 s2 = StreamK.fromStream $ op (StreamK.toStream s1) (StreamK.toStream s2)
+
+-------------------------------------------------------------------------------
 -- Mixed Composition
 -------------------------------------------------------------------------------
 
@@ -423,13 +492,6 @@ sourceConcatMapId :: Monad m
     => Int -> Int -> StreamK m (StreamK m Int)
 sourceConcatMapId val n =
     StreamK.fromFoldable $ fmap (StreamK.fromEffect . return) [n..n+val]
-
-{-# INLINE concatMapBySerial #-}
-concatMapBySerial :: Int -> Int -> Int -> IO ()
-concatMapBySerial outer inner n =
-    StreamK.drain $ StreamK.concatMapWith StreamK.append
-        (unfoldrM inner)
-        (unfoldrM outer n)
 
 -------------------------------------------------------------------------------
 -- Nested Composition
@@ -747,6 +809,36 @@ o_1_space_transformationX4 streamLen =
         -- , benchFold "concatMap" (concatMap 4) (unfoldrM streamLen16)
         ]
 
+o_1_space_joining :: Int -> Benchmark
+o_1_space_joining streamLen =
+    bgroup "joining"
+        [ bgroup "(2 of n/2)"
+            [ benchIOSrc1 "interleave" (interleave2 streamLen)
+
+            -- join 2 streams using concatMapWith
+            , benchIOSrc1
+                  "concatMapWith interleave"
+                  (concatMapWith StreamK.interleave 2 (streamLen `div` 2))
+            , benchIOSrc1
+                  "concatMapWith D.interleave"
+                  (concatMapWithD Stream.interleave 2 (streamLen `div` 2))
+            , benchIOSrc1
+                  "concatMapWith D.roundRobin"
+                  (concatMapWithD Stream.roundRobin 2 (streamLen `div` 2))
+
+            -- join 2 streams using mergeMapWith
+            , benchIOSrc1
+                "mergeMapWith interleave"
+                (mergeMapWith StreamK.interleave 2 (streamLen `div` 2))
+            , benchIOSrc1
+                "mergeMapWith D.interleave"
+                (mergeMapWithD Stream.interleave 2 (streamLen `div` 2))
+            , benchIOSrc1
+                "mergeMapWith D.roundRobin"
+                (mergeMapWithD Stream.roundRobin 2 (streamLen `div` 2))
+            ]
+        ]
+
 o_1_space_concat :: Int -> Benchmark
 o_1_space_concat streamLen =
     bgroup "concat"
@@ -774,13 +866,60 @@ o_1_space_concat streamLen =
                 . sourceConcatMapId streamLen)
 
         , benchIOSrc1 "concatMapWith append outer=Max inner=1"
-            (concatMapBySerial streamLen 1)
+            (concatMapWith StreamK.append streamLen 1)
         , benchIOSrc1 "concatMapWith append outer=inner=(sqrt Max)"
-            (concatMapBySerial streamLen2 streamLen2)
+            (concatMapWith StreamK.append streamLen2 streamLen2)
         , benchIOSrc1 "concatMapWith append outer=1 inner=Max"
-            (concatMapBySerial 1 streamLen)
+            (concatMapWith StreamK.append 1 streamLen)
+
+        -- interleave with concatMapWith is O(1)
+        , benchIOSrc1 "concatMapWith interleave outer=Max inner=1"
+            (concatMapWith StreamK.interleave streamLen 1)
+        , benchIOSrc1 "concatMapWith interleave outer=inner=(sqrt Max)"
+            (concatMapWith StreamK.interleave streamLen2 streamLen2)
+        , benchIOSrc1 "concatMapWith interleave outer=1 inner=Max"
+            (concatMapWith StreamK.interleave 1 streamLen)
         ]
+
     where
+
+    streamLen2 = round (P.fromIntegral streamLen**(1/2::P.Double)) -- double nested loop
+
+o_n_space_concat :: Int -> Benchmark
+o_n_space_concat streamLen =
+    bgroup "concat"
+        [
+        -- concatMapWith using StreamD versions of interleave operations are
+        -- all quadratic, we just measure the sqrtVal benchmark for comparison.
+          benchIOSrc1 "concatMapWithD D.interleave outer=inner=(sqrt Max)"
+            (concatMapWithD Stream.interleave streamLen2 streamLen2)
+        , benchIOSrc1 "concatMapWithD D.roundRobin outer=inner=(sqrt Max)"
+            (concatMapWithD Stream.roundRobin streamLen2 streamLen2)
+        ]
+
+    where
+
+    streamLen2 = round (P.fromIntegral streamLen**(1/2::P.Double)) -- double nested loop
+
+o_n_heap_concat :: Int -> Benchmark
+o_n_heap_concat streamLen =
+    bgroup "concat"
+        [
+          benchIOSrc1 "mergeMapWith interleave outer=Max inner=1"
+            (mergeMapWith StreamK.interleave streamLen 1)
+        , benchIOSrc1 "mergeMapWith interleave outer=inner=(sqrt Max)"
+            (mergeMapWith StreamK.interleave streamLen2 streamLen2)
+        , benchIOSrc1 "mergeMapWith interleave outer=1 inner=Max"
+            (mergeMapWith StreamK.interleave 1 streamLen)
+
+        , benchIOSrc1 "mergeMapWithD D.interleave outer=inner=(sqrt Max)"
+            (mergeMapWithD Stream.interleave streamLen2 streamLen2)
+        , benchIOSrc1 "mergeMapWithD D.roundRobin outer=inner=(sqrt Max)"
+            (mergeMapWithD Stream.roundRobin streamLen2 streamLen2)
+        ]
+
+    where
+
     streamLen2 = round (P.fromIntegral streamLen**(1/2::P.Double)) -- double nested loop
 
 o_1_space_filtering :: Int -> Benchmark
@@ -863,6 +1002,11 @@ o_1_space_mixedX4 streamLen =
         , benchFold "filter-map"  (filterMap streamLen 4) (unfoldrM streamLen)
         ]
 
+{- HLINT ignore "Use <&>" -}
+{-# INLINE benchList #-}
+benchList :: P.String -> ([Int] -> [Int]) -> (Int -> [Int]) -> Benchmark
+benchList name run f = bench name $ nfIO $ randomRIO (1,1) >>= return . run . f
+
 o_1_space_list :: Int -> Benchmark
 o_1_space_list streamLen =
     bgroup "list"
@@ -898,6 +1042,7 @@ o_1_space streamLen =
       , o_1_space_filtering streamLen
       , o_1_space_filteringX4 streamLen
       , o_1_space_zipping streamLen
+      , o_1_space_joining streamLen
       , o_1_space_mixed streamLen
       , o_1_space_mixedX2 streamLen
       , o_1_space_mixedX4 streamLen
@@ -913,6 +1058,7 @@ o_n_heap streamLen =
       , bgroup "concat"
         [ benchFold "sortBy" sortBy (unfoldrM streamLen)
         ]
+      , o_n_heap_concat streamLen
       ]
 
 {-# INLINE benchK #-}
@@ -957,12 +1103,8 @@ o_n_space streamLen =
       [ bgroup "elimination"
         [ benchFold "toList" toList   (unfoldrM streamLen)
         ]
+      , o_n_space_concat streamLen
       ]
-
-{- HLINT ignore "Use <&>" -}
-{-# INLINE benchList #-}
-benchList :: P.String -> ([Int] -> [Int]) -> (Int -> [Int]) -> Benchmark
-benchList name run f = bench name $ nfIO $ randomRIO (1,1) >>= return . run . f
 
 main :: IO ()
 main = do
