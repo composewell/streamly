@@ -1376,7 +1376,6 @@ parseChunksGeneric = GenArr.parse
 --
 {-# INLINE sortBy #-}
 sortBy :: Monad m => (a -> a -> Ordering) -> StreamK m a -> StreamK m a
--- sortBy f = Stream.concatPairsWith (Stream.mergeBy f) Stream.fromPure
 sortBy cmp =
     let p =
             Parser.groupByRollingEither
