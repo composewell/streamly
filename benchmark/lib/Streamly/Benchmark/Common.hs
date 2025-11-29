@@ -13,6 +13,7 @@ module Streamly.Benchmark.Common
     , o_n_space_prefix
     , o_n_heap_prefix
     , o_n_stack_prefix
+    , SpaceComplexity(..)
 
     , runWithCLIOptsEnv
     , runWithCLIOpts
@@ -61,6 +62,8 @@ import Test.Tasty.Bench
 -------------------------------------------------------------------------------
 -- Benchmark Prefixes
 -------------------------------------------------------------------------------
+
+data SpaceComplexity = SpaceO_1 | HeapO_n | StackO_n | SpaceO_n deriving Eq
 
 o_1_space_prefix :: String -> String
 o_1_space_prefix name = name ++ "/o-1-space"

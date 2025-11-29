@@ -710,74 +710,108 @@ instance NFData ParseError where
     {-# INLINE rnf #-}
     rnf (ParseError x) = rnf x
 
-o_1_space_serial :: Int -> [Benchmark]
-o_1_space_serial value =
-    [ benchIOSink value "takeBetween" $ takeBetween value
-    , benchIOSink value "takeWhile" $ takeWhile value
-    , benchIOSink value "takeWhileP" $ takeWhileP value
-    , benchIOSink value "takeP" $ takeP value
-    , benchIOSink value "dropWhile" $ dropWhile value
-    , benchIOSink value "takeBeginBy" $ takeBeginBy value
-    , benchIOSink value "takeEndBy_" $ takeEndBy_ value
-    , benchIOSink value "groupBy" $ groupBy
-    , benchIOSink value "groupByRolling" $ groupByRolling
-    , benchIOSink value "wordBy" $ wordBy value
-    , benchIOSink value "sepBy (words)" sepByWords
-    , benchIOSink value "sepByAll (words)" sepByAllWords
-    , benchIOSink value "sepBy1 (words)" sepByWords1
-    , benchIOSink value "deintercalate" $ deintercalate value
-    , benchIOSink value "deintercalate1" $ deintercalate1 value
-    , benchIOSink value "deintercalateAll" $ deintercalateAll value
+benchmarks :: Int -> BenchEnv -> [Array.Array Int] -> [(SpaceComplexity, Benchmark)]
+benchmarks value env arrays =
+    [ (SpaceO_1, benchIOSink value "takeBetween" $ takeBetween value)
+    , (SpaceO_1, benchIOSink value "takeWhile" $ takeWhile value)
+    , (SpaceO_1, benchIOSink value "takeWhileP" $ takeWhileP value)
+    , (SpaceO_1, benchIOSink value "takeP" $ takeP value)
+    , (SpaceO_1, benchIOSink value "dropWhile" $ dropWhile value)
+    , (SpaceO_1, benchIOSink value "takeBeginBy" $ takeBeginBy value)
+    , (SpaceO_1, benchIOSink value "takeEndBy_" $ takeEndBy_ value)
+    , (SpaceO_1, benchIOSink value "groupBy" $ groupBy)
+    , (SpaceO_1, benchIOSink value "groupByRolling" $ groupByRolling)
+    , (SpaceO_1, benchIOSink value "wordBy" $ wordBy value)
+    , (SpaceO_1, benchIOSink value "sepBy (words)" sepByWords)
+    , (SpaceO_1, benchIOSink value "sepByAll (words)" sepByAllWords)
+    , (SpaceO_1, benchIOSink value "sepBy1 (words)" sepByWords1)
+    , (SpaceO_1, benchIOSink value "deintercalate" $ deintercalate value)
+    , (SpaceO_1, benchIOSink value "deintercalate1" $ deintercalate1 value)
+    , (SpaceO_1, benchIOSink value "deintercalateAll" $ deintercalateAll value)
     -- Applicative and Monad
-    , benchIOSink value "splitAp2" $ splitAp2 value
-    , benchIOSink value "splitAp4" $ splitAp4 value
-    , benchIOSink value "splitAp8" $ splitAp8 value
-    , benchIOSink value "splitApBefore" $ splitApBefore value
-    , benchIOSink value "splitApAfter" $ splitApAfter value
-    , benchIOSink value "splitWith2" $ splitWith2 value
-    , benchIOSink value "span" $ span value
-    , benchIOSink value "spanBy" $ spanBy value
-    , benchIOSink value "spanByRolling" $ spanByRolling value
-    , benchIOSink value "monad2" $ monad value
-    , benchIOSink value "monad4" $ monad4 value
-    , benchIOSink value "monad8" $ monad8 value
+    , (SpaceO_1, benchIOSink value "splitAp2" $ splitAp2 value)
+    , (SpaceO_1, benchIOSink value "splitAp4" $ splitAp4 value)
+    , (SpaceO_1, benchIOSink value "splitAp8" $ splitAp8 value)
+    , (SpaceO_1, benchIOSink value "splitApBefore" $ splitApBefore value)
+    , (SpaceO_1, benchIOSink value "splitApAfter" $ splitApAfter value)
+    , (SpaceO_1, benchIOSink value "splitWith2" $ splitWith2 value)
+    , (SpaceO_1, benchIOSink value "span" $ span value)
+    , (SpaceO_1, benchIOSink value "spanBy" $ spanBy value)
+    , (SpaceO_1, benchIOSink value "spanByRolling" $ spanByRolling value)
+    , (SpaceO_1, benchIOSink value "monad2" $ monad value)
+    , (SpaceO_1, benchIOSink value "monad4" $ monad4 value)
+    , (SpaceO_1, benchIOSink value "monad8" $ monad8 value)
     -- Alternative
-    , benchIOSink value "alt2parseMany" $ altSmall value
-    , benchIOSink value "alt2" $ alt2 value
-    , benchIOSink value "alt4" $ alt4 value
-    , benchIOSink value "alt8" $ alt8 value
-    , benchIOSink value "alt16" $ alt16 value
-    , benchIOSink value "many" many
-    , benchIOSink value "many (wordBy even)" $ manyWordByEven
-    , benchIOSink value "some" some
-    , benchIOSink value "manyTill" $ manyTill value
-    , benchIOSink value "parseMany" $ parseMany value
-    , benchIOSink value "parseMany (take 1)" (parseMany 1)
-    , benchIOSink value "parseMany (take all)" (parseMany value)
-    , benchIOSink value "parseMany (groupBy (<))" (parseManyGroupBy (<))
-    , benchIOSink value "parseMany (groupBy (==))" (parseManyGroupBy (==))
-    , benchIOSink value "parseMany groupRollingBy (bound groups)"
-          $ parseManyGroupsRolling False
-    , benchIOSink value "parseMany groupRollingBy (1 group)"
-          $ parseManyGroupsRolling True
-    , bench "parseMany groupRollingByEither (Left)"
-        $ nfIO $ parseManyGroupsRollingEitherLeft
-    , bench "parseMany groupRollingByEither (Right)"
-        $ nfIO $ parseManyGroupsRollingEitherRight
-    , bench "parseMany groupRollingByEither (Alternating)"
-        $ nfIO $ parseManyGroupsRollingEitherAlt1
-    , benchIOSink value "parseIterate (take 1)" (parseIterate 1)
-    , benchIOSink value "parseIterate (take all)" (parseIterate value)
-    , benchIOSink value "concatSequence" concatSequence
+    , (SpaceO_1, benchIOSink value "alt2parseMany" $ altSmall value)
+    , (SpaceO_1, benchIOSink value "alt2" $ alt2 value)
+    , (SpaceO_1, benchIOSink value "alt4" $ alt4 value)
+    , (SpaceO_1, benchIOSink value "alt8" $ alt8 value)
+    , (SpaceO_1, benchIOSink value "alt16" $ alt16 value)
+    , (SpaceO_1, benchIOSink value "many" many)
+    , (SpaceO_1, benchIOSink value "many (wordBy even)" $ manyWordByEven)
+    , (SpaceO_1, benchIOSink value "some" some)
+    , (SpaceO_1, benchIOSink value "manyTill" $ manyTill value)
+    , (SpaceO_1, benchIOSink value "parseMany" $ parseMany value)
+    , (SpaceO_1, benchIOSink value "parseMany (take 1)" (parseMany 1))
+    , (SpaceO_1, benchIOSink value "parseMany (take all)" (parseMany value))
+    , (SpaceO_1, benchIOSink value "parseMany (groupBy (<))" (parseManyGroupBy (<)))
+    , (SpaceO_1, benchIOSink value "parseMany (groupBy (==))" (parseManyGroupBy (==)))
+    , (SpaceO_1, benchIOSink value "parseMany groupRollingBy (bound groups)"
+          $ parseManyGroupsRolling False)
+    , (SpaceO_1, benchIOSink value "parseMany groupRollingBy (1 group)"
+          $ parseManyGroupsRolling True)
+    , (SpaceO_1, bench "parseMany groupRollingByEither (Left)"
+        $ nfIO $ parseManyGroupsRollingEitherLeft)
+    , (SpaceO_1, bench "parseMany groupRollingByEither (Right)"
+        $ nfIO $ parseManyGroupsRollingEitherRight)
+    , (SpaceO_1, bench "parseMany groupRollingByEither (Alternating)"
+        $ nfIO $ parseManyGroupsRollingEitherAlt1)
+    , (SpaceO_1, benchIOSink value "parseIterate (take 1)" (parseIterate 1))
+    , (SpaceO_1, benchIOSink value "parseIterate (take all)" (parseIterate value))
+    , (SpaceO_1, benchIOSink value "concatSequence" concatSequence)
     {-
     , benchIOSink value "tee" $ teeAllAny value
     , benchIOSink value "teeFst" $ teeFstAllAny value
     , benchIOSink value "shortest" $ shortestAllAny value
     , benchIOSink value "longest" $ longestAllAny value
     -}
-    , benchIOSink value "streamEqBy" (streamEqBy value)
-    ]
+    , (SpaceO_1, benchIOSink value "streamEqBy" (streamEqBy value))
+    , (SpaceO_1, mkBench ("parseMany (Fold.take " ++ show (bigSize env) ++ " Fold.sum)") env
+          $ \inh _ -> noinline parseManyChunksOfSum (bigSize env) inh)
+    , (SpaceO_1, mkBench "parseMany (Fold.take 1 Fold.sum)" env
+          $ \inh _ -> inline parseManyChunksOfSum 1 inh)
+    , (SpaceO_1, bench "parseMany/Unfold/1000 arrays/take all"
+        $ nfIO $ parseManyUnfoldArrays value arrays)
+    , (SpaceO_1, bench "parseMany/Unfold/1000 arrays/take 1"
+        $ nfIO $ parseManyUnfoldArrays 1 arrays)
+    , (HeapO_n, benchIOSink value "takeEQ" $ takeEQ value)
+    , (HeapO_n, benchIOSink value "takeGE" $ takeGE value)
 
+    -- lookahead benchmark holds the entire input till end
+    , (HeapO_n, benchIOSink value "lookAhead" $ lookAhead value)
+
+    -- o-n-heap because of backtracking
+    , (HeapO_n, benchIOSrc sourceEscapedFrames value "takeFramedByEsc_"
+        $ takeFramedByEsc_ value)
+
+    -- non-linear time complexity (parserD)
+    , (HeapO_n, benchIOSink value "split_" $ split_ value)
+    -- XXX Takes lot of space when run on a long stream, why?
+    , (HeapO_n, benchIOSink value "monad16" $ monad16 value)
+
+    -- These show non-linear time complexity.
+    -- They accumulate the results in a list.
+    , (HeapO_n, benchIOSink value "sepBy1" sepBy1)
+    , (HeapO_n, benchIOSink value "manyAlt" manyAlt)
+    , (HeapO_n, benchIOSink value "someAlt" someAlt)
+    , (HeapO_n, benchIOSink value "listEqBy" (listEqBy value))
+    , (SpaceO_n, benchIOSink value "sequenceA/100" $ sequenceA (value `div` 100))
+    , (SpaceO_n, benchIOSink value "sequenceA_/100" $ sequenceA_ (value `div` 100))
+    , (SpaceO_n, benchIOSink value "sequence/100" $ sequence (value `div` 100))
+    , (SpaceO_n, benchIOSink value "sequence_/100" $ sequence_ (value `div` 100))
+    , (SpaceO_n, benchIOSink value "choice (asum)/100" $ choiceAsum (value `div` 100))
+    -- , benchIOSink value "choice/100" $ choice (value `div` 100)
+    ]
     where
 
     {-# NOINLINE parseManyGroupsRollingEitherLeft #-}
@@ -789,59 +823,6 @@ o_1_space_serial value =
     {-# NOINLINE parseManyGroupsRollingEitherAlt1 #-}
     parseManyGroupsRollingEitherAlt1 =
         parseManyGroupsRollingEitherAlt (>) value
-
-o_1_space_filesystem :: BenchEnv -> [Benchmark]
-o_1_space_filesystem env =
-    [ mkBench ("S.parseMany (Fold.take " ++ show (bigSize env) ++ " Fold.sum)") env
-          $ \inh _ -> noinline parseManyChunksOfSum (bigSize env) inh
-    , mkBench "S.parseMany (Fold.take 1 Fold.sum)" env
-          $ \inh _ -> inline parseManyChunksOfSum 1 inh
-    ]
-
-o_1_space_serial_unfold :: Int -> [Array.Array Int] -> [Benchmark]
-o_1_space_serial_unfold bound arrays =
-    [ bench "parseMany/Unfold/1000 arrays/take all"
-        $ nfIO $ parseManyUnfoldArrays bound arrays
-    , bench "parseMany/Unfold/1000 arrays/take 1"
-        $ nfIO $ parseManyUnfoldArrays 1 arrays
-    ]
-
-o_n_heap_serial :: Int -> [Benchmark]
-o_n_heap_serial value =
-    [
-      benchIOSink value "takeEQ" $ takeEQ value
-    , benchIOSink value "takeGE" $ takeGE value
-
-    -- lookahead benchmark holds the entire input till end
-    , benchIOSink value "lookAhead" $ lookAhead value
-
-    -- o-n-heap because of backtracking
-    , benchIOSrc sourceEscapedFrames value "takeFramedByEsc_"
-        $ takeFramedByEsc_ value
-
-    -- non-linear time complexity (parserD)
-    , benchIOSink value "split_" $ split_ value
-    -- XXX Takes lot of space when run on a long stream, why?
-    , benchIOSink value "monad16" $ monad16 value
-
-    -- These show non-linear time complexity.
-    -- They accumulate the results in a list.
-    , benchIOSink value "sepBy1" sepBy1
-    , benchIOSink value "manyAlt" manyAlt
-    , benchIOSink value "someAlt" someAlt
-    , benchIOSink value "listEqBy" (listEqBy value)
-    ]
-
--- accumulate results in a list in IO
-o_n_space_serial :: Int -> [Benchmark]
-o_n_space_serial value =
-    [ benchIOSink value "sequenceA/100" $ sequenceA (value `div` 100)
-    , benchIOSink value "sequenceA_/100" $ sequenceA_ (value `div` 100)
-    , benchIOSink value "sequence/100" $ sequence (value `div` 100)
-    , benchIOSink value "sequence_/100" $ sequence_ (value `div` 100)
-    , benchIOSink value "choice (asum)/100" $ choiceAsum (value `div` 100)
-    -- , benchIOSink value "choice/100" $ choice (value `div` 100)
-    ]
 
 -------------------------------------------------------------------------------
 -- Driver
@@ -858,14 +839,15 @@ main = do
     alloc value = Stream.fold Fold.toList $ Array.chunksOf 100 $ sourceUnfoldrM value 0
 
     allBenchmarks env arrays value =
-        [ bgroup (o_1_space_prefix moduleName) (o_1_space_serial value)
-        , bgroup
-              (o_1_space_prefix moduleName ++ "/filesystem")
-              (o_1_space_filesystem env)
-        , bgroup (o_1_space_prefix moduleName)
-            (o_1_space_serial_unfold value arrays)
-        , bgroup (o_n_heap_prefix moduleName) (o_n_heap_serial value)
-        , bgroup (o_n_space_prefix moduleName) (o_n_space_serial value)
+        let allBenches = benchmarks value env arrays
+            get x = map snd $ filter ((==) x . fst) allBenches
+            o_1_space = get SpaceO_1
+            o_n_heap = get HeapO_n
+            o_n_space = get SpaceO_n
+        in
+        [ bgroup (o_1_space_prefix moduleName) o_1_space
+        , bgroup (o_n_heap_prefix moduleName) o_n_heap
+        , bgroup (o_n_space_prefix moduleName) o_n_space
         ]
 #else
     -- Enable FUSION_CHECK macro at the beginning of the file
