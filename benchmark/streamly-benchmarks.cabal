@@ -59,11 +59,6 @@ flag use-streamly-core
   manual: True
   default: False
 
-flag use-prelude
-  description: Use Prelude instead of Data.Stream for serial benchmarks
-  manual: True
-  default: False
-
 -------------------------------------------------------------------------------
 -- Common stanzas
 -------------------------------------------------------------------------------
@@ -223,9 +218,6 @@ library
     hs-source-dirs: lib
     exposed-modules: Streamly.Benchmark.Common
                     , Streamly.Benchmark.Common.Handle
-    if flag(use-prelude)
-      exposed-modules: Streamly.Benchmark.Prelude
-
 
 -------------------------------------------------------------------------------
 -- Benchmarks
