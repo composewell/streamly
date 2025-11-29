@@ -11,6 +11,14 @@
 
 module Stream.ConcurrentCommon
     ( allBenchmarks
+    , mkParallel
+    , unParallel
+    , mkFairParallel
+    , unFairParallel
+    , mkEagerParallel
+    , unEagerParallel
+    , mkOrderedParallel
+    , unOrderedParallel
     )
 where
 
@@ -58,12 +66,12 @@ o_1_space_mapping value f =
 -- Size conserving transformations (reordering, buffering, etc.)
 -------------------------------------------------------------------------------
 
-o_n_heap_buffering :: Int -> (Config -> Config) -> [Benchmark]
-o_n_heap_buffering value f =
+o_n_heap_benchmarks :: Int -> (Config -> Config) -> [Benchmark]
+o_n_heap_benchmarks value f =
     [ bgroup "buffered"
-        [ benchIOSink value "mkAsync"
+        [ benchIOSink value "parBuffered"
             (Stream.fold Fold.drain . Async.parBuffered f)
-        , benchIOSink value "fmap"
+        , benchIOSink value "fmap parBuffered"
             (Stream.fold Fold.drain . fmap (+1) . Async.parBuffered f)
         ]
     ]
@@ -123,6 +131,18 @@ parZipWith f count n =
         (sourceUnfoldrM count n)
         (sourceUnfoldrM count (n + 1))
 
+parZipApply :: MonadAsync m => Stream m (a -> b) -> Stream m a -> Stream m b
+parZipApply = Stream.parZipWith id id
+
+$(mkZipType "ParZip" "parZipApply" True)
+
+{-# INLINE zipApplicative #-}
+zipApplicative :: Int -> Int -> IO ()
+zipApplicative count start =
+    Stream.fold Fold.drain $ unParZip $
+        (+) <$> mkParZip (sourceUnfoldrM count start)
+            <*> mkParZip (sourceUnfoldrM count (start + 1))
+
 {-# INLINE parTap #-}
 parTap :: (Fold.Config -> Fold.Config) -> Int -> Int -> IO ()
 parTap f count n =
@@ -138,6 +158,7 @@ o_1_space_joining value f =
         , benchIOSrc1 "parMergeBy" (parMergeBy f (value `div` 2))
         , benchIOSrc1 "parZipWithM" (parZipWithM f (value `div` 2))
         , benchIOSrc1 "parZipWith" (parZipWith f (value `div` 2))
+        , benchIO "parZipApplicative" $ zipApplicative value
         ]
     -- XXX use configurable modifier, put this in concurrent fold benchmarks
     , benchIOSrc1 "tap (Fold.parBuffered id Fold.sum)" (parTap id value)
@@ -209,7 +230,7 @@ o_1_space_concatMap label value f =
         [ bgroup ("concat" ++ label)
             [ benchIO "parConcatMap (n of 1)"
                   (concatMapStreamsWith f value 1)
-            , benchIO "parConcatMap (sqrt x of sqrt x)"
+            , benchIO "parConcatMap (sqrt n of sqrt n)"
                   (concatMapStreamsWith f value2 value2)
             , benchIO "parConcatMap (1 of n)"
                   (concatMapStreamsWith f 1 value)
@@ -222,13 +243,25 @@ o_1_space_concatMap label value f =
 
     value2 = round $ sqrt (fromIntegral value :: Double)
 
+o_1_space_benchmarks :: Int -> (Config -> Config) -> [Benchmark]
+o_1_space_benchmarks value modifier =
+    concat
+        [ o_1_space_mapping value modifier
+        , o_1_space_joining value modifier
+        , o_1_space_concatFoldable value modifier
+        , o_1_space_concatMap "" value modifier
+        , o_1_space_concatMap "-maxThreads-1" value (modifier . Async.maxThreads 1)
+        , o_1_space_concatMap "-maxBuffer-1 1/10" (value `div` 10) (modifier . Async.maxBuffer 1)
+        , o_1_space_concatMap "-rate-Nothing" value (modifier . Async.rate Nothing)
+        ]
+
 -------------------------------------------------------------------------------
--- Monadic outer product
+-- Apply
 -------------------------------------------------------------------------------
 
-{-# INLINE drainApply #-}
-drainApply :: (Config -> Config) -> Int -> Int -> IO ()
-drainApply f linearCount start =
+{-# INLINE parCrossApply #-}
+parCrossApply :: (Config -> Config) -> Int -> Int -> IO ()
+parCrossApply f linearCount start =
     Stream.fold Fold.drain
         $ Async.parCrossApply f
             (fmap (+) (sourceUnfoldrM nestedCount2 start))
@@ -238,26 +271,155 @@ drainApply f linearCount start =
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
--- XXX Move to a Zip specific module so that it is not added to all concurrent
--- stream types.
-parCrossApply :: MonadAsync m => Stream m (a -> b) -> Stream m a -> Stream m b
-parCrossApply = Stream.parCrossApply id
+-------------------------------------------------------------------------------
+-- Monad Types
+-------------------------------------------------------------------------------
 
-$(mkZipType "ParZip" "parCrossApply" True)
+parallelBind :: MonadAsync m => Stream m a -> (a -> Stream m b) -> Stream m b
+parallelBind = flip (Stream.parConcatMap id)
+$(mkCrossType "Parallel" "parallelBind" True)
 
-{-# INLINE zipApplicative #-}
-zipApplicative
-    :: MonadAsync m => Int -> Int -> m ()
-zipApplicative count start =
-    Stream.fold Fold.drain $ unParZip $
-        (+) <$> mkParZip (sourceUnfoldrM count start)
-            <*> mkParZip (sourceUnfoldrM count (start + 1))
+fairParallelBind :: MonadAsync m => Stream m a -> (a -> Stream m b) -> Stream m b
+fairParallelBind = flip (Stream.parConcatMap (Stream.interleaved True))
+$(mkCrossType "FairParallel" "fairParallelBind" True)
 
-o_1_space_outerProduct :: Int -> (Config -> Config) -> [Benchmark]
-o_1_space_outerProduct value f =
-    [ bgroup "outer-product"
-        [ benchIO "parCrossApply" $ drainApply f value
-        , benchIO "ZipApplicative" $ zipApplicative value
+eagerParallelBind :: MonadAsync m => Stream m a -> (a -> Stream m b) -> Stream m b
+eagerParallelBind = flip (Stream.parConcatMap (Stream.eager True))
+$(mkCrossType "EagerParallel" "eagerParallelBind" True)
+
+orderedBind :: MonadAsync m => Stream m a -> (a -> Stream m b) -> Stream m b
+orderedBind = flip (Stream.parConcatMap (Stream.ordered True))
+$(mkCrossType "OrderedParallel" "orderedBind" True)
+
+-------------------------------------------------------------------------------
+-- Monadic benchmarks
+-------------------------------------------------------------------------------
+
+{-# INLINE applicative #-}
+applicative :: Monad (t IO) => (Stream IO Int -> t IO Int) -> (t IO Int -> Stream IO Int) -> Int -> Int -> IO ()
+applicative mk un linearCount start =
+    Stream.fold Fold.drain $ un $
+        (+) <$> mk (sourceUnfoldrM nestedCount2 start)
+            <*> mk (sourceUnfoldrM nestedCount2 (start + 1))
+    where
+
+    nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
+
+
+{-# INLINE monad2 #-}
+monad2 :: Monad (t IO) => (Stream IO Int -> t IO Int) -> (t IO Int -> Stream IO Int) -> Int -> Int -> IO ()
+monad2 mk un linearCount start =
+    Stream.fold Fold.drain $ un $ do
+        x <- mk $ sourceUnfoldrM nestedCount2 start
+        y <- mk $ sourceUnfoldrM nestedCount2 start
+        return $ x + y
+
+    where
+
+    nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
+
+{-# INLINE monadTakeSome #-}
+monadTakeSome :: Monad (t IO) => (Stream IO Int -> t IO Int) -> (t IO Int -> Stream IO Int) -> Int -> Int -> IO ()
+monadTakeSome mk un linearCount start =
+    Stream.fold Fold.drain $ Stream.take 1000 $ un $ do
+        x <- mk $ sourceUnfoldrM nestedCount2 start
+        y <- mk $ sourceUnfoldrM nestedCount2 start
+        return $ x + y
+
+    where
+
+    nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
+
+{-# INLINE monad3 #-}
+monad3 :: Monad (t IO) => (Stream IO Int -> t IO Int) -> (t IO Int -> Stream IO Int) -> Int -> Int -> IO ()
+monad3 mk un linearCount start =
+    Stream.fold Fold.drain $ un $ do
+        x <- mk $ sourceUnfoldrM nestedCount3 start
+        y <- mk $ sourceUnfoldrM nestedCount3 start
+        z <- mk $ sourceUnfoldrM nestedCount3 start
+        return $ x + y + z
+
+    where
+
+    nestedCount3 = round (fromIntegral linearCount**(1/3::Double))
+
+{-# INLINE monadFilterAllOut #-}
+monadFilterAllOut :: Monad (t IO) => (Stream IO Int -> t IO Int) -> (t IO Int -> Stream IO Int) -> Int -> Int -> IO ()
+monadFilterAllOut mk un linearCount start =
+    Stream.fold Fold.drain $ un $ do
+        x <- mk $ sourceUnfoldrM nestedCount2 start
+        y <- mk $ sourceUnfoldrM nestedCount2 start
+        let s = x + y
+        if s < 0
+        then return s
+        else mk Stream.nil
+
+    where
+
+    nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
+
+{-# INLINE monadFilterAllIn #-}
+monadFilterAllIn :: Monad (t IO) => (Stream IO Int -> t IO Int) -> (t IO Int -> Stream IO Int) -> Int -> Int -> IO ()
+monadFilterAllIn mk un linearCount start =
+    Stream.fold Fold.drain $ un $ do
+        x <- mk $ sourceUnfoldrM nestedCount2 start
+        y <- mk $ sourceUnfoldrM nestedCount2 start
+        let s = x + y
+        if s > 0
+        then return s
+        else mk Stream.nil
+
+    where
+
+    nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
+
+{-# INLINE monadFilterSome #-}
+monadFilterSome :: Monad (t IO) => (Stream IO Int -> t IO Int) -> (t IO Int -> Stream IO Int) -> Int -> Int -> IO ()
+monadFilterSome mk un linearCount start =
+    Stream.fold Fold.drain $ un $ do
+        x <- mk $ sourceUnfoldrM nestedCount2 start
+        y <- mk $ sourceUnfoldrM nestedCount2 start
+        let s = x + y
+        if odd s
+        then return s
+        else mk Stream.nil
+
+    where
+
+    nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
+
+{-
+{-# INLINE monadBreak #-}
+monadBreak :: Monad (t IO) => (Stream IO Int -> t IO Int) -> (t IO Int -> Stream IO Int) -> Int -> Int -> IO ()
+monadBreak mk un linearCount start =
+    Stream.fold Fold.drain $ un $ do
+        x <- mk $ sourceUnfoldrM nestedCount2 start
+        y <- mk $ sourceUnfoldrM nestedCount2 start
+        let s = x + y
+        if s > nestedCount2
+        then error "break"
+        else return s
+
+    where
+
+    nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
+-}
+
+crossBenchmarks :: Monad (t IO) =>
+       (Stream IO Int -> t IO Int)
+    -> (t IO Int -> Stream IO Int)
+    -> Int -> (Stream.Config -> Stream.Config) -> [Benchmark]
+crossBenchmarks mk un len f =
+    [ bgroup "cross-product"
+        [ benchIO "parCrossApply" $ parCrossApply f len
+        , benchIO "monadAp" $ applicative mk un len
+        , benchIO "monad2Levels" $ monad2 mk un len
+        , benchIO "monad3Levels" $ monad3 mk un len
+        , benchIO "monad2FilterAllOut" $ monadFilterAllOut mk un len
+        , benchIO "monad2FilterAllIn" $ monadFilterAllIn mk un len
+        , benchIO "monad2FilterSome" $ monadFilterSome mk un len
+        , benchIO "monad2TakeSome" $ monadTakeSome mk un len
+        -- , benchIO "monad2Break" $ monadBreak mk un len
         ]
     ]
 
@@ -265,19 +427,15 @@ o_1_space_outerProduct value f =
 -- Benchmark sets
 -------------------------------------------------------------------------------
 
-allBenchmarks :: String -> Bool -> (Config -> Config) -> Int -> [Benchmark]
-allBenchmarks moduleName wide modifier value =
+allBenchmarks :: Monad (t IO) =>
+       (Stream IO Int -> t IO Int)
+    -> (t IO Int -> Stream IO Int)
+    -> String -> Bool -> (Config -> Config) -> Int -> [Benchmark]
+allBenchmarks mk un moduleName wide modifier value =
     [ bgroup (o_1_space_prefix moduleName) $ concat
-        [ o_1_space_mapping value modifier
-        , o_1_space_concatFoldable value modifier
-        , o_1_space_concatMap "" value modifier
-        , o_1_space_concatMap "-maxThreads-1" value (modifier . Async.maxThreads 1)
-        , o_1_space_concatMap "-maxBuffer-1 1/10" (value `div` 10) (modifier . Async.maxBuffer 1)
-        , o_1_space_concatMap "-rate-Nothing" value (modifier . Async.rate Nothing)
-        , o_1_space_joining value modifier
-        ] ++ if wide then [] else o_1_space_outerProduct value modifier
+        [ o_1_space_benchmarks value modifier
+        ] ++ if wide then [] else crossBenchmarks mk un value modifier
     , bgroup (o_n_heap_prefix moduleName) $ concat
-        [ if wide then o_1_space_outerProduct value modifier else []
-        , o_n_heap_buffering value modifier
-        ]
+        [ o_n_heap_benchmarks value modifier
+        ] ++ if wide then crossBenchmarks mk un value modifier else []
     ]

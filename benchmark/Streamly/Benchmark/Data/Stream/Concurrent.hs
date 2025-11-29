@@ -1,12 +1,11 @@
-{-# LANGUAGE FlexibleContexts #-}
--- |
+--
 -- Module      : Main
 -- Copyright   : (c) 2018 Composewell Technologies
 --
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
 
-import Stream.ConcurrentCommon (allBenchmarks)
+import Stream.ConcurrentCommon
 import Streamly.Benchmark.Common (runWithCLIOpts, defaultStreamSize)
 
 moduleName :: String
@@ -17,4 +16,9 @@ moduleName = "Data.Stream.Concurrent"
 -------------------------------------------------------------------------------
 
 main :: IO ()
-main = runWithCLIOpts defaultStreamSize (allBenchmarks moduleName False id)
+main =
+    runWithCLIOpts
+        defaultStreamSize
+        (allBenchmarks
+            mkParallel
+            unParallel moduleName False id)
