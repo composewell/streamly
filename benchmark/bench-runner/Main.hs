@@ -25,76 +25,12 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
         | otherwise = ""
 
     exeSpecific
-        | "Prelude.Concurrent" `isSuffixOf` exeName = "-K512K -M384M"
+        -- | "Data.Stream.ConcurrentEager" `isSuffixOf` exeName = "-K512K -M384M"
+        -- placeholder to remind usage of exeName
+        | "abc" `isSuffixOf` exeName = ""
         | otherwise = ""
 
     benchSpecific
-        -- GHC-9.6 requires 64M, earlier it was 16M
-        | "Data.Fold/o-n-heap.key-value.toHashMapIO (max buckets) sum" == benchName =
-            "-M64M"
-
-        -- This is required only for the --long case because we allocate all
-        -- the arrays upfront. depends on the size of the stream.
-        | "Data.Parser/o-1-space" `isPrefixOf` benchName =
-            "-M128M"
-
-        -----------------------------------------------------------------------
-
-        | "Prelude.Parallel/o-n-heap.mapping.mapM" == benchName = "-M256M"
-        | "Prelude.Parallel/o-n-heap.monad-outer-product."
-             `isPrefixOf` benchName = "-M256M"
-        | "Prelude.Parallel/o-n-space.monad-outer-product."
-             `isPrefixOf` benchName = "-K2M -M256M"
-        | "Prelude.Rate/o-1-space." `isPrefixOf` benchName = "-K128K"
-        | "Prelude.Rate/o-1-space.asyncly." `isPrefixOf` benchName = "-K128K"
-        | "Prelude.WSerial/o-n-space." `isPrefixOf` benchName = "-K4M"
-        | "Prelude.Async/o-n-space.monad-outer-product." `isPrefixOf` benchName =
-            "-K4M"
-        | "Prelude.Ahead/o-1-space.monad-outer-product." `isPrefixOf` benchName =
-            "-K128K -M32M"
-        | "Prelude.Ahead/o-1-space." `isPrefixOf` benchName = "-K128K"
-        | "Prelude.Ahead/o-n-space.monad-outer-product." `isPrefixOf` benchName =
-            "-K4M"
-        | "Prelude.WAsync/o-n-heap.monad-outer-product.toNull3" == benchName =
-            "-M64M"
-        | "Prelude.WAsync/o-n-space.monad-outer-product." `isPrefixOf` benchName =
-            "-K4M"
-
-        -----------------------------------------------------------------------
-
-        | "Data.StreamD/o-n-space.elimination.toList" == benchName =
-            "-K2M"
-        | "Data.StreamK/o-n-space.elimination.toList" == benchName =
-            "-K2M"
-        -- XXX Memory required for these has increased in streamly-core 0.3
-        | "Data.StreamK/o-1-space.list.nested" `isPrefixOf` benchName =
-            "-M640M"
-
-        -----------------------------------------------------------------------
-
-        | "Data.Stream/o-1-space.grouping.classifySessionsOf"
-            `isPrefixOf` benchName = "-K512K"
-        | "Data.Stream/o-n-space.foldr.foldrM/"
-            `isPrefixOf` benchName = "-K4M"
-        | "Data.Stream/o-n-space.iterated."
-            `isPrefixOf` benchName = "-K4M"
-
-        -- GHC-9.6 requires 64M, earlier it was 32M
-        | "Data.Stream/o-n-heap.buffered.showPrec Haskell lists" == benchName =
-            "-M64M"
-        -- GHC-9.6 requires 64M, earlier it was 32M
-        | "Data.Stream/o-n-heap.buffered.readsPrec pure streams" == benchName =
-            "-M64M"
-
-        | "Data.Stream.ConcurrentEager/o-n-heap.monad-outer-product.toNullAp"
-            `isPrefixOf` benchName = "-M1500M"
-        | "Data.Stream.ConcurrentEager/o-1-space."
-            `isPrefixOf` benchName = "-M128M"
-
-        | "Data.Stream.ConcurrentOrdered/o-1-space.concat-foldable.foldMapWith"
-            `isPrefixOf` benchName = "-K128K"
-
-        ----------------------------------------------------------------------
 
         | "Data.Array" `isPrefixOf` benchName
              && "/o-1-space.generation.read" `isSuffixOf` benchName = "-M32M"
@@ -110,6 +46,20 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
         -- chunked stream benchmarks in the stream module.
         | "Data.Array.Stream/o-1-space"
             `isPrefixOf` benchName = "-K4M -M512M"
+
+        ----------------------------------------------------------------------
+
+        -- GHC-9.6 requires 64M, earlier it was 16M
+        | "Data.Fold/o-n-heap.key-value.toHashMapIO (max buckets) sum"
+            == benchName = "-M64M"
+
+        ----------------------------------------------------------------------
+
+        -- This is required only for the --long case because we allocate all
+        -- the arrays upfront. depends on the size of the stream.
+        | "Data.Parser/o-1-space"
+            `isPrefixOf` benchName = "-M128M"
+
         -- XXX Takes up to 160MB heap for --long, we use chunked stream for
         -- this, so the reason may be related to chunked streams.
         | "Data.ParserK/o-1-space"
@@ -119,12 +69,50 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
         | "Data.ParserK.Chunked.Generic/o-1-space"
             `isPrefixOf` benchName = "-K4M -M256M"
 
-{-
-        -- XXX This options does not seem to take effect. "ParserK.Chunked"
-        -- needs more memory to work with --long option
-        | "Data.ParserK.Chunked.Generic/o-1-space"
-            `isPrefixOf` benchName = "-K4M -M256M"
--}
+        -----------------------------------------------------------------------
+
+        | "Data.Stream/o-1-space.grouping.classifySessionsOf"
+            `isPrefixOf` benchName = "-K512K"
+
+        -- GHC-9.6 requires 64M, earlier it was 32M
+        | "Data.Stream/o-n-heap.buffered.showPrec Haskell lists"
+            == benchName = "-M64M"
+        -- GHC-9.6 requires 64M, earlier it was 32M
+        | "Data.Stream/o-n-heap.buffered.readsPrec pure streams"
+            == benchName = "-M64M"
+
+        | "Data.Stream/o-n-space.foldr.foldrM/"
+            `isPrefixOf` benchName = "-K4M"
+        | "Data.Stream/o-n-space.iterated."
+            `isPrefixOf` benchName = "-K4M"
+        | "Data.Stream/o-n-space.toList.toList"
+            `isPrefixOf` benchName = "-K2M"
+        | "Data.Stream/o-n-space.Monad.toList"
+            `isPrefixOf` benchName = "-K2M"
+
+        -----------------------------------------------------------------------
+
+        | "Data.StreamK/o-n-space.elimination.toList"
+            == benchName = "-K2M"
+        -- XXX Memory required for these has increased in streamly-core 0.3
+        | "Data.StreamK/o-1-space.list.nested"
+            `isPrefixOf` benchName = "-M500M"
+
+        ----------------------------------------------------------------------
+        -- Concurrent streams
+        ----------------------------------------------------------------------
+
+        | "Data.Stream.ConcurrentInterleaved/o-n-heap.cross-product.monad3"
+            `isPrefixOf` benchName = "-M128M"
+
+        | "Data.Stream.ConcurrentEager/o-1-space."
+            `isPrefixOf` benchName = "-M128M"
+
+        | "Data.Stream.ConcurrentEager/o-n-heap.cross-product"
+            `isPrefixOf` benchName = "-M500M"
+
+        | "Data.Stream.ConcurrentOrdered/o-1-space.concat-foldable.foldMapWith"
+            `isPrefixOf` benchName = "-K128K"
 
         -----------------------------------------------------------------------
 
@@ -141,38 +129,15 @@ speedOpts exeName benchName0 = exeSpecific <|> benchSpecific
     -- slowestOf _ Quicker = Quicker
     -- slowestOf _ _ = SuperQuick
 
-    -- Drop All.
+    -- Drop the "All." prefix
     benchName = drop 4 benchName0
     exeSpecific
-        | "Prelude.Concurrent" == exeName = Just SuperQuick
-        | "Prelude.Rate" == exeName = Just SuperQuick
-        | "Prelude.Adaptive" == exeName = Just SuperQuick
+        | "Data.Stream.ConcurrentThreadHeavy" == exeName = Just SuperQuick
+        | "Data.Stream.Rate" == exeName = Just SuperQuick
+        | "Data.Stream.Adaptive" == exeName = Just SuperQuick
         | otherwise = Nothing
     benchSpecific
-        | "Prelude.Parallel/o-n-heap.mapping.mapM" == benchName =
-            Just SuperQuick
-        | "Prelude.Parallel/o-n-heap.monad-outer-product."
-             `isPrefixOf` benchName = Just SuperQuick
-        | "Prelude.Parallel.o-n-space.monad-outer-product."
-             `isPrefixOf` benchName = Just SuperQuick
-        | "Prelude.Parallel/o-n-heap.generation." `isPrefixOf` benchName =
-            Just Quicker
-        | "Prelude.Parallel/o-n-heap.mapping." `isPrefixOf` benchName =
-            Just Quicker
-        | "Prelude.Parallel/o-n-heap.concat-foldable." `isPrefixOf` benchName =
-            Just Quicker
-        | "Prelude.Async/o-1-space.monad-outer-product." `isPrefixOf` benchName =
-            Just Quicker
-        | "Prelude.Async/o-n-space.monad-outer-product." `isPrefixOf` benchName =
-            Just Quicker
-        | "Prelude.Ahead/o-1-space.monad-outer-product." `isPrefixOf` benchName =
-            Just Quicker
-        | "Prelude.Ahead/o-n-space.monad-outer-product." `isPrefixOf` benchName =
-            Just Quicker
-        | "Prelude.WAsync/o-n-heap.monad-outer-product." `isPrefixOf` benchName =
-            Just Quicker
-        | "Prelude.WAsync/o-n-space.monad-outer-product." `isPrefixOf` benchName =
-            Just Quicker
+        | "-maxBuffer-1" `isInfixOf` benchName = Just SuperQuick
         | "FileSystem.Handle." `isPrefixOf` benchName = Just Quicker
         | otherwise = Nothing
 
