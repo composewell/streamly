@@ -157,13 +157,9 @@ fromIndices value n = Stream.take value $ Stream.fromIndices (+ n)
 fromIndicesM :: Monad m => Int -> Int -> Stream m Int
 fromIndicesM value n = Stream.take value $ Stream.fromIndicesM (return <$> (+ n))
 
-{-# INLINE absTimes #-}
-absTimes :: MonadIO m => Int -> Int -> Stream m AbsTime
-absTimes value _ = Stream.take value Stream.absTimes
-
-{-# INLINE sourceFromFoldableM #-}
-sourceFromFoldableM :: Monad m => Int -> Int -> Stream m Int
-sourceFromFoldableM value n = Stream.fromFoldableM (fmap return [n..n+value])
+{-# INLINE _absTimes #-}
+_absTimes :: MonadIO m => Int -> Int -> Stream m AbsTime
+_absTimes value _ = Stream.take value Stream.absTimes
 
 o_1_space_generation :: Int -> [Benchmark]
 o_1_space_generation value =
@@ -194,10 +190,12 @@ o_1_space_generation value =
         , benchIOSrc "fromIndices" (fromIndices value)
         , benchIOSrc "fromIndicesM" (fromIndicesM value)
 
-        -- These essentially test cons and consM
+        -- fromFoldable essentially tests cons and consM which does not scale
+        -- for the Stream type.
         -- , benchIOSrc "fromFoldable 16" (sourceFromFoldable 16)
-        , benchIOSrc "fromFoldableM" (sourceFromFoldableM value)
-        , benchIOSrc "absTimes" $ absTimes value
+        -- , benchIOSrc "fromFoldableM 16" (sourceFromFoldableM 16)
+        --  XXX tasty-bench hangs benchmarking this
+        -- , benchIOSrc "absTimes" $ _absTimes value
         ]
     ]
 

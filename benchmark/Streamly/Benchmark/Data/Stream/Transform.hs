@@ -98,6 +98,7 @@ sequence = Common.drain . Stream.sequence
 tap :: MonadIO m => Int -> Stream m Int -> m ()
 tap n = composeN n $ Stream.tap FL.sum
 
+#ifndef USE_STREAMLY_CORE
 {-# INLINE pollCounts #-}
 pollCounts :: Int -> Stream IO Int -> IO ()
 pollCounts n =
@@ -106,10 +107,11 @@ pollCounts n =
     where
 
     f = Stream.drain . Stream.rollingMap2 (-) . Stream.delayPost 1
+#endif
 
-{-# INLINE timestamped #-}
-timestamped :: MonadIO m => Stream m Int -> m ()
-timestamped = Stream.drain . Stream.timestamped
+{-# INLINE _timestamped #-}
+_timestamped :: MonadIO m => Stream m Int -> m ()
+_timestamped = Stream.drain . Stream.timestamped
 {-
 {-# INLINE foldrT #-}
 foldrT :: MonadIO m => Int -> Stream m Int -> m ()
@@ -140,8 +142,11 @@ o_1_space_mapping value =
               sequence (sourceUnfoldrAction value n)
         , benchIOSink value "mapM" (mapM 1)
         , benchIOSink value "tap" (tap 1)
+#ifndef USE_STREAMLY_CORE
         , benchIOSink value "parTapCount 1 second" (pollCounts 1)
-        , benchIOSink value "timestamped" timestamped
+#endif
+        -- XXX tasty-bench hangs benchmarking this
+        -- , benchIOSink value "timestamped" _timestamped
         -- Scanning
         , benchIOSink value "scanl'" (scanl' 1)
         , benchIOSink value "scanl1'" (scanl1' 1)
@@ -354,10 +359,13 @@ dropWhileMTrue value n = composeN n $ Stream.dropWhileM (return . (<= (value + 1
 dropWhileFalse :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 dropWhileFalse value n = composeN n $ Stream.dropWhile (> (value + 1))
 
+#ifndef USE_STREAMLY_CORE
 -- XXX Decide on the time interval
 {-# INLINE _intervalsOfSum #-}
 _intervalsOfSum :: Stream.MonadAsync m => Double -> Int -> Stream m Int -> m ()
 _intervalsOfSum i n = composeN n (Stream.intervalsOf i FL.sum)
+#endif
+
 {-# INLINE findIndices #-}
 findIndices :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 findIndices value n = composeN n $ Stream.findIndices (== (value + 1))

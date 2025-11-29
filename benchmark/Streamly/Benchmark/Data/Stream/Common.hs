@@ -31,6 +31,7 @@ module Stream.Common
     , sourceUnfoldrAction
     , sourceConcatMapId
     , sourceFromFoldable
+    , sourceFromFoldableM
 
     -- Benchmark stream elimination
     , benchIOSink
@@ -164,6 +165,10 @@ sourceUnfoldrAction value n = Stream.unfoldr step n
 {-# INLINE sourceFromFoldable #-}
 sourceFromFoldable :: Monad m => Int -> Int -> Stream m Int
 sourceFromFoldable value n = Stream.fromFoldable [n..n+value]
+
+{-# INLINE sourceFromFoldableM #-}
+sourceFromFoldableM :: Monad m => Int -> Int -> Stream m Int
+sourceFromFoldableM value n = Stream.fromFoldableM (fmap return [n..n+value])
 
 {-# INLINE benchIOSink #-}
 benchIOSink

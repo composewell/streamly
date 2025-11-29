@@ -406,22 +406,37 @@ monadBreak mk un linearCount start =
 -}
 
 crossBenchmarks :: Monad (t IO) =>
-       (Stream IO Int -> t IO Int)
+       Bool
+    -> (Stream IO Int -> t IO Int)
     -> (t IO Int -> Stream IO Int)
     -> Int -> (Stream.Config -> Stream.Config) -> [Benchmark]
-crossBenchmarks mk un len f =
-    [ bgroup "cross-product"
-        [ benchIO "parCrossApply" $ parCrossApply f len
-        , benchIO "monadAp" $ applicative mk un len
-        , benchIO "monad2Levels" $ monad2 mk un len
-        , benchIO "monad3Levels" $ monad3 mk un len
-        , benchIO "monad2FilterAllOut" $ monadFilterAllOut mk un len
-        , benchIO "monad2FilterAllIn" $ monadFilterAllIn mk un len
-        , benchIO "monad2FilterSome" $ monadFilterSome mk un len
-        , benchIO "monad2TakeSome" $ monadTakeSome mk un len
+crossBenchmarks wide mk un len f =
+    [ bgroup "cross-product" (
+        [ benchIO "monad2FilterAllOut" $ monadFilterAllOut mk un len
+
+        -- High heap requirement for eager/wide streams
+        , benchIO (suf "parCrossApply") $ parCrossApply f len2
+        , benchIO (suf "monadAp") $ applicative mk un len2
+        , benchIO (suf "monad2Levels") $ monad2 mk un len2
+        , benchIO (suf "monad3Levels") $ monad3 mk un len2
+        , benchIO (suf "monad2FilterAllIn") $ monadFilterAllIn mk un len2
+        , benchIO (suf "monad2FilterSome") $ monadFilterSome mk un len2
         -- , benchIO "monad2Break" $ monadBreak mk un len
         ]
+        ++
+        -- XXX this takes too much heap in Eager case, because "take" does
+        -- not reduce eagerness. Pass "eager" arg to remove this only for eager
+        -- and not for "wide" case.
+        [benchIO "monad2TakeSome" $ monadTakeSome mk un len | not wide]
+        )
     ]
+
+    where
+
+    -- For wide cases use smaller stream size for cross benchmarks, to
+    -- reduce the heap requirements.
+    suf x = x ++ if wide then " n/4" else " n/2"
+    len2 = len `div` if wide then 4 else 2
 
 -------------------------------------------------------------------------------
 -- Benchmark sets
@@ -432,10 +447,10 @@ allBenchmarks :: Monad (t IO) =>
     -> (t IO Int -> Stream IO Int)
     -> String -> Bool -> (Config -> Config) -> Int -> [Benchmark]
 allBenchmarks mk un moduleName wide modifier value =
-    [ bgroup (o_1_space_prefix moduleName) $ concat
-        [ o_1_space_benchmarks value modifier
-        ] ++ if wide then [] else crossBenchmarks mk un value modifier
-    , bgroup (o_n_heap_prefix moduleName) $ concat
-        [ o_n_heap_benchmarks value modifier
-        ] ++ if wide then crossBenchmarks mk un value modifier else []
+    [ bgroup (o_1_space_prefix moduleName) $
+        o_1_space_benchmarks value modifier
+        ++ if wide then [] else crossBenchmarks wide mk un value modifier
+    , bgroup (o_n_heap_prefix moduleName) $
+        o_n_heap_benchmarks value modifier
+        ++ if wide then crossBenchmarks wide mk un value modifier else []
     ]

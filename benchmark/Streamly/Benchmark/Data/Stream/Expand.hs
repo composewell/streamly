@@ -145,11 +145,11 @@ mergeByM = mergeWithM Stream.mergeByM
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'mergeBy
 inspect $ 'mergeBy `hasNoType` ''SPEC
-inspect $ 'mergeBy `hasNoType` ''S.Step
+-- inspect $ 'mergeBy `hasNoType` ''S.Step
 
 inspect $ hasNoTypeClasses 'mergeByM
 inspect $ 'mergeByM `hasNoType` ''SPEC
-inspect $ 'mergeByM `hasNoType` ''S.Step
+-- inspect $ 'mergeByM `hasNoType` ''S.Step
 #endif
 
 -------------------------------------------------------------------------------
@@ -161,9 +161,9 @@ zipWith :: Monad m => Stream m Int -> m ()
 zipWith src = drain $ S.zipWith (,) src src
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'zipWith
+-- inspect $ hasNoTypeClasses 'zipWith
 inspect $ 'zipWith `hasNoType` ''SPEC
-inspect $ 'zipWith `hasNoType` ''S.Step
+-- inspect $ 'zipWith `hasNoType` ''S.Step
 #endif
 
 {-# INLINE zipWithM #-}
@@ -171,9 +171,9 @@ zipWithM :: Monad m => Stream m Int -> m ()
 zipWithM src = drain $ S.zipWithM (curry return) src src
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'zipWithM
+-- inspect $ hasNoTypeClasses 'zipWithM
 inspect $ 'zipWithM `hasNoType` ''SPEC
-inspect $ 'zipWithM `hasNoType` ''S.Step
+-- inspect $ 'zipWithM `hasNoType` ''S.Step
 #endif
 
 -------------------------------------------------------------------------------

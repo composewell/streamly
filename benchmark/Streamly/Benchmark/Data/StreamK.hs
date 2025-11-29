@@ -42,6 +42,7 @@ import Prelude hiding
     )
 import Streamly.Benchmark.Common
 #ifdef INSPECTION
+import GHC.Types (SPEC(..))
 import Test.Inspection
 #endif
 

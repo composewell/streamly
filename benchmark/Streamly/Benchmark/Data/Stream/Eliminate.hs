@@ -685,7 +685,7 @@ benchmarks moduleName size =
                o_n_heap_elimination_buffered size
             ++ o_n_heap_elimination_foldl size
             ++ o_n_heap_elimination_toList size
-            ++ o_n_space_elimination_toList size
         , bgroup (o_n_space_prefix moduleName) $
             o_n_space_elimination_foldr size
+            ++ o_n_space_elimination_toList size
         ]
