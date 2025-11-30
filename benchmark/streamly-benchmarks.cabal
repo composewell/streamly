@@ -445,8 +445,6 @@ benchmark Data.Stream
       Stream.Lift
       Stream.Split
       Stream.Common
-  if !flag(use-streamly-core)
-    other-modules:
       Stream.Exceptions
   if flag(limit-build-mem)
     if flag(dev)
@@ -521,6 +519,18 @@ benchmark Data.Stream.ConcurrentThreadHeavy
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data/Stream/Prelude
   main-is: ConcurrentThreadHeavy.hs
+  if flag(use-streamly-core) || impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+
+benchmark Data.Stream.Prelude
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data, Streamly/Benchmark/Data/Stream/Prelude
+  main-is: Exceptions.hs
+  other-modules:
+      Stream.Common
   if flag(use-streamly-core) || impl(ghcjs)
     buildable: False
   else

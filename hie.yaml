@@ -68,6 +68,8 @@ cradle:
               component: "bench:Data.StreamK"
             - path: "./benchmark/Streamly/Benchmark/Data/StreamK/FromStream.hs"
               component: "bench:Data.StreamK.FromStream"
+            - path: "./benchmark/Streamly/Benchmark/Data/Stream/Prelude/Exceptions.hs"
+              component: "bench:Data.Stream.Prelude.Exceptions"
             - path: "./benchmark/Streamly/Benchmark/Data/Unfold.hs"
               component: "bench:Data.Unfold"
             - path: "./benchmark/Streamly/Benchmark/FileSystem/Handle/Read.hs"
