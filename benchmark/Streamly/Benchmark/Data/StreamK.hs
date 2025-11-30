@@ -1035,6 +1035,7 @@ o_n_heap_concat streamLen =
 
     streamLen2 = round (P.fromIntegral streamLen**(1/2::P.Double)) -- double nested loop
 
+{- HLINT ignore "Use sort" -}
 o_n_heap_sorting :: Int -> Benchmark
 o_n_heap_sorting streamLen =
     bgroup "sorting"
