@@ -228,7 +228,7 @@ common bench-options
   include-dirs: .
   ghc-options: -rtsopts -with-rtsopts "-t"
   if flag(limit-build-mem)
-    ghc-options: +RTS -M512M -RTS
+    ghc-options: +RTS -M400M -RTS
   build-depends: streamly-benchmarks == 0.0.0
 
 -- Some benchmarks are threaded some are not
@@ -238,7 +238,7 @@ common bench-options-threaded
   -- trigger only with these options.
   ghc-options: -threaded -rtsopts -with-rtsopts "-t -N2"
   if flag(limit-build-mem)
-    ghc-options: +RTS -M512M -RTS
+    ghc-options: +RTS -M400M -RTS
   build-depends: streamly-benchmarks == 0.0.0
 
 -------------------------------------------------------------------------------
@@ -312,8 +312,8 @@ benchmark Data.Fold.Window
   main-is: Window.hs
   -- MonoLocalBinds increases the memory requirement from 400MB to 1000MB,
   -- observed on macOS.
-  if flag(limit-build-mem)
-    ghc-options: +RTS -M1000M -RTS
+  -- if flag(limit-build-mem)
+    -- ghc-options: +RTS -M1000M -RTS
 
 benchmark Data.MutArray
   import: bench-options
