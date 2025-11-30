@@ -203,7 +203,7 @@ common bench-depends
         fusion-plugin     >= 0.2   && < 0.3
   if flag(inspection)
     build-depends:     template-haskell   >= 2.14  && < 2.24
-                     , inspection-testing >= 0.4   && < 0.6
+                     , inspection-testing >= 0.4   && < 0.7
   -- Array uses a Storable constraint in dev build making several inspection
   -- tests fail
   if flag(dev) && flag(inspection)

@@ -583,7 +583,7 @@ library
       frameworks: Cocoa
 
     if flag(inspection)
-      build-depends:   inspection-testing >= 0.4   && < 0.6
+      build-depends:   inspection-testing >= 0.4   && < 0.7
 
     -- Array uses a Storable constraint in dev build making several inspection
     -- tests fail
