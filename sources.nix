@@ -6,7 +6,7 @@ layers = [
   streamly = local ./.;
   streamly-core = local ./core;
   streamly-benchmarks = localOpts ./benchmark
-    ["--benchmark --flag fusion-plugin"]
+    ["--benchmark --flag fusion-plugin --flag inspection"]
     ["--flags fusion-plugin"];
   streamly-tests = localOpts ./test
     ["--flag fusion-plugin"]
