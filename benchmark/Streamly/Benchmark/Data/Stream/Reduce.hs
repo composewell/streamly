@@ -24,25 +24,13 @@ import qualified Streamly.Internal.Data.Refold.Type as Refold
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Stream.Common as Common
 
-#ifndef USE_STREAMLY_CORE
-import Data.HashMap.Strict (HashMap)
-import Data.Proxy (Proxy(..))
-import Streamly.Internal.Data.IsMap.HashMap ()
-#endif
-
 import Streamly.Internal.Data.Stream (Stream)
 import qualified Streamly.Internal.Data.Stream as S
-#ifndef USE_STREAMLY_CORE
-import qualified Streamly.Data.Stream.Prelude as S
-import qualified Streamly.Internal.Data.Stream.Prelude as S
-#endif
 
 import Test.Tasty.Bench
 import Streamly.Benchmark.Common
 import Stream.Common
 import Prelude hiding (reverse, tail)
-
-
 
 -- Apply transformation g count times on a stream of length len
 {-# INLINE iterateSource #-}
@@ -146,26 +134,8 @@ o_1_space_grouping value =
         , benchIOSink value "refoldMany" refoldMany
         , benchIOSink value "foldIterateM" foldIterateM
         , benchIOSink value "refoldIterateM" refoldIterateM
-
-#ifndef USE_STREAMLY_CORE
-        , benchIOSink value "classifySessionsOf (10000 buckets)"
-            (classifySessionsOf (getKey 10000))
-        , benchIOSink value "classifySessionsOf (64 buckets)"
-            (classifySessionsOf (getKey 64))
-        , benchIOSink value "classifySessionsOfHash (10000 buckets)"
-            (classifySessionsOfHash (getKey 10000))
-        , benchIOSink value "classifySessionsOfHash (64 buckets)"
-            (classifySessionsOfHash (getKey 64))
-#endif
         ]
     ]
-
-#ifndef USE_STREAMLY_CORE
-    where
-
-    getKey :: Int -> Int -> Int
-    getKey n = (`mod` n)
-#endif
 
 -------------------------------------------------------------------------------
 -- Size conserving transformations (reordering, buffering, etc.)
@@ -188,32 +158,6 @@ o_n_heap_buffering value =
         , benchIOSink value "reverse'" (reverse' 1)
         ]
     ]
-
--------------------------------------------------------------------------------
--- Grouping/Splitting
--------------------------------------------------------------------------------
-
-#ifndef USE_STREAMLY_CORE
-{-# INLINE classifySessionsOf #-}
-classifySessionsOf :: S.MonadAsync m => (Int -> Int) -> Stream m Int -> m ()
-classifySessionsOf getKey =
-      Common.drain
-    . S.classifySessionsOf
-        (const (return False)) 3 (FL.take 10 FL.sum)
-    . S.timestamped
-    . fmap (\x -> (getKey x, x))
-
-{-# INLINE classifySessionsOfHash #-}
-classifySessionsOfHash :: S.MonadAsync m =>
-    (Int -> Int) -> Stream m Int -> m ()
-classifySessionsOfHash getKey =
-      Common.drain
-    . S.classifySessionsByGeneric
-        (Proxy :: Proxy (HashMap k))
-        1 False (const (return False)) 3 (FL.take 10 FL.sum)
-    . S.timestamped
-    . fmap (\x -> (getKey x, x))
-#endif
 
 -------------------------------------------------------------------------------
 -- Mixed Transformation

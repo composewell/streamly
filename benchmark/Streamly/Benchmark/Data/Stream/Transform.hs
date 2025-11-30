@@ -24,7 +24,7 @@
 module Stream.Transform (benchmarks) where
 
 import Control.Monad.IO.Class (MonadIO(..))
-
+import Streamly.Internal.Data.Stream (Stream)
 import System.Random (randomRIO)
 
 import qualified Streamly.Internal.Data.Fold as FL
@@ -32,19 +32,12 @@ import qualified Streamly.Internal.Data.Scanl as Scanl
 
 import qualified Stream.Common as Common
 import qualified Streamly.Internal.Data.Unfold as Unfold
-
-import Streamly.Internal.Data.Stream (Stream)
 import qualified Streamly.Internal.Data.Stream as Stream
-#ifndef USE_STREAMLY_CORE
-import qualified Streamly.Internal.Data.Stream.Prelude as Stream
-#endif
 
 import Test.Tasty.Bench
 import Stream.Common hiding (scanl')
 import Streamly.Benchmark.Common
 import Prelude hiding (sequence, mapM)
-
-
 
 -------------------------------------------------------------------------------
 -- Pipelines (stream-to-stream transformations)
@@ -98,17 +91,6 @@ sequence = Common.drain . Stream.sequence
 tap :: MonadIO m => Int -> Stream m Int -> m ()
 tap n = composeN n $ Stream.tap FL.sum
 
-#ifndef USE_STREAMLY_CORE
-{-# INLINE pollCounts #-}
-pollCounts :: Int -> Stream IO Int -> IO ()
-pollCounts n =
-    composeN n (Stream.parTapCount (const True) f)
-
-    where
-
-    f = Stream.drain . Stream.rollingMap2 (-) . Stream.delayPost 1
-#endif
-
 {-# INLINE _timestamped #-}
 _timestamped :: MonadIO m => Stream m Int -> m ()
 _timestamped = Stream.drain . Stream.timestamped
@@ -142,9 +124,6 @@ o_1_space_mapping value =
               sequence (sourceUnfoldrAction value n)
         , benchIOSink value "mapM" (mapM 1)
         , benchIOSink value "tap" (tap 1)
-#ifndef USE_STREAMLY_CORE
-        , benchIOSink value "parTapCount 1 second" (pollCounts 1)
-#endif
         -- XXX tasty-bench hangs benchmarking this
         -- , benchIOSink value "timestamped" _timestamped
         -- Scanning
@@ -314,31 +293,6 @@ takeWhileTrue value n = composeN n $ Stream.takeWhile (<= (value + 1))
 takeWhileMTrue :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 takeWhileMTrue value n = composeN n $ Stream.takeWhileM (return . (<= (value + 1)))
 
-#if !defined(USE_STREAMLY_CORE)
-{-# INLINE takeInterval #-}
-takeInterval :: Double -> Int -> Stream IO Int -> IO ()
-takeInterval i n = composeN n (Stream.takeInterval i)
-
--- Inspection testing is disabled for takeInterval
--- Enable it when looking at it throughly
-#ifdef INSPECTION
--- inspect $ hasNoType 'takeInterval ''SPEC
--- inspect $ hasNoTypeClasses 'takeInterval
--- inspect $ 'takeInterval `hasNoType` ''D.Step
-#endif
-
-{-# INLINE dropInterval #-}
-dropInterval :: Double -> Int -> Stream IO Int -> IO ()
-dropInterval i n = composeN n (Stream.dropInterval i)
-
--- Inspection testing is disabled for dropInterval
--- Enable it when looking at it throughly
-#ifdef INSPECTION
--- inspect $ hasNoTypeClasses 'dropInterval
--- inspect $ 'dropInterval `hasNoType` ''D.Step
-#endif
-#endif
-
 {-# INLINE dropOne #-}
 dropOne :: MonadIO m => Int -> Stream m Int -> m ()
 dropOne n = composeN n $ Stream.drop 1
@@ -358,13 +312,6 @@ dropWhileMTrue value n = composeN n $ Stream.dropWhileM (return . (<= (value + 1
 {-# INLINE dropWhileFalse #-}
 dropWhileFalse :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 dropWhileFalse value n = composeN n $ Stream.dropWhile (> (value + 1))
-
-#ifndef USE_STREAMLY_CORE
--- XXX Decide on the time interval
-{-# INLINE _intervalsOfSum #-}
-_intervalsOfSum :: Stream.MonadAsync m => Double -> Int -> Stream m Int -> m ()
-_intervalsOfSum i n = composeN n (Stream.intervalsOf i FL.sum)
-#endif
 
 {-# INLINE findIndices #-}
 findIndices :: MonadIO m => Int -> Int -> Stream m Int -> m ()
@@ -420,10 +367,6 @@ o_1_space_filtering value =
      -- , benchIOSink value "takeWhileM-true" (_takeWhileMTrue value 1)
         , benchIOSink value "drop-one" (dropOne 1)
         , benchIOSink value "drop-all" (dropAll value 1)
-#if !defined(USE_STREAMLY_CORE)
-        , benchIOSink value "takeInterval-all" (takeInterval 10000 1)
-        , benchIOSink value "dropInterval-all" (dropInterval 10000 1)
-#endif
         , benchIOSink value "dropWhile-true" (dropWhileTrue value 1)
      -- , benchIOSink value "dropWhileM-true" (_dropWhileMTrue value 1)
         , benchIOSink

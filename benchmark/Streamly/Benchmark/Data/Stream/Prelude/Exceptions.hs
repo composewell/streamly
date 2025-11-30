@@ -22,19 +22,24 @@
 module Main (main) where
 
 import Control.Exception (Exception, throwIO)
-import Stream.Common (drain)
+import Data.HashMap.Strict (HashMap)
+import Data.Proxy (Proxy(..))
+import Stream.Common (drain, benchIOSink)
+import Streamly.Internal.Data.IsMap.HashMap ()
+import Streamly.Internal.Data.Stream (Stream)
+import System.IO (Handle, hClose, hPutChar)
 
 import qualified Data.IORef as Ref
 import qualified Data.Map.Strict as Map
 
-import System.IO (Handle, hClose, hPutChar)
+import qualified Stream.Common as Common
+import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.FileSystem.Handle as IFH
-import qualified Streamly.Internal.Data.Unfold as IUF
-import qualified Streamly.Internal.Data.Unfold.Prelude as IUF
-
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.Prelude as Stream
+import qualified Streamly.Internal.Data.Unfold as IUF
+import qualified Streamly.Internal.Data.Unfold.Prelude as IUF
 
 import Test.Tasty.Bench hiding (env)
 import Prelude hiding (last, length)
@@ -213,11 +218,8 @@ o_1_space_copy_exceptions_toChunks env =
         ]
     ]
 
-moduleName :: String
-moduleName = "Data.Stream.Prelude.Exceptions"
-
-benchmarks :: BenchEnv -> Int -> [Benchmark]
-benchmarks env size =
+excBenchmarks :: BenchEnv -> Int -> [Benchmark]
+excBenchmarks env size =
     [ bgroup (o_1_space_prefix moduleName) $ concat
         [ o_1_space_serial_exceptions size
         , o_1_space_copy_exceptions_readChunks env
@@ -226,7 +228,104 @@ benchmarks env size =
         ]
     ]
 
+{-# INLINE pollCounts #-}
+pollCounts :: Stream IO Int -> IO ()
+pollCounts = drain . Stream.parTapCount (const True) f
+
+    where
+
+    f = Stream.drain . Stream.rollingMap2 (-) . Stream.delayPost 1
+
+{-# INLINE takeInterval #-}
+takeInterval :: Double -> Stream IO Int -> IO ()
+takeInterval i = drain . Stream.takeInterval i
+
+-- Inspection testing is disabled for takeInterval
+-- Enable it when looking at it throughly
+#ifdef INSPECTION
+-- inspect $ hasNoType 'takeInterval ''SPEC
+-- inspect $ hasNoTypeClasses 'takeInterval
+-- inspect $ 'takeInterval `hasNoType` ''D.Step
+#endif
+
+{-# INLINE dropInterval #-}
+dropInterval :: Double -> Stream IO Int -> IO ()
+dropInterval i = drain . Stream.dropInterval i
+
+-- Inspection testing is disabled for dropInterval
+-- Enable it when looking at it throughly
+#ifdef INSPECTION
+-- inspect $ hasNoTypeClasses 'dropInterval
+-- inspect $ 'dropInterval `hasNoType` ''D.Step
+#endif
+
+-- XXX Decide on the time interval
+{-# INLINE _intervalsOfSum #-}
+_intervalsOfSum :: Stream.MonadAsync m => Double -> Stream m Int -> m ()
+_intervalsOfSum i = drain . Stream.intervalsOf i Fold.sum
+
+timeBenchmarks :: BenchEnv -> Int -> [Benchmark]
+timeBenchmarks _env size =
+    [ benchIOSink size "parTapCount 1 second" pollCounts
+    , benchIOSink size "takeInterval-all" (takeInterval 10000)
+    , benchIOSink size "dropInterval-all" (dropInterval 10000)
+    ]
+
+-------------------------------------------------------------------------------
+-- Grouping/Splitting
+-------------------------------------------------------------------------------
+
+{-# INLINE classifySessionsOf #-}
+classifySessionsOf :: Stream.MonadAsync m => (Int -> Int) -> Stream m Int -> m ()
+classifySessionsOf getKey =
+      Common.drain
+    . Stream.classifySessionsOf
+        (const (return False)) 3 (Fold.take 10 Fold.sum)
+    . Stream.timestamped
+    . fmap (\x -> (getKey x, x))
+
+{-# INLINE classifySessionsOfHash #-}
+classifySessionsOfHash :: Stream.MonadAsync m =>
+    (Int -> Int) -> Stream m Int -> m ()
+classifySessionsOfHash getKey =
+      Common.drain
+    . Stream.classifySessionsByGeneric
+        (Proxy :: Proxy (HashMap k))
+        1 False (const (return False)) 3 (Fold.take 10 Fold.sum)
+    . Stream.timestamped
+    . fmap (\x -> (getKey x, x))
+
+o_1_space_grouping :: BenchEnv -> Int -> [Benchmark]
+o_1_space_grouping _env value =
+    -- Buffering operations using heap proportional to group/window sizes.
+    [ bgroup "grouping"
+        [ benchIOSink value "classifySessionsOf (10000 buckets)"
+            (classifySessionsOf (getKey 10000))
+        , benchIOSink value "classifySessionsOf (64 buckets)"
+            (classifySessionsOf (getKey 64))
+        , benchIOSink value "classifySessionsOfHash (10000 buckets)"
+            (classifySessionsOfHash (getKey 10000))
+        , benchIOSink value "classifySessionsOfHash (64 buckets)"
+            (classifySessionsOfHash (getKey 64))
+        ]
+    ]
+
+    where
+
+    getKey :: Int -> Int -> Int
+    getKey n = (`mod` n)
+
+moduleName :: String
+moduleName = "Data.Stream.Prelude"
+
 main :: IO ()
 main = do
     env <- mkHandleBenchEnv
-    runWithCLIOpts defaultStreamSize (benchmarks env)
+    runWithCLIOpts defaultStreamSize (allBenchmarks env)
+
+    where
+
+    allBenchmarks env size =
+        excBenchmarks env size
+            ++ timeBenchmarks env size
+            ++ o_1_space_grouping env size
