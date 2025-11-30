@@ -9,7 +9,7 @@
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
 
-module Stream.ConcurrentCommon
+module ConcurrentCommon
     ( allBenchmarks
     , mkParallel
     , unParallel

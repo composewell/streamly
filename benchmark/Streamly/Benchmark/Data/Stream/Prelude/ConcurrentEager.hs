@@ -5,11 +5,13 @@
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
 
-import Stream.ConcurrentCommon
+import ConcurrentCommon
 import Streamly.Benchmark.Common (runWithCLIOpts, defaultStreamSize)
 
+import qualified Streamly.Internal.Data.Stream.Prelude as Stream
+
 moduleName :: String
-moduleName = "Data.Stream.Concurrent"
+moduleName = "Data.Stream.ConcurrentEager"
 
 -------------------------------------------------------------------------------
 -- Main
@@ -20,5 +22,5 @@ main =
     runWithCLIOpts
         defaultStreamSize
         (allBenchmarks
-            mkParallel
-            unParallel moduleName False id)
+            mkEagerParallel
+            unEagerParallel moduleName True (Stream.eager True))
