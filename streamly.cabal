@@ -88,7 +88,6 @@ extra-source-files:
     benchmark/Streamly/Benchmark/Data/StreamK/*.hs
     benchmark/Streamly/Benchmark/FileSystem/*.hs
     benchmark/Streamly/Benchmark/FileSystem/Handle/*.hs
-    benchmark/Streamly/Benchmark/Prelude/*.hs
     benchmark/Streamly/Benchmark/Unicode/*.hs
     benchmark/lib/Streamly/Benchmark/*.hs
     benchmark/lib/Streamly/Benchmark/Common/*.hs
