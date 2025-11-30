@@ -1,6 +1,7 @@
 {- $setup
 >>> :m
 >>> :set -XQuasiQuotes
+>>> :set -XScopedTypeVariables
 >>> import Control.Exception (SomeException, evaluate, try)
 >>> import Data.Either (Either, isLeft)
 >>> import Data.Maybe (fromJust, isNothing, isJust)
