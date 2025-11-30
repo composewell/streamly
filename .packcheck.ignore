@@ -35,6 +35,7 @@ examples/README.md
 flake.lock
 flake.nix
 hie.yaml
+hls.yaml
 packages.nix
 sources.nix
 stack.yaml
