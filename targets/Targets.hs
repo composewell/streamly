@@ -40,11 +40,13 @@ targets =
     , ("Data.Fold",
             [ "infinite_grp"
             , "fold_parser_grp"
+            , "streamly_core_grp"
             ]
       )
     , ("Data.Fold.Window",
             [ "infinite_grp"
             , "fold_parser_grp"
+            , "streamly_core_grp"
             ]
       )
     , ("Data.List",
@@ -67,46 +69,54 @@ targets =
             [ "infinite_grp"
             , "fold_parser_grp"
             , "parser_cmp"
+            , "streamly_core_grp"
             ]
       )
     , ("Data.ParserK",
             [ "infinite_grp"
             , "fold_parser_grp"
             , "parser_cmp"
+            , "streamly_core_grp"
             ]
       )
     , ("Data.ParserK.Chunked",
             [ "infinite_grp"
             , "fold_parser_grp"
             , "parser_cmp"
+            , "streamly_core_grp"
             , "noTest"
             ]
       )
     , ("Data.ParserK.Chunked.Generic",
             [ "infinite_grp"
             , "fold_parser_grp"
+            , "streamly_core_grp"
             , "parser_cmp"
             , "noTest"
             ]
       )
     , ("Data.RingArray",
             [ "array_grp"
+            , "streamly_core_grp"
             ]
       )
     , ("Data.Scanl",
             [ "infinite_grp"
             , "fold_parser_grp"
+            , "streamly_core_grp"
             , "noTest"
             ]
       )
     , ("Data.Scanl.Window",
             [ "infinite_grp"
             , "fold_parser_grp"
+            , "streamly_core_grp"
             , "noTest"
             ]
       )
     , ("Data.Serialize",
             [ "mut_bytearray_grp"
+            , "streamly_core_grp"
             ]
       )
     , ("Data.Serialize.Derive.TH",
@@ -129,6 +139,7 @@ targets =
             , "serial_stream_grp"
             , "serial_stream_cmp"
             , "serial_concurrent_cmp"
+            , "streamly_core_grp"
             ]
       )
     , ("Data.Stream.Adaptive",
@@ -181,6 +192,7 @@ targets =
             [ "infinite_grp"
             , "serial_stream_grp"
             , "serial_stream_cmp"
+            , "streamly_core_grp"
             , "noTest"
             ]
       )
@@ -196,6 +208,7 @@ targets =
 -}
     , ("Data.Unbox",
             [ "noTest"
+            , "streamly_core_grp"
             ]
       )
     , ("Data.Unbox.Derive.Generic",
@@ -203,7 +216,8 @@ targets =
             ]
       )
     , ("Data.Unbox.Derive.TH",
-            []
+            [ "streamly_core_grp"
+            ]
       )
     , ("Data.Unbox.TH",
             [ "noBench"
@@ -212,6 +226,7 @@ targets =
     , ("Data.Unfold",
             [ "infinite_grp"
             , "serial_stream_grp"
+            , "streamly_core_grp"
             ]
       )
     , ("FileSystem.Event",
@@ -242,7 +257,7 @@ targets =
     , ("Network.Inet.TCP", ["noBench"])
     , ("Network.Socket", ["noBench"])
     , ("Unicode.Char", ["testDevOnly"])
-    , ("Unicode.Parser", [])
+    , ("Unicode.Parser", ["streamly_core_grp"])
     , ("Unicode.Stream", [])
     , ("Unicode.Utf8", ["noTest"])
     , ("version-bounds", ["noBench"])
