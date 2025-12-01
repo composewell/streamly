@@ -329,8 +329,10 @@ benchmark Data.MutArray
 benchmark Data.Parser
   import: bench-options
   type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data
-  main-is: Parser.hs
+  hs-source-dirs: .
+  main-is: Streamly/Benchmark/Data/ParserMain.hs
+  other-modules:
+    Streamly.Benchmark.Data.Parser
   if impl(ghcjs)
     buildable: False
   else

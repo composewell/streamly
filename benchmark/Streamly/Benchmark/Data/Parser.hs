@@ -16,9 +16,10 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Main
+module Streamly.Benchmark.Data.Parser
   (
-    main
+    benchmarks
+  , sourceUnfoldrM
   ) where
 
 import Control.Applicative ((<|>))
@@ -703,9 +704,6 @@ concatSequence =
 -- Benchmarks
 -------------------------------------------------------------------------------
 
-moduleName :: String
-moduleName = "Data.Parser"
-
 instance NFData ParseError where
     {-# INLINE rnf #-}
     rnf (ParseError x) = rnf x
@@ -823,46 +821,3 @@ benchmarks value env arrays =
     {-# NOINLINE parseManyGroupsRollingEitherAlt1 #-}
     parseManyGroupsRollingEitherAlt1 =
         parseManyGroupsRollingEitherAlt (>) value
-
--------------------------------------------------------------------------------
--- Driver
--------------------------------------------------------------------------------
-
-main :: IO ()
-main = do
-#ifndef FUSION_CHECK
-    env <- mkHandleBenchEnv
-    runWithCLIOptsEnv defaultStreamSize alloc (allBenchmarks env)
-
-    where
-
-    alloc value = Stream.fold Fold.toList $ Array.chunksOf 100 $ sourceUnfoldrM value 0
-
-    allBenchmarks env arrays value =
-        let allBenches = benchmarks value env arrays
-            get x = map snd $ filter ((==) x . fst) allBenches
-            o_1_space = get SpaceO_1
-            o_n_heap = get HeapO_n
-            o_n_space = get SpaceO_n
-        in
-        [ bgroup (o_1_space_prefix moduleName) o_1_space
-        , bgroup (o_n_heap_prefix moduleName) o_n_heap
-        , bgroup (o_n_space_prefix moduleName) o_n_space
-        ]
-#else
-    -- Enable FUSION_CHECK macro at the beginning of the file
-    -- Enable one benchmark below, and run the benchmark
-    -- Check the .dump-simpl output
-    let value = 100000
-    -- let input = sourceUnfoldrM value 1
-    -- manyTill value input
-    -- deintercalate value input
-    -- deintercalate1 value input
-    -- deintercalateAll value input
-    -- sepByWords input
-    -- sepByAllWords input
-    -- sepBy1 input
-    -- sepByWords1 input
-    takeFramedByEsc_ value (sourceEscapedFrames value 1)
-    return ()
-#endif

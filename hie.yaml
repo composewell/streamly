@@ -32,7 +32,7 @@ cradle:
               component: "bench:Data.Fold.Window"
             - path: "./benchmark/Streamly/Benchmark/Data/MutArray.hs"
               component: "bench:Data.MutArray"
-            - path: "./benchmark/Streamly/Benchmark/Data/Parser.hs"
+            - path: "./benchmark/Streamly/Benchmark/Data/"
               component: "bench:Data.Parser"
             - path: "./benchmark/Streamly/Benchmark/Data/ParserK.hs"
               component: "bench:Data.ParserK"
