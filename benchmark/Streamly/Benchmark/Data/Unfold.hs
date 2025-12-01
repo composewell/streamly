@@ -31,11 +31,7 @@ import qualified Prelude
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as UF
-#ifndef USE_STREAMLY_CORE
-import qualified Streamly.Internal.Data.Unfold.Prelude as UF
-#endif
 import qualified Streamly.Internal.Data.Stream as S
-import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.StreamK as K
 
 import Test.Tasty.Bench hiding (env)
@@ -175,7 +171,7 @@ fromStreamK size start = drainGeneration UF.fromStreamK (K.replicate size start)
 {-# INLINE fromStreamD #-}
 fromStreamD :: Monad m => Int -> Int -> m ()
 fromStreamD size start =
-    drainGeneration UF.fromStreamD (D.replicate size start)
+    drainGeneration UF.fromStreamD (S.replicate size start)
 
 {-# INLINE _nilM #-}
 _nilM :: Monad m => Int -> Int -> m ()
@@ -793,14 +789,7 @@ inspect $ hasNoTypeClassesExcept 'readWriteFinally_Unfold [''MonadCatch]
 #else
 inspect $ hasNoTypeClasses 'readWriteFinally_Unfold
 #endif
--- inspect $ 'readWriteFinallyUnfold `hasNoType` ''Step
-#endif
-
-#ifndef USE_STREAMLY_CORE
-readWriteFinallyUnfold :: Handle -> Handle -> IO ()
-readWriteFinallyUnfold inh devNull =
-    let readEx = UF.finally (\_ -> hClose inh) FH.reader
-    in S.fold (FH.write devNull) $ S.unfold readEx inh
+-- inspect $ 'readWriteFinally_Unfold `hasNoType` ''Step
 #endif
 
 -- | Send the file contents to /dev/null with exception handling
@@ -815,14 +804,7 @@ inspect $ hasNoTypeClassesExcept 'readWriteBracket_Unfold [''MonadCatch]
 #else
 inspect $ hasNoTypeClasses 'readWriteBracket_Unfold
 #endif
--- inspect $ 'readWriteBracketUnfold `hasNoType` ''Step
-#endif
-
-#ifndef USE_STREAMLY_CORE
-readWriteBracketUnfold :: Handle -> Handle -> IO ()
-readWriteBracketUnfold inh devNull =
-    let readEx = UF.bracket return (\_ -> hClose inh) FH.reader
-    in S.fold (FH.write devNull) $ S.unfold readEx inh
+-- inspect $ 'readWriteBracket_Unfold `hasNoType` ''S.Step
 #endif
 
 o_1_space_copy_read_exceptions :: BenchEnv -> [Benchmark]
@@ -836,12 +818,6 @@ o_1_space_copy_read_exceptions env =
            readWriteFinally_Unfold inh (nullH env)
        , mkBenchSmall "UF.bracket_" env $ \inh _ ->
            readWriteBracket_Unfold inh (nullH env)
-#ifndef USE_STREAMLY_CORE
-       , mkBenchSmall "UF.finally" env $ \inh _ ->
-           readWriteFinallyUnfold inh (nullH env)
-       , mkBenchSmall "UF.bracket" env $ \inh _ ->
-           readWriteBracketUnfold inh (nullH env)
-#endif
         ]
     ]
 

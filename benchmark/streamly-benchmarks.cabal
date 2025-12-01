@@ -107,8 +107,8 @@ common default-extensions
 common compile-options
     import: default-extensions
 
-    if flag(use-streamly-core)
-      cpp-options:    -DUSE_STREAMLY_CORE
+    -- if flag(use-streamly-core)
+    --   cpp-options:    -DUSE_STREAMLY_CORE
 
     if flag(dev)
       cpp-options:    -DDEVBUILD
@@ -595,6 +595,16 @@ benchmark Data.Unfold
   hs-source-dirs: .
   main-is: Streamly/Benchmark/Data/Unfold.hs
   if impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+
+benchmark Data.Unfold.Prelude
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data/Unfold
+  main-is: Prelude1.hs
+  if flag(use-streamly-core) || impl(ghcjs)
     buildable: False
   else
     buildable: True

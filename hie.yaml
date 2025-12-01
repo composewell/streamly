@@ -72,6 +72,8 @@ cradle:
               component: "bench:Data.Stream.Prelude.Exceptions"
             - path: "./benchmark/Streamly/Benchmark/Data/Unfold.hs"
               component: "bench:Data.Unfold"
+            - path: "./benchmark/Streamly/Benchmark/Data/Unfold/Prelude1.hs"
+              component: "bench:Data.Unfold.Prelude"
             - path: "./benchmark/Streamly/Benchmark/FileSystem/Handle/Read.hs"
               component: "bench:FileSystem.Handle"
             - path: "./benchmark/Streamly/Benchmark/FileSystem/Handle/ReadWrite.hs"
