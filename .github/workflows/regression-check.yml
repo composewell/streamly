@@ -116,7 +116,7 @@ jobs:
 
     - name: Run benchmarks
       run: |
-        ./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --targets "$CI_BENCHMARKS" --raw
+        ./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --cabal-build-options "-j1" --targets "$CI_BENCHMARKS" --raw
 
     - name: Move charts to charts-master
       run: mv charts charts-master
