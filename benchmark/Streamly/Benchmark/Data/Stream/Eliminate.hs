@@ -261,6 +261,7 @@ uncons s = do
 {-# INLINE toNull #-}
 toNull :: Monad m => Stream m Int -> m ()
 toNull = S.drain
+
 {-# INLINE init #-}
 init :: Monad m => Stream m a -> m ()
 init s = S.init s >>= Prelude.mapM_ S.drain
