@@ -69,26 +69,34 @@ extra-source-files:
     bench-test-lib/bench-test-lib.cabal
     bench-test-lib/src/BenchTestLib/DirIO.hs
     benchmark/*.hs
-    benchmark/bench-runner/Main.hs
-    benchmark/bench-runner/bench-runner.cabal
     benchmark/Streamly/Benchmark/Data/*.hs
-    benchmark/Streamly/Benchmark/Data/Scanl/*.hs
-    benchmark/Streamly/Benchmark/Data/Fold/*.hs
-    benchmark/Streamly/Benchmark/Data/Serialize/*.hs
+    benchmark/Streamly/Benchmark/Data/Array.hs
     benchmark/Streamly/Benchmark/Data/Array/Common.hs
     benchmark/Streamly/Benchmark/Data/Array/CommonImports.hs
     benchmark/Streamly/Benchmark/Data/Array/Generic.hs
     benchmark/Streamly/Benchmark/Data/Array/SmallArray.hs
-    benchmark/Streamly/Benchmark/Data/Array.hs
-    benchmark/Streamly/Benchmark/Data/RingArray.hs
-    benchmark/Streamly/Benchmark/Data/MutArray.hs
     benchmark/Streamly/Benchmark/Data/Array/Stream.hs
+    benchmark/Streamly/Benchmark/Data/Fold/*.hs
     benchmark/Streamly/Benchmark/Data/Fold/Window.hs
+    benchmark/Streamly/Benchmark/Data/MutArray.hs
+    benchmark/Streamly/Benchmark/Data/RingArray.hs
+    benchmark/Streamly/Benchmark/Data/Scanl/*.hs
+    benchmark/Streamly/Benchmark/Data/Serialize/*.hs
     benchmark/Streamly/Benchmark/Data/Stream/*.hs
+    benchmark/Streamly/Benchmark/Data/Stream/Prelude/*.hs
     benchmark/Streamly/Benchmark/Data/StreamK/*.hs
     benchmark/Streamly/Benchmark/FileSystem/*.hs
     benchmark/Streamly/Benchmark/FileSystem/Handle/*.hs
     benchmark/Streamly/Benchmark/Unicode/*.hs
+    benchmark/Streamly/Benchmark/Unicode/data/AllChars.txt
+    benchmark/Streamly/Benchmark/Unicode/data/Devanagari.txt
+    benchmark/Streamly/Benchmark/Unicode/data/Japanese.txt
+    benchmark/Streamly/Benchmark/Unicode/data/Vietnamese.txt
+    benchmark/Streamly/Benchmark/Unicode/data/Deutsch.txt
+    benchmark/Streamly/Benchmark/Unicode/data/English.txt
+    benchmark/Streamly/Benchmark/Unicode/data/Korean.txt
+    benchmark/bench-runner/Main.hs
+    benchmark/bench-runner/bench-runner.cabal
     benchmark/lib/Streamly/Benchmark/*.hs
     benchmark/lib/Streamly/Benchmark/Common/*.hs
     benchmark/streamly-benchmarks.cabal
@@ -108,8 +116,8 @@ extra-source-files:
     src/Streamly/Internal/FileSystem/Event/Darwin.h
     src/assert.hs
     src/config.h.in
-    src/inline.hs
     src/deprecation.h
+    src/inline.hs
     test/Streamly/Test/Data/*.hs
     test/Streamly/Test/Data/Array/CommonImports.hs
     test/Streamly/Test/Data/Array/Common.hs
@@ -136,24 +144,17 @@ extra-source-files:
     test/Streamly/Test/Serialize/*.hs
     test/Streamly/Test/Data/Scanl/*.hs
     test/Streamly/Test/Data/Fold/*.hs
-    test/lib/Streamly/Test/Common.hs
-    test/lib/Streamly/Test/Prelude/Common.hs
-    test/lib/Streamly/Test/Parser/Common.hs
-    test/streamly-tests.cabal
-    test/version-bounds.hs
     test/Streamly/Test/Unicode/ucd/NormalizationTest.txt
     test/Streamly/Test/Unicode/extra/NormalizationTest.txt
     test/Streamly/Test/Data/Unbox.hs
     test/Streamly/Test/Data/Unbox/*.hs
     test/Streamly/Test/Data/Serialize.hs
     test/Streamly/Test/Data/Serialize/*.hs
-    benchmark/Streamly/Benchmark/Unicode/data/AllChars.txt
-    benchmark/Streamly/Benchmark/Unicode/data/Devanagari.txt
-    benchmark/Streamly/Benchmark/Unicode/data/Japanese.txt
-    benchmark/Streamly/Benchmark/Unicode/data/Vietnamese.txt
-    benchmark/Streamly/Benchmark/Unicode/data/Deutsch.txt
-    benchmark/Streamly/Benchmark/Unicode/data/English.txt
-    benchmark/Streamly/Benchmark/Unicode/data/Korean.txt
+    test/lib/Streamly/Test/Common.hs
+    test/lib/Streamly/Test/Prelude/Common.hs
+    test/lib/Streamly/Test/Parser/Common.hs
+    test/streamly-tests.cabal
+    test/version-bounds.hs
 
 extra-doc-files:
     CONTRIBUTING.md
