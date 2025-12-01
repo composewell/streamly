@@ -18,6 +18,7 @@ module Streamly.Benchmark.Common
     , runWithCLIOptsEnv
     , runWithCLIOpts
 
+    , streamUnfoldrM
     , benchIOSink1
     , benchPure
     , benchPureSink1
@@ -54,8 +55,9 @@ import Control.DeepSeq (NFData(..))
 import Data.Functor.Identity (Identity, runIdentity)
 import System.Random (randomRIO)
 
+import Streamly.Internal.Data.Stream (Stream)
 import qualified Streamly.Internal.Data.Fold as Fold
-import qualified Streamly.Internal.Data.Stream as S
+import qualified Streamly.Internal.Data.Stream as Stream
 
 import Test.Tasty.Bench
 
@@ -80,6 +82,15 @@ o_n_stack_prefix name = name ++ "/o-n-stack"
 -------------------------------------------------------------------------------
 -- Benchmarking utilities
 -------------------------------------------------------------------------------
+
+{-# INLINE streamUnfoldrM #-}
+streamUnfoldrM :: Monad m => Int -> Int -> Stream m Int
+streamUnfoldrM value n = Stream.unfoldrM step n
+    where
+    step cnt =
+        if cnt > n + value
+        then return Nothing
+        else return (Just (cnt, cnt + 1))
 
 -- XXX once we convert all the functions to use this we can rename this to
 -- benchIOSink
@@ -110,12 +121,12 @@ benchPureSink1 name f =
     bench name $ nfIO $ randomRIO (1,1) >>= return . runIdentity . f
 
 {-# INLINE benchPureSrc #-}
-benchPureSrc :: String -> (Int -> S.Stream Identity a) -> Benchmark
+benchPureSrc :: String -> (Int -> Stream Identity a) -> Benchmark
 benchPureSrc name src = benchPure name src (runIdentity . drain)
 
     where
 
-    drain = S.fold Fold.drain
+    drain = Stream.fold Fold.drain
 
 -------------------------------------------------------------------------------
 -- String/List generation for read instances

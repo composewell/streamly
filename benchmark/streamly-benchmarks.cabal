@@ -228,7 +228,7 @@ common bench-options
   include-dirs: .
   ghc-options: -rtsopts -with-rtsopts "-t"
   if flag(limit-build-mem)
-    ghc-options: +RTS -M400M -RTS
+    ghc-options: +RTS -M500M -RTS
   build-depends: streamly-benchmarks == 0.0.0
 
 -- Some benchmarks are threaded some are not
@@ -238,7 +238,7 @@ common bench-options-threaded
   -- trigger only with these options.
   ghc-options: -threaded -rtsopts -with-rtsopts "-t -N2"
   if flag(limit-build-mem)
-    ghc-options: +RTS -M400M -RTS
+    ghc-options: +RTS -M500M -RTS
   build-depends: streamly-benchmarks == 0.0.0
 
 -------------------------------------------------------------------------------
@@ -330,19 +330,24 @@ benchmark Data.Parser
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: .
-  main-is: Streamly/Benchmark/Data/ParserMain.hs
+  main-is: Streamly/Benchmark/Data/Parser.hs
   other-modules:
-    Streamly.Benchmark.Data.Parser
+      Streamly.Benchmark.Data.Parser.Common
+    , Streamly.Benchmark.Data.Parser.Alternative
+    , Streamly.Benchmark.Data.Parser.Applicative
+    , Streamly.Benchmark.Data.Parser.Monad
+    , Streamly.Benchmark.Data.Parser.Interleave
+    , Streamly.Benchmark.Data.Parser.Sequence
+    , Streamly.Benchmark.Data.Parser.Producer
+    , Streamly.Benchmark.Data.Parser.Groups
   if impl(ghcjs)
     buildable: False
   else
     buildable: True
-    build-depends: exceptions >= 0.8   && < 0.11
+    build-depends: exceptions >= 0.8 && < 0.11
   if flag(limit-build-mem)
     if flag(dev)
-      ghc-options: +RTS -M3000M -RTS
-    else
-      ghc-options: +RTS -M2500M -RTS
+      ghc-options: +RTS -M750M -RTS
 
 benchmark Data.ParserK
   import: bench-options
