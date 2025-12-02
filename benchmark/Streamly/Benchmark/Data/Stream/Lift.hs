@@ -16,11 +16,10 @@ import Control.Monad.State.Strict (StateT, get, put)
 import Data.Functor.Identity (Identity)
 import Stream.Common (sourceUnfoldr, sourceUnfoldrM, benchIOSrc)
 import System.Random (randomRIO)
+import Streamly.Internal.Data.Stream (Stream)
 
 import qualified Stream.Common as Common
 import qualified Streamly.Internal.Data.Fold as Fold
-
-import Streamly.Internal.Data.Stream (Stream)
 import qualified Streamly.Internal.Data.Stream as Stream
 
 import Test.Tasty.Bench

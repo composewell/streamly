@@ -25,6 +25,7 @@ import qualified Stream.Generate as Generation
 import qualified Stream.Lift as Lift
 import qualified Stream.Reduce as NestedFold
 import qualified Stream.Split as Split
+import qualified Stream.SplitChunks as SplitChunks
 import qualified Stream.Transform as Transformation
 
 import Streamly.Benchmark.Common
@@ -61,6 +62,7 @@ main = do
         , Elimination.benchmarks moduleName size
         , Exceptions.benchmarks moduleName env size
         , Split.benchmarks moduleName env
+        , SplitChunks.benchmarks moduleName env
         , Transformation.benchmarks moduleName size
         , NestedFold.benchmarks moduleName size
         , Lift.benchmarks moduleName size

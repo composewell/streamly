@@ -30,7 +30,6 @@ import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.FileSystem.Handle as Handle
-import qualified Streamly.Internal.Unicode.Stream as Unicode
 
 import Test.Tasty.Bench hiding (env)
 import Prelude hiding (last, length)
@@ -277,28 +276,8 @@ o_1_space_reduce_read_split env =
         ]
     ]
 
--- | Split on a character sequence.
-splitOnSeqUtf8 :: String -> Handle -> IO Int
-splitOnSeqUtf8 str inh =
-    (Stream.fold Fold.length
-        $ Stream.splitSepBySeq_ (Array.fromList str) Fold.drain
-        $ Unicode.decodeUtf8Chunks
-        $ Handle.readChunks inh) -- >>= print
-
-o_1_space_reduce_toChunks_split :: BenchEnv -> [Benchmark]
-o_1_space_reduce_toChunks_split env =
-    [ bgroup "FileSplitSeqUtf8"
-        [ mkBenchSmall "splitOnSeqUtf8 word abcdefgh"
-            env $ \inh _ -> splitOnSeqUtf8 "abcdefgh" inh
-        , mkBenchSmall "splitOnSeqUtf8 KR abcdefghijklmnopqrstuvwxyz"
-            env $ \inh _ -> splitOnSeqUtf8 "abcdefghijklmnopqrstuvwxyz" inh
-        ]
-    ]
-
 benchmarks :: String -> BenchEnv -> [Benchmark]
 benchmarks moduleName env =
-        [ bgroup (o_1_space_prefix moduleName) $ concat
-            [ o_1_space_reduce_read_split env
-            , o_1_space_reduce_toChunks_split env
-            ]
+        [ bgroup (o_1_space_prefix moduleName) $
+            o_1_space_reduce_read_split env
         ]

@@ -79,15 +79,12 @@ import Control.DeepSeq (NFData)
 import Control.Exception (try)
 import GHC.Exception (ErrorCall)
 import System.Random (randomRIO)
+import Streamly.Internal.Data.Stream (Stream)
 
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Pipe as Pipe
 import qualified Streamly.Internal.Data.Scanl as Scanl
 import qualified Streamly.Internal.Data.Scanr as Scanr
-
-
-import Streamly.Internal.Data.Stream (Stream)
-import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.Stream as Stream
 
 import Test.Tasty.Bench
@@ -107,7 +104,7 @@ append = Stream.append
 
 {-# INLINE append2 #-}
 append2 :: Monad m => Stream m a -> Stream m a -> Stream m a
-append2 = D.append
+append2 = Stream.append
 
 {-# INLINE drain #-}
 drain :: Monad m => Stream m a -> m ()
@@ -201,7 +198,7 @@ benchIO name f = bench name $ nfIO $ randomRIO (1,1) >>= f
 sourceConcatMapId :: (Monad m)
     => Int -> Int -> Stream m (Stream m Int)
 sourceConcatMapId value n =
-    Stream.fromList $ fmap (D.fromEffect . return) [n..n+value]
+    Stream.fromList $ fmap (Stream.fromEffect . return) [n..n+value]
 
 {-# INLINE apDiscardFst #-}
 apDiscardFst :: MonadAsync m =>

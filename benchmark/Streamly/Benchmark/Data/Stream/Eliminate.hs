@@ -35,7 +35,6 @@ import qualified Streamly.Internal.Data.Fold as Fold
 #ifdef INSPECTION
 import GHC.Types (SPEC(..))
 import Test.Inspection
-import qualified Streamly.Internal.Data.Stream as D
 #endif
 
 import Stream.Common
@@ -581,7 +580,7 @@ eqByPure value n = eqBy' (sourceUnfoldr value n)
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'eqByPure
 inspect $ 'eqByPure `hasNoType` ''SPEC
-inspect $ 'eqByPure `hasNoType` ''D.Step
+inspect $ 'eqByPure `hasNoType` ''S.Step
 #endif
 
 {-# INLINE eqInstance #-}
@@ -603,7 +602,7 @@ cmpByPure value n = cmpBy' (sourceUnfoldr value n)
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'cmpByPure
 inspect $ 'cmpByPure `hasNoType` ''SPEC
-inspect $ 'cmpByPure `hasNoType` ''D.Step
+inspect $ 'cmpByPure `hasNoType` ''S.Step
 #endif
 
 {-# INLINE ordInstance #-}
@@ -642,7 +641,7 @@ eqBy value n = eqBy' (sourceUnfoldrM value n)
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'eqBy
 inspect $ 'eqBy `hasNoType` ''SPEC
-inspect $ 'eqBy `hasNoType` ''D.Step
+inspect $ 'eqBy `hasNoType` ''S.Step
 #endif
 
 {-# INLINE cmpBy #-}
@@ -652,7 +651,7 @@ cmpBy value n = cmpBy' (sourceUnfoldrM value n)
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'cmpBy
 inspect $ 'cmpBy `hasNoType` ''SPEC
-inspect $ 'cmpBy `hasNoType` ''D.Step
+inspect $ 'cmpBy `hasNoType` ''S.Step
 #endif
 
 o_1_space_elimination_multi_stream :: Int -> [Benchmark]

@@ -23,20 +23,19 @@ module Stream.Expand (benchmarks) where
 #ifdef INSPECTION
 import GHC.Types (SPEC(..))
 import Test.Inspection
-
-import qualified Streamly.Internal.Data.Stream as D
 #endif
-
-import qualified Stream.Common as Common
-import qualified Streamly.Internal.Data.Unfold as UF
 
 import Streamly.Data.Stream (Stream)
 import Streamly.Data.Unfold (Unfold)
+
+import qualified Stream.Common as Common
+import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.StreamK as StreamK
+
 import Test.Tasty.Bench
 import Stream.Common
 import Streamly.Benchmark.Common
@@ -218,7 +217,7 @@ unfoldSched outer inner n =
 inspect $ hasNoTypeClasses 'unfoldSched
 -- inspect $ 'unfoldSched `hasNoType` ''SPEC
 -- inspect $ 'unfoldSched `hasNoType`
---      ''D.ConcatUnfoldInterleaveState
+--      ''Stream.ConcatUnfoldInterleaveState
 #endif
 
 o_1_space_joining :: Int -> [Benchmark]
@@ -328,7 +327,7 @@ unfoldEach outer inner start = drain $
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'unfoldEach
-inspect $ 'unfoldEach `hasNoType` ''D.UnfoldEachState
+inspect $ 'unfoldEach `hasNoType` ''Stream.UnfoldEachState
 inspect $ 'unfoldEach `hasNoType` ''SPEC
 #endif
 

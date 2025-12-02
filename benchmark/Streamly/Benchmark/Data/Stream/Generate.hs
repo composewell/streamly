@@ -17,27 +17,19 @@ module Stream.Generate (benchmarks) where
 import Control.DeepSeq (NFData(..))
 import Control.Monad.IO.Class (MonadIO)
 import Data.Functor.Identity (Identity(..))
+import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Time.Units (AbsTime)
 
 import qualified GHC.Exts as GHC
 import qualified Streamly.Internal.Data.Fold as Fold
-
-import Stream.Common
-import Streamly.Internal.Data.Stream (Stream)
 import qualified Streamly.Internal.Data.Stream as Stream
 
 import Test.Tasty.Bench
+import Stream.Common
 import Streamly.Benchmark.Common
 import qualified Prelude
 
 import Prelude hiding (repeat, replicate, iterate)
-
--------------------------------------------------------------------------------
--- Generation
--------------------------------------------------------------------------------
-
-toStreamD :: a -> a
-toStreamD = id
 
 -------------------------------------------------------------------------------
 -- fromList
@@ -177,8 +169,8 @@ o_1_space_generation value =
         , benchIOSrc "fracFromTo" (sourceFracFromTo value)
         , benchIOSrc "fromList" (sourceFromList value)
         , benchIOSrc "fromListM" (sourceFromListM value)
-        , benchPureSrc "IsList.fromList" (toStreamD . sourceIsList value)
-        , benchPureSrc "IsString.fromString" (toStreamD . sourceIsString value)
+        , benchPureSrc "IsList.fromList" (sourceIsList value)
+        , benchPureSrc "IsString.fromString" (sourceIsString value)
         , benchIOSrc "enumerateFrom" (enumerateFrom value)
         , benchIOSrc "enumerateFromTo" (enumerateFromTo value)
         , benchIOSrc "enumerateFromThen" (enumerateFromThen value)

@@ -19,12 +19,11 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Maybe (isJust)
 import Data.Monoid (Sum(..))
 import GHC.Generics (Generic)
-
-import qualified Streamly.Internal.Data.Refold.Type as Refold
-import qualified Streamly.Internal.Data.Fold as FL
-import qualified Stream.Common as Common
-
 import Streamly.Internal.Data.Stream (Stream)
+
+import qualified Stream.Common as Common
+import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Refold.Type as Refold
 import qualified Streamly.Internal.Data.Stream as S
 
 import Test.Tasty.Bench

@@ -27,12 +27,11 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Streamly.Internal.Data.Stream (Stream)
 import System.Random (randomRIO)
 
+import qualified Stream.Common as Common
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Scanl as Scanl
-
-import qualified Stream.Common as Common
-import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Internal.Data.Unfold as Unfold
 
 import Test.Tasty.Bench
 import Stream.Common hiding (scanl')

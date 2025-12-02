@@ -228,7 +228,7 @@ common bench-options
   include-dirs: .
   ghc-options: -rtsopts -with-rtsopts "-t"
   if flag(limit-build-mem)
-    ghc-options: +RTS -M500M -RTS
+    ghc-options: +RTS -M400M -RTS
   build-depends: streamly-benchmarks == 0.0.0
 
 -- Some benchmarks are threaded some are not
@@ -238,7 +238,7 @@ common bench-options-threaded
   -- trigger only with these options.
   ghc-options: -threaded -rtsopts -with-rtsopts "-t -N2"
   if flag(limit-build-mem)
-    ghc-options: +RTS -M500M -RTS
+    ghc-options: +RTS -M400M -RTS
   build-depends: streamly-benchmarks == 0.0.0
 
 -------------------------------------------------------------------------------
@@ -444,20 +444,22 @@ benchmark Data.Stream
   hs-source-dirs: Streamly/Benchmark/Data
   main-is: Stream.hs
   other-modules:
-      Stream.Generate
-      Stream.Eliminate
-      Stream.Transform
-      Stream.Reduce
-      Stream.Expand
-      Stream.Lift
-      Stream.Split
       Stream.Common
+      Stream.Eliminate
       Stream.Exceptions
+      Stream.Expand
+      Stream.Generate
+      Stream.Lift
+      Stream.Reduce
+      Stream.Split
+      -- XXX uses lot of memory
+      Stream.SplitChunks
+      Stream.Transform
   if flag(limit-build-mem)
     if flag(dev)
-      ghc-options: +RTS -M3500M -RTS
+      ghc-options: +RTS -M1000M -RTS
     else
-      ghc-options: +RTS -M2500M -RTS
+      ghc-options: +RTS -M500M -RTS
 
 benchmark Data.Stream.Adaptive
   import: bench-options-threaded
