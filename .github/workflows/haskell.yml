@@ -68,7 +68,7 @@ jobs:
       matrix:
         # The order is important to optimize fail-fast.
         name:
-          - 9.10.1-Werror
+          - 9.10.3-Werror
         # - 9.8.1-docspec
         # - 8.10.7-coverage
 
@@ -105,8 +105,8 @@ jobs:
             cabal_project: cabal.project
             ignore_error: false
           # Note: use linux for warning build for convenient dev testing
-          - name: 9.10.1-Werror
-            ghc_version: 9.10.1
+          - name: 9.10.3-Werror
+            ghc_version: 9.10.3
             runner: ubuntu-latest
             build: cabal
             cabal_build_options: "--flag limit-build-mem"
@@ -114,8 +114,8 @@ jobs:
             disable_sdist_build: "y"
             cabal_project: cabal.project.Werror
             ignore_error: false
-          - name: 9.10.1-macos
-            ghc_version: 9.10.1
+          - name: 9.10.3-macos
+            ghc_version: 9.10.3
             runner: macos-latest
             build: cabal
             cabal_build_options: "--flag limit-build-mem"
@@ -123,8 +123,8 @@ jobs:
             disable_sdist_build: "y"
             cabal_project: cabal.project
             ignore_error: false
-          - name: 9.10.1-fusion-inspection
-            ghc_version: 9.10.1
+          - name: 9.10.3-fusion-inspection
+            ghc_version: 9.10.3
             runner: ubuntu-latest
             build: cabal
             cabal_version: 3.12.1.0
