@@ -15,6 +15,7 @@ benchmark/bench-runner/flake.lock
 benchmark/bench-runner/flake.nix
 benchmark/bench-runner/sources.nix
 bin/ghc.sh
+bin/ghc-make.sh
 bin/repl
 bin/run-ci.sh
 bin/run-repl-quick.sh
