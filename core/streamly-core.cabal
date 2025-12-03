@@ -551,6 +551,9 @@ library
                     , Streamly.Internal.FileSystem.Path.Common
                     , Streamly.Internal.FileSystem.DirOptions
 
+                    , Streamly.Internal.Unicode.Encode
+                    , Streamly.Internal.Unicode.Decode
+
     if flag(internal-dev)
       exposed-modules:
                         Streamly.Internal.Data.StreamK.Alt

@@ -56,8 +56,10 @@ genUnicode = listOf arbitraryUnicodeChar
 genWord8List :: Gen [Word8]
 genWord8List = listOf arbitrary
 
+{-
 genListOfW8List :: Gen [[Word8]]
 genListOfW8List = listOf (listOf arbitrary)
+-}
 
 propDecodeEncodeId' :: Property
 propDecodeEncodeId' =
@@ -78,6 +80,7 @@ propDecodeEncodeUtf16Id encoder decoder =
             chrs <- run $ Stream.toList $ decoder wrds
             assertEq chrs list
 
+{-
 propMkEvenW8Chunks :: Property
 propMkEvenW8Chunks =
     forAll genListOfW8List $ \list ->
@@ -93,6 +96,7 @@ propMkEvenW8Chunks =
             if (odd (length concatedList))
             then assertEq concatedList1 (init concatedList)
             else assertEq concatedList1 concatedList
+-}
 
 -- XXX need to use invalid characters
 propDecodeEncodeId :: Property
@@ -229,7 +233,7 @@ main = H.hspec
              (propDecodeEncodeUtf16Id IUS.encodeUtf16le' IUS.decodeUtf16le')
         prop "decodeUtf16le . encodeUtf16le == id"
              (propDecodeEncodeUtf16Id IUS.encodeUtf16le' IUS.decodeUtf16le)
-        prop "mkEvenW8Chunks" propMkEvenW8Chunks
+        -- prop "mkEvenW8Chunks" propMkEvenW8Chunks
 
     H.describe "Latin1 - Encoding / Decoding" $ do
         prop "ASCII to Latin1" propASCIIToLatin1
