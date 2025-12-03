@@ -228,7 +228,7 @@ common bench-options
   include-dirs: .
   ghc-options: -rtsopts -with-rtsopts "-t"
   if flag(limit-build-mem)
-    ghc-options: +RTS -M400M -RTS
+    ghc-options: -j1 +RTS -M400M -RTS
   build-depends: streamly-benchmarks == 0.0.0
 
 -- Some benchmarks are threaded some are not
@@ -238,7 +238,7 @@ common bench-options-threaded
   -- trigger only with these options.
   ghc-options: -threaded -rtsopts -with-rtsopts "-t -N2"
   if flag(limit-build-mem)
-    ghc-options: +RTS -M400M -RTS
+    ghc-options: -j1 +RTS -M400M -RTS
   build-depends: streamly-benchmarks == 0.0.0
 
 -------------------------------------------------------------------------------
@@ -256,8 +256,8 @@ benchmark Data.Array
     buildable: False
   else
     buildable: True
-  if flag(limit-build-mem)
-    ghc-options: +RTS -M1500M -RTS
+  if flag(limit-build-mem) && !flag(fusion-plugin)
+    ghc-options: +RTS -M600M -RTS
 
 benchmark Data.Array.Generic
   import: bench-options
@@ -270,8 +270,8 @@ benchmark Data.Array.Generic
     buildable: False
   else
     buildable: True
-  if flag(limit-build-mem)
-    ghc-options: +RTS -M1000M -RTS
+  if flag(limit-build-mem) && !flag(fusion-plugin)
+    ghc-options: +RTS -M500M -RTS
 
 benchmark Data.Array.Stream
   import: bench-options
@@ -293,6 +293,8 @@ benchmark Data.Fold
     buildable: False
   else
     buildable: True
+  if flag(limit-build-mem) && !flag(fusion-plugin)
+    ghc-options: +RTS -M500M -RTS
 
 benchmark Data.Fold.Prelude
   import: bench-options
@@ -319,8 +321,8 @@ benchmark Data.MutArray
   import: bench-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Benchmark/Data/MutArray.hs
-  if flag(limit-build-mem)
-    ghc-options: +RTS -M1500M -RTS
+  if flag(limit-build-mem) && !flag(fusion-plugin)
+    ghc-options: +RTS -M500M -RTS
   if flag(use-streamly-core)
     buildable: False
   else
@@ -346,8 +348,10 @@ benchmark Data.Parser
     buildable: True
     build-depends: exceptions >= 0.8 && < 0.11
   if flag(limit-build-mem)
-    if flag(dev)
+    if flag(dev) || !flag(fusion-plugin)
       ghc-options: +RTS -M750M -RTS
+    else
+      ghc-options: +RTS -M500M -RTS
 
 benchmark Data.ParserK
   import: bench-options
@@ -389,8 +393,6 @@ benchmark Data.RingArray
   import: bench-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Benchmark/Data/RingArray.hs
-  if flag(limit-build-mem)
-    ghc-options: +RTS -M1500M -RTS
 
 benchmark Data.Scanl
   import: bench-options
@@ -426,8 +428,6 @@ benchmark Data.Serialize
       Streamly.Benchmark.Data.Serialize.TH
       Streamly.Benchmark.Data.Serialize.RecCompatible
       Streamly.Benchmark.Data.Serialize.RecNonCompatible
-  if flag(limit-build-mem)
-    ghc-options: +RTS -M1000M -RTS
 
 benchmark Data.SmallArray
   import: bench-options
@@ -626,8 +626,6 @@ benchmark FileSystem.Handle
   other-modules:
       Handle.Read
     , Handle.ReadWrite
-  if flag(limit-build-mem)
-    ghc-options: +RTS -M1000M -RTS
   if flag(use-streamly-core)
     buildable: False
   else
@@ -673,8 +671,6 @@ benchmark Unicode.Stream
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Unicode
   main-is: Stream.hs
-  if flag(limit-build-mem)
-    ghc-options: +RTS -M1000M -RTS
   if flag(use-streamly-core)
     buildable: False
   else
