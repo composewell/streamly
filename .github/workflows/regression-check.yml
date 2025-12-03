@@ -139,7 +139,7 @@ jobs:
 
     - name: Run benchmarks and append
       run: |
-        ./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --targets "$CI_BENCHMARKS" --raw --append
+        ./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --cabal-build-options "-j1" --targets "$CI_BENCHMARKS" --raw --append
 
     # -----------------------------------------------------------------
     # -- Compare

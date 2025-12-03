@@ -3,3 +3,6 @@ packages:   streamly.cabal
           , test/streamly-tests.cabal
           , benchmark/streamly-benchmarks.cabal
           , bench-test-lib/bench-test-lib.cabal
+
+-- For debugging heap overflow
+jobs: 1
