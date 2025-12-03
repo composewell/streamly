@@ -48,7 +48,8 @@ sourceEscapedFrames ::
     => Int
     -> Int
     -> Stream m Char
-sourceEscapedFrames value n = Stream.unfoldrM step n
+sourceEscapedFrames value = Stream.unfoldrM step
+
     where
 
     bs = '\\'
@@ -205,8 +206,8 @@ benchmarks value =
     , (SpaceO_1, benchIOSink value "wordBy" $ wordBy value)
 
     -- Group sequence by
-    , (SpaceO_1, benchIOSink value "groupBy" $ groupBy)
-    , (SpaceO_1, benchIOSink value "groupByRolling" $ groupByRolling)
+    , (SpaceO_1, benchIOSink value "groupBy" groupBy)
+    , (SpaceO_1, benchIOSink value "groupByRolling" groupByRolling)
 
     -- Framing
     -- o-n-heap because of backtracking

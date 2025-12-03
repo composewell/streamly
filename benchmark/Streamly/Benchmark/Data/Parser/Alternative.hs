@@ -102,6 +102,7 @@ alt2 value =
             (PR.dropWhile (<= value))
         )
 
+{- HLINT ignore "Evaluate"-}
 {-# INLINE alt4 #-}
 alt4 :: Monad m
     => Int -> Stream m Int -> m (Either ParseError ())
@@ -250,7 +251,7 @@ benchmarks value =
 
     -- Sequential Repetition
     , (SpaceO_1, benchIOSink value "many" many)
-    , (SpaceO_1, benchIOSink value "many (wordBy even)" $ manyWordByEven)
+    , (SpaceO_1, benchIOSink value "many (wordBy even)" manyWordByEven)
     , (SpaceO_1, benchIOSink value "some" some)
 
     {-

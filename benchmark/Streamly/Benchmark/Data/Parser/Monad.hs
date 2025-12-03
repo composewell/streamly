@@ -52,6 +52,7 @@ monad4 value =
         PR.dropWhile (<= (value * 3 `div` 4))
         PR.dropWhile (<= value)
 
+{- HLINT ignore "Evaluate"-}
 {-# INLINE monad8 #-}
 monad8 :: Monad m
     => Int -> Stream m Int -> m (Either ParseError ())

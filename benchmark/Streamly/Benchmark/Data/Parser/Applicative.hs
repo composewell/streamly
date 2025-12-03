@@ -45,6 +45,7 @@ splitAp2 value =
             <*> PR.dropWhile (<= value)
         )
 
+{- HLINT ignore "Evaluate"-}
 {-# INLINE splitAp4 #-}
 splitAp4 :: Monad m
     => Int -> Stream m Int -> m (Either ParseError ())
@@ -119,6 +120,7 @@ split_ value =
 {-# INLINE sequenceA_ #-}
 sequenceA_ :: Monad m => Int -> Int -> m (Either ParseError ())
 sequenceA_ value =
+{- HLINT ignore "Use replicateM_"-}
     Stream.parse (F.sequenceA_ $ replicate value (PR.satisfy (> 0)))
         . streamUnfoldrM value
 
@@ -147,7 +149,7 @@ sequence_ value n =
     where
 
     {-# INLINE f #-}
-    f m k = m >>= (\_ -> k)
+    f m k = m >> k
 
 {-# INLINE concatSequence #-}
 concatSequence :: Monad m => Stream m Int -> m (Either ParseError ())

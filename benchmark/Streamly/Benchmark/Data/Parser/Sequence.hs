@@ -108,11 +108,11 @@ benchmarks value =
     , (SpaceO_1, benchIOSink value "parseMany groupRollingBy (1 group)"
           $ parseManyGroupsRolling True)
     , (SpaceO_1, bench "parseMany groupRollingByEither (Left)"
-        $ nfIO $ parseManyGroupsRollingEitherLeft)
+        $ nfIO parseManyGroupsRollingEitherLeft)
     , (SpaceO_1, bench "parseMany groupRollingByEither (Right)"
-        $ nfIO $ parseManyGroupsRollingEitherRight)
+        $ nfIO parseManyGroupsRollingEitherRight)
     , (SpaceO_1, bench "parseMany groupRollingByEither (Alternating)"
-        $ nfIO $ parseManyGroupsRollingEitherAlt1)
+        $ nfIO parseManyGroupsRollingEitherAlt1)
     ]
 
     where
