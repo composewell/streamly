@@ -515,6 +515,7 @@ library
                     , Streamly.Internal.Data.Stream.Generate
                     , Streamly.Internal.Data.Stream.Lift
                     , Streamly.Internal.Data.Stream.Nesting
+                    , Streamly.Internal.Data.Stream.Parse
                     , Streamly.Internal.Data.Stream.Step
                     , Streamly.Internal.Data.Stream.Top
                     , Streamly.Internal.Data.Stream.Transform

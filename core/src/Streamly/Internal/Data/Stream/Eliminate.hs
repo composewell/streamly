@@ -83,7 +83,7 @@ import qualified Streamly.Internal.Data.Array.Type as Array
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.ParserDrivers as Drivers
-import qualified Streamly.Internal.Data.Stream.Nesting as Nesting
+import qualified Streamly.Internal.Data.Stream.Parse as Nesting
 import qualified Streamly.Internal.Data.Stream.Transform as StreamD
 
 import Prelude hiding

@@ -74,7 +74,7 @@ import Streamly.Internal.Data.Fold.Type (Fold)
 import qualified Streamly.Internal.Data.IORef as IORef
 import qualified Streamly.Internal.Data.RingArray as RingArray
 import qualified Streamly.Internal.Data.Serialize.Type as Serialize
-import qualified Streamly.Internal.Data.Stream.Nesting as Stream
+import qualified Streamly.Internal.Data.Stream.Parse as Stream
 import qualified Streamly.Internal.Data.Stream.Type as Stream
 import qualified Streamly.Internal.Data.Fold.Type as Fold
 -- import qualified Streamly.Internal.Data.Stream.Transform as Stream
