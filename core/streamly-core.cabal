@@ -201,7 +201,7 @@ common compile-options
                       -Wall-missed-specialisations
 
     if flag(limit-build-mem)
-        ghc-options: +RTS -M1000M -RTS
+        ghc-options: -j1 +RTS -M500M -RTS
 
     if flag(internal-use-unliftio)
       cpp-options: -DUSE_UNLIFTIO
