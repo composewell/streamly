@@ -107,6 +107,12 @@ targets =
             , "noTest"
             ]
       )
+    , ("Data.Scanl.Concurrent",
+            [ "infinite_grp"
+            , "fold_parser_grp"
+            , "noTest"
+            ]
+      )
     , ("Data.Scanl.Window",
             [ "infinite_grp"
             , "fold_parser_grp"
@@ -229,6 +235,13 @@ targets =
             , "streamly_core_grp"
             ]
       )
+    , ("Data.Unfold.Prelude",
+            [ "infinite_grp"
+            , "serial_stream_grp"
+            , "noTest"
+            ]
+      )
+    , ("FileSystem.DirIO", [])
     , ("FileSystem.Event",
             [ "noBench"
             ]
@@ -253,7 +266,6 @@ targets =
       )
 #endif
     , ("FileSystem.Handle", [])
-    , ("FileSystem.DirIO", [])
     , ("Network.Inet.TCP", ["noBench"])
     , ("Network.Socket", ["noBench"])
     , ("Unicode.Char", ["testDevOnly"])
