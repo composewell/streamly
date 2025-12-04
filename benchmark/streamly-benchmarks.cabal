@@ -618,19 +618,6 @@ benchmark Data.Unfold.Prelude
   else
     buildable: True
 
-benchmark FileSystem.Handle
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/FileSystem
-  main-is: Handle.hs
-  other-modules:
-      Handle.Read
-    , Handle.ReadWrite
-  if flag(use-streamly-core)
-    buildable: False
-  else
-    buildable: True
-
 benchmark FileSystem.DirIO
   import: bench-options
   type: exitcode-stdio-1.0
@@ -643,6 +630,19 @@ benchmark FileSystem.DirIO
   -- Fix this benchmark for Windows
   if os(windows)
     buildable: False
+
+benchmark FileSystem.Handle
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/FileSystem
+  main-is: Handle.hs
+  other-modules:
+      Handle.Read
+    , Handle.ReadWrite
+  if flag(use-streamly-core)
+    buildable: False
+  else
+    buildable: True
 
 benchmark Unicode.Char
   import: bench-options
