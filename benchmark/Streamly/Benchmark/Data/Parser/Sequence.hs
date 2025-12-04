@@ -6,7 +6,7 @@
 -- Compiling parseMany with higher values of spec-constr-recursive hogs a lot
 -- of memory and takes too much time. Fusion plugin alleviates the problem
 -- though.
-{-# OPTIONS_GHC -fspec-constr-recursive=5 #-}
+{-# OPTIONS_GHC -fspec-constr-recursive=10 #-}
 
 -- |
 -- Module      : Streamly.Benchmark.Data.Parser.Sequence
@@ -102,7 +102,9 @@ benchmarks value =
     , (SpaceO_1, benchIOSink value "parseMany (take 1)" (parseMany 1))
     , (SpaceO_1, benchIOSink value "parseMany (take all)" (parseMany value))
     , (SpaceO_1, benchIOSink value "parseMany (groupBy (<))" (parseManyGroupBy (<)))
+    -- requires -fspec-constr-recursive=10
     , (SpaceO_1, benchIOSink value "parseMany (groupBy (==))" (parseManyGroupBy (==)))
+    -- requires -fspec-constr-recursive=10
     , (SpaceO_1, benchIOSink value "parseMany groupRollingBy (bound groups)"
           $ parseManyGroupsRolling False)
     , (SpaceO_1, benchIOSink value "parseMany groupRollingBy (1 group)"
@@ -111,6 +113,7 @@ benchmarks value =
         $ nfIO parseManyGroupsRollingEitherLeft)
     , (SpaceO_1, bench "parseMany groupRollingByEither (Right)"
         $ nfIO parseManyGroupsRollingEitherRight)
+    -- requires -fspec-constr-recursive=10
     , (SpaceO_1, bench "parseMany groupRollingByEither (Alternating)"
         $ nfIO parseManyGroupsRollingEitherAlt1)
     ]

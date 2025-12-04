@@ -481,6 +481,8 @@ parseCharUtf8With = parseCharUtf8WithD
 -- XXX Implement this in terms of decodeUtf8Either. Need to make sure that
 -- decodeUtf8Either preserves the performance characterstics.
 --
+-- XXX Currently this requires @-fspec-constr-recursive=16@ for best perf but
+-- it takes too much memory and compile time. Reimplement to avoid that.
 {-# INLINE_NORMAL decodeUtf8WithD #-}
 decodeUtf8WithD :: Monad m
     => CodingFailureMode -> D.Stream m Word8 -> D.Stream m Char

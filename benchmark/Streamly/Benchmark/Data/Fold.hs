@@ -355,6 +355,8 @@ o_1_space_reduce_read_split env =
 -- | Infix split on a character sequence.
 splitOnSeqUtf8 :: String -> Handle -> IO Int
 splitOnSeqUtf8 str inh =
+    -- XXX requires @-fspec-constr-recursive=12@. Maybe due to
+    -- decodeUtf8.
     Stream.fold Fold.length
         $ Stream.foldManyPost (Fold.takeEndBySeq_ (Array.fromList str) Fold.drain)
         $ Unicode.decodeUtf8Chunks

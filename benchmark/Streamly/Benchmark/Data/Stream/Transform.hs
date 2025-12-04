@@ -405,6 +405,7 @@ o_1_space_filteringX4 value =
         , benchIOSink value "drop-all" (dropAll value 4)
         , benchIOSink value "dropWhile-true" (dropWhileTrue value 4)
         , benchIOSink value "dropWhileM-true" (dropWhileMTrue value 4)
+        -- XXX requires @-fspec-constr-recursive=12@.
         , benchIOSink
               value
               "dropWhile-false"
@@ -464,7 +465,9 @@ o_1_space_inserting value =
 o_1_space_insertingX4 :: Int -> [Benchmark]
 o_1_space_insertingX4 value =
     [ bgroup "insertingX4"
-        [ benchIOSink value "intersperse" (intersperse value 4)
+        [
+          -- XXX requires @-fspec-constr-recursive=16@.
+          benchIOSink value "intersperse" (intersperse value 4)
         , benchIOSink value "insertBy" (insertBy value 4)
         ]
     ]

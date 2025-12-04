@@ -186,6 +186,7 @@ benchmarks value =
 
     -- take sequence by length
     , (SpaceO_1, benchIOSink value "takeBetween" $ takeBetween value)
+    -- XXX requires @-fspec-constr-recursive=12@.
     , (HeapO_n, benchIOSink value "takeEQ" $ takeEQ value)
     , (HeapO_n, benchIOSink value "takeGE" $ takeGE value)
     , (SpaceO_1, benchIOSink value "takeP" $ takeP value)
@@ -197,16 +198,19 @@ benchmarks value =
 
     -- sequence matching a predicate
     , (SpaceO_1, benchIOSink value "takeWhile" $ takeWhile value)
+    -- XXX requires @-fspec-constr-recursive=12@.
     , (SpaceO_1, benchIOSink value "takeWhileP" $ takeWhileP value)
     , (SpaceO_1, benchIOSink value "dropWhile" $ dropWhile value)
 
     -- sequence begin/end by known elements
     , (SpaceO_1, benchIOSink value "takeEndBy_" $ takeEndBy_ value)
     , (SpaceO_1, benchIOSink value "takeBeginBy" $ takeBeginBy value)
+    -- XXX requires @-fspec-constr-recursive=12@.
     , (SpaceO_1, benchIOSink value "wordBy" $ wordBy value)
 
     -- Group sequence by
     , (SpaceO_1, benchIOSink value "groupBy" groupBy)
+    -- XXX requires @-fspec-constr-recursive=12@.
     , (SpaceO_1, benchIOSink value "groupByRolling" groupByRolling)
 
     -- Framing

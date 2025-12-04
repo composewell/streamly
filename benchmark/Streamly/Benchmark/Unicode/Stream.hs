@@ -89,6 +89,7 @@ splitOnSuffix
     => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
 splitOnSuffix predicate f = Stream.foldMany (Fold.takeEndBy_ predicate f)
 
+-- XXX require @-fspec-constr-recursive=12@.
 {-# NOINLINE linesUnlinesCopy #-}
 linesUnlinesCopy :: Handle -> Handle -> IO ()
 linesUnlinesCopy inh outh =
@@ -108,6 +109,7 @@ linesUnlinesArrayWord8Copy inh outh =
       $ Stream.unfold Handle.reader inh
 
 -- XXX splitSuffixOn requires -funfolding-use-threshold=150 for better fusion
+-- XXX require @-fspec-constr-recursive=12@.
 -- | Lines and unlines
 {-# NOINLINE linesUnlinesArrayCharCopy #-}
 linesUnlinesArrayCharCopy :: Handle -> Handle -> IO ()
@@ -176,6 +178,7 @@ wordsUnwordsCopy inh outh =
 -- inspect $ 'wordsUnwordsCopy `hasNoType` ''Step
 #endif
 
+-- XXX require @-fspec-constr-recursive=12@.
 {-# NOINLINE wordsUnwordsCharArrayCopy #-}
 wordsUnwordsCharArrayCopy :: Handle -> Handle -> IO ()
 wordsUnwordsCharArrayCopy inh outh =
@@ -186,6 +189,7 @@ wordsUnwordsCharArrayCopy inh outh =
       $ Unicode.decodeLatin1
       $ Stream.unfold Handle.reader inh
 
+-- XXX all these require @-fspec-constr-recursive=12@.
 o_1_space_copy_read_group_ungroup :: BenchEnv -> [Benchmark]
 o_1_space_copy_read_group_ungroup env =
     [ bgroup "ungroup-group"
@@ -314,6 +318,7 @@ _copyStreamUtf8Parser inh outh =
            (Unicode.parseCharUtf8With Unicode.TransliterateCodingFailure)
      $ Stream.unfold Handle.reader inh
 
+-- XXX all these require @-fspec-constr-recursive=12@.
 o_1_space_decode_encode_read :: BenchEnv -> [Benchmark]
 o_1_space_decode_encode_read env =
     [ bgroup "decode-encode"

@@ -244,6 +244,8 @@ o_1_space_reduce_read_split env =
             takeEndBySeq "aaaa" inh
         , mkBench "takeEndBySeq word abcdefgh" env $ \inh _ ->
             takeEndBySeq "abcdefgh" inh
+
+        -- XXX takeEndBySeq KR requires @-fspec-constr-recursive=12@.
         , mkBench "takeEndBySeq KR abcdefghi" env $ \inh _ ->
             takeEndBySeq "abcdefghi" inh
         , mkBench "takeEndBySeq KR catcatcatcatcat" env $ \inh _ ->

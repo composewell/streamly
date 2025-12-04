@@ -201,6 +201,7 @@ inspect $ 'copyChunksSplitInterposeSuffix `hasNoType` ''Step
 copyChunksSplitInterpose :: Handle -> Handle -> IO ()
 copyChunksSplitInterpose inh outh =
     Stream.fold (Handle.write outh)
+        -- XXX requires @-fspec-constr-recursive=12@.
         -- XXX this is not correct word splitting combinator
         $ Array.concatSepBy 32 . Array.compactSepByByte_ 32
         $ Handle.readChunks inh

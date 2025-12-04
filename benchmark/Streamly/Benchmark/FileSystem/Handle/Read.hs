@@ -249,6 +249,7 @@ chunksOf :: Int -> Handle -> IO Int
 chunksOf n inh =
     S.fold Fold.length $ A.chunksOf n (S.unfold FH.reader inh)
 
+-- XXX all these require @-fspec-constr-recursive=12@.
 o_1_space_reduce_read_grouped :: BenchEnv -> [Benchmark]
 o_1_space_reduce_read_grouped env =
     [ bgroup "reduce/read/chunks"

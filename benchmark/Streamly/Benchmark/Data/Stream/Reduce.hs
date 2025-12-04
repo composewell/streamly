@@ -397,6 +397,7 @@ o_1_space_pipesX4 value =
     [ bgroup "pipesX4"
         [ benchIOSink value "mapM" (transformMapM 4)
         , benchIOSink value "compose" (transformComposeMapM 4)
+        -- XXX requires @-fspec-constr-recursive=16@.
         , benchIOSink value "tee" (transformTeeMapM 4)
 #ifdef DEVBUILD
         -- XXX this take 1 GB memory to compile

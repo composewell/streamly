@@ -250,6 +250,7 @@ benchmarks value =
     -- , benchIOSink value "choice/100" $ choice (value `div` 100)
 
     -- Sequential Repetition
+    -- XXX requires @-fspec-constr-recursive=12@.
     , (SpaceO_1, benchIOSink value "many" many)
     , (SpaceO_1, benchIOSink value "many (wordBy even)" manyWordByEven)
     , (SpaceO_1, benchIOSink value "some" some)
