@@ -431,6 +431,15 @@ library
                      , Streamly.Network.Socket
                      , Streamly.Network.Inet.TCP
 
+    if !impl(ghcjs) && flag(internal-dev)
+        other-modules:
+               Streamly.Internal.System.IOVec.Type
+             , Streamly.Internal.System.IOVec
+             , Streamly.Internal.FileSystem.FDIO
+             , Streamly.Internal.FileSystem.FD
+
+    if flag(internal-dev)
+        exposed-modules: Streamly.Internal.Data.SmallArray
                      -- Deprecated
                      , Streamly.Data.Array.Foreign
                      , Streamly.Data.Fold.Tee
@@ -449,19 +458,35 @@ library
 
                      , Streamly.Internal.Data.Stream.IsStream
 
-    if !impl(ghcjs) && flag(internal-dev)
-        other-modules:
-                       Streamly.Internal.System.IOVec.Type
-                     , Streamly.Internal.System.IOVec
-                     , Streamly.Internal.FileSystem.FDIO
-                     , Streamly.Internal.FileSystem.FD
-
-    if flag(internal-dev)
-        exposed-modules: Streamly.Internal.Data.SmallArray
         -- Exposed modules show up on hackage irrespective of the flag, so keep
         -- it hidden.
-        other-modules:  Streamly.Data.SmallArray
-                      , Streamly.Internal.Data.SmallArray.Type
+        other-modules:
+               Streamly.Data.SmallArray
+             , Streamly.Internal.Data.SmallArray.Type
+             -- Deprecated
+             , Streamly.Internal.Data.Unfold.SVar
+             , Streamly.Internal.Data.Stream.Common
+             , Streamly.Internal.Data.Stream.IsStream.Type
+             , Streamly.Internal.Data.Stream.IsStream.Generate
+             , Streamly.Internal.Data.Stream.IsStream.Eliminate
+             , Streamly.Internal.Data.Stream.IsStream.Transform
+             , Streamly.Internal.Data.Stream.IsStream.Expand
+             , Streamly.Internal.Data.Stream.IsStream.Reduce
+             , Streamly.Internal.Data.Stream.IsStream.Exception
+             , Streamly.Internal.Data.Stream.IsStream.Lift
+             , Streamly.Internal.Data.Stream.IsStream.Top
+             , Streamly.Internal.Data.Stream.IsStream.Combinators
+             , Streamly.Internal.Data.Stream.IsStream.Common
+             , Streamly.Internal.Data.Stream.IsStream.Enumeration
+
+             , Streamly.Internal.Data.Stream.SVar.Generate
+             , Streamly.Internal.Data.Stream.SVar.Eliminate
+
+             , Streamly.Internal.Data.Fold.SVar
+
+             , Streamly.Internal.Data.SVar.Worker
+             , Streamly.Internal.Data.SVar.Dispatch
+             , Streamly.Internal.Data.SVar.Pull
 
     if os(windows)
           exposed-modules: Streamly.Internal.FileSystem.Event.Windows
@@ -500,31 +525,6 @@ library
          , Streamly.Internal.Data.Scanl.Concurrent
 
          , Streamly.Internal.Data.Unfold.Exception
-         , Streamly.Internal.Data.Unfold.SVar
-
-         -- Deprecated
-         , Streamly.Internal.Data.Stream.Common
-         , Streamly.Internal.Data.Stream.IsStream.Type
-         , Streamly.Internal.Data.Stream.IsStream.Generate
-         , Streamly.Internal.Data.Stream.IsStream.Eliminate
-         , Streamly.Internal.Data.Stream.IsStream.Transform
-         , Streamly.Internal.Data.Stream.IsStream.Expand
-         , Streamly.Internal.Data.Stream.IsStream.Reduce
-         , Streamly.Internal.Data.Stream.IsStream.Exception
-         , Streamly.Internal.Data.Stream.IsStream.Lift
-         , Streamly.Internal.Data.Stream.IsStream.Top
-         , Streamly.Internal.Data.Stream.IsStream.Combinators
-         , Streamly.Internal.Data.Stream.IsStream.Common
-         , Streamly.Internal.Data.Stream.IsStream.Enumeration
-
-         , Streamly.Internal.Data.Stream.SVar.Generate
-         , Streamly.Internal.Data.Stream.SVar.Eliminate
-
-         , Streamly.Internal.Data.Fold.SVar
-
-         , Streamly.Internal.Data.SVar.Worker
-         , Streamly.Internal.Data.SVar.Dispatch
-         , Streamly.Internal.Data.SVar.Pull
 
     build-depends:
                     -- Core libraries shipped with ghc, the min and max
@@ -536,7 +536,6 @@ library
                        base              >= 4.12  && < 4.22
                      , fusion-plugin-types >= 0.1 && < 0.2
                      , containers        >= 0.6.0 && < 0.8
-                     , deepseq           >= 1.4.4 && < 1.6
                      , exceptions        >= 0.8.0 && < 0.11
                      , mtl               >= 2.2.2 && < 2.4
                      , transformers      >= 0.5.5 && < 0.7
@@ -573,6 +572,7 @@ library
 
     if flag(internal-dev)
       build-depends: primitive >= 0.5.4 && < 0.9
+                   , deepseq           >= 1.4.4 && < 1.6
 
     -- For FileSystem.Event module
     if os(linux)

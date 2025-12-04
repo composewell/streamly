@@ -4,6 +4,42 @@
 
 ## Unreleased
 
+* The following deprecated modules have been removed:
+  * Streamly.Data.Array.Foreign
+  * Streamly.Data.Fold.Tee
+  * Streamly.Prelude
+
+* The following deprecated internal modules have been removed:
+  * Streamly.Internal.Data.SVar
+  * Streamly.Internal.Data.Stream.SVar
+  * Streamly.Internal.Data.Stream.Serial
+  * Streamly.Internal.Data.Stream.Zip
+  * Streamly.Internal.Data.Stream.Async
+  * Streamly.Internal.Data.Stream.Parallel
+  * Streamly.Internal.Data.Stream.Ahead
+  * Streamly.Internal.Data.Stream.ZipAsync
+  * Streamly.Internal.Data.Stream.IsStream
+  * Streamly.Internal.Data.Unfold.SVar
+  * Streamly.Internal.Data.Stream.Common
+  * Streamly.Internal.Data.Stream.IsStream.Type
+  * Streamly.Internal.Data.Stream.IsStream.Generate
+  * Streamly.Internal.Data.Stream.IsStream.Eliminate
+  * Streamly.Internal.Data.Stream.IsStream.Transform
+  * Streamly.Internal.Data.Stream.IsStream.Expand
+  * Streamly.Internal.Data.Stream.IsStream.Reduce
+  * Streamly.Internal.Data.Stream.IsStream.Exception
+  * Streamly.Internal.Data.Stream.IsStream.Lift
+  * Streamly.Internal.Data.Stream.IsStream.Top
+  * Streamly.Internal.Data.Stream.IsStream.Combinators
+  * Streamly.Internal.Data.Stream.IsStream.Common
+  * Streamly.Internal.Data.Stream.IsStream.Enumeration
+  * Streamly.Internal.Data.Stream.SVar.Generate
+  * Streamly.Internal.Data.Stream.SVar.Eliminate
+  * Streamly.Internal.Data.Fold.SVar
+  * Streamly.Internal.Data.SVar.Worker
+  * Streamly.Internal.Data.SVar.Dispatch
+  * Streamly.Internal.Data.SVar.Pull
+
 ## 0.11.0
 
 See

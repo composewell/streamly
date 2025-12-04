@@ -11,10 +11,7 @@
 module Streamly.Internal.Data.Unfold.Prelude
     (
       module Streamly.Internal.Data.Unfold.Exception
-    -- * Deprecated
-    , module Streamly.Internal.Data.Unfold.SVar
     )
 where
 
 import Streamly.Internal.Data.Unfold.Exception
-import Streamly.Internal.Data.Unfold.SVar
