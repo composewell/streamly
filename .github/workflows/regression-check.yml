@@ -71,7 +71,7 @@ jobs:
 
     - name: Download ghc
       run: |
-        GHCUP_VER=0.1.18.0
+        GHCUP_VER=0.1.50.2
         curl -sL -o ./ghcup https://downloads.haskell.org/~ghcup/$GHCUP_VER/x86_64-linux-ghcup-$GHCUP_VER
         chmod +x ./ghcup
         GHCVER=9.10.3
