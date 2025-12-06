@@ -99,7 +99,7 @@ jobs:
             ghc_version: 9.12.1
             runner: ubuntu-latest
             build: cabal
-            cabal_build_options: "--flag limit-build-mem"
+            cabal_build_options: "--flag limit-build-mem --flag fusion-plugin"
             cabal_version: 3.12.1.0
             disable_sdist_build: "y"
             cabal_project: cabal.project
