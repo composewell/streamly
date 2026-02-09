@@ -4,6 +4,13 @@
 
 ## Unreleased
 
+### Bug Fixes
+
+* Fix `parDemuxScan` deadlock when a worker throws an exception while the
+  driver is blocked on a full input buffer.
+
+### Breaking Changes
+
 * The following deprecated modules have been removed:
   * Streamly.Data.Array.Foreign
   * Streamly.Data.Fold.Tee
