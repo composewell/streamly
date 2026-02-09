@@ -2,7 +2,12 @@
 
 <!-- See rendered changelog at https://streamly.composewell.com -->
 
-## 0.11.0
+## 0.11.1 (May 2026)
+
+* Fix `parDemuxScan` deadlock when a worker throws an exception while the
+  driver is blocked on a full input buffer.
+
+## 0.11.0 (Sep 2025)
 
 See
 [0.10.1-0.11.0 API Changelog](https://github.com/composewell/streamly/blob/streamly-0.11.0/docs/User/Project/ApiChangelogs/0.10.1-0.11.0.txt)
