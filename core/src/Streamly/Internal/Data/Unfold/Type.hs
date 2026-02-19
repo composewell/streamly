@@ -54,6 +54,7 @@ module Streamly.Internal.Data.Unfold.Type
     , unfoldr
     , functionM
     , function
+    , functionMaybeM
     , identity
 
     -- * From Values
@@ -885,6 +886,26 @@ functionM f = Unfold step inject
 {-# INLINE function #-}
 function :: Applicative m => (a -> b) -> Unfold m a b
 function f = functionM $ pure Prelude.. f
+
+-- | Lift a monadic Maybe returning function into an unfold. The unfold
+-- generates a singleton stream.
+--
+{-# INLINE functionMaybeM #-}
+functionMaybeM :: Monad m => (a -> m (Maybe b)) -> Unfold m a b
+functionMaybeM f = Unfold step inject
+
+    where
+
+    inject a = return (Just a)
+
+    {-# INLINE_LATE step #-}
+    step (Just a) = do
+        result <- f a
+        case result of
+            Just b  -> pure $ Yield b Nothing
+            Nothing -> pure Stop
+
+    step Nothing = pure Stop
 
 -- | Identity unfold. The unfold generates a singleton stream having the input
 -- as the only element.
