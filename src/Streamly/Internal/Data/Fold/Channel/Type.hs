@@ -313,6 +313,8 @@ sendEOFToDriver sv = liftIO $ do
 sendExceptionToDriver :: Channel m a b -> SomeException -> IO ()
 sendExceptionToDriver sv e = do
     tid <- myThreadId
+    writeIORef (closedForInput sv) True
+    void $ tryPutMVar (inputSpaceDoorBell sv) ()
     void $ sendToDriver sv (FoldException tid e)
 
 data FromSVarState m a b =
