@@ -244,14 +244,15 @@ openAtCString fdMay path flags cmode =
 openAt ::
        Maybe Fd -- ^ Optional directory file descriptor
     -> PosixPath -- ^ Pathname to open
+    -- XXX use OpenFlags -> OpenFlags modifier to keep OpenFlags opaque.
     -> OpenFlags -- ^ Append, exclusive, truncate, etc.
+    -- XXX use FileMode -> FileMode modifier to keep FileMode opaque.
     -> Maybe FileMode -- ^ Create mode
     -> IO Fd
 openAt fdMay path flags cmode =
    Path.asCString path $ \cstr -> do
      throwErrnoPathIfMinus1Retry "openAt" path
         $ openAtCString fdMay cstr flags cmode
-
 
 -- | Open a regular file, return an Fd.
 --
