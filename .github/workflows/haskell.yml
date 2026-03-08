@@ -1,4 +1,13 @@
-name: Haskell CI
+# packcheck-0.7.1
+# You can use any of the options supported by packcheck as environment
+# variables here.  See https://github.com/composewell/packcheck for all
+# options and their explanation.
+
+name: packcheck
+
+#-----------------------------------------------------------------------------
+# Events on which the build should be triggered
+#-----------------------------------------------------------------------------
 
 on:
   push:
@@ -6,77 +15,124 @@ on:
       - master
   pull_request:
 
+
+#-----------------------------------------------------------------------------
+# Build matrix
+#-----------------------------------------------------------------------------
+
 jobs:
   build:
-    name: GHC ${{matrix.name}}
+    name: >-
+      ${{ matrix.runner }}
+      ${{ matrix.command }}
+      ${{ matrix.ghc_version }}
+      ${{ matrix.name }}
     env:
-      # packcheck environment variables
+      # ------------------------------------------------------------------------
+      # Common options
+      # ------------------------------------------------------------------------
+      CABAL_REINIT_CONFIG: y
       LC_ALL: C.UTF-8
-      BUILD: ${{ matrix.build }}
+
+      # ------------------------------------------------------------------------
+      # What to build
+      # ------------------------------------------------------------------------
+      # DISABLE_TEST: "y"
+      # DISABLE_BENCH: "y"
+      # DISABLE_DOCS: "y"
+      # DISABLE_SDIST_BUILD: "y"
+      # DISABLE_SDIST_GIT_CHECK: "y"
+      # DISABLE_DIST_CHECKS: "y"
+
+      # ------------------------------------------------------------------------
+      # Selecting tool versions
+      # ------------------------------------------------------------------------
       # For updating see: https://downloads.haskell.org/~ghcup/
       GHCUP_VERSION: 0.1.50.2
-      DOCSPEC_URL: https://github.com/phadej/cabal-extras/releases/download/cabal-docspec-0.0.0.20210111/cabal-docspec-0.0.0.20210111.xz
-      DOCSPEC_OPTIONS: "--timeout 60 --check-properties --property-variables xs"
-      GHCUP_GHC_OPTIONS: ${{ matrix.ghcup_ghc_options }}
       GHCVER: ${{ matrix.ghc_version }}
-      CABALVER: ${{ matrix.cabal_version }}
-      DISABLE_DOCS: ${{ matrix.disable_docs }}
-      ENABLE_DOCSPEC: ${{ matrix.enable_docspec }}
-      DISABLE_TEST: ${{ matrix.disable_test }}
-      DISABLE_BENCH: ${{ matrix.disable_bench }}
-      DISABLE_DIST_CHECKS: ${{ matrix.disable_dist_checks }}
-      SDIST_OPTIONS: ${{ matrix.sdist_options }}
-      DISABLE_SDIST_BUILD: ${{ matrix.disable_sdist_build }}
 
-      # Cabal options
-      CABAL_REINIT_CONFIG: y
+      # ------------------------------------------------------------------------
+      # stack options
+      # ------------------------------------------------------------------------
+      # Note requiring a specific version of stack using STACKVER may fail due to
+      # github API limit while checking and upgrading/downgrading to the specific
+      # version.
+      #STACKVER: "1.6.5"
+      #STACK_UPGRADE: "y"
+      STACK_YAML: "stack.yaml"
+
+      # ------------------------------------------------------------------------
+      # cabal options
+      # ------------------------------------------------------------------------
       # Github has machines with 2 CPUS and 6GB memory so the cabal jobs
       # default (ncpus) is good, this can be checked from the packcheck
       # output in case it changes.
-      CABAL_BUILD_OPTIONS: ${{ matrix.cabal_build_options }}
-      CABAL_BUILD_TARGETS: ${{ matrix.cabal_build_targets }}
-      CABAL_PROJECT: ${{ matrix.cabal_project }}
       CABAL_CHECK_RELAX: y
 
-      # Stack options
-      STACK_UPGRADE: "y"
-      RESOLVER: ${{ matrix.resolver }}
-      STACK_YAML: ${{ matrix.stack_yaml }}
-      STACK_BUILD_OPTIONS: ${{ matrix.stack_build_options }}
+      # ------------------------------------------------------------------------
+      # Where to find the required tools
+      # ------------------------------------------------------------------------
+      PATH: /sbin:/usr/sbin:/bin:/usr/bin
 
-      # packcheck location and revision
+      # ------------------------------------------------------------------------
+      # Location of packcheck.sh (the shell script invoked to perform CI tests ).
+      # ------------------------------------------------------------------------
+      # You can either commit the packcheck.sh script at this path in your repo or
+      # you can use it by specifying the PACKCHECK_REPO_URL option below in which
+      # case it will be automatically copied from the packcheck repo to this path
+      # during CI tests. In any case it is finally invoked from this path.
       PACKCHECK: "./packcheck.sh"
+      # If you have not committed packcheck.sh in your repo at PACKCHECK
+      # then it is automatically pulled from this URL.
       PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/composewell/packcheck"
-      PACKCHECK_GITHUB_COMMIT: "8c61fb67ee860ad86049ab17e31bfa8f368b73cf"
+      PACKCHECK_GITHUB_COMMIT: "fac7ab9aad48d5b80a1d65efb34ff353a848e927"
 
-      # Pull token from "secrets" setting of the github repo
-      COVERALLS_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
-      COVERAGE: ${{ matrix.coverage }}
-
-      # hlint
-      HLINT_VERSION: 3.6.1
-      HLINT_OPTIONS: "lint"
-      HLINT_TARGETS: "core/src src test benchmark"
+      # ------------------------------------------------------------------------
+      # Final build variables
+      # ------------------------------------------------------------------------
+      PACKCHECK_COMMAND: ${{ matrix.command }} ${{ matrix.pack_options }}
 
       # Subdir
       SUBDIR: ${{ matrix.subdir }}
 
+      # Pull token from "secrets" setting of the github repo
+      #COVERALLS_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
+      #COVERAGE: ${{ matrix.coverage }}
+
+    # ubuntu seems to have better support than debian on CI systems
     runs-on: ${{ matrix.runner }}
     continue-on-error: ${{ matrix.ignore_error }}
     strategy:
       fail-fast: true
       matrix:
-        # The order is important to optimize fail-fast.
-        name:
-          - 9.10.3-Werror
-        # - 9.8.1-docspec
-        # - 8.10.7-coverage
 
-        # Note: if cabal.project is not specified benchmarks and tests won't
-        # run. But we need at least one test where we test without
-        # cabal.project because that is how hackage would build it.
+        # The order of jobs is important to optimize fail-fast.
+
+        # This section is to order the important jobs first especially for
+        # "fail-fast" so that these are the ones started first.
+        name:
+          - werror
+
+        # The name of the CI is built using the name and other info from CI,
+        # therefore, the "name" field can be same for all tests here.
+        #
+        # The reason we have an explicit "name" field here is to force
+        # an additional config instead of adding to an existing config
+        # while adding additional configs.
+        # Look at <https://docs.github.com/en/free-pro-team@latest/actions/reference/workflow-syntax-for-github-actions#jobsjob_idstrategymatrix>
+        # for more info about adding matrix elements.
+        # Adding any element to the list will increase the number of matrix
+        # elements proportional to the cross product.
+
+        # Note: if cabal.project is not specified then benchmarks and
+        # tests won't run. But we need at least one test where we test
+        # without cabal.project because that is how hackage would build
+        # it.
         include:
-          - name: head
+
+          - name: ci
+            runner: ubuntu-latest
+            command: cabal
             ghc_version: head
             # The URL may change, to find a working URL go to https://gitlab.haskell.org/ghc/ghc/-/jobs/
             # Find a debian10/11/12 job, click on a passed/failed status, at the
@@ -87,65 +143,137 @@ jobs:
             # May also use ghcup for installing ghc head version, use the
             # version "LatestNightly", and the following config:
             # ghcup config add-release-channel https://ghc.gitlab.haskell.org/ghcup-metadata/ghcup-nightlies-0.0.7.yaml
-            ghcup_ghc_options: "-u https://gitlab.haskell.org/ghc/ghc/-/jobs/artifacts/master/raw/ghc-x86_64-linux-deb10-int_native-validate.tar.xz?job=x86_64-linux-deb10-int_native-validate"
-            runner: ubuntu-latest
-            build: cabal
-            cabal_build_options: "--flag limit-build-mem"
-            cabal_version: 3.12.1.0
-            cabal_project: cabal.project.ghc-head
-            disable_sdist_build: "y"
+            pack_options: >-
+              GHCUP_GHC_OPTIONS="-u https://gitlab.haskell.org/ghc/ghc/-/jobs/artifacts/master/raw/ghc-x86_64-linux-deb10-int_native-validate.tar.xz?job=x86_64-linux-deb10-int_native-validate"
+              CABAL_PROJECT=cabal.project.ghc-head
+              CABAL_BUILD_OPTIONS="--flag limit-build-mem"
+              DISABLE_SDIST_BUILD="y"
             ignore_error: true
-          - name: 9.12.1
-            ghc_version: 9.12.1
+
+          - name: streamly-core-sdist
             runner: ubuntu-latest
-            build: cabal
-            cabal_build_options: "--flag limit-build-mem --flag fusion-plugin"
-            cabal_version: 3.12.1.0
-            disable_sdist_build: "y"
-            cabal_project: cabal.project
+            command: cabal
+            ghc_version: 9.14.1
+            subdir: core
             ignore_error: false
+
+          - name: debug-unoptimized
+            runner: macos-latest
+            command: cabal
+            ghc_version: 9.14.1
+            pack_options: >-
+              CABAL_PROJECT=cabal.project
+              CABAL_BUILD_OPTIONS="--flag debug --flag -opt"
+              DISABLE_SDIST_BUILD="y"
+              DISABLE_DOCS="y"
+            ignore_error: false
+
+          - name: ghc-9.12.3
+            runner: macos-latest
+            command: stack
+            pack_options: >-
+              CABALVER=3.14.2.0
+              STACK_UPGRADE="y"
+              RESOLVER=nightly-2026-03-10
+              STACK_YAML=stack.yaml
+              STACK_BUILD_OPTIONS="-v"
+              DISABLE_SDIST_BUILD="y"
+              #SDIST_OPTIONS="--ignore-check"
+              DISABLE_DIST_CHECKS="y"
+              DISABLE_DOCS="y"
+              DISABLE_TEST="y"
+              DISABLE_BENCH="y"
+            ignore_error: false
+
+          - name: fusion
+            runner: ubuntu-latest
+            command: cabal
+            ghc_version: 9.12.2
+            pack_options: >-
+              CABAL_PROJECT=cabal.project
+              CABAL_BUILD_OPTIONS="--flag limit-build-mem --flag fusion-plugin"
+              DISABLE_SDIST_BUILD="y"
+            ignore_error: false
+
           # Note: use linux for warning build for convenient dev testing
-          - name: 9.10.3-Werror
-            ghc_version: 9.10.3
+          - name: werror
             runner: ubuntu-latest
-            build: cabal
-            cabal_build_options: "--flag limit-build-mem"
-            cabal_version: 3.12.1.0
-            disable_sdist_build: "y"
-            cabal_project: cabal.project.Werror
-            ignore_error: false
-          - name: 9.10.3-macos
+            command: cabal
             ghc_version: 9.10.3
-            runner: macos-latest
-            build: cabal
-            cabal_build_options: "--flag limit-build-mem"
-            cabal_version: 3.12.1.0
-            disable_sdist_build: "y"
-            cabal_project: cabal.project
+            pack_options: >-
+              CABAL_PROJECT=cabal.project.Werror
+              CABAL_BUILD_OPTIONS="--flag limit-build-mem"
+              DISABLE_SDIST_BUILD="y"
             ignore_error: false
-          - name: 9.10.3-fusion-inspection
-            ghc_version: 9.10.3
+
+          - name: fusion-inspection
             runner: ubuntu-latest
-            build: cabal
-            cabal_version: 3.12.1.0
-            disable_sdist_build: "y"
-            cabal_project: cabal.project
-            cabal_build_options: "--flag fusion-plugin --flag inspection"
+            command: cabal
+            ghc_version: 9.10.3
+            pack_options: >-
+              CABAL_PROJECT=cabal.project
+              CABAL_BUILD_OPTIONS="--flag fusion-plugin --flag inspection"
+              DISABLE_SDIST_BUILD="y"
             ignore_error: false
-          - name: 9.8.2-macos-stack
-            runner: macos-latest
-            build: stack
-            resolver: nightly-2024-09-26
-            stack_yaml: stack.yaml
-            disable_docs: "y"
-            disable_sdist_build: "y"
-            disable_dist_checks: "y"
-            disable_test: "y"
-            disable_bench: "y"
-            #sdist_options: "--ignore-check"
-            stack_build_options: "-v"
-            cabal_version: 3.12.1.0
+
+          - name: fusion-inspection
+            runner: ubuntu-latest
+            command: cabal
+            ghc_version: 9.8.4
+            pack_options: >-
+              CABAL_PROJECT=cabal.project
+              CABAL_BUILD_OPTIONS="--flag fusion-plugin --flag inspection"
+              DISABLE_SDIST_BUILD="y"
+            ignore_error: false
+
+          - name: streamly-sdist
+            runner: ubuntu-latest
+            command: cabal
+            ghc_version: 9.6.3
+            pack_options: >-
+              CABAL_PROJECT=cabal.project.streamly
+              DISABLE_SDIST_BUILD="y"
             ignore_error: true
+
+          - name: lstat-readdir
+            runner: ubuntu-latest
+            command: cabal
+            ghc_version: 9.4.7
+            pack_options: >-
+              CABAL_PROJECT=cabal.project
+              CABAL_BUILD_OPTIONS="--flag force-lstat-readdir"
+              DISABLE_SDIST_BUILD="y"
+            ignore_error: false
+
+          - name: instrumented
+            runner: ubuntu-latest
+            command: cabal
+            ghc_version: 9.2.8
+            pack_options: >-
+              CABAL_PROJECT=cabal.project
+              GHCUP_GHC_OPTIONS="-u https://s3.ap-south-1.amazonaws.com/downloads.portal.composewell.com/ghc/ghc-9.2.8-x86_64-unknown-linux.tar.xz"
+              DISABLE_SDIST_BUILD="y"
+            ignore_error: false
+
+          - name: unoptimized
+            runner: ubuntu-latest
+            command: cabal
+            ghc_version: 8.10.7
+            pack_options: >-
+              CABAL_PROJECT=cabal.project
+              DISABLE_SDIST_BUILD="y"
+              DISABLE_DOCS="y"
+              DISABLE_DIST_CHECKS="y"
+              CABAL_BUILD_OPTIONS="--flags \"-opt\""
+            ignore_error: false
+
+        # - name: 8.10.7-coverage
+        #   ghc_version: 8.10.7
+        #   runner: ubuntu-latest
+        #   coverage: "y"
+        #   cabal_version: 3.6.2.0
+        #   ignore_error: false
+        #
         # - name: 9.8.1-docspec
         #   ghc_version: 9.8.1
         #   runner: ubuntu-latest
@@ -158,99 +286,13 @@ jobs:
         #   enable_docspec: "y"
         #   disable_sdist_build: "y"
         #   ignore_error: false
-          - name: 9.8.1-fusion-inspection
-            ghc_version: 9.8.1
-            runner: ubuntu-latest
-            build: cabal
-            cabal_version: 3.12.1.0
-            disable_sdist_build: "y"
-            cabal_project: cabal.project
-            cabal_build_options: "--flag fusion-plugin --flag inspection"
-            ignore_error: false
-          - name: 9.6.3-macos
-            ghc_version: 9.6.3
-            runner: macos-latest
-            build: cabal
-            cabal_version: 3.10.1.0
-            disable_sdist_build: "y"
-            cabal_project: cabal.project
-            ignore_error: true
-          - name: 9.4.7-lstat-readir
-            ghc_version: 9.4.7
-            runner: ubuntu-latest
-            build: cabal
-            cabal_build_options: "--flag force-lstat-readdir"
-            cabal_version: 3.8.1.0
-            disable_sdist_build: "y"
-            cabal_project: cabal.project
-            ignore_error: false
-          - name: 9.2.8
-            ghc_version: 9.2.8
-            ghcup_ghc_options: "-u https://s3.ap-south-1.amazonaws.com/downloads.portal.composewell.com/ghc/ghc-9.2.8-x86_64-unknown-linux.tar.xz"
-            runner: ubuntu-latest
-            build: cabal
-            cabal_project: cabal.project
-            cabal_version: 3.6.2.0
-            disable_sdist_build: "y"
-            ignore_error: false
-          - name: 9.0.2-streamly-sdist
-            ghc_version: 9.0.2
-            runner: ubuntu-latest
-            build: cabal
-            cabal_version: 3.6.2.0
-            cabal_project: cabal.project.streamly
-            ignore_error: true
-          - name: 9.0.2-streamly-core-sdist
-            ghc_version: 9.0.2
-            runner: ubuntu-latest
-            build: cabal
-            cabal_version: 3.6.2.0
-            subdir: core
-            ignore_error: false
-          - name: 8.10.7-noopt
-            ghc_version: 8.10.7
-            runner: ubuntu-latest
-            build: cabal
-            cabal_version: 3.6.2.0
-            cabal_project: cabal.project
-            disable_sdist_build: "y"
-            disable_docs: "y"
-            disable_dist_checks: "y"
-            cabal_build_options: "--flags \"-opt\""
-            ignore_error: false
-        # - name: 8.10.7-coverage
-        #   ghc_version: 8.10.7
-        #   runner: ubuntu-latest
-        #   coverage: "y"
-        #   cabal_version: 3.6.2.0
-        #   ignore_error: false
-          - name: 8.8.4
-            ghc_version: 8.8.4
-            runner: ubuntu-latest
-            build: cabal
-            cabal_version: 3.6.2.0
-            cabal_project: cabal.project
-            disable_sdist_build: "y"
-            disable_docs: "y"
-            ignore_error: false
-          - name: 8.6.5-debug-unoptimized
-            ghc_version: 8.6.5
-            runner: ubuntu-latest
-            build: cabal
-            cabal_version: 3.6.2.0
-            cabal_project: cabal.project
-            cabal_build_options: "--flag debug --flag -opt"
-            disable_sdist_build: "y"
-            disable_docs: "y"
-            ignore_error: false
+        #
         # - name: hlint
         #   build: hlint
         #   runner: ubuntu-latest
         #   ignore_error: true
-
     steps:
     - uses: actions/checkout@v2
-
     - uses: actions/cache@v4
       name: Cache common directories
       with:
@@ -260,7 +302,7 @@ jobs:
           ~/.stack
           ~/.ghcup
         # Bump the key version to clear the cache
-        key: ${{ runner.os }}-${{ matrix.ghc_version }}-cabal-v2
+        key: ${{ matrix.command }}-${{ matrix.ghc_version }}-${{ matrix.runner }}
 
     - name: Download packcheck
       run: |
@@ -278,7 +320,7 @@ jobs:
             chmod +x $PACKCHECK
         fi
 
-    - name: Run tests
+    - name: Run packcheck
       run: |
         if test -n "$COVERAGE"
         then
@@ -303,5 +345,5 @@ jobs:
             rm cabal.project
             cd "$SUBDIR"
           fi
-          bash -c "$PACKCHECK $BUILD"
+          bash -c "$PACKCHECK $PACKCHECK_COMMAND"
         fi
