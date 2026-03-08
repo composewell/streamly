@@ -1,54 +1,67 @@
 freebsd_instance:
-  image_family: freebsd-14-2
+  image_family: freebsd-14-3
 
 task:
-  name: FreeBSD+ghc-9.6.6+cabal
+  name: FreeBSD+ghc-9.10.3+cabal
   env:
-    LC_ALL: C.UTF-8
-    BUILD: cabal
-    GHCUP_VERSION: 0.1.40.0
-    DOCSPEC_URL: https://github.com/phadej/cabal-extras/releases/download/cabal-docspec-0.0.0.20210111/cabal-docspec-0.0.0.20210111.xz
-    DOCSPEC_OPTIONS: "--timeout 60 --check-properties --property-variables xs"
-    # GHCUP_GHC_OPTIONS: ${{ matrix.ghcup_ghc_options }}
-    GHCVER: 9.6.6
-    CABALVER: 3.10.1.0
-    DISABLE_DOCS: n
-    ENABLE_DOCSPEC: n
-    DISABLE_TEST: n
-    DISABLE_BENCH: n
-    DISABLE_DIST_CHECKS: y
-    # SDIST_OPTIONS: ${{ matrix.sdist_options }}
-    DISABLE_SDIST_BUILD: y
+    BUILD_TYPE: cabal
 
-    # Cabal options
+    # ------------------------------------------------------------------------
+    # Common options
+    # ------------------------------------------------------------------------
     CABAL_REINIT_CONFIG: y
-    # CABAL_BUILD_OPTIONS: ${{ matrix.cabal_build_options }} --flag limit-build-mem
-    # CABAL_BUILD_TARGETS: ${{ matrix.cabal_build_targets }}
-    CABAL_PROJECT: cabal.project
+    LC_ALL: C.UTF-8
+
+    # ------------------------------------------------------------------------
+    # What to build
+    # ------------------------------------------------------------------------
+    # DISABLE_TEST: "y"
+    # DISABLE_BENCH: "y"
+    # DISABLE_DOCS: "y"
+    DISABLE_SDIST_BUILD: "y"
+    # DISABLE_SDIST_GIT_CHECK: "y"
+    DISABLE_DIST_CHECKS: "y"
+
+    # ------------------------------------------------------------------------
+    # Selecting tool versions
+    # ------------------------------------------------------------------------
+    # For updating see: https://downloads.haskell.org/~ghcup/
+    GHCUP_VERSION: 0.1.50.2
+    GHCVER: 9.10.3
+
+    # ------------------------------------------------------------------------
+    # stack options (if using stack builds)
+    # ------------------------------------------------------------------------
+    # Note requiring a specific version of stack using STACKVER may fail due to
+    # github API limit while checking and upgrading/downgrading to the specific
+    # version.
+    #STACKVER: "1.6.5"
+    #STACK_UPGRADE: "y"
+    #STACK_YAML: "stack.yaml"
+
+    # ------------------------------------------------------------------------
+    # cabal options
+    # ------------------------------------------------------------------------
     CABAL_CHECK_RELAX: y
+    CABAL_PROJECT: cabal.project
 
-    # Stack options
-    # STACK_UPGRADE: "y"
-    # RESOLVER: ${{ matrix.resolver }}
-    # STACK_YAML: ${{ matrix.stack_yaml }}
-    # STACK_BUILD_OPTIONS: ${{ matrix.stack_build_options }}
+    # ------------------------------------------------------------------------
+    # Where to find the required tools
+    # ------------------------------------------------------------------------
+    PATH: /usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/opt/curl/bin
 
-    # packcheck location and revision
+    # ------------------------------------------------------------------------
+    # Location of packcheck.sh (the shell script invoked to perform CI tests ).
+    # ------------------------------------------------------------------------
+    # You can either commit the packcheck.sh script at this path in your repo or
+    # you can use it by specifying the PACKCHECK_REPO_URL option below in which
+    # case it will be automatically copied from the packcheck repo to this path
+    # during CI tests. In any case it is finally invoked from this path.
     PACKCHECK: "./packcheck.sh"
+    # If you have not committed packcheck.sh in your repo at PACKCHECK
+    # then it is automatically pulled from this URL.
     PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/composewell/packcheck"
-    PACKCHECK_GITHUB_COMMIT: "v0.7.1"
-
-    # Pull token from "secrets" setting of the github repo
-    # COVERALLS_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
-    # COVERAGE: ${{ matrix.coverage }}
-
-    # hlint
-    # HLINT_VERSION: 3.6.1
-    # HLINT_OPTIONS: "lint"
-    # HLINT_TARGETS: "core/src src test benchmark"
-
-    # Subdir
-    # SUBDIR: ${{ matrix.subdir }}
+    PACKCHECK_GITHUB_COMMIT: "fac7ab9aad48d5b80a1d65efb34ff353a848e927"
 
   deps_install_script: |
       pkg install -y gmake
@@ -70,5 +83,4 @@ task:
       fi
 
   packcheck_run_script: |
-      export PATH=$HOME/.local/bin:$HOME/.ghcup/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/opt/curl/bin
-      bash -c "$PACKCHECK $BUILD"
+      bash -c "$PACKCHECK $BUILD_TYPE"
