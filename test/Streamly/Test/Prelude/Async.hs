@@ -14,7 +14,7 @@ module Streamly.Test.Prelude.Async (main) where
 import Control.Concurrent (threadDelay)
 import Data.List (sort)
 import Test.Hspec.QuickCheck
-import Test.QuickCheck (Property, withMaxSuccess)
+import Test.QuickCheck (Property)
 import Test.QuickCheck.Monadic (monadicIO, run)
 import Test.Hspec as H
 
@@ -32,7 +32,7 @@ moduleName = "Prelude.Async"
 constructfromAsyncSingleThread ::
     S.AsyncT IO Int -> S.AsyncT IO Int-> [Int] -> Property
 constructfromAsyncSingleThread s1 s2 res =
-    withMaxSuccess maxTestCount $
+    withNumTests maxTestCount $
     monadicIO $ do
         x <-  run
             $ S.toList

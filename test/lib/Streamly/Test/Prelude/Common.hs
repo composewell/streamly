@@ -131,7 +131,7 @@ import GHC.Word (Word8)
 import System.Mem (performMajorGC)
 import Test.Hspec.QuickCheck
 import Test.Hspec
-import Test.QuickCheck (Property, choose, forAll, listOf, withMaxSuccess)
+import Test.QuickCheck (Property, choose, forAll, listOf)
 import Test.QuickCheck.Monadic (assert, monadicIO, run)
 
 import Streamly.Prelude (SerialT, IsStream, (.:), nil, (|&), fromSerial)
@@ -177,7 +177,7 @@ constructWithLen
     -> (t IO a -> SerialT IO a)
     -> Word8
     -> Property
-constructWithLen mkStream mkList op len = withMaxSuccess maxTestCount $
+constructWithLen mkStream mkList op len = withNumTests maxTestCount $
     monadicIO $ do
         stream <- run $ (S.toList . op) (mkStream (fromIntegral len))
         let list = mkList (fromIntegral len)
@@ -189,7 +189,7 @@ constructWithLenM
     -> (t IO Int -> SerialT IO Int)
     -> Word8
     -> Property
-constructWithLenM mkStream mkList op len = withMaxSuccess maxTestCount $
+constructWithLenM mkStream mkList op len = withNumTests maxTestCount $
     monadicIO $ do
         stream <- run $ (S.toList . op) (mkStream (fromIntegral len))
         list <- run $ mkList (fromIntegral len)
@@ -249,7 +249,7 @@ constructWithDoubleFromThenTo op l =
 constructWithIterate ::
        IsStream t => (t IO Int -> SerialT IO Int) -> Word8 -> Property
 constructWithIterate op len =
-    withMaxSuccess maxTestCount $
+    withNumTests maxTestCount $
     monadicIO $ do
         stream <-
             run $
@@ -261,7 +261,7 @@ constructWithIterate op len =
 constructWithIterateM ::
        IsStream t => (t IO Int -> SerialT IO Int) -> Word8 -> Property
 constructWithIterateM op len =
-    withMaxSuccess maxTestCount $
+    withNumTests maxTestCount $
     monadicIO $ do
         mvl <- run (newIORef [] :: IO (IORef [Int]))
         let addM mv x y = modifyIORef' mv (++ [y + x]) >> return (y + x)
@@ -276,7 +276,7 @@ constructWithIterateM op len =
 constructWithFromIndices ::
        IsStream t => (t IO Int -> SerialT IO Int) -> Word8 -> Property
 constructWithFromIndices op len =
-    withMaxSuccess maxTestCount $
+    withNumTests maxTestCount $
     monadicIO $ do
         stream <-
             run $ (S.toList . op . S.take (fromIntegral len)) (S.fromIndices id)
@@ -286,7 +286,7 @@ constructWithFromIndices op len =
 constructWithFromIndicesM ::
        IsStream t => (t IO Int -> SerialT IO Int) -> Word8 -> Property
 constructWithFromIndicesM op len =
-    withMaxSuccess maxTestCount $
+    withNumTests maxTestCount $
     monadicIO $ do
         mvl <- run (newIORef [] :: IO (IORef [Int]))
         let addIndex mv i = modifyIORef' mv (++ [i]) >> return i
@@ -304,7 +304,7 @@ constructWithCons ::
     -> Word8
     -> Property
 constructWithCons cons op len =
-    withMaxSuccess maxTestCount $
+    withNumTests maxTestCount $
     monadicIO $ do
         strm <-
             run
@@ -321,7 +321,7 @@ constructWithConsM ::
     -> Word8
     -> Property
 constructWithConsM consM listT op len =
-    withMaxSuccess maxTestCount $
+    withNumTests maxTestCount $
     monadicIO $ do
         strm <-
             run $
@@ -337,7 +337,7 @@ constructWithEnumerate ::
     -> Word8
     -> Property
 constructWithEnumerate listT op len =
-    withMaxSuccess maxTestCount $
+    withNumTests maxTestCount $
     monadicIO $ do
         strm <- run $ S.toList . op . S.take (fromIntegral len) $ S.enumerate
         let list = take (fromIntegral len) (enumFrom minBound)
@@ -350,7 +350,7 @@ constructWithEnumerateTo ::
     -> Word8
     -> Property
 constructWithEnumerateTo listT op len =
-    withMaxSuccess maxTestCount $
+    withNumTests maxTestCount $
     monadicIO $ do
         -- It takes forever to enumerate from minBound to len, so
         -- instead we just do till len elements
@@ -365,7 +365,7 @@ constructWithFromList ::
     -> Word8
     -> Property
 constructWithFromList listT op len =
-    withMaxSuccess maxTestCount $
+    withNumTests maxTestCount $
     monadicIO $ do
         strm <- run $ S.toList . op . S.fromList $ [0 .. fromIntegral len]
         let list = [0 .. fromIntegral len]
@@ -378,7 +378,7 @@ constructWithFromListM ::
     -> Word8
     -> Property
 constructWithFromListM listT op len =
-    withMaxSuccess maxTestCount $
+    withNumTests maxTestCount $
     monadicIO $ do
         strm <-
             run $
@@ -393,7 +393,7 @@ constructWithUnfoldr ::
     -> Word8
     -> Property
 constructWithUnfoldr listT op len =
-    withMaxSuccess maxTestCount $
+    withNumTests maxTestCount $
     monadicIO $ do
         strm <- run $ S.toList . op $ S.unfoldr unfoldStep 0
         let list = unfoldr unfoldStep 0
@@ -411,7 +411,7 @@ constructWithFromPure ::
     -> Word8
     -> Property
 constructWithFromPure listT op len =
-    withMaxSuccess maxTestCount $
+    withNumTests maxTestCount $
     monadicIO $ do
         strm <-
             run
@@ -427,7 +427,7 @@ constructWithFromEffect ::
     -> Word8
     -> Property
 constructWithFromEffect listT op len =
-    withMaxSuccess maxTestCount $
+    withNumTests maxTestCount $
     monadicIO $ do
         strm <-
             run
@@ -503,7 +503,7 @@ transformFromList2
   -> ([a], [a])
   -> Property
 transformFromList2 constr eq listOp op (a, b) =
-    withMaxSuccess maxTestCount $
+    withNumTests maxTestCount $
     monadicIO $ do
         stream <- run (S.toList $ op (constr a) (constr b))
         let list = listOp a b
@@ -1059,7 +1059,7 @@ transformCombineFromList
     -> [Int]
     -> Property
 transformCombineFromList constr eq listOp t op a b c =
-    withMaxSuccess maxTestCount $
+    withNumTests maxTestCount $
         monadicIO $ do
             stream <- run ((S.toList . t) $
                 constr a <> op (constr b <> constr c))
@@ -1164,7 +1164,7 @@ transformCombineOpsCommon constr desc eq t = do
 
     -- tap
     prop (desc <> " tap FL.sum . map (+1)") $ \a b ->
-        withMaxSuccess maxTestCount $
+        withNumTests maxTestCount $
         monadicIO $ do
             cref <- run $ newIORef 0
             let fldstp _ e = modifyIORef' cref (e +)
@@ -1276,7 +1276,7 @@ monadThen
     -> (t IO Int -> SerialT IO Int)
     -> ([Int], [Int])
     -> Property
-monadThen constr eq t (a, b) = withMaxSuccess maxTestCount $ monadicIO $ do
+monadThen constr eq t (a, b) = withNumTests maxTestCount $ monadicIO $ do
     stream <- run ((S.toList . t) (constr a >> constr b))
     let list = a >> b
     listEquals eq stream list
@@ -1288,7 +1288,7 @@ monadBind
     -> (t IO Int -> SerialT IO Int)
     -> ([Int], [Int])
     -> Property
-monadBind constr eq t (a, b) = withMaxSuccess maxTestCount $
+monadBind constr eq t (a, b) = withNumTests maxTestCount $
     monadicIO $ do
         stream <-
             run
@@ -1308,7 +1308,7 @@ zipApplicative
     -> (t IO (Int, Int) -> SerialT IO (Int, Int))
     -> ([Int], [Int])
     -> Property
-zipApplicative constr eq t (a, b) = withMaxSuccess maxTestCount $
+zipApplicative constr eq t (a, b) = withNumTests maxTestCount $
     monadicIO $ do
         stream1 <- run ((S.toList . t) ((,) <$> constr a <*> constr b))
         stream2 <- run ((S.toList . t) (pure (,) <*> constr a <*> constr b))
@@ -1325,7 +1325,7 @@ zipMonadic
     -> (t IO (Int, Int) -> SerialT IO (Int, Int))
     -> ([Int], [Int])
     -> Property
-zipMonadic constr eq t (a, b) = withMaxSuccess maxTestCount $
+zipMonadic constr eq t (a, b) = withNumTests maxTestCount $
     monadicIO $ do
         stream1 <-
             run
@@ -1341,7 +1341,7 @@ zipAsyncMonadic
     -> (t IO (Int, Int) -> SerialT IO (Int, Int))
     -> ([Int], [Int])
     -> Property
-zipAsyncMonadic constr eq t (a, b) = withMaxSuccess maxTestCount $
+zipAsyncMonadic constr eq t (a, b) = withNumTests maxTestCount $
     monadicIO $ do
         stream1 <-
             run
@@ -1362,7 +1362,7 @@ zipAsyncApplicative
     -> (t IO (Int, Int) -> SerialT IO (Int, Int))
     -> ([Int], [Int])
     -> Property
-zipAsyncApplicative constr eq t (a, b) = withMaxSuccess maxTestCount $
+zipAsyncApplicative constr eq t (a, b) = withNumTests maxTestCount $
     monadicIO $ do
         stream <-
             run
@@ -1396,7 +1396,7 @@ parallelCheck t f = do
 
 beforeProp :: IsStream t => (t IO Int -> SerialT IO Int) -> [Int] -> Property
 beforeProp t vec =
-    withMaxSuccess maxTestCount $
+    withNumTests maxTestCount $
     monadicIO $ do
         ioRef <- run $ newIORef []
         run
@@ -1410,7 +1410,7 @@ beforeProp t vec =
 
 afterProp :: IsStream t => (t IO Int -> SerialT IO Int) -> [Int] -> Property
 afterProp t vec =
-    withMaxSuccess maxTestCount $
+    withNumTests maxTestCount $
     monadicIO $ do
         ioRef <- run $ newIORef []
         run
@@ -1424,7 +1424,7 @@ afterProp t vec =
 
 bracketProp :: IsStream t => (t IO Int -> SerialT IO Int) -> [Int] -> Property
 bracketProp t vec =
-    withMaxSuccess maxTestCount $
+    withNumTests maxTestCount $
     monadicIO $ do
         ioRef <- run $ newIORef (0 :: Int)
         run $
@@ -1444,7 +1444,7 @@ bracketPartialStreamProp ::
        (IsStream t) => (t IO Int -> SerialT IO Int) -> [Int] -> Property
 bracketPartialStreamProp t vec =
     forAll (choose (0, length vec)) $ \len -> do
-        withMaxSuccess maxTestCount $
+        withNumTests maxTestCount $
             monadicIO $ do
                 ioRef <- run $ newIORef (0 :: Int)
                 run $
@@ -1470,7 +1470,7 @@ bracketExceptionProp ::
     => (t IO Int -> SerialT IO Int)
     -> Property
 bracketExceptionProp t =
-    withMaxSuccess maxTestCount $
+    withNumTests maxTestCount $
     monadicIO $ do
         ioRef <- run $ newIORef (0 :: Int)
         res <-
@@ -1486,7 +1486,7 @@ bracketExceptionProp t =
 
 finallyProp :: (IsStream t) => (t IO Int -> SerialT IO Int) -> [Int] -> Property
 finallyProp t vec =
-    withMaxSuccess maxTestCount $
+    withNumTests maxTestCount $
     monadicIO $ do
         ioRef <- run $ newIORef (0 :: Int)
         run $
@@ -1533,7 +1533,7 @@ finallyPartialStreamProp ::
        (IsStream t) => (t IO Int -> SerialT IO Int) -> [Int] -> Property
 finallyPartialStreamProp t vec =
     forAll (choose (0, length vec)) $ \len -> do
-        withMaxSuccess maxTestCount $
+        withNumTests maxTestCount $
             monadicIO $ do
                 ioRef <- run $ newIORef (0 :: Int)
                 run $
@@ -1557,7 +1557,7 @@ finallyExceptionProp ::
     => (t IO Int -> SerialT IO Int)
     -> Property
 finallyExceptionProp t =
-    withMaxSuccess maxTestCount $
+    withNumTests maxTestCount $
     monadicIO $ do
         ioRef <- run $ newIORef (0 :: Int)
         res <-
@@ -1575,7 +1575,7 @@ onExceptionProp ::
     => (t IO Int -> SerialT IO Int)
     -> Property
 onExceptionProp t =
-    withMaxSuccess maxTestCount $
+    withNumTests maxTestCount $
     monadicIO $ do
         ioRef <- run $ newIORef (0 :: Int)
         res <-
@@ -1594,7 +1594,7 @@ handleProp ::
     -> [Int]
     -> Property
 handleProp t vec =
-    withMaxSuccess maxTestCount $
+    withNumTests maxTestCount $
     monadicIO $ do
         res <-
             run $

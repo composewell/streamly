@@ -20,7 +20,7 @@ import Data.Maybe ( isJust, fromJust )
 import Data.Word (Word8)
 import Streamly.Data.Stream (Stream)
 import Test.Hspec.QuickCheck
-import Test.QuickCheck (Testable, Property, choose, forAll, withMaxSuccess)
+import Test.QuickCheck (Testable, Property, choose, forAll)
 import Test.QuickCheck.Monadic (monadicIO, run)
 import Test.Hspec as H
 
@@ -29,7 +29,7 @@ import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.Prelude as Stream
 import qualified Streamly.Internal.Data.Stream.Prelude as Async
 
-import Streamly.Test.Common (listEquals)
+import Streamly.Test.Common (withNumTests, listEquals)
 
 moduleName :: String
 moduleName = "Data.Stream.Concurrent"
@@ -68,7 +68,7 @@ transformCombineFromList ::
     -> [Int]
     -> Property
 transformCombineFromList constr eq listOp op a b c =
-    withMaxSuccess maxTestCount $
+    withNumTests maxTestCount $
         monadicIO $ do
             let s1 = op (Async.parList id [constr b, constr c])
             let s2 = Async.parList id [constr a, s1]
@@ -199,7 +199,7 @@ constructWithLenM
     -> Word8
     -> Property
 constructWithLenM mkStream mkList len =
-    withMaxSuccess maxTestCount
+    withNumTests maxTestCount
         $ monadicIO $ do
             stream <-
                 run

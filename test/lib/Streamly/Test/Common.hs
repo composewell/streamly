@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
 -- |
 -- Module      : Streamly.Test.Common
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -14,16 +15,22 @@ module Streamly.Test.Common
     , chooseInt
     , chooseDouble
     , performGCSweep
+    , withNumTests
     ) where
 
 import Control.Monad (when, void, replicateM_)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.List ((\\))
 import System.Mem (performMajorGC)
-import Test.QuickCheck (Property, Gen, choose, counterexample)
+import Test.QuickCheck
+    (Testable, Property, Gen, choose, counterexample, withMaxSuccess)
 import Test.QuickCheck.Monadic (PropertyM, assert, monitor, monadicIO)
 
 import qualified Streamly.Internal.Data.MutArray as MA
+
+-- withMaxSuccess is deprecated
+withNumTests :: Testable prop => Int -> prop -> Property
+withNumTests = withMaxSuccess
 
 equals
     :: (Show a, Monad m)

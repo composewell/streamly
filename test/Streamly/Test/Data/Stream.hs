@@ -34,7 +34,6 @@ import Test.QuickCheck
     , listOf1
     , suchThat
     , vectorOf
-    , withMaxSuccess
     )
 import Test.QuickCheck.Monadic (assert, monadicIO, pick, run)
 
@@ -220,7 +219,7 @@ intercalateSplitEqId sep splitter lIntercalater sIntercalater i =
                 <> show i <> " element separator)"
      in prop name
             $ forAll (listWithSep sep)
-            $ \xs -> withMaxSuccess maxTestCount $ monadicIO $ testCase xs
+            $ \xs -> withNumTests maxTestCount $ monadicIO $ testCase xs
 
     where
 
@@ -242,7 +241,7 @@ intercalateSplitEqIdNoSepEnd sep splitter lIntercalater sIntercalater i =
             $ forAll ((,) <$> listWithSep sep <*> nonSepElem sep)
             $ \(xs_, nonSep) -> do
                   let xs = xs_ ++ [nonSep]
-                  withMaxSuccess maxTestCount $ monadicIO $ testCase xs
+                  withNumTests maxTestCount $ monadicIO $ testCase xs
 
     where
 
@@ -263,7 +262,7 @@ concatSplitIntercalateEqConcat sep splitter lIntercalater sIntercalater i =
                 <> show i <> " element separator/possibly empty list)"
      in prop name
             $ forAll (listsWithoutSep sep)
-            $ \xss -> withMaxSuccess maxTestCount $ monadicIO $ testCase xss
+            $ \xss -> withNumTests maxTestCount $ monadicIO $ testCase xss
 
     where
 
@@ -285,7 +284,7 @@ splitIntercalateEqId sep splitter lIntercalater sIntercalater =
      in prop name
             $ forAll (listsWithoutSep1 sep)
             $ \xss -> do
-                  withMaxSuccess maxTestCount $ monadicIO $ testCase xss
+                  withNumTests maxTestCount $ monadicIO $ testCase xss
 
     where
 
@@ -396,7 +395,7 @@ intercalateSplitOnId ::
 intercalateSplitOnId x desc =
     prop (desc <> " intercalate [x] . splitOn (== x) == id") $
         forAll listWithZeroes $ \xs -> do
-            withMaxSuccess maxTestCount $
+            withNumTests maxTestCount $
                 monadicIO $ do
                     ys <- toList $ splitOn (== x) Fold.toList (Stream.fromList xs)
                     listEquals (==) (intercalate [x] ys) xs
@@ -839,7 +838,7 @@ main = hspec
         serialOps    $ eliminationOpsWord8 folded "serially folded"
         serialOps $ \t ->
             prop "drainWhile (> 0)" $ \n ->
-                withMaxSuccess maxTestCount $
+                withNumTests maxTestCount $
                 monadicIO $ do
                     let xs = [1..n]
                     ioRef <- run $ newIORef ([] :: [Int])

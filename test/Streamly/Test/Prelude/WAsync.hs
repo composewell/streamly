@@ -16,7 +16,7 @@ import Control.Concurrent ( threadDelay )
 #endif
 import Data.List (sort)
 import Test.Hspec.QuickCheck
-import Test.QuickCheck (Property, withMaxSuccess)
+import Test.QuickCheck (Property)
 import Test.QuickCheck.Monadic (monadicIO, run)
 import Test.Hspec as H
 
@@ -32,7 +32,7 @@ moduleName = "Prelude.WAsync"
 constructfromWAsync ::
     S.WAsyncT IO Int -> S.WAsyncT IO Int-> [Int] -> Property
 constructfromWAsync s1 s2 res =
-    withMaxSuccess maxTestCount $
+    withNumTests maxTestCount $
     monadicIO $ do
         x <-  run
             $ S.toList

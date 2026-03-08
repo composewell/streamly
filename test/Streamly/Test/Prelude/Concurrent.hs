@@ -26,8 +26,7 @@ import Data.IORef (readIORef, modifyIORef, newIORef)
 import GHC.Word (Word8)
 import Test.Hspec.QuickCheck
 import Test.Hspec as H
-import Test.QuickCheck
-       (Property, withMaxSuccess)
+import Test.QuickCheck (Property)
 import Test.QuickCheck.Monadic (monadicIO, run)
 
 import Streamly.Prelude hiding (fold, replicate, replicateM, reverse, runStateT)
@@ -149,7 +148,7 @@ concurrentOps
     -> (t IO Word8 -> SerialT IO Word8)
     -> Spec
 concurrentOps constr desc eq t = do
-    let prop1 d p = prop d $ withMaxSuccess maxTestCount p
+    let prop1 d p = prop d $ withNumTests maxTestCount p
 
     prop1 (desc <> " fromFoldableM") $ concurrentFromFoldable eq t
     prop1 (desc <> " unfoldrM") $ concurrentUnfoldrM eq t
@@ -176,7 +175,7 @@ concurrentApplication :: IsStream t
     -> (t IO Word8 -> SerialT IO Word8)
     -> Word8
     -> Property
-concurrentApplication eq t n = withMaxSuccess maxTestCount $
+concurrentApplication eq t n = withNumTests maxTestCount $
     monadicIO $ do
         -- XXX we should test empty list case as well
         let list = [0..n]
@@ -423,9 +422,9 @@ main = hspec
         parallelConcurrentAppOps $
             prop "parallel" . concurrentApplication sortEq
 
-        prop "concurrent foldr application" $ withMaxSuccess maxTestCount
+        prop "concurrent foldr application" $ withNumTests maxTestCount
             concurrentFoldrApplication
-        prop "concurrent foldl application" $ withMaxSuccess maxTestCount
+        prop "concurrent foldl application" $ withNumTests maxTestCount
             concurrentFoldlApplication
 
     describe "take on infinite concurrent stream" $ takeInfinite fromAsync
