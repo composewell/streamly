@@ -574,16 +574,16 @@ library
                     -- depend on streamly.
                        ghc-prim          >= 0.5.3 && < 0.14
                      , fusion-plugin-types >= 0.1 && < 0.2
-                     , base              >= 4.12  && < 4.22
+                     , base              >= 4.12  && < 4.23
                      , exceptions        >= 0.8.0 && < 0.11
                      , transformers      >= 0.5.5 && < 0.7
 
                     -- streamly-unicode-core
-                     , template-haskell  >= 2.14  && < 2.24
+                     , template-haskell  >= 2.14  && < 2.25
 
                      -- XXX to be removed
                      , filepath          >= 1.4.2 && < 1.6
-                     , containers        >= 0.6.0 && < 0.8
+                     , containers        >= 0.6.0 && < 0.9
                      , heaps             >= 0.3   && < 0.5
 
     if impl(ghc >= 9.0)
@@ -595,4 +595,4 @@ library
       build-depends:   monad-control     >= 1.0 && < 1.1
 
     if os(windows)
-      build-depends: Win32            >= 2.6 && < 2.14
+      build-depends: Win32            >= 2.6 && < 2.15

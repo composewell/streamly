@@ -533,13 +533,13 @@ library
                     -- packages depending on the "ghc" package (packages
                     -- depending on doctest is a common example) can
                     -- depend on streamly.
-                       base              >= 4.12  && < 4.22
+                       base              >= 4.12  && < 4.23
                      , fusion-plugin-types >= 0.1 && < 0.2
-                     , containers        >= 0.6.0 && < 0.8
+                     , containers        >= 0.6.0 && < 0.9
                      , exceptions        >= 0.8.0 && < 0.11
                      , mtl               >= 2.2.2 && < 2.4
                      , transformers      >= 0.5.5 && < 0.7
-                     , template-haskell  >= 2.14  && < 2.24
+                     , template-haskell  >= 2.14  && < 2.25
 
                      -- The core streamly package
                      , streamly-core     == 0.4.0
@@ -554,7 +554,8 @@ library
                      , unicode-data      >= 0.1 && < 0.9
 
                     -- Network
-                     , network           >= 2.6   && < 3.3
+                    -- network version 3.2.8 is broken on windows
+                     , network           >= 2.6 && < 3.2.8
 
 
     if impl(ghc < 9.10)
@@ -571,7 +572,7 @@ library
       build-depends:   monad-control     >= 1.0 && < 1.1
 
     if flag(internal-dev)
-      build-depends: primitive >= 0.5.4 && < 0.9
+      build-depends: primitive >= 0.5.4 && < 0.10
                    , deepseq           >= 1.4.4 && < 1.6
 
     -- For FileSystem.Event module
@@ -579,7 +580,7 @@ library
       build-depends: directory >= 1.2.2 && < 1.4
 
     if os(windows)
-      build-depends: Win32 >= 2.6 && < 2.14
+      build-depends: Win32 >= 2.6 && < 2.15
 
     if os(darwin)
       build-depends: directory >= 1.2.2 && < 1.4
