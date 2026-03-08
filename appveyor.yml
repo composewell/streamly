@@ -1,7 +1,8 @@
-# packcheck-0.4.2
+# packcheck-0.7.1
 # You can use any of the options supported by packcheck as environment
-# variables here.  See https://github.com/harendra-kumar/packcheck for all
+# variables here.  See https://github.com/composewell/packcheck for all
 # options and their explanation.
+#
 branches:
   only:
     - master
@@ -14,11 +15,16 @@ environment:
     # ------------------------------------------------------------------------
     # Common options
     # ------------------------------------------------------------------------
-    # GHC 9.2.7 onwards redundant constraint warnings are incompatible with
-    # older versions
-    GHC_OPTIONS: "-Werror"
     CABAL_REINIT_CONFIG: "y"
     LC_ALL: "C.UTF-8"
+
+    # ------------------------------------------------------------------------
+    # How to build
+    # ------------------------------------------------------------------------
+    #
+    GHCUP_VERSION: "0.1.50.2"
+    GHCVER: "9.10.3"
+    #CABALVER: "3.10.3.0"
 
     # ------------------------------------------------------------------------
     # What to build
@@ -26,33 +32,17 @@ environment:
     # DISABLE_TEST: "y"
     # DISABLE_BENCH: "y"
     # DISABLE_DOCS: "y"
-    DISABLE_SDIST_BUILD: "y"
     DISABLE_DIST_CHECKS: "y"
-    ENABLE_INSTALL: "y"
-
-    # ------------------------------------------------------------------------
-    # stack options
-    # ------------------------------------------------------------------------
-    # Note requiring a specific version of stack using STACKVER may fail due to
-    # github API limit while checking and upgrading/downgrading to the specific
-    # version.
-    # STACKVER: "1.6.5"
-    STACK_UPGRADE: "y"
-    # RESOLVER: "lts-18.27"
-    STACK_ROOT: "c:\\sr"
-    STACK_BUILD_OPTIONS: "--flag streamly-benchmarks:-opt"
-    STACK_YAML: "stack.yaml"
+    DISABLE_SDIST_BUILD: "y"
+    # Note: these require the "diff" utility.
+    # DISABLE_SDIST_GIT_CHECK: "y"
+    # DISABLE_SDIST_PROJECT_CHECK: "y"
 
     # ------------------------------------------------------------------------
     # cabal options
     # ------------------------------------------------------------------------
     CABAL_CHECK_RELAX: "y"
-
-    # ------------------------------------------------------------------------
-    # Where to find the required tools
-    # ------------------------------------------------------------------------
-    PATH: "%PATH%;%APPDATA%\\local\\bin"
-    LOCAL_BIN: "%APPDATA%\\local\\bin"
+    CABAL_PROJECT: "cabal.project"
 
     # ------------------------------------------------------------------------
     # Location of packcheck.sh (the shell script invoked to perform CI tests ).
@@ -65,31 +55,32 @@ environment:
     # If you have not committed packcheck.sh in your repo at PACKCHECK_LOCAL_PATH
     # then it is automatically pulled from this URL.
     PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/composewell/packcheck"
-    PACKCHECK_GITHUB_COMMIT: "101c73b53473ddfb763d65058b80123991cfeb4f"
+    PACKCHECK_GITHUB_COMMIT: "fac7ab9aad48d5b80a1d65efb34ff353a848e927"
 
     # Override the temp directory to avoid sed escaping issues
     # See https://github.com/haskell/cabal/issues/5386
     TMP: "c:\\tmp"
 
+# Bump the -> version to clear the cache
+# packcheck uses "%APPDATA%\\local" to install tools like hlint etc.
+# cabal may use "%APPDATA%\\cabal" or "c:\\cabal"
+# ghcup may use "%APPDATA%\\ghcup" or "c:\\ghcup"
 cache:
-  - "%STACK_ROOT%"
-  - "%LOCAL_BIN%"
+  - "%APPDATA%\\local\\bin -> v1"
   - "%APPDATA%\\cabal"
-  - "%APPDATA%\\ghc"
-# - "%LOCALAPPDATA%\\Programs\\stack"
+  - "C:\\ghcup"
+  - "C:\\cabal"
 
+# Folder where the repository is cloned.
 clone_folder: "c:\\pkg"
 build: off
 
 before_test:
-- if not exist %PACKCHECK_LOCAL_PATH% curl -sSkL -o%PACKCHECK_LOCAL_PATH% %PACKCHECK_GITHUB_URL%/%PACKCHECK_GITHUB_COMMIT%/packcheck.sh
-- if not exist %LOCAL_BIN% mkdir %LOCAL_BIN%
-- where stack.exe || curl -sSkL -ostack.zip http://www.stackage.org/stack/windows-x86_64 && 7z x stack.zip stack.exe && move stack.exe %LOCAL_BIN%
-- if defined STACKVER (stack upgrade --binary-only --binary-version %STACKVER%) else (stack upgrade --binary-only || ver > nul)
-- stack --version
+- if not exist %PACKCHECK_LOCAL_PATH% curl --fail -sSL -o%PACKCHECK_LOCAL_PATH% %PACKCHECK_GITHUB_URL%/%PACKCHECK_GITHUB_COMMIT%/packcheck.sh
 
 test_script:
-- stack setup > nul
 - for /f "usebackq tokens=*" %%i in (`where 7z.exe`) do set PATH7Z=%%i\..
 - for /f "usebackq tokens=*" %%i in (`where git.exe`) do set PATHGIT=%%i\..
-- chcp 65001 && stack exec bash -- -c "chmod +x %PACKCHECK_LOCAL_PATH%; %PACKCHECK_LOCAL_PATH% stack PATH=/usr/bin:\"%PATH7Z%\":\"%PATHGIT%\""
+- for /f "usebackq tokens=*" %%i in (`where curl.exe`) do set PATHCURL=%%i\..
+- chcp 65001
+- bash %PACKCHECK_LOCAL_PATH% cabal PATH="/usr/bin:%PATH7Z%:%PATHGIT%:%PATHCURL%"
