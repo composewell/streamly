@@ -5,7 +5,6 @@ module Main (main) where
 import Data.List (sort, sortBy)
 import Data.Ord (comparing, Down(..))
 import Data.Semigroup (Sum(..), getSum)
-import Streamly.Test.Common (checkListEqual, listEquals)
 import Test.QuickCheck
     ( Gen
     , Property
@@ -16,7 +15,6 @@ import Test.QuickCheck
     , listOf1
     , property
     , vectorOf
-    , withMaxSuccess
     , generate
     )
 import Control.Monad.IO.Class (liftIO)
@@ -30,6 +28,7 @@ import qualified Streamly.Internal.Data.Stream as Stream
 
 import Prelude hiding
     (maximum, minimum, elem, notElem, null, product, sum, head, last, take)
+import Streamly.Test.Common
 import Test.Hspec as H
 import Test.Hspec.QuickCheck
 
@@ -47,9 +46,6 @@ min_value = 0
 
 max_value :: Int
 max_value = 10000
-
-chooseInt :: (Int, Int) -> Gen Int
-chooseInt = choose
 
 {-# INLINE maxStreamLen #-}
 {-# INLINE intMin #-}
@@ -272,7 +268,7 @@ drainBy ls = Stream.fold (Fold.drainBy return) (Stream.fromList  ls) `shouldRetu
 mean :: Property
 mean =
     forAll (listOf1 (chooseFloat (-100.0, 100.0)))
-        $ \ls0 -> withMaxSuccess 1000 $ monadicIO $ action ls0
+        $ \ls0 -> withNumTests 1000 $ monadicIO $ action ls0
 
     where
 
@@ -284,7 +280,7 @@ mean =
 stdDev :: Property
 stdDev =
     forAll (listOf1 (chooseFloat (-100.0, 100.0)))
-        $ \ls0 -> withMaxSuccess 1000 $ monadicIO $ action ls0
+        $ \ls0 -> withNumTests 1000 $ monadicIO $ action ls0
 
     where
 
@@ -298,7 +294,7 @@ stdDev =
 variance :: Property
 variance =
     forAll (listOf1 (chooseFloat (-100.0, 100.0)))
-        $ \ls0 -> withMaxSuccess 1000 $ monadicIO $ action ls0
+        $ \ls0 -> withNumTests 1000 $ monadicIO $ action ls0
 
     where
 
