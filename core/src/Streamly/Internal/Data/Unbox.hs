@@ -196,6 +196,7 @@ import qualified Streamly.Internal.Data.MutByteArray.Type as MutByteArray
 -- Here is an example, for deriving an instance of this type class using
 -- generics:
 --
+-- >>> :set -XDeriveGeneric
 -- >>> import GHC.Generics (Generic)
 -- >>> :{
 -- data Object = Object
