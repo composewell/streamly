@@ -52,7 +52,7 @@ jobs:
       GHCVER: ${{ matrix.ghc_version }}
 
       # ------------------------------------------------------------------------
-      # stack options
+      # stack options (if using stack builds)
       # ------------------------------------------------------------------------
       # Note requiring a specific version of stack using STACKVER may fail due to
       # github API limit while checking and upgrading/downgrading to the specific
@@ -64,15 +64,7 @@ jobs:
       # ------------------------------------------------------------------------
       # cabal options
       # ------------------------------------------------------------------------
-      # Github has machines with 2 CPUS and 6GB memory so the cabal jobs
-      # default (ncpus) is good, this can be checked from the packcheck
-      # output in case it changes.
       CABAL_CHECK_RELAX: y
-
-      # ------------------------------------------------------------------------
-      # Where to find the required tools
-      # ------------------------------------------------------------------------
-      PATH: /sbin:/usr/sbin:/bin:/usr/bin
 
       # ------------------------------------------------------------------------
       # Location of packcheck.sh (the shell script invoked to perform CI tests ).
@@ -85,7 +77,7 @@ jobs:
       # If you have not committed packcheck.sh in your repo at PACKCHECK
       # then it is automatically pulled from this URL.
       PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/composewell/packcheck"
-      PACKCHECK_GITHUB_COMMIT: "fac7ab9aad48d5b80a1d65efb34ff353a848e927"
+      PACKCHECK_GITHUB_COMMIT: "9dd1ef534075f9628593d627f76085a84b304597"
 
       # ------------------------------------------------------------------------
       # Final build variables
@@ -267,6 +259,16 @@ jobs:
               CABAL_BUILD_OPTIONS="--flags \"-opt\""
             ignore_error: false
 
+          - name: ci
+            runner: windows-latest
+            command: cabal
+            ghc_version: 9.10.3
+            pack_options: >-
+              CABAL_PROJECT=cabal.project
+              CABAL_BUILD_OPTIONS="--flag limit-build-mem"
+              DISABLE_SDIST_BUILD="y"
+            ignore_error: false
+
         # - name: 8.10.7-coverage
         #   ghc_version: 8.10.7
         #   runner: ubuntu-latest
@@ -291,26 +293,43 @@ jobs:
         #   build: hlint
         #   runner: ubuntu-latest
         #   ignore_error: true
+
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - uses: actions/cache@v4
-      name: Cache common directories
+      name: Cache common directories (non-Windows)
+      if: runner.os != 'Windows'
       with:
+        # On macos ghcup gets installed in ~/.ghcup
+        # On Linux it is /usr/local/.ghcup
         path: |
-          ~/.local
+          ~/.local/bin
           ~/.cabal
           ~/.stack
           ~/.ghcup
+          /usr/local/.ghcup
         # Bump the key version to clear the cache
         key: ${{ matrix.command }}-${{ matrix.ghc_version }}-${{ matrix.runner }}
 
+    - uses: actions/cache@v4
+      name: Cache common directories (Windows)
+      if: runner.os == 'Windows'
+      with:
+        path: |
+          ${{ env.APPDATA }}/local/bin
+          C:/ghcup
+          C:/cabal
+        key: ${{ matrix.command }}-${{ matrix.ghc_version }}-${{ matrix.runner }}
+
     - name: Download packcheck
+      # on windows-latest GitHub Actions defaults to PowerShell
+      shell: bash
       run: |
         if test ! -e "$PACKCHECK"
         then
           if test -z "$PACKCHECK_GITHUB_COMMIT"
           then
-              die "PACKCHECK_GITHUB_COMMIT is not specified."
+              die "PACKCHECK_GITHUB_COMMIT env var is not specified."
           fi
           PACKCHECK_URL=${PACKCHECK_GITHUB_URL}/${PACKCHECK_GITHUB_COMMIT}/packcheck.sh
           curl --fail -sL -o "$PACKCHECK" $PACKCHECK_URL || exit 1
@@ -321,6 +340,8 @@ jobs:
         fi
 
     - name: Run packcheck
+      # on windows-latest GitHub Actions defaults to PowerShell
+      shell: bash
       run: |
         if test -n "$COVERAGE"
         then
@@ -335,8 +356,6 @@ jobs:
           # XXX Uncomment this and fix it properly later
           # hpc-coveralls --repo-token="$COVERALLS_TOKEN" --coverage-mode=StrictlyFullLines
         else
-          # /usr/local/opt/curl/bin for macOS
-          export PATH=$HOME/.local/bin:$HOME/.ghcup/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/opt/curl/bin
           if test -n "$SUBDIR"
           then
             mv "$PACKCHECK" "$SUBDIR/packcheck.sh"
@@ -345,5 +364,14 @@ jobs:
             rm cabal.project
             cd "$SUBDIR"
           fi
-          bash -c "$PACKCHECK $PACKCHECK_COMMAND"
+          PATH_VAR=/sbin:/usr/sbin:/bin:/usr/bin
+          case "$(uname)" in
+            CYGWIN*|MINGW*|MSYS*)
+            PATH_VAR="$PATH_VAR:/c/Program Files/7-Zip:/mingw64/bin"
+              ;;
+          esac
+          # Use "bash -c" instead of invoking directly to preserve quoted
+          # arguments in PACKCHECK_COMMAND e.g. DOCSPEC_OPTIONS="--timeout 60".
+          # Direct invocation would word-split on spaces inside quoted values.
+          bash -c "$PACKCHECK $PACKCHECK_COMMAND PATH=\"$PATH_VAR\""
         fi
