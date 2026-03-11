@@ -4,7 +4,7 @@ freebsd_instance:
 task:
   name: FreeBSD+ghc-9.10.3+cabal
   env:
-    BUILD_TYPE: cabal
+    PACKCHECK_COMMAND: cabal
 
     # ------------------------------------------------------------------------
     # Common options
@@ -46,11 +46,6 @@ task:
     CABAL_PROJECT: cabal.project
 
     # ------------------------------------------------------------------------
-    # Where to find the required tools
-    # ------------------------------------------------------------------------
-    PATH: /usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/opt/curl/bin
-
-    # ------------------------------------------------------------------------
     # Location of packcheck.sh (the shell script invoked to perform CI tests ).
     # ------------------------------------------------------------------------
     # You can either commit the packcheck.sh script at this path in your repo or
@@ -61,7 +56,27 @@ task:
     # If you have not committed packcheck.sh in your repo at PACKCHECK
     # then it is automatically pulled from this URL.
     PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/composewell/packcheck"
-    PACKCHECK_GITHUB_COMMIT: "fac7ab9aad48d5b80a1d65efb34ff353a848e927"
+    PACKCHECK_GITHUB_COMMIT: "9dd1ef534075f9628593d627f76085a84b304597"
+
+  ghcup_cache:
+    folder: ~/.ghcup
+    fingerprint_script: echo $GHCUP_VERSION $GHCVER
+
+  cabal_packages_cache:
+    folder: ~/.cabal/packages
+    fingerprint_script: echo $GHCVER
+
+  cabal_cache:
+    folder: ~/.cabal/store
+    fingerprint_script: echo $GHCVER
+
+  #local_cache:
+  #  folder: ~/.local
+  #  fingerprint_script: echo $GHCVER
+
+  #local_bin_cache:
+  #  folder: ~/.local/bin
+  #  fingerprint_script: echo $HLINT_VERSION
 
   deps_install_script: |
       pkg install -y gmake
@@ -83,4 +98,8 @@ task:
       fi
 
   packcheck_run_script: |
-      bash -c "$PACKCHECK $BUILD_TYPE"
+      PTH=/usr/local/bin:/usr/bin:/bin
+      # Use "bash -c" instead of invoking directly to preserve quoted
+      # arguments in PACKCHECK_COMMAND e.g. DOCSPEC_OPTIONS="--timeout 60".
+      # Direct invocation would word-split on spaces inside quoted values.
+      bash -c "$PACKCHECK $PACKCHECK_COMMAND PATH=$PTH"
