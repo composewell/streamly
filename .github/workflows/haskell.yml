@@ -3,7 +3,7 @@
 # variables here.  See https://github.com/composewell/packcheck for all
 # options and their explanation.
 
-name: packcheck
+name: TEST
 
 #-----------------------------------------------------------------------------
 # Events on which the build should be triggered
@@ -14,7 +14,6 @@ on:
     branches:
       - master
   pull_request:
-
 
 #-----------------------------------------------------------------------------
 # Build matrix
@@ -66,6 +65,14 @@ jobs:
       # ------------------------------------------------------------------------
       CABAL_CHECK_RELAX: y
 
+      # Build paralellism can cause memory issues. We need to have sufficient
+      # per CPU memory, if not we can use a lower -j option; default is ncpus.
+      # Currently (2026-03-12) from packcheck output we see:
+      # Linux: 15GB, 4 cpus
+      # macOS: 7GB, 3 cpus
+      # Windows: 16GB, 4 cpus
+      # CABAL_BUILD_OPTIONS="-j1"
+
       # ------------------------------------------------------------------------
       # Location of packcheck.sh (the shell script invoked to perform CI tests ).
       # ------------------------------------------------------------------------
@@ -77,7 +84,7 @@ jobs:
       # If you have not committed packcheck.sh in your repo at PACKCHECK
       # then it is automatically pulled from this URL.
       PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/composewell/packcheck"
-      PACKCHECK_GITHUB_COMMIT: "9dd1ef534075f9628593d627f76085a84b304597"
+      PACKCHECK_GITHUB_COMMIT: "8a8e818e51dbadb96628d723eaa42a4e95df9106"
 
       # ------------------------------------------------------------------------
       # Final build variables
@@ -135,6 +142,7 @@ jobs:
             # May also use ghcup for installing ghc head version, use the
             # version "LatestNightly", and the following config:
             # ghcup config add-release-channel https://ghc.gitlab.haskell.org/ghcup-metadata/ghcup-nightlies-0.0.7.yaml
+            # WARNING! cannot use # comments inside pack_options.
             pack_options: >-
               GHCUP_GHC_OPTIONS="-u https://gitlab.haskell.org/ghc/ghc/-/jobs/artifacts/master/raw/ghc-x86_64-linux-deb10-int_native-validate.tar.xz?job=x86_64-linux-deb10-int_native-validate"
               CABAL_PROJECT=cabal.project.ghc-head
@@ -153,6 +161,7 @@ jobs:
             runner: macos-latest
             command: cabal
             ghc_version: 9.14.1
+            # WARNING! cannot use # comments inside pack_options.
             pack_options: >-
               CABAL_PROJECT=cabal.project
               CABAL_BUILD_OPTIONS="--flag debug --flag -opt"
@@ -160,20 +169,20 @@ jobs:
               DISABLE_DOCS="y"
             ignore_error: false
 
+          # Takes too long, so bench is disabled
           - name: ghc-9.12.3
             runner: macos-latest
             command: stack
+            # WARNING! cannot use # comments inside pack_options.
             pack_options: >-
               CABALVER=3.14.2.0
               STACK_UPGRADE="y"
               RESOLVER=nightly-2026-03-10
               STACK_YAML=stack.yaml
-              STACK_BUILD_OPTIONS="-v"
               DISABLE_SDIST_BUILD="y"
-              #SDIST_OPTIONS="--ignore-check"
+              SDIST_OPTIONS="--ignore-check"
               DISABLE_DIST_CHECKS="y"
               DISABLE_DOCS="y"
-              DISABLE_TEST="y"
               DISABLE_BENCH="y"
             ignore_error: false
 
@@ -181,6 +190,7 @@ jobs:
             runner: ubuntu-latest
             command: cabal
             ghc_version: 9.12.2
+            # WARNING! cannot use # comments inside pack_options.
             pack_options: >-
               CABAL_PROJECT=cabal.project
               CABAL_BUILD_OPTIONS="--flag limit-build-mem --flag fusion-plugin"
@@ -192,6 +202,7 @@ jobs:
             runner: ubuntu-latest
             command: cabal
             ghc_version: 9.10.3
+            # WARNING! cannot use # comments inside pack_options.
             pack_options: >-
               CABAL_PROJECT=cabal.project.Werror
               CABAL_BUILD_OPTIONS="--flag limit-build-mem"
@@ -202,6 +213,7 @@ jobs:
             runner: ubuntu-latest
             command: cabal
             ghc_version: 9.10.3
+            # WARNING! cannot use # comments inside pack_options.
             pack_options: >-
               CABAL_PROJECT=cabal.project
               CABAL_BUILD_OPTIONS="--flag fusion-plugin --flag inspection"
@@ -212,6 +224,7 @@ jobs:
             runner: ubuntu-latest
             command: cabal
             ghc_version: 9.8.4
+            # WARNING! cannot use # comments inside pack_options.
             pack_options: >-
               CABAL_PROJECT=cabal.project
               CABAL_BUILD_OPTIONS="--flag fusion-plugin --flag inspection"
@@ -222,6 +235,7 @@ jobs:
             runner: ubuntu-latest
             command: cabal
             ghc_version: 9.6.3
+            # WARNING! cannot use # comments inside pack_options.
             pack_options: >-
               CABAL_PROJECT=cabal.project.streamly
               DISABLE_SDIST_BUILD="y"
@@ -231,6 +245,7 @@ jobs:
             runner: ubuntu-latest
             command: cabal
             ghc_version: 9.4.7
+            # WARNING! cannot use # comments inside pack_options.
             pack_options: >-
               CABAL_PROJECT=cabal.project
               CABAL_BUILD_OPTIONS="--flag force-lstat-readdir"
@@ -241,6 +256,7 @@ jobs:
             runner: ubuntu-latest
             command: cabal
             ghc_version: 9.2.8
+            # WARNING! cannot use # comments inside pack_options.
             pack_options: >-
               CABAL_PROJECT=cabal.project
               GHCUP_GHC_OPTIONS="-u https://s3.ap-south-1.amazonaws.com/downloads.portal.composewell.com/ghc/ghc-9.2.8-x86_64-unknown-linux.tar.xz"
@@ -251,6 +267,7 @@ jobs:
             runner: ubuntu-latest
             command: cabal
             ghc_version: 8.10.7
+            # WARNING! cannot use # comments inside pack_options.
             pack_options: >-
               CABAL_PROJECT=cabal.project
               DISABLE_SDIST_BUILD="y"
@@ -263,63 +280,89 @@ jobs:
             runner: windows-latest
             command: cabal
             ghc_version: 9.10.3
+            # WARNING! cannot use # comments inside pack_options.
             pack_options: >-
               CABAL_PROJECT=cabal.project
               CABAL_BUILD_OPTIONS="--flag limit-build-mem"
               DISABLE_SDIST_BUILD="y"
             ignore_error: false
 
-        # - name: 8.10.7-coverage
-        #   ghc_version: 8.10.7
-        #   runner: ubuntu-latest
-        #   coverage: "y"
-        #   cabal_version: 3.6.2.0
-        #   ignore_error: false
-        #
-        # - name: 9.8.1-docspec
-        #   ghc_version: 9.8.1
-        #   runner: ubuntu-latest
-        #   build: cabal
-        #   cabal_version: 3.10.1.0
-        #   cabal_project: cabal.project.doctest
-        #   disable_test: "y"
-        #   disable_bench: "y"
-        #   disable_docs: "y"
-        #   enable_docspec: "y"
-        #   disable_sdist_build: "y"
-        #   ignore_error: false
-        #
-        # - name: hlint
-        #   build: hlint
-        #   runner: ubuntu-latest
-        #   ignore_error: true
+          #- name: ci
+          #  runner: ubuntu-latest
+          #  command: hlint
+          #  # WARNING! cannot use # comments inside pack_options.
+          #  pack_options: >-
+          #    HLINT_VERSION=3.6.1
+          #    HLINT_OPTIONS="lint"
+          #    HLINT_TARGETS="src"
+          #  ignore_error: false
+
+          # NOTE: need to expose other-modules in cabal to doctest those
+          #- name: docspec
+          #  runner: ubuntu-latest
+          #  command: cabal
+          #  ghc_version: 9.12.2
+          #  # WARNING! cannot use # comments inside pack_options.
+          #  pack_options: >-
+          #    DISABLE_SDIST_BUILD="y"
+          #    DISABLE_TEST="y"
+          #    DISABLE_BENCH="y"
+          #    DISABLE_DOCS="y"
+          #    ENABLE_DOCSPEC="y"
+          #    DOCSPEC_URL=https://github.com/phadej/cabal-extras/releases/download/cabal-docspec-0.0.0.20210111/cabal-docspec-0.0.0.20210111.xz
+          #    DOCSPEC_OPTIONS="--timeout 60 --check-properties --property-variables xs"
+          #    CABAL_PROJECT="cabal.project.doctest"
+          #  ignore_error: false
+
+          # - name: 8.10.7-coverage
+          #   ghc_version: 8.10.7
+          #   runner: ubuntu-latest
+          #   coverage: "y"
+          #   cabal_version: 3.6.2.0
+          #   ignore_error: false
 
     steps:
     - uses: actions/checkout@v4
+
+    # See the "cabal path" output in the CI logs to tweak the cache locations
+    - uses: actions/cache@v4
+      name: Cache ghcup (non-Windows)
+      if: runner.os != 'Windows'
+      with:
+        # ghcup: ~/.ghcup (macOS), /usr/local/.ghcup (Linux)
+        path: |
+          /usr/local/.ghcup
+          ~/.ghcup
+        key: ${{ matrix.runner }}-${{ env.GHCUP_VERSION }}-${{ matrix.ghc_version }}-v1
+
+    # XXX If we want to invalidate the cache on resolver change we
+    # should use a separate cache for stack as it should be keyed on
+    # resolver as well. But that requires resolver as a matrix element
+    # and then copied to pack_options from there, needs some work. It
+    # should be fine as resolver minor version change can only increase
+    # the cache size.
     - uses: actions/cache@v4
       name: Cache common directories (non-Windows)
       if: runner.os != 'Windows'
       with:
-        # On macos ghcup gets installed in ~/.ghcup
-        # On Linux it is /usr/local/.ghcup
+        # cabal: ~/.local/bin, ~/.local/state/cabal, ~/.local/cache/cabal
         path: |
-          ~/.local/bin
           ~/.cabal
+          ~/.local
           ~/.stack
-          ~/.ghcup
-          /usr/local/.ghcup
         # Bump the key version to clear the cache
-        key: ${{ matrix.command }}-${{ matrix.ghc_version }}-${{ matrix.runner }}
+        # Key is same as the CI name
+        key: ${{ matrix.runner }}-${{ matrix.command }}-${{ matrix.ghc_version }}-${{ matrix.name }}-v1
 
     - uses: actions/cache@v4
       name: Cache common directories (Windows)
       if: runner.os == 'Windows'
       with:
         path: |
-          ${{ env.APPDATA }}/local/bin
+          ${{ env.APPDATA }}/local
           C:/ghcup
           C:/cabal
-        key: ${{ matrix.command }}-${{ matrix.ghc_version }}-${{ matrix.runner }}
+        key: ${{ matrix.runner }}-${{ matrix.command }}-${{ matrix.ghc_version }}-${{ matrix.name }}-v1
 
     - name: Download packcheck
       # on windows-latest GitHub Actions defaults to PowerShell
@@ -343,35 +386,36 @@ jobs:
       # on windows-latest GitHub Actions defaults to PowerShell
       shell: bash
       run: |
-        if test -n "$COVERAGE"
+        #if test -n "$COVERAGE"
+        #then
+        #  # Run tests with coverage
+        #  cabal update
+        #  # Build hpc-coveralls if needed
+        #  sudo apt-get install -y libcurl4-gnutls-dev
+        #  export PATH=$HOME/.cabal/bin:$PATH
+        #  which hpc-coveralls 2>/dev/null || cabal install --project-file cabal.project.hpc-coveralls hpc-coveralls
+        #  # Run tests and upload results to coveralls.io
+        #  bin/test.sh --coverage --raw
+        #  # XXX Uncomment this and fix it properly later
+        #  # hpc-coveralls --repo-token="$COVERALLS_TOKEN" --coverage-mode=StrictlyFullLines
+        #fi
+
+        if test -n "$SUBDIR"
         then
-          # Run tests with coverage
-          cabal update
-          # Build hpc-coveralls if needed
-          sudo apt-get install -y libcurl4-gnutls-dev
-          export PATH=$HOME/.cabal/bin:$PATH
-          which hpc-coveralls 2>/dev/null || cabal install --project-file cabal.project.hpc-coveralls hpc-coveralls
-          # Run tests and upload results to coveralls.io
-          bin/test.sh --coverage --raw
-          # XXX Uncomment this and fix it properly later
-          # hpc-coveralls --repo-token="$COVERALLS_TOKEN" --coverage-mode=StrictlyFullLines
-        else
-          if test -n "$SUBDIR"
-          then
-            mv "$PACKCHECK" "$SUBDIR/packcheck.sh"
-            # This is required as dist-newstyle will be created on the top level
-            # directory as it is considered the working dir.
-            rm cabal.project
-            cd "$SUBDIR"
-          fi
-          PATH_VAR=/sbin:/usr/sbin:/bin:/usr/bin
-          case "$(uname)" in
-            CYGWIN*|MINGW*|MSYS*)
-            PATH_VAR="$PATH_VAR:/c/Program Files/7-Zip:/mingw64/bin"
-              ;;
-          esac
-          # Use "bash -c" instead of invoking directly to preserve quoted
-          # arguments in PACKCHECK_COMMAND e.g. DOCSPEC_OPTIONS="--timeout 60".
-          # Direct invocation would word-split on spaces inside quoted values.
-          bash -c "$PACKCHECK $PACKCHECK_COMMAND PATH=\"$PATH_VAR\""
+          mv "$PACKCHECK" "$SUBDIR/packcheck.sh"
+          # This is required otherwise dist-newstyle will be created in
+          # the top level directory as it is considered the working dir.
+          rm cabal.project
+          cd "$SUBDIR"
         fi
+        PATH_VAR=/bin:/usr/bin
+        case "$(uname)" in
+          CYGWIN*|MINGW*|MSYS*)
+            PATH_VAR="$PATH_VAR:/c/Program Files/7-Zip:/mingw64/bin"
+            ;;
+        esac
+        # Use "bash -c" instead of invoking directly to preserve quoted
+        # arguments in PACKCHECK_COMMAND e.g. DOCSPEC_OPTIONS="--timeout 60".
+        # Direct invocation would word-split on spaces inside quoted values.
+        echo "$PACKCHECK $PACKCHECK_COMMAND PATH=\"$PATH_VAR\""
+        bash -c "$PACKCHECK $PACKCHECK_COMMAND PATH=\"$PATH_VAR\""
