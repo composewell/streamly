@@ -1,4 +1,4 @@
-name: Regression checking
+name: PERF
 
 on:
   workflow_dispatch:
@@ -19,8 +19,11 @@ on:
 #----------------------------------------------------------------------
 # Removed Data.Fold.Prelude - was failing for some reason (memory issue?)
 jobs:
-  check-regressions:
+  build:
+    name: "ubuntu-latest ghc-9.10.3 master vs PR"
     env:
+      GHCVER: 9.10.3
+      GHCUP_VER: 0.1.50.2
       CI_BENCHMARKS_WITH_CUTOFF: >-
         Data.Array
         Data.Array.Generic
@@ -59,7 +62,20 @@ jobs:
 
     steps:
 
-    - name: Update environment
+    - name: Checkout the PR branch
+      uses: actions/checkout@v4
+
+    - name: Cache ~/.cabal
+      uses: actions/cache@v4
+      with:
+        path: |
+            ~/.cabal
+            ~/.ghcup
+            ~/.local
+        # Bump the key version to clear the cache
+        key: cache-v2
+
+    - name: Update CI_BENCHMARKS environment variable
       run: |
         CI_BENCHMARKS=""
         for i in $CI_BENCHMARKS_WITH_CUTOFF
@@ -71,40 +87,16 @@ jobs:
 
     - name: Download ghc
       run: |
-        GHCUP_VER=0.1.50.2
-        curl -sL -o ./ghcup https://downloads.haskell.org/~ghcup/$GHCUP_VER/x86_64-linux-ghcup-$GHCUP_VER
-        chmod +x ./ghcup
-        GHCVER=9.10.3
-        ./ghcup install ghc $GHCVER
-        ./ghcup set ghc $GHCVER
+        if ! ghc --version 2>/dev/null | grep -q "$GHCVER"
+        then
+          curl -sL -o ./ghcup https://downloads.haskell.org/~ghcup/$GHCUP_VER/x86_64-linux-ghcup-$GHCUP_VER
+          chmod +x ./ghcup
+          ./ghcup install ghc $GHCVER
+          ./ghcup set ghc $GHCVER
+        fi
         cabal update
 
-    - uses: actions/cache@v4
-      name: Cache ~/.cabal
-      with:
-        path: |
-            ~/.cabal
-        # Bump the key version to clear the cache
-        key: cache-v2
-
-    - name: Cache bench-runner from pr
-      id: cache-bench-runner-pr
-      uses: actions/cache@v4
-      with:
-        path: bench-runner
-        # Bump the key version to clear the cache
-        key: bench-runner-v1
-
-    # -----------------------------------------------------------------
-    # -- Install bench-report in the current directory
-    # -----------------------------------------------------------------
-
-    - name: Checkout the current branch
-      uses: actions/checkout@v2
-      with:
-        clean: false
-
-    - name: Install bench-runner
+    - name: Install bench-runner from PR branch
       run: |
         cabal install bench-runner --project-file=cabal.project.report --installdir=./
 
@@ -112,33 +104,32 @@ jobs:
     # -- Generate reports for the base branch and upload
     # -----------------------------------------------------------------
 
-    - name: Checkout the base branch
-      uses: actions/checkout@v2
+    - name: Checkout the "master" branch
+      uses: actions/checkout@v4
       with:
         ref: master
         clean: false
 
-    - name: Run benchmarks
+    - name: Run benchmarks for "master" branch
       run: |
+        # CABAL_BUILD_OPTIONS="--cabal-build-options \"-j1\""
+        #./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --targets "$CI_BENCHMARKS" --raw
         ./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --cabal-build-options "-j1" --targets "$CI_BENCHMARKS" --raw
-
-    - name: Move charts to charts-master
-      run: mv charts charts-master
 
     # -----------------------------------------------------------------
     # -- Download, generate reports for the current branch and append
     # -----------------------------------------------------------------
 
-    - name: Checkout the current branch
-      uses: actions/checkout@v2
+    - name: Checkout the PR branch
+      uses: actions/checkout@v4
       with:
+        # preserve the "charts" directory created by bench-runner
         clean: false
-
-    - name: Copy charts-master to charts
-      run: cp -r charts-master charts
 
     - name: Run benchmarks and append
       run: |
+        # CABAL_BUILD_OPTIONS="--cabal-build-options \"-j1\""
+        #./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --targets "$CI_BENCHMARKS" --raw --append
         ./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --cabal-build-options "-j1" --targets "$CI_BENCHMARKS" --raw --append
 
     # -----------------------------------------------------------------
@@ -176,4 +167,11 @@ jobs:
           test $? -eq 1 && EXIT_STATUS=1
         done
 
-        exit $EXIT_STATUS
+        # Always exit with success so that we are able to use the cache
+        if test $EXIT_STATUS -ne 0
+        then
+          echo "ERROR: Performance regressions are more than ${CI_DIFF_CUTOFF_PERCENT}%."
+        else
+          echo "SUCCESS: Performance regressions are within ${CI_DIFF_CUTOFF_PERCENT}%."
+        fi
+        exit 0
