@@ -56,7 +56,7 @@ task:
     # If you have not committed packcheck.sh in your repo at PACKCHECK
     # then it is automatically pulled from this URL.
     PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/composewell/packcheck"
-    PACKCHECK_GITHUB_COMMIT: "9dd1ef534075f9628593d627f76085a84b304597"
+    PACKCHECK_GITHUB_COMMIT: "dd6862df527f317fd4987afa523fba3f4fde7e19"
 
   ghcup_cache:
     folder: ~/.ghcup

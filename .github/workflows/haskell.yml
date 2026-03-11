@@ -84,7 +84,7 @@ jobs:
       # If you have not committed packcheck.sh in your repo at PACKCHECK
       # then it is automatically pulled from this URL.
       PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/composewell/packcheck"
-      PACKCHECK_GITHUB_COMMIT: "8a8e818e51dbadb96628d723eaa42a4e95df9106"
+      PACKCHECK_GITHUB_COMMIT: "dd6862df527f317fd4987afa523fba3f4fde7e19"
 
       # ------------------------------------------------------------------------
       # Final build variables
@@ -102,7 +102,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     continue-on-error: ${{ matrix.ignore_error }}
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
 
         # The order of jobs is important to optimize fail-fast.
@@ -129,26 +129,26 @@ jobs:
         # it.
         include:
 
-          - name: ci
-            runner: ubuntu-latest
-            command: cabal
-            ghc_version: head
-            # The URL may change, to find a working URL go to https://gitlab.haskell.org/ghc/ghc/-/jobs/
-            # Find a debian10/11/12 job, click on a passed/failed status, at the
-            # end of the output you will find the tar.xz name, put that tar
-            # name after "raw/", and put the job name after "job=".
-            # Also see https://github.com/mpickering/ghc-artefact-nix/blob/master/gitlab-artifact.nix
-            #
-            # May also use ghcup for installing ghc head version, use the
-            # version "LatestNightly", and the following config:
-            # ghcup config add-release-channel https://ghc.gitlab.haskell.org/ghcup-metadata/ghcup-nightlies-0.0.7.yaml
-            # WARNING! cannot use # comments inside pack_options.
-            pack_options: >-
-              GHCUP_GHC_OPTIONS="-u https://gitlab.haskell.org/ghc/ghc/-/jobs/artifacts/master/raw/ghc-x86_64-linux-deb10-int_native-validate.tar.xz?job=x86_64-linux-deb10-int_native-validate"
-              CABAL_PROJECT=cabal.project.ghc-head
-              CABAL_BUILD_OPTIONS="--flag limit-build-mem"
-              DISABLE_SDIST_BUILD="y"
-            ignore_error: true
+          #- name: ci
+          #  runner: ubuntu-latest
+          #  command: cabal
+          #  ghc_version: head
+          #  # The URL may change, to find a working URL go to https://gitlab.haskell.org/ghc/ghc/-/jobs/
+          #  # Find a debian10/11/12 job, click on a passed/failed status, at the
+          #  # end of the output you will find the tar.xz name, put that tar
+          #  # name after "raw/", and put the job name after "job=".
+          #  # Also see https://github.com/mpickering/ghc-artefact-nix/blob/master/gitlab-artifact.nix
+          #  #
+          #  # May also use ghcup for installing ghc head version, use the
+          #  # version "LatestNightly", and the following config:
+          #  # ghcup config add-release-channel https://ghc.gitlab.haskell.org/ghcup-metadata/ghcup-nightlies-0.0.7.yaml
+          #  # WARNING! cannot use # comments inside pack_options.
+          #  pack_options: >-
+          #    GHCUP_GHC_OPTIONS="-u https://gitlab.haskell.org/ghc/ghc/-/jobs/artifacts/master/raw/ghc-x86_64-linux-deb10-int_native-validate.tar.xz?job=x86_64-linux-deb10-int_native-validate"
+          #    CABAL_PROJECT=cabal.project.ghc-head
+          #    CABAL_BUILD_OPTIONS="--flag limit-build-mem"
+          #    DISABLE_SDIST_BUILD="y"
+          #  ignore_error: true
 
           - name: streamly-core-sdist
             runner: ubuntu-latest
@@ -167,6 +167,7 @@ jobs:
               CABAL_BUILD_OPTIONS="--flag debug --flag -opt"
               DISABLE_SDIST_BUILD="y"
               DISABLE_DOCS="y"
+              DISABLE_BENCH="y"
             ignore_error: false
 
           # Takes too long, so bench is disabled
@@ -195,6 +196,8 @@ jobs:
               CABAL_PROJECT=cabal.project
               CABAL_BUILD_OPTIONS="--flag limit-build-mem --flag fusion-plugin"
               DISABLE_SDIST_BUILD="y"
+              DISABLE_DOCS="y"
+              DISABLE_BENCH="y"
             ignore_error: false
 
           # Note: use linux for warning build for convenient dev testing
@@ -207,6 +210,7 @@ jobs:
               CABAL_PROJECT=cabal.project.Werror
               CABAL_BUILD_OPTIONS="--flag limit-build-mem"
               DISABLE_SDIST_BUILD="y"
+              DISABLE_BENCH="y"
             ignore_error: false
 
           - name: fusion-inspection
@@ -218,17 +222,19 @@ jobs:
               CABAL_PROJECT=cabal.project
               CABAL_BUILD_OPTIONS="--flag fusion-plugin --flag inspection"
               DISABLE_SDIST_BUILD="y"
+              DISABLE_DOCS="y"
             ignore_error: false
 
-          - name: fusion-inspection
+          - name: ci
             runner: ubuntu-latest
             command: cabal
             ghc_version: 9.8.4
             # WARNING! cannot use # comments inside pack_options.
             pack_options: >-
               CABAL_PROJECT=cabal.project
-              CABAL_BUILD_OPTIONS="--flag fusion-plugin --flag inspection"
               DISABLE_SDIST_BUILD="y"
+              DISABLE_DOCS="y"
+              DISABLE_BENCH="y"
             ignore_error: false
 
           - name: streamly-sdist
@@ -238,7 +244,6 @@ jobs:
             # WARNING! cannot use # comments inside pack_options.
             pack_options: >-
               CABAL_PROJECT=cabal.project.streamly
-              DISABLE_SDIST_BUILD="y"
             ignore_error: true
 
           - name: lstat-readdir
@@ -250,17 +255,21 @@ jobs:
               CABAL_PROJECT=cabal.project
               CABAL_BUILD_OPTIONS="--flag force-lstat-readdir"
               DISABLE_SDIST_BUILD="y"
+              DISABLE_DOCS="y"
+              DISABLE_BENCH="y"
             ignore_error: false
 
-          - name: instrumented
+          - name: ci
             runner: ubuntu-latest
             command: cabal
             ghc_version: 9.2.8
             # WARNING! cannot use # comments inside pack_options.
+            # GHCUP_GHC_OPTIONS="-u https://s3.ap-south-1.amazonaws.com/downloads.portal.composewell.com/ghc/ghc-9.2.8-x86_64-unknown-linux.tar.xz"
             pack_options: >-
               CABAL_PROJECT=cabal.project
-              GHCUP_GHC_OPTIONS="-u https://s3.ap-south-1.amazonaws.com/downloads.portal.composewell.com/ghc/ghc-9.2.8-x86_64-unknown-linux.tar.xz"
               DISABLE_SDIST_BUILD="y"
+              DISABLE_DOCS="y"
+              DISABLE_BENCH="y"
             ignore_error: false
 
           - name: unoptimized
@@ -272,6 +281,7 @@ jobs:
               CABAL_PROJECT=cabal.project
               DISABLE_SDIST_BUILD="y"
               DISABLE_DOCS="y"
+              DISABLE_BENCH="y"
               DISABLE_DIST_CHECKS="y"
               CABAL_BUILD_OPTIONS="--flags \"-opt\""
             ignore_error: false
@@ -331,9 +341,8 @@ jobs:
       with:
         # ghcup: ~/.ghcup (macOS), /usr/local/.ghcup (Linux)
         path: |
-          /usr/local/.ghcup
           ~/.ghcup
-        key: ${{ matrix.runner }}-${{ env.GHCUP_VERSION }}-${{ matrix.ghc_version }}-v1
+        key: ${{ matrix.runner }}-ghcup-${{ env.GHCUP_VERSION }}-${{ matrix.ghc_version }}-v1
 
     # XXX If we want to invalidate the cache on resolver change we
     # should use a separate cache for stack as it should be keyed on
@@ -408,10 +417,18 @@ jobs:
           rm cabal.project
           cd "$SUBDIR"
         fi
-        PATH_VAR=/bin:/usr/bin
         case "$(uname)" in
+          Linux)
+            PATH_VAR=/bin
+            # On Linux it defaults to /usr/local, during cache restore
+            # tar is unable to change permissions and restore fails.
+            export GHCUP_INSTALL_BASE_PREFIX=$HOME
+            ;;
+          Darwin)
+            PATH_VAR=/bin:/usr/bin
+            ;;
           CYGWIN*|MINGW*|MSYS*)
-            PATH_VAR="$PATH_VAR:/c/Program Files/7-Zip:/mingw64/bin"
+            PATH_VAR="/bin:/c/Program Files/7-Zip:/mingw64/bin"
             ;;
         esac
         # Use "bash -c" instead of invoking directly to preserve quoted

@@ -30,8 +30,8 @@ environment:
     # What to build
     # ------------------------------------------------------------------------
     # DISABLE_TEST: "y"
-    # DISABLE_BENCH: "y"
-    # DISABLE_DOCS: "y"
+    DISABLE_BENCH: "y"
+    DISABLE_DOCS: "y"
     DISABLE_DIST_CHECKS: "y"
     DISABLE_SDIST_BUILD: "y"
     # Note: these require the "diff" utility.
@@ -55,7 +55,7 @@ environment:
     # If you have not committed packcheck.sh in your repo at PACKCHECK_LOCAL_PATH
     # then it is automatically pulled from this URL.
     PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/composewell/packcheck"
-    PACKCHECK_GITHUB_COMMIT: "fac7ab9aad48d5b80a1d65efb34ff353a848e927"
+    PACKCHECK_GITHUB_COMMIT: "dd6862df527f317fd4987afa523fba3f4fde7e19"
 
     # Override the temp directory to avoid sed escaping issues
     # See https://github.com/haskell/cabal/issues/5386
@@ -68,6 +68,7 @@ environment:
 cache:
   - "%APPDATA%\\local\\bin -> v1"
   - "%APPDATA%\\cabal"
+  - "%LOCALAPPDATA%\\cabal"
   - "C:\\ghcup"
   - "C:\\cabal"
 
