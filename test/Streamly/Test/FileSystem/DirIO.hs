@@ -17,7 +17,6 @@ module Main (main) where
 -- Imports
 --------------------------------------------------------------------------------
 
-import Control.Exception (try, IOException)
 import Data.Word (Word8)
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
@@ -70,11 +69,6 @@ testCorrectnessByteChunked expectation lister = do
     reality `shouldBe` expectation
 #endif
 
-ignoringError :: IO a -> IO ()
-ignoringError act = do
-    (_ :: Either IOException a) <- try act
-    pure ()
-
 testSymLinkFollow :: Spec
 testSymLinkFollow = do
     let fp = "benchmark-tmp/dir-structure-small-sym"
@@ -87,7 +81,7 @@ testSymLinkFollow = do
             $ StreamK.toStream
             $ StreamK.sortBy compare
             $ StreamK.fromStream $ Stream.fromList pathsUnsorted
-    runIO $ ignoringError $ do
+    runIO $ do
         createDirectoryLink "./dir_1" (fp ++ "/sym-link-1")
         createDirectoryLink "./dir_1/dir_2" (fp ++ "/sym-link-2")
         createDirectoryLink "./broken_link" (fp ++ "/sym-link-3")
@@ -118,13 +112,21 @@ testSymLinkFollow = do
             testCorrectness
                 sortedAnswerFollowSym
                 (listDirUnfoldDfs
-                     (Dir.followSymlinks True . Dir.ignoreMissing True)
+                     ( Dir.followSymlinks True
+                     . Dir.ignoreMissing True
+                     . Dir.ignoreInaccessible False
+                     . Dir.ignoreSymlinkLoops False
+                     )
                      fp)
         it "followSymlinks False" $
             testCorrectness
                 sortedAnswerNoFollowSym
                 (listDirUnfoldDfs
-                     (Dir.followSymlinks False . Dir.ignoreMissing True)
+                     ( Dir.followSymlinks False
+                     . Dir.ignoreMissing True
+                     . Dir.ignoreInaccessible False
+                     . Dir.ignoreSymlinkLoops False
+                     )
                      fp)
 
 -- | List the current directory recursively
