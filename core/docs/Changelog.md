@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.3.0
+## 0.3.1 (May 2026)
+
+* Bug fix: Fixed `followSymlinks` option not working correctly on macOS.
+
+## 0.3.0 (Sep 2025)
 
 See [0.2.2-0.3.0 API Changelog](/core/docs/ApiChangelogs/0.2.2-0.3.0.txt) for a
 full list of deprecations, additions, and changes to the function signatures.

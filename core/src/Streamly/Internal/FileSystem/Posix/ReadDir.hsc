@@ -144,10 +144,10 @@ foreign import capi unsafe "dirent.h readdir"
 -- Stat
 --------------------------------------------------------------------------------
 
-foreign import ccall unsafe "stat.h lstat"
+foreign import capi unsafe "sys/stat.h lstat"
     c_lstat :: CString -> Ptr CStat -> IO CInt
 
-foreign import ccall unsafe "stat.h stat"
+foreign import capi unsafe "sys/stat.h stat"
     c_stat :: CString -> Ptr CStat -> IO CInt
 
 s_IFMT :: CMode
