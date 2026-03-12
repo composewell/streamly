@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+# Bug fix: Fixed `followSymlinks` option not working correctly on macOS.
+
 ## 0.3.0
 
 See [0.2.2-0.3.0 API Changelog](/core/docs/ApiChangelogs/0.2.2-0.3.0.txt) for a
