@@ -294,7 +294,7 @@ benchmark Data.Fold
   else
     buildable: True
   if flag(limit-build-mem) && !flag(fusion-plugin)
-    ghc-options: +RTS -M500M -RTS
+    ghc-options: +RTS -M600M -RTS
 
 benchmark Data.Fold.Prelude
   import: bench-options
