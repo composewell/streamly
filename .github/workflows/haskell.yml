@@ -10,10 +10,11 @@ name: TEST
 #-----------------------------------------------------------------------------
 
 on:
+  workflow_dispatch:
+  pull_request:
   push:
     branches:
       - master
-  pull_request:
 
 #-----------------------------------------------------------------------------
 # Build matrix
@@ -335,11 +336,12 @@ jobs:
     - uses: actions/checkout@v4
 
     # See the "cabal path" output in the CI logs to tweak the cache locations
+    # ghc is big but cheap to install, if cache size is a concern we can avoid
+    # caching it.
     - uses: actions/cache@v4
       name: Cache ghcup (non-Windows)
       if: runner.os != 'Windows'
       with:
-        # ghcup: ~/.ghcup (macOS), /usr/local/.ghcup (Linux)
         path: |
           ~/.ghcup
         key: ${{ matrix.runner }}-ghcup-${{ env.GHCUP_VERSION }}-${{ matrix.ghc_version }}-v1
@@ -354,10 +356,12 @@ jobs:
       name: Cache common directories (non-Windows)
       if: runner.os != 'Windows'
       with:
-        # cabal: ~/.local/bin, ~/.local/state/cabal, ~/.local/cache/cabal
+        # cabal: ~/.local/bin, ~/.local/state/cabal
+        # ~/.cache/cabal/packages can be cached, but will increase the
+        # cache size. But can save the "cabal update" time.
         path: |
-          ~/.cabal
-          ~/.local
+          ~/.local/bin
+          ~/.local/state/cabal
           ~/.stack
         # Bump the key version to clear the cache
         # Key is same as the CI name
@@ -417,18 +421,16 @@ jobs:
           rm cabal.project
           cd "$SUBDIR"
         fi
+        # Commands like mount, sysctl for info require sbin
+        PATH_VAR=/bin:/usr/bin:/sbin:/usr/sbin
         case "$(uname)" in
           Linux)
-            PATH_VAR=/bin
             # On Linux it defaults to /usr/local, during cache restore
             # tar is unable to change permissions and restore fails.
             export GHCUP_INSTALL_BASE_PREFIX=$HOME
             ;;
-          Darwin)
-            PATH_VAR=/bin:/usr/bin
-            ;;
           CYGWIN*|MINGW*|MSYS*)
-            PATH_VAR="/bin:/c/Program Files/7-Zip:/mingw64/bin"
+            PATH_VAR="$PATH_VAR:/c/Program Files/7-Zip:/mingw64/bin"
             ;;
         esac
         # Use "bash -c" instead of invoking directly to preserve quoted
@@ -436,3 +438,21 @@ jobs:
         # Direct invocation would word-split on spaces inside quoted values.
         echo "$PACKCHECK $PACKCHECK_COMMAND PATH=\"$PATH_VAR\""
         bash -c "$PACKCHECK $PACKCHECK_COMMAND PATH=\"$PATH_VAR\""
+
+    - name: Check cache locations
+      if: runner.os != 'Windows'
+      run: |
+        # We want to see if it is a symlink; e.g. on github ~/.ghcup is a
+        # pre-existing symlink to /usr/local.
+        list="$HOME/.local/bin $HOME/.local/state/cabal $HOME/.ghcup $HOME/.stack"
+        for dir in $list; do
+          # macOS does not have --no-dereference option
+          if [ -L "$dir" ]; then
+            echo "$dir is a symlink -> $(readlink $dir)"
+          else
+            du -sh "$dir" 2>/dev/null || echo "$dir missing"
+          fi
+        done
+        echo
+        #ls -ld $list 2>/dev/null || true
+        ls -al $list 2>/dev/null || true

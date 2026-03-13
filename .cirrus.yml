@@ -98,7 +98,8 @@ task:
       fi
 
   packcheck_run_script: |
-      PTH=/usr/local/bin:/usr/bin:/bin
+      # Commands like mount, sysctl for info require sbin
+      PTH=/usr/local/bin:/usr/bin:/bin:/sbin:/usr/sbin
       # Use "bash -c" instead of invoking directly to preserve quoted
       # arguments in PACKCHECK_COMMAND e.g. DOCSPEC_OPTIONS="--timeout 60".
       # Direct invocation would word-split on spaces inside quoted values.

@@ -168,10 +168,13 @@ jobs:
         done
 
         # Always exit with success so that we are able to use the cache
+        echo
+        echo "------------------------------------------------------------------------"
         if test $EXIT_STATUS -ne 0
         then
           echo "ERROR: Performance regressions are more than ${CI_DIFF_CUTOFF_PERCENT}%."
         else
           echo "SUCCESS: Performance regressions are within ${CI_DIFF_CUTOFF_PERCENT}%."
         fi
+        echo "------------------------------------------------------------------------"
         exit 0
