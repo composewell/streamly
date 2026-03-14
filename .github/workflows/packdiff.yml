@@ -52,26 +52,31 @@ jobs:
       with:
         fetch-depth: 0
 
+    # Use a sane PATH, especially to pick the right GHC
+    - name: Set PATH to add .local and .ghcup
+      run: echo "$HOME/.local/bin:$HOME/.ghcup/bin:/bin:/usr/bin" > $GITHUB_PATH
+
     - name: Download ghc
       run: |
         if ! ghc --version 2>/dev/null | grep -q "$GHCVER"
         then
           curl -sL -o ./ghcup https://downloads.haskell.org/~ghcup/$GHCUP_VERSION/x86_64-linux-ghcup-$GHCUP_VERSION
           chmod +x ./ghcup
+          export GHCUP_INSTALL_BASE_PREFIX=$HOME
           ./ghcup install ghc $GHCVER
           ./ghcup set ghc $GHCVER
+          ./ghcup install cabal
         fi
         # XXX update only if not present
         cabal update
 
-    - name: Add ~/.local/bin to PATH
-      run: echo "$HOME/.local/bin" >> $GITHUB_PATH
-
     - name: Install packdiff
       run: |
-        if [ ! -f ~/.local/bin/packdiff ]; then
-          mkdir -p ~/.local/bin
-          cabal install packdiff --project-file=cabal.project.packdiff --installdir=~/.local/bin --overwrite-policy=always
+        if [ ! -f $HOME/.local/bin/packdiff ]; then
+          mkdir -p $HOME/.local/bin
+          # IMPORTANT: do not replace $HOME with ~, tilde is not expanded by
+          # shell in the middle of a command string.
+          cabal install packdiff --project-file=cabal.project.packdiff --installdir=$HOME/.local/bin --overwrite-policy=always
         fi
 
     - name: API diff for streamly-core

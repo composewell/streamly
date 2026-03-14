@@ -53,31 +53,47 @@ jobs:
       with:
         ref: ${{ github.event.pull_request.head.sha }}
 
+    # Use a sane PATH, especially to pick the right GHC
+    - name: Set PATH to add .local and .ghcup
+      run: echo "$HOME/.local/bin:$HOME/.ghcup/bin:/bin:/usr/bin" > $GITHUB_PATH
+
     - name: Download ghc
       run: |
         if ! ghc --version 2>/dev/null | grep -q "$GHCVER"
         then
           curl -sL -o ./ghcup https://downloads.haskell.org/~ghcup/$GHCUP_VERSION/x86_64-linux-ghcup-$GHCUP_VERSION
           chmod +x ./ghcup
+          export GHCUP_INSTALL_BASE_PREFIX=$HOME
           ./ghcup install ghc $GHCVER
           ./ghcup set ghc $GHCVER
+          ./ghcup install cabal
         fi
         # XXX update only if not present
         cabal update
 
-    - name: Create env files for ghci
-      run: cabal build streamly --write-ghc-environment-files=always
-
-    - name: Add ~/.local/bin to PATH
-      run: echo "$HOME/.local/bin" >> $GITHUB_PATH
-
     - name: Run markdown-doctest
       run: |
-        echo "Commit: $(git rev-parse HEAD)"
-        if [ ! -f ~/.local/bin/markdown-doctest ]; then
-          mkdir -p ~/.local/bin
-          cabal install markdown-doctest --project-file=cabal.project.markdown-doctest --installdir=~/.local/bin --overwrite-policy=always
+        if [ ! -f $HOME/.local/bin/markdown-doctest ]; then
+          mkdir -p $HOME/.local/bin
+          echo "----------------------------------------------------------------"
+          echo "Build markdown-doctest"
+          echo "----------------------------------------------------------------"
+          echo
+          # IMPORTANT: do not replace $HOME with ~, tilde is not expanded by
+          # shell in the middle of a command string.
+          cabal install markdown-doctest --project-file=cabal.project.markdown-doctest --installdir=$HOME/.local/bin --overwrite-policy=always
         fi
+
+        echo "----------------------------------------------------------------"
+        echo "Build streamly commit: $(git rev-parse HEAD)"
+        echo "----------------------------------------------------------------"
+        echo
+        cabal build streamly --write-ghc-environment-files=always
+
+        echo "----------------------------------------------------------------"
+        echo "Run markdown-doctest"
+        echo "----------------------------------------------------------------"
+        echo
         find ./docs ./core/docs -type f -name "*.md" -print0 | while IFS= read -r -d '' file; do
           echo "CMD: markdown-doctest $file" && markdown-doctest "$file" || exit 1
         done
