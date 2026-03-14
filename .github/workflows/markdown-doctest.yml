@@ -78,6 +78,8 @@ jobs:
           mkdir -p ~/.local/bin
           cabal install markdown-doctest --project-file=cabal.project.markdown-doctest --installdir=~/.local/bin --overwrite-policy=always
         fi
+        echo "PATH=$PATH"
+        hash -r
         find ./docs ./core/docs -type f -name "*.md" -print0 | while IFS= read -r -d '' file; do
           echo "CMD: markdown-doctest $file" && markdown-doctest "$file" || exit 1
         done

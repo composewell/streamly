@@ -75,7 +75,9 @@ jobs:
         fi
 
     - name: API diff for streamly-core
-      run: packdiff diff streamly-core $(git rev-parse origin/master) streamly-core $(git rev-parse HEAD)
+      run:
+        echo "PATH=$PATH"
+        packdiff diff streamly-core $(git rev-parse origin/master) streamly-core $(git rev-parse HEAD)
 
     - name: API diff for streamly
       run: packdiff diff streamly $(git rev-parse origin/master) streamly $(git rev-parse HEAD)
