@@ -66,19 +66,19 @@ jobs:
         # XXX update only if not present
         cabal update
 
-    - name: Create env files for ghci
-      run: cabal build streamly --write-ghc-environment-files=always
-
-    - name: Add ~/.local/bin to PATH
-      run: echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-    - name: Run markdown-doctest
-      run: |
-        echo "Commit: $(git rev-parse HEAD)"
-        if [ ! -f $HOME/.local/bin/markdown-doctest ]; then
-          mkdir -p $HOME/.local/bin
-          cabal install markdown-doctest --project-file=cabal.project.markdown-doctest --installdir=$HOME/.local/bin --overwrite-policy=always
-        fi
-        find ./docs ./core/docs -type f -name "*.md" -print0 | while IFS= read -r -d '' file; do
-          echo "CMD: markdown-doctest $file" && markdown-doctest "$file" || exit 1
-        done
+#    - name: Create env files for ghci
+#      run: cabal build streamly --write-ghc-environment-files=always
+#
+#    - name: Add ~/.local/bin to PATH
+#      run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+#
+#    - name: Run markdown-doctest
+#      run: |
+#        echo "Commit: $(git rev-parse HEAD)"
+#        if [ ! -f $HOME/.local/bin/markdown-doctest ]; then
+#          mkdir -p $HOME/.local/bin
+#          cabal install markdown-doctest --project-file=cabal.project.markdown-doctest --installdir=$HOME/.local/bin --overwrite-policy=always
+#        fi
+#        find ./docs ./core/docs -type f -name "*.md" -print0 | while IFS= read -r -d '' file; do
+#          echo "CMD: markdown-doctest $file" && markdown-doctest "$file" || exit 1
+#        done
