@@ -37,14 +37,17 @@ jobs:
         # Bump the key version to clear the cache
         key: cache-cabal-packages
 
-    - name: Cache cabal build dependencies (non-Windows)
+    # NOTE: we need the cabal state as well because the executable may depend
+    # on shared libraries in the cabal store.
+    - name: Cache markdown-doctest (non-Windows)
       uses: actions/cache@v4
       if: runner.os != 'Windows'
       with:
         path: |
             ~/.local/state/cabal
+            ~/.local/bin
         # Bump the key version to clear the cache
-        key: markdown-doctest-deps
+        key: markdown-doctest-ghc-${{ env.GHCVER }}
 
     - uses: actions/checkout@v4
       with:
@@ -65,9 +68,16 @@ jobs:
     - name: Create env files for ghci
       run: cabal build streamly --write-ghc-environment-files=always
 
+    - name: Add ~/.local/bin to PATH
+      run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+
     - name: Run markdown-doctest
       run: |
         echo "Commit: $(git rev-parse HEAD)"
-        cabal install markdown-doctest --project-file=cabal.project.markdown-doctest --installdir=./ --overwrite-policy=always
-        find ./docs -type f -name "*.md" -print0 | while IFS= read -r -d '' file; do echo "CMD: ./markdown-doctest $file" && ./markdown-doctest "$file" || exit 1; done
-        find ./core/docs -type f -name "*.md" -print0 | while IFS= read -r -d '' file; do echo "CMD: ./markdown-doctest $file" && ./markdown-doctest "$file" || exit 1; done
+        if [ ! -f ~/.local/bin/markdown-doctest ]; then
+          mkdir -p ~/.local/bin
+          cabal install markdown-doctest --project-file=cabal.project.markdown-doctest --installdir=~/.local/bin --overwrite-policy=always
+        fi
+        find ./docs ./core/docs -type f -name "*.md" -print0 | while IFS= read -r -d '' file; do
+          echo "CMD: markdown-doctest $file" && markdown-doctest "$file" || exit 1
+        done

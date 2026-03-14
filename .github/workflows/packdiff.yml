@@ -37,14 +37,15 @@ jobs:
         # Bump the key version to clear the cache
         key: cache-cabal-packages
 
-    - name: Cache cabal build dependencies (non-Windows)
+    - name: Cache packdiff (non-Windows)
       uses: actions/cache@v4
       if: runner.os != 'Windows'
       with:
         path: |
+            ~/.local/bin
             ~/.local/state/cabal
         # Bump the key version to clear the cache
-        key: packdiff-deps
+        key: packdiff-ghc-${{ env.GHCVER }}
 
     - name: Checkout the current branch
       uses: actions/checkout@v4
@@ -63,8 +64,18 @@ jobs:
         # XXX update only if not present
         cabal update
 
+    - name: Add ~/.local/bin to PATH
+      run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+    - name: Install packdiff
+      run: |
+        if [ ! -f ~/.local/bin/packdiff ]; then
+          mkdir -p ~/.local/bin
+          cabal install packdiff --project-file=cabal.project.packdiff --installdir=~/.local/bin --overwrite-policy=always
+        fi
+
     - name: API diff for streamly-core
-      run: cabal run packdiff --project-file=cabal.project.packdiff -- diff streamly-core $(git rev-parse origin/master) streamly-core $(git rev-parse HEAD)
+      run: packdiff diff streamly-core $(git rev-parse origin/master) streamly-core $(git rev-parse HEAD)
 
     - name: API diff for streamly
-      run: cabal run packdiff --project-file=cabal.project.packdiff -- diff streamly $(git rev-parse origin/master) streamly $(git rev-parse HEAD)
+      run: packdiff diff streamly $(git rev-parse origin/master) streamly $(git rev-parse HEAD)
