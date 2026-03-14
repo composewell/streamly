@@ -79,9 +79,11 @@ jobs:
           mkdir -p $HOME/.local/bin
           mkdir md-tmp
           cp cabal.project.markdown-doctest md-tmp/
+          mv cabal.project cabal.project.tmp
           cd md-tmp
-          cabal install markdown-doctest --ignore-project --project-file=cabal.project.markdown-doctest --installdir=$HOME/.local/bin --overwrite-policy=always
+          cabal install markdown-doctest --project-file=cabal.project.markdown-doctest --installdir=$HOME/.local/bin --overwrite-policy=always
           cd ..
+          mv cabal.project.tmp cabal.project
         fi
         find ./docs ./core/docs -type f -name "*.md" -print0 | while IFS= read -r -d '' file; do
           echo "CMD: markdown-doctest $file" && markdown-doctest "$file" || exit 1
