@@ -59,6 +59,7 @@ jobs:
         then
           curl -sL -o ./ghcup https://downloads.haskell.org/~ghcup/$GHCUP_VERSION/x86_64-linux-ghcup-$GHCUP_VERSION
           chmod +x ./ghcup
+          export GHCUP_INSTALL_BASE_PREFIX=$HOME
           ./ghcup install ghc $GHCVER
           ./ghcup set ghc $GHCVER
         fi
@@ -74,16 +75,10 @@ jobs:
     - name: Run markdown-doctest
       run: |
         echo "Commit: $(git rev-parse HEAD)"
-        if [ ! -f ~/.local/bin/markdown-doctest ]; then
-          mkdir -p ~/.local/bin
-          cabal install markdown-doctest --project-file=cabal.project.markdown-doctest --installdir=~/.local/bin --overwrite-policy=always
+        if [ ! -f $HOME/.local/bin/markdown-doctest ]; then
+          mkdir -p $HOME/.local/bin
+          cabal install markdown-doctest --project-file=cabal.project.markdown-doctest --installdir=$HOME/.local/bin --overwrite-policy=always
         fi
-        echo ~/.local/bin
-        find ~/.local/state/cabal/store -name "markdown-doctest" -type f || true
-        ls -al ~/.local/bin || true
-        ls -al /home/runner/.local/bin || true
-        echo "PATH=$PATH"
-        hash -r
         find ./docs ./core/docs -type f -name "*.md" -print0 | while IFS= read -r -d '' file; do
           echo "CMD: markdown-doctest $file" && markdown-doctest "$file" || exit 1
         done
