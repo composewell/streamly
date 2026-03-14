@@ -77,7 +77,11 @@ jobs:
         echo "Commit: $(git rev-parse HEAD)"
         if [ ! -f $HOME/.local/bin/markdown-doctest ]; then
           mkdir -p $HOME/.local/bin
+          mkdir md-tmp
+          cp cabal.project.markdown-doctest md-tmp/
+          cd md-tmp
           cabal install markdown-doctest --project-file=cabal.project.markdown-doctest --installdir=$HOME/.local/bin --overwrite-policy=always
+          cd ..
         fi
         find ./docs ./core/docs -type f -name "*.md" -print0 | while IFS= read -r -d '' file; do
           echo "CMD: markdown-doctest $file" && markdown-doctest "$file" || exit 1
