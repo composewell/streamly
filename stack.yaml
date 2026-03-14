@@ -1,4 +1,4 @@
-resolver: lts-23.27
+resolver: nightly-2026-03-10
 packages:
 - '.'
 - './benchmark'
@@ -6,10 +6,9 @@ packages:
 - './core'
 - './bench-test-lib'
 
+# network 3.2.8 is broken
 extra-deps:
-  #- tasty-bench-0.3.1
-  - lockfree-queue-0.2.4
-  - unicode-data-0.6.0
+  - network-3.2.7.0
 
 #allow-newer: true
 rebuild-ghc-options: true

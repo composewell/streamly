@@ -1,42 +1,90 @@
-name: Markdown Doctest
+name: DOCS
 
-on: pull_request
+on:
+  workflow_dispatch:
+  pull_request:
 
 jobs:
   markdown-doctest:
+    name: "Verify haskell snippets in markdown docs"
+    env:
+      GHCVER: 9.8.4
+      GHCUP_VERSION: 0.1.50.2
 
     runs-on: ubuntu-latest
 
     steps:
 
-    - name: Download ghc
+    # This should happen before cache restore.
+    - name: Remove ~/.ghcup symlink
       run: |
-        GHCUP_VER=0.1.20.0
-        curl -sL -o ./ghcup https://downloads.haskell.org/~ghcup/$GHCUP_VER/x86_64-linux-ghcup-$GHCUP_VER
-        chmod +x ./ghcup
-        GHCVER=9.8.1
-        ./ghcup install ghc $GHCVER
-        ./ghcup set ghc $GHCVER
-        cabal update
+        rm -f ~/.ghcup
 
-    - uses: actions/cache@v4
-      name: Cache ~/.cabal
+    - name: Cache ghcup and ghc (non-Windows)
+      uses: actions/cache@v4
+      if: runner.os != 'Windows'
       with:
         path: |
-            ~/.cabal
+          ~/.ghcup
+        key: ${{ runner.os }}-ghcup-${{ env.GHCUP_VERSION }}-${{ env.GHCVER }}
+
+    - name: Cache hackage package index (non-Windows)
+      uses: actions/cache@v4
+      if: runner.os != 'Windows'
+      with:
+        path: |
+            ~/.cache/cabal/packages
         # Bump the key version to clear the cache
-        key: cache-v2
+        key: cache-cabal-packages
+
+    # NOTE: we need the cabal state as well because the executable may depend
+    # on shared libraries in the cabal store.
+    - name: Cache markdown-doctest (non-Windows)
+      uses: actions/cache@v4
+      if: runner.os != 'Windows'
+      with:
+        path: |
+            ~/.local/state/cabal
+            ~/.local/bin
+        # Bump the key version to clear the cache
+        key: markdown-doctest-ghc-${{ env.GHCVER }}
 
     - uses: actions/checkout@v4
       with:
         ref: ${{ github.event.pull_request.head.sha }}
 
-    - name: Create env files for ghci
-      run: cabal build streamly --write-ghc-environment-files=always
+    - name: Download ghc
+      run: |
+        if ! ghc --version 2>/dev/null | grep -q "$GHCVER"
+        then
+          curl -sL -o ./ghcup https://downloads.haskell.org/~ghcup/$GHCUP_VERSION/x86_64-linux-ghcup-$GHCUP_VERSION
+          chmod +x ./ghcup
+          export GHCUP_INSTALL_BASE_PREFIX=$HOME
+          ./ghcup install ghc $GHCVER
+          ./ghcup set ghc $GHCVER
+        fi
+        # XXX update only if not present
+        cabal update
+
+#    - name: Create env files for ghci
+#      run: cabal build streamly --write-ghc-environment-files=always
+#
+    - name: Add ~/.local/bin to PATH
+      run: echo "$HOME/.local/bin" >> $GITHUB_PATH
 
     - name: Run markdown-doctest
       run: |
         echo "Commit: $(git rev-parse HEAD)"
-        cabal install markdown-doctest --project-file=cabal.project.markdown-doctest --installdir=./ --overwrite-policy=always
-        find ./docs -type f -name "*.md" -print0 | while IFS= read -r -d '' file; do echo "CMD: ./markdown-doctest $file" && ./markdown-doctest "$file" || exit 1; done
-        find ./core/docs -type f -name "*.md" -print0 | while IFS= read -r -d '' file; do echo "CMD: ./markdown-doctest $file" && ./markdown-doctest "$file" || exit 1; done
+        if [ ! -f $HOME/.local/bin/markdown-doctest ]; then
+          mkdir -p $HOME/.local/bin
+          mkdir md-tmp
+          cp cabal.project.markdown-doctest md-tmp/
+          mv cabal.project cabal.project.tmp
+          cd md-tmp
+          cabal install markdown-doctest --project-file=cabal.project.markdown-doctest --installdir=$HOME/.local/bin --overwrite-policy=always
+          cd ..
+          mv cabal.project.tmp cabal.project
+        fi
+        find ./docs ./core/docs -type f -name "*.md" -print0 | while IFS= read -r -d '' file; do
+          echo "CMD: markdown-doctest $file" && markdown-doctest "$file" || exit 1
+        done
