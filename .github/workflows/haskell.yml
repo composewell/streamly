@@ -52,6 +52,24 @@ jobs:
       GHCVER: ${{ matrix.ghc_version }}
 
       # ------------------------------------------------------------------------
+      # cabal options
+      # ------------------------------------------------------------------------
+      CABAL_CHECK_RELAX: y
+
+      # CABAL_BUILD_OPTIONS="-j1"
+      # Enable the above option if you:
+      # 1. want logs in serial order to be able to correlate them better.
+      #
+      # 2. run into memory issues due to Build paralellism. We need to
+      # have sufficient per CPU memory, if not we can use a lower -j
+      # option; cabal default is ncpus.
+      #
+      # Currently (2026-03-12) from packcheck output we see:
+      # Linux: 15GB, 4 cpus
+      # macOS: 7GB, 3 cpus
+      # Windows: 16GB, 4 cpus
+
+      # ------------------------------------------------------------------------
       # stack options (if using stack builds)
       # ------------------------------------------------------------------------
       # Note requiring a specific version of stack using STACKVER may fail due to
@@ -60,19 +78,6 @@ jobs:
       #STACKVER: "1.6.5"
       #STACK_UPGRADE: "y"
       STACK_YAML: "stack.yaml"
-
-      # ------------------------------------------------------------------------
-      # cabal options
-      # ------------------------------------------------------------------------
-      CABAL_CHECK_RELAX: y
-
-      # Build paralellism can cause memory issues. We need to have sufficient
-      # per CPU memory, if not we can use a lower -j option; default is ncpus.
-      # Currently (2026-03-12) from packcheck output we see:
-      # Linux: 15GB, 4 cpus
-      # macOS: 7GB, 3 cpus
-      # Windows: 16GB, 4 cpus
-      # CABAL_BUILD_OPTIONS="-j1"
 
       # ------------------------------------------------------------------------
       # Location of packcheck.sh (the shell script invoked to perform CI tests ).
@@ -335,16 +340,31 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    # This should happen before cache restore.
+    - name: Remove ~/.ghcup symlink (non-Windows)
+      if: runner.os != 'Windows'
+      run: |
+        rm -f ~/.ghcup
+
+    - name: Cache hackage package index (non-Windows)
+      uses: actions/cache@v4
+      if: runner.os != 'Windows'
+      with:
+        path: |
+            ~/.cache/cabal/packages
+        # Bump the key version to clear the cache
+        key: cache-cabal-packages
+
     # See the "cabal path" output in the CI logs to tweak the cache locations
     # ghc is big but cheap to install, if cache size is a concern we can avoid
     # caching it.
-    - uses: actions/cache@v4
-      name: Cache ghcup (non-Windows)
+    - name: Cache ghcup and ghc (non-Windows)
+      uses: actions/cache@v4
       if: runner.os != 'Windows'
       with:
         path: |
           ~/.ghcup
-        key: ${{ matrix.runner }}-ghcup-${{ env.GHCUP_VERSION }}-${{ matrix.ghc_version }}-v1
+        key: ${{ matrix.runner }}-ghcup-${{ env.GHCUP_VERSION }}-${{ matrix.ghc_version }}
 
     # XXX If we want to invalidate the cache on resolver change we
     # should use a separate cache for stack as it should be keyed on
@@ -352,23 +372,20 @@ jobs:
     # and then copied to pack_options from there, needs some work. It
     # should be fine as resolver minor version change can only increase
     # the cache size.
-    - uses: actions/cache@v4
-      name: Cache common directories (non-Windows)
+    - name: Cache build dependencies (non-Windows)
+      uses: actions/cache@v4
       if: runner.os != 'Windows'
       with:
         # cabal: ~/.local/bin, ~/.local/state/cabal
-        # ~/.cache/cabal/packages can be cached, but will increase the
-        # cache size. But can save the "cabal update" time.
         path: |
           ~/.local/bin
           ~/.local/state/cabal
           ~/.stack
         # Bump the key version to clear the cache
-        # Key is same as the CI name
-        key: ${{ matrix.runner }}-${{ matrix.command }}-${{ matrix.ghc_version }}-${{ matrix.name }}-v1
+        key: ${{ matrix.runner }}-${{ matrix.command }}-${{ matrix.ghc_version }}-${{ matrix.name }}
 
-    - uses: actions/cache@v4
-      name: Cache common directories (Windows)
+    - name: Cache common directories (Windows)
+      uses: actions/cache@v4
       if: runner.os == 'Windows'
       with:
         path: |

@@ -1,39 +1,70 @@
-name: Packdiff
+name: API
 
-on: pull_request
+on:
+  workflow_dispatch:
+  pull_request:
 
 jobs:
   packdiff:
+    name: "Signature diff: master vs PR"
+    env:
+      GHCVER: 9.8.4
+      GHCUP_VERSION: 0.1.50.2
 
     runs-on: ubuntu-latest
 
     steps:
 
-    - name: Download ghc
+    # This should happen before cache restore.
+    - name: Remove ~/.ghcup symlink
       run: |
-        GHCUP_VER=0.1.20.0
-        curl -sL -o ./ghcup https://downloads.haskell.org/~ghcup/$GHCUP_VER/x86_64-linux-ghcup-$GHCUP_VER
-        chmod +x ./ghcup
-        GHCVER=9.8.1
-        ./ghcup install ghc $GHCVER
-        ./ghcup set ghc $GHCVER
-        cabal update
+        rm -f ~/.ghcup
 
-    - uses: actions/cache@v4
-      name: Cache ~/.cabal
+    - name: Cache ghcup and ghc (non-Windows)
+      uses: actions/cache@v4
+      if: runner.os != 'Windows'
       with:
         path: |
-            ~/.cabal
+          ~/.ghcup
+        key: ${{ runner.os }}-ghcup-${{ env.GHCUP_VERSION }}-${{ env.GHCVER }}
+
+    - name: Cache hackage package index (non-Windows)
+      uses: actions/cache@v4
+      if: runner.os != 'Windows'
+      with:
+        path: |
+            ~/.cache/cabal/packages
         # Bump the key version to clear the cache
-        key: cache-v2
+        key: cache-cabal-packages
+
+    - name: Cache cabal build dependencies (non-Windows)
+      uses: actions/cache@v4
+      if: runner.os != 'Windows'
+      with:
+        path: |
+            ~/.local/state/cabal
+        # Bump the key version to clear the cache
+        key: packdiff-deps
 
     - name: Checkout the current branch
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
-    - name: Run packdiff on streamly-core
+    - name: Download ghc
+      run: |
+        if ! ghc --version 2>/dev/null | grep -q "$GHCVER"
+        then
+          curl -sL -o ./ghcup https://downloads.haskell.org/~ghcup/$GHCUP_VERSION/x86_64-linux-ghcup-$GHCUP_VERSION
+          chmod +x ./ghcup
+          ./ghcup install ghc $GHCVER
+          ./ghcup set ghc $GHCVER
+        fi
+        # XXX update only if not present
+        cabal update
+
+    - name: API diff for streamly-core
       run: cabal run packdiff --project-file=cabal.project.packdiff -- diff streamly-core $(git rev-parse origin/master) streamly-core $(git rev-parse HEAD)
 
-    - name: Run packdiff on streamly
+    - name: API diff for streamly
       run: cabal run packdiff --project-file=cabal.project.packdiff -- diff streamly $(git rev-parse origin/master) streamly $(git rev-parse HEAD)

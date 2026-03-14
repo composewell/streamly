@@ -20,10 +20,10 @@ on:
 # Removed Data.Fold.Prelude - was failing for some reason (memory issue?)
 jobs:
   build:
-    name: "ubuntu-latest ghc-9.10.3 master vs PR"
+    name: "Comparison: master vs PR (ubuntu-latest ghc-9.10.3)"
     env:
       GHCVER: 9.10.3
-      GHCUP_VER: 0.1.50.2
+      GHCUP_VERSION: 0.1.50.2
       CI_BENCHMARKS_WITH_CUTOFF: >-
         Data.Array
         Data.Array.Generic
@@ -65,15 +65,36 @@ jobs:
     - name: Checkout the PR branch
       uses: actions/checkout@v4
 
-    - name: Cache ~/.cabal
+    # This should happen before cache restore.
+    - name: Remove ~/.ghcup symlink
+      run: |
+        rm -f ~/.ghcup
+
+    - name: Cache ghcup and ghc (non-Windows)
       uses: actions/cache@v4
+      if: runner.os != 'Windows'
       with:
         path: |
-            ~/.cabal
-            ~/.ghcup
-            ~/.local
+          ~/.ghcup
+        key: ${{ runner.os }}-ghcup-${{ env.GHCUP_VERSION }}-${{ env.GHCVER }}
+
+    - name: Cache hackage package index (non-Windows)
+      uses: actions/cache@v4
+      if: runner.os != 'Windows'
+      with:
+        path: |
+            ~/.cache/cabal/packages
         # Bump the key version to clear the cache
-        key: cache-v2
+        key: cache-cabal-packages
+
+    - name: Cache cabal build dependencies (non-Windows)
+      uses: actions/cache@v4
+      if: runner.os != 'Windows'
+      with:
+        path: |
+            ~/.local/state/cabal
+        # Bump the key version to clear the cache
+        key: performance-comparison-deps
 
     - name: Update CI_BENCHMARKS environment variable
       run: |
@@ -89,11 +110,12 @@ jobs:
       run: |
         if ! ghc --version 2>/dev/null | grep -q "$GHCVER"
         then
-          curl -sL -o ./ghcup https://downloads.haskell.org/~ghcup/$GHCUP_VER/x86_64-linux-ghcup-$GHCUP_VER
+          curl -sL -o ./ghcup https://downloads.haskell.org/~ghcup/$GHCUP_VERSION/x86_64-linux-ghcup-$GHCUP_VERSION
           chmod +x ./ghcup
           ./ghcup install ghc $GHCVER
           ./ghcup set ghc $GHCVER
         fi
+        # XXX update only if not present
         cabal update
 
     - name: Install bench-runner from PR branch
@@ -113,8 +135,10 @@ jobs:
     - name: Run benchmarks for "master" branch
       run: |
         # CABAL_BUILD_OPTIONS="--cabal-build-options \"-j1\""
-        #./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --targets "$CI_BENCHMARKS" --raw
-        ./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --cabal-build-options "-j1" --targets "$CI_BENCHMARKS" --raw
+        ./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --targets "$CI_BENCHMARKS" --raw
+        # XXX Print dependencies of streamly-core and streamly for comparison
+        # in case there is a regression due to version changes.
+        # ghc-pkg --package-db=./dist-newstyle/packagedb/ghc-9.10.3/ field streamly depends
 
     # -----------------------------------------------------------------
     # -- Download, generate reports for the current branch and append
@@ -129,8 +153,7 @@ jobs:
     - name: Run benchmarks and append
       run: |
         # CABAL_BUILD_OPTIONS="--cabal-build-options \"-j1\""
-        #./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --targets "$CI_BENCHMARKS" --raw --append
-        ./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --cabal-build-options "-j1" --targets "$CI_BENCHMARKS" --raw --append
+        ./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --targets "$CI_BENCHMARKS" --raw --append
 
     # -----------------------------------------------------------------
     # -- Compare

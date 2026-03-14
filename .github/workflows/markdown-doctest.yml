@@ -1,35 +1,66 @@
-name: Markdown Doctest
+name: DOCS
 
-on: pull_request
+on:
+  workflow_dispatch:
+  pull_request:
 
 jobs:
   markdown-doctest:
+    name: "Verify haskell snippets in markdown docs"
+    env:
+      GHCVER: 9.8.4
+      GHCUP_VERSION: 0.1.50.2
 
     runs-on: ubuntu-latest
 
     steps:
 
-    - name: Download ghc
+    # This should happen before cache restore.
+    - name: Remove ~/.ghcup symlink
       run: |
-        GHCUP_VER=0.1.20.0
-        curl -sL -o ./ghcup https://downloads.haskell.org/~ghcup/$GHCUP_VER/x86_64-linux-ghcup-$GHCUP_VER
-        chmod +x ./ghcup
-        GHCVER=9.8.1
-        ./ghcup install ghc $GHCVER
-        ./ghcup set ghc $GHCVER
-        cabal update
+        rm -f ~/.ghcup
 
-    - uses: actions/cache@v4
-      name: Cache ~/.cabal
+    - name: Cache ghcup and ghc (non-Windows)
+      uses: actions/cache@v4
+      if: runner.os != 'Windows'
       with:
         path: |
-            ~/.cabal
+          ~/.ghcup
+        key: ${{ runner.os }}-ghcup-${{ env.GHCUP_VERSION }}-${{ env.GHCVER }}
+
+    - name: Cache hackage package index (non-Windows)
+      uses: actions/cache@v4
+      if: runner.os != 'Windows'
+      with:
+        path: |
+            ~/.cache/cabal/packages
         # Bump the key version to clear the cache
-        key: cache-v2
+        key: cache-cabal-packages
+
+    - name: Cache cabal build dependencies (non-Windows)
+      uses: actions/cache@v4
+      if: runner.os != 'Windows'
+      with:
+        path: |
+            ~/.local/state/cabal
+        # Bump the key version to clear the cache
+        key: markdown-doctest-deps
 
     - uses: actions/checkout@v4
       with:
         ref: ${{ github.event.pull_request.head.sha }}
+
+    - name: Download ghc
+      run: |
+        if ! ghc --version 2>/dev/null | grep -q "$GHCVER"
+        then
+          curl -sL -o ./ghcup https://downloads.haskell.org/~ghcup/$GHCUP_VERSION/x86_64-linux-ghcup-$GHCUP_VERSION
+          chmod +x ./ghcup
+          ./ghcup install ghc $GHCVER
+          ./ghcup set ghc $GHCVER
+        fi
+        # XXX update only if not present
+        cabal update
 
     - name: Create env files for ghci
       run: cabal build streamly --write-ghc-environment-files=always
