@@ -117,13 +117,14 @@ expandVars input =
         Right x ->
             strExp x
 
--- | A QuasiQuoter that treats the input as a string literal:
+-- | A QuasiQuoter for multiline string literals with @#{symbol}@
+-- interpolation of Haskell values.
 --
 -- >>> [str|x|]
 -- "x"
 --
--- Any @#{symbol}@ is replaced by the value of the Haskell symbol @symbol@
--- which is in scope:
+-- String interpolation: Any @#{symbol}@ is replaced by the value of the
+-- Haskell @symbol@ which is in scope:
 --
 -- >>> x = "hello"
 -- >>> [str|#{x} world!|]
