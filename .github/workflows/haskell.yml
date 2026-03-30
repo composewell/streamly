@@ -272,6 +272,7 @@ jobs:
             # WARNING! cannot use # comments inside pack_options.
             # GHCUP_GHC_OPTIONS="-u https://s3.ap-south-1.amazonaws.com/downloads.portal.composewell.com/ghc/ghc-9.2.8-x86_64-unknown-linux.tar.xz"
             pack_options: >-
+              GHCUP_GHC_OPTIONS="-u https://github.com/composewell/ghc/releases/download/ghc-9.2.8-perf-counters-1-rc1/ghc-9.2.8.20231130-x86_64-unknown-linux.tar.xz"
               CABAL_PROJECT=cabal.project
               DISABLE_SDIST_BUILD="y"
               DISABLE_DOCS="y"
