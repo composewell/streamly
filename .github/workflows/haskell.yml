@@ -269,6 +269,7 @@ jobs:
             runner: ubuntu-latest
             command: cabal
             ghc_version: 9.2.8
+            ghc_salt: perf-counter-1
             # WARNING! cannot use # comments inside pack_options.
             # GHCUP_GHC_OPTIONS="-u https://s3.ap-south-1.amazonaws.com/downloads.portal.composewell.com/ghc/ghc-9.2.8-x86_64-unknown-linux.tar.xz"
             pack_options: >-
@@ -365,7 +366,7 @@ jobs:
       with:
         path: |
           ~/.ghcup
-        key: ${{ matrix.runner }}-ghcup-${{ env.GHCUP_VERSION }}-${{ matrix.ghc_version }}
+        key: ${{ matrix.runner }}-${{ matrix.ghc_version }}.${{ matrix.ghc_salt}}
 
     # XXX If we want to invalidate the cache on resolver change we
     # should use a separate cache for stack as it should be keyed on
