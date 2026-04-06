@@ -177,7 +177,7 @@ jobs:
             ignore_error: false
 
           # Takes too long, so bench is disabled
-          - name: ghc-9.12.3
+          - name: ghc-9.12.4
             runner: macos-latest
             command: stack
             # WARNING! cannot use # comments inside pack_options.
@@ -196,7 +196,7 @@ jobs:
           - name: fusion
             runner: ubuntu-latest
             command: cabal
-            ghc_version: 9.12.2
+            ghc_version: 9.12.4
             # WARNING! cannot use # comments inside pack_options.
             pack_options: >-
               CABAL_PROJECT=cabal.project
@@ -297,7 +297,7 @@ jobs:
           - name: ci
             runner: windows-latest
             command: cabal
-            ghc_version: 9.10.3
+            ghc_version: 9.12.4
             # WARNING! cannot use # comments inside pack_options.
             pack_options: >-
               CABAL_PROJECT=cabal.project
@@ -319,7 +319,7 @@ jobs:
           #- name: docspec
           #  runner: ubuntu-latest
           #  command: cabal
-          #  ghc_version: 9.12.2
+          #  ghc_version: 9.12.4
           #  # WARNING! cannot use # comments inside pack_options.
           #  pack_options: >-
           #    DISABLE_SDIST_BUILD="y"
