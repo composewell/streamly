@@ -38,8 +38,8 @@ jobs:
       # What to build
       # ------------------------------------------------------------------------
       # DISABLE_TEST: "y"
-      # DISABLE_BENCH: "y"
-      # DISABLE_DOCS: "y"
+      DISABLE_BENCH: "y"
+      DISABLE_DOCS: "y"
       # DISABLE_SDIST_BUILD: "y"
       # DISABLE_SDIST_GIT_CHECK: "y"
       # DISABLE_DIST_CHECKS: "y"
