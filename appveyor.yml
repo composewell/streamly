@@ -6,6 +6,7 @@
 branches:
   only:
     - master
+    - streamly-0.11.0-release
 
 environment:
     # ------------------------------------------------------------------------
