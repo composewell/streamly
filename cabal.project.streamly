@@ -6,5 +6,5 @@ packages:   streamly.cabal
 source-repository-package
   type: git
   location: https://github.com/composewell/streamly
-  tag: master
+  tag: 8de2f2cc95db1e4fe6d8c427d45160a594ed6430
   subdir: core
