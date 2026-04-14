@@ -79,8 +79,10 @@ task:
   #  fingerprint_script: echo $HLINT_VERSION
 
   deps_install_script: |
+      pkg update
       pkg install -y gmake
       pkg install -y bash
+      pkg install -y git
 
   packcheck_install_script: |
       if test ! -e "$PACKCHECK"
@@ -99,8 +101,8 @@ task:
 
   packcheck_run_script: |
       # Commands like mount, sysctl for info require sbin
-      PTH=/usr/local/bin:/usr/bin:/bin:/sbin:/usr/sbin
+      # PTH=/usr/local/bin:/usr/bin:/bin:/sbin:/usr/sbin
       # Use "bash -c" instead of invoking directly to preserve quoted
       # arguments in PACKCHECK_COMMAND e.g. DOCSPEC_OPTIONS="--timeout 60".
       # Direct invocation would word-split on spaces inside quoted values.
-      bash -c "$PACKCHECK $PACKCHECK_COMMAND PATH=$PTH"
+      bash -c "$PACKCHECK $PACKCHECK_COMMAND"
