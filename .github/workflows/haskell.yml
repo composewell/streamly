@@ -359,9 +359,10 @@ jobs:
 
     steps:
 
-    - name: Optimize Windows Runner Environment
+    - name: Enable long paths on Windows
       if: runner.os == 'Windows'
       shell: powershell
+      continue-on-error: true
       run: |
         # Enable long paths.  Sometimes failures occur due to path
         # length limitation.
@@ -375,7 +376,7 @@ jobs:
 
         # This does not seem to make much difference.
         # Disable Windows Defender to speed up IO/Tar operations
-        Set-MpPreference -DisableRealtimeMonitoring $true
+        #Set-MpPreference -DisableRealtimeMonitoring $true
 
     - uses: actions/checkout@v4
 
