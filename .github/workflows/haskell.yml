@@ -169,6 +169,19 @@ jobs:
           #    DISABLE_SDIST_BUILD="y"
           #  ignore_error: true
 
+          - name: fusion
+            runner: ubuntu-latest
+            command: cabal
+            ghc_version: 9.14.1
+            # WARNING! cannot use # comments inside pack_options.
+            pack_options: >-
+              CABAL_PROJECT=cabal.project
+              CABAL_BUILD_OPTIONS="--flag limit-build-mem --flag fusion-plugin"
+              DISABLE_SDIST_BUILD="y"
+              DISABLE_DOCS="y"
+              DISABLE_BENCH="y"
+            ignore_error: false
+
           - name: streamly-core-sdist
             runner: ubuntu-latest
             command: cabal
@@ -202,19 +215,6 @@ jobs:
               DISABLE_SDIST_BUILD="y"
               SDIST_OPTIONS="--ignore-check"
               DISABLE_DIST_CHECKS="y"
-              DISABLE_DOCS="y"
-              DISABLE_BENCH="y"
-            ignore_error: false
-
-          - name: fusion
-            runner: ubuntu-latest
-            command: cabal
-            ghc_version: 9.12.4
-            # WARNING! cannot use # comments inside pack_options.
-            pack_options: >-
-              CABAL_PROJECT=cabal.project
-              CABAL_BUILD_OPTIONS="--flag limit-build-mem --flag fusion-plugin"
-              DISABLE_SDIST_BUILD="y"
               DISABLE_DOCS="y"
               DISABLE_BENCH="y"
             ignore_error: false
