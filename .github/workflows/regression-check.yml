@@ -20,9 +20,9 @@ on:
 # Removed Data.Fold.Prelude - was failing for some reason (memory issue?)
 jobs:
   build:
-    name: "Comparison: master vs PR (ubuntu-latest ghc-9.10.3)"
+    name: "Comparison: master vs PR (ubuntu-latest ghc-9.14.1)"
     env:
-      GHCVER: 9.10.3
+      GHCVER: 9.14.1
       GHCUP_VERSION: 0.1.50.2
       CI_BENCHMARKS_WITH_CUTOFF: >-
         Data.Array
@@ -126,7 +126,7 @@ jobs:
 
     - name: Install bench-runner from PR branch
       run: |
-        cabal install bench-runner --project-file=cabal.project.report --installdir=./
+        cabal install bench-runner --project-file=cabal.project.report --installdir=./ --allow-newer
 
     # -----------------------------------------------------------------
     # -- Generate reports for the base branch and upload
@@ -140,7 +140,7 @@ jobs:
 
     - name: Run benchmarks for "master" branch
       run: |
-        # CABAL_BUILD_OPTIONS="--cabal-build-options \"-j1\""
+        # --cabal-build-options "-j1"
         ./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --targets "$CI_BENCHMARKS" --raw
         # XXX Print dependencies of streamly-core and streamly for comparison
         # in case there is a regression due to version changes.
@@ -158,7 +158,7 @@ jobs:
 
     - name: Run benchmarks and append
       run: |
-        # CABAL_BUILD_OPTIONS="--cabal-build-options \"-j1\""
+        # --cabal-build-options "-j1"
         ./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --targets "$CI_BENCHMARKS" --raw --append
 
     # -----------------------------------------------------------------
