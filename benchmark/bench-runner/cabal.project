@@ -2,3 +2,16 @@ packages: . ../../targets
 
 package bench-report
   flags: +no-charts
+
+package bench-show
+  flags: +no-charts
+
+source-repository-package
+  type: git
+  location: https://github.com/composewell/bench-report.git
+  tag: 74bd2a199e82588e310fd359c89b86c3ef05038a
+
+source-repository-package
+  type: git
+  location: https://github.com/composewell/streamly-coreutils.git
+  tag: d23fd91cacba04a9ee9f27504d3728e36e742774
