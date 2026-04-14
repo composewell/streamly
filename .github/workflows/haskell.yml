@@ -29,12 +29,6 @@ jobs:
       ${{ matrix.name }}
     env:
       # ------------------------------------------------------------------------
-      # Common options
-      # ------------------------------------------------------------------------
-      CABAL_REINIT_CONFIG: y
-      LC_ALL: C.UTF-8
-
-      # ------------------------------------------------------------------------
       # What to build
       # ------------------------------------------------------------------------
       # DISABLE_TEST: "y"
@@ -48,13 +42,11 @@ jobs:
       # Selecting tool versions
       # ------------------------------------------------------------------------
       # For updating see: https://downloads.haskell.org/~ghcup/
-      GHCUP_VERSION: 0.1.50.2
-      GHCVER: ${{ matrix.ghc_version }}
+      #GHCUP_VERSION: 0.1.50.2
 
       # ------------------------------------------------------------------------
       # cabal options
       # ------------------------------------------------------------------------
-      CABAL_CHECK_RELAX: y
 
       # CABAL_BUILD_OPTIONS="-j1"
       # Enable the above option if you:
@@ -77,28 +69,47 @@ jobs:
       # version.
       #STACKVER: "1.6.5"
       #STACK_UPGRADE: "y"
-      STACK_YAML: "stack.yaml"
+
+      # ------------------------------------------------------------------------
+      # Common options
+      # ------------------------------------------------------------------------
+
+      # Subdir
+      SUBDIR: ${{ matrix.subdir }}
+
+      # If this option is enabled packcheck clears out the environment
+      # and only uses the options explicitly set on the command line,
+      # implicit environment won't affect the build. if you find this
+      # annoying comment this.
+      CHECK_ENV: "y"
+
+      # NOTE: by capturing the options in env variables here quotes
+      # are presrved, if we expand them directly into the script
+      # quotes are lost.
+      #
+      # WARNING! you cannot use comments in this
+      COMMON_OPTIONS: >-
+        LC_ALL=C.UTF-8
+        BUILD_PREFETCH=y
+        GHCUP_VERSION=latest
+        GHCVER=${{ matrix.ghc_version }}
+
+      # WARNING! you cannot use comments in this
+      CABAL_OPTIONS: >-
+        CABAL_REINIT_CONFIG=y
+        CABAL_CHECK_RELAX=y
+
+      MATRIX_OPTIONS: ${{ matrix.pack_options }}
 
       # ------------------------------------------------------------------------
       # Location of packcheck.sh (the shell script invoked to perform CI tests ).
       # ------------------------------------------------------------------------
-      # You can either commit the packcheck.sh script at this path in your repo or
-      # you can use it by specifying the PACKCHECK_REPO_URL option below in which
-      # case it will be automatically copied from the packcheck repo to this path
-      # during CI tests. In any case it is finally invoked from this path.
-      PACKCHECK: "./packcheck.sh"
+      # You can either commit the packcheck.sh script in your repo root or
+      # you can use it by specifying the PACKCHECK_REPO_URL option.
       # If you have not committed packcheck.sh in your repo at PACKCHECK
       # then it is automatically pulled from this URL.
       PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/composewell/packcheck"
-      PACKCHECK_GITHUB_COMMIT: "dd6862df527f317fd4987afa523fba3f4fde7e19"
-
-      # ------------------------------------------------------------------------
-      # Final build variables
-      # ------------------------------------------------------------------------
-      PACKCHECK_COMMAND: ${{ matrix.command }} ${{ matrix.pack_options }}
-
-      # Subdir
-      SUBDIR: ${{ matrix.subdir }}
+      PACKCHECK_GITHUB_COMMIT: "669c3b553add086bb8a667049ac21cf83499cf13"
 
       # Pull token from "secrets" setting of the github repo
       #COVERALLS_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
@@ -111,19 +122,21 @@ jobs:
       fail-fast: false
       matrix:
 
-        # The order of jobs is important to optimize fail-fast.
+        # The order of jobs is important to optimize fail-fast, if
+        # fail-fast is set to true.
 
         # This section is to order the important jobs first especially for
         # "fail-fast" so that these are the ones started first.
         name:
           - werror
 
-        # The name of the CI is built using the name and other info from CI,
-        # therefore, the "name" field can be same for all tests here.
-        #
-        # The reason we have an explicit "name" field here is to force
-        # an additional config instead of adding to an existing config
-        # while adding additional configs.
+        # IMPORTANT NOTE:
+        # If runner, command, ghc version are identical then the name of
+        # CI is used to distinguish the cache key.
+
+        # The reason we have an explicit "name" field in the following
+        # entries is to force an additional config instead of adding to
+        # an existing config while adding additional configs.
         # Look at <https://docs.github.com/en/free-pro-team@latest/actions/reference/workflow-syntax-for-github-actions#jobsjob_idstrategymatrix>
         # for more info about adding matrix elements.
         # Adding any element to the list will increase the number of matrix
@@ -327,7 +340,7 @@ jobs:
           #    DISABLE_BENCH="y"
           #    DISABLE_DOCS="y"
           #    ENABLE_DOCSPEC="y"
-          #    DOCSPEC_URL=https://github.com/phadej/cabal-extras/releases/download/cabal-docspec-0.0.0.20210111/cabal-docspec-0.0.0.20210111.xz
+          #   DOCSPEC_URL=https://github.com/phadej/cabal-extras/releases/download/cabal-docspec-0.0.0.20250606/cabal-docspec-0.0.0.20250606-x86_64-linux.xz
           #    DOCSPEC_OPTIONS="--timeout 60 --check-properties --property-variables xs"
           #    CABAL_PROJECT="cabal.project.doctest"
           #  ignore_error: false
@@ -339,7 +352,31 @@ jobs:
           #   cabal_version: 3.6.2.0
           #   ignore_error: false
 
+#-----------------------------------------------------------------------------
+# Usually you do not need to change anything below, this is generic code for
+# caching and running packcheck on Linux/Mac/Windows.
+#-----------------------------------------------------------------------------
+
     steps:
+
+    - name: Optimize Windows Runner Environment
+      if: runner.os == 'Windows'
+      shell: powershell
+      run: |
+        # Enable long paths.  Sometimes failures occur due to path
+        # length limitation.
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\FileSystem' -Name 'LongPathsEnabled' -value 1
+
+        # Cache saving is very slow on Windows, it could be due to tar,
+        # or the compression program or the file system. Changing the
+        # compression level of zstd does not help. We are also not able to pick
+        # another tar program by changing the path, tar is picked up by the
+        # cache action itself.
+
+        # This does not seem to make much difference.
+        # Disable Windows Defender to speed up IO/Tar operations
+        Set-MpPreference -DisableRealtimeMonitoring $true
+
     - uses: actions/checkout@v4
 
     # This should happen before cache restore.
@@ -348,25 +385,38 @@ jobs:
       run: |
         rm -f ~/.ghcup
 
-    - name: Cache hackage package index (non-Windows)
-      uses: actions/cache@v4
+    # See the "cabal path" output in the CI logs to tweak the cache
+    # locations.
+
+    # Shared by all tests, all platforms
+    - name: Restore hackage package index (non-Windows)
+      id: restore-hackage
+      uses: actions/cache/restore@v4
       if: runner.os != 'Windows'
       with:
         path: |
             ~/.cache/cabal/packages
-        # Bump the key version to clear the cache
-        key: cache-cabal-packages
+        key: cabal-hackage-index-non-windows
 
-    # See the "cabal path" output in the CI logs to tweak the cache locations
-    # ghc is big but cheap to install, if cache size is a concern we can avoid
-    # caching it.
-    - name: Cache ghcup and ghc (non-Windows)
-      uses: actions/cache@v4
+    # GHC is not test/options specific
+    - name: Restore ghcup and ghc (non-Windows)
+      id: restore-ghcup
+      uses: actions/cache/restore@v4
       if: runner.os != 'Windows'
       with:
         path: |
           ~/.ghcup
-        key: ${{ matrix.runner }}-${{ matrix.ghc_version }}.${{ matrix.ghc_salt}}
+        key: ghc-${{ matrix.ghc_version }}-v${{ matrix.ghc_salt }}-${{ matrix.runner }}
+
+    # GHC is not test/options specific
+    #- name: Restore ghcup and ghc (Windows)
+    #  id: restore-ghcup-win
+    #  uses: actions/cache/restore@v4
+    #  if: runner.os == 'Windows'
+    #  with:
+    #    path: |
+    #      C:/ghcup
+    #    key: ghc-${{ matrix.ghc_version }}-v${{ matrix.ghc_salt }}-${{ matrix.runner }}
 
     # XXX If we want to invalidate the cache on resolver change we
     # should use a separate cache for stack as it should be keyed on
@@ -374,104 +424,195 @@ jobs:
     # and then copied to pack_options from there, needs some work. It
     # should be fine as resolver minor version change can only increase
     # the cache size.
-    - name: Cache build dependencies (non-Windows)
-      uses: actions/cache@v4
+    # Deps are test/options specific
+    - name: Restore build dependencies (non-Windows)
+      id: restore-deps-nonwin
+      uses: actions/cache/restore@v4
       if: runner.os != 'Windows'
       with:
         # cabal: ~/.local/bin, ~/.local/state/cabal
+        # ~/.cache/cabal/packages can be cached, but will increase the
+        # cache size. But can save the "cabal update" time.
         path: |
           ~/.local/bin
           ~/.local/state/cabal
           ~/.stack
-        # Bump the key version to clear the cache
-        key: ${{ matrix.runner }}-${{ matrix.command }}-${{ matrix.ghc_version }}-${{ matrix.name }}
+        key: ${{ matrix.command }}-deps-ghc-${{ matrix.ghc_version }}-v${{ matrix.ghc_salt }}-${{ matrix.runner }}-${{ matrix.name }}
 
-    - name: Cache common directories (Windows)
-      uses: actions/cache@v4
+    # Deps are test/options specific
+    - name: Restore build dependencies, hackage index, local/bin (Windows)
+      id: restore-deps-win
+      uses: actions/cache/restore@v4
       if: runner.os == 'Windows'
       with:
         path: |
-          ${{ env.APPDATA }}/local
-          C:/ghcup
           C:/cabal
-        key: ${{ matrix.runner }}-${{ matrix.command }}-${{ matrix.ghc_version }}-${{ matrix.name }}-v1
+        key: ${{ matrix.command }}-deps-ghc-${{ matrix.ghc_version }}-v${{ matrix.ghc_salt }}-${{ matrix.runner }}-${{ matrix.name }}
 
     - name: Download packcheck
       # on windows-latest GitHub Actions defaults to PowerShell
       shell: bash
       run: |
-        if test ! -e "$PACKCHECK"
-        then
-          if test -z "$PACKCHECK_GITHUB_COMMIT"
+        download_one () {
+          if test ! -e "$1"
           then
-              die "PACKCHECK_GITHUB_COMMIT env var is not specified."
+            if test -z "$PACKCHECK_GITHUB_COMMIT"
+            then
+            die "Downloading [$1]: PACKCHECK_GITHUB_COMMIT env var is not specified."
+            fi
+            PACKCHECK_URL_PREFIX=${PACKCHECK_GITHUB_URL}/${PACKCHECK_GITHUB_COMMIT}
+            curl --fail -sLO ${PACKCHECK_URL_PREFIX}/$1 || exit 1
+            chmod +x "$1"
+          elif test ! -x "$1"
+          then
+              chmod +x $1
           fi
-          PACKCHECK_URL=${PACKCHECK_GITHUB_URL}/${PACKCHECK_GITHUB_COMMIT}/packcheck.sh
-          curl --fail -sL -o "$PACKCHECK" $PACKCHECK_URL || exit 1
-          chmod +x $PACKCHECK
-        elif test ! -x "$PACKCHECK"
-        then
-            chmod +x $PACKCHECK
-        fi
-
-    - name: Run packcheck
-      # on windows-latest GitHub Actions defaults to PowerShell
-      shell: bash
-      run: |
-        #if test -n "$COVERAGE"
-        #then
-        #  # Run tests with coverage
-        #  cabal update
-        #  # Build hpc-coveralls if needed
-        #  sudo apt-get install -y libcurl4-gnutls-dev
-        #  export PATH=$HOME/.cabal/bin:$PATH
-        #  which hpc-coveralls 2>/dev/null || cabal install --project-file cabal.project.hpc-coveralls hpc-coveralls
-        #  # Run tests and upload results to coveralls.io
-        #  bin/test.sh --coverage --raw
-        #  # XXX Uncomment this and fix it properly later
-        #  # hpc-coveralls --repo-token="$COVERALLS_TOKEN" --coverage-mode=StrictlyFullLines
-        #fi
-
-        if test -n "$SUBDIR"
-        then
-          mv "$PACKCHECK" "$SUBDIR/packcheck.sh"
-          # This is required otherwise dist-newstyle will be created in
-          # the top level directory as it is considered the working dir.
-          rm cabal.project
+        }
+        if test -n "$SUBDIR"; then
           cd "$SUBDIR"
         fi
-        # Commands like mount, sysctl for info require sbin
-        PATH_VAR=/bin:/usr/bin:/sbin:/usr/sbin
-        case "$(uname)" in
-          Linux)
-            # On Linux it defaults to /usr/local, during cache restore
-            # tar is unable to change permissions and restore fails.
-            export GHCUP_INSTALL_BASE_PREFIX=$HOME
-            ;;
-          CYGWIN*|MINGW*|MSYS*)
-            PATH_VAR="$PATH_VAR:/c/Program Files/7-Zip:/mingw64/bin"
-            ;;
-        esac
-        # Use "bash -c" instead of invoking directly to preserve quoted
-        # arguments in PACKCHECK_COMMAND e.g. DOCSPEC_OPTIONS="--timeout 60".
-        # Direct invocation would word-split on spaces inside quoted values.
-        echo "$PACKCHECK $PACKCHECK_COMMAND PATH=\"$PATH_VAR\""
-        bash -c "$PACKCHECK $PACKCHECK_COMMAND PATH=\"$PATH_VAR\""
+        download_one packcheck.sh
 
-    - name: Check cache locations
-      if: runner.os != 'Windows'
+    # Store the function in a file so that it can be reused across multiple
+    # steps.
+    - name: Setup packcheck
+      shell: bash
       run: |
-        # We want to see if it is a symlink; e.g. on github ~/.ghcup is a
-        # pre-existing symlink to /usr/local.
-        list="$HOME/.local/bin $HOME/.local/state/cabal $HOME/.ghcup $HOME/.stack"
-        for dir in $list; do
-          # macOS does not have --no-dereference option
-          if [ -L "$dir" ]; then
-            echo "$dir is a symlink -> $(readlink $dir)"
-          else
-            du -sh "$dir" 2>/dev/null || echo "$dir missing"
+        if test -n "$SUBDIR"; then
+          rm -f cabal.project
+          cd "$SUBDIR"
+        fi
+        cat << 'EOF' > packcheck-setup.sh
+        setup_packcheck_args() {
+          ARGS="${{ matrix.command }} $COMMON_OPTIONS"
+          if test "${{ matrix.command }}" = "cabal"; then
+            ARGS="$ARGS $CABAL_OPTIONS"
           fi
-        done
-        echo
-        #ls -ld $list 2>/dev/null || true
-        ls -al $list 2>/dev/null || true
+
+          # Caution: do not use matrix.pack_options directly here
+          # quotes will get stripped.
+          ARGS="$ARGS $MATRIX_OPTIONS"
+          PATH_VAR=/bin:/usr/bin:/sbin:/usr/sbin
+
+          case "$(uname)" in
+            Linux)
+              export GHCUP_INSTALL_BASE_PREFIX=$HOME
+              # Access usr/local seems to be much slower on github
+              #PATH_VAR="$PATH_VAR:/usr/local/.ghcup/bin"
+              ;;
+            CYGWIN*|MINGW*|MSYS*)
+              for var in APPDATA CABAL_DIR; do
+                val="${!var}"
+                [ -n "$val" ] && ARGS="$ARGS $var=\"$(cygpath -u "$val")\""
+              done
+              ARGS="$ARGS CABAL_BUILDDIR=\"/c/b\" WINVER=$WINVER"
+              ARGS="$ARGS NUMBER_OF_PROCESSORS=$NUMBER_OF_PROCESSORS"
+              ARGS="$ARGS PROCESSOR_IDENTIFIER=\"$PROCESSOR_IDENTIFIER\""
+              PATH_VAR="$PATH_VAR:/c/ghcup:/c/Program Files/7-Zip:/mingw64/bin"
+              ;;
+          esac
+          ARGS="$ARGS PATH=\"$PATH_VAR\""
+          export ARGS
+        }
+        EOF
+
+    - name: Run packcheck (dependencies only)
+      id: deps-only
+      # Check the relevant step based on the runner OS
+      if: |
+        (runner.os != 'Windows' && steps.restore-deps-nonwin.outputs.cache-hit != 'true') ||
+        (runner.os == 'Windows' && steps.restore-deps-win.outputs.cache-hit != 'true')
+      shell: bash
+      run: |
+        if test -n "$SUBDIR"; then
+          cd "$SUBDIR"
+        fi
+        source packcheck-setup.sh
+        setup_packcheck_args
+        eval "./packcheck.sh $ARGS BUILD_DEPS_ONLY=y"
+
+    - name: Save hackage package index (non-Windows)
+      uses: actions/cache/save@v4
+      if: always() && steps.deps-only.outcome == 'success' && runner.os != 'Windows' && steps.restore-hackage.outputs.cache-hit != 'true'
+      with:
+        path: ~/.cache/cabal/packages
+        key: cabal-hackage-index-non-windows
+
+    - name: Save ghcup and ghc (non-Windows)
+      uses: actions/cache/save@v4
+      if: always() && steps.deps-only.outcome == 'success' && runner.os != 'Windows' && steps.restore-ghcup.outputs.cache-hit != 'true'
+      with:
+        path: ~/.ghcup
+        key: ghc-${{ matrix.ghc_version }}-v${{ matrix.ghc_salt }}-${{ matrix.runner }}
+
+    # On Windows, ghc restore step takes 2-3 minutes whereas installing
+    # GHC takes less than 2 minutes. On top of this saving the ghc cache
+    # takes 7 minutes. So this does not make sense.
+    #- name: Save ghcup and ghc (Windows)
+    #  uses: actions/cache/save@v4
+    #  if: always() && steps.deps-only.outcome == 'success' && runner.os == 'Windows' && steps.restore-ghcup-win.outputs.cache-hit != 'true'
+    #  with:
+    #    path: |
+    #      C:/ghcup
+    #    key: ghc-${{ matrix.ghc_version }}-v${{ matrix.ghc_salt }}-${{ matrix.runner }}
+
+    # Deps are test/options specific, hence, matrix.name in the key
+    - name: Save build dependencies (non-Windows)
+      uses: actions/cache/save@v4
+      if: always() && steps.deps-only.outcome == 'success' && runner.os != 'Windows' && steps.restore-deps-nonwin.outputs.cache-hit != 'true'
+      with:
+        path: |
+          ~/.local/bin
+          ~/.local/state/cabal
+          ~/.stack
+        key: ${{ matrix.command }}-deps-ghc-${{ matrix.ghc_version }}-v${{ matrix.ghc_salt }}-${{ matrix.runner }}-${{ matrix.name }}
+
+    # hackage package index is part of C:/cabal
+    # Deps are test/options specific, hence, matrix.name in the key
+    # Add if needed ~/AppData/Roaming/local
+    - name: Save build dependencies (Windows)
+      uses: actions/cache/save@v4
+      if: always() && steps.deps-only.outcome == 'success' && runner.os == 'Windows' && steps.restore-deps-win.outputs.cache-hit != 'true'
+      with:
+        path: |
+          C:/cabal
+        key: ${{ matrix.command }}-deps-ghc-${{ matrix.ghc_version }}-v${{ matrix.ghc_salt }}-${{ matrix.runner }}-${{ matrix.name }}
+
+    - name: Run packcheck (final build)
+      shell: bash
+      run: |
+        if test -n "$SUBDIR"; then
+          cd "$SUBDIR"
+        fi
+        source packcheck-setup.sh
+        setup_packcheck_args
+        eval "./packcheck.sh $ARGS BUILD_PACKAGE_ONLY=y"
+
+    # Enable for debugging, this itself takes 50 sec on Windows, in packcheck
+    # build which is tiny.
+    #- name: Check cache locations
+    #  shell: bash
+    #  run: |
+    #    # We want to see if any cache paths are symlinks; e.g. on github
+    #    # ~/.ghcup is a pre-existing symlink to /usr/local.
+    #    if [ "$RUNNER_OS" == "Windows" ]; then
+    #      # Convert Windows paths to Unix-style for Bash
+    #      APPDATA_UNIX=$(cygpath "$APPDATA")
+    #      list="$APPDATA_UNIX/local C:/ghcup C:/cabal"
+    #    else
+    #      list="$HOME/.local/bin $HOME/.local/state/cabal $HOME/.ghcup $HOME/.stack"
+    #    fi
+
+    #    for dir in $list; do
+    #      # macOS does not have --no-dereference option
+    #      if [ -L "$dir" ]; then
+    #        echo "$dir is a symlink -> $(readlink $dir)"
+    #      elif [ -d "$dir" ]; then
+    #        du -sh "$dir" 2>/dev/null || echo "$dir permission denied"
+    #      else
+    #        echo "$dir missing or not a dir"
+    #      fi
+    #    done
+    #    echo
+    #    #ls -ld $list 2>/dev/null || true
+    #    ls -al $list 2>/dev/null || true
