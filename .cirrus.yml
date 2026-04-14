@@ -2,7 +2,7 @@ freebsd_instance:
   image_family: freebsd-14-3
 
 task:
-  name: FreeBSD+ghc-9.10.3+cabal
+  name: FreeBSD+ghc-9.14.1+cabal
   env:
     PACKCHECK_COMMAND: cabal
 
@@ -27,7 +27,7 @@ task:
     # ------------------------------------------------------------------------
     # For updating see: https://downloads.haskell.org/~ghcup/
     GHCUP_VERSION: 0.1.50.2
-    GHCVER: 9.10.3
+    GHCVER: 9.14.1
 
     # ------------------------------------------------------------------------
     # stack options (if using stack builds)
@@ -56,28 +56,26 @@ task:
     # If you have not committed packcheck.sh in your repo at PACKCHECK
     # then it is automatically pulled from this URL.
     PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/composewell/packcheck"
-    PACKCHECK_GITHUB_COMMIT: "dd6862df527f317fd4987afa523fba3f4fde7e19"
+    PACKCHECK_GITHUB_COMMIT: "6ee4502650b49cbbdb583fc7a55731738c9303df"
+
+  cabal_cache:
+    folder: ~/.cabal
+    fingerprint_script: echo $GHCVER
+
+  # Cabal store is in .local/state/cabal
+  local_cache:
+    folder: ~/.local
+    fingerprint_script: echo $GHCVER
 
   ghcup_cache:
     folder: ~/.ghcup
     fingerprint_script: echo $GHCUP_VERSION $GHCVER
 
-  cabal_packages_cache:
-    folder: ~/.cabal/packages
-    fingerprint_script: echo $GHCVER
-
-  cabal_cache:
-    folder: ~/.cabal/store
-    fingerprint_script: echo $GHCVER
-
-  #local_cache:
-  #  folder: ~/.local
-  #  fingerprint_script: echo $GHCVER
-
   #local_bin_cache:
   #  folder: ~/.local/bin
   #  fingerprint_script: echo $HLINT_VERSION
 
+  # git is required for cabal files with git URLs
   deps_install_script: |
       pkg update
       pkg install -y gmake
