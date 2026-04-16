@@ -114,6 +114,8 @@ module Streamly.Internal.FileSystem.OS_PATH_TYPE
 
     -- * Elimination
     , toArray
+    , toUtf8Array
+    , toUtf8Bytes
     , toChars
     , toChars_
     , toString
@@ -218,8 +220,8 @@ import Control.Monad.Catch (MonadThrow(..))
 import Data.Bifunctor (bimap)
 import Data.Functor.Identity (Identity(..))
 import Data.Maybe (fromJust, isJust)
-#ifndef IS_WINDOWS
 import Data.Word (Word8)
+#ifndef IS_WINDOWS
 import Foreign.C (CString)
 #else
 import Data.Word (Word16)
@@ -778,9 +780,37 @@ path = mkQ pathE
 -- Eimination
 ------------------------------------------------------------------------------
 
--- | Convert the path to an array.
+-- XXX rename to toOsWordArray?
+
+-- | Convert the path to an array with os word elements.
 toArray :: OS_PATH_TYPE -> Array OS_WORD_TYPE
 toArray (OS_PATH arr) = arr
+
+-- XXX Add a utf8Reader unfold to be used in nested use cases
+
+-- | Convert the path to a Utf8 byte stream. On Posix there is no
+-- transformation involved, on Windows the path is decoded as Utf16 and encoded
+-- into Utf8.
+{-# INLINE toUtf8Bytes #-}
+toUtf8Bytes :: Monad m => OS_PATH_TYPE -> Stream m Word8
+#ifndef IS_WINDOWS
+toUtf8Bytes = Array.read . toArray
+#else
+toUtf8Bytes = Unicode.encodeUtf8' . toChars
+#endif
+
+-- | Convert the path to a Utf8 encoded Array. On Posix there is no
+-- transformation involved, on Windows the path is decoded as Utf16 and encoded
+-- into Utf8.
+{-# INLINE toUtf8Array #-}
+toUtf8Array :: OS_PATH_TYPE -> Array Word8
+#ifndef IS_WINDOWS
+toUtf8Array = toArray
+#else
+-- XXX Use more efficient in-place conversion from Utf16 to Utf8.
+-- XXX Note: unsafeFromChars uses an exact length array.
+toUtf8Array = Common.unsafeFromChars Unicode.encodeUtf8' . toChars
+#endif
 
 -- | Decode the path to a stream of Unicode chars using strict CODEC_NAME decoding.
 {-# INLINE toChars #-}
