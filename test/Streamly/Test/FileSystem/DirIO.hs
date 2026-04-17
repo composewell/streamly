@@ -23,6 +23,8 @@ import GHC.IO.Encoding (setLocaleEncoding, utf8)
 import Streamly.Data.Array (Array)
 #endif
 import System.Directory (createDirectoryLink)
+import System.FilePath ((</>))
+import System.IO.Temp (withSystemTempDirectory)
 
 import qualified Streamly.Unicode.Stream as Unicode
 import qualified Streamly.Internal.Unicode.Stream as Unicode (lines)
@@ -69,9 +71,9 @@ testCorrectnessByteChunked expectation lister = do
     reality `shouldBe` expectation
 #endif
 
-testSymLinkFollow :: Spec
-testSymLinkFollow = do
-    let fp = "benchmark-tmp/dir-structure-small-sym"
+testSymLinkFollow :: FilePath -> Spec
+testSymLinkFollow tmpDir = do
+    let fp = tmpDir </> "dir-structure-small-sym"
     -- We create and use a different directory tree here for these tests because
     -- of convinence.
     pathsUnsorted <- runIO $ createDirStucture fp 2 3
@@ -130,12 +132,11 @@ testSymLinkFollow = do
                      fp)
 
 -- | List the current directory recursively
-main :: IO ()
-main = do
-    setLocaleEncoding utf8
+runTests :: FilePath -> IO ()
+runTests tmpDir = do
 
-    let smallTree = "benchmark-tmp/dir-structure-small"
-        bigTree = "benchmark-tmp/dir-structure-big"
+    let smallTree = tmpDir </> "dir-structure-small"
+        bigTree = tmpDir </> "dir-structure-big"
     pathsSmallUnsorted <- createDirStucture smallTree 2 3
     pathsBigUnsorted <- createDirStucture bigTree 5 5
 
@@ -199,4 +200,10 @@ main = do
                testCorrectness pathsBig (listDirChunkParInterleaved id bigTree)
             it "listDirChunkParOrdered" $
                testCorrectness pathsBig (listDirChunkParOrdered id bigTree)
-        testSymLinkFollow
+        testSymLinkFollow tmpDir
+
+-- | List the current directory recursively
+main :: IO ()
+main = do
+    setLocaleEncoding utf8
+    withSystemTempDirectory "hspec-test" runTests
