@@ -1471,6 +1471,15 @@ ignoreCase val conf = conf { _ignoreCase = val }
 -- convey that when it is False "./x" and "./x" are not strictly equal.
 -- Similarly, "treatDotRootsEqual" has a problem with the "./x" and "x"
 -- comparison, there is not dor root in the second path.
+--
+-- We can think of paths having scopes:
+-- * Scope currentDirectory: "." is fixed so ./x has an unambiguous meaning
+-- * Scope currentSystem: "/" is fixed so /x has an unambiguous meaning, but
+-- "./x" may be ambiguous.
+-- * Scope universal: "server://" is fixed but "/" is ambiguous
+--
+-- So we can possibly specify a scope (Directory/System/Universe) for
+-- comparison rather than using allowRelativeEquality.
 
 -- | Allow relative paths to be treated as equal. When this is 'False' relative
 -- paths will never match even if they are literally equal e.g. "./x" will not
