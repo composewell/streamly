@@ -6,7 +6,7 @@ packages:
   bench-test-lib
 
 -- For debugging heap overflow
-jobs: 1
+-- jobs: 1
 
 package streamly
   ghc-options: -Werror

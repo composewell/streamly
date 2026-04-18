@@ -93,6 +93,9 @@ jobs:
         BUILD_PREFETCH=y
         GHCUP_VERSION=latest
         GHCVER=${{ matrix.ghc_version }}
+        DISABLE_SDIST_BUILD="y"
+        DISABLE_BENCH="y"
+        DISABLE_DOCS="y"
 
       # WARNING! you cannot use comments in this
       CABAL_OPTIONS: >-
@@ -109,7 +112,7 @@ jobs:
       # If you have not committed packcheck.sh in your repo at PACKCHECK
       # then it is automatically pulled from this URL.
       PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/composewell/packcheck"
-      PACKCHECK_GITHUB_COMMIT: "669c3b553add086bb8a667049ac21cf83499cf13"
+      PACKCHECK_GITHUB_COMMIT: "b3743510c7c26f83254ffd9ef91bcd71560cff05"
 
       # Pull token from "secrets" setting of the github repo
       #COVERALLS_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
@@ -169,7 +172,8 @@ jobs:
           #    DISABLE_SDIST_BUILD="y"
           #  ignore_error: true
 
-          - name: fusion
+          # Disable sdist build so that we can test all packages.
+          - name: fusion-bench-doc
             runner: ubuntu-latest
             command: cabal
             ghc_version: 9.14.1
@@ -177,9 +181,8 @@ jobs:
             pack_options: >-
               CABAL_PROJECT=cabal.project
               CABAL_BUILD_OPTIONS="--flag limit-build-mem --flag fusion-plugin"
-              DISABLE_SDIST_BUILD="y"
-              DISABLE_DOCS="y"
-              DISABLE_BENCH="y"
+              DISABLE_DOCS="n"
+              DISABLE_BENCH="n"
             ignore_error: false
 
           - name: streamly-core-sdist
@@ -189,7 +192,7 @@ jobs:
             subdir: core
             ignore_error: false
 
-          - name: debug-unoptimized
+          - name: debug-no-opt
             runner: macos-latest
             command: cabal
             ghc_version: 9.14.1
@@ -197,13 +200,10 @@ jobs:
             pack_options: >-
               CABAL_PROJECT=cabal.project
               CABAL_BUILD_OPTIONS="--flag debug --flag -opt"
-              DISABLE_SDIST_BUILD="y"
-              DISABLE_DOCS="y"
-              DISABLE_BENCH="y"
             ignore_error: false
 
           # Takes too long, so bench is disabled
-          - name: ghc-9.12.4
+          - name: nightly-2026-03-10
             runner: macos-latest
             command: stack
             # WARNING! cannot use # comments inside pack_options.
@@ -212,11 +212,8 @@ jobs:
               STACK_UPGRADE="y"
               RESOLVER=nightly-2026-03-10
               STACK_YAML=stack.yaml
-              DISABLE_SDIST_BUILD="y"
               SDIST_OPTIONS="--ignore-check"
               DISABLE_DIST_CHECKS="y"
-              DISABLE_DOCS="y"
-              DISABLE_BENCH="y"
             ignore_error: false
 
           # Note: use linux for warning build for convenient dev testing
@@ -240,8 +237,6 @@ jobs:
             pack_options: >-
               CABAL_PROJECT=cabal.project
               CABAL_BUILD_OPTIONS="--flag fusion-plugin --flag inspection"
-              DISABLE_SDIST_BUILD="y"
-              DISABLE_DOCS="y"
             ignore_error: false
 
           - name: ci
@@ -251,9 +246,6 @@ jobs:
             # WARNING! cannot use # comments inside pack_options.
             pack_options: >-
               CABAL_PROJECT=cabal.project
-              DISABLE_SDIST_BUILD="y"
-              DISABLE_DOCS="y"
-              DISABLE_BENCH="y"
             ignore_error: false
 
           - name: streamly-sdist
@@ -263,6 +255,7 @@ jobs:
             # WARNING! cannot use # comments inside pack_options.
             pack_options: >-
               CABAL_PROJECT=cabal.project.streamly
+              DISABLE_SDIST_BUILD="n"
             ignore_error: true
 
           - name: lstat-readdir
@@ -273,12 +266,9 @@ jobs:
             pack_options: >-
               CABAL_PROJECT=cabal.project
               CABAL_BUILD_OPTIONS="--flag force-lstat-readdir"
-              DISABLE_SDIST_BUILD="y"
-              DISABLE_DOCS="y"
-              DISABLE_BENCH="y"
             ignore_error: false
 
-          - name: ci
+          - name: custom-ghc
             runner: ubuntu-latest
             command: cabal
             ghc_version: 9.2.8
@@ -288,9 +278,6 @@ jobs:
             pack_options: >-
               GHCUP_GHC_OPTIONS="-u https://github.com/composewell/ghc/releases/download/ghc-9.2.8-perf-counters-1-rc1/ghc-9.2.8.20231130-x86_64-unknown-linux.tar.xz"
               CABAL_PROJECT=cabal.project
-              DISABLE_SDIST_BUILD="y"
-              DISABLE_DOCS="y"
-              DISABLE_BENCH="y"
             ignore_error: false
 
           - name: unoptimized
@@ -300,10 +287,6 @@ jobs:
             # WARNING! cannot use # comments inside pack_options.
             pack_options: >-
               CABAL_PROJECT=cabal.project
-              DISABLE_SDIST_BUILD="y"
-              DISABLE_DOCS="y"
-              DISABLE_BENCH="y"
-              DISABLE_DIST_CHECKS="y"
               CABAL_BUILD_OPTIONS="--flags \"-opt\""
             ignore_error: false
 
@@ -314,8 +297,6 @@ jobs:
             # WARNING! cannot use # comments inside pack_options.
             pack_options: >-
               CABAL_PROJECT=cabal.project
-              CABAL_BUILD_OPTIONS="--flag limit-build-mem"
-              DISABLE_SDIST_BUILD="y"
             ignore_error: false
 
           #- name: ci
