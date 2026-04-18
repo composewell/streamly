@@ -2,7 +2,7 @@
 # You can use any of the options supported by packcheck as environment
 # variables here.  See https://github.com/composewell/packcheck for all
 # options and their explanation.
-#
+
 branches:
   only:
     - master
@@ -23,7 +23,7 @@ environment:
     # ------------------------------------------------------------------------
     #
     GHCUP_VERSION: "0.1.50.2"
-    GHCVER: "9.14.1"
+    GHCVER: "9.12.4"
     #CABALVER: "3.10.3.0"
 
     # ------------------------------------------------------------------------
@@ -33,10 +33,13 @@ environment:
     DISABLE_BENCH: "y"
     DISABLE_DOCS: "y"
     DISABLE_DIST_CHECKS: "y"
+    # On Windows, DISABLE_SDIST_BUILD is useful for (1) avoiding
+    # path length restriction, (2) avoid installing autoreconf
+    # for configure builds.
     DISABLE_SDIST_BUILD: "y"
     # Note: these require the "diff" utility.
     # DISABLE_SDIST_GIT_CHECK: "y"
-    # DISABLE_SDIST_PROJECT_CHECK: "y"
+    DISABLE_SDIST_PROJECT_CHECK: "y"
 
     # ------------------------------------------------------------------------
     # cabal options
@@ -55,11 +58,15 @@ environment:
     # If you have not committed packcheck.sh in your repo at PACKCHECK_LOCAL_PATH
     # then it is automatically pulled from this URL.
     PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/composewell/packcheck"
-    PACKCHECK_GITHUB_COMMIT: "dd6862df527f317fd4987afa523fba3f4fde7e19"
+    PACKCHECK_GITHUB_COMMIT: "b3743510c7c26f83254ffd9ef91bcd71560cff05"
 
     # Override the temp directory to avoid sed escaping issues
     # See https://github.com/haskell/cabal/issues/5386
     TMP: "c:\\tmp"
+
+# ------------------------------------------------------------------------
+# Usually you do not need to change anything below this line
+# ------------------------------------------------------------------------
 
 # Bump the -> version to clear the cache
 # packcheck uses "%APPDATA%\\local" to install tools like hlint etc.
@@ -72,7 +79,8 @@ cache:
   - "C:\\ghcup"
   - "C:\\cabal"
 
-# Folder where the repository is cloned.
+# Folder where the repository is cloned. Kept as short as possible to avoid
+# long path issues on Windows.
 clone_folder: "c:\\pkg"
 build: off
 
