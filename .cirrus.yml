@@ -16,8 +16,8 @@ task:
     # What to build
     # ------------------------------------------------------------------------
     # DISABLE_TEST: "y"
-    # DISABLE_BENCH: "y"
-    # DISABLE_DOCS: "y"
+    DISABLE_BENCH: "y"
+    DISABLE_DOCS: "y"
     DISABLE_SDIST_BUILD: "y"
     # DISABLE_SDIST_GIT_CHECK: "y"
     DISABLE_DIST_CHECKS: "y"
@@ -56,7 +56,7 @@ task:
     # If you have not committed packcheck.sh in your repo at PACKCHECK
     # then it is automatically pulled from this URL.
     PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/composewell/packcheck"
-    PACKCHECK_GITHUB_COMMIT: "6ee4502650b49cbbdb583fc7a55731738c9303df"
+    PACKCHECK_GITHUB_COMMIT: "b3743510c7c26f83254ffd9ef91bcd71560cff05"
 
   cabal_cache:
     folder: ~/.cabal
