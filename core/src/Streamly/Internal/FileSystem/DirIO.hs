@@ -8,20 +8,29 @@
 -- Maintainer  : streamly@composewell.com
 -- Portability : GHC
 --
---  API Design notes:
+-- Directory traversal API design notes:
 --
--- The paths returned by "read" can be absolute (/usr/bin/ls), relative to
--- current directory (./bin/ls) or path segments relative to current dir
--- (bin/ls). To accomodate all the cases we can provide a prefix to attach
--- to the paths being generated. Alternatively, we could take the approach
--- of the higher layer doing that, but it is more efficient to allocate the
--- path buffer once rather than modifying it later. We can do this by
--- passing a fold to transform the output.
+-- Paths returned by readdir:
+-- --------------------------
+-- The paths returned by "read" can be absolute (/x/y/z), relative to current
+-- directory e.g. if current dir is /x then path is (./y/z), or path segments
+-- relative to current dir e.g. (y/z). To accomodate all the cases we can
+-- provide a prefix to readdir to attach to the paths being generated e.g. the
+-- prefix would be "/x" in the previous example. Alternatively, we could take
+-- the approach of the higher layer doing that, but it is more efficient to
+-- allocate the path buffer once rather than modifying it later. We can do this
+-- by passing a fold to transform the output.
 --
--- Also it may be more efficient to apply a filter to the paths right here
--- instead of applying it in a layer above. Cut the output at the source
--- rather than generate and then discard it later. We can do this by
--- passing a fold to filter the input.
+-- Filtering of paths:
+-- -------------------
+--
+-- It may be more efficient to apply a filter to the paths during readdir API
+-- itself instead of applying it in a layer above. That way we cut the output
+-- at the source rather than generate and then discard it later. We can do this
+-- by passing a fold to filter the input.
+--
+-- Symlink Resolution:
+-- -------------------
 --
 -- When reading a symlink directory we can resolve the symlink and read the
 -- destination directory or we can just emit the file it is pointing to and
@@ -32,12 +41,18 @@
 -- counted as depth level increment whereas if we resolve that at lower level
 -- then it won't. We can do this by passing an option to modify the behavior.
 --
+-- Cyclic paths:
+-- -------------
+--
 -- When resolving cyclic directory symlinks one way to curtail it is ELOOP
 -- which gives up if it encounters too many level. Another way is to use
 -- the inode information to check if we are traversing an already traversed
 -- inode, this is in general helpful in a graph traversal. We can ignore
 -- ELOOP by passing an option but it may be inefficient because we may
 -- encounter the loop from any node in the cycle.
+--
+-- Broken links and permission issues:
+-- -----------------------------------
 --
 -- If we encounter an error reading a directory because of permission
 -- issues should we ignore it in this low level API or catch it in the
@@ -48,12 +63,12 @@
 -- do this by passing an option.
 --
 -- Returning the metadata:
+-- -----------------------
 --
 -- Specific scans can be used to return the metadata in the output stream if
--- needed. However, we may need three different APIs:
--- one with fast metadata, and
--- another with full metadata. In the two cases the fold input would be
--- different.
+-- needed. However, we may need three different APIs: without metadata, with
+-- fast metadata, and with full metadata. In each case the fold input would
+-- be different.
 --
 -- * readMinimal: read only the path names, no metadata
 -- * readStandard: read the path and minimal metadata
@@ -62,8 +77,13 @@
 -- NOTE: Full metadata can be read by mapping a stat call to a stream of paths
 -- rather than via readdir API. Does it help the performance to do it in the
 -- readdir API?
-
--- Design pattern:
+--
+-- Passing a scan to the readdir operation:
+-- ----------------------------------------
+--
+-- There are two approaches to traversal and filtering. (1) Read the attributes
+-- as data and provide it to a high level traversal handler to do filtering etc.
+-- (2) pass a fold or scan to the reader itself which does the filtering.
 --
 -- By passing a scan we can process the output right at the source and produce
 -- a cooked output. Otherwise we may have to produce a stream of intermediate
@@ -71,12 +91,23 @@
 -- get eliminated by fusion. For example, a fold can directly write the CString
 -- from readdir to the output buffer whereas if we output the Path then we will
 -- incur an overhead of intermediate structure.
+--
+-- Filesystem functionality modules:
+-- ---------------------------------
+--
+-- This DirIO module mainly provides "readdir" functionality. File stat
+-- functionality is coupled to readdir because we may return file stats along
+-- with filepaths, or may provide functionality to filter based on stats.
+--
+-- The FileTest module in streamly-coreutils provides the file stat read
+-- operations, we may have to bring that here if some coupling with readdir is
+-- needed.
+--
+-- FileIO module provides regular file create operation.
+--
 
 module Streamly.Internal.FileSystem.DirIO
     (
-    -- XXX Create a Metadata or Meta module for stat, access, getxattr, chmod,
-    -- chown, utime, rename operations.
-    --
     -- * Metadata
     -- getMetadata GetMetadata (followSymlinks, noAutoMount - see fstatat)
 
