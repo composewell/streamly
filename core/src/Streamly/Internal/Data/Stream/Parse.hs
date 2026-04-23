@@ -80,6 +80,7 @@ module Streamly.Internal.Data.Stream.Parse
     , splitInnerBySuffix -- XXX innerSplitOnSuffix
 
     -- * Reduce By Streams
+    , dropCommonPrefixBy
     , dropPrefix
     , dropInfix
     , dropSuffix
@@ -2138,6 +2139,51 @@ splitInnerBySuffix isEmpty splitter joiner (Stream step1 state1) =
 ------------------------------------------------------------------------------
 -- Trimming
 ------------------------------------------------------------------------------
+
+data DropCommonPrefixState sa sb b
+    = DCPMatching sa sb
+    | DCPMatchWith !b sa sb
+    | DCPPassThrough sb
+
+-- | Drop the longest common prefix of the prefix stream and the input stream,
+-- returning the remaining input.
+--
+-- Stops consuming the prefix as soon as either stream ends or a mismatch is
+-- found.
+--
+-- Space: @O(1)@
+{-# INLINE dropCommonPrefixBy #-}
+dropCommonPrefixBy :: Monad m =>
+    (b -> a -> Bool) -> Stream m a -> Stream m b -> Stream m b
+dropCommonPrefixBy eq (Stream stepa ta) (Stream stepb tb) =
+    Stream step (DCPMatching ta tb)
+
+  where
+
+    {-# INLINE_LATE step #-}
+    step _ (DCPMatching sa sb) = do
+        r <- stepa defState sa
+        return $ case r of
+            Yield x sa' -> Skip (DCPMatchWith x sa' sb)
+            Skip sa'    -> Skip (DCPMatching sa' sb)
+            Stop        -> Skip (DCPPassThrough sb)
+
+    step gst (DCPMatchWith x sa sb) = do
+        r <- stepb gst sb
+        return $ case r of
+            Yield y sb' ->
+                if y `eq` x
+                then Skip (DCPMatching sa sb')
+                else Yield y (DCPPassThrough sb')
+            Skip sb'    -> Skip (DCPMatchWith x sa sb')
+            Stop        -> Stop
+
+    step gst (DCPPassThrough sb) = do
+        r <- stepb gst sb
+        return $ case r of
+            Yield x sb' -> Yield x (DCPPassThrough sb')
+            Skip sb'    -> Skip (DCPPassThrough sb')
+            Stop        -> Stop
 
 {-# ANN type DropPrefixState Fuse #-}
 data DropPrefixState sa sb a
