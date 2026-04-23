@@ -82,8 +82,9 @@ module Streamly.Internal.Data.Stream.Parse
     -- * Reduce By Streams
     , dropCommonPrefixBy
     , dropPrefix
-    , dropInfix
+    , dropMatches
     , dropSuffix
+    , replaceMatches
 
     -- * Deprecated
     , parseManyD
@@ -2260,42 +2261,36 @@ data DropInfixState mba rb rh ck w s a =
     | DropInfixKRCheck s mba !rh
     | DropInfixKRDone Int rb
 
--- | Drop all non-overlapping occurrences of an infix pattern from the input
+-- | Drop all non-overlapping occurrences of the given sequence from the input
 -- stream.
 --
--- Matches are consumed (dropped) and non-matching elements are passed through
--- unchanged. Matching is left-to-right and non-overlapping, consistent with
--- 'splitSepBySeq_'. An empty pattern is a pass-through.
+-- >>> dropMatches p xs = Stream.fold Fold.toList $ Stream.dropMatches (Array.fromList p) (Stream.fromList xs)
 --
--- >>> dropInfix p xs = Stream.fold Fold.toList $ Stream.dropInfix (Array.fromList p) (Stream.fromList xs)
---
--- >>> dropInfix ".." "a..b..c"
+-- >>> dropMatches ".." "a..b..c"
 -- "abc"
 --
--- >>> dropInfix ".." ""
+-- >>> dropMatches ".." ""
 -- ""
 --
--- >>> dropInfix "" "abc"
+-- >>> dropMatches "" "abc"
 -- "abc"
 --
--- >>> dropInfix ".." "abc"
+-- >>> dropMatches ".." "abc"
 -- "abc"
 --
--- >>> dropInfix "aa" "aaaa"
+-- >>> dropMatches "aa" "aaaa"
 -- ""
 --
 -- Space: @O(n)@ where n is the length of the infix.
 --
--- Uses Rabin-Karp algorithm for substring search.
---
 -- See also 'Streamly.Internal.Data.Stream.Eliminate.stripInfix'.
-{-# INLINE_NORMAL dropInfix #-}
-dropInfix
+{-# INLINE_NORMAL dropMatches #-}
+dropMatches
     :: forall m a. (MonadIO m, Unbox a, Enum a, Eq a)
     => Array a
     -> Stream m a
     -> Stream m a
-dropInfix patArr (Stream step state) =
+dropMatches patArr (Stream step state) =
     Stream stepOuter (DropInfixInit state)
 
     where
@@ -2496,6 +2491,282 @@ dropInfix patArr (Stream step state) =
         old <- RB.unsafeGetHead rb
         let rb1 = RB.moveForward rb
         return $ Yield old (DropInfixKRDone (len - SIZE_OF(a)) rb1)
+
+{-# ANN type ReplaceInfixState Fuse #-}
+data ReplaceInfixState mba rb rh ck w s a =
+      ReplaceInfixInit s
+
+    | ReplaceInfixEmpty s
+
+    | ReplaceInfixSingle s a
+    | ReplaceInfixEmitSingle Int s a
+
+    | ReplaceInfixWordInit Int !w s
+    | ReplaceInfixWordLoop !w s
+    | ReplaceInfixWordDone Int !w
+    | ReplaceInfixEmitWord Int s
+
+    | ReplaceInfixKRInit Int s mba
+    | ReplaceInfixKRLoop s mba !rh !ck
+    | ReplaceInfixKRCheck s mba !rh
+    | ReplaceInfixKRDone Int rb
+    | ReplaceInfixEmitKR Int s mba
+
+-- | Replace all non-overlapping occurrences of the given sequence in the input
+-- stream with a replacement sequence.
+--
+-- This is like 'dropMatches' except the matched pattern is replaced by the
+-- supplied replacement array instead of being dropped.
+--
+-- >>> replaceMatches p r xs = Stream.fold Fold.toList $ Stream.replaceMatches (Array.fromList p) (Array.fromList r) (Stream.fromList xs)
+--
+-- >>> replaceMatches ".." "!" "a..b..c"
+-- "a!b!c"
+--
+-- >>> replaceMatches ".." "---" "a..b..c"
+-- "a---b---c"
+--
+-- >>> replaceMatches ".." "" "a..b..c"
+-- "abc"
+--
+-- >>> replaceMatches "" "X" "abc"
+-- "abc"
+--
+-- >>> replaceMatches "aa" "b" "aaaa"
+-- "bb"
+--
+-- >>> replaceMatches "abc" "xyz" "abc"
+-- "xyz"
+--
+-- Space: @O(n)@ where n is the length of the infix pattern.
+--
+{-# INLINE_NORMAL replaceMatches #-}
+replaceMatches
+    :: forall m a. (MonadIO m, Unbox a, Enum a, Eq a)
+    => Array a
+    -> Array a
+    -> Stream m a
+    -> Stream m a
+replaceMatches patArr replArr (Stream step state) =
+    Stream stepOuter (ReplaceInfixInit state)
+
+    where
+
+    patLen = A.length patArr
+    patBytes = A.byteLength patArr
+    replLen = A.length replArr
+    maxIndex = patLen - 1
+    maxOffset = patBytes - SIZE_OF(a)
+    elemBits = SIZE_OF(a) * 8
+
+    wordMask :: Word
+    wordMask = (1 `shiftL` (elemBits * patLen)) - 1
+
+    elemMask :: Word
+    elemMask = (1 `shiftL` elemBits) - 1
+
+    wordPat :: Word
+    wordPat = wordMask .&. A.foldl' addToWord 0 patArr
+
+    addToWord wd a = (wd `shiftL` elemBits) .|. fromIntegral (fromEnum a)
+
+    k = 2891336453 :: Word32
+    coeff = k ^ patLen
+
+    addCksum cksum a = cksum * k + fromIntegral (fromEnum a)
+
+    deltaCksum cksum old new =
+        addCksum cksum new - coeff * fromIntegral (fromEnum old)
+
+    patHash = A.foldl' addCksum 0 patArr
+
+    skip = return . Skip
+
+    {-# INLINE_LATE stepOuter #-}
+    stepOuter _ (ReplaceInfixInit st)
+        | patLen == 0 = skip $ ReplaceInfixEmpty st
+        | patLen == 1 = do
+            pat <- liftIO $ A.unsafeGetIndexIO 0 patArr
+            skip $ ReplaceInfixSingle st pat
+        | SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word) =
+            skip $ ReplaceInfixWordInit 0 0 st
+        | otherwise = do
+            (MutArray mba _ _ _) :: MutArray a <-
+                liftIO $ MutArray.emptyOf patLen
+            skip $ ReplaceInfixKRInit 0 st mba
+
+    ---------------------------
+    -- Empty pattern
+    ---------------------------
+
+    stepOuter gst (ReplaceInfixEmpty st) = do
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s -> return $ Yield x (ReplaceInfixEmpty s)
+            Skip s -> skip (ReplaceInfixEmpty s)
+            Stop -> return Stop
+
+    -----------------
+    -- Single Pattern
+    -----------------
+
+    stepOuter gst (ReplaceInfixSingle st0 pat) = go SPEC st0
+
+        where
+
+        go !_ !st = do
+            res <- step (adaptState gst) st
+            case res of
+                Yield x s ->
+                    if pat == x
+                    then skip $ ReplaceInfixEmitSingle 0 s pat
+                    else return $ Yield x (ReplaceInfixSingle s pat)
+                Skip s -> go SPEC s
+                Stop -> return Stop
+
+    stepOuter _ (ReplaceInfixEmitSingle i s pat)
+        | i >= replLen = skip $ ReplaceInfixSingle s pat
+        | otherwise = do
+            r <- liftIO $ A.unsafeGetIndexIO i replArr
+            return $ Yield r (ReplaceInfixEmitSingle (i + 1) s pat)
+
+    ---------------------------
+    -- Short Pattern - Shift Or
+    ---------------------------
+
+    stepOuter _ (ReplaceInfixWordDone 0 _) = return Stop
+    stepOuter _ (ReplaceInfixWordDone n wrd) = do
+        let old = elemMask .&. (wrd `shiftR` (elemBits * (n - 1)))
+        return
+            $ Yield
+                (toEnum $ fromIntegral old)
+                (ReplaceInfixWordDone (n - 1) wrd)
+
+    stepOuter gst (ReplaceInfixWordInit idx0 wrd0 st0) =
+        go SPEC idx0 wrd0 st0
+
+        where
+
+        {-# INLINE go #-}
+        go !_ !idx !wrd !st = do
+            res <- step (adaptState gst) st
+            case res of
+                Yield x s -> do
+                    let wrd1 = addToWord wrd x
+                    if idx == maxIndex
+                    then
+                        if wrd1 .&. wordMask == wordPat
+                        then skip $ ReplaceInfixEmitWord 0 s
+                        else skip $ ReplaceInfixWordLoop wrd1 s
+                    else go SPEC (idx + 1) wrd1 s
+                Skip s -> go SPEC idx wrd s
+                Stop ->
+                    if idx /= 0
+                    then skip $ ReplaceInfixWordDone idx wrd
+                    else return Stop
+
+    stepOuter gst (ReplaceInfixWordLoop wrd0 st0) =
+        go SPEC wrd0 st0
+
+        where
+
+        {-# INLINE go #-}
+        go !_ !wrd !st = do
+            res <- step (adaptState gst) st
+            case res of
+                Yield x s -> do
+                    let wrd1 = addToWord wrd x
+                        old = (wordMask .&. wrd)
+                                `shiftR` (elemBits * (patLen - 1))
+                        oldA = toEnum (fromIntegral old)
+                    if wrd1 .&. wordMask == wordPat
+                    then return $ Yield oldA (ReplaceInfixEmitWord 0 s)
+                    else return $ Yield oldA (ReplaceInfixWordLoop wrd1 s)
+                Skip s -> go SPEC wrd s
+                Stop -> skip $ ReplaceInfixWordDone patLen wrd
+
+    stepOuter _ (ReplaceInfixEmitWord i s)
+        | i >= replLen = skip $ ReplaceInfixWordInit 0 0 s
+        | otherwise = do
+            r <- liftIO $ A.unsafeGetIndexIO i replArr
+            return $ Yield r (ReplaceInfixEmitWord (i + 1) s)
+
+    -------------------------------
+    -- General Pattern - Karp Rabin
+    -------------------------------
+
+    stepOuter gst (ReplaceInfixKRInit offset st mba) = do
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s -> do
+                liftIO $ pokeAt offset mba x
+                if offset == maxOffset
+                then do
+                    let arr :: Array a = Array
+                                { arrContents = mba
+                                , arrStart = 0
+                                , arrEnd = patBytes
+                                }
+                    let ringHash = A.foldl' addCksum 0 arr
+                    if ringHash == patHash && A.byteEq arr patArr
+                    then skip $ ReplaceInfixKRCheck s mba 0
+                    else skip $ ReplaceInfixKRLoop s mba 0 ringHash
+                else skip $ ReplaceInfixKRInit (offset + SIZE_OF(a)) s mba
+            Skip s -> skip $ ReplaceInfixKRInit offset s mba
+            Stop -> do
+                let rb = RingArray
+                        { ringContents = mba
+                        , ringSize = offset
+                        , ringHead = 0
+                        }
+                skip $ ReplaceInfixKRDone offset rb
+
+    stepOuter gst (ReplaceInfixKRLoop st0 mba rh0 cksum0) =
+        go SPEC st0 rh0 cksum0
+
+        where
+
+        go !_ !st !rh !cksum = do
+            res <- step (adaptState gst) st
+            let rb = RingArray
+                    { ringContents = mba
+                    , ringSize = patBytes
+                    , ringHead = rh
+                    }
+            case res of
+                Yield x s -> do
+                    (rb1, old) <- liftIO (RB.replace rb x)
+                    let cksum1 = deltaCksum cksum old x
+                        rh1 = ringHead rb1
+                    if cksum1 == patHash
+                    then return $ Yield old (ReplaceInfixKRCheck s mba rh1)
+                    else return $ Yield old (ReplaceInfixKRLoop s mba rh1 cksum1)
+                Skip s -> go SPEC s rh cksum
+                Stop -> skip $ ReplaceInfixKRDone patBytes rb
+
+    stepOuter _ (ReplaceInfixKRCheck st mba rh) = do
+        let rb = RingArray
+                    { ringContents = mba
+                    , ringSize = patBytes
+                    , ringHead = rh
+                    }
+        res <- liftIO $ RB.eqArray rb patArr
+        if res
+        then skip $ ReplaceInfixEmitKR 0 st mba
+        else skip $ ReplaceInfixKRLoop st mba rh patHash
+
+    stepOuter _ (ReplaceInfixKRDone 0 _) = return Stop
+    stepOuter _ (ReplaceInfixKRDone len rb) = do
+        assert (len >= 0) (return ())
+        old <- RB.unsafeGetHead rb
+        let rb1 = RB.moveForward rb
+        return $ Yield old (ReplaceInfixKRDone (len - SIZE_OF(a)) rb1)
+
+    stepOuter _ (ReplaceInfixEmitKR i s mba)
+        | i >= replLen = skip $ ReplaceInfixKRInit 0 s mba
+        | otherwise = do
+            r <- liftIO $ A.unsafeGetIndexIO i replArr
+            return $ Yield r (ReplaceInfixEmitKR (i + 1) s mba)
 
 {-# ANN type DropSuffixState Fuse #-}
 data DropSuffixState mba rb rh w s a =
