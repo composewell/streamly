@@ -1,6 +1,20 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE TemplateHaskell #-}
 
+-- CAUTION! Do not start a module haddock comment here as this file gets
+-- included in Path.hs and then we have duplicate module level comment in that
+-- file, generating a haddock warning.
+--
+-- See Internal.FileSystem.Path for module level docs.
+--
+-- This file is preprocessed and included in Internal.FileSystem.Path module.
+-- The preprocessor replaces the macros by OS specific values. OS_PATH_TYPE
+-- macro represents the file system path type and OS_NAME the operating system.
+-- The only assumption about the encoding of the path is that it maps the
+-- characters SEPARATORS and @.@ to OS_WORD_TYPE representing their ASCII
+-- values. Operations are provided to encode and decode using CODEC_NAME
+-- encoding.
+
 #if defined(IS_PORTABLE)
 #define OS_PATH_TYPE Path
 #define OS_WORD_TYPE OsWord
@@ -40,41 +54,6 @@
 #define CODEC_NAME UTF-8
 #define SEPARATORS @/@
 #endif
-
-
--- XXX Do not start a module haddock comment here as this file gets included in
--- Path.hs and then we have duplicate module level comment in that file,
--- generating a haddock warning.
-
--- Module      : Streamly.Internal.FileSystem.OS_PATH_TYPE
--- Copyright   : (c) 2023 Composewell Technologies
--- License     : BSD3
--- Maintainer  : streamly@composewell.com
--- Portability : GHC
---
--- This module implements a OS_PATH_TYPE type representing a file system path for
--- OS_NAME operating systems. The only assumption about the encoding of the
--- path is that it maps the characters SEPARATORS and @.@ to OS_WORD_TYPE
--- representing their ASCII values. Operations are provided to encode and
--- decode using CODEC_NAME encoding.
---
--- This module has APIs that are equivalent to or can emulate all or most of
--- the filepath package APIs. It has some differences from the filepath
--- package:
---
--- 1. Empty paths are not allowed. Paths are validated before construction.
--- 2. The default Path type itself affords considerable safety regarding the
--- distinction of rooted or non-rooted paths, it also allows distinguishing
--- directory and file paths.
--- 3. It is designed to provide flexible typing to provide compile time safety
--- for rooted/non-rooted paths and file/dir paths. The Path type is just part
--- of that typed path ecosystem. Though the default Path type itself should be
--- enough for most cases.
--- 4. It leverages the streamly array module for most of the heavy lifting,
--- it is a thin wrapper on top of that, improving maintainability as well as
--- providing better performance. We can have pinned and unpinned paths, also
--- provide lower level operations for certain cases to interact more
--- efficinetly with low level code.
 
 module Streamly.Internal.FileSystem.OS_PATH_TYPE
     (
@@ -1589,8 +1568,8 @@ eqPath cfg (OS_PATH a) (OS_PATH b) =
         Common.OS_NAME (cfg eqCfg) a b
 #endif
 
--- | Check two paths for byte level equality. This is the most strict path
--- equality check.
+-- | Check two paths for byte level equality. This is the most strict and
+-- fastest path equality check.
 --
 -- >>> eqPath a b = Path.eqPathBytes (Path.fromString_ a) (Path.fromString_ b)
 --
