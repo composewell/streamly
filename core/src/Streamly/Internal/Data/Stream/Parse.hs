@@ -2497,16 +2497,229 @@ dropInfix patArr (Stream step state) =
         let rb1 = RB.moveForward rb
         return $ Yield old (DropInfixKRDone (len - SIZE_OF(a)) rb1)
 
--- | Drop suffix from the input stream if present. Suffix stream may be
--- consumed multiple times.
+{-# ANN type DropSuffixState Fuse #-}
+data DropSuffixState mba rb rh w s a =
+      DropSuffixInit s
+    | DropSuffixDone
+
+    | DropSuffixEmpty s
+
+    | DropSuffixSingle s a
+    | DropSuffixSingleHold s a a
+
+    | DropSuffixWordInit Int !w s
+    | DropSuffixWordLoop !w s
+    | DropSuffixWordDone Int !w
+
+    | DropSuffixKRInit Int s mba
+    | DropSuffixKRLoop s mba !rh
+    | DropSuffixKRDone Int rb
+
+-- | Drop the suffix pattern from the input stream if it matches the tail of
+-- the stream. Otherwise, the stream is passed through unchanged.
+--
+-- >>> dropSuffix p xs = Stream.fold Fold.toList $ Stream.dropSuffix (Array.fromList p) (Stream.fromList xs)
+--
+-- >>> dropSuffix ".." "ab.."
+-- "ab"
+--
+-- >>> dropSuffix ".." "abc"
+-- "abc"
+--
+-- >>> dropSuffix "" "abc"
+-- "abc"
+--
+-- >>> dropSuffix ".." ""
+-- ""
+--
+-- >>> dropSuffix "abc" "ab"
+-- "ab"
 --
 -- Space: @O(n)@ where n is the length of the suffix.
 --
--- See also stripSuffix.
---
--- /Unimplemented/
-{-# INLINE dropSuffix #-}
-dropSuffix ::
-    -- (Monad m, Eq a) =>
-    Stream m a -> Stream m a -> Stream m a
-dropSuffix = error "Not implemented yet!"
+-- See also 'Streamly.Internal.Data.Stream.Eliminate.stripSuffix'.
+{-# INLINE_NORMAL dropSuffix #-}
+dropSuffix
+    :: forall m a. (MonadIO m, Unbox a, Enum a, Eq a)
+    => Array a
+    -> Stream m a
+    -> Stream m a
+dropSuffix patArr (Stream step state) =
+    Stream stepOuter (DropSuffixInit state)
+
+    where
+
+    patLen = A.length patArr
+    patBytes = A.byteLength patArr
+    maxIndex = patLen - 1
+    maxOffset = patBytes - SIZE_OF(a)
+    elemBits = SIZE_OF(a) * 8
+
+    wordMask :: Word
+    wordMask = (1 `shiftL` (elemBits * patLen)) - 1
+
+    elemMask :: Word
+    elemMask = (1 `shiftL` elemBits) - 1
+
+    wordPat :: Word
+    wordPat = wordMask .&. A.foldl' addToWord 0 patArr
+
+    addToWord wd a = (wd `shiftL` elemBits) .|. fromIntegral (fromEnum a)
+
+    skip = return . Skip
+
+    {-# INLINE_LATE stepOuter #-}
+    stepOuter _ (DropSuffixInit st)
+        | patLen == 0 = skip $ DropSuffixEmpty st
+        | patLen == 1 = do
+            pat <- liftIO $ A.unsafeGetIndexIO 0 patArr
+            skip $ DropSuffixSingle st pat
+        | SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word) =
+            skip $ DropSuffixWordInit 0 0 st
+        | otherwise = do
+            (MutArray mba _ _ _) :: MutArray a <-
+                liftIO $ MutArray.emptyOf patLen
+            skip $ DropSuffixKRInit 0 st mba
+
+    stepOuter _ DropSuffixDone = return Stop
+
+    ---------------------------
+    -- Empty pattern
+    ---------------------------
+
+    stepOuter gst (DropSuffixEmpty st) = do
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s -> return $ Yield x (DropSuffixEmpty s)
+            Skip s -> skip (DropSuffixEmpty s)
+            Stop -> return Stop
+
+    -----------------
+    -- Single Pattern
+    -----------------
+
+    stepOuter gst (DropSuffixSingle st pat) = do
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s -> skip $ DropSuffixSingleHold s x pat
+            Skip s -> skip $ DropSuffixSingle s pat
+            Stop -> return Stop
+
+    stepOuter gst (DropSuffixSingleHold st0 held0 pat) = go SPEC st0 held0
+
+        where
+
+        go !_ !st !held = do
+            res <- step (adaptState gst) st
+            case res of
+                Yield x s -> return $ Yield held (DropSuffixSingleHold s x pat)
+                Skip s -> go SPEC s held
+                Stop ->
+                    if held == pat
+                    then return Stop
+                    else return $ Yield held DropSuffixDone
+
+    ---------------------------
+    -- Short Pattern - Shift Or
+    ---------------------------
+
+    stepOuter _ (DropSuffixWordDone 0 _) = return Stop
+    stepOuter _ (DropSuffixWordDone n wrd) = do
+        let old = elemMask .&. (wrd `shiftR` (elemBits * (n - 1)))
+        return
+            $ Yield
+                (toEnum $ fromIntegral old)
+                (DropSuffixWordDone (n - 1) wrd)
+
+    stepOuter gst (DropSuffixWordInit idx0 wrd0 st0) =
+        go SPEC idx0 wrd0 st0
+
+        where
+
+        {-# INLINE go #-}
+        go !_ !idx !wrd !st = do
+            res <- step (adaptState gst) st
+            case res of
+                Yield x s -> do
+                    let wrd1 = addToWord wrd x
+                    if idx == maxIndex
+                    then skip $ DropSuffixWordLoop wrd1 s
+                    else go SPEC (idx + 1) wrd1 s
+                Skip s -> go SPEC idx wrd s
+                Stop ->
+                    if idx /= 0
+                    then skip $ DropSuffixWordDone idx wrd
+                    else return Stop
+
+    stepOuter gst (DropSuffixWordLoop wrd0 st0) =
+        go SPEC wrd0 st0
+
+        where
+
+        {-# INLINE go #-}
+        go !_ !wrd !st = do
+            res <- step (adaptState gst) st
+            case res of
+                Yield x s -> do
+                    let wrd1 = addToWord wrd x
+                        old = (wordMask .&. wrd)
+                                `shiftR` (elemBits * (patLen - 1))
+                        oldA = toEnum (fromIntegral old)
+                    return $ Yield oldA (DropSuffixWordLoop wrd1 s)
+                Skip s -> go SPEC wrd s
+                Stop ->
+                    if wrd .&. wordMask == wordPat
+                    then return Stop
+                    else skip $ DropSuffixWordDone patLen wrd
+
+    -------------------------------
+    -- General Pattern - Ring Buffer
+    -------------------------------
+
+    stepOuter gst (DropSuffixKRInit offset st mba) = do
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s -> do
+                liftIO $ pokeAt offset mba x
+                if offset == maxOffset
+                then skip $ DropSuffixKRLoop s mba 0
+                else skip $ DropSuffixKRInit (offset + SIZE_OF(a)) s mba
+            Skip s -> skip $ DropSuffixKRInit offset s mba
+            Stop -> do
+                let rb = RingArray
+                        { ringContents = mba
+                        , ringSize = offset
+                        , ringHead = 0
+                        }
+                skip $ DropSuffixKRDone offset rb
+
+    stepOuter gst (DropSuffixKRLoop st0 mba rh0) =
+        go SPEC st0 rh0
+
+        where
+
+        go !_ !st !rh = do
+            res <- step (adaptState gst) st
+            let rb = RingArray
+                    { ringContents = mba
+                    , ringSize = patBytes
+                    , ringHead = rh
+                    }
+            case res of
+                Yield x s -> do
+                    (rb1, old) <- liftIO (RB.replace rb x)
+                    let rh1 = ringHead rb1
+                    return $ Yield old (DropSuffixKRLoop s mba rh1)
+                Skip s -> go SPEC s rh
+                Stop -> do
+                    matches <- liftIO $ RB.eqArray rb patArr
+                    if matches
+                    then return Stop
+                    else skip $ DropSuffixKRDone patBytes rb
+
+    stepOuter _ (DropSuffixKRDone 0 _) = return Stop
+    stepOuter _ (DropSuffixKRDone len rb) = do
+        assert (len >= 0) (return ())
+        old <- RB.unsafeGetHead rb
+        let rb1 = RB.moveForward rb
+        return $ Yield old (DropSuffixKRDone (len - SIZE_OF(a)) rb1)
