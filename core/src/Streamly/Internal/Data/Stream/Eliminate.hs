@@ -580,17 +580,25 @@ isSubsequenceOf (Stream stepa ta) (Stream stepb tb) = go SPEC Nothing' ta tb
             Skip sb' -> go SPEC (Just' x) sa sb'
             Stop -> return False
 
--- | @stripPrefix prefix input@ strips the @prefix@ stream from the @input@
--- stream if it is a prefix of input. Returns 'Nothing' if the input does not
--- start with the given prefix, stripped input otherwise. Returns @Just nil@
--- when the prefix is the same as the input stream.
+-- NOTE: Unlike 'dropPrefix', which always returns a transformed stream,
+-- this function returns @Maybe@ to indicate whether the prefix matched.
+
+-- | @stripPrefix prefix input@ strips the @prefix@ stream from the @input@ if
+-- present.
 --
--- Space: @O(1)@
+-- If the input begins with the given prefix, returns @Just@ the remaining
+-- stream. If the input does not start with the prefix, returns 'Nothing'.
+--
+-- It may consume both the streams partially up to the point of failure.
+--
+-- /Space:/ @O(1)@
 --
 {-# INLINE_NORMAL stripPrefix #-}
 stripPrefix
     :: (Monad m, Eq a)
-    => Stream m a -> Stream m a -> m (Maybe (Stream m a))
+    => Stream m a  -- ^ Prefix to remove
+    -> Stream m a  -- ^ Input stream
+    -> m (Maybe (Stream m a))  -- ^ Remaining stream if prefix matches
 stripPrefix (Stream stepa ta) (Stream stepb tb) = go SPEC Nothing' ta tb
 
     where
@@ -673,6 +681,9 @@ isSuffixOfUnbox :: (MonadIO m, Eq a, Unbox a) =>
     Stream m a -> Stream m a -> m Bool
 isSuffixOfUnbox suffix stream =
     StreamD.reverseUnbox suffix `isPrefixOf` StreamD.reverseUnbox stream
+
+-- XXX this buffers both streams. Buffering should be equal to the size of the
+-- suffix.
 
 -- | Drops the given suffix from a stream. Returns 'Nothing' if the stream does
 -- not end with the given suffix. Returns @Just nil@ when the suffix is the
