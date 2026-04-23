@@ -169,6 +169,7 @@ module Streamly.Internal.Data.Stream.Type
     -- | These should probably be expressed using zipping operations.
     , eqBy
     , cmpBy
+    , takeCommonPrefixBy
 
     -- * Utilities
     , splitAt
@@ -882,6 +883,33 @@ eqBy eq (Stream step1 t1) (Stream step2 t2) = eq_loop0 SPEC t1 t2
         Yield _ _ -> return False
         Skip s2'  -> eq_null s2'
         Stop      -> return True
+
+-- | See also the complementary function of this which is dropCommonPrefixBy.
+--
+{-# INLINE_NORMAL takeCommonPrefixBy #-}
+takeCommonPrefixBy :: Monad m =>
+    (a -> b -> Bool) -> Stream m b -> Stream m a -> Stream m a
+takeCommonPrefixBy eq (Stream step2 t2) (Stream step1 t1) =
+    Stream step (t1, t2, Nothing')
+
+    where
+
+    step _ (s1, s2, Nothing') = do
+        r <- step1 defState s1
+        case r of
+            Yield x s1' -> return $ Skip (s1', s2, Just' x)
+            Skip s1'    -> return $ Skip (s1', s2, Nothing')
+            Stop        -> return Stop
+
+    step _ (s1, s2, Just' x) = do
+        r <- step2 defState s2
+        case r of
+            Yield y s2' ->
+                if eq x y
+                then return $ Yield x (s1, s2', Nothing')
+                else return Stop
+            Skip s2'    -> return $ Skip (s1, s2', Just' x)
+            Stop        -> return Stop
 
 -- Adapted from the vector package.
 
