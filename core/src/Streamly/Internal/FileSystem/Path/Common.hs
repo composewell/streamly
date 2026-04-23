@@ -43,7 +43,7 @@ module Streamly.Internal.FileSystem.Path.Common
     , isRooted
     , isAbsolute
  -- , isRelative -- not isAbsolute
-    , isRootRelative -- XXX hasRelativeRoot
+    , hasRelativeRoot
     , isRelativeWithDrive -- XXX hasRelativeDriveRoot
     , hasDrive
 
@@ -54,7 +54,7 @@ module Streamly.Internal.FileSystem.Path.Common
     , appendCString
     , appendCString'
     , unsafeJoinPaths
- -- , joinRoot -- XXX append should be enough
+ -- , joinRoot -- XXX append should be enough, see joinRootBody
 
     -- * Splitting
 
@@ -68,6 +68,7 @@ module Streamly.Internal.FileSystem.Path.Common
     , splitHead
     , splitTail
     , splitPath
+    -- , splitPathRaw -- do not drop any separators or . components
     , splitPath_
 
     -- * Dir and File
@@ -81,15 +82,20 @@ module Streamly.Internal.FileSystem.Path.Common
  -- , addExtension
 
     -- * Equality
- -- , processParentRefs
-    , normalizeSeparators
- -- , normalize -- separators and /./ components (split/combine)
+    , usePrimarySeparator
     , eqPathBytes
     , EqCfg(..)
     , eqPath
- -- , commonPrefix -- common prefix of two paths
- -- , eqPrefix -- common prefix is equal to first path
- -- , dropPrefix
+
+    -- * Normalization
+    , collapseSeparators
+    , dropDotSegments
+    , collapseDotDots
+    , normalise -- same spelling as in the filepath package
+
+    -- * Path prefix
+    , takeCommonPrefix
+    , stripPrefix
 
     -- * Utilities
     , wordToChar
@@ -97,10 +103,10 @@ module Streamly.Internal.FileSystem.Path.Common
     , unsafeIndexChar
 
     -- * Internal
-    , unsafeSplitTopLevel
+    , unsafeSplitLeadingSep
     , unsafeSplitDrive
     , unsafeSplitUNC
-    , splitCompact
+    , splitPathBodyNormalized
     , splitWithFilter
     )
 where
@@ -109,7 +115,6 @@ where
 
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow(..))
-import Control.Monad.IO.Class (MonadIO(..))
 import Data.Char (chr, ord, isAlpha, toUpper)
 import Data.Function ((&))
 import Data.Functor.Identity (Identity(..))
@@ -232,6 +237,8 @@ isSeparatorWord os = isSeparator os . wordToChar
 -- Separator normalization
 ------------------------------------------------------------------------------
 
+-- NOTE: See detailed notes on normalization in the normalization section.
+
 -- | If the path is @//@ the result is @/@. If it is @a//@ then the result is
 -- @a@. On Windows "c:" and "c:/" are different paths, therefore, we do not
 -- drop the trailing separator from "c:/" or for that matter a separator
@@ -266,9 +273,9 @@ dropTrailingBy os p arr =
         else arr1
 
 -- XXX we cannot compact "//" to "/" on windows
-{-# INLINE compactTrailingBy #-}
-compactTrailingBy :: Unbox a => (a -> Bool) -> Array a -> Array a
-compactTrailingBy p arr =
+{-# INLINE collapseTrailingBy #-}
+collapseTrailingBy :: Unbox a => (a -> Bool) -> Array a -> Array a
+collapseTrailingBy p arr =
     let len = Array.length arr
         n = countTrailingBy p arr
      in if n <= 1
@@ -303,9 +310,9 @@ toDefaultSeparator x =
     else x
 
 -- | Change all separators in the path to default separator on windows.
-{-# INLINE normalizeSeparators #-}
-normalizeSeparators :: (Integral a, Unbox a) => Array a -> Array a
-normalizeSeparators a =
+{-# INLINE usePrimarySeparator #-}
+usePrimarySeparator :: (Integral a, Unbox a) => Array a -> Array a
+usePrimarySeparator a =
     -- XXX We can check and return the original array if no change is needed.
     Array.fromPureStreamN (Array.length a)
         $ fmap toDefaultSeparator
@@ -339,7 +346,36 @@ isDrive a = Array.length a == 2 && unsafeHasDrive a
 -- Relative or Absolute
 ------------------------------------------------------------------------------
 
--- | A path relative to cur dir it is either @.@ or starts with @./@.
+-- NOTE: Path root types:
+--
+-- Relative (no external state except cwd)
+-- RelFree     -- x, ./x
+--
+-- Anchored -- Constrained relative (Windows only)
+-- RelDrive    -- C:x
+-- RelRoot     -- \x
+--
+-- Absolute
+-- AbsDrive    -- C:\x
+-- AbsUNC      -- \\server\share\x
+-- AbsDevice   -- \\?\..., \Device\...
+--
+-- RelFree   : relative
+-- AbsDrive  : absolute ("/x")
+--
+-- data PathTypes
+--   = Absolute
+--   | Relative
+--   | Anchored
+--
+-- Valid path appending rules, the second path must be relative.
+--
+-- Abs </> Rel
+-- Rel </> Rel
+-- Anc </> Rel
+
+-- | A path relative to cur dir i.e. either equal to @.@ or starts with @./@.
+-- It has a leading dot component.
 isRelativeCurDir :: (Unbox a, Integral a) => OS -> Array a -> Bool
 isRelativeCurDir os a
     | len == 0 = False -- empty path should not occur
@@ -351,8 +387,11 @@ isRelativeCurDir os a
 
     len = Array.length a
 
--- | A non-UNC path starting with a separator.
--- Note that "\\/share/x" is treated as "C:/share/x".
+-- | A path starting with a separator but not starting with EXACTLY two
+-- separators. Such a path is relative to current drive root. Note that
+-- "\\/share/x" is treated as "C:/share/x" because UNC or share name starts
+-- with EXACTLY two separators, more than two separators are just a sequence of
+-- separators which can be collpased into a single separator.
 isRelativeCurDriveRoot :: (Unbox a, Integral a) => Array a -> Bool
 isRelativeCurDriveRoot a
     | len == 0 = False -- empty path should not occur
@@ -367,7 +406,8 @@ isRelativeCurDriveRoot a
     c1 = Array.unsafeGetIndex 1 a
     sep0 = isSeparatorWord Windows c0
 
--- | @C:@ or @C:a...@.
+-- | Has a leading drive letter not followed by a separator.
+-- @C:@ or @C:a...@.
 isRelativeWithDrive :: (Unbox a, Integral a) => Array a -> Bool
 isRelativeWithDrive a =
     hasDrive a
@@ -375,9 +415,13 @@ isRelativeWithDrive a =
            || not (isSeparator Windows (unsafeIndexChar 2 a))
            )
 
-isRootRelative :: (Unbox a, Integral a) => OS -> Array a -> Bool
-isRootRelative Posix a = isRelativeCurDir Posix a
-isRootRelative Windows a =
+-- | A path that either:
+-- * starts with a dot component (".", "./x")
+-- * has leading drive not followed by separator ("C:", "C:x")
+-- * has a leading separator but not exactly two leading separators (/x)
+hasRelativeRoot :: (Unbox a, Integral a) => OS -> Array a -> Bool
+hasRelativeRoot Posix a = isRelativeCurDir Posix a
+hasRelativeRoot Windows a =
     isRelativeCurDir Windows a
         || isRelativeCurDriveRoot a
         || isRelativeWithDrive a
@@ -401,11 +445,9 @@ isAbsoluteUNC a
     c0 = Array.unsafeGetIndex 0 a
     c1 = Array.unsafeGetIndex 1 a
 
--- XXX rename to isRootAbsolute
-
--- | Note that on Windows a path starting with a separator is relative to
--- current drive while on Posix this is absolute path as there is only one
--- drive.
+-- | Note that on Windows a non-UNC path starting with a separator is relative
+-- to current drive while on Posix this is an absolute path as there is only
+-- one drive.
 isAbsolute :: (Unbox a, Integral a) => OS -> Array a -> Bool
 isAbsolute Posix arr =
     hasLeadingSeparator Posix arr
@@ -416,8 +458,6 @@ isAbsolute Windows arr =
 -- Location or Segment
 ------------------------------------------------------------------------------
 
--- XXX API for static processing of .. (normalizeParentRefs)
---
 -- Note: paths starting with . or .. are ambiguous and can be considered
 -- segments or rooted. We consider a path starting with "." as rooted, when
 -- someone uses "./x" they explicitly mean x in the current directory whereas
@@ -446,6 +486,9 @@ isBranch os = not . isRooted os
 -- Split root
 ------------------------------------------------------------------------------
 
+-- NOTE: See notes in the normalization section about the POSIX "//" being
+-- special but we do not treat it in a special manner.
+
 unsafeSplitPrefix :: (Unbox a, Integral a) =>
     OS -> Int -> Array a -> (Array a, Array a)
 unsafeSplitPrefix os prefixLen arr =
@@ -464,10 +507,10 @@ unsafeSplitPrefix os prefixLen arr =
 -- | Split a path prefixed with a separator into (drive, path) tuple.
 --
 -- >>> toListPosix (a,b) = (unpackPosix a, unpackPosix b)
--- >>> splitPosix = toListPosix . Common.unsafeSplitTopLevel Common.Posix . packPosix
+-- >>> splitPosix = toListPosix . Common.unsafeSplitLeadingSep Common.Posix . packPosix
 --
 -- >>> toListWin (a,b) = (unpackWindows a, unpackWindows b)
--- >>> splitWin = toListWin . Common.unsafeSplitTopLevel Common.Windows . packWindows
+-- >>> splitWin = toListWin . Common.unsafeSplitLeadingSep Common.Windows . packWindows
 --
 -- >>> splitPosix "/"
 -- ("/","")
@@ -486,12 +529,12 @@ unsafeSplitPrefix os prefixLen arr =
 --
 -- >>> splitWin "\\home"
 -- ("\\","home")
-unsafeSplitTopLevel :: (Unbox a, Integral a) =>
+unsafeSplitLeadingSep :: (Unbox a, Integral a) =>
     OS -> Array a -> (Array a, Array a)
 -- Note on Windows we should be here only when the path starts with exactly one
 -- separator, otherwise it would be UNC path. But on posix multiple separators
 -- are valid.
-unsafeSplitTopLevel os = unsafeSplitPrefix os 1
+unsafeSplitLeadingSep os = unsafeSplitPrefix os 1
 
 -- In some cases there is no valid drive component e.g. "\\a\\b", though if we
 -- consider relative roots then we could use "\\" as the root in this case. In
@@ -623,11 +666,11 @@ splitRoot :: (Unbox a, Integral a) => OS -> Array a -> (Array a, Array a)
 -- because "c:/" will become "c:" and the two are not equivalent.
 splitRoot Posix arr
     | isRooted Posix arr
-        = unsafeSplitTopLevel Posix arr
+        = unsafeSplitLeadingSep Posix arr
     | otherwise = (Array.empty, arr)
 splitRoot Windows arr
     | isRelativeCurDriveRoot arr || isRelativeCurDir Windows arr
-        = unsafeSplitTopLevel Windows arr
+        = unsafeSplitLeadingSep Windows arr
     | hasDrive arr = unsafeSplitDrive arr
     | isAbsoluteUNC arr = unsafeSplitUNC arr
     | otherwise = (Array.empty, arr)
@@ -655,17 +698,19 @@ splitWithFilter filt withSep os arr =
 
     f = if withSep then Stream.indexEndBy else Stream.indexEndBy_
 
--- | Split a path on separator chars and compact contiguous separators and
--- remove /./ components. Note this does not treat the path root in a special
--- way.
-{-# INLINE splitCompact #-}
-splitCompact
+-- | Split a path on separator chars and collapse contiguous separators and
+-- remove /./ components.
+--
+-- Note do not pass paths with drives that may have multiple separators it will
+-- blindly collapse those changing the meaning.
+{-# INLINE splitPathBodyNormalized #-}
+splitPathBodyNormalized
     :: (Unbox a, Integral a, Monad m)
     => Bool
     -> OS
     -> Array a
     -> Stream m (Array a)
-splitCompact withSep os arr =
+splitPathBodyNormalized withSep os arr =
     splitWithFilter (not . shouldFilterOut) withSep os arr
 
     where
@@ -693,7 +738,7 @@ splitCompact withSep os arr =
             -- is False.
             || (withSep && sepFilter (off, len))
 
--- Split a path into its components.
+-- | Split a path into its components.
 --
 -- Usage:
 -- @
@@ -725,7 +770,7 @@ splitPathUsing
     -> Array a
     -> Stream m (Array a)
 splitPathUsing withSep ignoreLeading os arr =
-    let stream = splitCompact withSep os rest
+    let stream = splitPathBodyNormalized withSep os body
     in if ignoreLeading || Array.null root
        then stream
        else Stream.cons root1 stream
@@ -735,10 +780,10 @@ splitPathUsing withSep ignoreLeading os arr =
     -- We should not filter out a leading '.' on Posix or Windows.
     -- We should not filter out a '.' in the middle of a UNC root on windows.
     -- Therefore, we split the root and treat it in a special way.
-    (root, rest) = splitRoot os arr
+    (root, body) = splitRoot os arr
     root1 =
         if withSep
-        then compactTrailingBy (isSeparator os . wordToChar) root
+        then collapseTrailingBy (isSeparator os . wordToChar) root
         else dropTrailingSeparators os root
 
 {-# INLINE splitPath_ #-}
@@ -1184,7 +1229,7 @@ validatePathWith allowRoot Windows path
           runIdentity
         . Stream.toList
         . fmap getBaseName
-        . splitCompact False Windows
+        . splitPathBodyNormalized False Windows
 
     invalidRootComponent =
         List.any (`List.elem` isInvalidPathComponent) (components root)
@@ -1275,6 +1320,9 @@ mkQ f =
 ------------------------------------------------------------------------------
 -- Operations of Path
 ------------------------------------------------------------------------------
+
+-- XXX Scan this entire module for pushing array operations to MutArray or
+-- MutByteArray modules.
 
 -- See also cstringLength# in GHC.CString in ghc-prim
 foreign import ccall unsafe "string.h strlen" c_strlen_pinned
@@ -1369,15 +1417,15 @@ append' os toStr a b =
                 $ "append': first path must be dir like i.e. must have a "
                 ++ "trailing separator or colon on windows: " ++ toStr a
 
--- XXX MonadIO?
+-- XXX instead of Stream Identity we can use a list instead.
 
 -- | Join paths by path separator. Does not check if the paths being appended
 -- are rooted or path segments. Note that splitting and joining may not give
 -- exactly the original path but an equivalent, normalized path.
 {-# INLINE unsafeJoinPaths #-}
 unsafeJoinPaths
-    :: (Unbox a, Integral a, MonadIO m)
-    => OS -> Stream m (Array a) -> m (Array a)
+    :: (Unbox a, Integral a)
+    => OS -> Stream Identity (Array a) -> Array a
 unsafeJoinPaths os =
     -- XXX This can be implemented more efficiently using an Array intersperse
     -- operation. Which can be implemented by directly copying arrays rather
@@ -1386,51 +1434,156 @@ unsafeJoinPaths os =
     -- XXX We can remove leading and trailing separators first, if any, except
     -- the leading separator from the first path. But it is not necessary.
     -- Instead we can avoid adding a separator if it is already present.
-    Array.fromStream . Array.concatSepBy (charToWord $ primarySeparator os)
+    Array.fromPureStream . Array.concatSepBy (charToWord $ primarySeparator os)
+
+-- | Join an already-normalised root with an already-normalised body. Either
+-- side may be empty; an empty piece is dropped instead of triggering the
+-- separator-injection logic in 'append'.
+{-# INLINE joinRootBody #-}
+joinRootBody :: (Unbox a, Integral a) => OS -> Array a -> Array a -> Array a
+joinRootBody os root body
+    | Array.null body = root
+    | Array.null root = body
+    | otherwise = doAppend os root body
 
 ------------------------------------------------------------------------------
--- Equality
+-- Normalization and comparison of paths
 ------------------------------------------------------------------------------
 
-eqPathBytes :: Array a -> Array a -> Bool
-eqPathBytes = Array.byteEq
-
--- On posix macOs can have case insensitive comparison. On Windows also
--- case sensitive behavior may depend on the file system being used.
-
--- Use eq prefix?
-
--- | Options for path comparison operation. By default path comparison uses a
--- strict criteria for equality. The following options are provided to
--- control the strictness.
+-- Windows literal paths
+-- ---------------------
 --
--- The default configuration is as follows:
+-- Windows "Literal" Paths (\\?\): When you prefix a path with \\?\, you are
+-- telling the Windows APIs to turn off all "normalization".
 --
--- >>> :{
--- defaultMod = ignoreTrailingSeparators False
---            . ignoreCase False
---            . allowRelativeEquality False
--- :}
+-- Object Manager Paths: On Windows, paths like \??\C:\ or
+-- \Device\HarddiskVolume1\ have very specific rules about separators.
 --
-data EqCfg =
-    EqCfg
-    { _ignoreTrailingSeparators :: Bool -- ^ Allows "x\/" == "x"
-    , _ignoreCase :: Bool               -- ^ Allows "x" == \"X\"
-    , _allowRelativeEquality :: Bool
-    -- ^ A leading dot is ignored, thus ".\/x" == ".\/x" and ".\/x" == "x".
-    -- On Windows allows "\/x" == \/x" and "C:x == C:x"
+-- We should splitPathRaw instead of splitPath on such paths to be able to
+-- reconstruct the path back if needed.
+--
+-- POSIX //
+-- --------
+--
+-- On POSIX a path starting with exactly two slashes ("//x") is
+-- implementation-defined.
+--
+-- See https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap04.html
+--
+-- If a pathname begins with two successive <slash> characters, the first
+-- component following the leading <slash> characters may be interpreted in an
+-- implementation-defined manner, although more than two leading <slash>
+-- characters shall be treated as a single <slash> character.
+--
+-- This is rarely or historically used on Posix but may be of importance in
+-- portable cygwin style paths where a UNC path \\server\share\file gets
+-- converted to Posix style //server/share/file .
+--
+-- If we want this behavior on Posix we can treat the path as a Windows path
+-- and use Windows path operations on it.
 
-    -- , resolveParentReferences -- "x\/..\/y" == "y"
-    -- , noIgnoreRedundantSeparators -- "x\/\/y" \/= "x\/y"
-    -- , noIgnoreRedundantDot -- "x\/.\/" \/= "x"
-    }
+------------------------------------------------------------------------------
+-- Building blocks
+------------------------------------------------------------------------------
 
-data PosixRoot = PosixRootAbs | PosixRootRel deriving Eq
+-- NOTE: splitPath already cleans up redundant separators and dot components,
+-- so we just need to split and join the path components. The functions below
+-- are for cases where we want to apply only one such normalization in
+-- isolation.
 
-data WindowsRoot =
-      WindowsRootPosix -- /x or ./x
-    | WindowsRootNonPosix -- C:... or \\...
-    deriving Eq
+-- | Collapse consecutive path separators into a single separator.
+--
+-- Keeps only the first separator from a run of consecutive separators, does
+-- not change the separator type on Windows. Does not remove trailing
+-- separators.
+--
+-- Note that this literally collapses all consecutive separators without any
+-- special treatment for the root, e.g. the leading @\\\\@ in a UNC path on
+-- Windows will also get collapsed into a single @\\@.
+collapseSeparators :: (Unbox a, Integral a) => OS -> Array a -> Array a
+collapseSeparators os arr =
+    -- XXX We could check for redundant separators first and return the input
+    -- unchanged when nothing changes. Likely worth it for the common case.
+    Array.fromPureStream
+        $ Stream.uniqBy eq
+        $ Array.read arr
+
+    where
+
+    eq prev curr = isSeparatorWord os prev && isSeparatorWord os curr
+
+-- | Remove @.@ (current directory) segments from a path.
+--
+-- Note that this literally removes any @\/.\/@ components without any special
+-- treatment for the root; if for some reason such a component appears in the
+-- root portion it will also be stripped. Normally @.@ components do not
+-- appear in the root portion.
+--
+-- /Unimplemented/
+dropDotSegments :: Array a -> Array a
+-- XXX There is no need to decode the path; we only need to find ".", which is
+-- ASCII and so can be matched by comparing the binary word directly. Use a
+-- variant of splitPath that preserves separators ("splitPathRaw") so that we
+-- do not touch the separators here. Return the original array unchanged when
+-- there is nothing to drop.
+dropDotSegments = undefined
+
+-- | Collapse @..@ segments lexically.
+--
+-- A @..@ following a path segment cancels that segment, e.g. @a\/b\/..\/c@
+-- becomes @a\/c@. This removes parent directory references without
+-- resolving symlinks, so it is /unsafe/ in the presence of symbolic links.
+-- It is useful to remove @..@ segments without performing IO, on
+-- non-existent paths or paths known to not contain symlinks.
+--
+-- For an absolute path, leading @..@ segments are dropped because @\/..@ is
+-- equivalent to @\/@. For a relative path, leading @..@ segments are kept
+-- because there is no way to go above the starting point lexically.
+--
+-- Note: as a side effect of splitting and re-joining, redundant separators
+-- and @.@ segments in the body of the path are also removed, and separators
+-- are normalised to the primary separator on Windows.
+collapseDotDots :: (Unbox a, Integral a) => OS -> Array a -> Array a
+collapseDotDots os p =
+    let (root, body) = splitRoot os p
+        -- A root "blocks" leading ".." segments when there is no way to go
+        -- above it lexically: any leading-separator root (e.g. "/", "\\",
+        -- "\\\\server\\share\\") and an absolute drive root on Windows
+        -- ("C:\\..."). A non-rooted path or a drive-only root like "C:" or
+        -- "./" can still be prefixed by "..".
+        rootBlocksDotDot =
+            hasLeadingSeparator os root
+                || (os == Windows && isAbsoluteWithDrive root)
+        comps =
+              runIdentity
+            $ Stream.toList
+            $ splitPathBodyNormalized False os body
+        -- Stack stores components in reverse order (newest at the head).
+        step stack comp
+            | isDotDotComp comp =
+                case stack of
+                    -- Nothing to cancel: drop ".." if the root blocks it,
+                    -- otherwise keep it as a leading "..".
+                    [] -> [comp | not rootBlocksDotDot]
+                    -- Cannot cancel a previous "..".
+                    top : rest
+                        | isDotDotComp top -> comp : stack
+                        | otherwise -> rest
+            | otherwise = comp : stack
+        processed = List.reverse (List.foldl' step [] comps)
+        body' = unsafeJoinPaths os (Stream.fromList processed)
+     in if Array.null root && Array.null body' && not (Array.null body)
+        -- All segments of a non-rooted path cancelled out; this collapses
+        -- to "." (current dir) rather than the empty path.
+        then Array.fromList [ charToWord '.' ]
+        else joinRootBody os root body'
+
+    where
+
+    isDotDotComp a =
+        Array.length a == 2
+            && Array.unsafeGetIndex 0 a == charToWord '.'
+            && Array.unsafeGetIndex 1 a == charToWord '.'
 
 -- | Change to upper case and replace separators by primary separator
 {-# INLINE normalizeCaseAndSeparators #-}
@@ -1449,62 +1602,128 @@ normalizeCaseWith decoder =
     . decoder
     . Array.read
 
-eqWindowsRootStrict :: (Unbox a, Integral a) =>
+------------------------------------------------------------------------------
+-- Equality
+------------------------------------------------------------------------------
+
+-- NOTE: These functions mirror the corresponding normalization functions
+-- below, when making changes to one the other should be kept in sync.
+
+eqPathBytes :: Array a -> Array a -> Bool
+eqPathBytes = Array.byteEq
+
+-- On posix, macOs can have case insensitive comparison. On Windows also
+-- case sensitive behavior may depend on the file system being used.
+
+-- | Options for path comparison operation. By default path comparison uses a
+-- strict criteria for equality. The following options are provided to
+-- control the strictness.
+--
+-- The default configuration is as follows:
+--
+-- >>> :{
+-- defaultMod = ignoreTrailingSeparators False
+--            . ignoreCase False
+--            . allowRelativeEquality False
+-- :}
+--
+data EqCfg =
+    EqCfg
+    { _ignoreTrailingSeparators :: Bool -- ^ Allows "x\/" == "x"
+    , _ignoreCase :: Bool               -- ^ Allows "x" == \"X\"
+    -- XXX _compareRelative, default True
+    , _allowRelativeEquality :: Bool
+    -- ^ A leading dot is ignored, thus ".\/x" == ".\/x" and ".\/x" == "x".
+    -- On Windows allows "\/x" == \/x" and "C:x == C:x"
+
+    -- , collapseDotDotSegments -- "x\/..\/y" == "y"
+    -- , collapseSeparators -- "x\/\/y" \/= "x\/y"
+    -- , dropDotSegments -- "x\/.\/" \/= "x"
+    -- , strictPosix -- //home /= /home
+    }
+
+-- PlainRoot is Absolute on Posix and relative to a drive on Windows.
+data PlainRoot =
+      PlainRootAbs -- The "/" in a path starting with "/" but not "//"
+    | PlainRootRel -- The "." or "" in a path not starting with / or drive in windows
+        deriving Eq
+
+data WindowsRoot =
+      WindowsPlainRoot -- /x or ./x
+    | WindowsDriveRoot -- C:... or \\...
+    deriving Eq
+
+-- | Here we must pass a path i.e. either a drive root or a UNC path, it must
+-- not be a plain root. If not then this function will not work correctly e.g.
+-- it might change \/ to // making the path a share name from a normal path.
+eqWindowsRootWithDrive :: (Unbox a, Integral a) =>
     Bool -> Array a -> Array a -> Bool
-eqWindowsRootStrict ignCase a b =
-    let f = normalizeCaseAndSeparators
-     in if ignCase
-        then
-            -- XXX We probably do not want to equate UNC with UnC etc.
-            runIdentity
-                $ Stream.eqBy (==)
-                    (f $ Array.unsafeCast a) (f $ Array.unsafeCast b)
-        else
-            runIdentity
-                $ Stream.eqBy (==)
-                    (fmap toDefaultSeparator $ Array.read a)
-                    (fmap toDefaultSeparator $ Array.read b)
+eqWindowsRootWithDrive ignCase a b =
+     -- XXX we should not normalize Windows literal paths in any case
+     if ignCase
+     then
+        let f = normalizeCaseAndSeparators . Array.unsafeCast
+            -- XXX We probably do not want to translate UnC etc. to UNC.
+            -- Such a path should either be rejected in splitRoot or we
+            -- should not translate that here.
+            -- XXX if so write test cases for that.
+         in runIdentity $ Stream.eqBy (==) (f a) (f b)
+     else
+        let f = fmap toDefaultSeparator . Array.read
+            -- XXX should we ignore case for drives anyway? irrespective of the
+            -- remaining path. Are there case sensitive filesystems on windows?
+            -- Are drives ever case sensitive?
+            -- XXX if so write test cases for that.
+         in runIdentity $ Stream.eqBy (==) (f a) (f b)
 
-{-# INLINE eqRootStrict #-}
-eqRootStrict :: (Unbox a, Integral a) =>
+-- | We should call this only when the roots are either both absolute or both
+-- null otherwise it may not function correctly.
+{-# INLINE eqAbsOrNullRoots #-}
+eqAbsOrNullRoots :: (Unbox a, Integral a) =>
     Bool -> OS -> Array a -> Array a -> Bool
-eqRootStrict _ Posix a b =
+eqAbsOrNullRoots _ Posix a b =
     -- a can be "/" and b can be "//"
-    -- We call this only when the roots are either absolute or null.
     Array.null a == Array.null b
-eqRootStrict ignCase Windows a b = eqWindowsRootStrict ignCase a b
+eqAbsOrNullRoots ignCase Windows a b = eqWindowsRootWithDrive ignCase a b
 
--- | Compare Posix roots or Windows roots without a drive or share name.
-{-# INLINE eqPosixRootLax #-}
-eqPosixRootLax :: (Unbox a, Integral a) => Array a -> Array a -> Bool
-eqPosixRootLax a b = getRoot a == getRoot b
+-- | Can only be either "", '.', './' or '/' (or Windows separators)
+getPlainRootType :: (Unbox a, Integral a) => Array a -> PlainRoot
+getPlainRootType arr =
+    if Array.null arr || unsafeIndexChar 0 arr == '.'
+    then PlainRootRel
+    else PlainRootAbs
 
-    where
+-- | Compare Posix or Windows roots without a drive or share name.
+-- i.e. roots starting with "/" or "" or "."
+{-# INLINE eqPlainRootLax #-}
+eqPlainRootLax :: (Unbox a, Integral a) => Array a -> Array a -> Bool
+eqPlainRootLax a b = getPlainRootType a == getPlainRootType b
 
-    -- Can only be either "", '.', './' or '/' (or Windows separators)
-    getRoot arr =
-        if Array.null arr || unsafeIndexChar 0 arr == '.'
-        then PosixRootRel
-        else PosixRootAbs
+getWindowsRootType :: (Unbox a, Integral a) => Array a -> WindowsRoot
+getWindowsRootType arr =
+    if isAbsoluteUNC arr || hasDrive arr
+    then WindowsDriveRoot
+    else WindowsPlainRoot
+
+eqWindowsRootLax :: (Unbox a, Integral a) => Bool -> Array a -> Array a -> Bool
+eqWindowsRootLax ignCase a b =
+    let aType = getWindowsRootType a
+        bType = getWindowsRootType b
+     in aType == bType
+        && (
+            (aType == WindowsPlainRoot && eqPlainRootLax a b)
+            || eqWindowsRootWithDrive ignCase a b
+           )
 
 {-# INLINABLE eqRootLax #-}
 eqRootLax :: (Unbox a, Integral a) => Bool -> OS -> Array a -> Array a -> Bool
-eqRootLax _ Posix a b = eqPosixRootLax a b
-eqRootLax ignCase Windows a b =
-    let aType = getRootType a
-        bType = getRootType b
-     in aType == bType
-        && (
-            (aType == WindowsRootPosix && eqPosixRootLax a b)
-            || eqWindowsRootStrict ignCase a b
-           )
+eqRootLax _ Posix a b = eqPlainRootLax a b
+eqRootLax ignCase Windows a b = eqWindowsRootLax ignCase a b
 
-    where
-
-    getRootType arr =
-        if isAbsoluteUNC arr || hasDrive arr
-        then WindowsRootNonPosix
-        else WindowsRootPosix
+eqRootStrict :: (Unbox a, Integral a) => Bool -> OS -> Array a -> Array a -> Bool
+eqRootStrict ignCase os rootA rootB =
+   (not (hasRelativeRoot os rootA) && not (hasRelativeRoot os rootB))
+        && eqAbsOrNullRoots ignCase os rootA rootB
 
 {-# INLINE eqComponentsWith #-}
 eqComponentsWith :: (Unbox a, Integral a) =>
@@ -1527,6 +1746,7 @@ eqComponentsWith EqCfg{..} decoder os a b =
             $ Stream.eqBy
                 Array.byteEq (splitter os a) (splitter os b)
     where
+
     splitter = splitPathUsing False _allowRelativeEquality
 
 -- XXX can we do something like SpecConstr for such functions e.g. without
@@ -1544,13 +1764,11 @@ eqPath decoder os eqCfg@(EqCfg{..}) a b =
         eqRelative =
                if _allowRelativeEquality
                then eqRootLax _ignoreCase os rootA rootB
-               else (not (isRootRelative os rootA)
-                    && not (isRootRelative os rootB))
-                    && eqRootStrict _ignoreCase os rootA rootB
+               else eqRootStrict _ignoreCase os rootA rootB
 
-        -- XXX If one ends in a "." and the other ends in ./ (and same for ".."
-        -- and "../") then they can be equal. We can append a slash in these two
-        -- cases before comparing.
+        -- XXX If one ends in a "." and the other ends in ./ (and same for
+        -- ending with ".." and "../") then they can be equal. We can append a
+        -- slash in these two cases before comparing.
         eqTrailingSep =
             _ignoreTrailingSeparators
                 || hasTrailingSeparator os a == hasTrailingSeparator os b
@@ -1559,3 +1777,195 @@ eqPath decoder os eqCfg@(EqCfg{..}) a b =
            eqRelative
         && eqTrailingSep
         && eqComponentsWith eqCfg decoder os stemA stemB
+
+------------------------------------------------------------------------------
+-- Normalization
+------------------------------------------------------------------------------
+
+-- NOTE: These functions mirror the corresponding equality functions above,
+-- when making changes to one the other should be kept in sync.
+
+-- | Here we must pass a path i.e. either a drive root or a UNC path, it must
+-- not be a plain root. If not then this function will not work correctly e.g.
+-- it might change \/ to // making the path a share name from a normal path.
+normaliseWindowsDriveRoot :: (Unbox a, Integral a) =>
+    Bool -> Array a -> Array a
+normaliseWindowsDriveRoot ignCase a =
+     -- XXX we should not normalize Windows literal paths in any case
+    let stream =
+            if ignCase
+            -- XXX We probably do not want to translate UnC etc. to UNC.
+            -- Such a path should either be rejected in splitRoot or we
+            -- should not translate that here.
+            -- XXX if so write test cases for that.
+            then fmap charToWord
+                    $ normalizeCaseAndSeparators
+                    $ Array.unsafeCast a
+            else fmap toDefaultSeparator $ Array.read a
+     in Array.fromPureStream stream
+
+-- We have already deduplicated the separators in splitRoot
+{-# INLINE normalisePlainRoot #-}
+normalisePlainRoot :: (Unbox a, Integral a) => OS -> Array a -> Array a
+normalisePlainRoot os a =
+    case getPlainRootType a of
+        PlainRootRel -> Array.empty
+        PlainRootAbs -> Array.fromList [ charToWord (primarySeparator os) ]
+
+{-# INLINABLE normaliseRoot #-}
+normaliseRoot :: (Unbox a, Integral a) => Bool -> OS -> Array a -> Array a
+normaliseRoot _ Posix a = normalisePlainRoot Posix a
+normaliseRoot ignCase Windows a =
+    case getWindowsRootType a of
+        WindowsPlainRoot -> normalisePlainRoot Windows a
+        WindowsDriveRoot -> normaliseWindowsDriveRoot ignCase a
+
+{-# INLINE normaliseComponents #-}
+normaliseComponents :: (Unbox a, Integral a) =>
+       EqCfg
+    -> (Stream Identity a -> Stream Identity Char)
+    -> OS
+    -> Array a
+    -> Array a
+normaliseComponents EqCfg{..} decoder os a =
+    let normalizeCase =
+              Array.fromPureStream
+            . fmap charToWord
+            . normalizeCaseWith decoder
+        f = if _ignoreCase then fmap normalizeCase else id
+     in unsafeJoinPaths os $ f $ splitter os a
+
+    where
+
+    -- Note: when 'a' is the body extracted via 'splitRoot', the
+    -- 'ignoreLeading' flag is irrelevant - the body has no root to drop.
+    -- We have to use withSep = False here because if we keep the separators,
+    -- the separators will have to be normalized to primary separator.
+    splitter = splitPathUsing False _allowRelativeEquality
+
+{-# INLINE appendTrailingSep #-}
+appendTrailingSep :: (Unbox a, Integral a) => OS -> Array a -> Array a
+appendTrailingSep os arr =
+    Array.fromPureStream
+        $ Stream.append
+            (Array.read arr)
+            (Stream.fromPure (charToWord (primarySeparator os)))
+
+-- | Convert the path to an equivalent but standard format for reliable
+-- comparison.
+--
+-- This collapses redundant separators and removes @.@ components, normalises
+-- the root (including separator style on Windows) and optionally folds case
+-- per the 'EqCfg' options. It does /not/ collapse @..@ segments; for that
+-- use 'collapseDotDots' explicitly, since that operation is unsafe in the
+-- presence of symlinks.
+--
+-- A trailing separator is preserved unless 'EqCfg' has
+-- @_ignoreTrailingSeparators@ set, in which case it is dropped.
+normalise :: (Unbox a, Integral a) =>
+       (Stream Identity a -> Stream Identity Char)
+    -> OS -> EqCfg -> Array a -> Array a
+normalise decoder os eqCfg@EqCfg{..} p =
+    -- NOTE: _allowRelativeEquality impacts comparison but not normalization
+    -- of the root.
+    let (root, body) = splitRoot os p
+        -- XXX We are writing the array multiple times, for root, for body and
+        -- then for adding a separator. We can either use a mutarray or stream
+        -- all the normalized parts once to create array only once.
+        nRoot = normaliseRoot _ignoreCase os root
+        nBody = normaliseComponents eqCfg decoder os body
+        result = joinRootBody os nRoot nBody
+        -- The body's trailing separator is dropped by normaliseComponents;
+        -- restore it if it was present in the input and the caller wants it
+        -- kept.
+        keepTrailingSep =
+               not _ignoreTrailingSeparators
+            && not (Array.null nBody)
+            && hasTrailingSeparator os p
+            && not (hasTrailingSeparator os result)
+     in if keepTrailingSep
+        then appendTrailingSep os result
+        else result
+
+------------------------------------------------------------------------------
+-- Path prefix
+------------------------------------------------------------------------------
+
+-- | Return the longest common, non-empty, prefix of two paths. Path prefix is
+-- compared using normalization. Dot dot components are not collapsed because
+-- of symlink possiblities.
+--
+-- The result, if present, is a valid path that is a prefix of both inputs.
+-- Returns 'Nothing' if there is no common prefix or if the common prefix is empty.
+takeCommonPrefix :: (Unbox a, Integral a) =>
+       (Stream Identity a -> Stream Identity Char)
+    -> OS -> EqCfg -> Array a -> Array a -> Maybe (Array a)
+takeCommonPrefix decoder os EqCfg{..} a b =
+    let (rootA, bodyA) = splitRoot os a
+        (rootB, bodyB) = splitRoot os b
+
+        rootsMatch =
+            if _allowRelativeEquality
+            then eqRootLax _ignoreCase os rootA rootB
+            else eqRootStrict _ignoreCase os rootA rootB
+
+        commonRoot = normaliseRoot _ignoreCase os rootA
+
+        compEq x y =
+            if _ignoreCase
+            then runIdentity $ Stream.eqBy (==)
+                    (normalizeCaseWith decoder x)
+                    (normalizeCaseWith decoder y)
+            else Array.byteEq x y
+
+        commonBody =
+            unsafeJoinPaths os
+                $ Stream.takeCommonPrefixBy compEq
+                    (splitPathBodyNormalized False os bodyB)
+                    (splitPathBodyNormalized False os bodyA)
+
+        result = joinRootBody os commonRoot commonBody
+
+    in if not rootsMatch || Array.null result
+       then Nothing
+       else Just result
+
+-- | @stripPrefix decoder os cfg prefix path@
+-- Strip a non-empty prefix from a path.
+--
+-- If the first argument is a prefix of the second, returns the remainder
+-- after the path segment boundary. Returns 'Nothing' if the prefix is not
+-- present or does not align on a path segment boundary.
+--
+-- prefix is compared with the path using the supplied normalization config. If
+-- a match is found it removed from the supplied path. If not then Nothing is
+-- returned.
+stripPrefix :: (Unbox a, Integral a) =>
+       (Stream Identity a -> Stream Identity Char)
+    -> OS -> EqCfg -> Array a -> Array a -> Maybe (Array a)
+stripPrefix decoder os EqCfg{..} prefix path =
+    let (rootPre, bodyPre)   = splitRoot os prefix
+        (rootPath, bodyPath) = splitRoot os path
+
+        rootsMatch =
+            if _allowRelativeEquality
+            then eqRootLax _ignoreCase os rootPre rootPath
+            else eqRootStrict _ignoreCase os rootPre rootPath
+
+        compEq x y =
+            if _ignoreCase
+            then runIdentity $ Stream.eqBy (==)
+                    (normalizeCaseWith decoder x)
+                    (normalizeCaseWith decoder y)
+            else Array.byteEq x y
+
+        remainder =
+            fmap (unsafeJoinPaths os)
+                $ runIdentity
+                $ Stream.stripPrefixBy compEq
+                    (splitPathBodyNormalized False os bodyPre)
+                    (splitPathBodyNormalized False os bodyPath)
+
+    in if not rootsMatch
+       then Nothing
+       else remainder >>= \arr -> if Array.null arr then Nothing else Just arr

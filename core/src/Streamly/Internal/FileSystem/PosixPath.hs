@@ -157,6 +157,7 @@ module Streamly.Internal.FileSystem.OS_PATH_TYPE
     -- | Note: you can use 'unsafeJoin' as a replacement for the joinDrive
     -- function in the filepath package.
     , splitRoot
+    -- , splitPathRaw -- without dropping separators and "."
     , splitPath
     , splitPath_
     , splitFile
@@ -171,6 +172,7 @@ module Streamly.Internal.FileSystem.OS_PATH_TYPE
     , replaceExtension
 
     -- ** Path View
+    , pathDepth
     , takeFileName
     , takeDirectory
  -- , takeDirectory_ -- drops the trailing /
@@ -179,12 +181,36 @@ module Streamly.Internal.FileSystem.OS_PATH_TYPE
 
     -- * Equality
     , EqCfg
+    , eqCfg
+    -- XXX rename to dropTrailingSeparator as it is used in normalise as
+    -- well where we need to tell whether it keeps or strips.
+    -- We can use strip instead of drop because drop is already used in
+    -- dropTrailingSeparators or droppingTrailingSeparators.
     , ignoreTrailingSeparators
+    -- XXX when normalizing which case do we use upper/lower?
+    -- XXX useLowerCase or usingLowerCase
     , ignoreCase
+    -- XXX dropLeadingDot  or keepingLeadingDot?
     , allowRelativeEquality
     , eqPath
     , eqPathBytes
-    , normalize
+
+    -- * Normalization
+    , collapseSeparators
+    , collapseDotDots
+    , normalise
+
+    -- * Path Prefix
+    , takeCommonPrefix
+    -- , hasPrefix -- internal
+    -- Note: this returns Maybe, therefore "strip" and not "drop"
+    , stripPrefix
+
+    -- * Resolving Paths
+    , getCurrentDirectory
+    , makeAbsolute
+    , resolveDotDots
+    , resolve
     )
 where
 
@@ -206,6 +232,7 @@ import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.FileSystem.Path.Common (mkQ, EqCfg(..))
 
 import qualified Streamly.Internal.Data.Array as Array
+import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.FileSystem.Path.Common as Common
 import qualified Streamly.Internal.Unicode.Stream as Unicode
@@ -213,9 +240,17 @@ import qualified Streamly.Internal.Unicode.Stream as Unicode
 import Language.Haskell.TH
 import Language.Haskell.TH.Quote
 import Streamly.Internal.Data.Path
+import System.IO.Error
+import Streamly.Internal.Syscall.Common
 
 #if defined(IS_PORTABLE)
 import Streamly.Internal.FileSystem.OS_PATH (OS_PATH(..))
+#endif
+
+#ifdef IS_WINDOWS
+import qualified Streamly.Internal.Syscall.Windows as Syscall
+#else
+import qualified Streamly.Internal.Syscall.Posix as Syscall
 #endif
 
 -- NOTES about C preprocessor use.
@@ -1331,6 +1366,26 @@ replaceExtension (OS_PATH _a) = undefined
 -- Path View
 ------------------------------------------------------------------------------
 
+-- | Count the number of path segments.
+--
+-- Examples:
+--
+-- >>> Path.pathDepth [path|/|]
+-- 0
+-- >>> Path.pathDepth [path|x|]
+-- 1
+-- >>> Path.pathDepth [path|x/|]
+-- 1
+--
+pathDepth :: OS_PATH_TYPE -> Int
+pathDepth (OS_PATH p) =
+    let n =
+              runIdentity
+            $ Stream.fold Fold.length
+            $ Common.splitPath_ Common.OS_NAME p
+     -- XXX should be just (n-1) when rooted, n can never be <= 0
+     in if Common.isRooted Common.OS_NAME p then max 0 (n - 1) else n
+
 -- | Extracts the file name component (with extension) from a OS_PATH_TYPE, if
 -- present.
 --
@@ -1594,10 +1649,131 @@ eqPath cfg (OS_PATH a) (OS_PATH b) =
 eqPathBytes :: OS_PATH_TYPE -> OS_PATH_TYPE -> Bool
 eqPathBytes (OS_PATH a) (OS_PATH b) = Common.eqPathBytes a b
 
+------------------------------------------------------------------------------
+-- Normalization
+------------------------------------------------------------------------------
+
+-- | Collapse multiple consecutive separators into one.
+collapseSeparators :: OS_PATH_TYPE -> OS_PATH_TYPE
+collapseSeparators (OS_PATH p) =
+    OS_PATH $ Common.collapseSeparators Common.OS_NAME p
+
+-- | Collapse @..@ segments lexically.
+collapseDotDots :: OS_PATH_TYPE -> OS_PATH_TYPE
+collapseDotDots (OS_PATH p) =
+    OS_PATH $ Common.collapseDotDots Common.OS_NAME p
+
 -- | Convert the path to an equivalent but standard format for reliable
--- comparison. This can be implemented if required. Usually, the equality
--- operations should be enough and this may not be needed.
+-- comparison.
+normalise :: (EqCfg -> EqCfg) -> OS_PATH_TYPE -> OS_PATH_TYPE
+normalise cfg (OS_PATH p) =
+    OS_PATH $ Common.normalise
+        Unicode.UNICODE_DECODER Common.OS_NAME (cfg eqCfg) p
+
+------------------------------------------------------------------------------
+-- Path prefix
+------------------------------------------------------------------------------
+
+takeCommonPrefix ::
+    (EqCfg -> EqCfg) -> OS_PATH_TYPE -> OS_PATH_TYPE -> Maybe OS_PATH_TYPE
+takeCommonPrefix cfg (OS_PATH a) (OS_PATH b) =
+    fmap OS_PATH
+        $ Common.takeCommonPrefix
+            Unicode.UNICODE_DECODER Common.OS_NAME (cfg eqCfg) a b
+
+stripPrefix ::
+    (EqCfg -> EqCfg) -> OS_PATH_TYPE -> OS_PATH_TYPE -> Maybe OS_PATH_TYPE
+stripPrefix cfg (OS_PATH prefix) (OS_PATH p) =
+    fmap OS_PATH
+        $ Common.stripPrefix
+            Unicode.UNICODE_DECODER Common.OS_NAME (cfg eqCfg) prefix p
+
+------------------------------------------------------------------------------
+-- Working directory
+------------------------------------------------------------------------------
+
+-- | Get the current working directory as a path.
+getCurrentDirectory :: IO OS_PATH_TYPE
+getCurrentDirectory = modifyError $ do
+    arr <- Syscall.getCwd
+    return $ unsafeFromArray arr
+
+    where
+
+    modifyError =
+          modifyIOError (ioeAppendLocation "getCurrentDirectory")
+        . modifyIOErrorString
+            isDoesNotExistError
+            "Current working directory no longer exists"
+
+------------------------------------------------------------------------------
+-- Resolving paths
+------------------------------------------------------------------------------
+
+-- | Set the file path in an 'IOError' to the given path, using lax
+-- CODEC_NAME decoding. Invalid bytes are replaced with the Unicode
+-- replacement character.
+ioeSetFilePath :: OS_PATH_TYPE -> IOError -> IOError
+ioeSetFilePath p e = ioeSetFileName e (toString_ p)
+
+-- | Convert a path to an absolute path.
 --
--- /Unimplemented/
-normalize :: EqCfg -> OS_PATH_TYPE -> OS_PATH_TYPE
-normalize _cfg (OS_PATH _a) = undefined
+-- If the input path is relative, it is interpreted relative to the current
+-- working directory. If it is already absolute, it is returned unchanged.
+--
+-- This function:
+--
+-- * Does not eliminate @..@ segments.
+-- * Does not resolve symbolic links.
+-- * May return a path containing symbolic links.
+--
+-- Examples:
+--
+-- @
+-- makeAbsolute "a/b"  -- => "/cwd/a/b"
+-- makeAbsolute "/a/b" -- => "/a/b"
+-- @
+--
+makeAbsolute :: OS_PATH_TYPE -> IO OS_PATH_TYPE
+makeAbsolute p = modifyError $ do
+    if Common.isAbsolute Common.OS_NAME (toArray p)
+    then return p
+    else unsafeJoin <$> getCurrentDirectory <*> pure p
+
+    where
+
+    modifyError =
+        modifyIOError (ioeAppendLocation "makeAbsolute" . ioeSetFilePath p)
+
+-- | Resolve @..@ segments using filesystem semantics.
+--
+-- This function:
+--
+-- * Eliminates @..@ segments.
+-- * Resolves symbolic links as needed to do so correctly.
+-- * May still return a path containing symbolic links.
+--
+-- This is a partial resolution step and does not guarantee a fully
+-- canonical path.
+resolveDotDots :: OS_PATH_TYPE -> IO OS_PATH_TYPE
+resolveDotDots = undefined
+
+-- | Resolve a path to its fully resolved, canonical form.
+--
+-- This function performs full filesystem resolution, the resulting path:
+--
+-- * Contains no @..@ segments.
+-- * Contains no symbolic links.
+-- * Is absolute.
+--
+-- A path segment preceding a ".." is fully resolved before the ".." is applied.
+--
+-- This is equivalent to POSIX @realpath(3)@.
+--
+-- Examples:
+--
+-- @
+-- resolve "/tmp/link/../a" -- => "/real/location/a"
+-- @
+resolve :: OS_PATH_TYPE -> IO OS_PATH_TYPE
+resolve = undefined
