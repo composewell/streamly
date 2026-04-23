@@ -109,7 +109,9 @@ import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.MutArray.Type (MutArray(..))
 import Streamly.Internal.Data.Parser (ParseError(..), ParseErrorPos)
 import Streamly.Internal.Data.RingArray (RingArray(..))
-import Streamly.Internal.Data.SVar.Type (adaptState)
+import Data.Functor.Identity (Identity(..), runIdentity)
+import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
+import Streamly.Internal.Data.SVar.Type (adaptState, defState)
 import Streamly.Internal.Data.Unbox (Unbox(..))
 
 import qualified Streamly.Internal.Data.Array.Type as A
@@ -2137,18 +2139,63 @@ splitInnerBySuffix isEmpty splitter joiner (Stream step1 state1) =
 -- Trimming
 ------------------------------------------------------------------------------
 
--- | Drop prefix from the input stream if present.
+{-# ANN type DropPrefixState Fuse #-}
+data DropPrefixState sa sb a
+    = DPInit sa sb !Int
+    | DPMatchWith !a sa sb !Int
+    | DPReplay sa !Int (Maybe' a) sb
+    | DPPassThrough sb
+
+-- | Drop a prefix stream from the input stream if present, otherwise return
+-- the input stream unchanged.
+--
+-- Unlike 'stripPrefix', which returns @Maybe@ to indicate whether the prefix
+-- matched, this always returns a stream. If the prefix matches it is dropped,
+-- otherwise the input is returned as-is.
 --
 -- Space: @O(1)@
 --
--- See also stripPrefix.
---
--- /Unimplemented/
+-- See also 'Streamly.Internal.Data.Stream.Eliminate.stripPrefix'.
 {-# INLINE dropPrefix #-}
-dropPrefix ::
-    -- (Monad m, Eq a) =>
-    Stream m a -> Stream m a -> Stream m a
-dropPrefix = error "Not implemented yet!"
+dropPrefix :: (Monad m, Eq a) => Stream Identity a -> Stream m a -> Stream m a
+dropPrefix (Stream stepa ta) (Stream stepb tb) =
+    Stream step (DPInit ta tb 0)
+
+  where
+
+    {-# INLINE_LATE step #-}
+    step _ (DPInit sa sb count) =
+        let r = runIdentity (stepa defState sa)
+        in return $ case r of
+            Yield x sa' -> Skip (DPMatchWith x sa' sb count)
+            Skip sa'    -> Skip (DPInit sa' sb count)
+            Stop        -> Skip (DPPassThrough sb)
+
+    step gst (DPMatchWith x sa sb count) = do
+        r <- stepb gst sb
+        return $ case r of
+            Yield y sb' ->
+                if x == y
+                    then Skip (DPInit sa sb' (count + 1))
+                    else Skip (DPReplay ta count (Just' y) sb')
+            Skip sb'    -> Skip (DPMatchWith x sa sb' count)
+            Stop        -> Skip (DPReplay ta count Nothing' sb)
+
+    step _ (DPReplay _ 0 Nothing' _)   = return Stop
+    step _ (DPReplay _ 0 (Just' y) sb) = return $ Yield y (DPPassThrough sb)
+    step _ (DPReplay sa n mismatch sb)  =
+        let r = runIdentity (stepa defState sa)
+        in return $ case r of
+            Yield x sa' -> Yield x (DPReplay sa' (n - 1) mismatch sb)
+            Skip sa'    -> Skip  (DPReplay sa' n mismatch sb)
+            Stop        -> Stop  -- unreachable: n <= matched count <= prefix length
+
+    step gst (DPPassThrough sb) = do
+        r <- stepb gst sb
+        return $ case r of
+            Yield x sb' -> Yield x (DPPassThrough sb')
+            Skip sb'    -> Skip (DPPassThrough sb')
+            Stop        -> Stop
 
 -- | Drop all matching infix from the input stream if present. Infix stream
 -- may be consumed multiple times.
