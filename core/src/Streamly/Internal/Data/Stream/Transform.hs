@@ -35,7 +35,15 @@ module Streamly.Internal.Data.Stream.Transform
     , pipe
 
     -- * Splitting
+
+    -- NOTE: splitEndBy can be written as an idiom via folds:
+    -- > splitEndBy p f = Stream.foldMany (Fold.takeEndBy p f)
+    -- > splitEndBy_ p f = Stream.foldMany (Fold.takeEndBy_ p f)
+    -- Unlike the Sequence style splitters there is no splitSepByAny here
+    -- because the default splitSepBy itself is in fact same as splitSepByAny.
+
     , splitSepBy_
+    -- splitSepBy -- keeps the delimiters
 
     -- * Ad-hoc Scans
     -- | Left scans. Stateful, mostly one-to-one maps.
@@ -2117,7 +2125,14 @@ catEithers = fmap (either id id)
 -- Splitting
 ------------------------------------------------------------------------------
 
--- Design note: If we use splitSepBy_ on an empty stream what should be the
+-- DESIGN NOTES:
+--
+-- Empty stream behavior
+-- ---------------------
+--
+-- See also the design note for the same in sequence based splitting functions.
+--
+-- If we use splitSepBy_ on an empty stream what should be the
 -- result? Let's try the splitOn function in the "split" package:
 --
 -- > splitOn "a" ""
@@ -2163,9 +2178,6 @@ data SplitSepBy s fs b a
 -- supplied 'Fold' is applied on the split segments.  Splits the stream on
 -- separator elements determined by the supplied predicate, separator is
 -- considered as infixed between two segments:
---
--- Definition:
---
 --
 -- Usage:
 --

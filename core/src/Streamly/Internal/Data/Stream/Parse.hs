@@ -22,8 +22,8 @@
 --
 -- Flipped versions for folds:
 -- foldMany :: outer fold -> inner fold -> fold (original version)
--- groupFoldFor :: inner fold -> outer fold -> fold (flipped version)
--- groupStepFor :: inner fold -> outer fold step -> fold (flipped version)
+-- foldGroupsFor :: inner fold -> outer fold -> fold (flipped version)
+-- foldStepGroupsFor :: inner fold -> outer fold step -> fold (flipped version)
 -- This can be convenient for defining the outer fold step using a lambda.
 --
 module Streamly.Internal.Data.Stream.Parse
@@ -60,8 +60,20 @@ module Streamly.Internal.Data.Stream.Parse
     , groupsWhile
     , groupsRollingBy
 
+    -- Splitting is a special case of parsing.
+
     -- ** Splitting
-    -- | A special case of parsing.
+    -- | Stream transformations based on a substring matching.
+
+    -- NOTE: Naming: Seq does not sound very good, but other options are not
+    -- better for one reason or the other (Token, Word, String, Str, Sequence,
+    -- Delimiter, Chunk, Elems, Many, Sub, Pattern, Pat)
+    --
+    -- For regex based splitters we can use splitSepByRegex etc.
+    --
+    -- Another option to avoid these modifiers is to create a separate package
+    -- streamly-regex for all sequence/regex based splitters.
+    --
     , takeEndBySeq
     , takeEndBySeq_
     , wordsBy
@@ -76,8 +88,8 @@ module Streamly.Internal.Data.Stream.Parse
 
     -- * Transform (Nested Containers)
     -- | Opposite to compact in ArrayStream
-    , splitInnerBy -- XXX innerSplitOn
-    , splitInnerBySuffix -- XXX innerSplitOnSuffix
+    , splitInnerBy -- XXX splitInnerSepBy
+    , splitInnerBySuffix -- XXX splitInnerEndBy
 
     -- * Reduce By Streams
     , dropCommonPrefixBy
@@ -670,8 +682,102 @@ wordsBy predicate (Fold fstep initial _ final) (Stream step state) =
 -- Splitting on a sequence
 ------------------------------------------------------------------------------
 
+-- DESIGN NOTES:
+--
+-- Split this functionality in a separate streamly-regex package?
+--
+-- Empty stream behavior
+-- ---------------------
+--
+-- See the design note for the same in element based splitting functions.
+--
+-- Empty pattern behavior
+-- ----------------------
+--
+-- Possibilities:
+-- (1) if the pattern is empty then it can match anywhere and any number of
+-- times which includes at the beginning itself. This will lead to an infinite
+-- loop without output.
+-- (2) match only once before, between or after the elements in the stream.
+-- (3) empty means no match, entire stream is returned as a single split
+-- (4) disallow empty pattern using types,
+-- (5) runtime error if the pattern is empty,
+--
+-- Currently we use (2), splitting every element of the stream.
+--
+-- Pipelining
+-- ----------
+--
+-- A function can emit just the offsets where the match occurred and the next
+-- stage in the pipeline can do whatever it wants to do using the offsets. For
+-- example, to implement, example (1) grep with context, the other stage can
+-- just keep a ring buffer with the longest pattern and some context around it,
+-- as soon as it receives a match from the previous stage it can emit the
+-- context, example (2) curtail an array of '\n' terminated lines to keep only
+-- up to n lines -- emit the offsets, take n of them and use the last offset to
+-- slice the array.
+--
+-- In general, for a regex it could be (offset, length, id).
+--
+-- Element Stream Processing
+-- -------------------------
+--
+-- If we have a stream of elements then we cannot use random access in large
+-- swathes of input data. At most we can maintain a pattern size ring buffer,
+-- we can use random access in that. Currently we fill in the buffer one
+-- element at a time and use rolling checksum to match the pattern
+-- (Rabin-Karp). However, we can also fill in the entire ring buffer first and
+-- then use two-way matching, with that can we use SIMD for match and also skip
+-- matching more often. We can also do a rare-byte match and skip. If the
+-- buffer is empty then match the incoming element with the first element of
+-- the pattern, if they do not match yield the element, do not store it.
+--
+-- For multiple subsequences we can use Aho-Corasick instead of Rabin-Karp.
+--
+-- When using multiple subsequences we can use SIMD with Rabin-Karp, keeping
+-- all the checksums in the same cache line and computing multiple of them in
+-- one SIMD instruction, and matching multiple at the same time.
+--
+-- Chunked Stream Processing (SIMD)
+-- --------------------------------
+--
+-- First implement SIMD based substring match for fixed size arrays. And then
+-- use that to implement substring match in a stream of arrays. When using chunks
+-- of memory we can use SIMD for processing multiple data elements at once.
+-- Handling patterns crossing the chunks may complicate it a bit.
+--
+-- Chunked Processing (Parallel)
+-- -----------------------------
+--
+-- We can build a parallel chunked substring match engine in the same way as
+-- the parallel word counting technique. We can search parallely in the chunks
+-- in a stream. At the boundaries if there is a partial match at the end of one
+-- chunk we can continue that in the next chunk.
+--
+-- Multiple literals can be scanned in parallel.
+--
+-- Regex matching
+-- --------------
+--
+-- Build a minimal streaming DFA for patterns including: literals, ., *, +,
+-- character classes.
+--
+-- Fallback to regex only if we have a potential literal match, if the regex
+-- has a literal. For example, for searching foo.*bar, substring search foo and
+-- bar and then match the regex. Or use Rabin-Karp stages in the DFA?
+--
+-- References
+-- -----------
+--
 -- String search algorithms:
 -- http://www-igm.univ-mlv.fr/~lecroq/string/index.html
+
+-- TODO: In the splitting functions we can take an input transformation
+-- function as argument, this function is applied before matching the input, so
+-- we can do case-insensitive or normalized matching. For example, we can treat
+-- "," and ";" as the same char we can map them both to the same value in the
+-- pattern. For example:
+-- takeEndBySeqWith :: (a -> b) -> Array b -> Stream m a -> Stream m a
 
 -- XXX Can GHC find a way to modularise this? Can we write different cases
 -- i.e.g single element, word hash, karp-rabin as different functions and then
@@ -1032,8 +1138,6 @@ data SplitOnSeqState mba rb rh ck w fs s b x =
     | SplitOnSeqKRDone Int !fs rb
 
     | SplitOnSeqReinit (fs -> SplitOnSeqState mba rb rh ck w fs s b x)
-
--- XXX Need to fix empty stream split behavior
 
 -- | Like 'splitSepBy_' but splits the stream on a sequence of elements rather than
 -- a single element. Parses a sequence of tokens separated by an infixed
