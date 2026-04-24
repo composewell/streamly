@@ -71,8 +71,8 @@ module Streamly.Internal.Data.Stream.Parse
     , splitOnSuffixSeq -- internal
 
     , splitBeginBy_
-    , splitEndBySeqOneOf
-    , splitSepBySeqOneOf
+    , splitEndByOneOf
+    , splitSepByOneOf
 
     -- * Transform (Nested Containers)
     -- | Opposite to compact in ArrayStream
@@ -99,8 +99,12 @@ where
 #include "ArrayMacros.h"
 
 import Control.Exception (assert)
+import Control.Monad (zipWithM)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
+import Data.Functor.Identity (Identity(..), runIdentity)
+import Data.List (groupBy, sortBy)
+import Data.Ord (comparing, Down(..))
 import Data.Proxy (Proxy(..))
 import Data.Word (Word32)
 import Fusion.Plugin.Types (Fuse(..))
@@ -108,16 +112,17 @@ import GHC.Types (SPEC(..))
 
 import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
+import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
 import Streamly.Internal.Data.MutArray.Type (MutArray(..))
+import Streamly.Internal.Data.MutByteArray.Type (MutByteArray)
 import Streamly.Internal.Data.Parser (ParseError(..), ParseErrorPos)
 import Streamly.Internal.Data.RingArray (RingArray(..))
-import Data.Functor.Identity (Identity(..), runIdentity)
-import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
 import Streamly.Internal.Data.Unbox (Unbox(..))
 
 import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.MutArray.Type as MutArray
+import qualified Streamly.Internal.Data.MutByteArray.Type as MutByteArray
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser as PRD
@@ -1925,10 +1930,10 @@ splitEndBySeq_ = splitOnSuffixSeq False
 -- | Split post any one of the given patterns.
 --
 -- /Unimplemented/
-{-# INLINE splitEndBySeqOneOf #-}
-splitEndBySeqOneOf :: -- (Monad m, Unboxed a, Integral a) =>
+{-# INLINE splitEndByOneOf #-}
+splitEndByOneOf :: -- (Monad m, Unboxed a, Integral a) =>
     [Array a] -> Fold m a b -> Stream m a -> Stream m b
-splitEndBySeqOneOf _subseq _f _m = undefined
+splitEndByOneOf _subseq _f _m = undefined
 
 -- | Split on a prefixed separator element, dropping the separator.  The
 -- supplied 'Fold' is applied on the split segments.
@@ -2011,16 +2016,351 @@ splitBeginBy_ _predicate _f = undefined
 -- >>> splitList [1,2,3,3,4] [1,2,3,3,4]
 -- > [[],[]]
 
--- This can be implemented easily using Rabin Karp
--- | Split on any one of the given patterns.
+{-# ANN type SplitOnSeqOneOfState Fuse #-}
+data SplitOnSeqOneOfState fs s b =
+      SOOInit
+    | SOOYield b (SplitOnSeqOneOfState fs s b)
+    | SOODone
+    | SOOReinit (fs -> SplitOnSeqOneOfState fs s b)
+
+    -- No matchable patterns: stream folded as a single segment
+    | SOOWholeInit !fs s
+    | SOOWhole !fs s
+
+    -- Buffer-filling phase. The Bool is True iff this state was entered
+    -- after a match (post-match restart). On Stop with count=0:
+    --   primed=True  → yield one empty fold result (matches splitSepBySeq_)
+    --   primed=False → yield nothing (pristine initial state)
+    | SOOFill !Bool !Int !fs s !MutByteArray ![Word32]
+
+    -- Rolling phase, ring head at given byte offset
+    | SOOLoop !fs s !MutByteArray !Int ![Word32]
+
+    -- After a match: fold n elements (mid-stream) starting at byte offset,
+    -- then finalize and re-init at SOOFill 0
+    | SOOPrefold !Int !Int !fs !MutByteArray s
+
+    -- At end of stream: fold n elements starting at byte offset, then
+    -- finalize and stop
+    | SOODrain !Int !Int !fs !MutByteArray
+
+-- | Split a stream on any one of the given infix separator patterns. Behaves
+-- like 'splitSepBySeq_' generalized to multiple patterns.
 --
--- /Unimplemented/
+-- The supplied fold is applied on the inter-pattern segments. Matched
+-- separators are dropped. Matching is left-to-right and non-overlapping; when
+-- two patterns match ending at the same position, the longer (leftmost-start)
+-- match wins. Empty patterns in the list are ignored. An empty pattern list
+-- behaves as if no pattern can ever match — the entire stream is folded as a
+-- single segment.
 --
-{-# INLINE splitSepBySeqOneOf #-}
-splitSepBySeqOneOf :: -- (Monad m, Unboxed a, Integral a) =>
-    [Array a] -> Fold m a b -> Stream m a -> Stream m b
-splitSepBySeqOneOf _subseq _f _m =
-    undefined -- D.fromStreamD $ D.splitOnAny f subseq (D.toStreamD m)
+-- >>> splitOneOf ps xs = Stream.fold Fold.toList $ Stream.splitSepByOneOf (Prelude.map Array.fromList ps) Fold.toList (Stream.fromList xs)
+--
+-- >>> splitOneOf ["::", "->"] "a::b->c::d"
+-- ["a","b","c","d"]
+--
+-- >>> splitOneOf ["::"] "a::b::c"
+-- ["a","b","c"]
+--
+-- >>> splitOneOf ["x"] "abc"
+-- ["abc"]
+--
+-- >>> splitOneOf [] "abc"
+-- ["abc"]
+--
+-- -- this one currently fails
+-- >> splitOneOf ["a", "ab"] "xaby"
+-- ["x","y"]
+--
+-- Space: @O(n)@ where n is the longest pattern length.
+--
+{-# INLINE_NORMAL splitSepByOneOf #-}
+splitSepByOneOf
+    :: forall m a b. (MonadIO m, Unbox a, Enum a)
+    => [Array a]
+    -> Fold m a b
+    -> Stream m a
+    -> Stream m b
+splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
+    Stream stepOuter SOOInit
+
+    where
+
+    elemSize = SIZE_OF(a)
+    patArrs = filter (\arr -> A.length arr > 0) patArrs0
+
+    k :: Word32
+    k = 2891336453
+
+    addCksum :: Word32 -> a -> Word32
+    addCksum cksum a = cksum * k + fromIntegral (fromEnum a)
+
+    -- (patLen elements, patBytes, k^patLen, [(hash, pattern)])
+    -- Sorted by patLen descending for longest-match priority.
+    groups :: [(Int, Int, Word32, [(Word32, Array a)])]
+    groups =
+        let byLen = sortBy (comparing (Down . A.length)) patArrs
+            grouped = groupBy (\x y -> A.length x == A.length y) byLen
+         in Prelude.map mkGroup grouped
+
+        where
+
+        mkGroup [] = error "splitSepByOneOf: impossible empty group"
+        mkGroup ps@(p:_) =
+            let pLen = A.length p
+                pBytes = A.byteLength p
+                cf = k ^ pLen
+                hps = Prelude.map (\arr -> (A.foldl' addCksum 0 arr, arr)) ps
+            in (pLen, pBytes, cf, hps)
+
+    initialHashes :: [Word32]
+    initialHashes = Prelude.map (const 0) groups
+
+    maxLen = case groups of
+        [] -> 0
+        ((l, _, _, _) : _) -> l
+
+    maxBytes = maxLen * SIZE_OF(a)
+
+    skip = return . Skip
+
+    nextAfterInit nextGen stepRes =
+        case stepRes of
+            FL.Partial fs -> nextGen fs
+            FL.Done b -> SOOYield b (SOOReinit nextGen)
+
+    yieldReinit nextGen b =
+        initial >>= skip . SOOYield b . nextAfterInit nextGen
+
+    -- Phase 1 (Fill) hash update. count is the new count after inserting x.
+    -- Buffer is direct-indexed: position p at byte offset p * SIZE_OF(a).
+    updateHashesFill :: Int -> MutByteArray -> a -> [Word32] -> IO [Word32]
+    updateHashesFill count mba x = Control.Monad.zipWithM upd groups
+        where
+        upd (pLen, _, coeff, _) hash
+            | count <= pLen = pure (addCksum hash x)
+            | otherwise = do
+                let oldOffset = (count - pLen - 1) * SIZE_OF(a)
+                old :: a <- peekAt oldOffset mba
+                pure (addCksum hash x
+                        - coeff * fromIntegral (fromEnum old))
+
+    -- Phase 2 (Loop) hash update. ringHead is the byte offset of the oldest
+    -- element BEFORE insertion. Reads the falling-out element for each L
+    -- (which for L=maxLen is the element about to be evicted at ringHead).
+    updateHashesLoop :: Int -> MutByteArray -> a -> [Word32] -> IO [Word32]
+    updateHashesLoop ringHead mba x = Control.Monad.zipWithM upd groups
+        where
+        upd (pLen, _, coeff, _) hash = do
+            let oldOffset =
+                    (ringHead + (maxLen - pLen) * SIZE_OF(a))
+                        `mod` maxBytes
+            old :: a <- peekAt oldOffset mba
+            pure (addCksum hash x
+                    - coeff * fromIntegral (fromEnum old))
+
+    -- Phase 1 match check. count is the new count after insertion.
+    -- Returns the matched pattern length (the longest one), or Nothing.
+    checkMatchesFill :: Int -> MutByteArray -> [Word32] -> IO (Maybe Int)
+    checkMatchesFill count mba = go groups
+        where
+        go [] _ = pure Nothing
+        go _ [] = pure Nothing
+        go ((pLen, pBytes, _, hps):gs) (hash:hs)
+            | count < pLen = go gs hs
+            | otherwise = do
+                m <- anyMatch hash pBytes hps
+                if m then pure (Just pLen) else go gs hs
+
+        anyMatch _ _ [] = pure False
+        anyMatch h pb ((ph, pat):rest)
+            | h /= ph = anyMatch h pb rest
+            | otherwise = do
+                let pLenElems = pb `div` SIZE_OF(a)
+                    startOffset = (countAtCheck - pLenElems) * SIZE_OF(a)
+                cmp <- MutByteArray.unsafeByteCmp
+                            mba startOffset
+                            (A.arrContents pat) (A.arrStart pat)
+                            pb
+                if cmp == 0
+                then pure True
+                else anyMatch h pb rest
+            where
+            countAtCheck = count
+
+    -- Phase 2 match check. ringHead is the NEW ring head (after insertion).
+    -- Last L elements span the ring view starting at
+    --   (ringHead + (maxLen - L) * SIZE_OF(a)) mod maxBytes
+    -- with length pBytes.
+    checkMatchesLoop :: Int -> MutByteArray -> [Word32] -> IO (Maybe Int)
+    checkMatchesLoop ringHead mba = go groups
+        where
+        go [] _ = pure Nothing
+        go _ [] = pure Nothing
+        go ((pLen, pBytes, _, hps):gs) (hash:hs) = do
+            m <- anyMatch hash pLen pBytes hps
+            if m then pure (Just pLen) else go gs hs
+
+        anyMatch _ _ _ [] = pure False
+        anyMatch h pLen pb ((ph, pat):rest)
+            | h /= ph = anyMatch h pLen pb rest
+            | otherwise = do
+                let viewHead =
+                        (ringHead + (maxLen - pLen) * SIZE_OF(a))
+                            `mod` maxBytes
+                    viewRing = RingArray
+                        { ringContents = mba
+                        , ringSize = maxBytes
+                        , ringHead = viewHead
+                        }
+                eq <- RB.eqArrayN viewRing pat pb
+                if eq
+                then pure True
+                else anyMatch h pLen pb rest
+
+    {-# INLINE_LATE stepOuter #-}
+    stepOuter _ SOOInit = do
+        res <- initial
+        case res of
+            FL.Partial fs ->
+                if null groups
+                then skip $ SOOWholeInit fs state
+                else do
+                    (MutArray mba _ _ _) :: MutArray a <-
+                        liftIO $ MutArray.emptyOf maxLen
+                    skip $ SOOFill False 0 fs state mba initialHashes
+            FL.Done b -> skip $ SOOYield b SOOInit
+
+    stepOuter _ (SOOYield b next) = pure $ Yield b next
+
+    stepOuter _ SOODone = pure Stop
+
+    stepOuter _ (SOOReinit nextGen) =
+        initial >>= skip . nextAfterInit nextGen
+
+    ---------------------------
+    -- No-pattern (Whole stream) path
+    ---------------------------
+
+    stepOuter gst (SOOWholeInit fs st) = do
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s -> do
+                r <- fstep fs x
+                case r of
+                    FL.Partial fs1 -> skip $ SOOWhole fs1 s
+                    FL.Done b -> skip $ SOOYield b SOODone
+            Skip s -> skip $ SOOWholeInit fs s
+            Stop -> final fs >> pure Stop
+
+    stepOuter gst (SOOWhole fs st) = do
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s -> do
+                r <- fstep fs x
+                case r of
+                    FL.Partial fs1 -> skip $ SOOWhole fs1 s
+                    FL.Done b -> skip $ SOOYield b SOODone
+            Skip s -> skip $ SOOWhole fs s
+            Stop -> do
+                b <- final fs
+                skip $ SOOYield b SOODone
+
+    ---------------------------
+    -- Phase 1 — Fill
+    ---------------------------
+
+    stepOuter gst (SOOFill primed count fs st mba hashes) = do
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s -> do
+                liftIO $ pokeAt (count * SIZE_OF(a)) mba x
+                let count' = count + 1
+                hashes' <- liftIO $ updateHashesFill count' mba x hashes
+                matchRes <- liftIO $ checkMatchesFill count' mba hashes'
+                case matchRes of
+                    Just pLen ->
+                        skip $ SOOPrefold (count' - pLen) 0 fs mba s
+                    Nothing ->
+                        if count' == maxLen
+                        then skip $ SOOLoop fs s mba 0 hashes'
+                        else skip $ SOOFill primed count' fs s mba hashes'
+            Skip s -> skip $ SOOFill primed count fs s mba hashes
+            Stop
+                | count == 0 && not primed -> final fs >> pure Stop
+                | count == 0 -> do
+                    b <- final fs
+                    skip $ SOOYield b SOODone
+                | otherwise -> skip $ SOODrain count 0 fs mba
+
+    ---------------------------
+    -- Phase 2 — Loop
+    ---------------------------
+
+    stepOuter gst (SOOLoop fs st mba ringHead hashes) = do
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s -> do
+                evicted :: a <- liftIO $ peekAt ringHead mba
+                hashes' <- liftIO $ updateHashesLoop ringHead mba x hashes
+                liftIO $ pokeAt ringHead mba x
+                let ringHead' = (ringHead + elemSize) `mod` maxBytes
+                r <- fstep fs evicted
+                case r of
+                    FL.Partial fs1 -> do
+                        matchRes <- liftIO $ checkMatchesLoop ringHead' mba hashes'
+                        case matchRes of
+                            Just pLen ->
+                                skip $ SOOPrefold
+                                          (maxLen - pLen)
+                                          ringHead'
+                                          fs1
+                                          mba
+                                          s
+                            Nothing ->
+                                skip $ SOOLoop fs1 s mba ringHead' hashes'
+                    FL.Done b -> do
+                        let jump c = SOOFill True 0 c s mba initialHashes
+                        yieldReinit jump b
+            Skip s -> skip $ SOOLoop fs s mba ringHead hashes
+            Stop -> skip $ SOODrain maxLen ringHead fs mba
+
+    ---------------------------
+    -- Pre-fold (after a mid-stream match)
+    ---------------------------
+
+    stepOuter _ (SOOPrefold 0 _ fs mba s) = do
+        b <- final fs
+        let jump c = SOOFill True 0 c s mba initialHashes
+        yieldReinit jump b
+    stepOuter _ (SOOPrefold remaining offset fs mba s) = do
+        old :: a <- liftIO $ peekAt offset mba
+        let nextOffset = (offset + SIZE_OF(a)) `mod` maxBytes
+        r <- fstep fs old
+        case r of
+            FL.Partial fs1 ->
+                skip $ SOOPrefold (remaining - 1) nextOffset fs1 mba s
+            FL.Done b -> do
+                let jump c = SOOPrefold (remaining - 1) nextOffset c mba s
+                yieldReinit jump b
+
+    ---------------------------
+    -- Drain (end-of-stream)
+    ---------------------------
+
+    stepOuter _ (SOODrain 0 _ fs _) = do
+        b <- final fs
+        skip $ SOOYield b SOODone
+    stepOuter _ (SOODrain remaining offset fs mba) = do
+        old :: a <- liftIO $ peekAt offset mba
+        let nextOffset = (offset + SIZE_OF(a)) `mod` maxBytes
+        r <- fstep fs old
+        case r of
+            FL.Partial fs1 ->
+                skip $ SOODrain (remaining - 1) nextOffset fs1 mba
+            FL.Done b -> do
+                let jump c = SOODrain (remaining - 1) nextOffset c mba
+                yieldReinit jump b
 
 ------------------------------------------------------------------------------
 -- Nested Container Transformation
