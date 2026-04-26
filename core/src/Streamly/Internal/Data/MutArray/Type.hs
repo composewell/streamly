@@ -2419,6 +2419,14 @@ writeAppendNUnsafe :: forall m a. (MonadIO m, Unbox a) =>
     -> Fold m a (MutArray a)
 writeAppendNUnsafe = unsafeAppendN
 
+-- NOTE: A monadic action is required for the cases where in a stream pipeline
+-- we want to get an array e.g. from StateT (using get) and append the newly
+-- produced data to it. The pure version will not be able to do that without
+-- breaking out of the stream or threading around an array through the entire
+-- loop. If that is required we may want to undeprecate this.
+--
+-- An alternative name for such operations could be "aggregate".
+
 -- | Append @n@ elements to an existing array. Any free space left in the array
 -- after appending @n@ elements is lost.
 --
