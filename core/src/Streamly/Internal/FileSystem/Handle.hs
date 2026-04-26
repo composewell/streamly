@@ -442,13 +442,6 @@ putBytes = putBytesWith defaultChunkSize
 writeChunks :: forall m (a :: Type). MonadIO m => Handle -> Fold m (Array a) ()
 writeChunks h = FL.drainMapM (putChunk h)
 
--- | Like writeChunks but uses the experimental 'Refold' API.
---
--- /Internal/
-{-# INLINE chunkWriter #-}
-chunkWriter :: forall m (a :: Type). MonadIO m => Refold m Handle (Array a) ()
-chunkWriter = Refold.drainBy putChunk
-
 -- | @writeChunksWith bufsize handle@ writes a stream of arrays
 -- to @handle@ after coalescing the adjacent arrays in chunks of @bufsize@.
 -- We never split an array, if a single array is bigger than the specified size
@@ -511,14 +504,6 @@ writeMaybesWith n h =
         writeOnNothing = FL.takeEndBy_ isNothing writeNJusts
     in FL.many writeOnNothing (writeChunks h)
 
--- | Like 'writeWith' but uses the experimental 'Refold' API.
---
--- /Internal/
-{-# INLINE writerWith #-}
-writerWith :: MonadIO m => Int -> Refold m Handle Word8 ()
-writerWith n =
-    FL.refoldMany (FL.take n $ A.unsafeCreateOf' n) chunkWriter
-
 -- | Write a byte stream to a file handle. Accumulates the input in chunks of
 -- up to 'Streamly.Internal.Data.Array.Type.defaultChunkSize' before writing
 -- to the IO device.
@@ -528,6 +513,25 @@ writerWith n =
 {-# INLINE write #-}
 write :: MonadIO m => Handle -> Fold m Word8 ()
 write = writeWith defaultChunkSize
+
+-------------------------------------------------------------------------------
+-- Refolds
+-------------------------------------------------------------------------------
+
+-- | Like writeChunks but uses the experimental 'Refold' API.
+--
+-- /Internal/
+{-# INLINE chunkWriter #-}
+chunkWriter :: forall m (a :: Type). MonadIO m => Refold m Handle (Array a) ()
+chunkWriter = Refold.drainBy putChunk
+
+-- | Like 'writeWith' but uses the experimental 'Refold' API.
+--
+-- /Internal/
+{-# INLINE writerWith #-}
+writerWith :: MonadIO m => Int -> Refold m Handle Word8 ()
+writerWith n =
+    FL.refoldMany (FL.take n $ A.unsafeCreateOf' n) chunkWriter
 
 -- | Like 'write'  but uses the experimental 'Refold' API.
 --
