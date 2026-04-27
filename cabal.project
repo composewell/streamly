@@ -4,6 +4,9 @@ packages:   streamly.cabal
           , benchmark/streamly-benchmarks.cabal
           , bench-test-lib/bench-test-lib.cabal
 
+-- For compiling standalone programs
+-- write-ghc-environment-files: always
+
 -- For debugging heap overflow
 -- jobs: 1
 
