@@ -17,7 +17,7 @@ description: Benchmarks are separated from the main package because we
 flag fusion-plugin
   description: Use fusion plugin for benchmarks and executables
   manual: True
-  default: False
+  default: True
 
 flag limit-build-mem
   description: Limits memory when building the executables
