@@ -24,6 +24,9 @@
 -- provide lower level operations for certain cases to interact more
 -- efficiently with low level code.
 --
+-- It builds on arrays, has a richer API, consistent API, streaming ops where
+-- it makes sense, performance is primary goal.
+--
 -- == References
 --
 --  * https://en.wikipedia.org/wiki/Path_(computing)
@@ -62,6 +65,14 @@
 --
 -- Rooted paths can never be appended to any other path whereas a branch can be
 -- appended.
+--
+-- The rooted/unrooted path concept is especially useful on windows. Windows is
+-- different in that C:x is curdir relative path, /x is curdrive relative path.
+-- Even though these paths are relative they cannot be appended to other paths.
+-- The only relative path that can appended is "./x". Ideally, we should be
+-- able to append C:x and C:y to C:x/y if we treat them as ./x and ./y but we
+-- can't, only "." has that treatement that it can be removed and made a path
+-- segment.
 --
 -- == Comparing Paths
 --
