@@ -417,7 +417,7 @@ module Streamly.Internal.Data.MutArray.Type
     , scanCompactMin'
 
     -- ** Utilities
-    , isPower2
+    , isPower2 -- remove from here, exported from MBA
     , roundUpToPower2
 
     -- * Deprecated
@@ -509,7 +509,7 @@ where
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bifunctor (first)
-import Data.Bits (shiftR, (.|.), (.&.))
+import Data.Bits (shiftR, (.|.))
 import Data.Char (ord)
 import Data.Functor.Identity (Identity(..))
 import Data.Proxy (Proxy(..))
@@ -533,6 +533,7 @@ import GHC.Ptr (Ptr(..))
 import GHC.Exts (byteArrayContents#, unsafeCoerce#)
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
+import Streamly.Internal.Data.MutByteArray.Type (isPower2, roundUpLargeArray)
 import Streamly.Internal.Data.Producer.Type (Producer (..))
 import Streamly.Internal.Data.Scanl.Type (Scanl (..))
 import Streamly.Internal.Data.Stream.Type (Stream)
@@ -629,6 +630,10 @@ data MutArray a =
 #endif
     -- The array is a range into arrContents. arrContents may be a superset of
     -- the slice represented by the array. All offsets are in bytes.
+    -- Invariants:
+    -- arrStart <= arrEnd <= arrBound
+    -- Data is contiguous in [arrStart, arrEnd)
+    -- Spare capacity exists only in [arrEnd, arrBound)
     MutArray
     { arrContents :: {-# UNPACK #-} !MutByteArray
     , arrStart :: {-# UNPACK #-} !Int  -- ^ index into arrContents
@@ -978,23 +983,6 @@ swapIndices i1 i2 MutArray{..} = liftIO $ do
 -- Rounding
 -------------------------------------------------------------------------------
 
--- XXX Should be done only when we are using the GHC allocator.
--- | Round up an array larger than 'largeObjectThreshold' to use the whole
--- block.
-{-# INLINE roundUpLargeArray #-}
-roundUpLargeArray :: Int -> Int
-roundUpLargeArray size =
-    if size >= largeObjectThreshold
-    then
-        assert
-            (blockSize /= 0 && ((blockSize .&. (blockSize - 1)) == 0))
-            ((size + blockSize - 1) .&. negate blockSize)
-    else size
-
-{-# INLINE isPower2 #-}
-isPower2 :: Int -> Bool
-isPower2 n = n .&. (n - 1) == 0
-
 {-# INLINE roundUpToPower2 #-}
 roundUpToPower2 :: Int -> Int
 roundUpToPower2 n =
@@ -1207,16 +1195,18 @@ resizeExp = growExp
 {-# INLINE rightSize #-}
 rightSize :: forall m a. (MonadIO m, Unbox a) => MutArray a -> m (MutArray a)
 rightSize arr@MutArray{..} = do
-    assert (arrEnd <= arrBound) (return ())
-    let start = arrStart
-        len = arrEnd - start
-        cap = arrBound - start
+    assert (arrStart <= arrEnd && arrEnd <= arrBound) (return ())
+    let start  = arrStart
+        len    = arrEnd - start
+        total  = arrBound - start
+        waste  = arrBound - arrEnd
         target = roundUpLargeArray len
-        waste = arrBound - arrEnd
+
     assert (target >= len) (return ())
     assert (len `mod` SIZE_OF(a) == 0) (return ())
-    -- We trade off some wastage (25%) to avoid reallocations and copying.
-    if target < cap && len < 3 * waste
+
+    -- Allow up to 25% waste to avoid excessive copying.
+    if len < total && target < total && len < 3 * waste
     then realloc target arr
     else return arr
 

@@ -36,7 +36,7 @@ module Streamly.Internal.Data.MutByteArray.Type
     , unsafeAsPtr
 
     -- ** Modify
-    , unsafePutSlice
+    , unsafePutSlice -- XXX unsafePutRange
     , unsafePutPtrN
 
     -- ** Copy
@@ -48,8 +48,12 @@ module Streamly.Internal.Data.MutByteArray.Type
     , unsafeByteCmp
 
     -- ** Capacity Management
+    , isPower2
     , blockSize
     , largeObjectThreshold
+    , roundUpLargeArray
+    , rightSize
+    , rightSizeAs
 
     -- ** Deprecated
     , MutableByteArray
@@ -67,10 +71,12 @@ module Streamly.Internal.Data.MutByteArray.Type
     , pinnedNew
     ) where
 
+#include "assert.hs"
 #include "deprecation.h"
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad (when)
+import Data.Bits ((.&.))
 import Data.Word (Word8)
 #ifdef DEBUG
 import Debug.Trace (trace)
@@ -86,7 +92,7 @@ import Prelude hiding (length)
 -- The ArrayContents type
 --------------------------------------------------------------------------------
 
-data PinnedState
+data PinnedState -- XXX AllocType ?
     = Pinned
     | Unpinned deriving (Show, Eq)
 
@@ -180,9 +186,12 @@ nil = empty
 
 -- XXX Should we use bitshifts in calculations or it gets optimized by the
 -- compiler/processor itself?
---
+
 -- | The page or block size used by the GHC allocator. Allocator allocates at
 -- least a block and then allocates smaller allocations from within a block.
+--
+-- IMPORTANT: it must be power of two as we rely on that in bit-shift based
+-- calculations.
 blockSize :: Int
 blockSize = 4 * 1024
 
@@ -370,6 +379,63 @@ unsafeByteCmp
                          st2#
                          len#)
          in (# s#, res #)
+
+-------------------------------------------------------------------------------
+-- Resizing
+-------------------------------------------------------------------------------
+
+-- XXX Should be done only when we are using the GHC allocator.
+
+{-# INLINE isPower2 #-}
+isPower2 :: Int -> Bool
+isPower2 n = n .&. (n - 1) == 0
+
+-- | Round up an array larger than 'largeObjectThreshold' to use the whole
+-- block.
+{-# INLINE roundUpLargeArray #-}
+roundUpLargeArray :: Int -> Int
+roundUpLargeArray size =
+    if size >= largeObjectThreshold
+    then
+        assert
+            (blockSize /= 0 && isPower2 blockSize)
+            ((size + blockSize - 1) .&. negate blockSize) -- can overflow, ok
+    else size
+
+{-# INLINE rightSizeAs #-}
+rightSizeAs
+    :: MonadIO m
+    => PinnedState            -- ^ Pinned | Unpinned
+    -> Int                    -- ^ used length
+    -> MutByteArray
+    -> m MutByteArray
+rightSizeAs alloc len arr = liftIO $ do
+    cap <- length arr
+    let target = roundUpLargeArray len
+        waste  = cap - len
+        tooMuchWaste = waste * 4 > cap  -- >25% waste
+
+    if len < cap && target < cap && tooMuchWaste
+    then do
+        arr1 <- newAs alloc target
+        -- Safe: arr1 is fresh and >= len
+        unsafePutSlice arr 0 arr1 0 len
+        return arr1
+    else
+        return arr
+
+-- | Reallocate to reduce excess capacity.
+-- Allows up to 25% waste to avoid excessive copying.
+-- Only shrinks when @len < current capacity@.
+-- For large arrays, retains allocator block granularity.
+--
+{-# INLINE rightSize #-}
+rightSize :: MonadIO m => Int -> MutByteArray -> m MutByteArray
+rightSize len arr = rightSizeAs alloc len arr
+
+    where
+
+    alloc = if isPinned arr then Pinned else Unpinned
 
 -------------------------------------------------------------------------------
 -- Pinning & Unpinning
