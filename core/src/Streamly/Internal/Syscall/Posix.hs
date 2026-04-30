@@ -23,23 +23,13 @@ import GHC.Ptr (Ptr(..))
 import qualified Streamly.Internal.Data.MutByteArray as MutByteArray
 import Streamly.Internal.Data.MutByteArray.Type
     (MutByteArray, PinnedState(..), unsafeAsPtr)
+import Streamly.Internal.Syscall.Common (retry)
 
 -- Instead of using alloca for buffer we use a mutable bytearray which can be
 -- directly used elsewhere in the program without copying.
 
 foreign import ccall unsafe "getcwd"
    c_getcwd :: Ptr CChar -> CSize -> IO (Ptr CChar)
-
--- Retry an IO action, modifying the argument on each Nothing result.
--- Throws an exception if there is an unrecoverable error.
-retry :: (a -> a) -> (a -> IO (Maybe b)) -> a -> IO b
-retry modify f a = go a
-    where
-    go x = do
-        r <- f x
-        case r of
-            Just v  -> return v
-            Nothing -> go (modify x)
 
 tryGetCwd :: Int -> IO (Maybe MutByteArray)
 tryGetCwd bytes = do
