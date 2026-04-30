@@ -422,6 +422,7 @@ library
                      , Streamly.Internal.FileSystem.Posix.Errno
                      , Streamly.Internal.FileSystem.Posix.File
                      , Streamly.Internal.FileSystem.Posix.ReadDir
+                     , Streamly.Internal.Syscall.Posix
                      , Streamly.Internal.FileSystem.Windows.ReadDir
                      , Streamly.Internal.FileSystem.Windows.File
                      , Streamly.Internal.FileSystem.FileIO
