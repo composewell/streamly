@@ -57,6 +57,7 @@ module Streamly.Internal.Data.Stream.Eliminate
     , isSuffixOf
     , isSuffixOfUnbox
     , isSubsequenceOf
+    , stripPrefixBy
     , stripPrefix
     , stripSuffix
     , stripSuffixUnbox
@@ -583,23 +584,18 @@ isSubsequenceOf (Stream stepa ta) (Stream stepb tb) = go SPEC Nothing' ta tb
 -- NOTE: Unlike 'dropPrefix', which always returns a transformed stream,
 -- this function returns @Maybe@ to indicate whether the prefix matched.
 
--- | @stripPrefix prefix input@ strips the @prefix@ stream from the @input@ if
--- present.
---
--- If the input begins with the given prefix, returns @Just@ the remaining
--- stream. If the input does not start with the prefix, returns 'Nothing'.
---
--- It may consume both the streams partially up to the point of failure.
+-- | Like 'stripPrefix' but uses a custom equality predicate instead of 'Eq'.
 --
 -- /Space:/ @O(1)@
 --
-{-# INLINE_NORMAL stripPrefix #-}
-stripPrefix
-    :: (Monad m, Eq a)
-    => Stream m a  -- ^ Prefix to remove
-    -> Stream m a  -- ^ Input stream
-    -> m (Maybe (Stream m a))  -- ^ Remaining stream if prefix matches
-stripPrefix (Stream stepa ta) (Stream stepb tb) = go SPEC Nothing' ta tb
+{-# INLINE_NORMAL stripPrefixBy #-}
+stripPrefixBy
+    :: Monad m
+    => (a -> b -> Bool)  -- ^ Equality predicate
+    -> Stream m a        -- ^ Prefix to remove
+    -> Stream m b        -- ^ Input stream
+    -> m (Maybe (Stream m b))  -- ^ Remaining stream if prefix matches
+stripPrefixBy eq (Stream stepa ta) (Stream stepb tb) = go SPEC Nothing' ta tb
 
     where
 
@@ -614,11 +610,29 @@ stripPrefix (Stream stepa ta) (Stream stepb tb) = go SPEC Nothing' ta tb
         r <- stepb defState sb
         case r of
             Yield y sb' ->
-                if x == y
+                if eq x y
                     then go SPEC Nothing' sa sb'
                     else return Nothing
             Skip sb' -> go SPEC (Just' x) sa sb'
             Stop     -> return Nothing
+
+-- | @stripPrefix prefix input@ strips the @prefix@ stream from the @input@ if
+-- present.
+--
+-- If the input begins with the given prefix, returns @Just@ the remaining
+-- stream. If the input does not start with the prefix, returns 'Nothing'.
+--
+-- It may consume both the streams partially up to the point of failure.
+--
+-- /Space:/ @O(1)@
+--
+{-# INLINE stripPrefix #-}
+stripPrefix
+    :: (Monad m, Eq a)
+    => Stream m a  -- ^ Prefix to remove
+    -> Stream m a  -- ^ Input stream
+    -> m (Maybe (Stream m a))  -- ^ Remaining stream if prefix matches
+stripPrefix = stripPrefixBy (==)
 
 -- | Returns 'True' if the first stream is an infix of the second. A stream is
 -- considered an infix of itself.
