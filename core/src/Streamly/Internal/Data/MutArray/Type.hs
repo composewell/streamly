@@ -31,8 +31,9 @@ module Streamly.Internal.Data.MutArray.Type
     -- ** Type
     -- $arrayNotes
       MutArray (..)
-    , fromMutByteArray
-    , toMutByteArray
+    , fromMutByteArraySlice
+    , unsafeCastMutByteArray
+    , toMutByteArraySlice
 
     -- ** Conversion
     -- *** Pinned and Unpinned
@@ -63,8 +64,8 @@ module Streamly.Internal.Data.MutArray.Type
     -- | Get a subarray without copying
 
     -- Element agnostic.
-    , unsafeSliceOffLen
-    , sliceOffLen
+    , unsafeSliceOffLen -- XXX unsafeSlice
+    , sliceOffLen -- XXX slice
 
     -- Counting from the beginning
     -- We use the name "break" for splitting into two parts. And the word
@@ -322,6 +323,8 @@ module Streamly.Internal.Data.MutArray.Type
     -- stream to Word64 array and unsafeCast it again. We can use SIMD
     -- read/write as well.
 
+    -- XXX Like paths should we use the prefix "join" instead?
+
     , spliceCopy -- XXX freeze and splice instead?
     , splice
     , spliceWith -- XXX spliceGrowWith
@@ -497,6 +500,8 @@ module Streamly.Internal.Data.MutArray.Type
     , unsafeAppendN
     , appendN
     , append
+    , fromMutByteArray
+    , toMutByteArray
     )
 where
 
@@ -648,6 +653,39 @@ data MutArray a =
 -- Construction and destructuring
 -------------------------------------------------------------------------------
 
+-- | Wrap a 'MutByteArray' as a 'MutArray' of 'Word8' without copying.
+--
+-- @fromMutByteArray arr start len@ where:
+--
+-- * @start@: byte offset
+-- * @len@: number of bytes
+--
+-- The slice is @[start, start + len)@.
+-- Capacity is the same as the slice.
+--
+-- /Partial/: Throws if the range is out of bounds.
+{-# INLINE fromMutByteArraySlice #-}
+fromMutByteArraySlice
+  :: MonadIO m
+  => MutByteArray
+  -> Int  -- ^ start (byte offset)
+  -> Int  -- ^ length (in bytes)
+  -> m (MutArray Word8)
+fromMutByteArraySlice arr start len = do
+    byteLen <- liftIO $ Unboxed.length arr
+    let end = start + len
+
+    if start < 0 || len < 0 || end > byteLen then
+        error "fromMutByteArray: byte range out of bounds"
+    else
+        return $ MutArray
+            { arrContents = arr
+            , arrStart = start
+            , arrEnd = end
+            , arrBound = end
+            }
+
+{-# DEPRECATED fromMutByteArray "Please use fromMutByteArraySlice instead." #-}
 {-# INLINE fromMutByteArray #-}
 fromMutByteArray :: MonadIO m => MutByteArray -> Int -> Int -> m (MutArray a)
 fromMutByteArray arr start end = do
@@ -659,7 +697,61 @@ fromMutByteArray arr start end = do
         , arrBound = len
         }
 
+-- | Reinterpret a slice of a 'MutByteArray' as a 'MutArray' of @a@ without
+-- copying.
+--
+-- @unsafeCastMutByteArray arr start len@ where:
+--
+-- * @start@: byte offset
+-- * @len@: number of bytes
+--
+-- The slice is @[start, start + len)@.
+-- Capacity is the same as the slice.
+--
+-- /Unsafe/: The bytes must represent valid values of @a@.
+-- Throws if out of bounds, misaligned, or if @len@ is not a multiple of
+-- @sizeOf a@.
+{-# INLINE unsafeCastMutByteArray #-}
+unsafeCastMutByteArray
+  :: forall m a. (MonadIO m, Unbox a)
+  => MutByteArray
+  -> Int  -- ^ start (byte offset)
+  -> Int  -- ^ length (in bytes)
+  -> m (MutArray a)
+unsafeCastMutByteArray arr start len = do
+    byteLen <- liftIO $ Unboxed.length arr
+    let elemSize = SIZE_OF(a)
+        end = start + len
+
+    if elemSize <= 0 then
+        error "unsafeCastMutByteArray: invalid element size"
+    else if start < 0 || len < 0 || end > byteLen then
+        error "unsafeCastMutByteArray: byte range out of bounds"
+    else if start `mod` elemSize /= 0 then
+        error "unsafeCastMutByteArray: start offset not aligned"
+    else if len `mod` elemSize /= 0 then
+        error "unsafeCastMutByteArray: length not multiple of element size"
+    else
+        return $ MutArray
+            { arrContents = arr
+            , arrStart = start
+            , arrEnd = end
+            , arrBound = end
+            }
+
+-- | Convert a 'MutArray' to its underlying byte array slice.
+--
+-- Returns @(arr, start, len)@ where:
+--
+-- * @start@: byte offset
+-- * @len@: number of bytes
+{-# INLINE toMutByteArraySlice #-}
+toMutByteArraySlice :: MutArray a -> (MutByteArray, Int, Int)
+toMutByteArraySlice MutArray{..} =
+    (arrContents, arrStart, arrEnd - arrStart)
+
 {-# INLINE toMutByteArray #-}
+{-# DEPRECATED toMutByteArray "Please use toMutByteArraySlice instead." #-}
 toMutByteArray :: MutArray a -> (MutByteArray, Int, Int)
 toMutByteArray MutArray{..} = (arrContents, arrStart, arrEnd)
 

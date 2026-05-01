@@ -23,9 +23,11 @@ module Streamly.Internal.Data.Array.Type
 
     -- ** Conversion
     -- *** Mutable and Immutable
-    , unsafeFreeze
-    , unsafeFreezeWithShrink
-    , unsafeThaw
+    , unsafeFreeze -- XXX unsafeFreezeMutArray
+    , unsafeFreezeWithShrink -- XXX unsafeFreezeMutArrayShrink
+    , unsafeThaw -- XXX unsafeThawArray
+    , unsafeFromMutByteArray
+    , unsafeCastMutByteArray
 
     -- *** Pinned and Unpinned
     , pin
@@ -37,7 +39,7 @@ module Streamly.Internal.Data.Array.Type
     , unsafeAsForeignPtr
 
     -- * Subarrays
-    , unsafeSliceOffLen
+    , unsafeSliceOffLen -- XXX unsafeSlice
 
     -- ** Construction
     , empty
@@ -293,7 +295,7 @@ data Array a =
 #ifdef DEVBUILD
     Unbox a =>
 #endif
-    -- All offsets are in terms of bytes from the start of arraycontents
+    -- All offsets are in terms of bytes from the start of arrContents
     Array
     { arrContents :: {-# UNPACK #-} !MutByteArray
     , arrStart :: {-# UNPACK #-} !Int -- offset
@@ -409,6 +411,77 @@ unsafeFreezeWithShrink arr = unsafePerformIO $ do
 {-# INLINE unsafeThaw #-}
 unsafeThaw :: Array a -> MutArray a
 unsafeThaw (Array ac as ae) = MA.MutArray ac as ae ae
+
+-- | Reinterpret a slice of a 'MutByteArray' as an 'Array' of @a@ without copying.
+--
+-- @unsafeCastMutByteArray arr start len@ where:
+--
+-- * @start@: byte offset
+-- * @len@: number of bytes
+--
+-- The slice is @[start, start + len)@.
+--
+-- /Unsafe/: The bytes must represent valid values of @a@ and must not be
+-- mutated after this call. Throws if out of bounds, misaligned, or if @len@
+-- is not a multiple of @sizeOf a@.
+{-# INLINE unsafeCastMutByteArray #-}
+unsafeCastMutByteArray
+  :: forall m a. (MonadIO m, Unbox a)
+  => MutByteArray
+  -> Int  -- ^ start (byte offset)
+  -> Int  -- ^ length (in bytes)
+  -> m (Array a)
+unsafeCastMutByteArray arr start len = do
+    byteLen <- liftIO $ Unboxed.length arr
+    let elemSize = SIZE_OF(a)
+        end = start + len
+
+    if elemSize <= 0 then
+        error "unsafeCastMutByteArray: invalid element size"
+    else if start < 0 || len < 0 || end > byteLen then
+        error "unsafeCastMutByteArray: byte range out of bounds"
+    else if start `mod` elemSize /= 0 then
+        error "unsafeCastMutByteArray: start offset not aligned"
+    else if len `mod` elemSize /= 0 then
+        error "unsafeCastMutByteArray: length not multiple of element size"
+    else
+        return $ Array
+            { arrContents = arr
+            , arrStart = start
+            , arrEnd = end
+            }
+
+-- | Wrap a 'MutByteArray' as an immutable 'Array' of 'Word8' without copying.
+--
+-- Usage: @unsafeFromMutByteArray arr start len@ where
+--
+-- * @arr@: mutable byte array
+-- * @start@: byte offset
+-- * @len@: number of bytes
+--
+-- The slice is @[start, start + len)@.
+--
+-- /Unsafe/: The array must not be mutated after this call.
+-- Throws if the range is out of bounds.
+{-# INLINE unsafeFromMutByteArray #-}
+unsafeFromMutByteArray
+  :: MonadIO m
+  => MutByteArray
+  -> Int  -- ^ start (byte offset)
+  -> Int  -- ^ length (in bytes)
+  -> m (Array Word8)
+unsafeFromMutByteArray arr start len = do
+    byteLen <- liftIO $ Unboxed.length arr
+    let end = start + len
+
+    if start < 0 || len < 0 || end > byteLen then
+        error "unsafeFromMutByteArray: byte range out of bounds"
+    else
+        return $ Array
+            { arrContents = arr
+            , arrStart = start
+            , arrEnd = end
+            }
 
 -------------------------------------------------------------------------------
 -- Pinning & Unpinning
