@@ -1706,7 +1706,44 @@ collapseDotDots (OS_PATH p) =
     OS_PATH $ Common.collapseDotDots Common.OS_NAME p
 
 -- | Convert the path to an equivalent but standard format for reliable
--- comparison.
+-- comparison. Collapses redundant separators and removes @.@ components,
+-- normalises the root (including separator style on Windows), and optionally
+-- folds case per the 'EqCfg' options. Does /not/ collapse @..@ segments, as
+-- that is unsafe in the presence of symlinks.
+--
+-- A trailing separator is preserved unless 'ignoreTrailingSeparators' is set
+-- in the 'EqCfg'.
+--
+-- >>> f = Path.toString . Path.normalise id . Path.fromString_
+--
+-- Redundant separators are collapsed:
+--
+-- >>> f "x//y"
+-- "x/y"
+--
+-- @.@ components are removed:
+--
+-- >>> f "x/./y"
+-- "x/y"
+--
+-- >>> f "x/y/."
+-- "x/y"
+--
+-- Trailing separator is preserved by default:
+--
+-- >>> f "x/y/"
+-- "x/y/"
+--
+-- >>> cfg = Path.ignoreTrailingSeparators True
+-- >>> g = Path.toString . Path.normalise cfg . Path.fromString_
+-- >>> g "x/y/"
+-- "x/y"
+--
+-- @..@ components are not collapsed:
+--
+-- >>> f "x/../y"
+-- "x/../y"
+--
 normalise :: (EqCfg -> EqCfg) -> OS_PATH_TYPE -> OS_PATH_TYPE
 normalise cfg (OS_PATH p) =
     OS_PATH $ Common.normalise
@@ -1717,6 +1754,36 @@ normalise cfg (OS_PATH p) =
 -- Path prefix
 ------------------------------------------------------------------------------
 
+-- | Return the longest common non-empty prefix of two paths at a path segment
+-- boundary. The common prefix is normalised: redundant separators and @.@
+-- components are removed. @..@ components are not collapsed.
+--
+-- Returns 'Nothing' if the two paths share no common prefix (e.g. they have
+-- different roots) or if the entire common body is empty.
+--
+-- >>> f a b = fmap Path.toString $ Path.takeCommonPrefix id (Path.fromString_ a) (Path.fromString_ b)
+--
+-- >>> f "/x/y/z" "/x/y/w"
+-- Just "/x/y"
+--
+-- >>> f "/x/y" "/x/z"
+-- Just "/x"
+--
+-- Paths sharing only the root:
+--
+-- >>> f "/x/y" "/a/b"
+-- Just "/"
+--
+-- Paths with different roots have no common prefix:
+--
+-- >>> f "x/y" "/x/y"
+-- Nothing
+--
+-- Redundant separators are normalised before comparison:
+--
+-- >>> f "/x//y" "/x/y/z"
+-- Just "/x/y"
+--
 takeCommonPrefix ::
     (EqCfg -> EqCfg) -> OS_PATH_TYPE -> OS_PATH_TYPE -> Maybe OS_PATH_TYPE
 takeCommonPrefix cfg (OS_PATH a) (OS_PATH b) =
@@ -1725,6 +1792,42 @@ takeCommonPrefix cfg (OS_PATH a) (OS_PATH b) =
             Unicode.UNICODE_DECODER
             Common.OS_NAME (cfg eqCfg) a b
 
+-- XXX distinguish the case of no common prefix and the paths being
+-- equal? If we throw an exception we can distringuish the two cases as
+-- NoCommonPrefix, and NotProperPrefix.
+
+-- | Strip a prefix from a path at a path segment boundary. Returns the
+-- remaining suffix if the first argument is a prefix of the second, or
+-- 'Nothing' if it is not or if stripping the prefix leaves an empty remainder
+-- (i.e. the prefix equals the full path).
+--
+-- The prefix is compared using the supplied 'EqCfg' normalisation: redundant
+-- separators and @.@ components are removed before matching. @..@ components
+-- are not collapsed.
+--
+-- >>> f pre p = fmap Path.toString $ Path.stripPrefix id (Path.fromString_ pre) (Path.fromString_ p)
+--
+-- >>> f "/x" "/x/y/z"
+-- Just "y/z"
+--
+-- >>> f "/x/y" "/x/y/z"
+-- Just "z"
+--
+-- Prefix not present:
+--
+-- >>> f "/a" "/x/y"
+-- Nothing
+--
+-- Prefix equals full path, leaving empty remainder:
+--
+-- >>> f "/x/y" "/x/y"
+-- Nothing
+--
+-- Redundant separators in the prefix are normalised before matching:
+--
+-- >>> f "/x//y" "/x/y/z"
+-- Just "z"
+--
 stripPrefix ::
     (EqCfg -> EqCfg) -> OS_PATH_TYPE -> OS_PATH_TYPE -> Maybe OS_PATH_TYPE
 stripPrefix cfg (OS_PATH prefix) (OS_PATH p) =
