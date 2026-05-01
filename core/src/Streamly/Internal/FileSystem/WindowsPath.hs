@@ -133,12 +133,12 @@ unsafeJoin (OS_PATH a) (OS_PATH b) =
         $ Common.unsafeAppend
             Common.OS_NAME (Common.toString Unicode.UNICODE_DECODER) a b
 
--- | Append a OS_PATH_TYPE to another. Fails if the second path refers to a rooted
--- path. If you want to avoid runtime failure use the typesafe
--- Streamly.FileSystem.OS_PATH_TYPE.Seg module. Use 'unsafeJoin' to avoid failure
--- if you know it is ok to append the path.
+-- | Append a OS_PATH_TYPE to another. Fails if the second path refers to a
+-- rooted path. If you want to avoid runtime failure use the typesafe
+-- Streamly.FileSystem.OS_PATH_TYPE.Seg module. Use 'unsafeJoin' to avoid
+-- failure if you know it is ok to append the path.
 --
--- Usually, append joins two paths using a separator between the paths. On
+-- Usually, it joins two paths using a separator between the paths. On
 -- Windows, joining a drive "c:" with path "x" does not add a separator between
 -- the two because "c:x" is different from "c:/x".
 --
@@ -148,25 +148,65 @@ unsafeJoin (OS_PATH a) (OS_PATH b) =
 --
 -- >>> f a b = Path.toString $ Path.join a b
 --
+-- When second path is relative to current directory.
+--
 -- >>> f [path|x|] [path|y|]
 -- "x\\y"
--- >>> f [path|x/|] [path|y|]
--- "x/y"
--- >>> f [path|c:|] [path|x|]
--- "c:x"
--- >>> f [path|c:/|] [path|x|]
--- "c:/x"
+-- >>> f [path|c:|] [path|y|]
+-- "c:y"
+-- >>> f [path|c:x|] [path|y|]
+-- "c:x\\y"
+-- >>> f [path|\x|] [path|y|]
+-- "\\x\\y"
+-- >>> f [path|c:/|] [path|y|]
+-- "c:/y"
 -- >>> f [path|//x/|] [path|y|]
 -- "//x/y"
 --
--- >>> fails $ f [path|c:|] [path|/|]
+-- When second path is relative to current directory in a specific drive.
+-- TODO: fix these.
+--
+-- >> f [path|c:/x|] [path|c:y|]
+-- "c:/x/y"
+-- >> f [path|c:|] [path|c:y|]
+-- "c:y"
+-- >> f [path|c:x|] [path|c:y|]
+-- "c:x/y"
+-- >> fails $ f [path|d:x|] [path|c:y|]
 -- True
--- >>> fails $ f [path|c:|] [path|/x|]
+-- >> fails $ f [path|/x|] [path|c:y|]
 -- True
--- >>> fails $ f [path|c:/|] [path|/x|]
+-- >> fails $ f [path|x|] [path|c:y|]
+-- True
+--
+-- When second path is relative to current drive.
+--
+-- >>> fails $ f [path|c:/|] [path|/y|]
+-- True
+-- >>> fails $ f [path|c:/x|] [path|/y|]
+-- True
+-- >>> fails $ f [path|c:|] [path|/y|]
+-- True
+-- >>> fails $ f [path|c:|] [path|/y|]
+-- True
+-- >>> fails $ f [path|c:x|] [path|/y|]
+-- True
+-- >>> fails $ f [path|/x|] [path|/y|]
+-- True
+-- >>> fails $ f [path|x|] [path|/y|]
 -- True
 -- >>> fails $ f [path|//x/|] [path|/y|]
 -- True
+--
+-- When second path is absolute.
+--
+-- >>> fails $ f [path|c:|] [path|c:/|]
+-- True
+--
+-- Original separator is kept if present:
+--
+-- >>> f [path|x/|] [path|y|]
+-- "x/y"
 join :: OS_PATH_TYPE -> OS_PATH_TYPE -> OS_PATH_TYPE
 join (OS_PATH a) (OS_PATH b) =
     OS_PATH

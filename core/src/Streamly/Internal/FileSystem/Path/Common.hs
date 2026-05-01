@@ -38,6 +38,12 @@ module Streamly.Internal.FileSystem.Path.Common
     , hasTrailingSeparator
     , hasLeadingSeparator
 
+    -- XXX isRooted/isAbsolute can include the absolute roots, / on unix and
+    -- drives and shares on Windows. Remove isRooted. Whereas isAnchored in
+    -- addition to roots can also include the local anchors like fixed drive or
+    -- absolute dir within a drive. On posix isAbsolute and isAnchored would be
+    -- identical.
+
     -- * Tests
     , isBranch
     , isRooted
@@ -343,36 +349,212 @@ isDrive :: (Unbox a, Integral a) => Array a -> Bool
 isDrive a = Array.length a == 2 && unsafeHasDrive a
 
 ------------------------------------------------------------------------------
--- Relative or Absolute
+-- Relative or Absolute Paths
 ------------------------------------------------------------------------------
-
--- NOTE: Path root types:
 --
 -- Relative (no external state except cwd)
--- RelFree     -- x, ./x
+-- RelFree     -- x, ./x  -- both curdir and curdrive are unspecified
 --
--- Anchored -- Constrained relative (Windows only)
--- RelDrive    -- C:x
--- RelRoot     -- \x
+-- AnchPath -- partially relative, dir or drive are specified (Windows only)
+-- Anchored paths can be classified into two categories:
+-- AnchorDrv, AnchorDir?
+-- RelCurDirOnly    -- C:x  -- drive specified, path relative to current dir on that drive
+-- RelCurDriveOnly  -- \x   -- absolute path on current drive (root-relative)
 --
--- Absolute
+-- AbsPath -- fully anchored, both drive and dir are specified
 -- AbsDrive    -- C:\x
 -- AbsUNC      -- \\server\share\x
 -- AbsDevice   -- \\?\..., \Device\...
 --
--- RelFree   : relative
--- AbsDrive  : absolute ("/x")
+-- On Posix only these categories exist:
+-- RelPath : RelFree
+-- AbsPath : AbsDrive ("/x")
+-- AnchPath : None
 --
--- data PathTypes
---   = Absolute
---   | Relative
---   | Anchored
+-- data PathType
+--   = AbsPath
+--   | RelPath
+--   | AnchPath
 --
--- Valid path appending rules, the second path must be relative.
+-- When appending, do not insert a separator after a bare drive (C:). For all
+-- practical purposes a bare "C:" can be treated as "C:." and then we do not
+-- need this special treatement wrt separators.
 --
--- Abs </> Rel
--- Rel </> Rel
--- Anc </> Rel
+--    C: </> x -> C:x
+--
+--------------------------------------------------------------------------------
+-- PATH NAVIGATION SEMANTICS (follow)
+--------------------------------------------------------------------------------
+--
+-- "follow" navigates first path followed by the second. In other words,
+-- "follow p1 p2" interprets p2 in the context of p1.
+--
+-- Operationally:
+--   cd (follow p1 p2)  ==  cd p1; cd p2
+--
+-- That is, p2 is resolved relative to the location denoted by p1.
+-- The two paths denote a sequence of resolution operations, we resolve p1 and
+-- then we resolve p2 with respect to p1.
+--
+-- Note that this operation is total and never results in an error.
+--
+-- Rules:
+--
+-- 1. If p2 is Relative:
+--
+--    Absolute </> Relative -> Absolute
+--    Relative </> Relative -> Relative
+--    Anchored </> Relative -> Anchored
+--
+--    (p2 is appended to p1)
+--
+-- 2. If p2 is Absolute:
+--
+--    Any </> Absolute -> Absolute (p2 wins)
+--
+-- 3. If p2 is RelCurDirOnly (C:y), if the drive is the same then combine
+-- otherwise take the second path. If the drive is not specified then it is
+-- considered to be different.
+--
+--    C:   </> C:y -> C:y    -- C: equiv C:.
+--    C:x  </> C:y -> C:x/y
+--    C:/x </> C:y -> C:/x/y
+--    D:x  </> C:y -> C:y
+--
+--    /x    </> C:y -> C:y
+--    x     </> C:y -> C:y
+--
+--    The "cd" semantics can be incorrect for the last two if we assume the
+--    drive of the first path to be same as the second.
+--
+-- 4. If p2 is RelCurDriveOnly (\y), discard LHS, if LHS has drive keep the drive:
+--
+--    C:    </> \y -> C:\y    -- C: equiv C:.
+--    C:/   </> \y -> C:\y
+--    C:/x  </> \y -> C:\y
+--    C:x   </> \y -> C:\y
+--    \x    </> \y -> \y
+--    x     </> \y -> \y
+--
+--    For the first 3 cases above, UNC behaves the same as a drive root:
+--
+--    \\server\share\x </> \y -> \\server\share\y
+--
+-- These are based on how python 'ntpath' module behaves.
+--
+--------------------------------------------------------------------------------
+-- PATH CONSTRUCTION SEMANTICS (append)
+--------------------------------------------------------------------------------
+--
+-- append constructs paths structurally. The second argument must be such that
+-- it can be interpreted relative to the first. While "follow" is total,
+-- "append" is partial and can result in runtime errors.
+--
+-- append p r extends p with the segments of r.
+--
+-- Rules:
+--
+-- 1. Always valid if r is relative:
+--
+--    appendAbs :: AbsPath -> RelPath -> AbsPath
+--    appendRel :: RelPath -> RelPath -> RelPath
+--    appendAnch :: AnchPath -> RelPath -> AnchPath
+--
+-- 2. Never valid if r is AbsPath:
+--
+--    /   </> /x      -> error  -- can be allowed, but no exception
+--    p   </> AbsPath -> error
+--
+-- 3. Identity:
+--
+--    "." is the empty relative path, it is identity of composition:
+--
+--    appendAbs p "." == p
+--    appendRel p "." == p
+--    appendRel "." p == p
+--    appendAnch p "." == p
+--
+-- 4. Associativity (via RelPath):
+--
+--    append (append p a) b == append p (a <> b)
+--
+-- Notes:
+--
+-- - "." is not an anchor; it is the identity element of relative paths.
+-- - On Windows AnchoredPath can only start with "\" or "C:", it cannot start
+-- with "C:\" as that would make it an AbsPath.
+--
+--------------------------------------------------------------------------------
+-- Handling Anchored Paths
+--------------------------------------------------------------------------------
+--
+-- If second path is Anchored, and has the same Anchor as the first path, then
+-- strip the Anchor into a Maybe Drive and a Relative or / Anchored path and
+-- then apply the same rules as above considering the / Anchored path as
+-- absolute.
+--
+-- 1. If p2 is RelCurDirOnly (C:y) (Anchored), if both the paths have drive and
+-- it is the same then combine otherwise it is runtime error.
+--
+--    C:\x </> C:y -> C:\x\y
+--    C:   </> C:y -> C:y    -- C: equiv C:.
+--    C:x  </> C:y -> C:x\y
+--
+--    D:x  </> C:y -> error
+--    \x   </> C:y -> error
+--    x    </> C:y -> error
+--
+-- 2. If p2 is RelCurDriveOnly (\y) (Anchored). p2 is absolute within the
+-- drive, therefore, similar to the absolute path rules, not allowed.
+--
+--    C:\   </> \y -> error    -- can be allowed, but no exceptions
+--    C:\x  </> \y -> error
+--    C:    </> \y -> error    -- C: is equiv C:. which is a relative path
+--    C:x   </> \y -> error
+--    \x    </> \y -> error
+--    x     </> \y -> error
+--
+--    For the first 3 cases above, UNC behaves the same as a drive root:
+--
+--------------------------------------------------------------------------------
+-- Typed paths
+--------------------------------------------------------------------------------
+--
+-- Types:
+--
+-- appendAbs :: AbsPath -> RelPath -> AbsPath
+-- appendRel :: RelPath -> RelPath -> RelPath
+--
+-- They can be combined into a single operation using an IsPath typeclass.
+--
+-- Windows specific:
+--
+-- appendAnch :: AnchPath -> RelPath -> AnchPath
+--
+-- To append Anchored paths remove the anchor first:
+--
+-- splitAnchor :: AnchPath -> (Maybe Drive, p)
+--
+-- where p is either RelPath or AnchPath (e.g. /x) type.
+--
+--  combineAnch :: AnchPath -> AnchPath -> Maybe AnchPath
+--      splitAnchor ->
+--          if both have a common drive
+--          then
+--              if second path splits to (_, RelPath)
+--              then Just
+--              else Nothing
+--          else Nothing
+--
+--------------------------------------------------------------------------------
+-- SUMMARY
+--------------------------------------------------------------------------------
+--
+-- follow = resolution (contextual, may override)
+-- append = construction (structural, no override)
+--
+-- follow models filesystem navigation semantics
+-- append models path construction semantics
 
 -- | A path relative to cur dir i.e. either equal to @.@ or starts with @./@.
 -- It has a leading dot component.
@@ -1422,6 +1604,11 @@ append' os toStr a b =
 -- | Join paths by path separator. Does not check if the paths being appended
 -- are rooted or path segments. Note that splitting and joining may not give
 -- exactly the original path but an equivalent, normalized path.
+--
+-- Truly unsafe, pitfalls:
+--  [x, /y]  => x//y -- normally not be allowed under append semantics
+--  [x, C:y]  => x/C:y -- normally not allowed under append semantics
+--  [C:x, C:y]  => C:x/C:y -- normally not allowed under append semantics
 {-# INLINE unsafeJoinPaths #-}
 unsafeJoinPaths
     :: (Unbox a, Integral a)

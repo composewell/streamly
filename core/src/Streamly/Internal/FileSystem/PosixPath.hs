@@ -141,6 +141,10 @@ module Streamly.Internal.FileSystem.OS_PATH_TYPE
     , isRooted
     , isUnrooted
 
+    -- XXX Naming: "join" vs "append". Append indicates the path construction
+    -- semantics. Also "join" is used with resolve semantics in other
+    -- ecosystems. Also add a "follow" operation with resolve semantics.
+
     -- * Joining
     , joinStr
  -- , concat
@@ -934,6 +938,8 @@ unsafeJoin (OS_PATH a) (OS_PATH b) =
 -- "/usr/bin"
 -- >>> f [path|/usr/|] [path|bin|]
 -- "/usr/bin"
+-- >>> fails (f [path|/|] [path|/bin|])
+-- True
 -- >>> fails (f [path|/usr|] [path|/bin|])
 -- True
 --
