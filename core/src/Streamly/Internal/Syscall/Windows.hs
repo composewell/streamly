@@ -52,12 +52,12 @@ tryGetCwd nchars = do
              else return (Just (arr, fromIntegral r))
 
 -- Start with a small buffer, doubling until GetCurrentDirectoryW succeeds.
-getCwd :: IO MutByteArray
+getCwd :: IO (Array Word8)
 getCwd = do
     let resize old = max (old * 2) 4096
-    (arr, len) <- retry resize tryGetCwd 256
+    (arr, len) <- retry resize tryGetCwd (260 * 2)
     -- Note that the return value may be pinned or unpinned, users should not
     -- rely on that, if you want guarantee then clone the MBA.
-    MutByteArray.rightSizeAs Unpinned (len * 2) arr
-
+    mba <- MutByteArray.rightSizeAs Unpinned (len * 2) arr
+    return (Array mba 0 (fromIntegral (len * 2)))
 #endif

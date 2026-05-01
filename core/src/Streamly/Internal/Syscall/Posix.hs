@@ -12,14 +12,20 @@
 
 module Streamly.Internal.Syscall.Posix
     (
+#if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
       getCwd
-    ) where
+#endif
+    )
+where
 
+#if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
+import Data.Word (Word8)
 import Foreign.C.Error (getErrno, eRANGE, throwErrno)
 import Foreign.C.Types (CChar(..), CSize(..))
 import Foreign.Ptr (Ptr, nullPtr)
 import GHC.Base (Addr#)
 import GHC.Ptr (Ptr(..))
+import Streamly.Internal.Data.Array.Type (Array(..))
 import qualified Streamly.Internal.Data.MutByteArray as MutByteArray
 import Streamly.Internal.Data.MutByteArray.Type
     (MutByteArray, PinnedState(..), unsafeAsPtr)
@@ -48,7 +54,7 @@ foreign import ccall unsafe "string.h strlen" c_strlen_pinned
     :: Addr# -> IO CSize
 
 -- Start with a small buffer, doubling until getcwd succeeds.
-getCwd :: IO MutByteArray
+getCwd :: IO (Array Word8)
 getCwd = do
     let resize old = max (old * 2) 4096
     arr <- retry resize tryGetCwd 256
@@ -56,4 +62,6 @@ getCwd = do
             c_strlen_pinned addr#
     -- Note that the return value may be pinned or unpinned, users should not
     -- rely on that, if you want guarantee then clone the MBA.
-    MutByteArray.rightSizeAs Unpinned (fromIntegral len) arr
+    mba <- MutByteArray.rightSizeAs Unpinned (fromIntegral len) arr
+    return (Array mba 0 (fromIntegral len))
+#endif
