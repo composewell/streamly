@@ -1,4 +1,4 @@
-module Streamly.Test.Data.Stream.Exception (main)
+module Streamly.Test.Control.Exception (main)
 
 where
 
@@ -8,48 +8,41 @@ import Data.Function ((&))
 import Data.IORef (newIORef)
 import Streamly.Internal.Data.Stream.Prelude (Config)
 
+import qualified Streamly.Internal.Control.Exception as Exception
 import qualified Streamly.Internal.Data.Stream.Prelude as Stream
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Data.Fold as Fold
 
 import Streamly.Test.Control.Exception.Common
 
-testStream :: Int -> (Config -> Config) -> IO ()
-testStream t cfg = do
+testEffect :: Int -> (Config -> Config) -> IO ()
+testEffect t cfg = do
     ref <- newIORef (0 :: Int)
-    (Stream.withAcquireIO (\aref -> stream ref (cfg . Stream.useAcquire aref))
-        -- XXX enable this when stream finalization is implemented
-        -- & Stream.take 1
-        & Stream.fold Fold.drain) `finally` finalAction False ref t
+    Exception.withAcquireIO (\aref ->
+        stream ref (cfg . Stream.useAcquire aref)
+        & Stream.take 1
+        & Stream.fold Fold.drain
+      ) `finally` finalAction False ref t
 
-testStreamRelease :: Int -> (Config -> Config) -> IO ()
-testStreamRelease count cfg = do
+testEffectRelease :: Int -> (Config -> Config) -> IO ()
+testEffectRelease count cfg = do
     ref1 <- newIORef (0 :: Int)
     ref2 <- newIORef (0 :: Int)
-    (Stream.withAcquireIO (\aref -> do
+    Exception.withAcquireIO (\aref -> do
             let cfg1 = cfg . Stream.useAcquire aref
-            streamRelease aref ref1 ref2 cfg1)
-        -- XXX enable this when stream finalization is implemented
-        -- & Stream.take 1
-        & Stream.fold Fold.drain
-       )
-       `finally` do
+            streamRelease aref ref1 ref2 cfg1
+                & Stream.take 1
+                & Stream.fold Fold.drain
+      ) `finally` do
             putStrLn "Checking MANUALLY released resources..."
             finalAction False ref1 count
             putStrLn "Checking AUTO released resources..."
             finalAction False ref2 count
 
-finallyGC :: Int -> (Stream.Config -> Stream.Config) -> IO ()
-finallyGC t cfg = do
-    ref <- newIORef (0 :: Int)
-    Stream.finallyIO (finalAction True ref t) (stream ref cfg)
-        & Stream.fold Fold.drain
-
 funcs :: [(String, Int -> (Stream.Config -> Stream.Config) -> IO ())]
 funcs =
-    [ ("Stream.withAcquireIO", testStream)
-    , ("Stream.withAcquireIO release", testStreamRelease)
-    , ("finallyGC", finallyGC)
+    [ ("Exception.withAcquireIO", testEffect)
+    , ("Exception.withAcquireIO release", testEffectRelease)
     ]
 
 main :: IO ()

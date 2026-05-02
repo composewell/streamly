@@ -119,6 +119,7 @@ extra-source-files:
     src/config.h.in
     src/deprecation.h
     src/inline.hs
+    test/Streamly/Test/Control/Exception.hs
     test/Streamly/Test/Data/*.hs
     test/Streamly/Test/Data/Array/CommonImports.hs
     test/Streamly/Test/Data/Array/Common.hs
@@ -152,6 +153,7 @@ extra-source-files:
     test/Streamly/Test/Data/Serialize.hs
     test/Streamly/Test/Data/Serialize/*.hs
     test/lib/Streamly/Test/Common.hs
+    test/lib/Streamly/Test/Control/Exception/Common.hs
     test/lib/Streamly/Test/Prelude/Common.hs
     test/lib/Streamly/Test/Parser/Common.hs
     test/streamly-tests.cabal

@@ -189,6 +189,7 @@ library
     exposed-modules:
         Streamly.Test.Common
         Streamly.Test.Parser.Common
+        Streamly.Test.Control.Exception.Common
     if !flag(use-streamly-core) && flag(dev)
       exposed-modules: Streamly.Test.Prelude.Common
     if flag(limit-build-mem)
@@ -226,6 +227,12 @@ common always-optimized
 -------------------------------------------------------------------------------
 -- Test suites in alphabetical order
 -------------------------------------------------------------------------------
+
+test-suite Control.Exception
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Control/Exception.hs
+  ghc-options: -main-is Streamly.Test.Control.Exception.main
 
 test-suite Data.Array
   import: test-options
