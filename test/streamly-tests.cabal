@@ -366,9 +366,19 @@ test-suite Data.Stream
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Stream.hs
+  hs-source-dirs: .
   ghc-options: -main-is Streamly.Test.Data.Stream.main
+  other-modules:
+    Streamly.Test.Data.Stream.Parse
+    Streamly.Test.Data.Stream.Type
   if flag(limit-build-mem)
     ghc-options: +RTS -M1500M -RTS
+
+test-suite Data.StreamK
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/StreamK.hs
+  ghc-options: -main-is Streamly.Test.Data.StreamK.main
 
 test-suite Data.Stream.Concurrent
   import: test-options
