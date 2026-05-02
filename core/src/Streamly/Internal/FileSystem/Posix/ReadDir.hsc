@@ -33,8 +33,7 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Char (ord)
 import Foreign
-    ( Ptr, Word8, nullPtr, peek, peekByteOff, castPtr, plusPtr, (.&.)
-    , allocaBytes
+    ( Ptr, Word8, nullPtr, peek, peekByteOff, castPtr, plusPtr
     )
 import Foreign.C
     ( resetErrno, throwErrno, throwErrnoIfMinus1Retry_, throwErrnoIfNullRetry
@@ -53,7 +52,7 @@ import Streamly.Internal.FileSystem.Posix.Errno (throwErrnoPathIfNullRetry)
 import Streamly.Internal.FileSystem.Posix.File
     (defaultOpenFlags, openAt, close)
 import Streamly.Internal.FileSystem.PosixPath (PosixPath(..))
-import System.Posix.Types (Fd(..), CMode)
+import System.Posix.Types (Fd(..))
 
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.MutByteArray as MutByteArray
@@ -62,15 +61,14 @@ import qualified Streamly.Internal.FileSystem.Path.Common as PathC
 import qualified Streamly.Internal.FileSystem.PosixPath as Path
 
 import Streamly.Internal.FileSystem.DirOptions
+import Streamly.Internal.Syscall.Posix (CStat, stat, s_IFDIR)
 
 #include <dirent.h>
-#include <sys/stat.h>
 
 -------------------------------------------------------------------------------
 
 data {-# CTYPE "DIR" #-} CDir
 data {-# CTYPE "struct dirent" #-} CDirent
-data {-# CTYPE "struct stat" #-} CStat
 
 newtype DirStream = DirStream (Ptr CDir)
 
@@ -139,49 +137,6 @@ foreign import capi unsafe "dirent.h fdopendir"
 -- unix systems.
 foreign import capi unsafe "dirent.h readdir"
     c_readdir  :: Ptr CDir -> IO (Ptr CDirent)
-
---------------------------------------------------------------------------------
--- Stat
---------------------------------------------------------------------------------
-
-foreign import capi unsafe "sys/stat.h lstat"
-    c_lstat :: CString -> Ptr CStat -> IO CInt
-
-foreign import capi unsafe "sys/stat.h stat"
-    c_stat :: CString -> Ptr CStat -> IO CInt
-
-s_IFMT :: CMode
-s_IFMT  = #{const S_IFMT}
-
-s_IFDIR :: CMode
-s_IFDIR = #{const S_IFDIR}
-
-{-
-s_IFREG :: CMode
-s_IFREG = #{const S_IFREG}
-
-s_IFLNK :: CMode
-s_IFLNK = #{const S_IFLNK}
--}
-
--- NOTE: Using fstatat with a dirfd and relative path would be faster.
-stat :: Bool -> CString -> IO (Either Errno CMode)
-stat followSym cstr =
-    allocaBytes #{size struct stat} $ \p_stat -> do
-        resetErrno
-        result <-
-            if followSym
-            then c_stat cstr p_stat
-            else c_lstat cstr p_stat
-        if result /= 0
-        then do
-            errno <- getErrno
-            if errno == eINTR
-            then stat followSym cstr
-            else pure $ Left errno
-        else do
-            mode <- #{peek struct stat, st_mode} p_stat
-            pure $ Right (mode .&. s_IFMT)
 
 --------------------------------------------------------------------------------
 -- Functions
