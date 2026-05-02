@@ -1660,7 +1660,8 @@ collapseDotDots (OS_PATH p) =
 normalise :: (EqCfg -> EqCfg) -> OS_PATH_TYPE -> OS_PATH_TYPE
 normalise cfg (OS_PATH p) =
     OS_PATH $ Common.normalise
-        Unicode.UNICODE_DECODER Common.OS_NAME (cfg eqCfg) p
+        Unicode.UNICODE_DECODER
+        Common.OS_NAME (cfg eqCfg) p
 
 ------------------------------------------------------------------------------
 -- Path prefix
@@ -1671,12 +1672,13 @@ takeCommonPrefix ::
 takeCommonPrefix cfg (OS_PATH a) (OS_PATH b) =
     fmap OS_PATH
         $ Common.takeCommonPrefix
-            Unicode.UNICODE_DECODER Common.OS_NAME (cfg eqCfg) a b
+            Unicode.UNICODE_DECODER
+            Common.OS_NAME (cfg eqCfg) a b
 
 stripPrefix ::
     (EqCfg -> EqCfg) -> OS_PATH_TYPE -> OS_PATH_TYPE -> Maybe OS_PATH_TYPE
 stripPrefix cfg (OS_PATH prefix) (OS_PATH p) =
     fmap OS_PATH
         $ Common.stripPrefix
-            Unicode.UNICODE_DECODER Common.OS_NAME (cfg eqCfg) prefix p
-
+            Unicode.UNICODE_DECODER
+            Common.OS_NAME (cfg eqCfg) prefix p
