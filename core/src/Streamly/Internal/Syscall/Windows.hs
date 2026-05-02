@@ -57,7 +57,7 @@ tryGetCwd nchars = do
              else return (Just (arr, fromIntegral r))
 
 -- Start with a small buffer, doubling until GetCurrentDirectoryW succeeds.
-getCwd :: IO (Array Word8)
+getCwd :: IO (Array Word16)
 getCwd = do
     let resize old = max (old * 2) 4096
     (arr, len) <- retry resize tryGetCwd (260 * 2)

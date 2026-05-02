@@ -210,12 +210,6 @@ module Streamly.Internal.FileSystem.OS_PATH_TYPE
     -- Note: this returns Maybe, therefore "strip" and not "drop"
     , stripPrefix
 
-    -- * Resolving Paths
-    , getCurrentDirectory
-    , setCurrentDirectory
-    , makeAbsolute
-    , resolveDotDots
-    , resolve
     )
 where
 
@@ -245,17 +239,8 @@ import qualified Streamly.Internal.Unicode.Stream as Unicode
 import Language.Haskell.TH
 import Language.Haskell.TH.Quote
 import Streamly.Internal.Data.Path
-import System.IO.Error
-import Streamly.Internal.Syscall.Common
-
 #if defined(IS_PORTABLE)
 import Streamly.Internal.FileSystem.OS_PATH (OS_PATH(..))
-#endif
-
-#ifdef IS_WINDOWS
-import qualified Streamly.Internal.Syscall.Windows as Syscall
-#else
-import qualified Streamly.Internal.Syscall.Posix as Syscall
 #endif
 
 -- NOTES about C preprocessor use.
@@ -1695,104 +1680,3 @@ stripPrefix cfg (OS_PATH prefix) (OS_PATH p) =
         $ Common.stripPrefix
             Unicode.UNICODE_DECODER Common.OS_NAME (cfg eqCfg) prefix p
 
-------------------------------------------------------------------------------
--- Working directory
-------------------------------------------------------------------------------
-
--- | Get the current working directory as a path.
-getCurrentDirectory :: IO OS_PATH_TYPE
-getCurrentDirectory = modifyError $ do
-    arr <- Syscall.getCwd
-    return $ unsafeFromArray arr
-
-    where
-
-    modifyError =
-          modifyIOError (ioeAppendLocation "getCurrentDirectory")
-        . modifyIOErrorString
-            isDoesNotExistError
-            "Current working directory no longer exists"
-
--- | Set the current working directory.
-setCurrentDirectory :: OS_PATH_TYPE -> IO ()
-setCurrentDirectory p = modifyError $
-    Syscall.setCwd (toArray p)
-
-    where
-
-    modifyError =
-        modifyIOError
-            ( ioeAppendLocation "setCurrentDirectory"
-            . ioeSetFilePath p )
-
-------------------------------------------------------------------------------
--- Resolving paths
-------------------------------------------------------------------------------
-
--- | Set the file path in an 'IOError' to the given path, using lax
--- CODEC_NAME decoding. Invalid bytes are replaced with the Unicode
--- replacement character.
-ioeSetFilePath :: OS_PATH_TYPE -> IOError -> IOError
-ioeSetFilePath p e = ioeSetFileName e (toString_ p)
-
--- | Convert a path to an absolute path.
---
--- If the input path is relative, it is interpreted relative to the current
--- working directory. If it is already absolute, it is returned unchanged.
---
--- This function:
---
--- * Does not eliminate @..@ segments.
--- * Does not resolve symbolic links.
--- * May return a path containing symbolic links.
---
--- Examples:
---
--- @
--- makeAbsolute "a/b"  -- => "/cwd/a/b"
--- makeAbsolute "/a/b" -- => "/a/b"
--- @
---
-makeAbsolute :: OS_PATH_TYPE -> IO OS_PATH_TYPE
-makeAbsolute p = modifyError $ do
-    if Common.isAbsolute Common.OS_NAME (toArray p)
-    then return p
-    else unsafeJoin <$> getCurrentDirectory <*> pure p
-
-    where
-
-    modifyError =
-        modifyIOError (ioeAppendLocation "makeAbsolute" . ioeSetFilePath p)
-
--- | Resolve @..@ segments using filesystem semantics.
---
--- This function:
---
--- * Eliminates @..@ segments.
--- * Resolves symbolic links as needed to do so correctly.
--- * May still return a path containing symbolic links.
---
--- This is a partial resolution step and does not guarantee a fully
--- canonical path.
-resolveDotDots :: OS_PATH_TYPE -> IO OS_PATH_TYPE
-resolveDotDots = undefined
-
--- | Resolve a path to its fully resolved, canonical form.
---
--- This function performs full filesystem resolution, the resulting path:
---
--- * Contains no @..@ segments.
--- * Contains no symbolic links.
--- * Is absolute.
---
--- A path segment preceding a ".." is fully resolved before the ".." is applied.
---
--- This is equivalent to POSIX @realpath(3)@.
---
--- Examples:
---
--- @
--- resolve "/tmp/link/../a" -- => "/real/location/a"
--- @
-resolve :: OS_PATH_TYPE -> IO OS_PATH_TYPE
-resolve = undefined

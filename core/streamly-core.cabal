@@ -417,6 +417,7 @@ library
                      , Streamly.Internal.FileSystem.WindowsPath.Node
                      , Streamly.Internal.FileSystem.WindowsPath.SegNode
 
+                     , Streamly.Internal.FileSystem.PathIO
                      , Streamly.Internal.FileSystem.Handle
                      , Streamly.Internal.FileSystem.File.Common
                      , Streamly.Internal.FileSystem.Posix.Errno
