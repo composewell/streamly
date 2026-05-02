@@ -13,6 +13,7 @@ module Streamly.Internal.Syscall.Windows
     (
 #if defined(mingw32_HOST_OS) || defined(__MINGW32__)
       getCwd
+    , setCwd
 #endif
     ) where
 
@@ -24,8 +25,12 @@ module Streamly.Internal.Syscall.Windows
 # define WINDOWS_CCONV ccall
 #endif
 
-import System.Win32.Types (DWORD, LPTSTR, UINT)
+import Control.Monad (when)
+import Data.Word (Word16)
+import System.Win32.Types (BOOL, DWORD, LPTSTR, UINT, failIfFalse_)
 import qualified System.Win32 as Win32 (failWith)
+import Streamly.Internal.Data.Array.Type (Array(..))
+import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.MutByteArray as MutByteArray
 import Streamly.Internal.Data.MutByteArray.Type
     (MutByteArray, PinnedState(..), unsafeAsPtr)
@@ -60,4 +65,11 @@ getCwd = do
     -- rely on that, if you want guarantee then clone the MBA.
     mba <- MutByteArray.rightSizeAs Unpinned (len * 2) arr
     return (Array mba 0 (fromIntegral (len * 2)))
+
+foreign import WINDOWS_CCONV unsafe "SetCurrentDirectoryW"
+    c_setCurrentDirectory :: LPTSTR -> IO BOOL
+
+setCwd :: Array Word16 -> IO ()
+setCwd arr =
+    Array.asCWString arr (failIfFalse_ "setCwd" . c_setCurrentDirectory)
 #endif

@@ -212,6 +212,7 @@ module Streamly.Internal.FileSystem.OS_PATH_TYPE
 
     -- * Resolving Paths
     , getCurrentDirectory
+    , setCurrentDirectory
     , makeAbsolute
     , resolveDotDots
     , resolve
@@ -1711,6 +1712,18 @@ getCurrentDirectory = modifyError $ do
         . modifyIOErrorString
             isDoesNotExistError
             "Current working directory no longer exists"
+
+-- | Set the current working directory.
+setCurrentDirectory :: OS_PATH_TYPE -> IO ()
+setCurrentDirectory p = modifyError $
+    Syscall.setCwd (toArray p)
+
+    where
+
+    modifyError =
+        modifyIOError
+            ( ioeAppendLocation "setCurrentDirectory"
+            . ioeSetFilePath p )
 
 ------------------------------------------------------------------------------
 -- Resolving paths

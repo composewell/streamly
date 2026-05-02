@@ -14,18 +14,21 @@ module Streamly.Internal.Syscall.Posix
     (
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
       getCwd
+    , setCwd
 #endif
     )
 where
 
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
 import Data.Word (Word8)
-import Foreign.C.Error (getErrno, eRANGE, throwErrno)
-import Foreign.C.Types (CChar(..), CSize(..))
+import Foreign.C.Error (getErrno, eRANGE, throwErrno, throwErrnoIfMinus1_)
+import Foreign.C.String (CString)
+import Foreign.C.Types (CChar(..), CInt(..), CSize(..))
 import Foreign.Ptr (Ptr, nullPtr)
 import GHC.Base (Addr#)
 import GHC.Ptr (Ptr(..))
 import Streamly.Internal.Data.Array.Type (Array(..))
+import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.MutByteArray as MutByteArray
 import Streamly.Internal.Data.MutByteArray.Type
     (MutByteArray, PinnedState(..), unsafeAsPtr)
@@ -64,4 +67,12 @@ getCwd = do
     -- rely on that, if you want guarantee then clone the MBA.
     mba <- MutByteArray.rightSizeAs Unpinned (fromIntegral len) arr
     return (Array mba 0 (fromIntegral len))
+
+foreign import ccall unsafe "chdir"
+    c_chdir :: CString -> IO CInt
+
+setCwd :: Array Word8 -> IO ()
+setCwd arr =
+    Array.asCStringUnsafe arr $
+        throwErrnoIfMinus1_ "setCwd" . c_chdir
 #endif
