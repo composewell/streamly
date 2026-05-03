@@ -15,10 +15,8 @@ module Streamly.Internal.System.IOVec
     , c_writev
     , c_safe_writev
 #if !defined(mingw32_HOST_OS)
-{-
     , groupIOVecsOf
     , groupIOVecsOfMut
--}
 #endif
     )
 where
@@ -26,18 +24,15 @@ where
 #include "inline.hs"
 
 #if !defined(mingw32_HOST_OS)
-{-
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 import Foreign.Ptr (castPtr)
-import Streamly.Internal.Data.MutArray (length)
+import Streamly.Internal.Data.MutArray (length, MutArray(..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
-import Streamly.Internal.Data.MutArray (Array(..))
 
 import qualified Streamly.Internal.Data.Array as Array
-import qualified Streamly.Internal.Data.MutArray.Type as MArray
+import qualified Streamly.Internal.Data.MutArray as MArray
 import qualified Streamly.Internal.Data.Stream as D
--}
 #endif
 
 import Streamly.Internal.System.IOVec.Type
@@ -45,7 +40,6 @@ import Streamly.Internal.System.IOVec.Type
 import Prelude hiding (length)
 
 #if !defined(mingw32_HOST_OS)
-{-
 data GatherState s arr
     = GatherInitial s
     | GatherBuffering s arr Int
@@ -59,7 +53,7 @@ data GatherState s arr
 -- @since 0.7.0
 {-# INLINE_NORMAL groupIOVecsOfMut #-}
 groupIOVecsOfMut :: MonadIO m
-    => Int -> Int -> D.Stream m (Array a) -> D.Stream m (Array IOVec)
+    => Int -> Int -> D.Stream m (MutArray a) -> D.Stream m (MutArray IOVec)
 groupIOVecsOfMut n maxIOVLen (D.Stream step state) =
     D.Stream step' (GatherInitial state)
 
@@ -78,11 +72,10 @@ groupIOVecsOfMut n maxIOVLen (D.Stream step state) =
         r <- step (adaptState gst) st
         case r of
             D.Yield arr s -> do
-                let p = arrStart arr
-                    len = MArray.byteLength arr
-                iov <- liftIO $ MArray.newArray maxIOVLen
-                iov' <- liftIO $ MArray.snocUnsafe iov (IOVec (castPtr p)
-                                                (fromIntegral len))
+                let len = MArray.byteLength arr
+                iov <- liftIO $ MArray.new maxIOVLen
+                iov' <- MArray.unsafeAsPtr arr $ \p _ ->
+                    MArray.snocUnsafe iov (IOVec (castPtr p) (fromIntegral len))
                 if len >= n
                 then return $ D.Skip (GatherYielding iov' (GatherInitial s))
                 else return $ D.Skip (GatherBuffering s iov' len)
@@ -93,19 +86,18 @@ groupIOVecsOfMut n maxIOVLen (D.Stream step state) =
         r <- step (adaptState gst) st
         case r of
             D.Yield arr s -> do
-                let p = arrStart arr
-                    alen = MArray.byteLength arr
+                let alen = MArray.byteLength arr
                     len' = len + alen
                 if len' > n || length iov >= maxIOVLen
                 then do
-                    iov' <- liftIO $ MArray.newArray maxIOVLen
-                    iov'' <- liftIO $ MArray.snocUnsafe iov' (IOVec (castPtr p)
-                                                      (fromIntegral alen))
+                    iov' <- liftIO $ MArray.new maxIOVLen
+                    iov'' <- MArray.unsafeAsPtr arr $ \p _ ->
+                        MArray.snocUnsafe iov' (IOVec (castPtr p) (fromIntegral alen))
                     return $ D.Skip (GatherYielding iov
                                         (GatherBuffering s iov'' alen))
                 else do
-                    iov' <- liftIO $ MArray.snocUnsafe iov (IOVec (castPtr p)
-                                                    (fromIntegral alen))
+                    iov' <- MArray.unsafeAsPtr arr $ \p _ ->
+                        MArray.snocUnsafe iov (IOVec (castPtr p) (fromIntegral alen))
                     return $ D.Skip (GatherBuffering s iov' len')
             D.Skip s -> return $ D.Skip (GatherBuffering s iov len)
             D.Stop -> return $ D.Skip (GatherYielding iov GatherFinish)
@@ -128,5 +120,4 @@ groupIOVecsOf n maxIOVLen str =
     D.map Array.unsafeFreeze
         $ groupIOVecsOfMut n maxIOVLen
         $ D.map Array.unsafeThaw str
--}
 #endif

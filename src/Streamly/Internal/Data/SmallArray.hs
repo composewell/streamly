@@ -41,7 +41,7 @@ module Streamly.Internal.Data.SmallArray
   )
 where
 
-import Prelude hiding (foldr, length, read)
+import Prelude hiding (foldl', foldr, length, read)
 import Control.DeepSeq (NFData(..))
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO, liftIO)

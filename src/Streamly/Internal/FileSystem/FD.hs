@@ -125,21 +125,19 @@ import System.IO (IOMode)
 import Prelude hiding (read)
 
 import qualified GHC.IO.FD as FD
-import qualified GHC.IO.Device as RawIO
+import qualified GHC.IO.Device as GHCDevice
 
 import Streamly.Data.Array (Array, Unbox)
 import Streamly.Data.Stream (Stream)
 
-import Streamly.Internal.Data.Array (byteLength, unsafeFreeze, unsafePinnedAsPtr)
+import Streamly.Internal.Data.Array (unsafeFreeze, unsafePinnedAsPtr)
 import Streamly.Internal.System.IO (defaultChunkSize)
 
 #if !defined(mingw32_HOST_OS)
-{-
 import Streamly.Internal.Data.Stream.IsStream.Type (toStreamD)
 import Streamly.Internal.System.IOVec (groupIOVecsOf)
-import qualified Streamly.Internal.FileSystem.FDIO as RawIO hiding (write)
+import qualified Streamly.Internal.FileSystem.FDIO as RawIO
 import qualified Streamly.Internal.System.IOVec.Type as RawIO
--}
 #endif
 -- import Streamly.Data.Fold (Fold)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
@@ -147,7 +145,7 @@ import qualified Streamly.Internal.System.IOVec.Type as RawIO
 import qualified Streamly.Data.Array as A
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.MutArray as MArray
-    (MutArray(..), unsafePinnedAsPtr, pinnedNewBytes)
+    (MutArray(..), unsafePinnedAsPtr, pinnedNewBytes, unsafeCreateWithPtr')
 import qualified Streamly.Internal.Data.Array.Stream as AS
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream as D
@@ -222,7 +220,7 @@ readArrayUpto size (Handle fd) = do
         MArray.unsafeCreateWithPtr' size $ \p ->
              -- n <- hGetBufSome h p size
 #if MIN_VERSION_base(4,15,0)
-            RawIO.read fd p 0 size
+            GHCDevice.read fd p 0 size
 #else
             RawIO.read fd p size
 #endif
@@ -241,10 +239,10 @@ readArrayUpto size (Handle fd) = do
 writeArray :: Unbox a => Handle -> Array a -> IO ()
 writeArray _ arr | A.length arr == 0 = return ()
 writeArray (Handle fd) arr =
-    unsafePinnedAsPtr arr $ \p ->
+    unsafePinnedAsPtr arr $ \p aLen ->
     -- RawIO.writeAll fd (castPtr p) aLen
 #if MIN_VERSION_base(4,15,0)
-    RawIO.write fd (castPtr p) 0 aLen
+    GHCDevice.write fd (castPtr p) 0 aLen
 #else
     RawIO.write fd (castPtr p) aLen
 #endif
@@ -254,9 +252,9 @@ writeArray (Handle fd) arr =
     let iov' = iov {arrEnd = arrBound iov}
     A.writeIndex iov' 0 (RawIO.IOVec (castPtr p) (fromIntegral aLen))
     RawIO.writevAll fd (unsafeForeignPtrToPtr (aStart iov')) 1
-    -}
     where
     aLen = byteLength arr
+    -}
 
 #if !defined(mingw32_HOST_OS)
 {-

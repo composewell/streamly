@@ -31,6 +31,7 @@ import Foreign.Ptr (Ptr)
 import System.Posix.Types (CSsize(..))
 #if !defined(mingw32_HOST_OS)
 import Foreign.Storable (Storable(..))
+import Streamly.Internal.Data.MutByteArray (Unbox(..))
 #endif
 
 -------------------------------------------------------------------------------
@@ -62,6 +63,19 @@ instance Storable IOVec where
           len  :: #{type size_t} = iovLen vec
       #{poke struct iovec, iov_base} ptr base
       #{poke struct iovec, iov_len}  ptr len
+
+instance Unbox IOVec where
+    {-# INLINE peekAt #-}
+    peekAt i arr = do
+        base <- peekAt i arr
+        len  <- peekAt (i + #{offset struct iovec, iov_len}) arr
+        return (IOVec base len)
+    {-# INLINE pokeAt #-}
+    pokeAt i arr (IOVec base len) = do
+        pokeAt i arr base
+        pokeAt (i + #{offset struct iovec, iov_len}) arr len
+    {-# INLINE sizeOf #-}
+    sizeOf _ = #{size struct iovec}
 #endif
 
 -- capi calling convention does not work without -fobject-code option with GHCi
