@@ -8,10 +8,12 @@
 
 module Streamly.Test.Data.StreamK (main) where
 
+import Data.Word (Word8)
 import Data.List (sort)
+import Streamly.Internal.Data.StreamK (StreamK)
 import Streamly.Internal.Data.Stream (Stream)
 import Test.QuickCheck (Property, forAll, listOf)
-import Test.QuickCheck.Monadic (assert, monadicIO)
+import Test.QuickCheck.Monadic (assert, monadicIO, run)
 
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.StreamK as StreamK
@@ -19,13 +21,45 @@ import qualified Streamly.Internal.Data.StreamK as StreamK
 import Test.Hspec as H
 import Test.Hspec.QuickCheck
 
-import Streamly.Test.Common (chooseInt)
+import Streamly.Test.Common (chooseInt, listEquals, withNumTests)
 
 toList :: Monad m => Stream m a -> m [a]
 toList = Stream.toList
 
 max_length :: Int
 max_length = 1000
+
+maxTestCount :: Int
+maxTestCount = 100
+
+constructWithCons
+    :: (Int -> StreamK IO Int -> StreamK IO Int)
+    -> Word8
+    -> Property
+constructWithCons cons len =
+    withNumTests maxTestCount $
+    monadicIO $ do
+        strm <-
+            run
+               $ StreamK.toList . StreamK.take (fromIntegral len)
+               $ foldr cons StreamK.nil (repeat 0)
+        let list = replicate (fromIntegral len) 0
+        listEquals (==) strm list
+
+constructWithConsM
+    :: (IO Int -> StreamK IO Int -> StreamK IO Int)
+    -> ([Int] -> [Int])
+    -> Word8
+    -> Property
+constructWithConsM consM listT len =
+    withNumTests maxTestCount $
+    monadicIO $ do
+        strm <-
+            run $
+            StreamK.toList . StreamK.take (fromIntegral len) $
+            foldr consM StreamK.nil (repeat (return 0))
+        let list = replicate (fromIntegral len) 0
+        listEquals (==) (listT strm) list
 
 sortBy :: Property
 sortBy =
@@ -50,12 +84,14 @@ main = hspec
   $ modifyMaxSuccess (const 10)
 #endif
   $ describe moduleName $ do
-    -- Just some basic sanity tests for now
-    let input = [[1,1] :: [Int],[2,2],[3,3],[4,4],[5,5],[6,6],[7,7],[8,8]]
-        mustBe g inp out =
-            Stream.toList (StreamK.toStream (StreamK.mergeMapWith g StreamK.fromList (StreamK.fromList inp)))
-                `shouldReturn` out
-     in do
+        prop "cons" (constructWithCons StreamK.cons)
+        prop "consM" (constructWithConsM StreamK.consM id)
+
+        -- Just some basic sanity tests for now
+        let input = [[1,1] :: [Int],[2,2],[3,3],[4,4],[5,5],[6,6],[7,7],[8,8]]
+            mustBe g inp out =
+                Stream.toList (StreamK.toStream (StreamK.mergeMapWith g StreamK.fromList (StreamK.fromList inp)))
+                    `shouldReturn` out
         it "concatPairsWith serial"
             $ mustBe StreamK.append input [1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8]
         it "concatPairsWith wSerial"
