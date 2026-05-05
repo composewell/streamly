@@ -649,13 +649,6 @@ benchmark Unicode.Parser
   hs-source-dirs: Streamly/Benchmark/Unicode
   main-is: Parser.hs
 
-executable nano-bench
-  import: bench-options
-  hs-source-dirs: .
-  main-is: NanoBenchmarks.hs
-  if !flag(dev)
-    buildable: False
-
 benchmark Unicode.Stream
   import: bench-options
   type: exitcode-stdio-1.0
