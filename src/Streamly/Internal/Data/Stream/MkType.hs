@@ -516,9 +516,11 @@ flattenDec (ma:mas) = do
 -- unZipStream (ZipStream strm) = strm
 -- deriving instance IsList (ZipStream Identity a)
 -- deriving instance a ~
---                   GHC.Types.Char => IsString (ZipStream Identity a)
--- deriving instance GHC.Classes.Eq a => Eq (ZipStream Identity a)
--- deriving instance GHC.Classes.Ord a => Ord (ZipStream Identity a)
+--                   GHC.Internal.Types.Char => IsString (ZipStream Identity a)
+-- deriving instance GHC.Internal.Classes.Eq a => Eq (ZipStream Identity
+--                                                              a)
+-- deriving instance GHC.Internal.Classes.Ord a => Ord (ZipStream Identity
+--                                                                a)
 -- instance Show a => Show (ZipStream Identity a)
 --     where {{-# INLINE show #-}; show (ZipStream strm) = show strm}
 -- instance Read a => Read (ZipStream Identity a)
