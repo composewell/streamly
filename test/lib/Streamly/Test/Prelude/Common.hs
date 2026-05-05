@@ -115,6 +115,9 @@ import Data.List
     , findIndices
     , foldl'
     , foldl1'
+#ifdef DEVBUILD
+    , foldr1
+#endif
     , insert
     , intersperse
     , isPrefixOf
