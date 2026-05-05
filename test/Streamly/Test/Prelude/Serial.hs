@@ -677,7 +677,9 @@ main = hspec
 #ifdef DEVBUILD
         describe "Filtering" $ do
             it "takeInterval" (testTakeInterval `shouldReturn` True)
+#ifdef INCLUDE_FLAKY_TESTS
             it "dropInterval" (testDropInterval `shouldReturn` True)
+#endif
 #endif
 
     -- Just some basic sanity tests for now

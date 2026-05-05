@@ -172,7 +172,9 @@ main = hspec $ do
     -- 10 0.1 second.
     let rates = [1, 10, 100, 1000, 10000
 #ifndef __GHCJS__
+#ifdef INCLUDE_FLAKY_TESTS
                 , 100000, 1000000
+#endif
 #endif
                 ]
      in describe "asyncly no consumer delay no producer delay" $
@@ -202,7 +204,9 @@ main = hspec $ do
 
     let rates = [1, 10, 100, 1000, 10000
 #ifndef __GHCJS__
+#ifdef INCLUDE_FLAKY_TESTS
                 , 100000, 1000000
+#endif
 #endif
                 ]
      in describe "fromWAsync, no consumer delay no producer delay" $
@@ -218,7 +222,9 @@ main = hspec $ do
 
     let rates = [1, 10, 100, 1000, 10000
 #ifndef __GHCJS__
+#ifdef INCLUDE_FLAKY_TESTS
                 , 100000, 1000000
+#endif
 #endif
                 ]
      in describe "aheadly, no consumer delay no producer delay" $

@@ -72,11 +72,9 @@ checkNFKD :: (Text, Text, Text, Text, Text) -> IO Bool
 checkNFKD (c1, c2, c3, c4, c5) =
     checkOp "toNFKD" NFKD $ map (c5,) [c1, c2, c3, c4, c5]
 
-splitOn predicate f = S.foldMany1 (FL.takeEndBy_ predicate f)
-
 checkAllTestCases :: Int -> String -> IO ()
 checkAllTestCases lineno line = do
-    cs <- toList $ splitOn (== ';') FL.toList $ S.fromList line
+    cs <- toList $ S.splitSepBy_ (== ';') FL.toList $ S.fromList line
     case cs of
         c1 : c2 : c3 : c4 : c5 : _ -> do
             let cps = map cpToText [c1, c2, c3, c4, c5]
@@ -123,7 +121,7 @@ testNormalize file = do
         checkAll []     = return ()
 
 filesDir :: String
-filesDir = "test/Streamly/Test/Unicode"
+filesDir = "Streamly/Test/Unicode"
 
 main :: IO ()
 main = do
