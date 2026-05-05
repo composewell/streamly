@@ -411,7 +411,7 @@ test-suite Data.Stream.Rate
     buildable: True
   else
     buildable: False
-  if flag(use-streamly-core)
+  if flag(use-streamly-core) || !flag(include-flaky-tests)
     buildable: False
 
 -- XXX Rename to MutByteArray.Unbox
@@ -628,7 +628,7 @@ test-suite Prelude.Rate
     buildable: True
   else
     buildable: False
-  if flag(use-streamly-core)
+  if flag(use-streamly-core) || !flag(include-flaky-tests)
     buildable: False
 
 test-suite Prelude.Serial
