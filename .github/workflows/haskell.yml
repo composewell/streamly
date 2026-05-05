@@ -192,13 +192,14 @@ jobs:
             subdir: core
             ignore_error: false
 
-          - name: debug-no-opt
+          # This includes the debug flag as well
+          - name: dev-no-opt
             runner: macos-latest
             command: cabal
             ghc_version: 9.14.1
             # WARNING! cannot use # comments inside pack_options.
             pack_options: >-
-              CABAL_PROJECT=cabal.project
+              CABAL_PROJECT=cabal.project.dev
               CABAL_BUILD_OPTIONS="--flag debug --flag -opt"
             ignore_error: false
 
