@@ -199,6 +199,9 @@ import qualified Streamly.Internal.FileSystem.DirIO as Dir
 import qualified Streamly.Internal.Data.Parser as PR
     (takeEQ, fromEffect, fromFold)
 
+-- $setup
+-- >>> :set -Wno-deprecations
+
 -------------------------------------------------------------------------------
 -- Subscription to events
 -------------------------------------------------------------------------------
