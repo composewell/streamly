@@ -248,9 +248,6 @@ common compile-options
     if os(windows)
       cpp-options:    -DCABAL_OS_WINDOWS
 
-    if flag(internal-dev)
-      cpp-options:    -DDEVBUILD
-
     if flag(inspection)
       cpp-options:    -DINSPECTION
 
@@ -280,10 +277,6 @@ common compile-options
 
     if flag(has-llvm)
       ghc-options: -fllvm
-
-    if flag(internal-dev)
-      ghc-options:    -Wmissed-specialisations
-                      -Wall-missed-specialisations
 
     if flag(limit-build-mem)
         ghc-options: +RTS -M600M -RTS
@@ -364,7 +357,7 @@ common optimization-options
                  -fmax-worker-args=16
 
   -- For this to be effective it must come after the -O2 option
-  if flag(internal-dev) || flag(debug) || !flag(opt)
+  if flag(debug) || !flag(opt)
     ghc-options: -fno-ignore-asserts
     cpp-options: -DDEBUG
 
@@ -589,8 +582,3 @@ library
 
     if flag(inspection)
       build-depends:   inspection-testing >= 0.4   && < 0.7
-
-    -- Array uses a Storable constraint in dev build making several inspection
-    -- tests fail
-    if flag(internal-dev) && flag(inspection)
-      build-depends: inspection-and-dev-flags-cannot-be-used-together

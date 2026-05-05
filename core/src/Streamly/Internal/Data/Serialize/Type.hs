@@ -275,11 +275,7 @@ instance forall a. Serialize a => Serialize [a] where
               pokeList (acc + 1) o1 xs
         pokeList 0 off1 val
 
-instance
-#ifdef DEVBUILD
-    Unbox a =>
-#endif
-  Serialize (Array a) where
+instance Serialize (Array a) where
     {-# INLINE addSizeTo #-}
     addSizeTo i (Array {..}) = i + (arrEnd - arrStart) + 8
 

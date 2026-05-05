@@ -18,7 +18,6 @@
 module Streamly.Internal.Data.Array.Type
     (
     -- ** Type
-    -- $arrayNotes
       Array (..)
 
     -- ** Conversion
@@ -284,16 +283,15 @@ import Streamly.Internal.System.IO (unsafeInlineIO, defaultChunkSize)
 -- Array Data Type
 -------------------------------------------------------------------------------
 
--- $arrayNotes
---
--- We can use an 'Unbox' constraint in the Array type and the constraint can
--- be automatically provided to a function that pattern matches on the Array
--- type. However, it has huge performance cost, so we do not use it.
--- Investigate a GHC improvement possiblity.
---
 data Array a =
 #ifdef DEVBUILD
-    Unbox a =>
+    -- We can use an 'Unbox' constraint in the Array type and the constraint
+    -- can be automatically provided to a function that pattern matches on the
+    -- Array type. This can make the Foldable instance possible.  However, it
+    -- has huge performance cost, so we do not use it. Investigate a GHC
+    -- improvement possiblity.
+    --
+    -- Unbox a =>
 #endif
     -- All offsets are in terms of bytes from the start of arrContents
     Array
@@ -513,12 +511,7 @@ isPinned = MA.isPinned . unsafeThaw
 -- would make a copy on every splice operation, instead use the
 -- 'fromChunksK' operation to combine n immutable arrays.
 {-# INLINE splice #-}
-splice :: (MonadIO m
-#ifdef DEVBUILD
-    , Unbox a
-#endif
-    )
-    => Array a -> Array a -> m (Array a)
+splice :: MonadIO m => Array a -> Array a -> m (Array a)
 splice arr1 arr2 =
     unsafeFreeze <$> MA.spliceCopy (unsafeThaw arr1) (unsafeThaw arr2)
 
@@ -1558,11 +1551,15 @@ instance (Unbox a, Ord a) => Ord (Array a) where
     min x y = if x <= y then x else y
 
 #ifdef DEVBUILD
--- Definitions using the Unboxed constraint from the Array type. These are to
--- make the Foldable instance possible though it is much slower (7x slower).
+-- Definitions using the Unbox constraint from the Array type. If we enable the
+-- Unbox constraint in the Array type definition we can remove the constraint
+-- from here. These are to make the Foldable instance (see below) possible
+-- though it is much slower (7x slower). Need to check if the situation has
+-- changed in newer GHCs.
 --
 {-# INLINE_NORMAL _toStreamD_ #-}
-_toStreamD_ :: forall m a. MonadIO m => Int -> Array a -> D.Stream m a
+_toStreamD_ :: forall m a. (Unbox a, MonadIO m) =>
+    Int -> Array a -> D.Stream m a
 _toStreamD_ size Array{..} = D.Stream step arrStart
 
     where
@@ -1574,13 +1571,12 @@ _toStreamD_ size Array{..} = D.Stream step arrStart
         return $ D.Yield x (p + size)
 
 {-
-XXX Why isn't Unboxed implicit? This does not compile unless I use the Unboxed
-contraint.
 {-# INLINE_NORMAL _foldr #-}
 _foldr :: forall a b. (a -> b -> b) -> b -> Array a -> b
 _foldr f z arr =
     let !n = SIZE_OF(a)
     in unsafePerformIO $ D.foldr f z $ toStreamD_ n arr
+
 -- | Note that the 'Foldable' instance is 7x slower than the direct
 -- operations.
 instance Foldable Array where
@@ -1602,19 +1598,11 @@ instance Foldable Array where
 instance Unbox a => Semigroup (Array a) where
     arr1 <> arr2 = unsafePerformIO $ splice arr1 arr2
 
-empty ::
-#ifdef DEVBUILD
-    Unbox a =>
-#endif
-    Array a
+empty :: Array a
 empty = Array Unboxed.empty 0 0
 
 {-# DEPRECATED nil "Please use empty instead." #-}
-nil ::
-#ifdef DEVBUILD
-    Unbox a =>
-#endif
-    Array a
+nil :: Array a
 nil = empty
 
 instance Unbox a => Monoid (Array a) where

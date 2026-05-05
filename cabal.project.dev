@@ -1,0 +1,44 @@
+packages:   streamly.cabal
+          , core/streamly-core.cabal
+          , test/streamly-tests.cabal
+          , benchmark/streamly-benchmarks.cabal
+          , bench-test-lib/bench-test-lib.cabal
+
+-- For compiling standalone programs
+-- write-ghc-environment-files: always
+
+-- For debugging heap overflow
+-- jobs: 1
+
+package streamly-core
+  flags: +internal-dev
+  ghc-options:    -DDEVBUILD -DDEBUG
+                  -Wmissed-specialisations
+                  -Wall-missed-specialisations
+                  -fno-ignore-asserts
+
+package streamly
+  flags: +internal-dev
+  ghc-options:    -DDEVBUILD -DDEBUG
+                  -Wmissed-specialisations
+                  -Wall-missed-specialisations
+                  -fno-ignore-asserts
+
+package streamly-tests
+  flags: +dev
+  ghc-options:    -DDEVBUILD -DDEBUG
+                  -Wmissed-specialisations
+                  -Wall-missed-specialisations
+                  -fno-ignore-asserts
+
+package streamly-benchmarks
+  flags: +dev
+  ghc-options:    -DDEVBUILD -DDEBUG
+                  -Wmissed-specialisations
+                  -Wall-missed-specialisations
+                  -fno-ignore-asserts
+
+source-repository-package
+  type: git
+  location: https://github.com/composewell/fusion-plugin.git
+  tag: 15c0ad50a235a35e85d03cced9ad0f3938565e5a

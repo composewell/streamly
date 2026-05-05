@@ -110,9 +110,6 @@ common compile-options
     -- if flag(use-streamly-core)
     --   cpp-options:    -DUSE_STREAMLY_CORE
 
-    if flag(dev)
-      cpp-options:    -DDEVBUILD
-
     if flag(include-strict-utf8)
       cpp-options:    -DINCLUDE_STRICT_UTF8
 
@@ -146,10 +143,6 @@ common compile-options
     if flag(has-llvm)
       ghc-options: -fllvm
 
-    if flag(dev)
-      ghc-options:    -Wmissed-specialisations
-                      -Wall-missed-specialisations
-
 common optimization-options
   if flag(opt)
     ghc-options: -O2
@@ -158,7 +151,7 @@ common optimization-options
                  -fmax-worker-args=16
 
     -- For this to be effective it must come after the -O2 option
-    if flag(dev) || flag(debug)
+    if flag(debug)
       ghc-options: -fno-ignore-asserts
 
     if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
@@ -205,10 +198,6 @@ common bench-depends
     build-depends:
         template-haskell   >= 2.14 && < 2.25
       , inspection-testing >= 0.4  && < 0.7
-  -- Array uses a Storable constraint in dev build making several inspection
-  -- tests fail
-  if flag(dev) && flag(inspection)
-    build-depends: inspection-and-dev-flags-cannot-be-used-together
 
 -------------------------------------------------------------------------------
 -- Library

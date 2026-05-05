@@ -31,6 +31,7 @@ cabal.project.markdown-doctest
 cabal.project.streamly
 cabal.project.Werror
 cabal.project.Werror-nocode
+cabal.project.dev
 core/
 examples/README.md
 flake.lock

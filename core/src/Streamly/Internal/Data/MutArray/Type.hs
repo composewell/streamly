@@ -631,7 +631,7 @@ bytesToElemCount _ n = n `div` SIZE_OF(a)
 --
 data MutArray a =
 #ifdef DEVBUILD
-    Unbox a =>
+    -- Unbox a =>
 #endif
     -- The array is a range into arrContents. arrContents may be a superset of
     -- the slice represented by the array. All offsets are in bytes.
@@ -828,27 +828,15 @@ emptyWithAligned alloc alignSize count = liftIO $ do
 -- will mostly import the Array module qualified this should be fine.
 
 -- | Create an empty array.
-empty ::
-#ifdef DEVBUILD
-    Unbox a =>
-#endif
-    MutArray a
+empty :: MutArray a
 empty = MutArray Unboxed.empty 0 0 0
 
 {-# DEPRECATED nil "Please use empty instead." #-}
-nil ::
-#ifdef DEVBUILD
-    Unbox a =>
-#endif
-    MutArray a
+nil :: MutArray a
 nil = empty
 
 {-# INLINE newBytesAs #-}
-newBytesAs :: MonadIO m =>
-#ifdef DEVBUILD
-    Unbox a =>
-#endif
-    PinnedState -> Int -> m (MutArray a)
+newBytesAs :: MonadIO m => PinnedState -> Int -> m (MutArray a)
 newBytesAs ps bytes = do
     contents <- liftIO $ Unboxed.newAs ps bytes
     return $ MutArray
@@ -867,11 +855,7 @@ newBytesAs ps bytes = do
 -- /Pre-release/
 {-# INLINE pinnedNewBytes #-}
 {-# DEPRECATED pinnedNewBytes "Please use emptyOf' to create a Word8 array and cast it accordingly." #-}
-pinnedNewBytes :: MonadIO m =>
-#ifdef DEVBUILD
-    Unbox a =>
-#endif
-    Int -> m (MutArray a)
+pinnedNewBytes :: MonadIO m => Int -> m (MutArray a)
 pinnedNewBytes = newBytesAs Pinned
 
 -- | Like 'emptyWithAligned' but using an allocator is a pinned memory allocator and
@@ -2184,11 +2168,7 @@ data ArrayUnsafe a = ArrayUnsafe
 toArrayUnsafe :: MutArray a -> ArrayUnsafe a
 toArrayUnsafe (MutArray contents start end _) = ArrayUnsafe contents start end
 
-fromArrayUnsafe ::
-#ifdef DEVBUILD
-    Unbox a =>
-#endif
-    ArrayUnsafe a -> MutArray a
+fromArrayUnsafe :: ArrayUnsafe a -> MutArray a
 fromArrayUnsafe (ArrayUnsafe contents start end) =
          MutArray contents start end end
 
@@ -3217,13 +3197,7 @@ fromListRev xs = fromListRevN (Prelude.length xs) xs
 -- it again. We can use SIMD read/write as well.
 
 {-# INLINE cloneAs #-}
-cloneAs ::
-    ( MonadIO m
-#ifdef DEVBUILD
-    , Unbox a
-#endif
-    )
-    => PinnedState -> MutArray a -> m (MutArray a)
+cloneAs :: MonadIO m => PinnedState -> MutArray a -> m (MutArray a)
 cloneAs ps src =
     do
         let startSrc = arrStart src
@@ -3240,24 +3214,12 @@ cloneAs ps src =
 -- The new "MutArray" is unpinned in nature. Use "clone'" to clone the
 -- MutArray in pinned memory.
 {-# INLINE clone #-}
-clone ::
-    ( MonadIO m
-#ifdef DEVBUILD
-    , Unbox a
-#endif
-    )
-    => MutArray a -> m (MutArray a)
+clone :: MonadIO m => MutArray a -> m (MutArray a)
 clone = cloneAs Unpinned
 
 -- Similar to "clone" but uses pinned memory.
 {-# INLINE clone' #-}
-pinnedClone, clone' ::
-    ( MonadIO m
-#ifdef DEVBUILD
-    , Unbox a
-#endif
-    )
-    => MutArray a -> m (MutArray a)
+pinnedClone, clone' :: MonadIO m => MutArray a -> m (MutArray a)
 clone' = cloneAs Pinned
 RENAME_PRIME(pinnedClone,clone)
 
@@ -3271,9 +3233,6 @@ RENAME_PRIME(pinnedClone,clone)
 -- Note: If you freeze and splice it will create a new array.
 {-# INLINE spliceCopy #-}
 spliceCopy :: forall m a. MonadIO m =>
-#ifdef DEVBUILD
-    Unbox a =>
-#endif
     MutArray a -> MutArray a -> m (MutArray a)
 spliceCopy arr1 arr2 = do
     let start1 = arrStart arr1
@@ -3615,11 +3574,7 @@ RENAME(splitAt,breakAt)
 --
 -- /Pre-release/
 --
-castUnsafe, unsafeCast ::
-#ifdef DEVBUILD
-    Unbox b =>
-#endif
-    MutArray a -> MutArray b
+castUnsafe, unsafeCast :: MutArray a -> MutArray b
 unsafeCast (MutArray contents start end bound) =
     MutArray contents start end bound
 

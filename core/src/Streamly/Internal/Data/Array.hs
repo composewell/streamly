@@ -403,11 +403,7 @@ streamTransform f arr =
 --
 -- /Pre-release/
 --
-unsafeCast, castUnsafe ::
-#ifdef DEVBUILD
-    Unbox b =>
-#endif
-    Array a -> Array b
+unsafeCast, castUnsafe :: Array a -> Array b
 unsafeCast (Array contents start end) =
     Array contents start end
 RENAME(castUnsafe,unsafeCast)

@@ -156,9 +156,6 @@ common compile-options
     if flag(force-lstat-readdir)
       cpp-options:    -DFORCE_LSTAT_READDIR
 
-    if flag(internal-dev)
-      cpp-options:    -DDEVBUILD
-
     if flag(use-unfolds)
       cpp-options:    -DUSE_UNFOLDS_EVERYWHERE
 
@@ -195,10 +192,6 @@ common compile-options
 
     if flag(has-llvm)
       ghc-options: -fllvm
-
-    if flag(internal-dev)
-      ghc-options:    -Wmissed-specialisations
-                      -Wall-missed-specialisations
 
     if flag(limit-build-mem)
         ghc-options: -j1 +RTS -M500M -RTS
@@ -282,7 +275,7 @@ common optimization-options
                  -fmax-worker-args=16
 
   -- For this to be effective it must come after the -O2 option
-  if flag(internal-dev) || flag(debug) || !flag(opt)
+  if flag(debug) || !flag(opt)
     cpp-options: -DDEBUG
     ghc-options: -fno-ignore-asserts
 
