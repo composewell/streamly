@@ -23,7 +23,7 @@ module Streamly.Internal.Data.SmallArray
 
   , length
 
-  , writeN
+  , createOf
 
   , toStreamD
   , toStreamDRev
@@ -99,14 +99,14 @@ foldl' f z arr = runIdentity $ D.foldl' f z $ toStreamD arr
 foldr :: (a -> b -> b) -> b -> SmallArray a -> b
 foldr f z arr = runIdentity $ D.foldr f z $ toStreamD arr
 
--- | @writeN n@ folds a maximum of @n@ elements from the input stream to an
+-- | @createOf n@ folds a maximum of @n@ elements from the input stream to an
 -- 'SmallArray'.
 --
 -- Since we are folding to a 'SmallArray' @n@ should be <= 128, for larger number
 -- of elements use an 'Array' from either "Streamly.Data.Array.Generic" or "Streamly.Data.Array.Foreign".
-{-# INLINE_NORMAL writeN #-}
-writeN :: MonadIO m => Int -> Fold m a (SmallArray a)
-writeN len = FL.Fold step initial extract extract
+{-# INLINE_NORMAL createOf #-}
+createOf :: MonadIO m => Int -> Fold m a (SmallArray a)
+createOf len = FL.Fold step initial extract extract
 
     where
 

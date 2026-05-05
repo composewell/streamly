@@ -14,7 +14,7 @@ module Streamly.Data.SmallArray
   , A.fromListN
   , A.fromStreamN
 
-  , A.writeN
+  , A.createOf
 
   -- * Elimination
   , A.read
