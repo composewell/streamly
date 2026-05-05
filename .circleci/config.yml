@@ -12,7 +12,7 @@ env: &env
       # ------------------------------------------------------------------------
       # GHC_OPTIONS: "-Werror"
       # For updating see: https://downloads.haskell.org/~ghcup/
-      GHCUP_VERSION: 0.1.20.0
+      GHCUP_VERSION: latest
       CABAL_REINIT_CONFIG: "y"
       LC_ALL: "C.UTF-8"
 
@@ -44,7 +44,7 @@ env: &env
       # ------------------------------------------------------------------------
       # Where to find the required tools
       # ------------------------------------------------------------------------
-      PATH: /sbin:/usr/sbin:/bin:/usr/bin
+      PATH: /sbin:/usr/sbin:/bin:/usr/bin:/usr/local/bin
 
       # ------------------------------------------------------------------------
       # Location of packcheck.sh (the shell script invoked to perform CI tests ).
@@ -57,7 +57,7 @@ env: &env
       # If you have not committed packcheck.sh in your repo at PACKCHECK
       # then it is automatically pulled from this URL.
       PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/composewell/packcheck"
-      PACKCHECK_GITHUB_COMMIT: "dd6862df527f317fd4987afa523fba3f4fde7e19"
+      PACKCHECK_GITHUB_COMMIT: "157310b35907e93b9c5c69e6bdcad9ab6296260e"
 
 executors:
   amd64-executor:
@@ -91,11 +91,7 @@ preinstall: &preinstall
         apt-get install -y zlib1g-dev
 
         # For ghcup to install ghc
-        if test -n "$GHCUP_VERSION"
-        then
-          apt-get install -y gcc
-          apt-get install -y g++
-        fi
+        apt-get install -y build-essential
 
         # libgmp required by ghc for linking
         apt-get install -y libgmp-dev
@@ -146,7 +142,7 @@ save: &save
 #-----------------------------------------------------------------------------
 
 jobs:
-  cabal-ghc-8_6_5:
+  cabal-ghc-9_14_1-docspec:
       <<: *env
       executor: amd64-executor
       steps:
@@ -155,25 +151,7 @@ jobs:
         - *preinstall
         - run:
             environment:
-              GHCVER: "8.6.5"
-              CABALVER: "3.6.2.0"
-              CABAL_PROJECT: "cabal.project"
-              DISABLE_SDIST_BUILD: "yes"
-              CABAL_BUILD_OPTIONS: "--flag debug --flag -opt"
-            command: |
-              bash -c "$PACKCHECK cabal"
-        - *save
-  cabal-ghc-9_8_1-docspec:
-      <<: *env
-      executor: amd64-executor
-      steps:
-        - checkout
-        - *restore
-        - *preinstall
-        - run:
-            environment:
-              GHCVER: "9.8.1"
-              CABALVER: "3.10.1.0"
+              GHCVER: "9.14.1"
               CABAL_PROJECT: "cabal.project.doctest"
               DISABLE_SDIST_BUILD: "y"
               DISABLE_TEST: "y"
@@ -212,9 +190,7 @@ workflows:
   version: 2
   build:
     jobs:
-      #- cabal-ghc-8_6_5:
-      #    name: 8.6.5-debug-unoptimized
-      - cabal-ghc-9_8_1-docspec:
-          name: ghc-9.8.1-docspec
+      - cabal-ghc-9_14_1-docspec:
+          name: ghc-9.14.1-docspec
       - hlint-trailing-spaces:
           name: hlint and trailing spaces
