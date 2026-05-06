@@ -428,6 +428,14 @@ test-suite Data.Stream.Rate
   if flag(use-streamly-core) || !flag(include-flaky-tests)
     buildable: False
 
+test-suite Data.Stream.ZipSerial
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/Stream/ZipSerial.hs
+  ghc-options: -main-is Streamly.Test.Data.Stream.ZipSerial.main
+  if flag(use-streamly-core)
+    buildable: False
+
 -- XXX Rename to MutByteArray.Unbox
 test-suite Data.Unbox.Derive.Generic
   import: test-options

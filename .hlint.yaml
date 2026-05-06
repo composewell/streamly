@@ -33,6 +33,14 @@
 - ignore: {name: "Redundant <*", within: Stream.Expand}
 - ignore: {name: "Redundant bracket", within: Stream.Split}
 - ignore: {name: "Use isDigit", within: Streamly.Internal.Unicode.Parser}
+# These tests intentionally test functor/monoid laws, so the hints are
+# expected and should be suppressed
+- ignore: {name: "Functor law", within: [Streamly.Test.Data.Stream.Ahead, Streamly.Test.Data.Stream.ZipSerial]}
+- ignore: {name: "Monoid law, left identity", within: [Streamly.Test.Data.Stream.Ahead, Streamly.Test.Data.Stream.ZipSerial]}
+- ignore: {name: "Monoid law, right identity", within: [Streamly.Test.Data.Stream.Ahead, Streamly.Test.Data.Stream.ZipSerial]}
+- ignore: {name: "Use fold", within: Streamly.Test.Data.Stream.Ahead}
+- ignore: {name: "Fuse foldr/map", within: Streamly.Test.Data.Stream.Ahead}
+- ignore: {name: "Avoid lambda using `infix`", within: Streamly.Test.Data.Stream.Ahead}
 
 # Specify additional command line arguments
 #
