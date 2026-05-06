@@ -176,7 +176,7 @@ jobs:
             name: hlint and trailing spaces
             environment:
               DISABLE_SDIST_BUILD: "yes"
-              HLINT_VERSION: 3.6.1
+              HLINT_VERSION: 3.10
               HLINT_OPTIONS: lint
               HLINT_TARGETS: core/src src test benchmark
             command: |
