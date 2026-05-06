@@ -127,8 +127,9 @@ module Streamly.Internal.FileSystem.DirIO
     , readDirs
     , readEither
     , readEitherPaths
-    , readEitherChunks
-    , readEitherByteChunks
+    , OS.readEitherChunks
+    , OS.readEitherByteChunks
+    , readEitherChunksPortable
 
     -- We can implement this in terms of readAttrsRecursive without losing
     -- perf.
@@ -138,10 +139,10 @@ module Streamly.Internal.FileSystem.DirIO
 
     -- * Unfolds
     -- | Use the more convenient stream APIs instead of unfolds where possible.
-    , reader
+    , OS.reader
     , fileReader
     , dirReader
-    , eitherReader
+    , OS.eitherReader
     , eitherReaderPaths
 
       {-
@@ -179,13 +180,11 @@ import Data.Either (isRight, isLeft, fromLeft, fromRight)
 import Streamly.Data.Stream (Stream)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.FileSystem.Path (Path)
-#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
 import qualified Streamly.Internal.Data.Fold as Fold
-import Streamly.Internal.Syscall.Windows.ReadDir
-    (readEitherByteChunks, eitherReader, reader)
+#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
+import qualified Streamly.Internal.Syscall.Windows.ReadDir as OS
 #else
-import Streamly.Internal.Syscall.Posix.ReadDir
-    ( readEitherChunks, readEitherByteChunks, eitherReader, reader)
+import qualified Streamly.Internal.Syscall.Posix.ReadDir as OS
 #endif
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Data.Unfold as UF
@@ -339,7 +338,7 @@ eitherReaderPaths ::(MonadIO m, MonadCatch m) => (ReadOptions -> ReadOptions) ->
 eitherReaderPaths f =
     let (</>) = Path.join
      in fmap (\(dir, x) -> bimap (dir </>) (dir </>) x)
-            $ UF.carry (eitherReader f)
+            $ UF.carry (OS.eitherReader f)
 
 --
 -- | Read files only.
@@ -349,7 +348,7 @@ eitherReaderPaths f =
 {-# INLINE fileReader #-}
 fileReader :: (MonadIO m, MonadCatch m) => (ReadOptions -> ReadOptions) ->
     Unfold m Path Path
-fileReader f = fmap (fromRight undefined) $ UF.filter isRight (eitherReader f)
+fileReader f = fmap (fromRight undefined) $ UF.filter isRight (OS.eitherReader f)
 
 -- | Read directories only. Filter out "." and ".." entries.
 --
@@ -358,7 +357,7 @@ fileReader f = fmap (fromRight undefined) $ UF.filter isRight (eitherReader f)
 {-# INLINE dirReader #-}
 dirReader :: (MonadIO m, MonadCatch m) => (ReadOptions -> ReadOptions) ->
     Unfold m Path Path
-dirReader f = fmap (fromLeft undefined) $ UF.filter isLeft (eitherReader f)
+dirReader f = fmap (fromLeft undefined) $ UF.filter isLeft (OS.eitherReader f)
 
 -- | Raw read of a directory.
 --
@@ -366,7 +365,7 @@ dirReader f = fmap (fromLeft undefined) $ UF.filter isLeft (eitherReader f)
 {-# INLINE read #-}
 read :: (MonadIO m, MonadCatch m) =>
     Path -> Stream m Path
-read = S.unfold reader
+read = S.unfold OS.reader
 
 -- | Read directories as Left and files as Right. Filter out "." and ".."
 -- entries. The output contains the names of the directories and files.
@@ -375,7 +374,7 @@ read = S.unfold reader
 {-# INLINE readEither #-}
 readEither :: (MonadIO m, MonadCatch m) => (ReadOptions -> ReadOptions) ->
     Path -> Stream m (Either Path Path)
-readEither f = S.unfold (eitherReader f)
+readEither f = S.unfold (OS.eitherReader f)
 
 -- | Like 'readEither' but prefix the names of the files and directories with
 -- the supplied directory path.
@@ -386,20 +385,12 @@ readEitherPaths f dir =
     let (</>) = Path.join
      in fmap (bimap (dir </>) (dir </>)) $ readEither f dir
 
-#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
--- XXX Implement a custom version of readEitherChunks (like for Posix) for
--- windows as well. Also implement readEitherByteChunks.
---
--- XXX For a fast custom implementation of traversal, the Right could be the
--- final array chunk including all files and dirs to be written to IO. The Left
--- could be list of dirs to be traversed.
---
--- This is a generic (but slower?) version of readEitherChunks using
--- eitherReaderPaths.
-{-# INLINE readEitherChunks #-}
-readEitherChunks :: (MonadIO m, MonadCatch m) => (ReadOptions -> ReadOptions) ->
+-- | A generic (but slower) version of 'readEitherChunks' using
+-- 'eitherReaderPaths'.
+{-# INLINE readEitherChunksPortable #-}
+readEitherChunksPortable :: (MonadIO m, MonadCatch m) => (ReadOptions -> ReadOptions) ->
     [Path] -> Stream m (Either [Path] [Path])
-readEitherChunks f dirs =
+readEitherChunksPortable f dirs =
     -- XXX Need to use a take to limit the group size. There will be separate
     -- limits for dir and files groups.
      S.groupsWhile grouper collector
@@ -424,7 +415,6 @@ readEitherChunks f dirs =
                     Right _ -> Left [x1] -- initial
                     _ -> either (\xs -> Left (x1:xs)) Right b
             Right x1 -> fmap (x1:) b
-#endif
 
 -- | Read files only.
 --
