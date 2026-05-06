@@ -13,6 +13,7 @@ module Streamly.Internal.Syscall.Windows.ReadDir
     , openDirStream
     , closeDirStream
     , readDirStreamEither
+    , readEitherByteChunks
     , eitherReader
     , reader
 #endif
@@ -27,15 +28,22 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Char (ord, isSpace)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
-import Foreign.C (CInt(..), CWchar(..), Errno(..), errnoToIOError, peekCWString)
+import Foreign.C
+    ( CInt(..), CSize(..), CWchar(..), Errno(..)
+    , errnoToIOError, peekCWString
+    )
+import Fusion.Plugin.Types (Fuse(..))
 import Numeric (showHex)
+import Streamly.Internal.Data.Array (Array(..))
+import Streamly.Internal.Data.MutByteArray (MutByteArray)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
-import Streamly.Internal.Data.Stream (Step(..))
+import Streamly.Internal.Data.Stream (Stream(..), Step(..))
 import Streamly.Internal.FileSystem.Path (Path)
 import Streamly.Internal.FileSystem.WindowsPath (WindowsPath(..))
 import System.IO.Error (ioeSetErrorString)
 
 import qualified Streamly.Internal.Data.Array as Array
+import qualified Streamly.Internal.Data.MutByteArray as MutByteArray
 import qualified Streamly.Internal.Data.Unfold as UF (bracketIO)
 import qualified Streamly.Internal.FileSystem.WindowsPath as Path
 import qualified System.Win32 as Win32 (failWith)
@@ -149,6 +157,7 @@ openDirStream p = do
     fp_finddata <- mallocForeignPtrBytes (# const sizeof(WIN32_FIND_DATAW) )
     withForeignPtr fp_finddata $ \dataPtr -> do
         handle <-
+            -- XXX should it be asCWString, so we do not need to use castPtr
             Array.asCStringUnsafe (Path.toArray path) $ \pathPtr -> do
                 -- XXX Use getLastError to distinguish the case when no
                 -- matching file is found. See the doc of FindFirstFileW.
@@ -270,4 +279,231 @@ eitherReader f =
     -- out to be a problem for small filenames we can use getdents64 to use
     -- chunked read to avoid the overhead.
       UF.bracketIO openDirStream closeDirStream (streamEitherReader f)
+
+------------------------------------------------------------------------------
+-- Chunked byte-buffered reads
+------------------------------------------------------------------------------
+
+foreign import ccall unsafe "string.h memcpy" c_memcpy
+    :: Ptr Word8 -> Ptr Word8 -> CSize -> IO (Ptr Word8)
+
+foreign import ccall unsafe "wchar.h wcslen" c_wcslen
+    :: Ptr CWchar -> IO CSize
+
+-- Split a list in half.
+splitHalf :: [a] -> ([a], [a])
+splitHalf xxs = split xxs xxs
+
+    where
+
+    split (x:xs) (_:_:ys) =
+        let (f, s) = split xs ys
+         in (x:f, s)
+    split xs _ = ([], xs)
+
+{-# ANN type ChunkStreamByteState Fuse #-}
+data ChunkStreamByteState =
+      ChunkStreamByteInit
+    | ChunkStreamByteStop
+    | ChunkStreamByteLoop
+        WindowsPath -- current dir path
+        [WindowsPath]  -- remaining dirs
+        DirStream -- current dir stream
+        MutByteArray
+        Int
+    | ChunkStreamReallocBuf
+        (Ptr CWchar) -- pending item name
+        WindowsPath -- current dir path
+        [WindowsPath]  -- remaining dirs
+        DirStream -- current dir stream
+        MutByteArray
+        Int
+    | ChunkStreamDrainBuf
+        MutByteArray
+        Int
+
+-- TODO: instead of unsafeJoin use appendCWString
+--
+-- NOTE: Unlike posix on Windows the file attribute to determine whether it is
+-- a directory or not is always available so we do not need the code to handle
+-- the case when they are not available, on Posix we need to use stat
+-- explicitly in that case.
+
+-- | This function may not traverse all the directories supplied and it may
+-- traverse the directories recursively. Left contains those directories that
+-- were not traversed by this function, these may be the directories that were
+-- supplied as input as well as newly discovered directories during traversal.
+-- To traverse the entire tree we have to iterate this function on the Left
+-- output.
+--
+-- Right is a buffer containing UTF-16LE encoded directories and files
+-- separated by newlines, with the parent path joined to each child name by a
+-- backslash.
+--
+{-# INLINE readEitherByteChunks #-}
+readEitherByteChunks :: MonadIO m =>
+    (ReadOptions -> ReadOptions) ->
+    [WindowsPath] -> Stream m (Either [WindowsPath] (Array Word8))
+readEitherByteChunks _confMod alldirs =
+    Stream step ChunkStreamByteInit
+
+    where
+
+    bufSize = 32000
+
+    -- The output is UTF-16LE encoded. The format per entry is:
+    -- dirPath ++ '\\' ++ name ++ '\n', where each character occupies 2 bytes.
+    copyToBuf dstArr pos dirPath name = do
+        nameLen <- fmap ((* 2) . fromIntegral) (liftIO $ c_wcslen name)
+        MutByteArray.unsafeAsPtr dstArr (\ptr -> liftIO $ do
+            let WindowsPath (Array dirArr start end) = dirPath
+                dirLen = end - start
+                endDir = pos + dirLen
+                -- separator (2 bytes) + newline (2 bytes)
+                endPos = endDir + nameLen + 4
+                sepOff = ptr `plusPtr` endDir
+                nameOff = sepOff `plusPtr` 2
+                nlOff = nameOff `plusPtr` nameLen
+            if (endPos < bufSize)
+            then do
+                MutByteArray.unsafePutSlice dirArr start dstArr pos dirLen
+                -- '\\' as UTF-16LE: 0x5C 0x00
+                poke sepOff (92 :: Word8)
+                poke (sepOff `plusPtr` 1) (0 :: Word8)
+                _ <- c_memcpy nameOff (castPtr name) (fromIntegral nameLen)
+                -- '\n' as UTF-16LE: 0x0A 0x00
+                poke nlOff (10 :: Word8)
+                poke (nlOff `plusPtr` 1) (0 :: Word8)
+                return (Just endPos)
+            else return Nothing
+            )
+
+    -- Returns Just (dname, dattrs) on success, Nothing at end of stream. The
+    -- returned dname pointer is valid until the next call to readNextEntry on
+    -- the same DirStream.
+    readNextEntry (DirStream (h, ref, fdata)) =
+        withForeignPtr fdata $ \ptr -> do
+            firstTime <- readIORef ref
+            success <-
+                if firstTime
+                then writeIORef ref False >> return True
+                else c_FindNextFileW h ptr
+            if success
+            then do
+                let dname = #{ptr WIN32_FIND_DATAW, cFileName} ptr
+                dattrs :: #{type DWORD} <-
+                    #{peek WIN32_FIND_DATAW, dwFileAttributes} ptr
+                return (Just (dname, dattrs))
+            else do
+                err <- getLastError
+                if err == (# const ERROR_NO_MORE_FILES )
+                then return Nothing
+                else Win32.failWith "findNextFile" err
+
+    step _ ChunkStreamByteInit = do
+        mbarr <- liftIO $ MutByteArray.new' bufSize
+        case alldirs of
+            (x:xs) -> do
+                ds <- liftIO $ openDirStream x
+                return $ Skip $ ChunkStreamByteLoop x xs ds mbarr 0
+            [] -> return Stop
+
+    step _ ChunkStreamByteStop = return Stop
+
+    step _ (ChunkStreamReallocBuf pending curdir xs ds mbarr pos) = do
+        mbarr1 <- liftIO $ MutByteArray.new' bufSize
+        r1 <- copyToBuf mbarr1 0 curdir pending
+        case r1 of
+            Just pos2 ->
+                return $ Yield (Right (Array mbarr 0 pos))
+                    -- When we come in this state we have emitted dirs
+                    (ChunkStreamByteLoop curdir xs ds mbarr1 pos2)
+            Nothing -> error "Dirname too big for bufSize"
+
+    step _ (ChunkStreamDrainBuf mbarr pos) =
+        if pos == 0
+        then return Stop
+        else return $ Yield (Right (Array mbarr 0 pos)) ChunkStreamByteStop
+
+    step _ (ChunkStreamByteLoop icurdir ixs ids mbarr ipos) =
+        goOuter icurdir ids ixs ipos
+
+        where
+
+        -- This is recursed only when we open the next dir.
+        -- Encapsulates curdir and ds as static arguments.
+        goOuter curdir ds = goInner
+
+            where
+
+            -- This is recursed each time we find a dir.
+            -- Encapsulates dirs as static argument.
+            goInner dirs = nextEntry
+
+                where
+
+                {-# INLINE nextEntry #-}
+                nextEntry pos = do
+                    r <- liftIO $ readNextEntry ds
+                    case r of
+                        Just (dname, dattrs) ->
+                            handleDentry pos dname dattrs
+                        Nothing -> handleEnd pos
+
+                handleEnd pos = do
+                    -- XXX Exception safety
+                    liftIO $ closeDirStream ds
+                    openNextDir pos
+
+                openNextDir pos =
+                    case dirs of
+                        (x:xs) -> do
+                            ds1 <- liftIO $ openDirStream x
+                            goOuter x ds1 xs pos
+                        [] ->
+                            if pos == 0
+                            then return Stop
+                            else return
+                                    $ Yield
+                                        (Right (Array mbarr 0 pos))
+                                        ChunkStreamByteStop
+
+                splitAndRealloc pos dname xs1 =
+                    case xs1 of
+                        [] ->
+                            return $ Skip
+                                (ChunkStreamReallocBuf dname curdir
+                                    [] ds mbarr pos)
+                        _ -> do
+                            let (h,t) = splitHalf xs1
+                            return $ Yield (Left t)
+                                (ChunkStreamReallocBuf dname curdir
+                                    h ds mbarr pos)
+
+                {-# INLINE handleFileEnt #-}
+                handleFileEnt pos dname = do
+                    r <- copyToBuf mbarr pos curdir dname
+                    case r of
+                        Just pos1 -> nextEntry pos1
+                        Nothing -> splitAndRealloc pos dname dirs
+
+                {-# INLINE handleDirEnt #-}
+                handleDirEnt pos dname = do
+                    arr <- liftIO $ Array.fromW16CString dname
+                    let path =
+                            Path.unsafeJoin curdir (Path.unsafeFromArray arr)
+                        dirs1 = path : dirs
+                    r <- copyToBuf mbarr pos curdir dname
+                    case r of
+                        Just pos1 -> goInner dirs1 pos1
+                        Nothing -> splitAndRealloc pos dname dirs1
+
+                handleDentry pos dname dattrs =
+                    if (dattrs .&. (#const FILE_ATTRIBUTE_DIRECTORY) /= 0)
+                    then do
+                        isMeta <- liftIO $ isMetaDir dname
+                        if isMeta
+                        then nextEntry pos
+                        else handleDirEnt pos dname
+                    else handleFileEnt pos dname
 #endif
