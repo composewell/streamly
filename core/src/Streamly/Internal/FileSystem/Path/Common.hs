@@ -59,6 +59,8 @@ module Streamly.Internal.FileSystem.Path.Common
     , unsafeAppend
     , appendCString
     , appendCString'
+    , appendCWString
+    , appendCWString'
     , unsafeJoinPaths
  -- , joinRoot -- XXX append should be enough, see joinRootBody
 
@@ -126,7 +128,7 @@ import Data.Function ((&))
 import Data.Functor.Identity (Identity(..))
 import Data.Word (Word8, Word16)
 import Foreign (castPtr)
-import Foreign.C (CString, CSize(..))
+import Foreign.C (CString, CSize(..), CWchar, CWString)
 import GHC.Base (unsafeChr, Addr#)
 import GHC.Ptr (Ptr(..))
 import Language.Haskell.TH (Q, Exp)
@@ -1506,36 +1508,52 @@ mkQ f =
 -- XXX Scan this entire module for pushing array operations to MutArray or
 -- MutByteArray modules.
 
+{-# INLINE appendCStringWith #-}
+appendCStringWith :: (Unbox a, Integral a) =>
+       (Int -> IO (MutArray a))
+    -> (Addr# -> IO CSize)
+    -> OS
+    -> Array a
+    -> Ptr a
+    -> IO (Array a)
+appendCStringWith create strlen os origArr origStr@(Ptr strAddr#) = do
+    let countArr = Array.length origArr
+    countStr <- fmap fromIntegral $ strlen strAddr#
+    assertM(countArr /= 0 && countStr /= 0)
+    let count = countArr + 1 + countStr
+    arr <- create count
+    arr1 <- MutArray.unsafeSplice arr (Array.unsafeThaw origArr)
+    arr2 <- MutArray.unsafeSnoc arr1 (charToWord (primarySeparator os))
+    arr3 <- MutArray.unsafeAppendPtrN arr2 origStr countStr
+    return (Array.unsafeFreeze arr3)
+
 -- See also cstringLength# in GHC.CString in ghc-prim
 foreign import ccall unsafe "string.h strlen" c_strlen_pinned
     :: Addr# -> IO CSize
 
-{-# INLINE appendCStringWith #-}
-appendCStringWith ::
-       (Int -> IO (MutArray Word8))
-    -> OS
-    -> Array Word8
-    -> CString
-    -> IO (Array Word8)
-appendCStringWith create os a b@(Ptr addrB#) = do
-    let lenA = Array.length a
-    lenB <- fmap fromIntegral $ c_strlen_pinned addrB#
-    assertM(lenA /= 0 && lenB /= 0)
-    let len = lenA + 1 + lenB
-    arr <- create len
-    arr1 <- MutArray.unsafeSplice arr (Array.unsafeThaw a)
-    arr2 <- MutArray.unsafeSnoc arr1 (charToWord (primarySeparator os))
-    arr3 :: MutArray.MutArray Word8 <-
-        MutArray.unsafeAppendPtrN arr2 (castPtr b) lenB
-    return (Array.unsafeFreeze arr3)
-
 {-# INLINE appendCString #-}
 appendCString :: OS -> Array Word8 -> CString -> IO (Array Word8)
-appendCString = appendCStringWith MutArray.emptyOf
+appendCString os arr cstr =
+    appendCStringWith MutArray.emptyOf c_strlen_pinned os arr (castPtr cstr)
 
 {-# INLINE appendCString' #-}
 appendCString' :: OS -> Array Word8 -> CString -> IO (Array Word8)
-appendCString' = appendCStringWith MutArray.emptyOf'
+appendCString' os arr cstr =
+    appendCStringWith MutArray.emptyOf' c_strlen_pinned os arr (castPtr cstr)
+
+foreign import ccall unsafe "wchar.h wcslen" c_wcslen_pinned
+    :: Addr# -> IO CSize
+
+-- | NOTE: CWchar is 16-bit wide on Windows and 32-bit wide on Posix. wcslen is
+-- available on both Posix and Windows and counts accordingly in units of
+-- 2-bytes or 4-bytes.
+{-# INLINE appendCWString #-}
+appendCWString :: OS -> Array CWchar -> CWString -> IO (Array CWchar)
+appendCWString = appendCStringWith MutArray.emptyOf c_wcslen_pinned
+
+{-# INLINE appendCWString' #-}
+appendCWString' :: OS -> Array CWchar -> CWString -> IO (Array CWchar)
+appendCWString' = appendCStringWith MutArray.emptyOf' c_wcslen_pinned
 
 {-# INLINE doAppend #-}
 doAppend :: (Unbox a, Integral a) => OS -> Array a -> Array a -> Array a
