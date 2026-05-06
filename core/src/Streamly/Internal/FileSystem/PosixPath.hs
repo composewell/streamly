@@ -152,8 +152,8 @@ module Streamly.Internal.FileSystem.OS_PATH_TYPE
  -- , concat
     , unsafeJoin
 #ifndef IS_WINDOWS
-    , joinCStr
-    , joinCStr'
+    , appendCString
+    , appendCString'
 #endif
     , join
     , joinDir
@@ -990,17 +990,17 @@ joinDir
 -- but always inserts a separator between the two paths even if the first path
 -- has a trailing separator or second path has a leading separator.
 --
-joinCStr :: OS_PATH_TYPE -> CString -> IO OS_PATH_TYPE
-joinCStr (OS_PATH a) str =
+appendCString :: OS_PATH_TYPE -> CString -> IO OS_PATH_TYPE
+appendCString (OS_PATH a) str =
     fmap OS_PATH
         $ Common.appendCString
             Common.OS_NAME a str
 
--- | Like 'joinCStr' but creates a pinned path.
+-- | Like 'appendCString' but creates a pinned path.
 --
-joinCStr' ::
+appendCString' ::
     OS_PATH_TYPE -> CString -> IO OS_PATH_TYPE
-joinCStr'
+appendCString'
     (OS_PATH a) str =
     fmap OS_PATH
         $ Common.appendCString'
