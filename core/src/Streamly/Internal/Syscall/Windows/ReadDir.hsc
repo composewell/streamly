@@ -13,6 +13,7 @@ module Streamly.Internal.Syscall.Windows.ReadDir
     , openDirStream
     , closeDirStream
     , readDirStreamEither
+    , readEitherChunks
     , readEitherByteChunks
     , eitherReader
     , reader
@@ -279,6 +280,113 @@ eitherReader f =
     -- out to be a problem for small filenames we can use getdents64 to use
     -- chunked read to avoid the overhead.
       UF.bracketIO openDirStream closeDirStream (streamEitherReader f)
+
+------------------------------------------------------------------------------
+-- Chunked path-list reads
+------------------------------------------------------------------------------
+
+{-# ANN type ChunkStreamState Fuse #-}
+data ChunkStreamState =
+      ChunkStreamInit [WindowsPath] [WindowsPath] Int [WindowsPath] Int
+    | ChunkStreamLoop
+        WindowsPath -- current dir path
+        [WindowsPath]  -- remaining dirs
+        DirStream -- current dir stream
+        [WindowsPath] -- dirs buffered
+        Int    -- dir count
+        [WindowsPath] -- files buffered
+        Int -- file count
+
+-- | Like 'readEitherByteChunks' but yields lists of 'WindowsPath' instead of
+-- byte buffers. Directories are emitted as 'Left' and files as 'Right'. Meta
+-- entries (\".\" and \"..\") are filtered out.
+{-# INLINE readEitherChunks #-}
+readEitherChunks
+    :: MonadIO m
+    => (ReadOptions -> ReadOptions)
+    -> [WindowsPath] -> Stream m (Either [WindowsPath] [WindowsPath])
+readEitherChunks _confMod alldirs =
+    Stream step (ChunkStreamInit alldirs [] 0 [] 0)
+
+    where
+
+    -- We want to keep the dir batching as low as possible for better
+    -- concurrency esp when the number of dirs is low.
+    dirMax = 4
+    fileMax = 1000
+
+    -- Returns Just (dname, dattrs) on success, Nothing at end of stream.
+    readNextEntry (DirStream (h, ref, fdata)) =
+        withForeignPtr fdata $ \ptr -> do
+            firstTime <- readIORef ref
+            success <-
+                if firstTime
+                then writeIORef ref False >> return True
+                else c_FindNextFileW h ptr
+            if success
+            then do
+                let dname = #{ptr WIN32_FIND_DATAW, cFileName} ptr
+                dattrs :: #{type DWORD} <-
+                    #{peek WIN32_FIND_DATAW, dwFileAttributes} ptr
+                return (Just (dname, dattrs))
+            else do
+                err <- getLastError
+                if err == (# const ERROR_NO_MORE_FILES )
+                then return Nothing
+                else Win32.failWith "findNextFile" err
+
+    step _ (ChunkStreamInit (x:xs) dirs ndirs files nfiles) = do
+        ds <- liftIO $ openDirStream x
+        return $ Skip (ChunkStreamLoop x xs ds dirs ndirs files nfiles)
+
+    step _ (ChunkStreamInit [] [] _ [] _) =
+        return Stop
+
+    step _ (ChunkStreamInit [] [] _ files _) =
+        return $ Yield (Right files) (ChunkStreamInit [] [] 0 [] 0)
+
+    step _ (ChunkStreamInit [] dirs _ files _) =
+        return $ Yield (Left dirs) (ChunkStreamInit [] [] 0 files 0)
+
+    step _ st@(ChunkStreamLoop curdir xs ds dirs ndirs files nfiles) = do
+        r <- liftIO $ readNextEntry ds
+        case r of
+            Just (dname, dattrs) ->
+                if (dattrs .&. (#const FILE_ATTRIBUTE_DIRECTORY) /= 0)
+                then do
+                    isMeta <- liftIO $ isMetaDir dname
+                    if isMeta
+                    then return $ Skip st
+                    else do
+                        arr <- liftIO $ Array.fromW16CString dname
+                        let path =
+                                Path.unsafeJoin curdir
+                                    (Path.unsafeFromArray arr)
+                            dirs1 = path : dirs
+                            ndirs1 = ndirs + 1
+                        if ndirs1 >= dirMax
+                        then return $ Yield (Left dirs1)
+                            (ChunkStreamLoop curdir xs ds [] 0 files nfiles)
+                        else return $ Skip
+                            (ChunkStreamLoop
+                                curdir xs ds dirs1 ndirs1 files nfiles)
+                else do
+                    arr <- liftIO $ Array.fromW16CString dname
+                    let path =
+                            Path.unsafeJoin curdir
+                                (Path.unsafeFromArray arr)
+                        files1 = path : files
+                        nfiles1 = nfiles + 1
+                    if nfiles1 >= fileMax
+                    then return $ Yield (Right files1)
+                        (ChunkStreamLoop curdir xs ds dirs ndirs [] 0)
+                    else return $ Skip
+                        (ChunkStreamLoop
+                            curdir xs ds dirs ndirs files1 nfiles1)
+            Nothing -> do
+                -- XXX Exception safety
+                liftIO $ closeDirStream ds
+                return $ Skip (ChunkStreamInit xs dirs ndirs files nfiles)
 
 ------------------------------------------------------------------------------
 -- Chunked byte-buffered reads
