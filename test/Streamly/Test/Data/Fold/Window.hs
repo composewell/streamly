@@ -31,7 +31,7 @@ main = hspec $ do
                         $ fmap Insert c
                 let c1 = a - b
                 it ("should not deviate more than " ++ show deviationLimit)
-                    $ c1 >= -1 * deviationLimit && c1 <= deviationLimit
+                    $ c1 >= -(1 * deviationLimit) && c1 <= deviationLimit
 
         describe "Sum" $ testFunc Scanl.incrSum
         describe "mean" $ testFunc Scanl.incrMean
