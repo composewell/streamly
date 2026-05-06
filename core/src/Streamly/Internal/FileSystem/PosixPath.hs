@@ -990,6 +990,7 @@ joinDir
 -- but always inserts a separator between the two paths even if the first path
 -- has a trailing separator or second path has a leading separator.
 --
+{-# INLINE appendCString #-}
 appendCString :: OS_PATH_TYPE -> CString -> IO OS_PATH_TYPE
 appendCString (OS_PATH a) str =
     fmap OS_PATH
@@ -998,6 +999,7 @@ appendCString (OS_PATH a) str =
 
 -- | Like 'appendCString' but creates a pinned path.
 --
+{-# INLINE appendCString' #-}
 appendCString' ::
     OS_PATH_TYPE -> CString -> IO OS_PATH_TYPE
 appendCString'
