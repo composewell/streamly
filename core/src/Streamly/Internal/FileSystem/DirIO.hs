@@ -128,6 +128,7 @@ module Streamly.Internal.FileSystem.DirIO
     , readEither
     , readEitherPaths
     , readEitherChunks
+    , readEitherByteChunks
 
     -- We can implement this in terms of readAttrsRecursive without losing
     -- perf.
@@ -180,10 +181,11 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.FileSystem.Path (Path)
 #if defined(mingw32_HOST_OS) || defined(__MINGW32__)
 import qualified Streamly.Internal.Data.Fold as Fold
-import Streamly.Internal.Syscall.Windows.ReadDir (eitherReader, reader)
+import Streamly.Internal.Syscall.Windows.ReadDir
+    (readEitherByteChunks, eitherReader, reader)
 #else
 import Streamly.Internal.Syscall.Posix.ReadDir
-    ( readEitherChunks, eitherReader, reader)
+    ( readEitherChunks, readEitherByteChunks, eitherReader, reader)
 #endif
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Data.Unfold as UF
