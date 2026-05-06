@@ -57,7 +57,6 @@ import System.Posix.Types (Fd(..))
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.MutByteArray as MutByteArray
 import qualified Streamly.Internal.Data.Unfold as UF (bracketIO)
-import qualified Streamly.Internal.FileSystem.Path.Common as PathC
 import qualified Streamly.Internal.FileSystem.PosixPath as Path
 
 import Streamly.Internal.FileSystem.DirOptions
@@ -214,7 +213,7 @@ statEntryType
 statEntryType conf parent dname = do
     -- XXX We can create a pinned array right here since the next call pins
     -- it anyway.
-    path <- appendCString parent dname
+    path <- Path.appendCString parent dname
     Array.asCStringUnsafe (Path.toArray path) $ \cStr -> do
         res <- stat (_followSymlinks conf) cStr
         case res of
@@ -372,12 +371,6 @@ eitherReader confMod =
     -- chunked read to avoid the overhead.
     UF.bracketIO before after (streamEitherReader confMod)
 
-{-# INLINE appendCString #-}
-appendCString :: PosixPath -> CString -> IO PosixPath
-appendCString (PosixPath a) b = do
-    arr <- PathC.appendCString PathC.Posix a b
-    pure $ PosixPath arr
-
 {-# ANN type ChunkStreamState Fuse #-}
 data ChunkStreamState =
       ChunkStreamInit [PosixPath] [PosixPath] Int [PosixPath] Int
@@ -439,7 +432,7 @@ readEitherChunks confMod alldirs =
             etype <- liftIO $ getEntryType conf curdir dname dtype
             case etype of
                 EntryIsDir -> do
-                     path <- liftIO $ appendCString curdir dname
+                     path <- liftIO $ Path.appendCString curdir dname
                      let dirs1 = path : dirs
                          ndirs1 = ndirs + 1
                       in if ndirs1 >= dirMax
@@ -448,7 +441,7 @@ readEitherChunks confMod alldirs =
                          else return $ Skip
                             (ChunkStreamLoop curdir xs dirp dirs1 ndirs1 files nfiles)
                 EntryIsNotDir -> do
-                 path <- liftIO $ appendCString curdir dname
+                 path <- liftIO $ Path.appendCString curdir dname
                  let files1 = path : files
                      nfiles1 = nfiles + 1
                   in if nfiles1 >= fileMax
@@ -690,7 +683,7 @@ readEitherByteChunks confMod alldirs =
 
                 {-# INLINE handleDirEnt #-}
                 handleDirEnt pos dname = do
-                    path <- liftIO $ appendCString curdir dname
+                    path <- liftIO $ Path.appendCString curdir dname
                     let dirs1 = path : dirs
                     r <- copyToBuf mbarr pos curdir dname
                     case r of
