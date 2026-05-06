@@ -402,6 +402,14 @@ test-suite Data.Stream.Exception
   main-is: Streamly/Test/Data/Stream/Exception.hs
   ghc-options: -main-is Streamly.Test.Data.Stream.Exception.main
 
+test-suite Data.Stream.Fold
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/Stream/Fold.hs
+  ghc-options: -main-is Streamly.Test.Data.Stream.Fold.main
+  if flag(use-streamly-core)
+    buildable: False
+
 -- Test suite adapted from older Prelude.Serial test
 -- Needs to be deduplicated with other Data.Stream.* test suites
 test-suite Data.Stream.Serial
