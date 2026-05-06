@@ -1,12 +1,12 @@
 -- |
--- Module      : Streamly.Internal.FileSystem.Posix.Errno
+-- Module      : Streamly.Internal.Syscall.Posix.Errno
 -- Copyright   : (c) 2024 Composewell Technologies
 --
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
 -- Portability : GHC
 
-module Streamly.Internal.FileSystem.Posix.Errno
+module Streamly.Internal.Syscall.Posix.Errno
     (
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
       throwErrnoPath

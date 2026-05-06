@@ -1,12 +1,12 @@
 -- |
--- Module      : Streamly.Internal.FileSystem.Posix.ReadDir
+-- Module      : Streamly.Internal.Syscall.Posix.ReadDir
 -- Copyright   : (c) 2024 Composewell Technologies
 --
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
 -- Portability : GHC
 
-module Streamly.Internal.FileSystem.Posix.ReadDir
+module Streamly.Internal.Syscall.Posix.ReadDir
     (
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
       readScanWith_
@@ -48,8 +48,8 @@ import Streamly.Internal.Data.Scanl (Scanl)
 import Streamly.Internal.Data.Stream (Stream(..), Step(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.FileSystem.Path (Path)
-import Streamly.Internal.FileSystem.Posix.Errno (throwErrnoPathIfNullRetry)
-import Streamly.Internal.FileSystem.Posix.File
+import Streamly.Internal.Syscall.Posix.Errno (throwErrnoPathIfNullRetry)
+import Streamly.Internal.Syscall.Posix.File
     (defaultOpenFlags, openAt, close)
 import Streamly.Internal.FileSystem.PosixPath (PosixPath(..))
 import System.Posix.Types (Fd(..))

@@ -24,9 +24,9 @@ import System.IO
     )
 import System.IO.Temp (withSystemTempDirectory)
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
-import Streamly.Internal.FileSystem.Posix.File (openFile, withFile)
+import Streamly.Internal.Syscall.Posix.File (openFile, withFile)
 #else
-import Streamly.Internal.FileSystem.Windows.File (openFile, withFile)
+import Streamly.Internal.Syscall.Windows.File (openFile, withFile)
 #endif
 import Test.QuickCheck (Property, forAll, Gen, vectorOf, choose)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)

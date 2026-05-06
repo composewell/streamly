@@ -1,12 +1,12 @@
 -- |
--- Module      : Streamly.Internal.FileSystem.Windows.ReadDir
+-- Module      : Streamly.Internal.Syscall.Windows.ReadDir
 -- Copyright   : (c) 2024 Composewell Technologies
 --
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
 -- Portability : GHC
 
-module Streamly.Internal.FileSystem.Windows.ReadDir
+module Streamly.Internal.Syscall.Windows.ReadDir
     (
 #if defined(mingw32_HOST_OS) || defined(__MINGW32__)
       DirStream

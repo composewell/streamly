@@ -1,6 +1,6 @@
 -- XXX When introducing platform specifc API, see Posix/File.hsc and design in
 -- the same consistent way.
-module Streamly.Internal.FileSystem.Windows.File
+module Streamly.Internal.Syscall.Windows.File
     (
 #if defined(mingw32_HOST_OS) || defined(__MINGW32__)
     -- * Handle based

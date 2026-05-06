@@ -180,9 +180,9 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.FileSystem.Path (Path)
 #if defined(mingw32_HOST_OS) || defined(__MINGW32__)
 import qualified Streamly.Internal.Data.Fold as Fold
-import Streamly.Internal.FileSystem.Windows.ReadDir (eitherReader, reader)
+import Streamly.Internal.Syscall.Windows.ReadDir (eitherReader, reader)
 #else
-import Streamly.Internal.FileSystem.Posix.ReadDir
+import Streamly.Internal.Syscall.Posix.ReadDir
     ( readEitherChunks, eitherReader, reader)
 #endif
 import qualified Streamly.Internal.Data.Stream as S

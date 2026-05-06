@@ -96,9 +96,9 @@ import qualified Streamly.Internal.Data.Fold.Type as FL
     (Step(..), snoc, reduce)
 import qualified Streamly.Internal.FileSystem.Handle as FH
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
-import qualified Streamly.Internal.FileSystem.Posix.File as File
+import qualified Streamly.Internal.Syscall.Posix.File as File
 #else
-import qualified Streamly.Internal.FileSystem.Windows.File as File
+import qualified Streamly.Internal.Syscall.Windows.File as File
 #endif
 
 #include "inline.hs"

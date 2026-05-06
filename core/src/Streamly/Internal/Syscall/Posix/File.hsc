@@ -1,4 +1,4 @@
-module Streamly.Internal.FileSystem.Posix.File
+module Streamly.Internal.Syscall.Posix.File
     (
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
 
@@ -85,7 +85,7 @@ import Foreign.C.Error (throwErrnoIfMinus1_)
 import Foreign.C.String (CString)
 import Foreign.C.Types (CInt(..))
 import GHC.IO.Handle.FD (fdToHandle)
-import Streamly.Internal.FileSystem.Posix.Errno (throwErrnoPathIfMinus1Retry)
+import Streamly.Internal.Syscall.Posix.Errno (throwErrnoPathIfMinus1Retry)
 import Streamly.Internal.FileSystem.PosixPath (PosixPath)
 import System.IO (IOMode(..), Handle)
 import System.Posix.Types (Fd(..), CMode(..))
