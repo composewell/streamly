@@ -16,6 +16,7 @@
 -- encoding.
 
 #if defined(IS_PORTABLE)
+-- In the portable module these are defined as type aliases to actual types
 #define OS_PATH_TYPE Path
 #define OS_WORD_TYPE OsWord
 #define OS_CSTRING_TYPE OsCString
@@ -23,8 +24,8 @@
 #elif defined(IS_WINDOWS)
 #define OS_PATH_TYPE WindowsPath
 #define OS_WORD_TYPE Word16
-#define OS_CSTRING_TYPE CWString
-#define AS_OS_CSTRING asCWString
+#define OS_CSTRING_TYPE Ptr Word16
+#define AS_OS_CSTRING asW16CString
 #else
 #define OS_PATH_TYPE PosixPath
 #define OS_WORD_TYPE Word8
@@ -37,7 +38,7 @@
 #define OS_NAME Windows
 #define OS_PATH WindowsPath
 #define OS_WORD Word16
-#define OS_CSTRING CWString
+#define OS_CSTRING Ptr Word16
 #define UNICODE_ENCODER encodeUtf16le'
 #define UNICODE_DECODER decodeUtf16le'
 #define UNICODE_DECODER_LAX decodeUtf16le
@@ -222,10 +223,11 @@ import Data.Functor.Identity (Identity(..))
 import Data.Maybe (fromJust, isJust)
 import Data.Word (Word8)
 #ifndef IS_WINDOWS
+import Data.Coerce (coerce)
 import Foreign.C (CString)
 #else
 import Data.Word (Word16)
-import Foreign.C (CWString)
+import Foreign (Ptr)
 #endif
 import Language.Haskell.TH.Syntax (lift)
 import Streamly.Internal.Data.Array (Array(..))
@@ -869,13 +871,13 @@ instance Show OS_PATH where
 -- system calls on Posix.
 {-# INLINE AS_OS_CSTRING #-}
 AS_OS_CSTRING :: OS_PATH_TYPE -> (OS_CSTRING_TYPE -> IO a) -> IO a
-AS_OS_CSTRING p = Array.asCStringUnsafe (toArray p)
+AS_OS_CSTRING p = Array.asCString (coerce (toArray p))
 #else
 -- | Use the path as a pinned CWString. Useful for using a WindowsPath in
 -- system calls on Windows.
 {-# INLINE AS_OS_CSTRING #-}
 AS_OS_CSTRING :: OS_PATH_TYPE -> (OS_CSTRING_TYPE -> IO a) -> IO a
-AS_OS_CSTRING p = Array.asCWString (toArray p)
+AS_OS_CSTRING p = Array.asW16CString (toArray p)
 #endif
 
 ------------------------------------------------------------------------------
