@@ -982,8 +982,14 @@ joinDir
             Common.OS_NAME (Common.toString Unicode.UNICODE_DECODER) a b
 #endif
 
+-- NOTE: Even though  appendCString is portable and can be exposed for both
+-- Windows and Posix, appendCWString is different (16-bit vs 32-bit) on Windows
+-- and Posix. Since WindowsPath module is designed to work on both Windows and
+-- Posix, we cannot expose appendCWString as it would use 32-bit string on
+-- Posix even in the Windows module. We will need a fixed appendW16CString for
+-- that.
+
 -- XXX This can be pure, like append.
--- XXX add appendCWString for Windows?
 
 #ifndef IS_WINDOWS
 -- | Append a separator and a CString to the Array. This is like 'unsafeJoin'
