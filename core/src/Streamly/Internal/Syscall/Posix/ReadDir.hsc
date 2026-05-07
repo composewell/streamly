@@ -155,7 +155,7 @@ openDirStreamCString s = do
 -- {-# INLINE openDirStream #-}
 openDirStream :: PosixPath -> IO DirStream
 openDirStream p =
-    Array.asCStringUnsafe (Path.toArray p) $ \s -> do
+    Path.asCString p $ \s -> do
         -- openDirStreamCString s
         dirp <- throwErrnoPathIfNullRetry "openDirStream" p $ c_opendir s
         return (DirStream dirp)
@@ -214,7 +214,7 @@ statEntryType conf parent dname = do
     -- XXX We can create a pinned array right here since the next call pins
     -- it anyway.
     path <- Path.appendCString parent dname
-    Array.asCStringUnsafe (Path.toArray path) $ \cStr -> do
+    Path.asCString path $ \cStr -> do
         res <- stat (_followSymlinks conf) cStr
         case res of
             Right mode -> pure $

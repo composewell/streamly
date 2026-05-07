@@ -52,8 +52,7 @@ getCurrentDirectory = modifyError $ do
 
 -- | Set the current working directory.
 setCurrentDirectory :: Path -> IO ()
-setCurrentDirectory p = modifyError $
-    Syscall.setCwd (toArray p)
+setCurrentDirectory p = modifyError $ Syscall.setCwd p
 
     where
 

@@ -35,11 +35,12 @@ import Foreign.Storable (peekByteOff)
 import GHC.Base (Addr##)
 import GHC.Ptr (Ptr(..))
 import Streamly.Internal.Data.Array.Type (Array(..))
-import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.MutByteArray as MutByteArray
 import Streamly.Internal.Data.MutByteArray.Type
     (MutByteArray, PinnedState(..), unsafeAsPtr)
 import Streamly.Internal.Syscall.Common (retry)
+import Streamly.Internal.FileSystem.PosixPath (PosixPath)
+import qualified Streamly.Internal.FileSystem.PosixPath as Path
 import System.Posix.Types (CMode)
 
 #include <sys/stat.h>
@@ -81,9 +82,9 @@ getCwd = do
 foreign import ccall unsafe "chdir"
     c_chdir :: CString -> IO CInt
 
-setCwd :: Array Word8 -> IO ()
-setCwd arr =
-    Array.asCStringUnsafe arr $
+setCwd :: PosixPath -> IO ()
+setCwd path =
+    Path.asCString path $
         throwErrnoIfMinus1_ "setCwd" . c_chdir
 
 --------------------------------------------------------------------------------
