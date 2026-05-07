@@ -167,7 +167,7 @@ import Data.Word (Word8, Word32)
 import Foreign.C.Error (throwErrnoIfMinus1)
 import Foreign.C.String (CString)
 import Foreign.C.Types (CInt(..), CUInt(..))
-import Foreign.Ptr (Ptr)
+import Foreign.Ptr (Ptr, castPtr)
 import Foreign.Storable (peek, peekByteOff, sizeOf)
 import GHC.IO.Device (IODeviceType(Stream))
 import GHC.IO.FD (fdFD, FD(..))
@@ -191,7 +191,7 @@ import qualified Streamly.Unicode.Stream as U
 import qualified Streamly.Internal.FileSystem.Path as Path
 
 import qualified Streamly.Internal.Data.Array as A
-    ( asCStringUnsafe, unsafePinnedAsPtr
+    ( asNullTerminatedPtr, unsafePinnedAsPtr
     , unsafeSliceOffLen, read
     )
 import qualified Streamly.Internal.FileSystem.DirIO as Dir
@@ -715,9 +715,9 @@ addToWatch cfg@Config{..} watch0@(Watch handle wdMap) root0 path0 = do
     --
     -- XXX The file may have even got deleted and then recreated which we will
     -- never get to know, document this.
-    wd <- A.asCStringUnsafe absPath $ \pathPtr ->
+    wd <- A.asNullTerminatedPtr absPath $ \pathPtr ->
             throwErrnoIfMinus1 ("addToWatch: " ++ utf8ToString absPath) $
-                c_inotify_add_watch (fdFD fd) pathPtr (CUInt createFlags)
+                c_inotify_add_watch (fdFD fd) (castPtr pathPtr) (CUInt createFlags)
 
     -- We add the parent first so that we start getting events for any new
     -- creates and add the new subdirectories on creates while we are adding

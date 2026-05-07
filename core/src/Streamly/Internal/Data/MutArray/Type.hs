@@ -46,8 +46,9 @@ module Streamly.Internal.Data.MutArray.Type
     , unsafeCast
     , asBytes
     , unsafeAsPtr -- XXX asPtr
-    , asCString
-    , asCWString
+    , asCString -- XXX can remove
+    , asCWString -- XXX can remove
+    , asNullTerminatedPtr
 
     -- ** Construction
     , empty
@@ -519,8 +520,8 @@ import Data.Char (ord)
 import Data.Functor.Identity (Identity(..))
 import Data.Proxy (Proxy(..))
 import Data.Word (Word8, Word16)
-import Foreign.C.String (CString, CWString)
-import Foreign.C.Types (CSize(..), CChar, CWchar)
+import Foreign.C.String (CWString)
+import Foreign.C.Types (CSize(..), CWchar)
 import Foreign.Ptr (plusPtr, castPtr)
 import Streamly.Internal.Data.MutByteArray.Type
     ( MutByteArray(..)
@@ -3664,27 +3665,27 @@ unsafeCreateWithPtr' cap pop = do
              ++ "length = " ++ show len ++ ", "
              ++ "capacity = " ++ show cap
 
-asCString :: MutArray a -> (CString -> IO b) -> IO b
-asCString arr act = do
+{-# INLINE asNullTerminatedPtr #-}
+asNullTerminatedPtr :: forall a b. (Unbox a, Num a) =>
+    MutArray a -> (Ptr a -> IO b) -> IO b
+asNullTerminatedPtr arr act = do
     let pinned = isPinned arr
-        req = byteLength arr + SIZE_OF(CChar)
+        req = byteLength arr + SIZE_OF(a)
     arr1 <-
         if byteCapacity arr < req || not pinned
-        then reallocExplicitAs Pinned 1 req arr
+        then reallocExplicitAs Pinned (SIZE_OF(a)) req arr
         else return arr
-    arr2 :: MutArray CChar <- snocUnsafe (unsafeCast arr1) (0 :: CChar)
-    unsafeAsPtr arr2 $ \ptr _ -> act (castPtr ptr)
+    arr2 <- snocUnsafe arr1 (0 :: a)
+    unsafeAsPtr arr2 $ \ptr _ -> act ptr
 
-asCWString :: MutArray a -> (CWString -> IO b) -> IO b
-asCWString arr act = do
-    let pinned = isPinned arr
-        req = byteLength arr + SIZE_OF(CWchar)
-    arr1 <-
-        if byteCapacity arr < req || not pinned
-        then reallocExplicitAs Pinned 1 req arr
-        else return arr
-    arr2 :: MutArray CWchar <- snocUnsafe (unsafeCast arr1) (0 :: CWchar)
-    unsafeAsPtr arr2 $ \ptr _ -> act (castPtr ptr)
+-- | Provides a pinned, null terminated CString pointer (Ptr Word8).
+asCString :: MutArray Word8 -> (Ptr Word8 -> IO b) -> IO b
+asCString = asNullTerminatedPtr
+
+-- | Provides a pinned, null terminated CWString pointer (Ptr CWchar).
+-- Note CWchar is 16-bit wide on Windows and 32-bit wide on Posix.
+asCWString :: MutArray CWchar -> (CWString -> IO b) -> IO b
+asCWString = asNullTerminatedPtr
 
 -------------------------------------------------------------------------------
 -- Equality

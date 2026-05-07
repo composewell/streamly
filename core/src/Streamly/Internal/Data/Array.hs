@@ -43,8 +43,9 @@ module Streamly.Internal.Data.Array
     , cast
     , asBytes
     , unsafeCast
-    , asCStringUnsafe -- XXX asCString
-    , asCWString
+    , asCString -- XXX can remove
+    , asCWString -- XXX can remove
+    , asNullTerminatedPtr
 
     -- * Subarrays
     -- , sliceOffLen
@@ -107,6 +108,7 @@ module Streamly.Internal.Data.Array
     , splitOn
     , fold
     , foldBreakChunksK
+    , asCStringUnsafe
     )
 where
 
@@ -121,7 +123,9 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity(..))
 import Data.Proxy (Proxy(..))
 import Data.Word (Word8)
+import Foreign (Ptr, castPtr)
 import Foreign.C.String (CString, CWString)
+import Foreign.C.Types (CWchar)
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Unbox (Unbox(..))
 import Prelude hiding (length, null, last, map, (!!), read, concat)
@@ -396,12 +400,20 @@ streamTransform f arr =
 -- Casts
 -------------------------------------------------------------------------------
 
--- | Cast an array having elements of type @a@ into an array having elements of
--- type @b@. The array size must be a multiple of the size of type @b@
--- otherwise accessing the last element of the array may result into a crash or
--- a random value.
+-- | Unsafely reinterpret an array of @a@ as an array of @b@.
 --
--- /Pre-release/
+-- The 'byteLength' of the array must be a multiple of the size of @b@.
+-- Additionally, the start offset of the array must satisfy the alignment
+-- requirements of @b@ whenever the target platform or element access
+-- operations require aligned memory accesses.
+--
+-- Violating these requirements results in undefined behavior, including
+-- possible crashes or invalid values.
+--
+-- If @a@ and @b@ have the same runtime representation, prefer using
+-- 'coerce', which is safe:
+--
+-- >> unsafeCast = coerce
 --
 unsafeCast, castUnsafe :: Array a -> Array b
 unsafeCast (Array contents start end) =
@@ -414,11 +426,14 @@ RENAME(castUnsafe,unsafeCast)
 asBytes :: Array a -> Array Word8
 asBytes = unsafeCast
 
--- | Cast an array having elements of type @a@ into an array having elements of
--- type @b@. The length of the array should be a multiple of the size of the
--- target element otherwise 'Nothing' is returned.
+-- | Attempt to reinterpret an array as containing elements of type @b@.
 --
+-- Returns 'Nothing' if the byte length of the array is not a multiple
+-- of the size of @b@.
 --
+-- This function does not validate alignment requirements for @b@.
+-- If stricter alignment is required, copy the array into a properly
+-- aligned buffer before casting.
 cast :: forall a b. (Unbox b) => Array a -> Maybe (Array b)
 cast arr =
     let len = byteLength arr
@@ -436,11 +451,12 @@ cast arr =
 --
 -- /Pre-release/
 --
+{-# DEPRECATED asCStringUnsafe "Please use asCString instead." #-}
 asCStringUnsafe :: Array a -> (CString -> IO b) -> IO b
-asCStringUnsafe arr = MA.asCString (unsafeThaw arr)
+asCStringUnsafe arr act =
+    MA.asCString (unsafeThaw (unsafeCast arr)) $ \ptr -> act (castPtr ptr)
 
--- | Convert an array of any element type into a null terminated CWString Ptr.
--- The array is copied to pinned memory.
+-- | Use an array of CChar as a null terminated CString Ptr in pinned memory.
 --
 -- /Unsafe/
 --
@@ -448,8 +464,23 @@ asCStringUnsafe arr = MA.asCString (unsafeThaw arr)
 --
 -- /Pre-release/
 --
-asCWString :: Array a -> (CWString -> IO b) -> IO b
+asCString :: Array Word8 -> (Ptr Word8 -> IO b) -> IO b
+asCString arr = MA.asCString (unsafeThaw arr)
+
+-- | Use an array of CWchar as a null terminated CWString Ptr in pinned memory.
+--
+-- /Unsafe/
+--
+-- /O(n) Time: (creates a copy of the array)/
+--
+-- /Pre-release/
+--
+asCWString :: Array CWchar -> (CWString -> IO b) -> IO b
 asCWString arr = MA.asCWString (unsafeThaw arr)
+
+{-# INLINE asNullTerminatedPtr #-}
+asNullTerminatedPtr :: (Unbox a, Num a) => Array a -> (Ptr a -> IO b) -> IO b
+asNullTerminatedPtr arr = MA.asNullTerminatedPtr (unsafeThaw arr)
 
 -------------------------------------------------------------------------------
 -- Folds
