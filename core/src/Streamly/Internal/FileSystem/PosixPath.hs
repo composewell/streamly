@@ -223,8 +223,8 @@ import Data.Functor.Identity (Identity(..))
 import Data.Maybe (fromJust, isJust)
 import Data.Word (Word8)
 #ifndef IS_WINDOWS
-import Data.Coerce (coerce)
 import Foreign.C (CString)
+import Foreign (castPtr)
 #else
 import Data.Word (Word16)
 import Foreign (Ptr)
@@ -871,13 +871,14 @@ instance Show OS_PATH where
 -- system calls on Posix.
 {-# INLINE AS_OS_CSTRING #-}
 AS_OS_CSTRING :: OS_PATH_TYPE -> (OS_CSTRING_TYPE -> IO a) -> IO a
-AS_OS_CSTRING p = Array.asCString (coerce (toArray p))
+AS_OS_CSTRING p act =
+    Array.asNullTerminatedPtr (toArray p) $ \ptr -> act (castPtr ptr)
 #else
 -- | Use the path as a pinned CWString. Useful for using a WindowsPath in
 -- system calls on Windows.
 {-# INLINE AS_OS_CSTRING #-}
 AS_OS_CSTRING :: OS_PATH_TYPE -> (OS_CSTRING_TYPE -> IO a) -> IO a
-AS_OS_CSTRING p = Array.asW16CString (toArray p)
+AS_OS_CSTRING p = Array.asNullTerminatedPtr (toArray p)
 #endif
 
 ------------------------------------------------------------------------------
