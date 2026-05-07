@@ -3263,7 +3263,7 @@ unsafeSplice dst src = do
          (arrContents src) startSrc (arrContents dst) endDst srcLen
      return $ dst {arrEnd = endDst + srcLen}
 
--- | Append specified number of bytes from a given pointer to the MutArray.
+-- | Append specified number of Ptr items from a given pointer to the MutArray.
 --
 -- /Unsafe:/
 --
@@ -3274,20 +3274,22 @@ unsafeSplice dst src = do
 -- 3. the pointer passed is valid up to the given length.
 --
 {-# INLINE unsafeAppendPtrN #-}
-unsafeAppendPtrN :: MonadIO m =>
-    MutArray Word8 -> Ptr Word8 -> Int -> m (MutArray Word8)
-unsafeAppendPtrN arr ptr ptrLen = do
-    let newEnd = arrEnd arr + ptrLen
+unsafeAppendPtrN :: forall m a. (MonadIO m, Unbox a) =>
+    MutArray a -> Ptr a -> Int -> m (MutArray a)
+unsafeAppendPtrN arr ptr count = do
+    let byteCount = count * SIZE_OF(a)
+    let newEnd = arrEnd arr + byteCount
     assertM(newEnd <= arrBound arr)
-    Unboxed.unsafePutPtrN ptr (arrContents arr) (arrEnd arr) ptrLen
+    Unboxed.unsafePutPtrN
+        (castPtr ptr) (arrContents arr) (arrEnd arr) byteCount
     return $ arr {arrEnd = newEnd}
 
 {-# INLINE appendPtrN #-}
-appendPtrN :: MonadIO m =>
-    MutArray Word8 -> Ptr Word8 -> Int -> m (MutArray Word8)
-appendPtrN arr ptr ptrLen = do
-    arr1 <- growBy ptrLen arr
-    unsafeAppendPtrN arr1 ptr ptrLen
+appendPtrN :: (Unbox a, MonadIO m) =>
+    MutArray a -> Ptr a -> Int -> m (MutArray a)
+appendPtrN arr ptr count = do
+    arr1 <- growBy count arr
+    unsafeAppendPtrN arr1 ptr count
 
 -- | @spliceWith sizer dst src@ mutates @dst@ to append @src@. If there is no
 -- reserved space available in @dst@ it is reallocated to a size determined by
