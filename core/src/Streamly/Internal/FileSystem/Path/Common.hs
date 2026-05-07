@@ -59,8 +59,7 @@ module Streamly.Internal.FileSystem.Path.Common
     , unsafeAppend
     , appendCString
     , appendCString'
-    , appendCWString
-    , appendCWString'
+    , appendCStringWith
     , unsafeJoinPaths
  -- , joinRoot -- XXX append should be enough, see joinRootBody
 
@@ -128,7 +127,7 @@ import Data.Function ((&))
 import Data.Functor.Identity (Identity(..))
 import Data.Word (Word8, Word16)
 import Foreign (castPtr)
-import Foreign.C (CString, CSize(..), CWchar, CWString)
+import Foreign.C (CString, CSize(..))
 import GHC.Base (unsafeChr, Addr#)
 import GHC.Ptr (Ptr(..))
 import Language.Haskell.TH (Q, Exp)
@@ -1541,19 +1540,6 @@ appendCString' :: OS -> Array Word8 -> CString -> IO (Array Word8)
 appendCString' os arr cstr =
     appendCStringWith MutArray.emptyOf' c_strlen_pinned os arr (castPtr cstr)
 
-foreign import ccall unsafe "wchar.h wcslen" c_wcslen_pinned
-    :: Addr# -> IO CSize
-
--- | NOTE: CWchar is 16-bit wide on Windows and 32-bit wide on Posix. wcslen is
--- available on both Posix and Windows and counts accordingly in units of
--- 2-bytes or 4-bytes.
-{-# INLINE appendCWString #-}
-appendCWString :: OS -> Array CWchar -> CWString -> IO (Array CWchar)
-appendCWString = appendCStringWith MutArray.emptyOf c_wcslen_pinned
-
-{-# INLINE appendCWString' #-}
-appendCWString' :: OS -> Array CWchar -> CWString -> IO (Array CWchar)
-appendCWString' = appendCStringWith MutArray.emptyOf' c_wcslen_pinned
 
 {-# INLINE doAppend #-}
 doAppend :: (Unbox a, Integral a) => OS -> Array a -> Array a -> Array a

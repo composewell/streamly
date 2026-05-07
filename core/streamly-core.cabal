@@ -419,6 +419,7 @@ library
                      , Streamly.Internal.Syscall.Common
                      , Streamly.Internal.Syscall.Posix
                      , Streamly.Internal.Syscall.Windows
+                     , Streamly.Internal.Syscall.Windows.Common
                      , Streamly.Internal.Syscall.Windows.ReadDir
                      , Streamly.Internal.Syscall.Windows.File
                      , Streamly.Internal.FileSystem.FileIO

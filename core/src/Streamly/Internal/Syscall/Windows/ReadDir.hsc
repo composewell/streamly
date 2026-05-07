@@ -6,6 +6,8 @@
 -- Maintainer  : streamly@composewell.com
 -- Portability : GHC
 
+{-# LANGUAGE UnliftedFFITypes #-}
+
 module Streamly.Internal.Syscall.Windows.ReadDir
     (
 #if defined(mingw32_HOST_OS) || defined(__MINGW32__)
@@ -29,6 +31,7 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Char (ord, isSpace)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import GHC.Base (Addr##)
 import Foreign.C
     ( CInt(..), CSize(..), CWchar(..), Errno(..)
     , errnoToIOError, peekCWString
@@ -44,12 +47,15 @@ import Streamly.Internal.FileSystem.WindowsPath (WindowsPath(..))
 import System.IO.Error (ioeSetErrorString)
 
 import qualified Streamly.Internal.Data.Array as Array
+import qualified Streamly.Internal.Data.MutArray as MutArray
 import qualified Streamly.Internal.Data.MutByteArray as MutByteArray
 import qualified Streamly.Internal.Data.Unfold as UF (bracketIO)
+import qualified Streamly.Internal.FileSystem.Path.Common as PathC
 import qualified Streamly.Internal.FileSystem.WindowsPath as Path
 import qualified System.Win32 as Win32 (failWith)
 
 import Streamly.Internal.FileSystem.DirOptions
+import Streamly.Internal.Syscall.Windows.Common (asCWString)
 import Foreign hiding (void)
 
 #include <windows.h>
@@ -95,8 +101,11 @@ foreign import ccall unsafe "windows.h LocalFree"
   localFree :: Ptr a -> IO (Ptr a)
 
 ------------------------------------------------------------------------------
--- Haskell C APIs
+-- FFI imports/Haskell C APIs
 ------------------------------------------------------------------------------
+
+foreign import ccall unsafe "string.h memcpy" c_memcpy
+    :: Ptr Word8 -> Ptr Word8 -> CSize -> IO (Ptr Word8)
 
 foreign import ccall unsafe "maperrno_func" -- in base/cbits/Win32Utils.c
   c_maperrno_func :: ErrCode -> IO Errno
@@ -145,6 +154,32 @@ iNVALID_HANDLE_VALUE :: HANDLE
 iNVALID_HANDLE_VALUE = castUINTPtrToPtr maxBound
 
 ------------------------------------------------------------------------------
+-- Path string manipulation
+------------------------------------------------------------------------------
+
+foreign import ccall unsafe "wchar.h wcslen" c_wcslen
+    :: Ptr CWchar -> IO CSize
+
+foreign import ccall unsafe "wchar.h wcslen" c_wcslen_pinned
+    :: Addr## -> IO CSize
+
+-- This is defined here and not in Path module because wcslen is a platform
+-- specific function and uses 32-bit wide chars on posix and 16-bit wide chars
+-- on Windows. We cannot have it in WindowsPath module because that module is
+-- plaform agnostic and works on Posix as well.
+--
+{-# INLINE appendW16CString #-}
+appendW16CString :: WindowsPath -> Ptr CWchar -> IO WindowsPath
+appendW16CString (WindowsPath arr) str =
+    fmap WindowsPath
+        $ PathC.appendCStringWith
+            MutArray.emptyOf
+            c_wcslen_pinned
+            PathC.Windows
+            arr
+            (castPtr str)
+
+------------------------------------------------------------------------------
 -- Dir stream implementation
 ------------------------------------------------------------------------------
 
@@ -158,14 +193,13 @@ openDirStream p = do
     fp_finddata <- mallocForeignPtrBytes (# const sizeof(WIN32_FIND_DATAW) )
     withForeignPtr fp_finddata $ \dataPtr -> do
         handle <-
-            -- XXX should it be asCWString, so we do not need to use castPtr
-            Array.asCStringUnsafe (Path.toArray path) $ \pathPtr -> do
+            asCWString path $ \pathPtr -> do
                 -- XXX Use getLastError to distinguish the case when no
                 -- matching file is found. See the doc of FindFirstFileW.
                 failIf
                     (== iNVALID_HANDLE_VALUE)
                     ("FindFirstFileW: " ++ Path.toString path)
-                    $ c_FindFirstFileW (castPtr pathPtr) dataPtr
+                    $ c_FindFirstFileW pathPtr dataPtr
         ref <- newIORef True
         return $ DirStream (handle, ref, fp_finddata)
 
@@ -358,11 +392,8 @@ readEitherChunks _confMod alldirs =
                     if isMeta
                     then return $ Skip st
                     else do
-                        arr <- liftIO $ Array.fromW16CString dname
-                        let path =
-                                Path.unsafeJoin curdir
-                                    (Path.unsafeFromArray arr)
-                            dirs1 = path : dirs
+                        path <- liftIO $ appendW16CString curdir dname
+                        let dirs1 = path : dirs
                             ndirs1 = ndirs + 1
                         if ndirs1 >= dirMax
                         then return $ Yield (Left dirs1)
@@ -371,11 +402,8 @@ readEitherChunks _confMod alldirs =
                             (ChunkStreamLoop
                                 curdir xs ds dirs1 ndirs1 files nfiles)
                 else do
-                    arr <- liftIO $ Array.fromW16CString dname
-                    let path =
-                            Path.unsafeJoin curdir
-                                (Path.unsafeFromArray arr)
-                        files1 = path : files
+                    path <- liftIO $ appendW16CString curdir dname
+                    let files1 = path : files
                         nfiles1 = nfiles + 1
                     if nfiles1 >= fileMax
                     then return $ Yield (Right files1)
@@ -391,12 +419,6 @@ readEitherChunks _confMod alldirs =
 ------------------------------------------------------------------------------
 -- Chunked byte-buffered reads
 ------------------------------------------------------------------------------
-
-foreign import ccall unsafe "string.h memcpy" c_memcpy
-    :: Ptr Word8 -> Ptr Word8 -> CSize -> IO (Ptr Word8)
-
-foreign import ccall unsafe "wchar.h wcslen" c_wcslen
-    :: Ptr CWchar -> IO CSize
 
 -- Split a list in half.
 splitHalf :: [a] -> ([a], [a])
@@ -430,8 +452,6 @@ data ChunkStreamByteState =
         MutByteArray
         Int
 
--- TODO: instead of unsafeJoin use appendCWString
---
 -- NOTE: Unlike posix on Windows the file attribute to determine whether it is
 -- a directory or not is always available so we do not need the code to handle
 -- the case when they are not available, on Posix we need to use stat
@@ -597,10 +617,8 @@ readEitherByteChunks _confMod alldirs =
 
                 {-# INLINE handleDirEnt #-}
                 handleDirEnt pos dname = do
-                    arr <- liftIO $ Array.fromW16CString dname
-                    let path =
-                            Path.unsafeJoin curdir (Path.unsafeFromArray arr)
-                        dirs1 = path : dirs
+                    path <- liftIO $ appendW16CString curdir dname
+                    let dirs1 = path : dirs
                     r <- copyToBuf mbarr pos curdir dname
                     case r of
                         Just pos1 -> goInner dirs1 pos1

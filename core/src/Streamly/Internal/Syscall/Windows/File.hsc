@@ -33,8 +33,10 @@ import GHC.IO.Handle.FD (fdToHandle')
 import qualified Streamly.Internal.FileSystem.File.Common as File
 import qualified Streamly.Internal.FileSystem.WindowsPath as Path
 
+-- Non-explicit imports
 import Data.Bits
 import Foreign.Ptr
+import Streamly.Internal.Syscall.Windows.Common
 import System.Win32 as Win32 hiding (createFile, failIfWithRetry)
 
 #include <windows.h>
@@ -87,7 +89,7 @@ createFile ::
     -> Maybe Win32.HANDLE
     -> IO Win32.HANDLE
 createFile name access share mb_attr mode flag mb_h =
-  Path.asCWString name $ \c_name ->
+  asCWString name $ \c_name ->
       failIfWithRetry
         (== iNVALID_HANDLE_VALUE)
         (unwords ["CreateFile", Path.toString name])

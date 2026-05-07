@@ -27,6 +27,8 @@ module Streamly.Internal.Syscall.Windows
 
 import Control.Monad (when)
 import Data.Word (Word16)
+import Foreign (Ptr)
+import Foreign.C (CWchar(..), CWString(..))
 import System.Win32.Types (BOOL, DWORD, LPTSTR, UINT, failIfFalse_)
 import qualified System.Win32 as Win32 (failWith)
 import Streamly.Internal.Data.Array.Type (Array(..))
@@ -34,10 +36,15 @@ import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.MutByteArray as MutByteArray
 import Streamly.Internal.Data.MutByteArray.Type
     (MutByteArray, PinnedState(..), unsafeAsPtr)
+import Streamly.Internal.FileSystem.WindowsPath (WindowsPath)
+import qualified Streamly.Internal.FileSystem.WindowsPath as Path
 import Streamly.Internal.Syscall.Common (retry)
 
-foreign import WINDOWS_CCONV unsafe "GetCurrentDirectoryW"
-  c_getCurrentDirectory :: DWORD -> LPTSTR -> IO UINT
+-- Non-explicit import
+import Streamly.Internal.Syscall.Windows.Common
+
+foreign import WINDOWS_CCONV unsafe "windows.h GetCurrentDirectoryW"
+  c_getCurrentDirectory :: DWORD -> LPTSTR -> IO DWORD
 
 foreign import ccall unsafe "windows.h GetLastError"
     c_GetLastError :: IO DWORD
@@ -66,10 +73,9 @@ getCwd = do
     mba <- MutByteArray.rightSizeAs Unpinned (len * 2) arr
     return (Array mba 0 (fromIntegral (len * 2)))
 
-foreign import WINDOWS_CCONV unsafe "SetCurrentDirectoryW"
-    c_setCurrentDirectory :: LPTSTR -> IO BOOL
+foreign import WINDOWS_CCONV unsafe "windows.h SetCurrentDirectoryW"
+    c_SetCurrentDirectoryW :: LPTSTR -> IO BOOL
 
-setCwd :: Array Word16 -> IO ()
-setCwd arr =
-    Array.asCWString arr (failIfFalse_ "setCwd" . c_setCurrentDirectory)
+setCwd :: WindowsPath -> IO ()
+setCwd arr = asCWString arr (failIfFalse_ "setCwd" . c_SetCurrentDirectoryW)
 #endif
