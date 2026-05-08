@@ -383,10 +383,27 @@ data ChunkStreamState =
         [PosixPath] -- files buffered
         Int -- file count
 
--- XXX We can use a fold for collecting files and dirs.
--- A fold may be useful to translate the output to whatever format we want, we
--- can add a prefix or we can colorize it. The Right output would be the output
--- of the fold which can be any type not just a Path.
+-- XXX By using a fold we can unify readEitherChunks and readEitherByteChunks.
+-- For chunks we need to pass toList as the fold, and for ByteChunks we can
+-- pass a Fold m Path (Array Word). The Right output would be the output of the
+-- fold which can be any type not just a Path. The fold itself can perform
+-- transformations on the path e.g. colorization, filtering. In general we can
+-- use a (Path -> Maybe Path) function to do the transformations, for Path
+-- stream we can map it over the stream and for Folds we can use it to build
+-- the fold.
+--
+-- When using a fold compared to directly writing to an Array we have to make
+-- one more copy of each Path element to copy it from the readdir buffer
+-- (because it will go away) to a Path data type. However, the Path will be
+-- quickly written down to the Array while it is still hot in L1 cache, so
+-- there should not be much noticeable difference in perf.
+--
+-- Things that need to be controlled at the level of readdir and not after
+-- should be passed as readdir options e.g. maxDepth could be one such option
+-- because readdir has the visibility over it post-filtering would be
+-- inefficient. If we have to control it outside readdir we can efficiently
+-- control it by controlling the depth of the directories being fed back to
+-- concatIterate.
 
 -- XXX We can write a two fold scan to buffer and yield whichever fills first
 -- like foldMany, it would be foldEither.
@@ -469,6 +486,7 @@ foreign import ccall unsafe "string.h memcpy" c_memcpy
 foreign import ccall unsafe "string.h strlen" c_strlen
     :: Ptr CChar -> IO CSize
 
+-- XXX Move this to common
 -- Split a list in half.
 splitHalf :: [a] -> ([a], [a])
 splitHalf xxs = split xxs xxs
