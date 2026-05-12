@@ -656,6 +656,23 @@ classify =
         Data.Map.fromList
         [("ONE",[1.0, 1.1 :: Double]), ("TWO",[2.0, 2.2])]
 
+-- classifyScan emits Just (k, b) each time the per-key fold completes, Nothing
+-- otherwise; once a key's fold is done, further values for that key are dropped.
+classifyScan :: Expectation
+classifyScan =
+    let getKey = fst
+        innerFold = Fold.lmap snd (Fold.take 2 Fold.sum)
+        input = Stream.fromList
+            [ ("ONE", 1::Int)
+            , ("TWO", 2)
+            , ("ONE", 3)   -- ONE fold completes: 1+3 = 4
+            , ("TWO", 4)   -- TWO fold completes: 2+4 = 6
+            , ("ONE", 5)   -- ONE already done, dropped
+            ]
+    in Stream.fold Fold.toList
+        (Stream.postscanlMaybe (Fold.classifyScan getKey innerFold) input)
+        `shouldReturn` [("ONE", 4), ("TWO", 6)]
+
 splitAt :: Expectation
 splitAt =
     Stream.fold
@@ -739,6 +756,7 @@ main = hspec $ do
         prop "demuxWith" demuxWith
         prop "classifyWith" classifyWith
         prop "classify" classify
+        prop "classifyScan" classifyScan
 
         -- Terminating folds
         prop "index" index
