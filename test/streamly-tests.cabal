@@ -15,6 +15,11 @@ flag limit-build-mem
   manual: True
   default: False
 
+flag limit-test-mem
+  description: Limits the RTS heap to 2 GB when running the tests
+  manual: True
+  default: True
+
 flag use-large-mem
   description: Include tests that require large amount of memory
   manual: True
@@ -206,6 +211,8 @@ common test-options
     -rtsopts
     -with-rtsopts "-t"
     -fno-ignore-asserts
+  if flag(limit-test-mem)
+    ghc-options: -with-rtsopts=-M2G
   include-dirs: .
   build-depends: streamly-tests
 
@@ -221,6 +228,8 @@ common always-optimized
                -rtsopts
                -with-rtsopts "-t"
                -fno-ignore-asserts
+  if flag(limit-test-mem)
+    ghc-options: -with-rtsopts=-M2G
   if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
     ghc-options: -fplugin Fusion.Plugin
 
@@ -558,6 +567,8 @@ test-suite Network.Inet.TCP
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Network/Inet/TCP.hs
   ghc-options: -rtsopts -fno-ignore-asserts
+  if flag(limit-test-mem)
+    ghc-options: -with-rtsopts=-M2G
   include-dirs: .
   build-depends: streamly-tests
   -- Cannot killThread in listen/accept on Windows threaded runtime
@@ -571,6 +582,8 @@ test-suite Network.Socket
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Network/Socket.hs
   ghc-options: -rtsopts -fno-ignore-asserts
+  if flag(limit-test-mem)
+    ghc-options: -with-rtsopts=-M2G
   include-dirs: .
   build-depends: streamly-tests
   -- Cannot killThread in listen/accept on Windows threaded runtime
