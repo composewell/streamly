@@ -200,6 +200,23 @@ runTests tmpDir = do
                testCorrectness pathsBig (listDirChunkParInterleaved id bigTree)
             it "listDirChunkParOrdered" $
                testCorrectness pathsBig (listDirChunkParOrdered id bigTree)
+            it "listDirChunkFoldDfs" $
+               testCorrectness (tail pathsBig) (listDirChunkFoldDfs id bigTree)
+            it "listDirChunkFoldBfs" $
+               testCorrectness (tail pathsSmall) (listDirChunkFoldBfs id smallTree)
+            it "listDirChunkFoldBfsRev" $
+               testCorrectness (tail pathsSmall) (listDirChunkFoldBfsRev id smallTree)
+            it "listDirChunkFoldAppend" $
+               testCorrectness (tail pathsBig) (listDirChunkFoldAppend id bigTree)
+            it "listDirChunkFoldInterleave" $
+               testCorrectness (tail pathsBig) (listDirChunkFoldInterleave id bigTree)
+            it "listDirChunkFoldPar" $
+               testCorrectness (tail pathsBig) (listDirChunkFoldPar id bigTree)
+            it "listDirChunkFoldParInterleaved" $
+               testCorrectness
+                   (tail pathsBig) (listDirChunkFoldParInterleaved id bigTree)
+            it "listDirChunkFoldParOrdered" $
+               testCorrectness (tail pathsBig) (listDirChunkFoldParOrdered id bigTree)
         testSymLinkFollow tmpDir
 
 -- | List the current directory recursively
