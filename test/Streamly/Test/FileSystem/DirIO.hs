@@ -6,8 +6,6 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-{-# LANGUAGE CPP #-}
-
 {-# OPTIONS_GHC -Wno-unrecognised-warning-flags #-}
 {-# OPTIONS_GHC -Wno-x-partial #-}
 
@@ -19,9 +17,7 @@ module Main (main) where
 
 import Data.Word (Word8)
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
-#if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
 import Streamly.Data.Array (Array)
-#endif
 import System.Directory (createDirectoryLink)
 import System.FilePath ((</>))
 import System.IO.Temp (withSystemTempDirectory)
@@ -57,7 +53,6 @@ testCorrectness expectation lister = do
             $ Unicode.decodeUtf8 lister
     reality `shouldBe` expectation
 
-#if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
 testCorrectnessByteChunked
     :: [FilePath] -> Stream.Stream IO (Array Word8) -> Expectation
 testCorrectnessByteChunked expectation lister = do
@@ -69,7 +64,6 @@ testCorrectnessByteChunked expectation lister = do
              $ Unicode.lines Fold.toList
              $ Unicode.decodeUtf8Chunks lister
     reality `shouldBe` expectation
-#endif
 
 testSymLinkFollow :: FilePath -> Spec
 testSymLinkFollow tmpDir = do
@@ -154,11 +148,9 @@ runTests tmpDir = do
     hspec $
       describe moduleName $ do
         describe "Sanity" $ do
-#if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
             it "listDirByteChunked" $
                 testCorrectnessByteChunked
                     (tail pathsBig) (listDirByteChunked bigTree)
-#endif
             -- NOTE: The BFS traversal fails with:
             -- openDirStream: resource exhausted (Too many open files)
             -- if a bigger directory tree is used
