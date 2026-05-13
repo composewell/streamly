@@ -128,6 +128,7 @@ module Streamly.Internal.FileSystem.DirIO
     , readEither
     , readEitherPaths
     , OS.readEitherChunks
+    , OS.readEitherFold
     , OS.readEitherByteChunks
     , readEitherChunksPortable
 
