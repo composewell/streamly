@@ -314,8 +314,9 @@ sendExceptionToDriver :: Channel m a b -> SomeException -> IO ()
 sendExceptionToDriver sv e = do
     tid <- myThreadId
     writeIORef (closedForInput sv) True
-    void $ tryPutMVar (inputSpaceDoorBell sv) ()
+    -- Should ring the doorbell after sending the message
     void $ sendToDriver sv (FoldException tid e)
+    void $ tryPutMVar (inputSpaceDoorBell sv) ()
 
 data FromSVarState m a b =
       FromSVarRead (Channel m a b)
