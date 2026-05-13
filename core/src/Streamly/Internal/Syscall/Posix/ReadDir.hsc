@@ -19,6 +19,7 @@ module Streamly.Internal.Syscall.Posix.ReadDir
     , closeDirStream
     , readDirStreamEither
     , readEitherChunks
+    , readEitherFold
     , readEitherByteChunks
     , readEitherByteChunksAt
     , eitherReader
@@ -43,6 +44,7 @@ import Foreign.C
 import Foreign.Storable (poke)
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Array (Array(..))
+import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.MutByteArray (MutByteArray)
 import Streamly.Internal.Data.Scanl (Scanl)
 import Streamly.Internal.Data.Stream (Stream(..), Step(..))
@@ -55,6 +57,7 @@ import Streamly.Internal.FileSystem.PosixPath (PosixPath(..))
 import System.Posix.Types (Fd(..))
 
 import qualified Streamly.Internal.Data.Array as Array
+import qualified Streamly.Internal.Data.Fold.Type as Fold
 import qualified Streamly.Internal.Data.MutByteArray as MutByteArray
 import qualified Streamly.Internal.Data.Unfold as UF (bracketIO)
 import qualified Streamly.Internal.FileSystem.PosixPath as Path
@@ -478,6 +481,164 @@ readEitherChunks confMod alldirs =
                 if (n == 0)
                 then return $ Skip (ChunkStreamInit xs dirs ndirs files nfiles)
                 else liftIO $ throwErrno "readEitherChunks"
+
+{-# ANN type ChunkFoldStreamState Fuse #-}
+data ChunkFoldStreamState fs b =
+      -- | Fold not yet initialized. Fields: input dirs, buffered output
+      -- dirs, output dir count.
+      ChunkFoldStart [PosixPath] [PosixPath] Int
+      -- | Fold initialized; need to open next dir. Fields: input dirs,
+      -- buffered output dirs, output dir count, fold state, whether the
+      -- current fold instance has consumed any input.
+    | ChunkFoldNext [PosixPath] [PosixPath] Int fs Bool
+      -- | Iterating in a dir.
+    | ChunkFoldLoop
+        PosixPath   -- current dir path
+        [PosixPath] -- remaining input dirs
+        (Ptr CDir)  -- current dir stream
+        [PosixPath] -- buffered output dirs
+        Int         -- output dir count
+        fs          -- fold state
+        Bool        -- whether the fold has consumed any input
+      -- | Fold returned Done while in a dir loop; re-init and continue.
+    | ChunkFoldLoopReinit
+        PosixPath
+        [PosixPath]
+        (Ptr CDir)
+        [PosixPath]
+        Int
+      -- | Yield a value, then transition to the wrapped state.
+    | ChunkFoldYield (Either [PosixPath] b) (ChunkFoldStreamState fs b)
+    | ChunkFoldStop
+
+-- XXX the basic readdir can emit (Path, Maybe FileType) tuples, the fold can
+-- be implemented on top of that. The stat for followSymlinks can also be done
+-- by the recursive traversal handler. That will be more modular.
+--
+-- XXX Like readEitherByteChunks we may want to splitHalf the pending work
+-- items and return that whenever the buffer is filled, so that other workers
+-- can pick it up.
+
+-- | Like 'readEitherChunks' but collects entries using a 'Fold' instead of
+-- buffering into a list. All entries (both directories and files) are fed to
+-- the fold. The fold output @b@ is yielded as @Right@ each time the fold
+-- terminates; directory paths are additionally yielded as @Left@ in chunks so
+-- the caller can recurse into them. When the traversal completes, the fold's
+-- @final@ is invoked and its result is yielded only if the fold consumed at
+-- least one path (matching 'Streamly.Internal.Data.Stream.foldMany'
+-- semantics).
+{-# INLINE readEitherFold #-}
+readEitherFold
+    :: MonadIO m
+    => (ReadOptions -> ReadOptions)
+    -> [PosixPath]
+    -> Fold m PosixPath b
+    -> Stream m (Either [PosixPath] b)
+readEitherFold confMod alldirs (Fold fstep finitial _ ffinal) =
+    Stream step (ChunkFoldStart alldirs [] 0)
+
+    where
+
+    conf = confMod defaultReadOptions
+
+    -- We want to keep the dir batching as low as possible for better
+    -- concurrency esp when the number of dirs is low.
+    dirMax = 4
+
+    step _ (ChunkFoldYield x next) = return $ Yield x next
+
+    step _ ChunkFoldStop = return Stop
+
+    step _ (ChunkFoldStart xs dirs ndirs) = do
+        r <- finitial
+        case r of
+            Fold.Done b ->
+                return $ Yield (Right b) (ChunkFoldStart xs dirs ndirs)
+            Fold.Partial fs ->
+                return $ Skip (ChunkFoldNext xs dirs ndirs fs False)
+
+    step _ (ChunkFoldLoopReinit curdir xs dirp dirs ndirs) = do
+        r <- finitial
+        case r of
+            Fold.Done b ->
+                return $ Yield (Right b)
+                    (ChunkFoldLoopReinit curdir xs dirp dirs ndirs)
+            Fold.Partial fs ->
+                return $ Skip (ChunkFoldLoop curdir xs dirp dirs ndirs fs False)
+
+    step _ (ChunkFoldNext (x:xs) dirs ndirs fs nonEmpty) = do
+        DirStream dirp <- liftIO $ openDirStream x
+        return $ Skip (ChunkFoldLoop x xs dirp dirs ndirs fs nonEmpty)
+
+    step _ (ChunkFoldNext [] dirs _ fs nonEmpty) = do
+        b <- ffinal fs
+        case (nonEmpty, dirs) of
+            (False, []) -> return Stop
+            (False, _) -> return $ Yield (Left dirs) ChunkFoldStop
+            (True, []) -> return $ Yield (Right b) ChunkFoldStop
+            (True, _) ->
+                return $ Yield (Right b)
+                    (ChunkFoldYield (Left dirs) ChunkFoldStop)
+
+    step _ st@(ChunkFoldLoop curdir xs dirp dirs ndirs fs nonEmpty) = do
+        liftIO resetErrno
+        dentPtr <- liftIO $ c_readdir dirp
+        if (dentPtr /= nullPtr)
+        then do
+            let dname = #{ptr struct dirent, d_name} dentPtr
+            dtype :: #{type unsigned char} <-
+                liftIO $ #{peek struct dirent, d_type} dentPtr
+
+            etype <- liftIO $ getEntryType conf curdir dname dtype
+            case etype of
+                EntryIsDir -> do
+                    path <- liftIO $ Path.appendCString curdir dname
+                    let dirs1 = path : dirs
+                        ndirs1 = ndirs + 1
+                    r <- fstep fs path
+                    case r of
+                        Fold.Done b ->
+                            if ndirs1 >= dirMax
+                            then return $ Yield (Right b)
+                                (ChunkFoldYield (Left dirs1)
+                                    (ChunkFoldLoopReinit
+                                        curdir xs dirp [] 0))
+                            else return $ Yield (Right b)
+                                (ChunkFoldLoopReinit
+                                    curdir xs dirp dirs1 ndirs1)
+                        Fold.Partial fs1 ->
+                            if ndirs1 >= dirMax
+                            then return $ Yield (Left dirs1)
+                                (ChunkFoldLoop
+                                    curdir xs dirp [] 0 fs1 True)
+                            else return $ Skip
+                                (ChunkFoldLoop
+                                    curdir xs dirp dirs1 ndirs1 fs1 True)
+                EntryIsNotDir -> do
+                    path <- liftIO $ Path.appendCString curdir dname
+                    r <- fstep fs path
+                    case r of
+                        Fold.Done b ->
+                            return $ Yield (Right b)
+                                (ChunkFoldLoopReinit
+                                    curdir xs dirp dirs ndirs)
+                        Fold.Partial fs1 ->
+                            return $ Skip
+                                (ChunkFoldLoop
+                                    curdir xs dirp dirs ndirs fs1 True)
+                EntryIgnored -> return $ Skip st
+        else do
+            errno <- liftIO getErrno
+            if (errno == eINTR)
+            then return $ Skip st
+            else do
+                let (Errno n) = errno
+                -- XXX Exception safety: fold state is not cleaned up if we
+                -- throw here.
+                liftIO $ closeDirStream (DirStream dirp)
+                if (n == 0)
+                then return $ Skip (ChunkFoldNext xs dirs ndirs fs nonEmpty)
+                else liftIO $ throwErrno "readEitherFold"
 
 foreign import ccall unsafe "string.h memcpy" c_memcpy
     :: Ptr Word8 -> Ptr Word8 -> CSize -> IO (Ptr Word8)
