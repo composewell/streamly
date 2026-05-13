@@ -29,6 +29,14 @@ module BenchTestLib.DirIO
     , listDirChunkPar
     , listDirChunkParInterleaved
     , listDirChunkParOrdered
+    , listDirChunkFoldDfs
+    , listDirChunkFoldBfs
+    , listDirChunkFoldBfsRev
+    , listDirChunkFoldAppend
+    , listDirChunkFoldInterleave
+    , listDirChunkFoldPar
+    , listDirChunkFoldParInterleaved
+    , listDirChunkFoldParOrdered
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
     , listDirByteChunked
 #endif
@@ -53,6 +61,7 @@ import Data.Foldable (for_)
 
 import qualified Streamly.Data.Stream.Prelude as Stream
 import qualified Streamly.Data.Array as Array
+import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Data.StreamK as StreamK
 import qualified Streamly.Internal.Data.StreamK as StreamK
@@ -125,6 +134,21 @@ streamDirChunked
     -> Either [Path] b -> Stream IO (Either [Path] [Path])
 streamDirChunked f = either (Dir.readEitherChunks f) (const Stream.nil)
 
+-- | Same shape as 'streamDirChunkedMaybe' but uses 'Dir.readEitherFold' with
+-- 'Fold.toList', which should be equivalent in coverage to
+-- 'Dir.readEitherChunks' for traversal tests.
+streamDirChunkedFoldMaybe
+    :: (Dir.ReadOptions -> Dir.ReadOptions)
+    -> Either [Path] b -> Maybe (Stream IO (Either [Path] [Path]))
+streamDirChunkedFoldMaybe f =
+    either (Just . flip (Dir.readEitherFold f) Fold.toList) (const Nothing)
+
+streamDirChunkedFold
+    :: (Dir.ReadOptions -> Dir.ReadOptions)
+    -> Either [Path] b -> Stream IO (Either [Path] [Path])
+streamDirChunkedFold f =
+    either (flip (Dir.readEitherFold f) Fold.toList) (const Stream.nil)
+
 --------------------------------------------------------------------------------
 -- Functions
 --------------------------------------------------------------------------------
@@ -164,6 +188,23 @@ listDirChunkedWith act inp = do
         $ fmap (Array.asBytes . Path.toArray)
         $ Stream.unfoldEach Unfold.fromList
         $ fmap (either id id)
+        $ act
+        $ Stream.fromPure (Left [fromJust $ Path.fromString inp])
+
+-- | Variant of 'listDirChunkedWith' for the 'readEitherFold' variants. The
+-- fold receives both directory and file entries, so its 'Right' output already
+-- contains every path; the 'Left' chunks are only used to drive further
+-- traversal and must be discarded here to avoid emitting directory paths
+-- twice.
+{-# INLINE listDirChunkedFoldWith #-}
+listDirChunkedFoldWith
+    :: (Stream IO (Either [Path] b) -> Stream IO (Either [Path] [Path]))
+    -> [Char] -> Stream IO Word8
+listDirChunkedFoldWith act inp = do
+     Stream.unfoldEachEndBy 10 Array.reader
+        $ fmap (Array.asBytes . Path.toArray)
+        $ Stream.unfoldEach Unfold.fromList
+        $ Stream.catRights
         $ act
         $ Stream.fromPure (Left [fromJust $ Path.fromString inp])
 
@@ -295,3 +336,69 @@ listDirChunkParOrdered
 listDirChunkParOrdered f =
     listDirChunkedWith
         (Stream.parConcatIterate (Stream.ordered True) (streamDirChunked f))
+
+--------------------------------------------------------------------------------
+-- Chunked via readEitherFold + Fold.toList
+--------------------------------------------------------------------------------
+
+-- These mirror the listDirChunk* variants above but exercise 'readEitherFold'
+-- with 'Fold.toList'. Since the fold receives all entries (dirs and files),
+-- they use 'listDirChunkedFoldWith' which keeps only the 'Right' output and
+-- discards the 'Left' traversal-driver chunks.
+
+{-# INLINE listDirChunkFoldDfs #-}
+listDirChunkFoldDfs
+    :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
+listDirChunkFoldDfs f =
+    listDirChunkedFoldWith (Stream.concatIterate (streamDirChunkedFoldMaybe f))
+
+{-# INLINE listDirChunkFoldBfs #-}
+listDirChunkFoldBfs
+    :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
+listDirChunkFoldBfs f =
+    listDirChunkedFoldWith
+        (Stream.bfsConcatIterate (streamDirChunkedFoldMaybe f))
+
+{-# INLINE listDirChunkFoldBfsRev #-}
+listDirChunkFoldBfsRev
+    :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
+listDirChunkFoldBfsRev f =
+    listDirChunkedFoldWith
+        (Stream.altBfsConcatIterate (streamDirChunkedFoldMaybe f))
+
+{-# INLINE listDirChunkFoldAppend #-}
+listDirChunkFoldAppend
+    :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
+listDirChunkFoldAppend f =
+    listDirChunkedFoldWith
+        (concatIterateWith (streamDirChunkedFold f) StreamK.append)
+
+{-# INLINE listDirChunkFoldInterleave #-}
+listDirChunkFoldInterleave
+    :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
+listDirChunkFoldInterleave f =
+    listDirChunkedFoldWith
+        (mergeIterateWith (streamDirChunkedFold f) StreamK.interleave)
+
+{-# INLINE listDirChunkFoldPar #-}
+listDirChunkFoldPar
+    :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
+listDirChunkFoldPar f =
+    listDirChunkedFoldWith
+        (Stream.parConcatIterate id (streamDirChunkedFold f))
+
+{-# INLINE listDirChunkFoldParInterleaved #-}
+listDirChunkFoldParInterleaved
+    :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
+listDirChunkFoldParInterleaved f =
+    listDirChunkedFoldWith
+        (Stream.parConcatIterate
+            (Stream.interleaved True) (streamDirChunkedFold f))
+
+{-# INLINE listDirChunkFoldParOrdered #-}
+listDirChunkFoldParOrdered
+    :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
+listDirChunkFoldParOrdered f =
+    listDirChunkedFoldWith
+        (Stream.parConcatIterate
+            (Stream.ordered True) (streamDirChunkedFold f))
