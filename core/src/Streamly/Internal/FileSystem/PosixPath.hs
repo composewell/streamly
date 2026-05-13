@@ -159,6 +159,7 @@ module Streamly.Internal.FileSystem.OS_PATH_TYPE
     , join
     , joinDir
     , unsafeJoinPaths
+    , packPathsEndBy
 
     -- * Splitting
     -- | Note: you can use 'unsafeJoin' as a replacement for the joinDrive
@@ -218,7 +219,11 @@ where
 
 import Control.Exception (throw)
 import Control.Monad.Catch (MonadThrow(..))
+import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bifunctor (bimap)
+#ifdef IS_WINDOWS
+import Data.Bits ((.&.), (.|.), shiftL, shiftR)
+#endif
 import Data.Functor.Identity (Identity(..))
 import Data.Maybe (fromJust, isJust)
 import Data.Word (Word8)
@@ -229,13 +234,17 @@ import Foreign (castPtr)
 import Data.Word (Word16)
 import Foreign (Ptr)
 #endif
+import Fusion.Plugin.Types (Fuse(..))
 import Language.Haskell.TH.Syntax (lift)
 import Streamly.Internal.Data.Array (Array(..))
+import Streamly.Internal.Data.Fold (Fold(..))
+import Streamly.Internal.Data.MutByteArray (MutByteArray)
 import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.FileSystem.Path.Common (mkQ, EqCfg(..))
 
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Fold as Fold
+import qualified Streamly.Internal.Data.MutByteArray as MutByteArray
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.FileSystem.Path.Common as Common
 import qualified Streamly.Internal.Unicode.Stream as Unicode
@@ -1723,3 +1732,70 @@ stripPrefix cfg (OS_PATH prefix) (OS_PATH p) =
         $ Common.stripPrefix
             Unicode.UNICODE_DECODER
             Common.OS_NAME (cfg eqCfg) prefix p
+
+------------------------------------------------------------------------------
+-- Packing paths into a byte array
+------------------------------------------------------------------------------
+
+#ifndef IS_WINDOWS
+
+{-# ANN type PackPathsState Fuse #-}
+data PackPathsState =
+    PackPathsState !MutByteArray !Int !Int -- buf, pos, cap
+
+-- XXX We can allocate the array on the first input.
+
+-- | Copies a stream of file paths into a contiguous byte array, appending
+-- the given separator byte after each path.
+--
+-- Commonly used separators:
+--
+-- * @0@ : NUL-terminated paths
+-- * @10@ : newline-separated paths
+--
+-- The first argument specifies the initial output buffer size in bytes, if the
+-- size is close to the block size it may be rounded to the block size. The
+-- buffer is grown further only if even one path can not fit into it. The fold
+-- terminates when no more space is left in the buffer to accomodate more
+-- paths.
+--
+{-# INLINE packPathsEndBy #-}
+packPathsEndBy ::
+       MonadIO m => Int -> Word8 -> Fold m OS_PATH_TYPE (Array Word8)
+packPathsEndBy bufBytes sep = Fold step initial extract extract
+
+    where
+
+    initialCap = MutByteArray.roundUpLargeArray (max 1 bufBytes)
+
+    initial
+        | bufBytes < 0 =
+            error
+                $ "packPathsEndBy: size [" ++ show bufBytes
+                ++ "] must be a natural number"
+        | otherwise = do
+            mbarr <- liftIO $ MutByteArray.new' initialCap
+            return $ Fold.Partial (PackPathsState mbarr 0 initialCap)
+
+    step (PackPathsState buf pos cap) (OS_PATH (Array src start end)) =
+        liftIO $ do
+            let srcLen = end - start
+                needed = pos + srcLen + 1 -- +1 for the separator byte
+            (buf1, cap1) <-
+                if cap >= needed
+                then return (buf, cap)
+                else do
+                    b <- MutByteArray.reallocSliceAs
+                            MutByteArray.Pinned needed buf 0 pos
+                    return (b, needed)
+            MutByteArray.unsafePutSlice src start buf1 pos srcLen
+            MutByteArray.pokeAt (pos + srcLen) buf1 sep
+            let pos1 = pos + srcLen + 1
+            return
+                $ if cap1 - pos1 < max 128 (2 * srcLen)
+                  then Fold.Done (Array buf1 0 pos1)
+                  else Fold.Partial (PackPathsState buf1 pos1 cap1)
+
+    extract (PackPathsState buf pos _) = return (Array buf 0 pos)
+
+#endif

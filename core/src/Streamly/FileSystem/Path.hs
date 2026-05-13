@@ -107,6 +107,7 @@ module Streamly.FileSystem.Path
     , unsafeJoin
     , join
     , joinStr
+    , packPathsEndBy
 
     -- * Splitting root
     , splitRoot

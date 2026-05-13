@@ -404,3 +404,160 @@ splitPath (OS_PATH a) = fmap OS_PATH $ Common.splitPath Common.OS_NAME a
 splitExtension :: OS_PATH_TYPE -> Maybe (OS_PATH_TYPE, OS_PATH_TYPE)
 splitExtension (OS_PATH a) =
     fmap (bimap OS_PATH OS_PATH) $ Common.splitExtension Common.OS_NAME a
+
+------------------------------------------------------------------------------
+-- Packing paths into a UTF-8 byte array
+------------------------------------------------------------------------------
+
+{-# ANN type PackPathsState Fuse #-}
+data PackPathsState =
+    PackPathsState !MutByteArray !Int !Int -- buf, pos, cap
+
+-- XXX We can allocate the array on the first input.
+
+-- | Encodes a stream of file paths into a contiguous byte array with UTF-8
+-- encoding, appending the given separator byte after each path.
+--
+-- The input 'WindowsPath' is UTF-16LE encoded; this fold decodes the
+-- Word16s and re-encodes them as UTF-8. Invalid code units (lone or invalid
+-- surrogates, or input underflow on a high surrogate at end of path) are
+-- replaced with the Unicode replacement character U+FFFD.
+--
+-- Commonly used separators:
+--
+-- * @0@ : NUL-terminated paths
+-- * @10@ : newline-separated paths
+--
+-- The first argument specifies the initial output buffer size in bytes, if the
+-- size is close to the block size it may be rounded to the block size. The
+-- buffer is grown further only if even one path can not fit into it. The fold
+-- terminates when no more space is left in the buffer to accomodate more
+-- paths.
+{-# INLINE packPathsEndBy #-}
+packPathsEndBy ::
+       MonadIO m => Int -> Word8 -> Fold m OS_PATH_TYPE (Array Word8)
+packPathsEndBy bufBytes sep = Fold step initial extract extract
+
+    where
+
+    initialCap = MutByteArray.roundUpLargeArray (max 1 bufBytes)
+
+    initial
+        | bufBytes < 0 =
+            error
+                $ "packPathsEndBy: size [" ++ show bufBytes
+                ++ "] must be a natural number"
+        | otherwise = do
+            mbarr <- liftIO $ MutByteArray.new' initialCap
+            return $ Fold.Partial (PackPathsState mbarr 0 initialCap)
+
+    -- UTF-8 encode a code point at dst[off..]; returns the offset past the
+    -- bytes written.
+    {-# INLINE encodeCodePoint #-}
+    encodeCodePoint dst off cp
+      | cp < 0x80 = do
+            MutByteArray.pokeAt off dst (fromIntegral cp :: Word8)
+            return (off + 1)
+      | cp < 0x800 = do
+            MutByteArray.pokeAt off dst
+                (fromIntegral ((cp `shiftR` 6) + 0xC0) :: Word8)
+            MutByteArray.pokeAt (off + 1) dst
+                (fromIntegral ((cp .&. 0x3F) + 0x80) :: Word8)
+            return (off + 2)
+      | cp < 0x10000 = do
+            MutByteArray.pokeAt off dst
+                (fromIntegral ((cp `shiftR` 12) + 0xE0) :: Word8)
+            MutByteArray.pokeAt (off + 1) dst
+                (fromIntegral (((cp `shiftR` 6) .&. 0x3F) + 0x80) :: Word8)
+            MutByteArray.pokeAt (off + 2) dst
+                (fromIntegral ((cp .&. 0x3F) + 0x80) :: Word8)
+            return (off + 3)
+      | otherwise = do
+            MutByteArray.pokeAt off dst
+                (fromIntegral ((cp `shiftR` 18) + 0xF0) :: Word8)
+            MutByteArray.pokeAt (off + 1) dst
+                (fromIntegral (((cp `shiftR` 12) .&. 0x3F) + 0x80) :: Word8)
+            MutByteArray.pokeAt (off + 2) dst
+                (fromIntegral (((cp `shiftR` 6) .&. 0x3F) + 0x80) :: Word8)
+            MutByteArray.pokeAt (off + 3) dst
+                (fromIntegral ((cp .&. 0x3F) + 0x80) :: Word8)
+            return (off + 4)
+
+    -- U+FFFD as UTF-8: EF BF BD
+    {-# INLINE writeReplacement #-}
+    writeReplacement dst off = do
+        MutByteArray.pokeAt off dst (0xEF :: Word8)
+        MutByteArray.pokeAt (off + 1) dst (0xBF :: Word8)
+        MutByteArray.pokeAt (off + 2) dst (0xBD :: Word8)
+        return (off + 3)
+
+    -- Convert UTF-16LE Word16s in src[srcOff..srcEnd) (byte offsets) to UTF-8
+    -- bytes in dst starting at dstOff. Returns the dst offset past the last
+    -- byte written. The caller must ensure dst has at least 3 * srcWordLen
+    -- bytes of remaining capacity starting at dstOff (worst-case expansion).
+    convert src srcOff srcEnd dst = go srcOff
+      where
+        go !sOff !dOff
+          | sOff >= srcEnd = return dOff
+          | otherwise = do
+                w :: Word16 <- MutByteArray.peekAt sOff src
+                if w < 0xD800 || w > 0xDFFF
+                    then do
+                        dOff' <- encodeCodePoint dst dOff (fromIntegral w :: Int)
+                        go (sOff + 2) dOff'
+                    else if w <= 0xDBFF
+                        -- high surrogate
+                        then do
+                            let sOff' = sOff + 2
+                            if sOff' >= srcEnd
+                                then do
+                                    -- input underflow at end of path
+                                    writeReplacement dst dOff
+                                else do
+                                    wLow :: Word16
+                                        <- MutByteArray.peekAt sOff' src
+                                    if wLow >= 0xDC00 && wLow <= 0xDFFF
+                                        then do
+                                            let hi = fromIntegral
+                                                        (w - 0xD800) :: Int
+                                                lo = fromIntegral
+                                                        (wLow - 0xDC00) :: Int
+                                                cp = 0x10000
+                                                   + ((hi `shiftL` 10) .|. lo)
+                                            dOff'
+                                                <- encodeCodePoint dst dOff cp
+                                            go (sOff + 4) dOff'
+                                        else do
+                                            -- invalid low surrogate
+                                            dOff'
+                                                <- writeReplacement dst dOff
+                                            go (sOff + 2) dOff'
+                        else do
+                            -- lone low surrogate
+                            dOff' <- writeReplacement dst dOff
+                            go (sOff + 2) dOff'
+
+    step (PackPathsState buf pos cap) (OS_PATH (Array src start end)) =
+        liftIO $ do
+            let srcByteLen = end - start
+                srcWordLen = srcByteLen `shiftR` 1
+                -- Worst case UTF-8 expansion: each Word16 -> 3 bytes, plus
+                -- one separator byte.
+                needed = pos + 3 * srcWordLen + 1
+            (buf1, cap1) <-
+                if cap >= needed
+                then return (buf, cap)
+                else do
+                    b <- MutByteArray.reallocSliceAs
+                            MutByteArray.Pinned needed buf 0 pos
+                    return (b, needed)
+            pos1 <- convert src start end buf1 pos
+            MutByteArray.pokeAt pos1 buf1 sep
+            let pos2 = pos1 + 1
+                utf8Len = pos2 - pos
+            return
+                $ if cap1 - pos2 < max 128 (2 * utf8Len)
+                  then Fold.Done (Array buf1 0 pos2)
+                  else Fold.Partial (PackPathsState buf1 pos2 cap1)
+
+    extract (PackPathsState buf pos _) = return (Array buf 0 pos)
