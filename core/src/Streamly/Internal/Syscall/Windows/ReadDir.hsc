@@ -16,6 +16,7 @@ module Streamly.Internal.Syscall.Windows.ReadDir
     , closeDirStream
     , readDirStreamEither
     , readEitherChunks
+    , readEitherFold
     , readEitherByteChunks
     , eitherReader
     , reader
@@ -39,6 +40,7 @@ import Foreign.C
 import Fusion.Plugin.Types (Fuse(..))
 import Numeric (showHex)
 import Streamly.Internal.Data.Array (Array(..))
+import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.MutByteArray (MutByteArray)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Stream (Stream(..), Step(..))
@@ -47,6 +49,7 @@ import Streamly.Internal.FileSystem.WindowsPath (WindowsPath(..))
 import System.IO.Error (ioeSetErrorString)
 
 import qualified Streamly.Internal.Data.Array as Array
+import qualified Streamly.Internal.Data.Fold.Type as Fold
 import qualified Streamly.Internal.Data.MutArray as MutArray
 import qualified Streamly.Internal.Data.MutByteArray as MutByteArray
 import qualified Streamly.Internal.Data.Unfold as UF (bracketIO)
@@ -415,6 +418,164 @@ readEitherChunks _confMod alldirs =
                 -- XXX Exception safety
                 liftIO $ closeDirStream ds
                 return $ Skip (ChunkStreamInit xs dirs ndirs files nfiles)
+
+{-# ANN type ChunkFoldStreamState Fuse #-}
+data ChunkFoldStreamState fs b =
+      -- | Fold not yet initialized. Fields: input dirs, buffered output
+      -- dirs, output dir count.
+      ChunkFoldStart [WindowsPath] [WindowsPath] Int
+      -- | Fold initialized; need to open next dir. Fields: input dirs,
+      -- buffered output dirs, output dir count, fold state, whether the
+      -- current fold instance has consumed any input.
+    | ChunkFoldNext [WindowsPath] [WindowsPath] Int fs Bool
+      -- | Iterating in a dir.
+    | ChunkFoldLoop
+        WindowsPath   -- current dir path
+        [WindowsPath] -- remaining input dirs
+        DirStream     -- current dir stream
+        [WindowsPath] -- buffered output dirs
+        Int           -- output dir count
+        fs            -- fold state
+        Bool          -- whether the fold has consumed any input
+      -- | Fold returned Done while in a dir loop; re-init and continue.
+    | ChunkFoldLoopReinit
+        WindowsPath
+        [WindowsPath]
+        DirStream
+        [WindowsPath]
+        Int
+      -- | Yield a value, then transition to the wrapped state.
+    | ChunkFoldYield (Either [WindowsPath] b) (ChunkFoldStreamState fs b)
+    | ChunkFoldStop
+
+-- | Like 'readEitherChunks' but collects entries using a 'Fold' instead of
+-- buffering into a list. All entries (both directories and files) are fed to
+-- the fold. The fold output @b@ is yielded as @Right@ each time the fold
+-- terminates; directory paths are additionally yielded as @Left@ in chunks so
+-- the caller can recurse into them. When the traversal completes, the fold's
+-- @final@ is invoked and its result is yielded only if the fold consumed at
+-- least one path (matching 'Streamly.Internal.Data.Stream.foldMany'
+-- semantics).
+{-# INLINE readEitherFold #-}
+readEitherFold
+    :: MonadIO m
+    => (ReadOptions -> ReadOptions)
+    -> [WindowsPath]
+    -> Fold m WindowsPath b
+    -> Stream m (Either [WindowsPath] b)
+readEitherFold _confMod alldirs (Fold fstep finitial _ ffinal) =
+    Stream step (ChunkFoldStart alldirs [] 0)
+
+    where
+
+    -- We want to keep the dir batching as low as possible for better
+    -- concurrency esp when the number of dirs is low.
+    dirMax = 4
+
+    -- Returns Just (dname, dattrs) on success, Nothing at end of stream.
+    readNextEntry (DirStream (h, ref, fdata)) =
+        withForeignPtr fdata $ \ptr -> do
+            firstTime <- readIORef ref
+            success <-
+                if firstTime
+                then writeIORef ref False >> return True
+                else c_FindNextFileW h ptr
+            if success
+            then do
+                let dname = #{ptr WIN32_FIND_DATAW, cFileName} ptr
+                dattrs :: #{type DWORD} <-
+                    #{peek WIN32_FIND_DATAW, dwFileAttributes} ptr
+                return (Just (dname, dattrs))
+            else do
+                err <- getLastError
+                if err == (# const ERROR_NO_MORE_FILES )
+                then return Nothing
+                else Win32.failWith "findNextFile" err
+
+    step _ (ChunkFoldYield x next) = return $ Yield x next
+
+    step _ ChunkFoldStop = return Stop
+
+    step _ (ChunkFoldStart xs dirs ndirs) = do
+        r <- finitial
+        case r of
+            Fold.Done b ->
+                return $ Yield (Right b) (ChunkFoldStart xs dirs ndirs)
+            Fold.Partial fs ->
+                return $ Skip (ChunkFoldNext xs dirs ndirs fs False)
+
+    step _ (ChunkFoldLoopReinit curdir xs ds dirs ndirs) = do
+        r <- finitial
+        case r of
+            Fold.Done b ->
+                return $ Yield (Right b)
+                    (ChunkFoldLoopReinit curdir xs ds dirs ndirs)
+            Fold.Partial fs ->
+                return $ Skip (ChunkFoldLoop curdir xs ds dirs ndirs fs False)
+
+    step _ (ChunkFoldNext (x:xs) dirs ndirs fs nonEmpty) = do
+        ds <- liftIO $ openDirStream x
+        return $ Skip (ChunkFoldLoop x xs ds dirs ndirs fs nonEmpty)
+
+    step _ (ChunkFoldNext [] dirs _ fs nonEmpty) = do
+        b <- ffinal fs
+        case (nonEmpty, dirs) of
+            (False, []) -> return Stop
+            (False, _) -> return $ Yield (Left dirs) ChunkFoldStop
+            (True, []) -> return $ Yield (Right b) ChunkFoldStop
+            (True, _) ->
+                return $ Yield (Right b)
+                    (ChunkFoldYield (Left dirs) ChunkFoldStop)
+
+    step _ st@(ChunkFoldLoop curdir xs ds dirs ndirs fs nonEmpty) = do
+        r <- liftIO $ readNextEntry ds
+        case r of
+            Just (dname, dattrs) ->
+                if (dattrs .&. (#const FILE_ATTRIBUTE_DIRECTORY) /= 0)
+                then do
+                    isMeta <- liftIO $ isMetaDir dname
+                    if isMeta
+                    then return $ Skip st
+                    else do
+                        path <- liftIO $ appendW16CString curdir dname
+                        let dirs1 = path : dirs
+                            ndirs1 = ndirs + 1
+                        r1 <- fstep fs path
+                        case r1 of
+                            Fold.Done b ->
+                                if ndirs1 >= dirMax
+                                then return $ Yield (Right b)
+                                    (ChunkFoldYield (Left dirs1)
+                                        (ChunkFoldLoopReinit
+                                            curdir xs ds [] 0))
+                                else return $ Yield (Right b)
+                                    (ChunkFoldLoopReinit
+                                        curdir xs ds dirs1 ndirs1)
+                            Fold.Partial fs1 ->
+                                if ndirs1 >= dirMax
+                                then return $ Yield (Left dirs1)
+                                    (ChunkFoldLoop
+                                        curdir xs ds [] 0 fs1 True)
+                                else return $ Skip
+                                    (ChunkFoldLoop
+                                        curdir xs ds dirs1 ndirs1 fs1 True)
+                else do
+                    path <- liftIO $ appendW16CString curdir dname
+                    r1 <- fstep fs path
+                    case r1 of
+                        Fold.Done b ->
+                            return $ Yield (Right b)
+                                (ChunkFoldLoopReinit
+                                    curdir xs ds dirs ndirs)
+                        Fold.Partial fs1 ->
+                            return $ Skip
+                                (ChunkFoldLoop
+                                    curdir xs ds dirs ndirs fs1 True)
+            Nothing -> do
+                -- XXX Exception safety: fold state is not cleaned up if
+                -- closeDirStream throws.
+                liftIO $ closeDirStream ds
+                return $ Skip (ChunkFoldNext xs dirs ndirs fs nonEmpty)
 
 ------------------------------------------------------------------------------
 -- Chunked byte-buffered reads
