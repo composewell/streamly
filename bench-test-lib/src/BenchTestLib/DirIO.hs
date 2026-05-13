@@ -37,9 +37,7 @@ module BenchTestLib.DirIO
     , listDirChunkFoldPar
     , listDirChunkFoldParInterleaved
     , listDirChunkFoldParOrdered
-#if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
     , listDirByteChunked
-#endif
     ) where
 
 --------------------------------------------------------------------------------
@@ -49,9 +47,7 @@ module BenchTestLib.DirIO
 import Data.IORef (newIORef, modifyIORef', readIORef)
 import Data.Maybe (fromJust)
 import Data.Word (Word8)
-#if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
 import Streamly.Data.Array (Array)
-#endif
 import Streamly.Data.Stream (Stream)
 import Streamly.Data.Unfold (Unfold)
 import Streamly.FileSystem.Path (Path)
@@ -111,7 +107,6 @@ streamDirMaybe
     -> Either Path b -> Maybe (Stream IO (Either Path Path))
 streamDirMaybe f = either (Just . Dir.readEitherPaths f) (const Nothing)
 
-#if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
 _streamDirByteChunked
     :: (Dir.ReadOptions -> Dir.ReadOptions)
     -> Either [Path] b -> Stream IO (Either [Path] (Array Word8))
@@ -122,7 +117,6 @@ streamDirByteChunkedMaybe
     -> Either [Path] b -> Maybe (Stream IO (Either [Path] (Array Word8)))
 streamDirByteChunkedMaybe f =
     either (Just . Dir.readEitherByteChunks f) (const Nothing)
-#endif
 
 streamDirChunkedMaybe
     :: (Dir.ReadOptions -> Dir.ReadOptions)
@@ -168,15 +162,13 @@ createDirStucture root d w = do
             modifyIORef' ref (subDir:)
             createDirStucture_ ref subDir (depth - 1) width
 
-#if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
--- Fastest implementation, only works for posix as of now.
+-- Fastest implementation
 {-# INLINE listDirByteChunked #-}
 listDirByteChunked :: FilePath -> Stream IO (Array Word8)
 listDirByteChunked inp = do
      Stream.catRights
         $ Stream.concatIterate (streamDirByteChunkedMaybe id)
         $ Stream.fromPure (Left [fromJust $ Path.fromString inp])
-#endif
 
 -- Faster than the listDir implementation below
 {-# INLINE listDirChunkedWith #-}
