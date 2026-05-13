@@ -151,6 +151,9 @@ runTests tmpDir = do
             it "listDirByteChunked" $
                 testCorrectnessByteChunked
                     (tail pathsBig) (listDirByteChunked bigTree)
+            it "listDirByteChunkedFold" $
+                testCorrectnessByteChunked
+                    (tail pathsBig) (listDirByteChunkedFold bigTree)
             -- NOTE: The BFS traversal fails with:
             -- openDirStream: resource exhausted (Too many open files)
             -- if a bigger directory tree is used

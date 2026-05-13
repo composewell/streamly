@@ -38,6 +38,7 @@ module BenchTestLib.DirIO
     , listDirChunkFoldParInterleaved
     , listDirChunkFoldParOrdered
     , listDirByteChunked
+    , listDirByteChunkedFold
     ) where
 
 --------------------------------------------------------------------------------
@@ -118,6 +119,16 @@ streamDirByteChunkedMaybe
 streamDirByteChunkedMaybe f =
     either (Just . Dir.readEitherByteChunks f) (const Nothing)
 
+-- | Like 'streamDirByteChunkedMaybe' but uses 'Dir.readEitherFold' with
+-- 'Path.packPathsEndBy' to produce newline-terminated byte chunks.
+streamDirByteChunkedFoldMaybe
+    :: (Dir.ReadOptions -> Dir.ReadOptions)
+    -> Either [Path] b -> Maybe (Stream IO (Either [Path] (Array Word8)))
+streamDirByteChunkedFoldMaybe f =
+    either
+        (Just . flip (Dir.readEitherFold f) (Path.packPathsEndBy 32000 10))
+        (const Nothing)
+
 streamDirChunkedMaybe
     :: (Dir.ReadOptions -> Dir.ReadOptions)
     -> Either [Path] b -> Maybe (Stream IO (Either [Path] [Path]))
@@ -168,6 +179,15 @@ listDirByteChunked :: FilePath -> Stream IO (Array Word8)
 listDirByteChunked inp = do
      Stream.catRights
         $ Stream.concatIterate (streamDirByteChunkedMaybe id)
+        $ Stream.fromPure (Left [fromJust $ Path.fromString inp])
+
+-- | Like 'listDirByteChunked' but uses 'Dir.readEitherFold' with
+-- 'Path.packPathsEndBy' to compact paths into newline-terminated byte chunks.
+{-# INLINE listDirByteChunkedFold #-}
+listDirByteChunkedFold :: FilePath -> Stream IO (Array Word8)
+listDirByteChunkedFold inp = do
+     Stream.catRights
+        $ Stream.concatIterate (streamDirByteChunkedFoldMaybe id)
         $ Stream.fromPure (Left [fromJust $ Path.fromString inp])
 
 -- Faster than the listDir implementation below
