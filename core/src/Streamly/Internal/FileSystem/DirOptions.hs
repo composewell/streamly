@@ -5,6 +5,8 @@
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
 -- Portability : GHC
+--
+-- See docs/Developer/FileSystem.DirIO.md for design notes.
 
 module Streamly.Internal.FileSystem.DirOptions
     (
@@ -17,21 +19,6 @@ module Streamly.Internal.FileSystem.DirOptions
     )
 where
 
--- NOTE: If we are following symlinks, then we want to determine the type of
--- the link destination not the link itself, so we need to use stat instead of
--- lstat for resolving the symlink.
---
--- For recursive traversal, instead of classifying the dirents using stat, we
--- can leave them unclassified, and deal with ENOTDIR when doing an opendir. We
--- can just ignore that error if it is not a dir. This way we do not need to do
--- stat at all. Or we can basically say don't try to determine the type of
--- symlinks and always try to read symlinks as dirs. We can have an option for
--- classifying symlinks or DT_UNKNOWN as potential dirs.
-
--- When resolving a symlink we may encounter errors only if the directory entry
--- is a symlink. If the directory entry is not a symlink then stat on it will
--- have permissions, it will not give ELOOP or ENOENT unless the file was
--- deleted or recreated after we read the dirent.
 
 -- | Options controlling the behavior of directory read.
 data ReadOptions =
