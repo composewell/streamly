@@ -550,11 +550,19 @@ test-suite FileSystem.Handle
   if flag(use-streamly-core)
     buildable: False
 
-test-suite FileSystem.Path
+test-suite FileSystem.PosixPath
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/FileSystem/Path.hs
-  ghc-options: -main-is Streamly.Test.FileSystem.Path.main
+  main-is: Streamly/Test/FileSystem/PosixPath.hs
+  ghc-options: -main-is Streamly.Test.FileSystem.PosixPath.main
+  if flag(use-streamly-core)
+    buildable: False
+
+test-suite FileSystem.WindowsPath
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/FileSystem/WindowsPath.hs
+  ghc-options: -main-is Streamly.Test.FileSystem.WindowsPath.main
   if flag(use-streamly-core)
     buildable: False
 

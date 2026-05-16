@@ -235,10 +235,11 @@ joinDir
 -- On Windows, the following is different:
 --
 -- * forward slash and backslash are treated as equivalent path separators.
--- * the drive letter and UNC server/share name are /always/ compared
+-- * the drive letter (and the UNC server name) is /always/ compared
 --   case-insensitively, regardless of the 'ignoreCase' setting, because
---   Windows file systems treat these case-insensitively. Only the rest of
---   the path follows the 'ignoreCase' setting.
+--   Windows file systems treat them as case-insensitive. The UNC share
+--   name is currently treated as a body component by 'splitRoot' and so
+--   still follows the 'ignoreCase' setting.
 -- * verbatim @\\\\?\\@ device paths are compared byte-for-byte. They bypass
 --   all normalisation, including case folding, separator translation and
 --   trailing separator handling, regardless of the 'EqCfg' settings.
@@ -274,9 +275,9 @@ joinDir
 -- >>> eq "c:/x"  "C:/x"
 -- True
 --
--- UNC authority is also case-insensitive:
+-- The UNC server name is also case-insensitive:
 --
--- >>> eq "\\\\Server\\Share\\x" "\\\\server\\share\\x"
+-- >>> eq "\\\\Server\\share\\x" "\\\\server\\share\\x"
 -- True
 --
 -- Verbatim @\\\\?\\@ paths are compared byte-for-byte, so they are

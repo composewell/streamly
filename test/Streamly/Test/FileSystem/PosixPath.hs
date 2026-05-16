@@ -1,28 +1,34 @@
 -- |
--- Module      : Streamly.Test.FileSystem.Path
+-- Module      : Streamly.Test.FileSystem.PosixPath
 -- Copyright   : (c) 2024 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
+--
+-- Tests for "Streamly.Internal.FileSystem.PosixPath". Posix path semantics
+-- are independent of the host OS, so this test suite runs on every platform.
 
-module Streamly.Test.FileSystem.Path (main) where
+module Streamly.Test.FileSystem.PosixPath (main) where
 
+import Data.Functor.Identity (Identity, runIdentity)
 import Data.Maybe (isJust, isNothing)
+import Streamly.Internal.FileSystem.PosixPath (PosixPath)
 import Test.Hspec as H
 
-import qualified Streamly.Internal.FileSystem.Path as Path
+import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Internal.FileSystem.PosixPath as Path
 
 -------------------------------------------------------------------------------
 -- Utilities
 -------------------------------------------------------------------------------
 
 -- | Build a path from a string, failing at runtime if invalid.
-p :: String -> Path.Path
+p :: String -> PosixPath
 p = Path.fromString_
 
 -- | Round-trip a path through toString.
-str :: Path.Path -> String
+str :: PosixPath -> String
 str = Path.toString
 
 
@@ -33,11 +39,11 @@ str = Path.toString
 testFromString :: Spec
 testFromString = describe "fromString" $ do
     it "valid absolute path" $
-        isJust (Path.fromString "/usr/bin" :: Maybe Path.Path) `shouldBe` True
+        isJust (Path.fromString "/usr/bin" :: Maybe PosixPath) `shouldBe` True
     it "valid relative path" $
-        isJust (Path.fromString "a/b/c" :: Maybe Path.Path) `shouldBe` True
+        isJust (Path.fromString "a/b/c" :: Maybe PosixPath) `shouldBe` True
     it "empty string is invalid" $
-        isNothing (Path.fromString "" :: Maybe Path.Path) `shouldBe` True
+        isNothing (Path.fromString "" :: Maybe PosixPath) `shouldBe` True
     it "toString . fromString_ roundtrip" $
         str (p "/usr/bin") `shouldBe` "/usr/bin"
     it "relative roundtrip" $
@@ -314,27 +320,264 @@ testStripPrefix = describe "stripPrefix" $ do
             `shouldBe` Just "b/c"
 
 -------------------------------------------------------------------------------
+-- Validation
+-------------------------------------------------------------------------------
+
+testValidatePath :: Spec
+testValidatePath = describe "validatePath" $ do
+    let isValid = isJust . Path.validatePath . Path.encodeString
+    it "empty path invalid" $ isValid "" `shouldBe` False
+    it "null char invalid" $ isValid "\0" `shouldBe` False
+
+-------------------------------------------------------------------------------
+-- splitPath (with separators kept on dir components)
+-------------------------------------------------------------------------------
+
+splitToList :: (PosixPath -> Stream.Stream Identity PosixPath) -> String -> [String]
+splitToList f = runIdentity . Stream.toList . fmap str . f . p
+
+testSplitPath :: Spec
+testSplitPath = describe "splitPath" $ do
+    let cases =
+            [ (".",         ["."])
+            , ("././",      ["./"])
+            , ("./a/b/.",   ["./", "a/", "b/"])
+            , ("..",        [".."])
+            , ("../",       ["../"])
+            , ("a/..",      ["a/", ".."])
+            , ("/",         ["/"])
+            , ("//",        ["/"])
+            , ("/x",        ["/", "x"])
+            , ("/./x/",     ["/", "x/"])
+            , ("/x/./y",    ["/", "x/", "y"])
+            , ("/x/../y",   ["/", "x/", "../", "y"])
+            , ("/x///y",    ["/", "x/", "y"])
+            , ("/x/\\y",    ["/", "x/", "\\y"])
+            ]
+    mapM_
+        (\(input, expected) ->
+            it ("splitPath " ++ show input) $
+                splitToList Path.splitPath input `shouldBe` expected)
+        cases
+
+testSplitPath_ :: Spec
+testSplitPath_ = describe "splitPath_ (no separators on dir)" $ do
+    let cases =
+            [ (".",         ["."])
+            , ("././",      ["."])
+            , (".//",       ["."])
+            , ("//",        ["/"])
+            , ("//x/y/",    ["/", "x", "y"])
+            , ("./a",       [".", "a"])
+            , ("a/.",       ["a"])
+            , ("/",         ["/"])
+            , ("/x",        ["/", "x"])
+            , ("/./x/",     ["/", "x"])
+            , ("/x/./y",    ["/", "x", "y"])
+            , ("/x/../y",   ["/", "x", "..", "y"])
+            , ("/x///y",    ["/", "x", "y"])
+            , ("/x/\\y",    ["/", "x", "\\y"])
+            ]
+    mapM_
+        (\(input, expected) ->
+            it ("splitPath_ " ++ show input) $
+                splitToList Path.splitPath_ input `shouldBe` expected)
+        cases
+
+-------------------------------------------------------------------------------
+-- Extended splitRoot
+-------------------------------------------------------------------------------
+
+testSplitRootExtended :: Spec
+testSplitRootExtended = describe "splitRoot (extended)" $ do
+    let split = fmap toList . Path.splitRoot . p
+        toList (a, b) = (str a, fmap str b)
+        cases =
+            [ ("/",      Just ("/", Nothing))
+            , (".",      Just (".", Nothing))
+            , ("./",     Just ("./", Nothing))
+            , ("/home",  Just ("/", Just "home"))
+            , ("//",     Just ("//", Nothing))
+            , ("./home", Just ("./", Just "home"))
+            , ("home",   Nothing)
+            ]
+    mapM_
+        (\(input, expected) ->
+            it ("splitRoot " ++ show input) $ split input `shouldBe` expected)
+        cases
+
+-------------------------------------------------------------------------------
+-- Extended splitFile
+-------------------------------------------------------------------------------
+
+testSplitFileExtended :: Spec
+testSplitFileExtended = describe "splitFile (extended)" $ do
+    let split = fmap toList . Path.splitFile . p
+        toList (a, b) = (fmap str a, str b)
+        cases =
+            [ ("/",       Nothing)
+            , (".",       Nothing)
+            , ("/.",      Nothing)
+            , ("..",      Nothing)
+            , ("/home",   Just (Just "/",   "home"))
+            , ("./home",  Just (Just "./",  "home"))
+            , ("home",    Just (Nothing,    "home"))
+            , ("x/",      Nothing)
+            , ("x/y",     Just (Just "x/",  "y"))
+            , ("x//y",    Just (Just "x//", "y"))
+            , ("x/./y",   Just (Just "x/./", "y"))
+            ]
+    mapM_
+        (\(input, expected) ->
+            it ("splitFile " ++ show input) $ split input `shouldBe` expected)
+        cases
+
+-------------------------------------------------------------------------------
+-- Extended splitExtension
+-------------------------------------------------------------------------------
+
+testSplitExtensionExtended :: Spec
+testSplitExtensionExtended = describe "splitExtension (extended)" $ do
+    let split = fmap toList . Path.splitExtension . p
+        toList (a, b) = (str a, str b)
+        cases =
+            [ ("/",      Nothing)
+            , (".",      Nothing)
+            , ("..",     Nothing)
+            , ("x",      Nothing)
+            , ("/x",     Nothing)
+            , ("x/",     Nothing)
+            , ("./x",    Nothing)
+            , ("x/.",    Nothing)
+            , ("x/y.",   Nothing)
+            , ("/x.y",   Just ("/x",    ".y"))
+            , ("/x.y.",  Nothing)
+            , ("/x.y..", Nothing)
+            , ("x/.y",   Nothing)
+            , (".x",     Nothing)
+            , ("x.",     Nothing)
+            , (".x.y",   Just (".x",    ".y"))
+            , ("x/y.z",  Just ("x/y",   ".z"))
+            , ("x.y.z",  Just ("x.y",   ".z"))
+            , ("x..y",   Just ("x.",    ".y"))
+            , ("...",    Nothing)
+            , ("..x",    Just (".",     ".x"))
+            , ("...x",   Just ("..",    ".x"))
+            , ("x/y.z/", Nothing)
+            , ("x/y",    Nothing)
+            ]
+    mapM_
+        (\(input, expected) ->
+            it ("splitExtension " ++ show input) $
+                split input `shouldBe` expected)
+        cases
+
+testTakeFileBaseExtended :: Spec
+testTakeFileBaseExtended = describe "takeFileBase (extended)" $ do
+    let tb = fmap str . Path.takeFileBase . p
+    it "with extension" $ tb "/home/user/file.txt" `shouldBe` Just "file"
+    it "no extension" $ tb "/home/user/file" `shouldBe` Just "file"
+    it "leading dot only segment" $ tb "/home/user/.txt" `shouldBe` Just ".txt"
+    it "trailing separator means no file" $
+        tb "/home/user/" `shouldBe` Nothing
+
+-------------------------------------------------------------------------------
+-- unsafeJoin
+-------------------------------------------------------------------------------
+
+testUnsafeJoin :: Spec
+testUnsafeJoin = describe "unsafeJoin" $ do
+    let f a b = str $ Path.unsafeJoin (p a) (p b)
+    it "x y" $ f "x" "y" `shouldBe` "x/y"
+    it "x/ y" $ f "x/" "y" `shouldBe` "x/y"
+    it "x /y" $ f "x" "/y" `shouldBe` "x/y"
+    it "x/ /y" $ f "x/" "/y" `shouldBe` "x/y"
+
+-------------------------------------------------------------------------------
+-- dropTrailingSeparators / hasTrailingSeparator (extras)
+-------------------------------------------------------------------------------
+
+testDropTrailingSeparatorsExtras :: Spec
+testDropTrailingSeparatorsExtras =
+    describe "dropTrailingSeparators (extras)" $ do
+        let f = str . Path.dropTrailingSeparators . p
+        it "./ -> ." $ f "./" `shouldBe` "."
+
+-------------------------------------------------------------------------------
+-- normalise (more cases)
+-------------------------------------------------------------------------------
+
+testNormaliseExtras :: Spec
+testNormaliseExtras = describe "normalise (extras)" $ do
+    let nrm cfg = str . Path.normalise cfg . p
+    it "ignoreTrailingSeparators False keeps trailing sep" $
+        nrm id "a//b/" `shouldBe` "a/b/"
+    it "leading dot dropped when collapsing dot segments" $
+        nrm id "./a/./b" `shouldBe` "a/b"
+    it "absolute path collapses dot segments" $
+        nrm id "/a//./b" `shouldBe` "/a/b"
+
+-------------------------------------------------------------------------------
+-- Path equality edge cases
+-------------------------------------------------------------------------------
+
+testEqPathExtended :: Spec
+testEqPathExtended = describe "eqPath (extended)" $ do
+    let eq = Path.eqPath id
+    it "/x equals //x" $ eq (p "/x") (p "//x") `shouldBe` True
+    it "x/y/. equals x/y" $ eq (p "x/y/.") (p "x/y") `shouldBe` True
+    it ". equal to . is False by default" $
+        eq (p ".") (p ".") `shouldBe` False
+    it "./x equal to ./x is False by default" $
+        eq (p "./x") (p "./x") `shouldBe` False
+    it "./x equal to x is False by default" $
+        eq (p "./x") (p "x") `shouldBe` False
+    it "allowRelativeEquality . . True" $
+        Path.eqPath (Path.allowRelativeEquality True) (p ".") (p ".")
+            `shouldBe` True
+    it "allowRelativeEquality ./x x True" $
+        Path.eqPath (Path.allowRelativeEquality True) (p "./x") (p "x")
+            `shouldBe` True
+    it "allowRelativeEquality ./x ././x True" $
+        Path.eqPath (Path.allowRelativeEquality True) (p "./x") (p "././x")
+            `shouldBe` True
+    it "ignoreTrailingSeparators True" $
+        Path.eqPath (Path.ignoreTrailingSeparators True) (p "x/") (p "x")
+            `shouldBe` True
+
+-------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
 
 moduleName :: String
-moduleName = "FileSystem.Path"
+moduleName = "FileSystem.PosixPath"
 
 main :: IO ()
 main = hspec $ do
     describe moduleName $ do
         testFromString
+        testValidatePath
         testSeparators
+        testDropTrailingSeparatorsExtras
         testRooted
         testJoin
+        testUnsafeJoin
         testSplitRoot
+        testSplitRootExtended
         testSplitFile
+        testSplitFileExtended
+        testSplitPath
+        testSplitPath_
         testPathView
         testExtensions
+        testSplitExtensionExtended
+        testTakeFileBaseExtended
         testEqPath
+        testEqPathExtended
         testPathDepth
         testCollapseSeparators
         testCollapseDotDots
         testNormalise
+        testNormaliseExtras
         testCommonPrefix
         testStripPrefix

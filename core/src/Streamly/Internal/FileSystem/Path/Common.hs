@@ -1869,9 +1869,13 @@ isVerbatimRoot a =
 -- not be a plain root. If not then this function will not work correctly e.g.
 -- it might change \/ to // making the path a share name from a normal path.
 --
--- The drive letter and UNC server/share name are always compared
--- case-insensitively (Windows file systems are case-insensitive on these).
--- Verbatim @\\\\?\\@ paths are compared byte-for-byte with no normalisation.
+-- The drive letter (and the UNC server name that 'splitRoot' returns as the
+-- root) is always compared case-insensitively. Verbatim @\\\\?\\@ paths are
+-- compared byte-for-byte with no normalisation.
+--
+-- Note: 'splitRoot' currently treats the UNC share name as the first body
+-- component, not as part of the root. The share name therefore follows the
+-- body's 'ignoreCase' rule, not this root-only rule.
 eqWindowsRootWithDrive :: (Unbox a, Integral a) =>
     Array a -> Array a -> Bool
 eqWindowsRootWithDrive a b
@@ -2005,8 +2009,10 @@ eqPath decoder os eqCfg@(EqCfg{..}) a b
 -- Canonicalisation rules:
 --
 -- * Drive root: the drive letter is upper-cased (e.g. @c:\\@ -> @C:\\@).
--- * UNC root: the entire root (server and share name) is lower-cased
---   (e.g. @\\\\Server\\Share\\@ -> @\\\\server\\share\\@).
+-- * UNC root: the root (currently just the server name) is lower-cased
+--   (e.g. @\\\\Server\\@ -> @\\\\server\\@). The share name is treated as
+--   the first body component by 'splitRoot' and is normalised by
+--   'normaliseComponents' instead.
 -- * Verbatim @\\\\?\\@ device paths are left untouched.
 --
 -- Separators in non-verbatim roots are normalised to the primary separator.

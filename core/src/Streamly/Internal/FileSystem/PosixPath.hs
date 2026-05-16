@@ -1531,9 +1531,11 @@ ignoreTrailingSeparators val conf = conf { _ignoreTrailingSeparators = val }
 -- | When set to 'False', comparison is case sensitive.
 --
 -- On Windows this flag controls only the case-sensitivity of non-root path
--- segments. The drive letter and UNC server\/share name are /always/ compared
--- case-insensitively. Verbatim @\\\\?\\@ paths are always compared
--- case-sensitively (byte-for-byte), independent of this flag.
+-- segments. The drive letter (and the UNC server name that 'splitRoot'
+-- returns as the root) is /always/ compared case-insensitively. The UNC
+-- share name is currently treated as a body segment and so follows this
+-- flag. Verbatim @\\\\?\\@ paths are always compared case-sensitively
+-- (byte-for-byte), independent of this flag.
 --
 -- /Default/: False
 ignoreCase :: Bool -> EqCfg -> EqCfg
@@ -1701,11 +1703,12 @@ collapseDotDots :: OS_PATH_TYPE -> OS_PATH_TYPE
 collapseDotDots (OS_PATH p) =
     OS_PATH $ Common.collapseDotDots Common.OS_NAME p
 
+#ifndef IS_WINDOWS
 -- | Convert the path to an equivalent but standard format for reliable
 -- comparison. Collapses redundant separators and removes @.@ components,
--- normalises the root (including separator style on Windows), and optionally
--- folds case per the 'EqCfg' options. Does /not/ collapse @..@ segments, as
--- that is unsafe in the presence of symlinks.
+-- normalises the root, and optionally folds case per the 'EqCfg' options.
+-- Does /not/ collapse @..@ segments, as that is unsafe in the presence of
+-- symlinks.
 --
 -- A trailing separator is preserved unless 'ignoreTrailingSeparators' is set
 -- in the 'EqCfg'.
@@ -1740,6 +1743,50 @@ collapseDotDots (OS_PATH p) =
 -- >>> f "x/../y"
 -- "x/../y"
 --
+#else
+-- | Convert the path to an equivalent but standard format for reliable
+-- comparison. Collapses redundant separators and removes @.@ components,
+-- normalises the root (drive letter upper-cased, UNC server name
+-- lower-cased, forward separators converted to backslash), and optionally
+-- folds case per the 'EqCfg' options. Verbatim @\\\\?\\@ paths are left
+-- untouched. Does /not/ collapse @..@ segments, as that is unsafe in the
+-- presence of symlinks.
+--
+-- A trailing separator is preserved unless 'ignoreTrailingSeparators' is set
+-- in the 'EqCfg'.
+--
+-- >>> f = Path.toString . Path.normalise id . Path.fromString_
+--
+-- Forward separators are normalised to backslash; redundant separators are
+-- collapsed:
+--
+-- >>> f "x//y"
+-- "x\\y"
+--
+-- >>> f "x/./y"
+-- "x\\y"
+--
+-- Drive letter is upper-cased:
+--
+-- >>> f "c:\\x"
+-- "C:\\x"
+--
+-- UNC server name is lower-cased; rest of the path follows ignoreCase:
+--
+-- >>> f "\\\\Server\\share\\x"
+-- "\\\\server\\share\\x"
+--
+-- Verbatim paths are left untouched:
+--
+-- >>> f "\\\\?\\C:\\Foo"
+-- "\\\\?\\C:\\Foo"
+--
+-- @..@ components are not collapsed:
+--
+-- >>> f "x/../y"
+-- "x\\..\\y"
+--
+#endif
 normalise :: (EqCfg -> EqCfg) -> OS_PATH_TYPE -> OS_PATH_TYPE
 normalise cfg (OS_PATH p) =
     OS_PATH $ Common.normalise
@@ -1750,6 +1797,7 @@ normalise cfg (OS_PATH p) =
 -- Path prefix
 ------------------------------------------------------------------------------
 
+#ifndef IS_WINDOWS
 -- | Return the longest common non-empty prefix of two paths at a path segment
 -- boundary. The common prefix is normalised: redundant separators and @.@
 -- components are removed. @..@ components are not collapsed.
@@ -1780,6 +1828,32 @@ normalise cfg (OS_PATH p) =
 -- >>> f "/x//y" "/x/y/z"
 -- Just "/x/y"
 --
+#else
+-- | Return the longest common non-empty prefix of two paths at a path segment
+-- boundary. The common prefix is normalised: redundant separators and @.@
+-- components are removed. @..@ components are not collapsed.
+--
+-- Returns 'Nothing' if the two paths share no common prefix (e.g. they have
+-- different roots) or if the entire common body is empty.
+--
+-- >>> f a b = fmap Path.toString $ Path.takeCommonPrefix id (Path.fromString_ a) (Path.fromString_ b)
+--
+-- Same drive, common segments under it:
+--
+-- >>> f "C:\\x\\y\\z" "C:\\x\\y\\w"
+-- Just "C:\\x\\y"
+--
+-- Drive letter case differs but drive is case-insensitive:
+--
+-- >>> f "c:\\x\\y" "C:\\x\\z"
+-- Just "C:\\x"
+--
+-- Different drives share no common prefix:
+--
+-- >>> f "C:\\x" "D:\\x"
+-- Nothing
+--
+#endif
 takeCommonPrefix ::
     (EqCfg -> EqCfg) -> OS_PATH_TYPE -> OS_PATH_TYPE -> Maybe OS_PATH_TYPE
 takeCommonPrefix cfg (OS_PATH a) (OS_PATH b) =
@@ -1792,6 +1866,7 @@ takeCommonPrefix cfg (OS_PATH a) (OS_PATH b) =
 -- equal? If we throw an exception we can distringuish the two cases as
 -- NoCommonPrefix, and NotProperPrefix.
 
+#ifndef IS_WINDOWS
 -- | Strip a prefix from a path at a path segment boundary. Returns the
 -- remaining suffix if the first argument is a prefix of the second, or
 -- 'Nothing' if it is not or if stripping the prefix leaves an empty remainder
@@ -1824,6 +1899,32 @@ takeCommonPrefix cfg (OS_PATH a) (OS_PATH b) =
 -- >>> f "/x//y" "/x/y/z"
 -- Just "z"
 --
+#else
+-- | Strip a prefix from a path at a path segment boundary. Returns the
+-- remaining suffix if the first argument is a prefix of the second, or
+-- 'Nothing' if it is not or if stripping the prefix leaves an empty remainder
+-- (i.e. the prefix equals the full path).
+--
+-- The prefix is compared using the supplied 'EqCfg' normalisation. The drive
+-- letter is matched case-insensitively. Verbatim @\\\\?\\@ paths are matched
+-- byte-for-byte.
+--
+-- >>> f pre p = fmap Path.toString $ Path.stripPrefix id (Path.fromString_ pre) (Path.fromString_ p)
+--
+-- >>> f "C:\\x" "C:\\x\\y\\z"
+-- Just "y\\z"
+--
+-- Drive letter case differs but the drive matches:
+--
+-- >>> f "c:\\x" "C:\\x\\y"
+-- Just "y"
+--
+-- Prefix not present:
+--
+-- >>> f "C:\\a" "C:\\x\\y"
+-- Nothing
+--
+#endif
 stripPrefix ::
     (EqCfg -> EqCfg) -> OS_PATH_TYPE -> OS_PATH_TYPE -> Maybe OS_PATH_TYPE
 stripPrefix cfg (OS_PATH prefix) (OS_PATH p) =
