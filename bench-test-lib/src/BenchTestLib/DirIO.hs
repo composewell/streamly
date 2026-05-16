@@ -45,16 +45,20 @@ module BenchTestLib.DirIO
 -- Imports
 --------------------------------------------------------------------------------
 
+import Data.Foldable (for_)
 import Data.IORef (newIORef, modifyIORef', readIORef)
 import Data.Maybe (fromJust)
 import Data.Word (Word8)
+#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
+import Data.Word (Word16)
+#endif
 import Streamly.Data.Array (Array)
 import Streamly.Data.Stream (Stream)
 import Streamly.Data.Unfold (Unfold)
 import Streamly.FileSystem.Path (Path)
 import Streamly.Unicode.String (str)
 import System.Directory (createDirectoryIfMissing)
-import Data.Foldable (for_)
+import System.FilePath ((</>))
 
 import qualified Streamly.Data.Stream.Prelude as Stream
 import qualified Streamly.Data.Array as Array
@@ -65,7 +69,11 @@ import qualified Streamly.Internal.Data.StreamK as StreamK
 import qualified Streamly.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.FileSystem.DirIO as Dir
-import qualified Streamly.FileSystem.Path as Path
+import qualified Streamly.Internal.FileSystem.Path as Path
+#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
+import qualified Streamly.Internal.Data.Array as Array (unsafeCast)
+import qualified Streamly.Unicode.Stream as Unicode
+#endif
 
 --------------------------------------------------------------------------------
 -- Helpers
@@ -168,16 +176,36 @@ createDirStucture root d w = do
     createDirStucture_ ref parentDir depth width = do
         for_ [1..width] $ \i -> do
             let iStr = show i
-                subDir = [str|#{parentDir}/dir_#{iStr}|]
+                subDir = [str|#{parentDir}|] </> [str|dir_#{iStr}|]
             createDirectoryIfMissing True subDir
             modifyIORef' ref (subDir:)
             createDirStucture_ ref subDir (depth - 1) width
 
--- Fastest implementation
+-- Fastest implementation. On Windows the underlying readEitherByteChunks
+-- emits UTF-16LE bytes (each char as 2 bytes, separator '\\' and newline '\n'
+-- also encoded as 2 bytes). Chunks are split at entry boundaries, so each
+-- chunk can be transcoded independently to UTF-8 without splitting surrogate
+-- pairs. On Posix the bytes are already UTF-8.
+{-# INLINE toUtf8Chunks #-}
+toUtf8Chunks :: Stream IO (Array Word8) -> Stream IO (Array Word8)
+#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
+toUtf8Chunks = Stream.mapM utf16leChunkToUtf8
+
+utf16leChunkToUtf8 :: Array Word8 -> IO (Array Word8)
+utf16leChunkToUtf8 arr =
+    Stream.fold Array.create
+        $ Unicode.encodeUtf8
+        $ Unicode.decodeUtf16le
+        $ Array.read (Array.unsafeCast arr :: Array Word16)
+#else
+toUtf8Chunks = id
+#endif
+
 {-# INLINE listDirByteChunked #-}
 listDirByteChunked :: FilePath -> Stream IO (Array Word8)
-listDirByteChunked inp = do
-     Stream.catRights
+listDirByteChunked inp =
+    toUtf8Chunks
+        $ Stream.catRights
         $ Stream.concatIterate (streamDirByteChunkedMaybe id)
         $ Stream.fromPure (Left [fromJust $ Path.fromString inp])
 
@@ -197,7 +225,7 @@ listDirChunkedWith
     -> [Char] -> Stream IO Word8
 listDirChunkedWith act inp = do
      Stream.unfoldEachEndBy 10 Array.reader
-        $ fmap (Array.asBytes . Path.toArray)
+        $ fmap Path.toUtf8Array
         $ Stream.unfoldEach Unfold.fromList
         $ fmap (either id id)
         $ act
@@ -214,7 +242,7 @@ listDirChunkedFoldWith
     -> [Char] -> Stream IO Word8
 listDirChunkedFoldWith act inp = do
      Stream.unfoldEachEndBy 10 Array.reader
-        $ fmap (Array.asBytes . Path.toArray)
+        $ fmap Path.toUtf8Array
         $ Stream.unfoldEach Unfold.fromList
         $ Stream.catRights
         $ act
@@ -226,7 +254,7 @@ listDirWith
     -> [Char] -> Stream IO Word8
 listDirWith act inp = do
      Stream.unfoldEachEndBy 10 Array.reader
-        $ fmap (Array.asBytes . Path.toArray . either id id)
+        $ fmap (Path.toUtf8Array . either id id)
         $ act
         $ Stream.fromPure (Left (fromJust $ Path.fromString inp))
 
