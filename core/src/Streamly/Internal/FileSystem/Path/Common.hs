@@ -122,7 +122,7 @@ where
 
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow(..))
-import Data.Char (chr, ord, isAlpha, toUpper)
+import Data.Char (chr, ord, isAlpha, toLower, toUpper)
 import Data.Function ((&))
 import Data.Functor.Identity (Identity(..))
 import Data.Word (Word8, Word16)
@@ -1785,6 +1785,15 @@ normalizeCaseAndSeparators =
     . fmap toDefaultSeparator
     . Array.read
 
+-- | Change to lower case and replace separators by primary separator
+{-# INLINE normalizeLowerCaseAndSeparators #-}
+normalizeLowerCaseAndSeparators :: Monad m => Array Word16 -> Stream m Char
+normalizeLowerCaseAndSeparators =
+      fmap toLower
+    . Unicode.decodeUtf16le'
+    . fmap toDefaultSeparator
+    . Array.read
+
 {-# INLINE normalizeCaseWith #-}
 normalizeCaseWith :: (Monad m, Unbox a) =>
     (Stream m a -> Stream m Char) -> Array a -> Stream m Char
@@ -1844,38 +1853,46 @@ data WindowsRoot =
     | WindowsDriveRoot -- C:... or \\...
     deriving Eq
 
+-- | Detect a Windows verbatim/device-namespace root, e.g. @\\\\?\\...@
+-- (separators may be forward or backward slashes). Such paths bypass Windows
+-- path normalisation and must be compared and rendered verbatim.
+{-# INLINE isVerbatimRoot #-}
+isVerbatimRoot :: (Unbox a, Integral a) => Array a -> Bool
+isVerbatimRoot a =
+    Array.length a >= 4
+        && isSeparatorWord Windows (Array.unsafeGetIndex 0 a)
+        && isSeparatorWord Windows (Array.unsafeGetIndex 1 a)
+        && unsafeIndexChar 2 a == '?'
+        && isSeparatorWord Windows (Array.unsafeGetIndex 3 a)
+
 -- | Here we must pass a path i.e. either a drive root or a UNC path, it must
 -- not be a plain root. If not then this function will not work correctly e.g.
 -- it might change \/ to // making the path a share name from a normal path.
+--
+-- The drive letter and UNC server/share name are always compared
+-- case-insensitively (Windows file systems are case-insensitive on these).
+-- Verbatim @\\\\?\\@ paths are compared byte-for-byte with no normalisation.
 eqWindowsRootWithDrive :: (Unbox a, Integral a) =>
-    Bool -> Array a -> Array a -> Bool
-eqWindowsRootWithDrive ignCase a b =
-     -- XXX we should not normalize Windows literal paths in any case
-     if ignCase
-     then
+    Array a -> Array a -> Bool
+eqWindowsRootWithDrive a b
+    | isVerbatimRoot a || isVerbatimRoot b = Array.byteEq a b
+    | otherwise =
+        -- XXX We probably do not want to translate UnC etc. to UNC.
+        -- Such a path should either be rejected in splitRoot or we
+        -- should not translate that here.
+        -- XXX if so write test cases for that.
         let f = normalizeCaseAndSeparators . Array.unsafeCast
-            -- XXX We probably do not want to translate UnC etc. to UNC.
-            -- Such a path should either be rejected in splitRoot or we
-            -- should not translate that here.
-            -- XXX if so write test cases for that.
-         in runIdentity $ Stream.eqBy (==) (f a) (f b)
-     else
-        let f = fmap toDefaultSeparator . Array.read
-            -- XXX should we ignore case for drives anyway? irrespective of the
-            -- remaining path. Are there case sensitive filesystems on windows?
-            -- Are drives ever case sensitive?
-            -- XXX if so write test cases for that.
          in runIdentity $ Stream.eqBy (==) (f a) (f b)
 
 -- | We should call this only when the roots are either both absolute or both
 -- null otherwise it may not function correctly.
 {-# INLINE eqAbsOrNullRoots #-}
 eqAbsOrNullRoots :: (Unbox a, Integral a) =>
-    Bool -> OS -> Array a -> Array a -> Bool
-eqAbsOrNullRoots _ Posix a b =
+    OS -> Array a -> Array a -> Bool
+eqAbsOrNullRoots Posix a b =
     -- a can be "/" and b can be "//"
     Array.null a == Array.null b
-eqAbsOrNullRoots ignCase Windows a b = eqWindowsRootWithDrive ignCase a b
+eqAbsOrNullRoots Windows a b = eqWindowsRootWithDrive a b
 
 -- | Can only be either "", '.', './' or '/' (or Windows separators)
 getPlainRootType :: (Unbox a, Integral a) => Array a -> PlainRoot
@@ -1896,25 +1913,25 @@ getWindowsRootType arr =
     then WindowsDriveRoot
     else WindowsPlainRoot
 
-eqWindowsRootLax :: (Unbox a, Integral a) => Bool -> Array a -> Array a -> Bool
-eqWindowsRootLax ignCase a b =
+eqWindowsRootLax :: (Unbox a, Integral a) => Array a -> Array a -> Bool
+eqWindowsRootLax a b =
     let aType = getWindowsRootType a
         bType = getWindowsRootType b
      in aType == bType
         && (
             (aType == WindowsPlainRoot && eqPlainRootLax a b)
-            || eqWindowsRootWithDrive ignCase a b
+            || eqWindowsRootWithDrive a b
            )
 
 {-# INLINABLE eqRootLax #-}
-eqRootLax :: (Unbox a, Integral a) => Bool -> OS -> Array a -> Array a -> Bool
-eqRootLax _ Posix a b = eqPlainRootLax a b
-eqRootLax ignCase Windows a b = eqWindowsRootLax ignCase a b
+eqRootLax :: (Unbox a, Integral a) => OS -> Array a -> Array a -> Bool
+eqRootLax Posix a b = eqPlainRootLax a b
+eqRootLax Windows a b = eqWindowsRootLax a b
 
-eqRootStrict :: (Unbox a, Integral a) => Bool -> OS -> Array a -> Array a -> Bool
-eqRootStrict ignCase os rootA rootB =
+eqRootStrict :: (Unbox a, Integral a) => OS -> Array a -> Array a -> Bool
+eqRootStrict os rootA rootB =
    (not (hasRelativeRoot os rootA) && not (hasRelativeRoot os rootB))
-        && eqAbsOrNullRoots ignCase os rootA rootB
+        && eqAbsOrNullRoots os rootA rootB
 
 {-# INLINE eqComponentsWith #-}
 eqComponentsWith :: (Unbox a, Integral a) =>
@@ -1948,26 +1965,31 @@ eqComponentsWith EqCfg{..} decoder os a b =
 eqPath :: (Unbox a, Integral a) =>
     (Stream Identity a -> Stream Identity Char)
     -> OS -> EqCfg -> Array a -> Array a -> Bool
-eqPath decoder os eqCfg@(EqCfg{..}) a b =
-    let (rootA, stemA) = splitRoot os a
-        (rootB, stemB) = splitRoot os b
+eqPath decoder os eqCfg@(EqCfg{..}) a b
+    -- Verbatim "\\?\..." paths bypass all normalisation, even case folding
+    -- and separator normalisation, and are compared byte-for-byte. Mixing a
+    -- verbatim path with a non-verbatim path can never compare equal.
+    | os == Windows && (isVerbatimRoot a || isVerbatimRoot b) =
+        Array.byteEq a b
+    | otherwise =
+        let (rootA, stemA) = splitRoot os a
+            (rootB, stemB) = splitRoot os b
 
-        eqRelative =
-               if _allowRelativeEquality
-               then eqRootLax _ignoreCase os rootA rootB
-               else eqRootStrict _ignoreCase os rootA rootB
+            eqRelative =
+                   if _allowRelativeEquality
+                   then eqRootLax os rootA rootB
+                   else eqRootStrict os rootA rootB
 
-        -- XXX If one ends in a "." and the other ends in ./ (and same for
-        -- ending with ".." and "../") then they can be equal. We can append a
-        -- slash in these two cases before comparing.
-        eqTrailingSep =
-            _ignoreTrailingSeparators
-                || hasTrailingSeparator os a == hasTrailingSeparator os b
+            -- XXX If one ends in a "." and the other ends in ./ (and same for
+            -- ending with ".." and "../") then they can be equal. We can
+            -- append a slash in these two cases before comparing.
+            eqTrailingSep =
+                _ignoreTrailingSeparators
+                    || hasTrailingSeparator os a == hasTrailingSeparator os b
 
-     in
-           eqRelative
-        && eqTrailingSep
-        && eqComponentsWith eqCfg decoder os stemA stemB
+         in    eqRelative
+            && eqTrailingSep
+            && eqComponentsWith eqCfg decoder os stemA stemB
 
 ------------------------------------------------------------------------------
 -- Normalization
@@ -1979,21 +2001,33 @@ eqPath decoder os eqCfg@(EqCfg{..}) a b =
 -- | Here we must pass a path i.e. either a drive root or a UNC path, it must
 -- not be a plain root. If not then this function will not work correctly e.g.
 -- it might change \/ to // making the path a share name from a normal path.
+--
+-- Canonicalisation rules:
+--
+-- * Drive root: the drive letter is upper-cased (e.g. @c:\\@ -> @C:\\@).
+-- * UNC root: the entire root (server and share name) is lower-cased
+--   (e.g. @\\\\Server\\Share\\@ -> @\\\\server\\share\\@).
+-- * Verbatim @\\\\?\\@ device paths are left untouched.
+--
+-- Separators in non-verbatim roots are normalised to the primary separator.
 normaliseWindowsDriveRoot :: (Unbox a, Integral a) =>
-    Bool -> Array a -> Array a
-normaliseWindowsDriveRoot ignCase a =
-     -- XXX we should not normalize Windows literal paths in any case
-    let stream =
-            if ignCase
-            -- XXX We probably do not want to translate UnC etc. to UNC.
-            -- Such a path should either be rejected in splitRoot or we
-            -- should not translate that here.
-            -- XXX if so write test cases for that.
-            then fmap charToWord
-                    $ normalizeCaseAndSeparators
-                    $ Array.unsafeCast a
-            else fmap toDefaultSeparator $ Array.read a
-     in Array.fromPureStream stream
+    Array a -> Array a
+normaliseWindowsDriveRoot a
+    | isVerbatimRoot a = a
+    | isAbsoluteUNC a =
+        -- XXX We probably do not want to translate UnC etc. to UNC.
+        -- Such a path should either be rejected in splitRoot or we
+        -- should not translate that here.
+        -- XXX if so write test cases for that.
+        Array.fromPureStream
+            $ fmap charToWord
+            $ normalizeLowerCaseAndSeparators
+            $ Array.unsafeCast a
+    | otherwise =
+        Array.fromPureStream
+            $ fmap charToWord
+            $ normalizeCaseAndSeparators
+            $ Array.unsafeCast a
 
 -- We have already deduplicated the separators in splitRoot
 {-# INLINE normalisePlainRoot #-}
@@ -2004,12 +2038,12 @@ normalisePlainRoot os a =
         PlainRootAbs -> Array.fromList [ charToWord (primarySeparator os) ]
 
 {-# INLINABLE normaliseRoot #-}
-normaliseRoot :: (Unbox a, Integral a) => Bool -> OS -> Array a -> Array a
-normaliseRoot _ Posix a = normalisePlainRoot Posix a
-normaliseRoot ignCase Windows a =
+normaliseRoot :: (Unbox a, Integral a) => OS -> Array a -> Array a
+normaliseRoot Posix a = normalisePlainRoot Posix a
+normaliseRoot Windows a =
     case getWindowsRootType a of
         WindowsPlainRoot -> normalisePlainRoot Windows a
-        WindowsDriveRoot -> normaliseWindowsDriveRoot ignCase a
+        WindowsDriveRoot -> normaliseWindowsDriveRoot a
 
 {-# INLINE normaliseComponents #-}
 normaliseComponents :: (Unbox a, Integral a) =>
@@ -2056,27 +2090,31 @@ appendTrailingSep os arr =
 normalise :: (Unbox a, Integral a) =>
        (Stream Identity a -> Stream Identity Char)
     -> OS -> EqCfg -> Array a -> Array a
-normalise decoder os eqCfg@EqCfg{..} p =
-    -- NOTE: _allowRelativeEquality impacts comparison but not normalization
-    -- of the root.
-    let (root, body) = splitRoot os p
-        -- XXX We are writing the array multiple times, for root, for body and
-        -- then for adding a separator. We can either use a mutarray or stream
-        -- all the normalized parts once to create array only once.
-        nRoot = normaliseRoot _ignoreCase os root
-        nBody = normaliseComponents eqCfg decoder os body
-        result = joinRootBody os nRoot nBody
-        -- The body's trailing separator is dropped by normaliseComponents;
-        -- restore it if it was present in the input and the caller wants it
-        -- kept.
-        keepTrailingSep =
-               not _ignoreTrailingSeparators
-            && not (Array.null nBody)
-            && hasTrailingSeparator os p
-            && not (hasTrailingSeparator os result)
-     in if keepTrailingSep
-        then appendTrailingSep os result
-        else result
+normalise decoder os eqCfg@EqCfg{..} p
+    -- Verbatim "\\?\..." paths bypass all normalisation, regardless of the
+    -- EqCfg flags.
+    | os == Windows && isVerbatimRoot p = p
+    | otherwise =
+        -- NOTE: _allowRelativeEquality impacts comparison but not normalization
+        -- of the root.
+        let (root, body) = splitRoot os p
+            -- XXX We are writing the array multiple times, for root, for body
+            -- and then for adding a separator. We can either use a mutarray or
+            -- stream all the normalized parts once to create array only once.
+            nRoot = normaliseRoot os root
+            nBody = normaliseComponents eqCfg decoder os body
+            result = joinRootBody os nRoot nBody
+            -- The body's trailing separator is dropped by normaliseComponents;
+            -- restore it if it was present in the input and the caller wants
+            -- it kept.
+            keepTrailingSep =
+                   not _ignoreTrailingSeparators
+                && not (Array.null nBody)
+                && hasTrailingSeparator os p
+                && not (hasTrailingSeparator os result)
+         in if keepTrailingSep
+            then appendTrailingSep os result
+            else result
 
 ------------------------------------------------------------------------------
 -- Path prefix
@@ -2097,13 +2135,17 @@ takeCommonPrefix decoder os EqCfg{..} a b =
 
         rootsMatch =
             if _allowRelativeEquality
-            then eqRootLax _ignoreCase os rootA rootB
-            else eqRootStrict _ignoreCase os rootA rootB
+            then eqRootLax os rootA rootB
+            else eqRootStrict os rootA rootB
 
-        commonRoot = normaliseRoot _ignoreCase os rootA
+        commonRoot = normaliseRoot os rootA
+
+        -- Verbatim paths must never have their bytes altered, including case
+        -- folding, regardless of the EqCfg setting.
+        verbatim = os == Windows && (isVerbatimRoot a || isVerbatimRoot b)
 
         compEq x y =
-            if _ignoreCase
+            if _ignoreCase && not verbatim
             then runIdentity $ Stream.eqBy (==)
                     (normalizeCaseWith decoder x)
                     (normalizeCaseWith decoder y)
@@ -2140,11 +2182,17 @@ stripPrefix decoder os EqCfg{..} prefix path =
 
         rootsMatch =
             if _allowRelativeEquality
-            then eqRootLax _ignoreCase os rootPre rootPath
-            else eqRootStrict _ignoreCase os rootPre rootPath
+            then eqRootLax os rootPre rootPath
+            else eqRootStrict os rootPre rootPath
+
+        -- Verbatim paths must never have their bytes altered, including case
+        -- folding, regardless of the EqCfg setting.
+        verbatim =
+            os == Windows
+                && (isVerbatimRoot prefix || isVerbatimRoot path)
 
         compEq x y =
-            if _ignoreCase
+            if _ignoreCase && not verbatim
             then runIdentity $ Stream.eqBy (==)
                     (normalizeCaseWith decoder x)
                     (normalizeCaseWith decoder y)

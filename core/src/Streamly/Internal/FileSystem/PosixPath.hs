@@ -1483,7 +1483,15 @@ takeDirectory x = splitFile x >>= fst
 -- Path equality
 ------------------------------------------------------------------------------
 
-#ifndef IS_WINDOWS
+-- NOTE: Default path equality is strict lexical equality, including case.
+-- Filesystem case sensitivity is filesystem-specific, not OS-specific;
+-- e.g. macOS paths are often case-insensitive despite being POSIX.
+-- Even on case-insensitive filesystems, case is usually preserved, so
+-- comparing case retains information instead of discarding it. A strict
+-- default keeps equality deterministic, pure, and independent of runtime
+-- filesystem semantics. Users can opt in to less strict/platform-specific
+-- comparison semantics if needed.
+
 -- | Default equality check configuration.
 --
 -- >>> :{
@@ -1493,26 +1501,11 @@ takeDirectory x = splitFile x >>= fst
 --     . Path.allowRelativeEquality False
 -- :}
 --
-#else
--- | Default equality check configuration.
---
--- >>> :{
--- eqCfg =
---       Path.ignoreTrailingSeparators False
---     . Path.ignoreCase True
---     . Path.allowRelativeEquality False
--- :}
---
-#endif
 eqCfg :: EqCfg
 eqCfg = Common.EqCfg
     { _ignoreTrailingSeparators = False
     , _allowRelativeEquality = False
-#ifndef IS_WINDOWS
     , _ignoreCase = False
-#else
-    , _ignoreCase = True
-#endif
     }
 
 -- | When set to 'False' (default):
@@ -1537,9 +1530,12 @@ ignoreTrailingSeparators val conf = conf { _ignoreTrailingSeparators = val }
 
 -- | When set to 'False', comparison is case sensitive.
 --
--- /Posix Default/: False
+-- On Windows this flag controls only the case-sensitivity of non-root path
+-- segments. The drive letter and UNC server\/share name are /always/ compared
+-- case-insensitively. Verbatim @\\\\?\\@ paths are always compared
+-- case-sensitively (byte-for-byte), independent of this flag.
 --
--- /Windows Default/: True
+-- /Default/: False
 ignoreCase :: Bool -> EqCfg -> EqCfg
 ignoreCase val conf = conf { _ignoreCase = val }
 

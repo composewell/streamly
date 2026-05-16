@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-# Bug fix: Fixed `followSymlinks` option not working correctly on macOS.
+* Breaking: In `FileSystem.Path` module the default for `eqPath` changed
+  on Windows to case-sensitive comparison.
+* Bug fix: Fixed `followSymlinks` option not working correctly on macOS.
 
 ## 0.3.0
 

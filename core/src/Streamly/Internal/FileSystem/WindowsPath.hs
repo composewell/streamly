@@ -234,21 +234,31 @@ joinDir
 --
 -- On Windows, the following is different:
 --
--- * paths are normalized by replacing forward slash path separators by
--- backslashes.
--- * default configuration uses case-insensitive comparison.
+-- * forward slash and backslash are treated as equivalent path separators.
+-- * the drive letter and UNC server/share name are /always/ compared
+--   case-insensitively, regardless of the 'ignoreCase' setting, because
+--   Windows file systems treat these case-insensitively. Only the rest of
+--   the path follows the 'ignoreCase' setting.
+-- * verbatim @\\\\?\\@ device paths are compared byte-for-byte. They bypass
+--   all normalisation, including case folding, separator translation and
+--   trailing separator handling, regardless of the 'EqCfg' settings.
 --
 -- >>> :{
 --  eq a b = Path.eqPath id (Path.fromString_ a) (Path.fromString_ b)
 -- :}
 --
--- The cases that are different from Posix:
+-- Separators are interchangeable:
 --
 -- >>> eq "x\\y" "x/y"
 -- True
 --
+-- The default is case-sensitive for non-root path components, matching Posix:
+--
 -- >>> eq "x"  "X"
--- True
+-- False
+--
+-- Drive-only paths are relative and so are not equal under the default
+-- (which has @allowRelativeEquality@ set to 'False'):
 --
 -- >>> eq "c:"  "C:"
 -- False
@@ -257,6 +267,22 @@ joinDir
 -- False
 --
 -- >>> eq "c:x"  "c:x"
+-- False
+--
+-- Drive letters compare case-insensitively when paths are absolute:
+--
+-- >>> eq "c:/x"  "C:/x"
+-- True
+--
+-- UNC authority is also case-insensitive:
+--
+-- >>> eq "\\\\Server\\Share\\x" "\\\\server\\share\\x"
+-- True
+--
+-- Verbatim @\\\\?\\@ paths are compared byte-for-byte, so they are
+-- case-sensitive even on the drive letter and authority parts:
+--
+-- >>> eq "\\\\?\\C:\\x" "\\\\?\\c:\\x"
 -- False
 --
 -- >>> :{
@@ -286,6 +312,11 @@ joinDir
 --
 -- >>> eq "x"  "x"
 -- True
+--
+-- Even with @ignoreCase True@ the verbatim path is not case-folded:
+--
+-- >>> eq "\\\\?\\C:\\x" "\\\\?\\c:\\x"
+-- False
 --
 eqPath :: (EqCfg -> EqCfg) -> OS_PATH_TYPE -> OS_PATH_TYPE -> Bool
 eqPath cfg (OS_PATH a) (OS_PATH b) =
