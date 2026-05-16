@@ -12,6 +12,12 @@ cradle:
           cabal:
             - path: "./core/src"
               component: "lib:streamly-core"
+    - path: "./bench-test-lib"
+      config:
+        cradle:
+          cabal:
+            - path: "./bench-test-lib/src/"
+              component: "lib:bench-test-lib"
     - path: "./benchmark"
       config:
         cradle:
@@ -214,6 +220,7 @@ cradle:
 dependencies:
   - streamly.cabal
   - ./core/streamly-core.cabal
+  - ./bench-test-lib/bench-test-lib.cabal
   - ./benchmark/streamly-benchmarks.cabal
   - ./test/streamly-tests.cabal
   - hie.yaml
