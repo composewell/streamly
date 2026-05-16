@@ -1824,14 +1824,14 @@ eqPathBytes = Array.byteEq
 -- >>> :{
 -- defaultMod = ignoreTrailingSeparators False
 --            . ignoreCase False
---            . allowRelativeEquality False
+--            . allowRelativeEquality True
 -- :}
 --
 data EqCfg =
     EqCfg
     { _ignoreTrailingSeparators :: Bool -- ^ Allows "x\/" == "x"
     , _ignoreCase :: Bool               -- ^ Allows "x" == \"X\"
-    -- XXX _compareRelative, default True
+    -- XXX _compareRelative
     , _allowRelativeEquality :: Bool
     -- ^ A leading dot is ignored, thus ".\/x" == ".\/x" and ".\/x" == "x".
     -- On Windows allows "\/x" == \/x" and "C:x == C:x"

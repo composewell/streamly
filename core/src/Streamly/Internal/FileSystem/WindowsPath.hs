@@ -258,16 +258,22 @@ joinDir
 -- >>> eq "x"  "X"
 -- False
 --
--- Drive-only paths are relative and so are not equal under the default
--- (which has @allowRelativeEquality@ set to 'False'):
+-- Drive-only paths are relative; under the default they now compare equal
+-- (drive letter is case-insensitive):
 --
 -- >>> eq "c:"  "C:"
--- False
+-- True
 --
 -- >>> eq "c:"  "c:"
--- False
+-- True
 --
 -- >>> eq "c:x"  "c:x"
+-- True
+--
+-- Pass @'allowRelativeEquality' False@ to require absolute paths for
+-- equality:
+--
+-- >>> Path.eqPath (Path.allowRelativeEquality False) (Path.fromString_ "c:") (Path.fromString_ "c:")
 -- False
 --
 -- Drive letters compare case-insensitively when paths are absolute:
@@ -286,10 +292,12 @@ joinDir
 -- >>> eq "\\\\?\\C:\\x" "\\\\?\\c:\\x"
 -- False
 --
+-- With trailing separators ignored and case folded as well
+-- (allowRelativeEquality is already True by default):
+--
 -- >>> :{
 --  cfg = Path.ignoreTrailingSeparators True
 --      . Path.ignoreCase True
---      . Path.allowRelativeEquality True
 --  eq a b = Path.eqPath cfg (Path.fromString_ a) (Path.fromString_ b)
 -- :}
 --

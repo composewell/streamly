@@ -1498,13 +1498,13 @@ takeDirectory x = splitFile x >>= fst
 -- eqCfg =
 --       Path.ignoreTrailingSeparators False
 --     . Path.ignoreCase False
---     . Path.allowRelativeEquality False
+--     . Path.allowRelativeEquality True
 -- :}
 --
 eqCfg :: EqCfg
 eqCfg = Common.EqCfg
     { _ignoreTrailingSeparators = False
-    , _allowRelativeEquality = False
+    , _allowRelativeEquality = True
     , _ignoreCase = False
     }
 
@@ -1555,23 +1555,13 @@ ignoreCase val conf = conf { _ignoreCase = val }
 -- So we can possibly specify a scope (Directory/System/Universe) for
 -- comparison rather than using allowRelativeEquality.
 
--- | Allow relative paths to be treated as equal. When this is 'False' relative
--- paths will never match even if they are literally equal e.g. "./x" will not
--- match "./x" because the meaning of "." in both cases could be different
--- depending on what the user meant by current directory in each case.
+-- | Allow relative paths to be treated as equal. When this is 'True',
+-- literally identical relative paths compare equal even though the meaning
+-- of "." (current directory) at each call site could in principle differ.
+-- Set to 'False' to require both paths to be absolute (or share-rooted on
+-- Windows) for equality.
 --
--- When set to 'False' (default):
---
--- >>> cfg = Path.allowRelativeEquality False
--- >>> eq a b = Path.eqPath cfg (Path.fromString_ a) (Path.fromString_ b)
--- >>> eq "."  "."
--- False
--- >>> eq "./x"  "./x"
--- False
--- >>> eq "./x"  "x"
--- False
---
--- When set to 'False' (default):
+-- When set to 'True' (default):
 --
 -- >>> cfg = Path.allowRelativeEquality True
 -- >>> eq a b = Path.eqPath cfg (Path.fromString_ a) (Path.fromString_ b)
@@ -1585,7 +1575,18 @@ ignoreCase val conf = conf { _ignoreCase = val }
 -- >>> eq "./x"  "././x"
 -- True
 --
--- /Default/: False
+-- When set to 'False':
+--
+-- >>> cfg = Path.allowRelativeEquality False
+-- >>> eq a b = Path.eqPath cfg (Path.fromString_ a) (Path.fromString_ b)
+-- >>> eq "."  "."
+-- False
+-- >>> eq "./x"  "./x"
+-- False
+-- >>> eq "./x"  "x"
+-- False
+--
+-- /Default/: True
 allowRelativeEquality :: Bool -> EqCfg -> EqCfg
 allowRelativeEquality val conf = conf { _allowRelativeEquality = val }
 
@@ -1599,16 +1600,8 @@ allowRelativeEquality val conf = conf { _allowRelativeEquality = val }
 -- specifically it drops redundant path separators between path segments and
 -- redundant "\/.\/" components between segments.
 --
--- Default config options use strict equality, for strict equality both the
--- paths must be absolute or both must be path segments without a leading root
--- component (e.g. x\/y). Also, both must be files or both must be directories.
---
 -- In addition to the default config options, the following equality semantics
 -- are used:
---
--- * An absolute path and a path relative to "." may be equal depending on the
--- meaning of ".", however this routine treats them as unequal, it does not
--- resolve the "." to a concrete path.
 --
 -- * Two paths having ".." components may be equal after processing the ".."
 -- components even if we determined them to be unequal. However, if we
@@ -1638,14 +1631,15 @@ allowRelativeEquality val conf = conf { _allowRelativeEquality = val }
 -- >>> eq "x/y/."  "x/y"
 -- True
 --
--- Leading dot, relative paths are not equal by default:
+-- Relative paths compare equal by default; pass
+-- @'allowRelativeEquality' False@ to require both paths to be absolute:
 --
 -- >>> eq "."  "."
--- False
+-- True
 -- >>> eq "./x"  "./x"
--- False
+-- True
 -- >>> eq "./x"  "x"
--- False
+-- True
 --
 -- Trailing separators are significant by default:
 --

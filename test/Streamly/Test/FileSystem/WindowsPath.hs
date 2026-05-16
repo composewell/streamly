@@ -167,11 +167,14 @@ testEqPathDefault = describe "eqPath default" $ do
         eq "x\\y" "x/y" `shouldBe` True
     it "case sensitive for non-root segments" $
         eq "x" "X" `shouldBe` False
-    it "drive-only paths are relative; not equal by default" $ do
-        eq "C:" "C:" `shouldBe` False
-        eq "C:x" "C:x" `shouldBe` False
-    it "drive-letter case differs but paths are relative" $
-        eq "c:" "C:" `shouldBe` False
+    it "drive-only paths equal under default (allowRelativeEquality True)" $ do
+        eq "C:" "C:" `shouldBe` True
+        eq "C:x" "C:x" `shouldBe` True
+    it "drive letter case-insensitive even for relative drive paths" $
+        eq "c:" "C:" `shouldBe` True
+    it "allowRelativeEquality False rejects drive-only relatives" $ do
+        eqWith (Path.allowRelativeEquality False) "C:" "C:" `shouldBe` False
+        eqWith (Path.allowRelativeEquality False) "C:x" "C:x" `shouldBe` False
     it "redundant separators ignored" $
         eq "x//y" "x/y" `shouldBe` True
     it "dot segments ignored" $

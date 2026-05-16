@@ -201,11 +201,11 @@ testEqPath = describe "eqPath" $ do
             `shouldBe` True
     it "case sensitive by default" $
         Path.eqPath id (p "x") (p "X") `shouldBe` False
-    it "relative paths not equal by default" $
-        Path.eqPath id (p ".") (p ".") `shouldBe` False
-    it "allowRelativeEquality" $
-        Path.eqPath (Path.allowRelativeEquality True) (p ".") (p ".")
-            `shouldBe` True
+    it "relative paths equal by default" $
+        Path.eqPath id (p ".") (p ".") `shouldBe` True
+    it "allowRelativeEquality False makes relative paths unequal" $
+        Path.eqPath (Path.allowRelativeEquality False) (p ".") (p ".")
+            `shouldBe` False
     it "eqPathBytes exact match" $
         Path.eqPathBytes (p "x//y") (p "x//y") `shouldBe` True
     it "eqPathBytes differs" $
@@ -526,21 +526,19 @@ testEqPathExtended = describe "eqPath (extended)" $ do
     let eq = Path.eqPath id
     it "/x equals //x" $ eq (p "/x") (p "//x") `shouldBe` True
     it "x/y/. equals x/y" $ eq (p "x/y/.") (p "x/y") `shouldBe` True
-    it ". equal to . is False by default" $
-        eq (p ".") (p ".") `shouldBe` False
-    it "./x equal to ./x is False by default" $
-        eq (p "./x") (p "./x") `shouldBe` False
-    it "./x equal to x is False by default" $
-        eq (p "./x") (p "x") `shouldBe` False
-    it "allowRelativeEquality . . True" $
-        Path.eqPath (Path.allowRelativeEquality True) (p ".") (p ".")
-            `shouldBe` True
-    it "allowRelativeEquality ./x x True" $
-        Path.eqPath (Path.allowRelativeEquality True) (p "./x") (p "x")
-            `shouldBe` True
-    it "allowRelativeEquality ./x ././x True" $
-        Path.eqPath (Path.allowRelativeEquality True) (p "./x") (p "././x")
-            `shouldBe` True
+    it ". equals . by default" $
+        eq (p ".") (p ".") `shouldBe` True
+    it "./x equals ./x by default" $
+        eq (p "./x") (p "./x") `shouldBe` True
+    it "./x equals x by default" $
+        eq (p "./x") (p "x") `shouldBe` True
+    it "./x equals ././x by default" $
+        eq (p "./x") (p "././x") `shouldBe` True
+    it "allowRelativeEquality False rejects relative equality" $ do
+        let cfg = Path.allowRelativeEquality False
+        Path.eqPath cfg (p ".") (p ".") `shouldBe` False
+        Path.eqPath cfg (p "./x") (p "x") `shouldBe` False
+        Path.eqPath cfg (p "./x") (p "././x") `shouldBe` False
     it "ignoreTrailingSeparators True" $
         Path.eqPath (Path.ignoreTrailingSeparators True) (p "x/") (p "x")
             `shouldBe` True
