@@ -6,6 +6,8 @@
 -- Stability   : experimental
 -- Portability : GHC
 
+{-# LANGUAGE CPP #-}
+
 {-# OPTIONS_GHC -Wno-unrecognised-warning-flags #-}
 {-# OPTIONS_GHC -Wno-x-partial #-}
 
@@ -18,7 +20,6 @@ module Main (main) where
 import Data.Word (Word8)
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
 import Streamly.Data.Array (Array)
-import System.Directory (createDirectoryLink)
 import System.FilePath ((</>))
 import System.IO.Temp (withSystemTempDirectory)
 
@@ -27,7 +28,11 @@ import qualified Streamly.Internal.Unicode.Stream as Unicode (lines)
 import qualified Streamly.Data.Stream.Prelude as Stream
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Data.StreamK as StreamK
+
+#if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
+import System.Directory (createDirectoryLink)
 import qualified Streamly.FileSystem.DirIO as Dir
+#endif
 
 import Prelude hiding (last, length)
 import BenchTestLib.DirIO
@@ -65,6 +70,7 @@ testCorrectnessByteChunked expectation lister = do
              $ Unicode.decodeUtf8Chunks lister
     reality `shouldBe` expectation
 
+#if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
 testSymLinkFollow :: FilePath -> Spec
 testSymLinkFollow tmpDir = do
     let fp = tmpDir </> "dir-structure-small-sym"
@@ -124,6 +130,7 @@ testSymLinkFollow tmpDir = do
                      . Dir.ignoreSymlinkLoops False
                      )
                      fp)
+#endif
 
 -- | List the current directory recursively
 runTests :: FilePath -> IO ()
@@ -212,7 +219,9 @@ runTests tmpDir = do
                    (tail pathsBig) (listDirChunkFoldParInterleaved id bigTree)
             it "listDirChunkFoldParOrdered" $
                testCorrectness (tail pathsBig) (listDirChunkFoldParOrdered id bigTree)
+#if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
         testSymLinkFollow tmpDir
+#endif
 
 -- | List the current directory recursively
 main :: IO ()
