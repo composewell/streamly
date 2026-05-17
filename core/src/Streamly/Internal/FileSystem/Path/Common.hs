@@ -1170,6 +1170,33 @@ isInvalidPathComponent = fmap (fmap charToWord)
     , "LPT1","LPT2","LPT3","LPT4","LPT5","LPT6","LPT7","LPT8","LPT9"
     ]
 
+{-
+A valid path is either:
+- a valid absolute path
+- a valid relative path
+
+A valid absolute path consists of:
+- a valid absolute root
+- optionally followed by a valid relative path
+
+A valid relative path:
+- does not begin with an absolute root
+- may begin with a relative root (e.g. "."; on Windows "/" and "c:" are also relative roots)
+- consists of path segments separated by path separators
+- contains no disallowed characters in any segment
+
+A valid absolute root:
+- is a valid path
+- has no parent
+
+Note:
+- On Windows, "/" is a drive-relative root, not an absolute root.
+- On Windows, "c:" is drive-relative, while "c:/" is absolute.
+
+A generic way to validate a path is -- split it lexically on the separator and
+then examine each component including the trailing separator.
+-}
+
 {- HLINT ignore "Use when" -}
 validatePathWith :: (MonadThrow m, Integral a, Unbox a) =>
     Bool -> OS -> Array a -> m ()
