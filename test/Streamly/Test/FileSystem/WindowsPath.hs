@@ -132,17 +132,20 @@ testSplitRoot = describe "splitRoot" $ do
     let split = fmap toList . Path.splitRoot . p
         toList (a, b) = (str a, fmap str b)
         cases =
-            [ ("C:",          Just ("C:",         Nothing))
-            , ("C:/",         Just ("C:/",        Nothing))
-            , ("//x/",        Just ("//x/",       Nothing))
-            , ("//x/y",       Just ("//x/",       Just "y"))
+            [ ("C:",                Just ("C:",           Nothing))
+            , ("C:/",               Just ("C:/",          Nothing))
+              -- UNC: share name is part of the root
+            , ("//x/y",             Just ("//x/y",        Nothing))
+            , ("//x/y/",            Just ("//x/y/",       Nothing))
+            , ("//x/y/z",           Just ("//x/y/",       Just "z"))
               -- Verbatim drive paths
-            , ("\\\\?\\c:\\", Just ("\\\\?\\c:\\", Nothing))
-            , ("\\\\?\\c:\\home",
-                Just ("\\\\?\\c:\\", Just "home"))
-              -- Verbatim UNC paths
+            , ("\\\\?\\c:\\",       Just ("\\\\?\\c:\\",  Nothing))
+            , ("\\\\?\\c:\\home",   Just ("\\\\?\\c:\\",  Just "home"))
+              -- Verbatim UNC paths: share name is part of the root
             , ("\\\\?\\UNC\\c:\\x",
-                Just ("\\\\?\\UNC\\c:\\", Just "x"))
+                Just ("\\\\?\\UNC\\c:\\x", Nothing))
+            , ("\\\\?\\UNC\\srv\\share\\x",
+                Just ("\\\\?\\UNC\\srv\\share\\", Just "x"))
             ]
     mapM_
         (\(input, expected) ->
@@ -189,11 +192,8 @@ testEqPathDriveAlwaysIgnoresCase =
             eq "c:/x" "C:/x" `shouldBe` True
         it "UNC server name case-insensitive" $
             eq "\\\\Server\\share\\x" "\\\\server\\share\\x" `shouldBe` True
-        -- Note: splitRoot currently treats the UNC share name as a body
-        -- component, so under default ignoreCase=False the share is
-        -- compared case-sensitively.
-        it "UNC share case follows ignoreCase (default sensitive)" $
-            eq "\\\\server\\Share\\x" "\\\\server\\share\\x" `shouldBe` False
+        it "UNC share name case-insensitive (share is part of root)" $
+            eq "\\\\server\\Share\\x" "\\\\server\\share\\x" `shouldBe` True
         it "Body case still respected with default" $
             eq "C:/X" "C:/x" `shouldBe` False
 
@@ -242,13 +242,10 @@ testNormalise = describe "normalise" $ do
         nrm "c:\\x" `shouldBe` "C:\\x"
     it "drive root only uppercased" $
         nrm "c:" `shouldBe` "C:"
-    -- Note: splitRoot currently treats the UNC share as a body component, so
-    -- only the server is lowercased by the root normaliser; the share keeps
-    -- its case unless ignoreCase is also set.
-    it "UNC server lowercased; share kept (root-only normalisation)" $
-        nrm "\\\\Server\\Share\\x" `shouldBe` "\\\\server\\Share\\x"
-    it "UNC server lowercased even when only root present" $
-        nrm "\\\\Server\\Share\\" `shouldBe` "\\\\server\\Share\\"
+    it "UNC root (server and share) lowercased" $
+        nrm "\\\\Server\\Share\\x" `shouldBe` "\\\\server\\share\\x"
+    it "UNC root lowercased when only root present" $
+        nrm "\\\\Server\\Share\\" `shouldBe` "\\\\server\\share\\"
     it "verbatim path untouched" $
         nrm "\\\\?\\C:\\Foo" `shouldBe` "\\\\?\\C:\\Foo"
     it "verbatim path with mixed case kept verbatim" $
@@ -347,7 +344,7 @@ testValidatePath = describe "validatePath" $ do
             , ("\\\\",            False)
             , ("\\\\\\",          False)
             , ("\\\\x",           False)
-            , ("\\\\x\\",         True)
+            , ("\\\\x\\",         False) -- server only, no share
             , ("\\\\x\\y",        True)
             , ("//x/y",           True)
             , ("\\\\prn\\y",      False)
@@ -412,7 +409,7 @@ testUnsafeJoin = describe "unsafeJoin" $ do
     it "x/ /y" $ f "x/" "/y" `shouldBe` "x/y"
     -- joinDrive-equivalent cases
     it "c: /x" $ f "c:" "/x" `shouldBe` "c:/x"
-    it "//x/ /y" $ f "//x/" "/y" `shouldBe` "//x/y"
+    it "//x/y/ /z" $ f "//x/y/" "/z" `shouldBe` "//x/y/z"
 
 testJoinWindows :: Spec
 testJoinWindows = describe "join (windows-specific)" $ do
@@ -422,12 +419,12 @@ testJoinWindows = describe "join (windows-specific)" $ do
     it "c:x y" $ f "c:x" "y" `shouldBe` "c:x\\y"
     it "\\x y" $ f "\\x" "y" `shouldBe` "\\x\\y"
     it "c:/ y" $ f "c:/" "y" `shouldBe` "c:/y"
-    it "//x/ y" $ f "//x/" "y" `shouldBe` "//x/y"
+    it "//x/y/ z" $ f "//x/y/" "z" `shouldBe` "//x/y/z"
     it "trailing forward slash kept" $ f "x/" "y" `shouldBe` "x/y"
     it "second-path /y rejected for any first" $ do
         mapM_
             (\a -> fails (f a "/y") >>= (`shouldBe` True))
-            ["c:/", "c:/x", "c:", "c:x", "/x", "x", "//x/"]
+            ["c:/", "c:/x", "c:", "c:x", "/x", "x", "//x/y/"]
     it "second-path c:/ rejected" $ fails (f "c:" "c:/") >>= (`shouldBe` True)
 
 -------------------------------------------------------------------------------
@@ -445,7 +442,8 @@ testSplitPath_ = describe "splitPath_ (windows-specific)" $ do
             [ ("c:x",      ["c:", "x"])
             , ("c:/",      ["c:/"])
             , ("c:/x",     ["c:/", "x"])
-            , ("//x/y/",   ["//x", "y"])
+            , ("//x/y/",   ["//x/y"])
+            , ("//x/y/z",  ["//x/y", "z"])
             , ("./a",      [".", "a"])
             , ("c:./a",    ["c:", "a"])
             , ("a/.",      ["a"])

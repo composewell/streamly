@@ -16,9 +16,8 @@
 --
 -- XXX ADS - alternate data stream syntax - file.txt:stream .
 
--- | Like 'validatePath' but more strict. The path must refer to a file system
--- object. For example, a share root itself is not a valid file system object.
--- it must be followed by a non-empty path.
+-- | Like 'validatePath' but more strict. Currently equivalent to
+-- 'validatePath' on Windows; reserved for future stricter checks.
 --
 -- >>> isValid = isJust . Path.validatePath' . Path.encodeString
 --
@@ -117,14 +116,14 @@ isRooted (OS_PATH arr) = Common.isRooted Common.OS_NAME arr
 -- "x/y"
 --
 -- Note "c:" and "/x" are both rooted paths, therefore, 'join' cannot be used
--- to join them. Similarly for joining "//x/" and "/y". For these cases use
+-- to join them. Similarly for joining "//x/y/" and "/z". For these cases use
 -- 'unsafeJoin'. 'unsafeJoin' can be used as a replacement for the
 -- joinDrive function from the filepath package.
 --
 -- >>> f "c:" "/x"
 -- "c:/x"
--- >>> f "//x/" "/y"
--- "//x/y"
+-- >>> f "//x/y/" "/z"
+-- "//x/y/z"
 --
 {-# INLINE unsafeJoin #-}
 unsafeJoin :: OS_PATH_TYPE -> OS_PATH_TYPE -> OS_PATH_TYPE
@@ -143,7 +142,7 @@ unsafeJoin (OS_PATH a) (OS_PATH b) =
 -- the two because "c:x" is different from "c:/x".
 --
 -- Note "c:" and "/x" are both rooted paths, therefore, 'join' cannot be used
--- to join them. Similarly for joining "//x/" and "/y". For these cases use
+-- to join them. Similarly for joining "//x/y/" and "/z". For these cases use
 -- 'unsafeJoin'.
 --
 -- >>> f a b = Path.toString $ Path.join a b
@@ -160,8 +159,8 @@ unsafeJoin (OS_PATH a) (OS_PATH b) =
 -- "\\x\\y"
 -- >>> f [path|c:/|] [path|y|]
 -- "c:/y"
--- >>> f [path|//x/|] [path|y|]
--- "//x/y"
+-- >>> f [path|//x/y/|] [path|z|]
+-- "//x/y/z"
 --
 -- When second path is relative to current directory in a specific drive.
 -- TODO: fix these.
@@ -195,7 +194,7 @@ unsafeJoin (OS_PATH a) (OS_PATH b) =
 -- True
 -- >>> fails $ f [path|x|] [path|/y|]
 -- True
--- >>> fails $ f [path|//x/|] [path|/y|]
+-- >>> fails $ f [path|//x/y/|] [path|/z|]
 -- True
 --
 -- When second path is absolute.
@@ -235,11 +234,9 @@ joinDir
 -- On Windows, the following is different:
 --
 -- * forward slash and backslash are treated as equivalent path separators.
--- * the drive letter (and the UNC server name) is /always/ compared
---   case-insensitively, regardless of the 'ignoreCase' setting, because
---   Windows file systems treat them as case-insensitive. The UNC share
---   name is currently treated as a body component by 'splitRoot' and so
---   still follows the 'ignoreCase' setting.
+-- * the drive letter and the full UNC root (server and share name) are
+--   /always/ compared case-insensitively, regardless of the 'ignoreCase'
+--   setting, because Windows file systems treat them as case-insensitive.
 -- * verbatim @\\\\?\\@ device paths are compared byte-for-byte. They bypass
 --   all normalisation, including case folding, separator translation and
 --   trailing separator handling, regardless of the 'EqCfg' settings.
@@ -348,11 +345,11 @@ eqPath cfg (OS_PATH a) (OS_PATH b) =
 -- >>> split "c:/"
 -- Just ("c:/",Nothing)
 --
--- >>> split "//x/"
--- Just ("//x/",Nothing)
---
 -- >>> split "//x/y"
--- Just ("//x/",Just "y")
+-- Just ("//x/y",Nothing)
+--
+-- >>> split "//x/y/z"
+-- Just ("//x/y/",Just "z")
 --
 splitRoot :: OS_PATH_TYPE -> Maybe (OS_PATH_TYPE, Maybe OS_PATH_TYPE)
 splitRoot (OS_PATH x) =
@@ -379,7 +376,10 @@ splitRoot (OS_PATH x) =
 -- ["c:/","x"]
 --
 -- >>> split "//x/y/"
--- ["//x","y"]
+-- ["//x/y"]
+--
+-- >>> split "//x/y/z"
+-- ["//x/y","z"]
 --
 -- >>> split "./a"
 -- [".","a"]

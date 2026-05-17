@@ -772,7 +772,75 @@ parseSegment arr sepOff = (segOff, segCnt)
 -- should not add another separator between root and path - thus joining root
 -- and path in this case is anyway special.
 
--- | Split a path prefixed with "\\" into (drive, path) tuple.
+-- | Parse a UNC-prefixed path. Caller must ensure 'isAbsoluteUNC' holds.
+-- Returns @(splitOffset, isStructuralUNC, wellFormed)@:
+--
+-- * @splitOffset@: first byte after the share name (or after the segment
+--   following @\\\\?\\@ for raw verbatim paths). This is the split point
+--   used by 'unsafeSplitUNC'.
+--
+-- * @isStructuralUNC@: 'True' for paths whose root has the
+--   @\\\\server\\share@ shape — either non-verbatim
+--   (@\\\\server\\share[\\...]@) or verbatim
+--   (@\\\\?\\UNC\\server\\share[\\...]@). 'False' for raw verbatim paths
+--   that do not name a network share (e.g. @\\\\?\\C:\\...@, @\\\\.\\x@,
+--   @\\\\??\\x@).
+--
+-- * @wellFormed@: for structural UNC paths, 'True' iff the server and
+--   share names are both non-empty and separated by exactly one
+--   separator. For raw verbatim paths the share rule does not apply and
+--   this is always 'True'.
+unsafeParseUNCEnd :: (Unbox a, Integral a) => Array a -> (Int, Bool, Bool)
+unsafeParseUNCEnd arr =
+    if cnt1 == 1 && unsafeIndexChar 2 arr == '?'
+    then
+        -- XXX Should mixed-case markers like "UnC" be accepted as the UNC
+        -- variant too? Currently only exact uppercase "UNC" is matched, so
+        -- "\\?\UnC\srv\share\x" falls through to the raw-verbatim branch
+        -- (where the server+share rule does not apply). The alternative
+        -- is to either match case-insensitively here, or reject mixed-case
+        -- markers outright in validatePath. Write test cases for whichever
+        -- choice we settle on.
+        if uncLen == 3
+                && unsafeIndexChar uncOff arr == 'U'
+                && unsafeIndexChar (uncOff + 1) arr == 'N'
+                && unsafeIndexChar (uncOff + 2) arr == 'C'
+        then
+            -- \\?\UNC\server\share\...
+            let sepStart = serverOff + serverLen
+                (shareOff, shareLen) = parseSegment arr sepStart
+             in ( shareOff + shareLen
+                , True
+                , serverLen > 0
+                    && shareLen > 0
+                    && shareOff - sepStart == 1
+                )
+        else
+            -- \\?\<anything else>... (raw verbatim, e.g. \\?\C:\...)
+            (sepOff1, False, True)
+    else
+        -- \\server\share\...
+        let (shareOff, shareLen) = parseSegment arr sepOff
+         in ( shareOff + shareLen
+            , True
+            , cnt1 > 0
+                && shareLen > 0
+                && shareOff - sepOff == 1
+            )
+
+    where
+
+    arr1 = snd $ Array.unsafeBreakAt 2 arr
+    cnt1 = countLeadingBy (not . isSeparatorWord Windows) arr1
+    sepOff = 2 + cnt1
+
+    -- XXX it should either be UNC or two letter drive in a valid path
+    (uncOff, uncLen) = parseSegment arr sepOff
+    sepOff1 = uncOff + uncLen
+    (serverOff, serverLen) = parseSegment arr sepOff1
+
+-- | Split a path prefixed with "\\" into (drive, path) tuple. The share
+-- name (where present) is treated as part of the root.
 --
 -- >>> toList (a,b) = (unpackPosix a, unpackPosix b)
 -- >>> split = toList . Common.unsafeSplitUNC . packPosix
@@ -789,8 +857,11 @@ parseSegment arr sepOff = (segOff, segCnt)
 -- >>> split "\\\\server\\"
 -- ("\\\\server\\","")
 --
--- >>> split "\\\\server\\home"
--- ("\\\\server\\","home")
+-- >>> split "\\\\server\\share"
+-- ("\\\\server\\share","")
+--
+-- >>> split "\\\\server\\share\\home"
+-- ("\\\\server\\share\\","home")
 --
 -- >>> split "\\\\?\\c:"
 -- ("\\\\?\\c:","")
@@ -807,32 +878,16 @@ parseSegment arr sepOff = (segOff, segCnt)
 -- >>> split "\\\\?\\UNC\\server"
 -- ("\\\\?\\UNC\\server","")
 --
--- >>> split "\\\\?\\UNC/server\\home"
--- ("\\\\?\\UNC/server\\","home")
+-- >>> split "\\\\?\\UNC/server\\share"
+-- ("\\\\?\\UNC/server\\share","")
+--
+-- >>> split "\\\\?\\UNC/server\\share\\home"
+-- ("\\\\?\\UNC/server\\share\\","home")
 --
 unsafeSplitUNC :: (Unbox a, Integral a) => Array a -> (Array a, Array a)
 unsafeSplitUNC arr =
-    if cnt1 == 1 && unsafeIndexChar 2 arr == '?'
-    then do
-        if uncLen == 3
-                && unsafeIndexChar uncOff arr == 'U'
-                && unsafeIndexChar (uncOff + 1) arr == 'N'
-                && unsafeIndexChar (uncOff + 2) arr == 'C'
-        then unsafeSplitPrefix Windows (serverOff + serverLen) arr
-        else unsafeSplitPrefix Windows sepOff1 arr
-    else unsafeSplitPrefix Windows sepOff arr
-
-    where
-
-    arr1 = snd $ Array.unsafeBreakAt 2 arr
-    cnt1 = countLeadingBy (not . isSeparatorWord Windows) arr1
-    sepOff = 2 + cnt1
-
-    -- XXX there should be only one separator in a valid path?
-    -- XXX it should either be UNC or two letter drive in a valid path
-    (uncOff, uncLen) = parseSegment arr sepOff
-    sepOff1 = uncOff + uncLen
-    (serverOff, serverLen) = parseSegment arr sepOff1
+    let (off, _, _) = unsafeParseUNCEnd arr
+     in unsafeSplitPrefix Windows off arr
 
 -- XXX should we make the root Maybe? Both components will have to be Maybe to
 -- avoid an empty path.
@@ -1333,7 +1388,7 @@ validatePathWith _ Posix path =
         then throwM $ InvalidPath
             $ "Null char found after " ++ show validLen ++ " characters."
         else pure ()
-validatePathWith allowRoot Windows path
+validatePathWith _allowRoot Windows path
   | Array.null path = throwM $ InvalidPath "Empty path"
   | otherwise = do
         if hasDrive path && postDriveSep > 1 -- "C://"
@@ -1348,13 +1403,17 @@ validatePathWith allowRoot Windows path
             then throwM $ InvalidPath
                 -- XXX print the invalid component name
                 "Special filename component found in share root"
-            else if rootEndSeps /= 1 -- "//share//x"
+            else if isStructuralUNC && not uncWellFormed -- "//x", "//x/"
             then throwM $ InvalidPath
-                $ "Share name is needed and exactly one separator is needed "
-                ++ "after the share root"
-            else if not allowRoot && Array.null stem -- "//share/"
+                $ "A UNC path must have both a server and a share name "
+                ++ "separated by a single separator"
+            else if isStructuralUNC && rootEndSeps > 1 -- "//x/y//z"
             then throwM $ InvalidPath
-                "the share root must be followed by a non-empty path"
+                "At most one separator is allowed after the share name"
+            else if not isStructuralUNC && rootEndSeps /= 1 -- "\\\\?\\c:x"
+            then throwM $ InvalidPath
+                $ "Exactly one separator is needed after the verbatim "
+                ++ "prefix segment"
             else pure ()
         else pure ()
 
@@ -1383,6 +1442,10 @@ validatePathWith allowRoot Windows path
     invalidVal = fromIntegral (Array.unsafeGetIndex validStemLen stem) :: Word16
 
     rootEndSeps  = countTrailingBy (isSeparatorWord Windows) root
+
+    -- Defined only when isAbsoluteUNC path holds; the only use sites below
+    -- are guarded by 'isAbsoluteUNC path' so it is fine to evaluate lazily.
+    (_, isStructuralUNC, uncWellFormed) = unsafeParseUNCEnd path
 
     -- TBD: We are not currently validating the sharenames against disallowed
     -- file names. Apparently windows does not allow even sharenames with those
@@ -1869,22 +1932,14 @@ isVerbatimRoot a =
 -- not be a plain root. If not then this function will not work correctly e.g.
 -- it might change \/ to // making the path a share name from a normal path.
 --
--- The drive letter (and the UNC server name that 'splitRoot' returns as the
--- root) is always compared case-insensitively. Verbatim @\\\\?\\@ paths are
--- compared byte-for-byte with no normalisation.
---
--- Note: 'splitRoot' currently treats the UNC share name as the first body
--- component, not as part of the root. The share name therefore follows the
--- body's 'ignoreCase' rule, not this root-only rule.
+-- The drive letter and the full UNC root (server and share name that
+-- 'splitRoot' returns) are always compared case-insensitively. Verbatim
+-- @\\\\?\\@ paths are compared byte-for-byte with no normalisation.
 eqWindowsRootWithDrive :: (Unbox a, Integral a) =>
     Array a -> Array a -> Bool
 eqWindowsRootWithDrive a b
     | isVerbatimRoot a || isVerbatimRoot b = Array.byteEq a b
     | otherwise =
-        -- XXX We probably do not want to translate UnC etc. to UNC.
-        -- Such a path should either be rejected in splitRoot or we
-        -- should not translate that here.
-        -- XXX if so write test cases for that.
         let f = normalizeCaseAndSeparators . Array.unsafeCast
          in runIdentity $ Stream.eqBy (==) (f a) (f b)
 
@@ -2009,10 +2064,8 @@ eqPath decoder os eqCfg@(EqCfg{..}) a b
 -- Canonicalisation rules:
 --
 -- * Drive root: the drive letter is upper-cased (e.g. @c:\\@ -> @C:\\@).
--- * UNC root: the root (currently just the server name) is lower-cased
---   (e.g. @\\\\Server\\@ -> @\\\\server\\@). The share name is treated as
---   the first body component by 'splitRoot' and is normalised by
---   'normaliseComponents' instead.
+-- * UNC root: the entire root (server and share name) is lower-cased
+--   (e.g. @\\\\Server\\Share\\@ -> @\\\\server\\share\\@).
 -- * Verbatim @\\\\?\\@ device paths are left untouched.
 --
 -- Separators in non-verbatim roots are normalised to the primary separator.
@@ -2021,10 +2074,6 @@ normaliseWindowsDriveRoot :: (Unbox a, Integral a) =>
 normaliseWindowsDriveRoot a
     | isVerbatimRoot a = a
     | isAbsoluteUNC a =
-        -- XXX We probably do not want to translate UnC etc. to UNC.
-        -- Such a path should either be rejected in splitRoot or we
-        -- should not translate that here.
-        -- XXX if so write test cases for that.
         Array.fromPureStream
             $ fmap charToWord
             $ normalizeLowerCaseAndSeparators

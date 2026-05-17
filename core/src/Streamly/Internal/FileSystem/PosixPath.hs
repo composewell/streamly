@@ -534,6 +534,7 @@ addTrailingSeparator p@(OS_PATH _arr) =
 -- False
 --
 -- Mixing path separators:
+--
 -- >>> isValid "/x\\y"
 -- True
 -- >>> isValid "\\/" -- ?
@@ -558,7 +559,7 @@ addTrailingSeparator p@(OS_PATH _arr) =
 -- >>> isValid "\\\\x"
 -- False
 -- >>> isValid "\\\\x\\"
--- True
+-- False
 -- >>> isValid "\\\\x\\y"
 -- True
 -- >>> isValid "//x/y"
@@ -593,7 +594,7 @@ addTrailingSeparator p@(OS_PATH _arr) =
 --
 -- >>> isValid "\\\\?\\UnC\\x" -- UnC treated as share name
 -- True
--- >>> isValid "\\\\?\\UNC\\x" -- XXX fix
+-- >>> isValid "\\\\?\\UNC\\x" -- server x but no share
 -- False
 -- >>> isValid "\\\\?\\UNC\\c:\\x"
 -- True
@@ -1041,6 +1042,10 @@ unsafeJoinPaths = undefined
 ------------------------------------------------------------------------------
 -- Splitting path
 ------------------------------------------------------------------------------
+
+-- NOTE: definition of a path root. A root is a valid directory path, its
+-- contents can be listed. A root does not have a parent directory.
+-- TODO: add a short definition of root in splitRoot.
 
 #ifndef IS_WINDOWS
 -- | If a path is rooted then separate the root and the remaining path,
@@ -1531,10 +1536,9 @@ ignoreTrailingSeparators val conf = conf { _ignoreTrailingSeparators = val }
 -- | When set to 'False', comparison is case sensitive.
 --
 -- On Windows this flag controls only the case-sensitivity of non-root path
--- segments. The drive letter (and the UNC server name that 'splitRoot'
--- returns as the root) is /always/ compared case-insensitively. The UNC
--- share name is currently treated as a body segment and so follows this
--- flag. Verbatim @\\\\?\\@ paths are always compared case-sensitively
+-- segments. The drive letter and the full UNC root (server and share name
+-- that 'splitRoot' returns) are /always/ compared case-insensitively.
+-- Verbatim @\\\\?\\@ paths are always compared case-sensitively
 -- (byte-for-byte), independent of this flag.
 --
 -- /Default/: False
@@ -1740,11 +1744,11 @@ collapseDotDots (OS_PATH p) =
 #else
 -- | Convert the path to an equivalent but standard format for reliable
 -- comparison. Collapses redundant separators and removes @.@ components,
--- normalises the root (drive letter upper-cased, UNC server name
--- lower-cased, forward separators converted to backslash), and optionally
--- folds case per the 'EqCfg' options. Verbatim @\\\\?\\@ paths are left
--- untouched. Does /not/ collapse @..@ segments, as that is unsafe in the
--- presence of symlinks.
+-- normalises the root (drive letter upper-cased, UNC root — server and
+-- share name — lower-cased, forward separators converted to backslash),
+-- and optionally folds case per the 'EqCfg' options. Verbatim @\\\\?\\@
+-- paths are left untouched. Does /not/ collapse @..@ segments, as that is
+-- unsafe in the presence of symlinks.
 --
 -- A trailing separator is preserved unless 'ignoreTrailingSeparators' is set
 -- in the 'EqCfg'.
@@ -1765,9 +1769,10 @@ collapseDotDots (OS_PATH p) =
 -- >>> f "c:\\x"
 -- "C:\\x"
 --
--- UNC server name is lower-cased; rest of the path follows ignoreCase:
+-- UNC root (server and share name) is lower-cased; rest of the path
+-- follows ignoreCase:
 --
--- >>> f "\\\\Server\\share\\x"
+-- >>> f "\\\\Server\\Share\\x"
 -- "\\\\server\\share\\x"
 --
 -- Verbatim paths are left untouched:
