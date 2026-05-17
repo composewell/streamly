@@ -1867,10 +1867,10 @@ takeCommonPrefix cfg (OS_PATH a) (OS_PATH b) =
 -- NoCommonPrefix, and NotProperPrefix.
 
 #ifndef IS_WINDOWS
--- | Strip a prefix from a path at a path segment boundary. Returns the
--- remaining suffix if the first argument is a prefix of the second, or
--- 'Nothing' if it is not or if stripping the prefix leaves an empty remainder
--- (i.e. the prefix equals the full path).
+-- | If all the components of the prefix path match the leading components
+-- of the second path, strip those components from the second path and
+-- return 'Just' the remainder, otherwise return 'Nothing'. If there is
+-- no remainder then return 'Nothing'.
 --
 -- This function essentially makes the second path relative to the first except
 -- that it does not introduce ".." components.
@@ -1884,29 +1884,29 @@ takeCommonPrefix cfg (OS_PATH a) (OS_PATH b) =
 -- >>> f "/x" "/x/y/z"
 -- Just "y/z"
 --
--- >>> f "/x/y" "/x/y/z"
--- Just "z"
+-- >>> f "/" "/x"
+-- Just "x"
 --
 -- Prefix not present:
 --
--- >>> f "/a" "/x/y"
+-- >>> f "/x" "/y"
 -- Nothing
 --
--- Prefix equals full path, leaving empty remainder:
+-- Both the paths are equal:
 --
 -- >>> f "/x/y" "/x/y"
 -- Nothing
 --
--- Redundant separators in the prefix are normalised before matching:
+-- Redundant separators are normalised:
 --
 -- >>> f "/x//y" "/x/y/z"
 -- Just "z"
 --
 #else
--- | Strip a prefix from a path at a path segment boundary. Returns the
--- remaining suffix if the first argument is a prefix of the second, or
--- 'Nothing' if it is not or if stripping the prefix leaves an empty remainder
--- (i.e. the prefix equals the full path).
+-- | If all the components of the prefix path match the leading components
+-- of the second path, strip those components from the second path and
+-- return 'Just' the remainder, otherwise return 'Nothing'. If there is
+-- no remainder then return 'Nothing'.
 --
 -- The prefix is compared using the supplied 'EqCfg' normalisation. The drive
 -- letter is matched case-insensitively. Verbatim @\\\\?\\@ paths are matched
@@ -1917,14 +1917,22 @@ takeCommonPrefix cfg (OS_PATH a) (OS_PATH b) =
 -- >>> f "C:\\x" "C:\\x\\y\\z"
 -- Just "y\\z"
 --
--- Drive letter case differs but the drive matches:
+-- Drive letter case differs:
 --
--- >>> f "c:\\x" "C:\\x\\y"
--- Just "y"
+-- >>> f "c:\\" "C:\\x"
+-- Just "x"
 --
 -- Prefix not present:
 --
--- >>> f "C:\\a" "C:\\x\\y"
+-- >>> f "C:\\a" "C:\\x"
+-- Nothing
+--
+-- >>> f "C:" "C:\\x"
+-- Nothing
+--
+-- Both the paths are equal:
+--
+-- >>> f "/x/y" "/x/y"
 -- Nothing
 --
 #endif

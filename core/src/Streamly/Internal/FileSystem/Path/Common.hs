@@ -824,6 +824,8 @@ splitPath_
     => OS -> Array a -> Stream m (Array a)
 splitPath_ = splitPathUsing False False
 
+-- XXX It should not normalize the Windows verbatim paths. We should simply
+-- split it as it is.
 {-# INLINE splitPath #-}
 splitPath
     :: (Unbox a, Integral a, Monad m)
