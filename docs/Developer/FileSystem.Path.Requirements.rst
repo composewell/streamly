@@ -194,70 +194,13 @@ Requirement Summary
 * support URI paths and other ways to represent paths where the separator could
   be different.
 
-Design Considerations
----------------------
-
-* Should we store path as separate components or single string with
-  separators?
-
-* Should we validate the paths returned from the file system or trust
-  those and use directly without any validations? Need to see if that makes
-  any difference to path heavy benchmarks. If we want to use it directly
-  then we have to store it as a single string.
-
-* Parameterize the low level APIs with the separator so that we can
-  support arbitrary separators when parsing or reconstructing paths.
-
-* The low level API can support path handling in trees/DAGs/Graphs in general.
-  For example, in trees we cannot have multiple parents of a child whereas in
-  DAGs that is allowed, in graphs we can have cycles. We may also need ways to
-  detect cycles.
-
-* Do we need to support arbitrarily long paths i.e. streaming of path? We do
-  not need that for file system paths and file system paths are limited size
-  and operating system anyway requires them in strict buffers. In case of
-  graphs if we have cycles paths can be infinite, we could generate a stream of
-  path and the consumer could be traversing the graph according to the
-  generated stream. If we want to support streaming then we have to store paths
-  as a stream of chunks rather than a single string.
-
-* In general, paths need not be strings, e.g. they can be references to
-  locations in memory or they can be IP addresses of nodes. At an abstract
-  level, paths are just a stream of tokens that represent a certain traversal.
-
-* Relative paths are the most general representation. At a low level,
-  all paths are relative, absolute paths are relative to a specified root
-  whereas relative paths are relative to a dynamic root which is the
-  current directory.
-
-* Windows can have the root as different drive letters. So to represent paths
-  with a root in general we can also store the specific root along with the
-  path. In case of POSIX this will always be "/". In general, it could be a
-  host name or IP address or dependent on the protocol whose path we are
-  representing.
-
-* We can parameterize the low level path type with the type of path e.g. POSIX,
-  WINDOWS, HTTP etc. In general, programs may have to manipulate different
-  types of paths at the same time. High level path types can be instantiated
-  using the low level type therefore they can be much simpler as desired.
-
 References
 ----------
 
 Some related links found by web search:
 
+* https://en.wikipedia.org/wiki/Path_(computing)
 * https://gitlab.haskell.org/ghc/ghc/issues/5218
 * https://nodejs.org/fr/docs/guides/working-with-different-filesystems/
 * https://unix.stackexchange.com/questions/2089/what-charset-encoding-is-used-for-filenames-and-paths-on-linux
-* https://docs.microsoft.com/en-us/windows/win32/intl/character-sets-used-in-file-names
 * https://beets.io/blog/paths.html
-
-Related Packages
-----------------
-
-* https://hackage.haskell.org/package/paths
-* https://hackage.haskell.org/package/path
-* https://hackage.haskell.org/package/hpath
-* https://hackage.haskell.org/package/filepath
-* https://hackage.haskell.org/package/file-io
-* https://hackage.haskell.org/package/os-string

@@ -12,6 +12,12 @@ needed.
 
 FileIO module provides regular file create operation.
 
+## File System as Tree vs Graph
+
+A file system is a tree when there are no hard links or symbolic links. But
+in the presence of symlinks it could be a DAG or a graph, because directory
+symlinks can create cycles.
+
 ## Traversal vs Output control
 
 There are two dimensions to recursive directory reading APIs, traversal and

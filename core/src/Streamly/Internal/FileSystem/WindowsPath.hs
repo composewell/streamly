@@ -2,6 +2,8 @@
 #define IS_WINDOWS
 #include "Streamly/Internal/FileSystem/PosixPath.hs"
 
+-- See docs/Developer/FileSystem.Path.md for design doc.
+--
 -- XXX Move these functions to PosixPath.hs and use CPP conditionals for
 -- documentation differences, definitions are identical.
 

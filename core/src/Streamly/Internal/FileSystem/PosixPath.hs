@@ -6,6 +6,7 @@
 -- file, generating a haddock warning.
 --
 -- See Internal.FileSystem.Path for module level docs.
+-- See docs/Developer/FileSystem.Path.md for design doc.
 --
 -- This file is preprocessed and included in Internal.FileSystem.Path module.
 -- The preprocessor replaces the macros by OS specific values. OS_PATH_TYPE
@@ -1870,6 +1871,9 @@ takeCommonPrefix cfg (OS_PATH a) (OS_PATH b) =
 -- remaining suffix if the first argument is a prefix of the second, or
 -- 'Nothing' if it is not or if stripping the prefix leaves an empty remainder
 -- (i.e. the prefix equals the full path).
+--
+-- This function essentially makes the second path relative to the first except
+-- that it does not introduce ".." components.
 --
 -- The prefix is compared using the supplied 'EqCfg' normalisation: redundant
 -- separators and @.@ components are removed before matching. @..@ components
