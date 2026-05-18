@@ -18,16 +18,22 @@
 -- Portability : GHC
 --
 -- This module provides a type safe path append operation by distinguishing
--- paths between rooted paths and branches. Rooted paths are represented by the
--- @Rooted OS_PATH@ type and branches are represented by the @Unrooted OS_PATH@
--- type. Rooted paths are paths that are attached to specific roots in the file
--- system. Rooted paths could be absolute or relative e.g. @\/usr\/bin@,
--- @.\/local\/bin@, or @.@. Unrootedes are a paths that are not attached to a
--- specific root e.g. @usr\/bin@, @local\/bin@, or @../bin@ are branches.
+-- between rooted paths and unrooted branches. Rooted paths are represented
+-- by the @Rooted OS_PATH@ type and unrooted branches are represented by the
+-- @Unrooted OS_PATH@ type.
+--
+-- Rooted paths are attached to specific filesystem roots or anchors. On
+-- Posix, rooted paths are absolute paths such as @/usr/bin@. On Windows,
+-- rooted paths may be absolute or partially constrained, for example
+-- @C:\x@, @C:x@, or @\x@.
+--
+-- Unrooted paths are not attached to a specific root and behave as
+-- appendable path branches. Examples include @usr/bin@, @local/bin@,
+-- @./bin@, and @../bin@.
 --
 -- This distinction provides a safe path append operation which cannot fail.
--- These types do not allow appending a rooted path to any other path. Only
--- branches can be appended.
+-- Rooted paths cannot be appended to other paths; only unrooted branches may
+-- be appended.
 --
 module Streamly.Internal.FileSystem.OS_PATH.Seg
     (
