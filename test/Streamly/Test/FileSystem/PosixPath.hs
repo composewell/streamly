@@ -201,6 +201,12 @@ testEqPath = describe "eqPath" $ do
         Path.eqPath id (p "x") (p "X") `shouldBe` False
     it "relative paths equal by default" $
         Path.eqPath id (p ".") (p ".") `shouldBe` True
+    it "./bin equals bin" $
+        Path.eqPath id (p "./bin") (p "bin") `shouldBe` True
+    it "./.. equals .." $
+        Path.eqPath id (p "./..") (p "..") `shouldBe` True
+    it "./../bin equals ../bin" $
+        Path.eqPath id (p "./../bin") (p "../bin") `shouldBe` True
     it "allowRelativeEquality False makes relative paths unequal" $
         Path.eqPath (Path.allowRelativeEquality False) (p ".") (p ".")
             `shouldBe` False

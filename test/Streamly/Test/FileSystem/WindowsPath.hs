@@ -166,6 +166,14 @@ testEqPathDefault = describe "eqPath default" $ do
     it "allowRelativeEquality False rejects drive-only relatives" $ do
         eqWith (Path.allowRelativeEquality False) "C:" "C:" `shouldBe` False
         eqWith (Path.allowRelativeEquality False) "C:x" "C:x" `shouldBe` False
+    it "C:bin equals C:./bin" $
+        eq "C:bin" "C:./bin" `shouldBe` True
+    -- Note: C: cannot carry a trailing separator (C:\\ means the absolute
+    -- root of drive C, not the current dir). Compare against C:. instead.
+    it "C: equals C:." $
+        eq "C:" "C:." `shouldBe` True
+    it "C:.. equals C:./.." $
+        eq "C:.." "C:./.." `shouldBe` True
     it "redundant separators ignored" $
         eq "x//y" "x/y" `shouldBe` True
     it "dot segments ignored" $

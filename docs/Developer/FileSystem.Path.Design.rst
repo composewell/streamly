@@ -395,20 +395,24 @@ locations depending on in what context the paths were created.
 
 The same arguments apply to paths with implicit drive on Windows.
 
-Strictly speaking @.\/bin\/ls@ can be treated as an absolute path with "." as
-an implicit root. On the other hand "bin/ls" is relative path which represents
-steps from somewhere to somewhere else rather than a particular location. We
-can also call @./bin@ as a "rooted path" as it starts at a particular location
-rather than defining "steps" to go from one place to another. If we want to
-append such paths we need to first make them explicitly relative by dropping
-the implicit root. Or we can use unsafeAppend to force it anyway or unsafeCast
-to convert absolute to relative.
+Strictly speaking @.\/bin\/ls@ can be treated as an absolute path with
+"." as an implicit dynamic root. On the other hand "bin/ls" is relative
+path which represents steps from somewhere to somewhere else rather than
+a particular location. We can also call @./bin@ as a "rooted path" as it
+starts at a particular location rather than defining "steps" to go from
+one place to another. If we want to append such paths we need to first
+make them explicitly relative by dropping the implicit root. Or we can
+use unsafeAppend to force it anyway or unsafeCast to convert absolute to
+relative.
 
 If we compare these absolute/located paths having implicit roots then result
 should be EqUnknown or maybe we can just return False?. @./bin@ and @./bin@
 should be treated as paths with different roots/drives but same relative path.
-The programmer can explicitly drop the root and compare the relative paths if
-they want to check literal equality.
+These paths can be compared as equal by enabling relative equality via flag.
+
+If we treat "." as a dynamic root then, ./bin and bin are not the same,
+similarly ./.. and .. are not the same; these may be surprising unless
+one is familiar with this model.
 
 Note that a trailing . or a . in the middle of a path is different as it
 refers to a known name.
@@ -463,6 +467,20 @@ converted to Posix style //server/share/file .
 
 If we want this behavior on Posix we can treat the path as a Windows path
 and use Windows path operations on it.
+
+Trailing separators for directories
+-----------------------------------
+
+@C:@ refers to the current directory in drive @C:@ and so is
+conceptually a directory, but unlike other directories we cannot write
+it with a trailing separator: @C:\\@ means the /absolute/ root of drive
+@C:@, not the current directory. This is the one place in our path model
+where the usual "directories carry a trailing separator" convention does
+not apply. To explicitly write "current directory in drive @C:@" with a
+trailing separator, use @C:.\\@ (which is equivalent to @C:@ under
+'eqPath').
+
+To avoid this problem we can normalize "C:" to "C:.\" .
 
 Design Considerations (old)
 ---------------------------

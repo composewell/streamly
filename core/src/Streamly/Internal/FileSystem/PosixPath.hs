@@ -1654,13 +1654,19 @@ allowRelativeEquality val conf = conf { _allowRelativeEquality = val }
 -- True
 --
 -- Relative paths compare equal by default; pass
--- @'allowRelativeEquality' False@ to require both paths to be absolute:
+-- @'allowRelativeEquality' False@ to require both paths to be absolute. A
+-- leading @.\/@ is just a redundant @.@ segment and compares equal to the
+-- same path without it:
 --
 -- >>> eq "."  "."
 -- True
 -- >>> eq "./x"  "./x"
 -- True
 -- >>> eq "./x"  "x"
+-- True
+-- >>> eq "./.."  ".."
+-- True
+-- >>> eq "./../x"  "../x"
 -- True
 --
 -- Trailing separators are significant by default:

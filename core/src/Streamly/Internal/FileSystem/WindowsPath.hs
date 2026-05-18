@@ -63,6 +63,15 @@ readArray = fromJust . fromArray . read
 -- * @C:@ current directory in drive
 -- * @C:file@ relative to current directory in drive
 --
+-- Note: @C:@ refers to the current directory in drive @C:@ and so is
+-- conceptually a directory, but unlike other directories we cannot write
+-- it with a trailing separator: @C:\\@ means the /absolute/ root of drive
+-- @C:@, not the current directory. This is the one place in our path model
+-- where the usual "directories carry a trailing separator" convention does
+-- not apply. To explicitly write "current directory in drive @C:@" with a
+-- trailing separator, use @C:.\\@ (which is equivalent to @C:@ under
+-- 'eqPath').
+--
 -- >>> isRooted = Path.isRooted . fromJust . Path.fromString
 --
 -- Common to Windows and Posix:
@@ -254,6 +263,20 @@ joinDir
 -- True
 --
 -- >>> eq "c:x"  "c:x"
+-- True
+--
+-- @C:@ (with no following separator) refers to the current directory in
+-- drive @C:@, so a leading @.\\@ after the drive is redundant. Note that
+-- @C:@ cannot carry a trailing separator (see the module note above), so
+-- we compare against @C:.@ rather than @C:.\\@ here:
+--
+-- >>> eq "c:bin"  "c:./bin"
+-- True
+--
+-- >>> eq "c:"  "c:."
+-- True
+--
+-- >>> eq "c:.."  "c:./.."
 -- True
 --
 -- Pass @'allowRelativeEquality' False@ to require absolute paths for
