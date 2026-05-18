@@ -561,7 +561,11 @@ addTrailingSeparator p@(OS_PATH _arr) =
 -- False
 -- >>> isValid "\\\\x\\"
 -- False
+-- >>> isValid "\\\\server\\"
+-- False
 -- >>> isValid "\\\\x\\y"
+-- True
+-- >>> isValid "\\\\server\\x"
 -- True
 -- >>> isValid "//x/y"
 -- True
@@ -596,6 +600,8 @@ addTrailingSeparator p@(OS_PATH _arr) =
 -- >>> isValid "\\\\?\\UnC\\x" -- UnC treated as share name
 -- True
 -- >>> isValid "\\\\?\\UNC\\x" -- server x but no share
+-- False
+-- >>> isValid "\\\\?\\UNC\\server"
 -- False
 -- >>> isValid "\\\\?\\UNC\\c:\\x"
 -- True

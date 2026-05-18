@@ -67,18 +67,6 @@ testFromString = describe "fromString" $ do
 -- Validation
 -------------------------------------------------------------------------------
 
-testValidatePathStrict :: Spec
-testValidatePathStrict = describe "validatePath' (strict)" $ do
-    let isValid = isJust . Path.validatePath' . Path.encodeString
-    it "lone double separator invalid" $
-        isValid "\\\\" `shouldBe` False
-    it "UNC server-only invalid" $
-        isValid "\\\\server\\" `shouldBe` False
-    it "UNC server+share valid" $
-        isValid "\\\\server\\x" `shouldBe` True
-    it "\\\\?\\UNC\\server alone invalid" $
-        isValid "\\\\?\\UNC\\server" `shouldBe` False
-
 -------------------------------------------------------------------------------
 -- Separators
 -------------------------------------------------------------------------------
@@ -345,7 +333,9 @@ testValidatePath = describe "validatePath" $ do
             , ("\\\\\\",          False)
             , ("\\\\x",           False)
             , ("\\\\x\\",         False) -- server only, no share
+            , ("\\\\server\\",    False)
             , ("\\\\x\\y",        True)
+            , ("\\\\server\\x",   True)
             , ("//x/y",           True)
             , ("\\\\prn\\y",      False)
             , ("\\\\x\\\\",       False)
@@ -362,6 +352,7 @@ testValidatePath = describe "validatePath" $ do
               -- long UNC (\\?\UNC\)
             , ("\\\\?\\UnC\\x",   True)  -- UnC is treated as share name
             , ("\\\\?\\UNC\\x",   False)
+            , ("\\\\?\\UNC\\server", False)
             , ("\\\\?\\UNC\\c:\\x", True)
               -- DOS device namespace
             , ("\\\\.\\x",        True)
@@ -508,7 +499,6 @@ main = hspec $ do
     describe moduleName $ do
         testFromString
         testValidatePath
-        testValidatePathStrict
         testSeparators
         testRooted
         testIsRootedWindows

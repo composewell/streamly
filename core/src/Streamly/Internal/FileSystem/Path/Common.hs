@@ -15,7 +15,6 @@ module Streamly.Internal.FileSystem.Path.Common
 
     -- * Validation
     , validatePath
-    , validatePath'
     , validateFile
 
     -- * Construction
@@ -1199,10 +1198,11 @@ A generic way to validate a path is -- split it lexically on the separator and
 then examine each component including the trailing separator.
 -}
 
+-- | A valid root, share root or a valid path.
 {- HLINT ignore "Use when" -}
-validatePathWith :: (MonadThrow m, Integral a, Unbox a) =>
-    Bool -> OS -> Array a -> m ()
-validatePathWith _ Posix path =
+validatePath :: (MonadThrow m, Integral a, Unbox a) =>
+    OS -> Array a -> m ()
+validatePath Posix path =
     let pathLen = Array.length path
         validLen = countLeadingValid Posix path
      in if pathLen == 0
@@ -1211,7 +1211,7 @@ validatePathWith _ Posix path =
         then throwM $ InvalidPath
             $ "Null char found after " ++ show validLen ++ " characters."
         else pure ()
-validatePathWith _allowRoot Windows path
+validatePath Windows path
   | Array.null path = throwM $ InvalidPath "Empty path"
   | otherwise = do
         if hasDrive path && postDriveSep > 1 -- "C://"
@@ -1304,15 +1304,6 @@ validatePathWith _allowRoot Windows path
         List.any (`List.elem` isInvalidPathComponent) (components root)
     invalidComponent =
         List.any (`List.elem` isInvalidPathComponent) (components stem)
-
--- | A valid root, share root or a valid path.
-{-# INLINE validatePath #-}
-validatePath :: (MonadThrow m, Integral a, Unbox a) => OS -> Array a -> m ()
-validatePath = validatePathWith True
-
-{-# INLINE validatePath' #-}
-validatePath' :: (MonadThrow m, Integral a, Unbox a) => OS -> Array a -> m ()
-validatePath' = validatePathWith False
 
 {-# INLINE unsafeFromArray #-}
 unsafeFromArray :: Array a -> Array a

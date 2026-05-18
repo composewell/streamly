@@ -20,26 +20,13 @@
 
 -- | Like 'validatePath' but more strict. Currently equivalent to
 -- 'validatePath' on Windows; reserved for future stricter checks.
---
--- >>> isValid = isJust . Path.validatePath' . Path.encodeString
---
--- >>> isValid "\\\\"
--- False
--- >>> isValid "\\\\server\\"
--- False
--- >>> isValid "\\\\server\\x"
--- True
--- >>> isValid "\\\\?\\UNC\\server"
--- False
---
+{-# DEPRECATED validatePath' "Please use 'validatePath' instead." #-}
 validatePath' ::
     MonadThrow m => Array OS_WORD_TYPE -> m ()
-validatePath' = Common.validatePath' Common.Windows
+validatePath' = Common.validatePath Common.Windows
 
 -- | Like 'isValidPath' but more strict.
---
--- >>> isValidPath' = isJust . Path.validatePath'
---
+{-# DEPRECATED isValidPath' "Please use 'isValidPath' instead." #-}
 isValidPath' ::
     Array OS_WORD_TYPE -> Bool
 isValidPath' = isJust . validatePath'
