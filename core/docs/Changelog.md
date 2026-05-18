@@ -4,6 +4,9 @@
 
 * Breaking: In `FileSystem.Path` module the default for `eqPath` changed
   on Windows to case-sensitive comparison.
+* Breaking: A leading "." component (e.g. "." or "./x") is no longer
+  treated as a rooted path, making the behavior more in line with
+  intuitive expectation.
 * Breaking: In `FileSystem.Path` module the default for `eqPath` changed
   on both Posix and Windows so that `allowRelativeEquality` is `True` by
   default. Literally identical relative paths (e.g. `./x` and `./x`, or

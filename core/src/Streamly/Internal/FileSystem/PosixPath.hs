@@ -903,9 +903,9 @@ AS_OS_CSTRING p = Array.asNullTerminatedPtr (toArray p)
 ------------------------------------------------------------------------------
 
 #ifndef IS_WINDOWS
--- | A path that is attached to a root e.g. "\/x" or ".\/x" are rooted paths.
--- "\/" is considered an absolute root and "." as a dynamic root. ".." is not
--- considered a root, "..\/x" or "x\/y" are not rooted paths.
+-- | A path that is attached to a root e.g. "\/x" is a rooted path. "\/" is an
+-- absolute root. On Posix a rooted path is same as an absolute path. A rooted
+-- path cannot be appended to any other path on Posix.
 --
 -- >>> isRooted = Path.isRooted . Path.fromString_
 --
@@ -913,24 +913,29 @@ AS_OS_CSTRING p = Array.asNullTerminatedPtr (toArray p)
 -- True
 -- >>> isRooted "/x"
 -- True
--- >>> isRooted "."
--- True
--- >>> isRooted "./x"
--- True
 --
 isRooted :: OS_PATH_TYPE -> Bool
 isRooted (OS_PATH arr) = Common.isRooted Common.OS_NAME arr
 #endif
 
--- | A path that is not attached to a root e.g. @a\/b\/c@ or @..\/b\/c@.
+-- | A path that is not attached to a root. An unrooted path can always be
+-- appended to any other path.
+--
+-- Definition:
 --
 -- >>> isUnrooted = not . Path.isRooted
+--
+-- Examples:
 --
 -- >>> isUnrooted = Path.isUnrooted . Path.fromString_
 --
 -- >>> isUnrooted "x"
 -- True
 -- >>> isUnrooted "x/y"
+-- True
+-- >>> isUnrooted "."
+-- True
+-- >>> isUnrooted "./x"
 -- True
 -- >>> isUnrooted ".."
 -- True
@@ -1074,32 +1079,34 @@ unsafeJoinPaths = undefined
 -- >>> split "/"
 -- Just ("/",Nothing)
 --
--- >>> split "."
--- Just (".",Nothing)
---
--- >>> split "./"
--- Just ("./",Nothing)
---
 -- >>> split "/home"
 -- Just ("/",Just "home")
 --
 -- >>> split "//"
 -- Just ("//",Nothing)
 --
+-- A leading @.@ component is not treated as a root:
+--
+-- >>> split "."
+-- Nothing
+--
+-- >>> split "./"
+-- Nothing
+--
 -- >>> split "./home"
--- Just ("./",Just "home")
+-- Nothing
 --
 -- >>> split "home"
 -- Nothing
 --
 splitRoot :: OS_PATH_TYPE -> Maybe (OS_PATH_TYPE, Maybe OS_PATH_TYPE)
-splitRoot (OS_PATH x) =
-    let (a,b) = Common.splitRoot Common.OS_NAME x
-     in if Array.null a
-        then Nothing
-        else if Array.null b
-        then Just (OS_PATH a, Nothing)
-        else Just (OS_PATH a, Just (OS_PATH b))
+splitRoot (OS_PATH x)
+    | not (Common.isRooted Common.OS_NAME x) = Nothing
+    | otherwise =
+        let (a,b) = Common.splitRoot Common.OS_NAME x
+         in if Array.null b
+            then Just (OS_PATH a, Nothing)
+            else Just (OS_PATH a, Just (OS_PATH b))
 
 -- | Split the path components keeping separators between path components
 -- attached to the dir part. Redundant separators are removed, only the first
@@ -1437,8 +1444,12 @@ pathDepth (OS_PATH p) =
               runIdentity
             $ Stream.fold Fold.length
             $ Common.splitPath_ Common.OS_NAME p
-     -- XXX should be just (n-1) when rooted, n can never be <= 0
-     in if Common.isRooted Common.OS_NAME p then max 0 (n - 1) else n
+        -- splitPath_ produces a leading root segment for any path whose
+        -- structural splitRoot is non-empty (this includes a leading ".").
+        -- Subtract one for that segment so a path like "." or "./x" has
+        -- depth 0 or 1 respectively, not 1 or 2.
+        (root, _) = Common.splitRoot Common.OS_NAME p
+     in if Array.null root then n else max 0 (n - 1)
 
 -- | Extracts the file name component (with extension) from a OS_PATH_TYPE, if
 -- present.

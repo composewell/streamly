@@ -95,7 +95,7 @@ testRooted = describe "isRooted" $ do
         Path.isRooted (p "\\\\server\\share\\") `shouldBe` True
     it "verbatim root is rooted" $
         Path.isRooted (p "\\\\?\\C:\\x") `shouldBe` True
-    it ". is rooted" $ Path.isRooted (p ".") `shouldBe` True
+    it ". is unrooted" $ Path.isUnrooted (p ".") `shouldBe` True
     it "x is unrooted" $ Path.isUnrooted (p "x") `shouldBe` True
 
 -------------------------------------------------------------------------------
@@ -374,8 +374,8 @@ testIsRootedWindows = describe "isRooted (windows-specific)" $ do
         cases =
             [ ("/",     True)
             , ("/x",    True)
-            , (".",     True)
-            , ("./x",   True)
+            , (".",     False)
+            , ("./x",   False)
             , ("c:",    True)
             , ("c:x",   True)
             , ("c:/",   True)

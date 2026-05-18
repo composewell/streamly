@@ -435,24 +435,19 @@ isAbsolute Windows arr =
 ------------------------------------------------------------------------------
 
 -- Note: paths starting with . or .. are ambiguous and can be considered
--- segments or rooted. We consider a path starting with "." as rooted, when
--- someone uses "./x" they explicitly mean x in the current directory whereas
--- just "x" can be taken to mean a path segment without any specific root.
--- However, in typed paths the programmer can convey the meaning whether they
--- mean it as a segment or a rooted path. So even "./x" can potentially be used
--- as a segment which can just mean "x".
+-- segments or rooted. A leading "." is treated as just a path segment that
+-- happens to refer to the current directory; "./x" is equivalent to "x" and
+-- both are considered unrooted. A path is only rooted if it has an explicit
+-- absolute or drive-style root (leading separator, drive letter, share name,
+-- etc.).
 --
--- XXX For the untyped Path we can allow appending "./x" to other paths. We can
--- leave this to the programmer. In typed paths we can allow "./x" in segments.
 -- XXX Empty path can be taken to mean "." except in case of UNC paths
 
 isRooted :: (Unbox a, Integral a) => OS -> Array a -> Bool
 isRooted Posix a =
     hasLeadingSeparator Posix a
-        || isRelativeCurDir Posix a
 isRooted Windows a =
     hasLeadingSeparator Windows a
-        || isRelativeCurDir Windows a
         || hasDrive a -- curdir-in-drive relative, drive absolute
 
 isBranch :: (Unbox a, Integral a) => OS -> Array a -> Bool
@@ -688,6 +683,13 @@ unsafeSplitUNC arr =
 
 {-# INLINE splitRoot #-}
 splitRoot :: (Unbox a, Integral a) => OS -> Array a -> (Array a, Array a)
+-- NOTE: 'splitRoot' is an internal structural operation; for the purposes of
+-- equality/normalisation it still splits a leading "." component (e.g. "./x")
+-- off as a root so that the 'allowRelativeEquality' machinery can distinguish
+-- "./x" from "x". Note that 'isRooted' does /not/ classify such a path as
+-- rooted; the user-facing 'splitRoot' wrappers in 'PosixPath'/'WindowsPath'
+-- map this case to 'Nothing'.
+--
 -- NOTE: validatePath depends on splitRoot splitting the path without removing
 -- any redundant chars etc. It should just split and do nothing else.
 -- XXX We can put an assert here "arrLen == rootLen + stemLen".
@@ -696,7 +698,7 @@ splitRoot :: (Unbox a, Integral a) => OS -> Array a -> (Array a, Array a)
 -- NOTE: we cannot drop the trailing "/" on the root even if we want to -
 -- because "c:/" will become "c:" and the two are not equivalent.
 splitRoot Posix arr
-    | isRooted Posix arr
+    | isRooted Posix arr || isRelativeCurDir Posix arr
         = unsafeSplitLeadingSep Posix arr
     | otherwise = (Array.empty, arr)
 splitRoot Windows arr
@@ -1182,9 +1184,12 @@ A valid absolute path consists of:
 
 A valid relative path:
 - does not begin with an absolute root
-- may begin with a relative root (e.g. "."; on Windows "/" and "c:" are also relative roots)
+- on Windows may begin with a relative root ("/" or "c:")
 - consists of path segments separated by path separators
 - contains no disallowed characters in any segment
+
+Note: A leading "." (e.g. "." or "./x") is /not/ treated as a root; "." is
+an ordinary path segment referring to the current directory.
 
 A valid absolute root:
 - is a valid path

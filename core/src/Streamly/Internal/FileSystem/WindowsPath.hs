@@ -43,9 +43,10 @@ isValidPath' = isJust . validatePath'
 readArray :: [Char] -> OS_PATH_TYPE
 readArray = fromJust . fromArray . read
 
--- | A path that is attached to a root. "C:\\" is considered an absolute root
--- and "." as a dynamic root. ".." is not considered a root, "..\/x" or "x\/y"
--- are not rooted paths.
+-- | A path that is attached to a root. "C:\\" is considered an absolute root.
+-- A leading @.@ is /not/ considered a root: "." and ".\\x" are unrooted,
+-- equivalent to (an empty path and) "x". ".." is also not a root, "..\/x" or
+-- "x\/y" are not rooted paths.
 --
 -- Absolute locations:
 --
@@ -59,7 +60,6 @@ readArray = fromJust . fromArray . read
 -- Relative locations:
 --
 -- * @\\@ relative to current drive root
--- * @.\\@ relative to current directory
 -- * @C:@ current directory in drive
 -- * @C:file@ relative to current directory in drive
 --
@@ -72,9 +72,9 @@ readArray = fromJust . fromArray . read
 -- >>> isRooted "/x"
 -- True
 -- >>> isRooted "."
--- True
+-- False
 -- >>> isRooted "./x"
--- True
+-- False
 --
 -- Windows specific:
 --
@@ -341,13 +341,13 @@ eqPath cfg (OS_PATH a) (OS_PATH b) =
 -- Just ("//x/y/",Just "z")
 --
 splitRoot :: OS_PATH_TYPE -> Maybe (OS_PATH_TYPE, Maybe OS_PATH_TYPE)
-splitRoot (OS_PATH x) =
-    let (a,b) = Common.splitRoot Common.OS_NAME x
-     in if Array.null a
-        then Nothing
-        else if Array.null b
-        then Just (OS_PATH a, Nothing)
-        else Just (OS_PATH a, Just (OS_PATH b))
+splitRoot (OS_PATH x)
+    | not (Common.isRooted Common.OS_NAME x) = Nothing
+    | otherwise =
+        let (a,b) = Common.splitRoot Common.OS_NAME x
+         in if Array.null b
+            then Just (OS_PATH a, Nothing)
+            else Just (OS_PATH a, Just (OS_PATH b))
 
 -- | Split a path into components separated by the path separator. "."
 -- components in the path are ignored except when in the leading position.

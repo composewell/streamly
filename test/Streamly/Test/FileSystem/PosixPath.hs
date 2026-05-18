@@ -77,8 +77,8 @@ testRooted :: Spec
 testRooted = describe "isRooted/isUnrooted" $ do
     it "/ is rooted" $ Path.isRooted (p "/") `shouldBe` True
     it "/x is rooted" $ Path.isRooted (p "/x") `shouldBe` True
-    it ". is rooted" $ Path.isRooted (p ".") `shouldBe` True
-    it "./x is rooted" $ Path.isRooted (p "./x") `shouldBe` True
+    it ". is unrooted" $ Path.isUnrooted (p ".") `shouldBe` True
+    it "./x is unrooted" $ Path.isUnrooted (p "./x") `shouldBe` True
     it "x is unrooted" $ Path.isUnrooted (p "x") `shouldBe` True
     it "x/y is unrooted" $ Path.isUnrooted (p "x/y") `shouldBe` True
     it ".. is unrooted" $ Path.isUnrooted (p "..") `shouldBe` True
@@ -118,12 +118,10 @@ testSplitRoot = describe "splitRoot" $ do
         fmap (fmap str . snd) r `shouldBe` Just (Just "home")
     it "relative has no root" $
         isNothing (Path.splitRoot (p "home")) `shouldBe` True
-    it ". is root" $
-        fmap (str . fst) (Path.splitRoot (p ".")) `shouldBe` Just "."
-    it "./home splits correctly" $ do
-        let r = Path.splitRoot (p "./home")
-        fmap (str . fst) r `shouldBe` Just "./"
-        fmap (fmap str . snd) r `shouldBe` Just (Just "home")
+    it ". has no root" $
+        isNothing (Path.splitRoot (p ".")) `shouldBe` True
+    it "./home has no root" $
+        isNothing (Path.splitRoot (p "./home")) `shouldBe` True
 
 testSplitFile :: Spec
 testSplitFile = describe "splitFile" $ do
@@ -394,11 +392,11 @@ testSplitRootExtended = describe "splitRoot (extended)" $ do
         toList (a, b) = (str a, fmap str b)
         cases =
             [ ("/",      Just ("/", Nothing))
-            , (".",      Just (".", Nothing))
-            , ("./",     Just ("./", Nothing))
+            , (".",      Nothing)
+            , ("./",     Nothing)
             , ("/home",  Just ("/", Just "home"))
             , ("//",     Just ("//", Nothing))
-            , ("./home", Just ("./", Just "home"))
+            , ("./home", Nothing)
             , ("home",   Nothing)
             ]
     mapM_
