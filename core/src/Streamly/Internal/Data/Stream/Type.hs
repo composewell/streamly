@@ -1645,6 +1645,54 @@ unfoldCross :: Monad m =>
     Unfold m (a,b) c -> Stream m a -> Stream m b -> Stream m c
 unfoldCross unf m1 m2 = unfoldEach unf $ crossWith (,) m1 m2
 
+{-# ANN type UnfoldLastState Fuse #-}
+data UnfoldLastState o i b =
+      UnfoldLastInput o (Maybe b)
+    | UnfoldLastInject (Maybe b)
+    | UnfoldLastOutput i
+
+-- | Append to the input stream a stream generated from terminal state
+-- accumulated while consuming the input stream.
+--
+-- The unfold is seeded with:
+--
+-- * 'Just x' where @x@ is the final element of the stream
+-- * 'Nothing' if the stream is empty
+--
+-- This is useful when a stream processing phase needs to hand over
+-- terminal state to another stream generation phase.
+--
+-- For example, one stream may incrementally compute state using scans
+-- or folds, and the resulting terminal state can then be used to
+-- generate a follow-up stream using general unfolding primitives.
+unfoldLast :: Applicative m
+           => Unfold m (Maybe b) b
+           -> Stream m b
+           -> Stream m b
+{-# INLINE_NORMAL unfoldLast #-}
+unfoldLast (Unfold ustep inject) (Stream ostep ost) =
+    Stream step (UnfoldLastInput ost Nothing)
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (UnfoldLastInput o lst) =
+        (\r -> case r of
+            Yield x o1 -> Yield x (UnfoldLastInput o1 (Just x))
+            Skip o1    -> Skip (UnfoldLastInput o1 lst)
+            Stop       -> Skip (UnfoldLastInject lst)
+        ) <$> ostep (adaptState gst) o
+
+    step _ (UnfoldLastInject lst) =
+        (Skip . UnfoldLastOutput) <$> inject lst
+
+    step _ (UnfoldLastOutput i) =
+        (\r -> case r of
+            Yield x i1 -> Yield x (UnfoldLastOutput i1)
+            Skip i1    -> Skip (UnfoldLastOutput i1)
+            Stop       -> Stop
+        ) <$> ustep i
+
 ------------------------------------------------------------------------------
 -- Combine N Streams - concatMap
 ------------------------------------------------------------------------------
