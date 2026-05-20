@@ -124,6 +124,10 @@ module Streamly.Internal.Data.Stream.Type
     -- * UnfoldCross
     , unfoldCross
 
+    -- * Unfold Last
+    , UnfoldLastState (..)
+    , unfoldLast
+
     -- * ConcatMap
     -- | Generate streams by mapping a stream generator on each element of an
     -- input stream, append the resulting streams and flatten.
@@ -1665,6 +1669,13 @@ data UnfoldLastState o i b =
 -- For example, one stream may incrementally compute state using scans
 -- or folds, and the resulting terminal state can then be used to
 -- generate a follow-up stream using general unfolding primitives.
+--
+-- >>> trailer = Unfold.lmap (maybe [-1] (\x -> [x*10, x*100])) Unfold.fromList
+-- >>> Stream.toList $ Stream.unfoldLast trailer (Stream.fromList [1,2,3 :: Int])
+-- [1,2,3,30,300]
+-- >>> Stream.toList $ Stream.unfoldLast trailer (Stream.fromList ([] :: [Int]))
+-- [-1]
+--
 unfoldLast :: Applicative m
            => Unfold m (Maybe b) b
            -> Stream m b
