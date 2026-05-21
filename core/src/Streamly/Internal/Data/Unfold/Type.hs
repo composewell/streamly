@@ -70,11 +70,12 @@ module Streamly.Internal.Data.Unfold.Type
     , lmapM
     , map
     , mapM
-    , both
-    , supply
-    , first
-    , second
-    , carry
+    , supply -- input or useInput
+    , first -- asFirst
+    , second --asSecond
+    , carry -- XXX carryInput?
+    , consInput
+    , consInputWith
 
     -- * Trimming
     , takeWhileM
@@ -114,6 +115,7 @@ module Streamly.Internal.Data.Unfold.Type
     , map2
     , mapM2
     , takeWhileMWithInput
+    , both
     )
 where
 
@@ -471,6 +473,34 @@ carry (Unfold ustep uinject) = Unfold step (\a -> (a,) <$> uinject a)
 
     {-# INLINE_LATE step #-}
     step (a, st) = fmap (func a) (ustep st)
+
+{-# ANN type ConsInputState Fuse #-}
+data ConsInputState a s = ConsInputFirst a s | ConsInputRest s
+
+-- | Prepend @f a@ to the output of the unfold, where @a@ is the input seed.
+--
+{-# INLINE_NORMAL consInputWith #-}
+consInputWith :: Applicative m => (a -> b) -> Unfold m a b -> Unfold m a b
+consInputWith f (Unfold ustep uinject) = Unfold step inject
+
+    where
+
+    inject a = ConsInputFirst a <$> uinject a
+
+    next r = case r of
+        Yield x s1 -> Yield x (ConsInputRest s1)
+        Skip s1    -> Skip (ConsInputRest s1)
+        Stop       -> Stop
+
+    {-# INLINE_LATE step #-}
+    step (ConsInputFirst a s) = pure $ Yield (f a) (ConsInputRest s)
+    step (ConsInputRest s) = next <$> ustep s
+
+-- | Prepend the input seed to the output of the unfold.
+--
+{-# INLINE consInput #-}
+consInput :: Applicative m => Unfold m a a -> Unfold m a a
+consInput = consInputWith id
 
 {-# DEPRECATED map2 "Use carry with map instead." #-}
 {-# INLINE_NORMAL map2 #-}
