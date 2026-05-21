@@ -125,8 +125,8 @@ module Streamly.Internal.Data.Stream.Type
     , unfoldCross
 
     -- * Unfold Last
-    , UnfoldLastState (..)
-    , unfoldLast
+    , AppendUnfoldLastState (..)
+    , appendUnfoldLast
 
     -- * ConcatMap
     -- | Generate streams by mapping a stream generator on each element of an
@@ -1649,11 +1649,11 @@ unfoldCross :: Monad m =>
     Unfold m (a,b) c -> Stream m a -> Stream m b -> Stream m c
 unfoldCross unf m1 m2 = unfoldEach unf $ crossWith (,) m1 m2
 
-{-# ANN type UnfoldLastState Fuse #-}
-data UnfoldLastState o i b =
-      UnfoldLastInput o (Maybe b)
-    | UnfoldLastInject (Maybe b)
-    | UnfoldLastOutput i
+{-# ANN type AppendUnfoldLastState Fuse #-}
+data AppendUnfoldLastState o i b =
+      AppendUnfoldLastInput o (Maybe b)
+    | AppendUnfoldLastInject (Maybe b)
+    | AppendUnfoldLastOutput i
 
 -- | Append to the input stream a stream generated from terminal state
 -- accumulated while consuming the input stream.
@@ -1671,36 +1671,36 @@ data UnfoldLastState o i b =
 -- generate a follow-up stream using general unfolding primitives.
 --
 -- >>> trailer = Unfold.lmap (maybe [-1] (\x -> [x*10, x*100])) Unfold.fromList
--- >>> Stream.toList $ Stream.unfoldLast trailer (Stream.fromList [1,2,3 :: Int])
+-- >>> Stream.toList $ Stream.appendUnfoldLast trailer (Stream.fromList [1,2,3 :: Int])
 -- [1,2,3,30,300]
--- >>> Stream.toList $ Stream.unfoldLast trailer (Stream.fromList ([] :: [Int]))
+-- >>> Stream.toList $ Stream.appendUnfoldLast trailer (Stream.fromList ([] :: [Int]))
 -- [-1]
 --
-unfoldLast :: Applicative m
+appendUnfoldLast :: Applicative m
            => Unfold m (Maybe b) b
            -> Stream m b
            -> Stream m b
-{-# INLINE_NORMAL unfoldLast #-}
-unfoldLast (Unfold ustep inject) (Stream ostep ost) =
-    Stream step (UnfoldLastInput ost Nothing)
+{-# INLINE_NORMAL appendUnfoldLast #-}
+appendUnfoldLast (Unfold ustep inject) (Stream ostep ost) =
+    Stream step (AppendUnfoldLastInput ost Nothing)
 
     where
 
     {-# INLINE_LATE step #-}
-    step gst (UnfoldLastInput o lst) =
+    step gst (AppendUnfoldLastInput o lst) =
         (\r -> case r of
-            Yield x o1 -> Yield x (UnfoldLastInput o1 (Just x))
-            Skip o1    -> Skip (UnfoldLastInput o1 lst)
-            Stop       -> Skip (UnfoldLastInject lst)
+            Yield x o1 -> Yield x (AppendUnfoldLastInput o1 (Just x))
+            Skip o1    -> Skip (AppendUnfoldLastInput o1 lst)
+            Stop       -> Skip (AppendUnfoldLastInject lst)
         ) <$> ostep (adaptState gst) o
 
-    step _ (UnfoldLastInject lst) =
-        (Skip . UnfoldLastOutput) <$> inject lst
+    step _ (AppendUnfoldLastInject lst) =
+        (Skip . AppendUnfoldLastOutput) <$> inject lst
 
-    step _ (UnfoldLastOutput i) =
+    step _ (AppendUnfoldLastOutput i) =
         (\r -> case r of
-            Yield x i1 -> Yield x (UnfoldLastOutput i1)
-            Skip i1    -> Skip (UnfoldLastOutput i1)
+            Yield x i1 -> Yield x (AppendUnfoldLastOutput i1)
+            Skip i1    -> Skip (AppendUnfoldLastOutput i1)
             Stop       -> Stop
         ) <$> ustep i
 

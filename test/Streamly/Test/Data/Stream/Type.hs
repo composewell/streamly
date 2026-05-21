@@ -39,20 +39,20 @@ testgroupsOf =
         (Stream.groupsOf 2 Fold.sum (Stream.enumerateFromTo 1 10))
         `shouldReturn` [3::Int, 7, 11, 15, 19]
 
-testUnfoldLastNonEmpty :: Expectation
-testUnfoldLastNonEmpty =
+testAppendUnfoldLastNonEmpty :: Expectation
+testAppendUnfoldLastNonEmpty =
     Stream.toList
-        (Stream.unfoldLast trailer (Stream.fromList [1, 2, 3 :: Int]))
+        (Stream.appendUnfoldLast trailer (Stream.fromList [1, 2, 3 :: Int]))
         `shouldReturn` [1, 2, 3, 30, 300]
 
     where
 
     trailer = Unfold.lmap (maybe [-1] (\x -> [x * 10, x * 100])) Unfold.fromList
 
-testUnfoldLastEmpty :: Expectation
-testUnfoldLastEmpty =
+testAppendUnfoldLastEmpty :: Expectation
+testAppendUnfoldLastEmpty =
     Stream.toList
-        (Stream.unfoldLast trailer (Stream.fromList ([] :: [Int])))
+        (Stream.appendUnfoldLast trailer (Stream.fromList ([] :: [Int])))
         `shouldReturn` [-1]
 
     where
@@ -176,6 +176,6 @@ main = hspec
     describe "Tests for Stream.groupsOf" $ do
         prop "testgroupsOf" testgroupsOf
 
-    describe "Tests for Stream.unfoldLast" $ do
-        prop "testUnfoldLastNonEmpty" testUnfoldLastNonEmpty
-        prop "testUnfoldLastEmpty" testUnfoldLastEmpty
+    describe "Tests for Stream.appendUnfoldLast" $ do
+        prop "testAppendUnfoldLastNonEmpty" testAppendUnfoldLastNonEmpty
+        prop "testAppendUnfoldLastEmpty" testAppendUnfoldLastEmpty
