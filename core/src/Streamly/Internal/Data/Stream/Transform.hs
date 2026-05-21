@@ -160,6 +160,12 @@ module Streamly.Internal.Data.Stream.Transform
     , rollingMapM
     , rollingMap2
 
+    -- * Selective Maps
+ -- , modifyFirst
+    , modifyLast
+ -- , modifyLastN -- using a ring buffer
+ -- , modifyIndices
+
     -- * Maybe Streams
     , mapMaybe
     , mapMaybeM
@@ -2017,6 +2023,25 @@ rollingMap2 f = catMaybes . rollingMap g
 
     g Nothing _ = Nothing
     g (Just x) y = Just (f x y)
+
+------------------------------------------------------------------------------
+-- Selective Map
+------------------------------------------------------------------------------
+
+-- | Modify the final element of a stream.
+--
+-- The supplied function is applied only to the terminal element of
+-- the stream. All preceding elements are emitted unchanged.
+--
+-- > modifyLast f [a,b,c] == [a,b,f c]
+--
+-- If the stream is empty, the result is empty.
+--
+-- /Unimplemented/
+--
+{-# INLINE modifyLast #-}
+modifyLast :: (a -> a) -> Stream m a -> Stream m a
+modifyLast = undefined
 
 ------------------------------------------------------------------------------
 -- Maybe Streams

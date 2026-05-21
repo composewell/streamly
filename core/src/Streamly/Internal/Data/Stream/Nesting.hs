@@ -36,11 +36,21 @@ module Streamly.Internal.Data.Stream.Nesting
     --
     -- @Stream m a -> Stream m a -> Stream m a@.
 
+    -- *** Appending
+      AppendUnfoldLastState (..)
+
+    -- stateful appends
+    , appendIfEmpty
+ -- , appendUnfoldFirst -- XXX this may not be useful
+    , appendUnfoldLast
+ -- , appendUnfoldIndices
+    , appendMapLast
+
     -- *** Interleaving
     -- | Interleave elements from two streams alternately. A special case of
     -- unfoldEachInterleave. Interleave is equivalent to mergeBy with a round
     -- robin merge function.
-      InterleaveState(..)
+    , InterleaveState(..)
     , interleave
     , interleaveEndBy'
     , interleaveSepBy'
@@ -75,6 +85,10 @@ module Streamly.Internal.Data.Stream.Nesting
     -- unfoldEach: Unfold m a b -> Stream m a -> Stream m b
     -- @
 
+    -- *** Stateful unfolds
+    -- unfoldFirst
+    , unfoldLast
+
     -- *** unfoldEach
     -- | Generate streams by using an unfold on each element of an input
     -- stream, append the resulting streams and flatten. A special case of
@@ -103,6 +117,10 @@ module Streamly.Internal.Data.Stream.Nesting
     -- | Like unfoldEach but intersperses streams between the unfolded streams.
     , intercalateSepBy
     , intercalateEndBy
+
+    -- *** stateful concatMap
+    -- concatMapFirst
+    , concatMapLast
 
     -- *** concatMap
     , fairConcatMapM
@@ -167,6 +185,98 @@ import Streamly.Internal.Data.Stream.Type
 import Prelude hiding (concatMap, zipWith)
 
 #include "DocTestDataStream.hs"
+
+------------------------------------------------------------------------------
+-- Appending
+------------------------------------------------------------------------------
+
+-- NOTE: If we want to view this as the second stream transformed by the first
+-- stream then we can use the name "onEmpty" instead.
+--
+-- The name appendIfEmpty might sound like there is nothing being appended, so
+-- why append in the name. But actually the first stream is fully evaluated
+-- even when it is empty, so the effects are generated even in that case, the
+-- second stream is appended to the first's effects if there is no visible
+-- output.
+
+-- | Use the second stream only if the first stream is empty.
+--
+-- The first stream is evaluated completely. If it yields at least one
+-- element, its output is used and the second stream is discarded.
+-- Otherwise, the second stream is evaluated and used instead.
+--
+-- > appendIfEmpty [1,2] [3,4] == [1,2]
+-- > appendIfEmpty []    [3,4] == [3,4]
+--
+-- This is analogous to a left-biased alternative on streams.
+--
+-- /Unimplemented/
+--
+appendIfEmpty :: Stream m a -> Stream m a -> Stream m a
+-- ifEmpty s1 s2 = appendMapLast (\x -> maybe s2 (const nil) x) s1
+appendIfEmpty = undefined
+
+{-# ANN type AppendUnfoldLastState Fuse #-}
+data AppendUnfoldLastState o i b =
+      AppendUnfoldLastInput o (Maybe b)
+    | AppendUnfoldLastInject (Maybe b)
+    | AppendUnfoldLastOutput i
+
+-- | Append to the input stream a stream generated from terminal state
+-- accumulated while consuming the input stream.
+--
+-- The unfold is seeded with:
+--
+-- * 'Just x' where @x@ is the final element of the stream
+-- * 'Nothing' if the stream is empty
+--
+-- This is useful when a stream processing phase needs to hand over
+-- terminal state to another stream generation phase.
+--
+-- For example, one stream may incrementally compute state using scans
+-- or folds, and the resulting terminal state can then be used to
+-- generate a follow-up stream using general unfolding primitives.
+--
+-- >>> trailer = Unfold.lmap (maybe [-1] (\x -> [x*10, x*100])) Unfold.fromList
+-- >>> Stream.toList $ Stream.appendUnfoldLast trailer (Stream.fromList [1,2,3 :: Int])
+-- [1,2,3,30,300]
+-- >>> Stream.toList $ Stream.appendUnfoldLast trailer (Stream.fromList ([] :: [Int]))
+-- [-1]
+--
+{-# INLINE_NORMAL appendUnfoldLast #-}
+appendUnfoldLast :: Applicative m
+           => Unfold m (Maybe b) b
+           -> Stream m b
+           -> Stream m b
+appendUnfoldLast (Unfold ustep inject) (Stream ostep ost) =
+    Stream step (AppendUnfoldLastInput ost Nothing)
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (AppendUnfoldLastInput o lst) =
+        (\r -> case r of
+            Yield x o1 -> Yield x (AppendUnfoldLastInput o1 (Just x))
+            Skip o1    -> Skip (AppendUnfoldLastInput o1 lst)
+            Stop       -> Skip (AppendUnfoldLastInject lst)
+        ) <$> ostep (adaptState gst) o
+
+    step _ (AppendUnfoldLastInject lst) =
+        (Skip . AppendUnfoldLastOutput) <$> inject lst
+
+    step _ (AppendUnfoldLastOutput i) =
+        (\r -> case r of
+            Yield x i1 -> Yield x (AppendUnfoldLastOutput i1)
+            Skip i1    -> Skip (AppendUnfoldLastOutput i1)
+            Stop       -> Stop
+        ) <$> ustep i
+
+-- |
+-- /Unimplemented/
+--
+{-# INLINE_NORMAL appendMapLast #-}
+appendMapLast :: (a -> Stream m a) -> Stream m b -> Stream m b
+appendMapLast = undefined
 
 ------------------------------------------------------------------------------
 -- Interleaving
@@ -648,6 +758,50 @@ mergeFstBy :: -- Monad m =>
     (a -> a -> m Ordering) -> Stream m a -> Stream m a -> Stream m a
 mergeFstBy _f _m1 _m2 = undefined
     -- fromStreamK $ D.mergeFstBy f (toStreamD m1) (toStreamD m2)
+
+------------------------------------------------------------------------------
+-- Selective unfold
+------------------------------------------------------------------------------
+
+-- | Replace the final element of a stream by unfolding a stream from it.
+--
+-- The final element is removed from the output stream and used as the
+-- seed to generate a replacement stream using the supplied 'Unfold'.
+--
+-- > [a,b,c] -> [a,b] <> unfold c
+--
+-- This is analogous to 'concatMap', but applied only to the terminal
+-- element of the stream.
+--
+-- If the stream is empty, the result is empty.
+--
+-- /Unimplemented/
+--
+{-# INLINE unfoldLast #-}
+unfoldLast :: Unfold m (Maybe a) a -> Stream m a -> Stream m a
+unfoldLast = undefined
+
+------------------------------------------------------------------------------
+-- Selective ConcatMap
+------------------------------------------------------------------------------
+
+-- | Replace the final element of a stream using a stream-valued mapping.
+--
+-- The final element is removed from the output stream and replaced by
+-- the stream generated by applying the supplied function to it.
+--
+-- > [a,b,c] -> [a,b] <> f c
+--
+-- This is analogous to 'concatMap', but applied only to the terminal
+-- element of the stream.
+--
+-- If the stream is empty, the result is empty.
+--
+-- /Unimplemented/
+--
+{-# INLINE concatMapLast #-}
+concatMapLast :: (Maybe a -> Stream m a) -> Stream m a -> Stream m a
+concatMapLast = undefined
 
 ------------------------------------------------------------------------------
 -- Combine N Streams - unfoldEach
