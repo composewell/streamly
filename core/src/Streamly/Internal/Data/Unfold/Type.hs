@@ -479,6 +479,9 @@ data ConsInputState a s = ConsInputFirst a s | ConsInputRest s
 
 -- | Prepend @f a@ to the output of the unfold, where @a@ is the input seed.
 --
+-- >>> Unfold.fold Fold.toList (Unfold.consInputWith length Unfold.fromList) [1,2,3]
+-- [3,1,2,3]
+--
 {-# INLINE_NORMAL consInputWith #-}
 consInputWith :: Applicative m => (a -> b) -> Unfold m a b -> Unfold m a b
 consInputWith f (Unfold ustep uinject) = Unfold step inject
@@ -497,6 +500,9 @@ consInputWith f (Unfold ustep uinject) = Unfold step inject
     step (ConsInputRest s) = next <$> ustep s
 
 -- | Prepend the input seed to the output of the unfold.
+--
+-- >>> Unfold.fold Fold.toList (Unfold.consInput (Unfold.function (* 2))) 3
+-- [3,6]
 --
 {-# INLINE consInput #-}
 consInput :: Applicative m => Unfold m a a -> Unfold m a a

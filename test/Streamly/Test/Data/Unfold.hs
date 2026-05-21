@@ -100,6 +100,16 @@ swap =
     let unf = UF.swap (UF.function id)
      in testUnfold unf ((1, 2) :: (Int, Int)) [(2, 1)]
 
+consInput :: Bool
+consInput =
+    let unf = UF.consInput (UF.function (* 2))
+     in testUnfold unf (3 :: Int) [3, 6]
+
+consInputWith :: Bool
+consInputWith =
+    let unf = UF.consInputWith length UF.fromList
+     in testUnfold unf ([1, 2, 3] :: [Int]) [3, 1, 2, 3]
+
 -------------------------------------------------------------------------------
 -- Stream generation
 -------------------------------------------------------------------------------
@@ -590,6 +600,8 @@ testInputOps =
             prop "discardFirst" discardFirst
             prop "discardSecond" discardSecond
             prop "swap" swap
+            prop "consInput" consInput
+            prop "consInputWith" consInputWith
 
 testGeneration :: Spec
 testGeneration =
