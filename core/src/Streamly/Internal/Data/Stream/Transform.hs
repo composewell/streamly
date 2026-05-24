@@ -28,11 +28,48 @@ module Streamly.Internal.Data.Stream.Transform
     , foldlS
 
     -- * Composable Scans
-    , postscanl
     , scanl
+    , postscanl
     , scanlMany
     , scanr
     , pipe
+
+    -- * Traditional Left Scans
+    -- | Stateful, mostly one-to-one maps.
+    -- ** Strict Scans
+    , scanlM'
+    , scanl'
+    , scanl1M'
+    , scanl1'
+
+    -- Prescans
+    , prescanl'
+    , prescanlM'
+
+    -- Postscans
+    , postscanl'
+    , postscanlM'
+    , mapAccumM
+
+    -- ** Lazy Scans
+    , scanlBy -- same as traditional "scanl"
+    , scanlM
+    , scanl1M
+    , scanl1
+
+    , postscanlBy -- same as traditional lazy "postscanl"
+    , postscanlM
+
+    -- *** with extraction (for foldl compatibility)
+    , postscanlx'
+    , postscanlMx'
+    , scanlMx'
+    , scanlx'
+
+    -- *** Specialized scans
+    -- transform the terminal state and append a single element
+    , scanlMAfter'
+    , postscanlMAfter'
 
     -- * Splitting
 
@@ -44,32 +81,6 @@ module Streamly.Internal.Data.Stream.Transform
 
     , splitSepBy_
     -- splitSepBy -- keeps the delimiters
-
-    -- * Ad-hoc Scans
-    -- | Left scans. Stateful, mostly one-to-one maps.
-    , scanlM'
-    , scanlMAfter'
-    , scanl'
-    , scanlM
-    , scanlBy
-    , scanl1M'
-    , scanl1'
-    , scanl1M
-    , scanl1
-
-    , prescanl'
-    , prescanlM'
-
-    , postscanlBy
-    , postscanlM
-    , postscanl'
-    , postscanlM'
-    , postscanlMAfter'
-
-    , postscanlx'
-    , postscanlMx'
-    , scanlMx'
-    , scanlx'
 
     -- * Filtering
     -- delete is for once like insert, filter is for many like intersperse.
@@ -784,8 +795,23 @@ scanlx' fstep begin done =
 ------------------------------------------------------------------------------
 
 -- Adapted from the vector package.
+
+-- | postscan and mapAccum (without terminal extraction) are identical in
+-- behavior and implementable in terms of each other. mapAccum is cleaner to
+-- have because postscan implementation in terms of it is clean whereas the
+-- vice-versa requires an undefined.
+--
 {-# INLINE_NORMAL postscanlM' #-}
 postscanlM' :: Monad m => (b -> a -> m b) -> m b -> Stream m a -> Stream m b
+{-
+postscanlM' step = mapAccumM step1
+
+    where
+
+    step1 s a = do
+        b <- step s a
+        pure (b, b)
+-}
 postscanlM' fstep begin (Stream step state) =
     Stream step' Nothing
   where
@@ -1032,6 +1058,30 @@ scanl1M' fstep (Stream step state) = Stream step' (state, Nothing)
 {-# INLINE scanl1' #-}
 scanl1' :: Monad m => (a -> a -> a) -> Stream m a -> Stream m a
 scanl1' f = scanl1M' (\x y -> return (f x y))
+
+-------------------------------------------------------------------------------
+-- Mealy style scans
+-------------------------------------------------------------------------------
+
+-- XXX implement this directly instead of using postscanlM'
+
+-- | postscan and mapAccum (without terminal extraction) are identical in
+-- behavior and implementable in terms of each other. mapAccum is cleaner to
+-- have because postscan implementation in terms of it is clean whereas the
+-- vice-versa requires an undefined.
+--
+{-# INLINE mapAccumM #-}
+mapAccumM :: Monad m =>
+       (s -> a -> m (s, b))
+    -> m s
+    -> Stream m a
+    -> Stream m b
+mapAccumM step initial stream =
+    let r = postscanlM'
+                (\(s, _) a -> step s a)
+                (fmap (,undefined) initial)
+                stream
+     in fmap snd r
 
 -------------------------------------------------------------------------------
 -- Filtering
