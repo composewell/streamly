@@ -177,17 +177,18 @@ initial value.
 There are strict variants of these like scanl', monadic variants like scanlM',
 variants where we use the first input as accumulator like scanl1' .
 
-## Scanl Module Name
+## Scan and Fold Modules
 
-* Since there is no Foldr, the fold module was named Fold.
-* Currently there is an inconsistency because fold module is called `Fold` and
-  the scan module is called `Scanl`. Either the fold module should be `Foldl`
-  or the scan module should be `Scan`.
-* There is not going to be a Scanr as well so the scan module could have been
-  named just `Scan`, but it was probably a consistency mistake to not name it
-  that.
-
-We could rename it now or live with it. Let's live with it, not a big deal.
+* The core scan module representing a stateful transformation or state
+  machine without emitting an initial or terminal value is to be named as
+  `Scan`.
+* The `Scanl` type and module is a further specialization of the `Scan`
+  type which adds an emission of an initial value to the state machine.
+* The Fold type is exactly the same as the `Scanl` type except that it
+  does not emit any intermediate values.
+* Since there is no Foldr, the fold module was named Fold. Ideally it can be
+  called `Foldl` to mirror the `Scanl` naming. But we are not going to change
+  it now.
 
 ## Where the runners live
 
@@ -202,17 +203,17 @@ Scanl type runners:
 
     Stream.scanl: running a Scanl type
     Stream.postscanl: running a Scanl type dropping the initial value
+        (equivalent to Scanl.toScan followed by Stream.scan)
 
-The proposal is to change `scanl` to `scan`, to disambiguate it a little more
-than single character difference from the constructor "scanl'" in the Scanl
-module. Note that this will also require a change in Fold, Scanl, Unfold
-modules. And across all variants like scanlMany, scanlMaybe etc.
-
-We keep `postscanl` as it is for future introduction of a `Postscan` type. If
-we introduce that then we will have to use the `postscan` name for that, and
-for running Scanl as postscan we can use a `toPostscan` converter for
-converting from Scanl to Postscan and then run it using `postscan`. In that
-case we can retire the `postscanl` variants.
+Note these are the Stream runners and remain unchanged. Separately, in the
+Scanl module the combinator to scan the input of a scan (the operation
+currently named `scanl`, not the runner) is to be renamed to `compose` as it
+composes two scans together to create a single scan by feeding the input from
+one to the other, it chains them. This is similar to how we compose the `Scan`
+type as well as the `Pipe` type. It makes sense to have a special name for this
+operation rather than using `scanl`. The restart-on-termination variant
+`scanlMany` is renamed to `composeMany` accordingly, so that the `scanl` root
+is fully freed. And `scanlMaybe` to `composeMaybe`.
 
 Directly running a scan using a step function
     Stream.scanl'
@@ -227,6 +228,25 @@ not in Data.Scanl, Data.Unfold and Data.Fold as well, (5) we have Scanl
 constructors with exact same names as the Data.List APIs therefore
 discoverability of traditional APIs should not be a problem.
 
+Directly running a mapAccum using a step function
+
+    Stream.mapAccum(M)
+
+The reified type for mapAccum is the `Scan` type. Similar to the above
+operations we should not expose these direct operations, rather we should use
+the `Scan` type to run these using the `scan` runner. The `Scan` type can have
+constructors named `mapAccum` and variants of that, also constructors named
+`postscanl'` and variants make sense for the `Scan` type.
+
+Directly running a concatMapAccum using a step function
+
+    Stream.concatMapAccum(M)
+
+concatMapAccum is not 1-to-1 (each input may emit many outputs), so it does not
+fit the `Scan` type; its natural reified form is perhaps the `Pipe` type. If we
+do not have a corresponding type we can have this operation exposed from
+Data.Stream.
+
 Scanl constructors:
 
     Scanl.mkScanl
@@ -235,32 +255,37 @@ Scanl constructors:
 
 The proposal is to change these names to "scanl'", "scanl1'" etc for the
 following reasons, (1) consistency with the Fold module constructors, (2) once
-we change the runner `scanl` to `scan`, the `scanl` root is free, so "scanl'"
-is no longer in conflict with any operation and can be used as a constructor.
+we rename the `scanl` composition operation to `compose`, the `scanl` root is
+free, so "scanl'" is no longer in conflict with any operation and can be used
+as a constructor.
 
 Another alternative is to change the Fold constructor names adding the prefix
-mk, reasons against doing that, (1) wider deprecation change, (2) in the Fold
-module there is no "fold/foldl" runner so there is no naming confusion, (3)
-these names maintain discoverability of the replacements of traditional fold
-functions from Data.List.
+mk, reasons against doing that, (1) wider deprecation change, (2) the change is
+not required otherwise because in the Fold module there is no "fold/foldl"
+runner so there is no naming confusion, (3) these names maintain
+discoverability of the replacements of traditional fold functions from
+Data.List.
 
-Directly running a mapAccum using a step function
+## Scan Type
 
-    Stream.mapAccum(M)
-    Stream.concatMapAccum(M)
+The `Scan` type is for representing a stateful transformation or state
+machine without emitting an initial or terminal value. This can be thought of
+as the mapAccum type reified.
 
-There is no reified type for mapAccum.
+Scan type runners:
 
-## Postscan Type
+    Stream.scan: running a Scan type
 
-This type does not exist as of now, but there is a possibility that we might
-add it for performance reasons.
+Scan type constructors:
+    Scan.postscanl': constructor using Moore style step function
+    Scan.postscanlM': monadic version of postscanl'
+    Scan.mapAccum: constructor using Mealy style step function
+    Scan.mapAccumM: monadic version of mapAccum
 
-Postscan type (separate type) runners and constructors:
-
-    Stream.postscan: running a Postscan type
-    Postscan.postscanl': constructor using a step function
-    Scanl.toPostscan: convert Scanl to Postscan and run using postscan
+Scan type adapters:
+    Scanl.toScan: convert Scanl to Scan
+    Scanl.fromScan: convert Scan to Scanl
+    Fold.fromScan: convert Scan to Fold
 
 ## Constructor Naming in Data.Scanl
 
@@ -270,11 +295,11 @@ scanning the input of a scan. So the "mk" prefix makes the distinction.
 Also prime is not necessary in constructor names as the scan is always
 strict, there is no choice of strict vs lazy.
 
-However, once we rename that operation from "scanl" to "scan" (as proposed
-above), the "scanl" root is no longer used by any operation, so we can drop the
-mk prefix and use the exact same names as the Data.List scan operations. That
-way it will become consistent with the Fold module and the names will be
-discoverable and familiar.
+However, once we rename that composition operation from "scanl" to "compose"
+(as proposed above), the "scanl" root is no longer used by any operation, so we
+can drop the mk prefix and use the exact same names as the Data.List scan
+operations. That way it will become consistent with the Fold module and the
+names will be discoverable and familiar.
 
 ## State Machines: At a Glance
 
