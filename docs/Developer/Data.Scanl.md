@@ -1,39 +1,3 @@
-## Scans as Moore and Mealy Machines
-
-foldl and scanl in Streamly are Moore machine style representations:
-
-    foldl :: (b -> a -> b) -> b -> Stream m a -> m b
-    scanl :: (s -> a -> s) -> s -> Stream m a -> Stream m s
-
-A Moore machine emits the states of the machine, the output is solely a
-function of the state. scanl emits the initial value of the accumulator
-followed by one value per input, the next state of the machine. If the input
-stream size is n the output stream size is n + 1.
-
-The Scanl type in streamly is a data representation of strict left
-scan. The Fold type is a data representation of strict left fold.
-
-mapAccum is a Mealy machine style representation:
-
-    mapAccum :: (s -> a -> (s, b)) -> s -> Stream m a -> Stream m b
-    mapAccumM :: (s -> a -> m (s, b)) -> m s -> Stream m a -> Stream m b
-    mapAccumEnd :: (s -> a -> (s, b)) -> s -> (s -> b) -> Stream m a -> Stream m b
-    mapAccumEndM :: (s -> a -> m (s, b)) -> m s -> (s -> m b) -> Stream m a -> Stream m b
-
-Here, the state and the output are separate, each input generates the next
-state and an output. Notice, the step function has the same shape as mapAccumL,
-but mapAccumL returns the final accumulator separately while scan emits a final
-value into the stream. scan emits values only on inputs, it does not emit an
-initial value.  However, the extraction function (s -> b) generates an
-additional terminal value.  While in Moore we have an additional initial value,
-in Mealy we have an additional final value.
-
-`scan` emits one output per input (from the step's b), followed by one
-terminal value (from extract).  If the input stream size is n the output
-stream size is n + 1.
-
-scan (Mealy) and scanl (Moore) can be interconverted.
-
 ## Moore vs Mealy Machine
 
 Moore:   observes states
@@ -47,19 +11,121 @@ equally well. The Mealy formulation is usually more straightforward to think as
 an explicit state machine. We have an initial state, each input causes a state
 transition and an output.
 
-The simplest to think about is a Mealy style scan without extraction:
+Producer: A state machine that produces output without any input
+Transducer: A state machine that produces output on input
 
+## Unfold and Stream (Simplest Producer)
+
+A state machine with no input:
 ```
-    mapAccum :: (s -> a -> (s, b)) -> s -> Stream m a -> Stream m b
+unfold :: (s -> m (s, b)) -> m s -> Stream m b
 ```
 
-## Implementation Optimizations
+Reification of the above unfold function as a data type with termination
+support and open injectable state.
+```
+data Step s b = Yield b s | Stop
+data Unfold m a b = forall s. Unfold (s -> m (Step s b)) (a -> m s)
+```
 
-We can write a variant of `scanl` that does not emit the initial
-value (postscan), and similarly a variant of scan that does not emit
-the terminal value. Use cases where we do not require
-these additional values can benefit from these more efficient simpler
-variants.
+For filtering we can use `Maybe b` as the output type of the machine or
+equivalently we can use an explicit `Skip` constructor:
+```
+data Step s b = Yield b s | Skip s | Stop
+data Unfold m a b = forall s. Unfold (s -> m (Step s b)) (a -> m s)
+```
+
+Stream is an unfold with a closed state.
+```
+data Stream m a = forall s. Stream (s -> m (Step s a)) s
+```
+
+In a producer machine, the driver keeps cranking the machine until the machine
+stops, the machines decides how many items to produce and when to stop. The
+machine also controls whether to produce an output or just pass on each crank.
+
+## Rescan and Scan (Simplest Transducer)
+
+The simplest transducer is a Mealy style scan without a terminal state
+emission or we can say Moore without an initial state emission:
+```
+transduce :: (s -> a -> m (s, b)) -> m s -> Stream m a -> Stream m b
+```
+
+Reification of the above transduce function as a data type with termination
+support and open injectable state.
+```
+data Step s b = Yield b s | Skip s | Stop
+data Rescan m c a b = forall s. Rescan (s -> a -> m (Step s b)) (c -> m s)
+```
+
+Equivalently instead of using the Skip constructor we can use a `Maybe b` type
+instead if we want to filter outputs (consumer mode). And we can use `Maybe a`
+type if we want to allow the machine to be cranked without any input (producer
+mode).
+
+Scan is a Rescan with a closed state:
+```
+data Scan m a b = forall s. Scan (s -> a -> m (Step s b)) s
+```
+
+In a scan the driver cranks the machine and decides whether to supply an input
+or crank without one. On each crank the machine decides whether to produce an
+output or pass without one. So the driver controls the input side and the
+machine controls the output side, but neither can seize control of the cranking
+rhythm: the machine cannot enter a producer phase where it forces the driver to
+keep cranking until the machine signals it is ready to accept input again.
+(That producer phase is what distinguishes a Pipe.)
+
+## Scanl (Moore and Mealy Machines)
+
+### Moore Style Scan
+
+foldl and scanl in Streamly are Moore machine style representations:
+```
+foldl :: (b -> a -> b) -> b -> Stream m a -> m b
+scanl :: (s -> a -> s) -> s -> Stream m a -> Stream m s
+```
+
+A Moore machine emits the states of the machine, the output is solely a
+function of the state. scanl emits the initial value of the accumulator
+followed by one value per input, the next state of the machine. If the input
+stream size is n the output stream size is n + 1.
+
+The Scanl type in streamly is a data representation of strict left
+scan. The Fold type is a data representation of strict left fold.
+
+### Mealy Style mapAccum
+
+mapAccum is a Mealy machine style representation:
+```
+mapAccum :: (s -> a -> (s, b)) -> s -> Stream m a -> Stream m b
+mapAccumM :: (s -> a -> m (s, b)) -> m s -> Stream m a -> Stream m b
+mapAccumEnd :: (s -> a -> (s, b)) -> s -> (s -> b) -> Stream m a -> Stream m b
+mapAccumEndM :: (s -> a -> m (s, b)) -> m s -> (s -> m b) -> Stream m a -> Stream m b
+```
+
+Here, the state and the output are separate, each input generates the next
+state and an output. Notice, the step function has the same shape as mapAccumL,
+but mapAccumL returns the final accumulator separately while the mapAccumEnd
+implementation above emits a final value into the stream. mapAccum emits values
+only on inputs, it does not emit an initial value.  However, the extraction
+function (s -> b) in mapAccumEnd generates an additional terminal value.  While
+in Moore we have an additional initial value, in Mealy we have an additional
+final value.
+
+`mapAccumEnd` emits one output per input (from the step's b), followed by one
+terminal value (from extract).  If the input stream size is n the output
+stream size is n + 1.
+
+mapAccumEnd (Mealy) and scanl (Moore) can be interconverted.
+
+### Implementation Optimizations (Scan Type)
+
+We can write a variant of `scanl` that does not emit the initial value
+(postscan), and similarly a variant of scan that does not emit the terminal
+value. Use cases where we do not require these additional values can benefit
+from these more efficient simpler variants.
 
 In a scanl, the driver must emit the initial value before processing any
 input.  Since this cannot be folded into the per-input step, the driver
@@ -101,9 +167,9 @@ without terminal state extraction.
 
 A Moore machine without the initial value and a Mealy machine without
 the terminal value are the simplest to implement and the most reliably
-fused.
+fused. This is basically the `Scan` type we discussed earlier.
 
-## Scanl Type
+### Scanl Type
 
 Both Moore and Mealy can represent transformations as well as consumers.
 Operations like map and filter where only transitions are important, and
@@ -138,7 +204,7 @@ We require the general Scanl type for resource bracketing.  For fusion
 optimizations, a postscan (no initial emission) type may be helpful for the
 case when no resource bracketing is required.
 
-## concatScanM and concatMapAccumM
+## concatScanlM and concatMapAccumM
 
 The Mealy formulation generalizes to concatMapAccum, without a final state
 emission:
@@ -151,18 +217,35 @@ state machines.
 The Moore style formulation of the same would require an extract function, the
 extract function is called once per input as the state advances:
 
-    concatScanM :: (s -> a -> m s) -> s -> (s -> Stream m b) -> Stream m a -> Stream m b
+    concatScanlM :: (s -> a -> m s) -> s -> (s -> Stream m b) -> Stream m a -> Stream m b
 
 This represents a uni-directional pipe, we can represent it using a data type
 UniPipe.
 
-## Scan Types
+## Streaming Types
 
-Fold    = terminal observation
-Scanl   = Moore observation stream
-mapAccum = Mealy transition stream
-concatScan = Moore style nested state machine
-concatMapAccum = Mealy style nested state machine
+Unfold: injectible state stream generation
+Stream: opaque state stream
+
+Rescan: injectible state transducer
+Scan: opaque state transducer
+
+Pipe: Combination of Rescan and Unfold
+
+unfoldAccum/concatMapAccum is a restricted Pipe: it has the fixed
+rhythm of consuming one input and unfolding/concatenating its
+sub-stream, whereas a Pipe can interleave consumption and production
+arbitrarily. (Note: a concatMapAccum whose sub-streams are opaque
+Streams cannot be expressed in the fused Pipe representation, because
+the sub-stream's existential state cannot be merged; the fused form
+corresponds to sub-streams produced by Unfold.)
+
+Rescanl: injectible state Moore machine (with initial state)
+Scanl: opaque state Moore machine
+
+Refold: Rescanl with only the final output
+Fold: Scanl with only the final output
+Parser: A Fold with error and backtracking
 
 ## Scan Variants
 
@@ -240,12 +323,15 @@ constructors named `mapAccum` and variants of that, also constructors named
 
 Directly running a concatMapAccum using a step function
 
+    Stream.unfoldAccum(M)
     Stream.concatMapAccum(M)
 
-concatMapAccum is not 1-to-1 (each input may emit many outputs), so it does not
-fit the `Scan` type; its natural reified form is perhaps the `Pipe` type. If we
-do not have a corresponding type we can have this operation exposed from
-Data.Stream.
+These are stateful 1-to-n transformations. unfoldAccum is the fused version and
+concatMapAccum is the unfused version because of the existential type in the
+Stream. The reified type that can represent unfoldAccum is the `Pipe` type.
+However, the Pipe type may be more general because it can do n-to-1
+transformations and 1-to-n as well i.e. it can fold and produce. There is no
+reified type corresponding to concatMapAccum.
 
 Scanl constructors:
 
@@ -339,8 +425,8 @@ names will be discoverable and familiar.
 * Moore stream transducer (scan):
   * treating `s` as input in iterate style fold is restrictive
   * it can only do `Stream m s -> Stream m s` transformation
-  * so use a separate input
-  * output derived from state after transition
+  * so separate the input from state
+  * output is derived from state after transition
   * scan using the same state and output type:
   * f :: (s -> a -> s) -> s -> Stream m a -> Stream m s
   * scan using a separate state and output type:
@@ -349,7 +435,7 @@ names will be discoverable and familiar.
 * Mealy stream transducer (mapAccum):
   * treating `s` as output is restrictive
   * So split the state and output
-  * output produced by the transition itself 
+  * output produced by the transition itself
   * mapAccum: Mealy machine with existential state and termination
   * Scan step: f :: s -> a -> (s, b)
   * Scan without final extract:
@@ -381,13 +467,33 @@ names will be discoverable and familiar.
 
 ## TODO
 
+* Formulate the Scanl/Fold type using the Scan type.
+
 * Formulate the Step type as `Partial s b` so that we do not need the extract
   function. We won't have to thread around the `b` anymore as we do not need to
   return it in `final`.
 
-* Formulate the Scanl/Fold type using a lower level Moore/Mealy step, like
-  Unfold in streams. We can then wrap that into another type to emit the
-  initial value. That will allow use to reuse the same underlying machinery for
-  both Postscanl and Scanl. We can name Postscanl as Transduce?
-
 * Change the final function in Scanl constructor to not return output type.
+  This makes sense in folds but in scans a single element generation at the end
+  is half-hearted solution. Either we should have the ability to generate a
+  stream in the beginning as well as in the end or nothing. The initial as well
+  as final operations should be of Step type. In addition, we should be able to
+  specify these as unfolds which we can internally adapt to the Step type.
+  This will make all the drivers complicated though especially the combinators.
+  Maybe we can just return the singleton residual state as the last
+  element and then externally unfold the output of the scan into a
+  stream.
+
+  For supporting something like scanlMAfter' we may need to emit the final state
+  during extract. We may have to return `Maybe b` in extract or `Stream m b`.
+  The `final` function has to work on the state such that it cannot return the
+  last emitted value, it will always return the values after the last
+  emitted value that may have to be drained.
+
+* scanlMAfter' can be implemented by something like modifyLast after generating
+  the final state value in a Moore machine. We can also generate a stream in
+  the end using unfoldLast.
+
+* Monadic inject in Unfold forces a separate init state when converting to a
+  stream. We can remove the monadic inject or create a pure type or ensure that
+  the additional state fuses in the most efficient way.
