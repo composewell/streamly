@@ -343,6 +343,11 @@ uncons (UnStream step state) = go SPEC state
 
 data UnfoldState s = UnfoldNothing | UnfoldJust s
 
+-- XXX Because the inject function is monadic we need a separate state for
+-- inject. If we had a pure Unfold type then conversion to stream is trivial.
+-- We can possibly have Unfold and UnfoldM or Unfold_ (pure). Which use cases
+-- require the monadic inject?
+
 -- | Convert an 'Unfold' into a stream by supplying it an input seed.
 --
 -- >>> s = Stream.unfold Unfold.replicateM (3, putStrLn "hello")
