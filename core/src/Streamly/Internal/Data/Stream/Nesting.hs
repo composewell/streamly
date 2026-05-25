@@ -271,12 +271,44 @@ appendUnfoldLast (Unfold ustep inject) (Stream ostep ost) =
             Stop       -> Stop
         ) <$> ustep i
 
--- |
--- /Unimplemented/
+-- | Append to the input stream a stream generated from terminal state
+-- accumulated while consuming the input stream.
+--
+-- The function is invoked with:
+--
+-- * 'Just x' where @x@ is the final element of the stream
+-- * 'Nothing' if the stream is empty
+--
+-- This is the 'concatMap' analogue of 'appendUnfoldLast'. Prefer
+-- 'appendUnfoldLast' in performance critical code as it fuses better.
+--
+-- >>> trailer = maybe (Stream.fromList [-1]) (\x -> Stream.fromList [x*10, x*100])
+-- >>> Stream.toList $ Stream.appendMapLast trailer (Stream.fromList [1,2,3 :: Int])
+-- [1,2,3,30,300]
+-- >>> Stream.toList $ Stream.appendMapLast trailer (Stream.fromList ([] :: [Int]))
+-- [-1]
 --
 {-# INLINE_NORMAL appendMapLast #-}
-appendMapLast :: (a -> Stream m a) -> Stream m b -> Stream m b
-appendMapLast = undefined
+appendMapLast :: Applicative m
+    => (Maybe b -> Stream m b) -> Stream m b -> Stream m b
+appendMapLast f (Stream ostep ost) = Stream step (Left (ost, Nothing))
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (Left (o, lst)) =
+        (\r -> case r of
+            Yield x o1 -> Yield x (Left (o1, Just x))
+            Skip o1    -> Skip (Left (o1, lst))
+            Stop       -> Skip (Right (f lst))
+        ) <$> ostep (adaptState gst) o
+
+    step gst (Right (UnStream istep ist)) =
+        (\r -> case r of
+            Yield x i1 -> Yield x (Right (Stream istep i1))
+            Skip i1    -> Skip (Right (Stream istep i1))
+            Stop       -> Stop
+        ) <$> istep gst ist
 
 ------------------------------------------------------------------------------
 -- Interleaving
