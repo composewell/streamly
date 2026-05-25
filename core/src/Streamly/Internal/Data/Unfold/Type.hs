@@ -48,6 +48,7 @@ module Streamly.Internal.Data.Unfold.Type
     , Unfold (..)
 
     -- * Basic Constructors
+    , mkUnfold
     , mkUnfoldM
     , mkUnfoldrM
     , unfoldrM
@@ -232,6 +233,13 @@ data Unfold m a b =
 ------------------------------------------------------------------------------
 
 -- XXX unfoldWith?
+
+-- | Make an unfold from @step@ and a pure @inject@ function.
+--
+-- /Pre-release/
+{-# INLINE mkUnfold #-}
+mkUnfold :: (s -> m (Step s b)) -> (a -> s) -> Unfold m a b
+mkUnfold = Unfold
 
 -- | Make an unfold from a step function.
 --
