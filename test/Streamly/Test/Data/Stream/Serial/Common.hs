@@ -992,6 +992,13 @@ transformCombineOpsCommon constr desc eq = do
                                        (S.scanlM' (\_ a -> return a) (return 0))
     prop (desc <> " postscanlM'") $ transform (tail . scanl' (const id) 0)
                                        (S.postscanlM' (\_ a -> return a) (return 0))
+    prop (desc <> " mapAccumM running sum") $
+        transform (tail . scanl' (+) 0)
+                  (S.mapAccumM (\s a -> let s1 = s + a in return (s1, s1))
+                               (return 0))
+    prop (desc <> " mapAccumM identity (== postscanlM')") $
+        transform (tail . scanl' (const id) 0)
+                  (S.mapAccumM (\_ a -> return (a, a)) (return 0))
     prop (desc <> " scanl1'") $ transform (scanl1 (const id))
                                          (S.scanl1' (const id))
     prop (desc <> " scanl1M'") $ transform (scanl1 (const id))
