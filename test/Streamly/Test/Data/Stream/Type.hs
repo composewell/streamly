@@ -139,6 +139,48 @@ testAppendIfEmptyEmpty =
             (Stream.fromList [3, 4]))
         `shouldReturn` [3, 4]
 
+testUnfoldFirstNonEmpty :: Expectation
+testUnfoldFirstNonEmpty =
+    Stream.toList
+        (Stream.unfoldFirst header (Stream.fromList [1, 2, 3 :: Int]))
+        `shouldReturn` [10, 100, 2, 3]
+
+    where
+
+    header = Unfold.lmap (maybe [] (\x -> [x * 10, x * 100])) Unfold.fromList
+
+testUnfoldFirstEmpty :: Expectation
+testUnfoldFirstEmpty =
+    Stream.toList
+        (Stream.unfoldFirst header (Stream.fromList ([] :: [Int])))
+        `shouldReturn` []
+
+    where
+
+    header = Unfold.lmap (maybe [] (\x -> [x * 10, x * 100])) Unfold.fromList
+
+testConcatMapFirstNonEmpty :: Expectation
+testConcatMapFirstNonEmpty =
+    Stream.toList
+        (Stream.concatMapFirst header (Stream.fromList [1, 2, 3 :: Int]))
+        `shouldReturn` [10, 100, 2, 3]
+
+    where
+
+    header =
+        maybe (Stream.fromList []) (\x -> Stream.fromList [x * 10, x * 100])
+
+testConcatMapFirstEmpty :: Expectation
+testConcatMapFirstEmpty =
+    Stream.toList
+        (Stream.concatMapFirst header (Stream.fromList ([] :: [Int])))
+        `shouldReturn` []
+
+    where
+
+    header =
+        maybe (Stream.fromList []) (\x -> Stream.fromList [x * 10, x * 100])
+
 moduleName :: String
 moduleName = "Data.Stream"
 
@@ -275,3 +317,11 @@ main = hspec
     describe "Tests for Stream.appendIfEmpty" $ do
         prop "testAppendIfEmptyNonEmpty" testAppendIfEmptyNonEmpty
         prop "testAppendIfEmptyEmpty" testAppendIfEmptyEmpty
+
+    describe "Tests for Stream.unfoldFirst" $ do
+        prop "testUnfoldFirstNonEmpty" testUnfoldFirstNonEmpty
+        prop "testUnfoldFirstEmpty" testUnfoldFirstEmpty
+
+    describe "Tests for Stream.concatMapFirst" $ do
+        prop "testConcatMapFirstNonEmpty" testConcatMapFirstNonEmpty
+        prop "testConcatMapFirstEmpty" testConcatMapFirstEmpty
