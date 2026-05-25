@@ -130,7 +130,7 @@ import Prelude hiding (read)
 
 import Streamly.Internal.Data.Fold (Fold)
 import Streamly.Internal.Data.Refold.Type (Refold(..))
-import Streamly.Internal.Data.Unfold.Type (Unfold(..))
+import Streamly.Internal.Data.Unfold.Type (Unfold(..), mkUnfoldM)
 import Streamly.Internal.Data.Array.Type
        (Array(..), unsafeFreezeWithShrink, byteLength)
 import Streamly.Internal.Data.Stream.Type (Stream)
@@ -264,7 +264,7 @@ readChunksWithBufferOf = chunkReaderWith
 {-# INLINE_NORMAL chunkReaderFromToWith #-}
 chunkReaderFromToWith :: MonadIO m =>
     Unfold m (Int, Int, Int, Handle) (Array Word8)
-chunkReaderFromToWith = Unfold step inject
+chunkReaderFromToWith = mkUnfoldM step inject
 
     where
 

@@ -341,13 +341,6 @@ uncons (UnStream step state) = go SPEC state
 -- From 'Unfold'
 ------------------------------------------------------------------------------
 
-data UnfoldState s = UnfoldNothing | UnfoldJust s
-
--- XXX Because the inject function is monadic we need a separate state for
--- inject. If we had a pure Unfold type then conversion to stream is trivial.
--- We can possibly have Unfold and UnfoldM or Unfold_ (pure). Which use cases
--- require the monadic inject?
-
 -- | Convert an 'Unfold' into a stream by supplying it an input seed.
 --
 -- >>> s = Stream.unfold Unfold.replicateM (3, putStrLn "hello")
@@ -357,18 +350,8 @@ data UnfoldState s = UnfoldNothing | UnfoldJust s
 -- hello
 --
 {-# INLINE_NORMAL unfold #-}
-unfold :: Applicative m => Unfold m a b -> a -> Stream m b
-unfold (Unfold ustep inject) seed = Stream step UnfoldNothing
-
-    where
-
-    {-# INLINE_LATE step #-}
-    step _ UnfoldNothing = Skip . UnfoldJust <$> inject seed
-    step _ (UnfoldJust st) = do
-        (\case
-            Yield x s -> Yield x (UnfoldJust s)
-            Skip s    -> Skip (UnfoldJust s)
-            Stop      -> Stop) <$> ustep st
+unfold :: Unfold m a b -> a -> Stream m b
+unfold (Unfold ustep inject) seed = Stream (\_ st -> ustep st) (inject seed)
 
 ------------------------------------------------------------------------------
 -- From Values
@@ -1599,18 +1582,18 @@ unfoldEach (Unfold istep inject) (Stream ostep ost) =
     {-# INLINE_LATE step #-}
     step gst (UnfoldEachOuter o) = do
         r <- ostep (adaptState gst) o
-        case r of
-            Yield a o' -> do
-                i <- inject a
-                i `seq` return (Skip (UnfoldEachInner o' i))
-            Skip o' -> return $ Skip (UnfoldEachOuter o')
-            Stop -> return Stop
+        return $ case r of
+            Yield a o1 ->
+                let i = inject a
+                 in i `seq` Skip (UnfoldEachInner o1 i)
+            Skip o1 -> Skip (UnfoldEachOuter o1)
+            Stop -> Stop
 
     step _ (UnfoldEachInner o i) = do
         r <- istep i
         return $ case r of
-            Yield x i' -> Yield x (UnfoldEachInner o i')
-            Skip i'    -> Skip (UnfoldEachInner o i')
+            Yield x i1 -> Yield x (UnfoldEachInner o i1)
+            Skip i1    -> Skip (UnfoldEachInner o i1)
             Stop       -> Skip (UnfoldEachOuter o)
 
 RENAME(unfoldMany,unfoldEach)
@@ -2054,24 +2037,24 @@ unfoldIterate (Unfold istep inject) (Stream ostep ost) =
     {-# INLINE_LATE step #-}
     step gst (IterateUnfoldOuter o) = do
         r <- ostep (adaptState gst) o
-        case r of
-            Yield a s -> do
-                i <- inject a
-                i `seq` return (Yield a (IterateUnfoldInner s i []))
-            Skip s -> return $ Skip (IterateUnfoldOuter s)
-            Stop -> return Stop
+        return $ case r of
+            Yield a s ->
+                let i = inject a
+                 in i `seq` Yield a (IterateUnfoldInner s i [])
+            Skip s -> Skip (IterateUnfoldOuter s)
+            Stop -> Stop
 
     step _ (IterateUnfoldInner o i ii) = do
         r <- istep i
-        case r of
-            Yield x s -> do
-                i1 <- inject x
-                i1 `seq` return $ Yield x (IterateUnfoldInner o i1 (s:ii))
-            Skip s -> return $ Skip (IterateUnfoldInner o s ii)
+        return $ case r of
+            Yield x s ->
+                let i1 = inject x
+                 in i1 `seq` Yield x (IterateUnfoldInner o i1 (s:ii))
+            Skip s -> Skip (IterateUnfoldInner o s ii)
             Stop ->
                 case ii of
-                    (y:ys) -> return $ Skip (IterateUnfoldInner o y ys)
-                    [] -> return $ Skip (IterateUnfoldOuter o)
+                    (y:ys) -> Skip (IterateUnfoldInner o y ys)
+                    [] -> Skip (IterateUnfoldOuter o)
 
 RENAME(unfoldIterateDfs,unfoldIterate)
 
@@ -2097,27 +2080,27 @@ altBfsUnfoldIterate (Unfold istep inject) (Stream ostep ost) =
     {-# INLINE_LATE step #-}
     step gst (IterateUnfoldBFSRevOuter o ii) = do
         r <- ostep (adaptState gst) o
-        case r of
-            Yield a s -> do
-                i <- inject a
-                i `seq` return (Yield a (IterateUnfoldBFSRevOuter s (i:ii)))
-            Skip s -> return $ Skip (IterateUnfoldBFSRevOuter s ii)
+        return $ case r of
+            Yield a s ->
+                let i = inject a
+                 in i `seq` Yield a (IterateUnfoldBFSRevOuter s (i:ii))
+            Skip s -> Skip (IterateUnfoldBFSRevOuter s ii)
             Stop ->
                 case ii of
-                    (y:ys) -> return $ Skip (IterateUnfoldBFSRevInner y ys)
-                    [] -> return Stop
+                    (y:ys) -> Skip (IterateUnfoldBFSRevInner y ys)
+                    [] -> Stop
 
     step _ (IterateUnfoldBFSRevInner i ii) = do
         r <- istep i
-        case r of
-            Yield x s -> do
-                i1 <- inject x
-                i1 `seq` return $ Yield x (IterateUnfoldBFSRevInner s (i1:ii))
-            Skip s -> return $ Skip (IterateUnfoldBFSRevInner s ii)
+        return $ case r of
+            Yield x s ->
+                let i1 = inject x
+                 in i1 `seq` Yield x (IterateUnfoldBFSRevInner s (i1:ii))
+            Skip s -> Skip (IterateUnfoldBFSRevInner s ii)
             Stop ->
                 case ii of
-                    (y:ys) -> return $ Skip (IterateUnfoldBFSRevInner y ys)
-                    [] -> return Stop
+                    (y:ys) -> Skip (IterateUnfoldBFSRevInner y ys)
+                    [] -> Stop
 
 RENAME(unfoldIterateBfsRev,altBfsUnfoldIterate)
 
@@ -2142,30 +2125,30 @@ bfsUnfoldIterate (Unfold istep inject) (Stream ostep ost) =
     {-# INLINE_LATE step #-}
     step gst (IterateUnfoldBFSOuter o rii) = do
         r <- ostep (adaptState gst) o
-        case r of
-            Yield a s -> do
-                i <- inject a
-                i `seq` return (Yield a (IterateUnfoldBFSOuter s (i:rii)))
-            Skip s -> return $ Skip (IterateUnfoldBFSOuter s rii)
+        return $ case r of
+            Yield a s ->
+                let i = inject a
+                 in i `seq` Yield a (IterateUnfoldBFSOuter s (i:rii))
+            Skip s -> Skip (IterateUnfoldBFSOuter s rii)
             Stop ->
                 case reverse rii of
-                    (y:ys) -> return $ Skip (IterateUnfoldBFSInner y ys [])
-                    [] -> return Stop
+                    (y:ys) -> Skip (IterateUnfoldBFSInner y ys [])
+                    [] -> Stop
 
     step _ (IterateUnfoldBFSInner i ii rii) = do
         r <- istep i
-        case r of
-            Yield x s -> do
-                i1 <- inject x
-                i1 `seq` return $ Yield x (IterateUnfoldBFSInner s ii (i1:rii))
-            Skip s -> return $ Skip (IterateUnfoldBFSInner s ii rii)
+        return $ case r of
+            Yield x s ->
+                let i1 = inject x
+                 in i1 `seq` Yield x (IterateUnfoldBFSInner s ii (i1:rii))
+            Skip s -> Skip (IterateUnfoldBFSInner s ii rii)
             Stop ->
                 case ii of
-                    (y:ys) -> return $ Skip (IterateUnfoldBFSInner y ys rii)
+                    (y:ys) -> Skip (IterateUnfoldBFSInner y ys rii)
                     [] ->
                         case reverse rii of
-                            (y:ys) -> return $ Skip (IterateUnfoldBFSInner y ys [])
-                            [] -> return Stop
+                            (y:ys) -> Skip (IterateUnfoldBFSInner y ys [])
+                            [] -> Stop
 
 RENAME(unfoldIterateBfs,bfsUnfoldIterate)
 

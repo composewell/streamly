@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+### Breaking
+
 * Breaking: In `FileSystem.Path` module the default for `eqPath` changed
   on Windows to case-sensitive comparison.
 * Breaking: A leading "." component (e.g. "." or "./x") is no longer
@@ -12,7 +14,25 @@
   default. Literally identical relative paths (e.g. `./x` and `./x`, or
   `c:` and `c:` on Windows) now compare equal. Pass
   `allowRelativeEquality False` to restore the previous strict behaviour.
+
+### Enhancements
+
+* `Streamly.Data.Stream.unfold` no longer requires an `Applicative` constraint
+  and produces a smaller fused loop (one fewer state constructor and Skip on
+  the first pull) for unfolds with a pure inject.
+
+### Bug Fixes
+
 * Bug fix: Fixed `followSymlinks` option not working correctly on macOS.
+* `Streamly.Internal.Data.Unfold.before` previously did not actually run the
+  supplied action due to the wrong `>>` instance being resolved; it now runs
+  as documented.
+
+### Internal
+
+* Unfold constructor's inject changed from monadic to pure. Public APIs
+  unaffected. Direct users of the `Unfold` constructor with a monadic
+  inject should switch to `mkUnfoldM` in `Streamly.Internal.Data.Unfold.Type`.
 
 ## 0.3.0
 

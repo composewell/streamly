@@ -1016,7 +1016,7 @@ unsafeReader = Unfold step inject
     where
 
     inject (Array contents start end) =
-        return (MA.ArrayUnsafe contents end start)
+        MA.ArrayUnsafe contents end start
 
     {-# INLINE_LATE step #-}
     step (MA.ArrayUnsafe contents end p) = do

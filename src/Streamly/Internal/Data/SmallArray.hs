@@ -195,7 +195,7 @@ streamFold f arr = f (read arr)
 reader :: Monad m => Unfold m (SmallArray a) a
 reader = Unfold step inject
   where
-    inject arr = return (arr, 0)
+    inject arr = (arr, 0)
     step (arr, i)
         | i == length arr = return D.Stop
         | otherwise =

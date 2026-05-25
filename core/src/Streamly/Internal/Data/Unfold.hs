@@ -213,7 +213,7 @@ fold :: Monad m => Fold m b c -> Unfold m a b -> a -> m c
 fold (Fold fstep initial _ final) (Unfold ustep inject) a = do
     res <- initial
     case res of
-        FL.Partial x -> inject a >>= go SPEC x
+        FL.Partial x -> go SPEC x (inject a)
         FL.Done b -> return b
 
     where
@@ -248,9 +248,7 @@ foldMany (Fold fstep initial _ final) (Unfold ustep inject1) =
 
     where
 
-    inject x = do
-        r <- inject1 x
-        return (FoldManyStart r)
+    inject x = FoldManyStart (inject1 x)
 
     {-# INLINE consume #-}
     consume x s fs = do
@@ -300,8 +298,8 @@ either (Unfold stepL injectL) (Unfold stepR injectR) = Unfold step inject
 
     where
 
-    inject (Left x) = Left <$> injectL x
-    inject (Right x) = Right <$> injectR x
+    inject (Left x) = Left (injectL x)
+    inject (Right x) = Right (injectR x)
 
     {-# INLINE_LATE step #-}
     step (Left st) = do
@@ -323,14 +321,14 @@ either (Unfold stepL injectL) (Unfold stepR injectR) = Unfold step inject
 {-# INLINE_NORMAL postscan #-}
 postscan :: Monad m => Fold m b c -> Unfold m a b -> Unfold m a c
 postscan (Fold stepF initial extract final) (Unfold stepU injectU) =
-    Unfold step inject
+    mkUnfoldM step inject
 
     where
 
-    inject a =  do
+    inject a = do
         r <- initial
         case r of
-            FL.Partial fs -> Just . (fs,) <$> injectU a
+            FL.Partial fs -> return $ Just (fs, injectU a)
             FL.Done _ -> return Nothing
 
     {-# INLINE_LATE step #-}
@@ -358,7 +356,7 @@ scanWith restart (Scanl fstep initial extract final) (Unfold stepU injectU) =
 
     where
 
-    inject a = ScanInit <$> injectU a
+    inject a = ScanInit (injectU a)
 
     {-# INLINE runStep #-}
     runStep us action = do
@@ -432,7 +430,7 @@ postscanlM' f z = postscan (FL.foldlM' f z)
 
 {-# INLINE_NORMAL fromStreamD #-}
 fromStreamD :: Applicative m => Unfold m (Stream m a) a
-fromStreamD = Unfold step pure
+fromStreamD = Unfold step id
 
     where
 
@@ -445,7 +443,7 @@ fromStreamD = Unfold step pure
 
 {-# INLINE_NORMAL fromStreamK #-}
 fromStreamK :: Applicative m => Unfold m (K.StreamK m a) a
-fromStreamK = Unfold step pure
+fromStreamK = Unfold step id
 
     where
 
@@ -468,7 +466,7 @@ fromStream = fromStreamD
 --
 {-# INLINE nilM #-}
 nilM :: Applicative m => (a -> m c) -> Unfold m a b
-nilM f = Unfold step pure
+nilM f = Unfold step id
 
     where
 
@@ -478,7 +476,7 @@ nilM f = Unfold step pure
 -- | An empty stream.
 {-# INLINE nil #-}
 nil :: Applicative m => Unfold m a b
-nil = Unfold (Prelude.const (pure Stop)) pure
+nil = Unfold (Prelude.const (pure Stop)) id
 
 -- | Prepend a monadic single element generator function to an 'Unfold'. The
 -- same seed is used in the action as well as the unfold.
@@ -490,7 +488,7 @@ consM action unf = Unfold step inject
 
     where
 
-    inject = pure . Left
+    inject = Left
 
     {-# INLINE_LATE step #-}
     step (Left a) = (`Yield` Right (D.unfold unf a)) <$> action a
@@ -504,7 +502,7 @@ consM action unf = Unfold step inject
 --
 {-# INLINE_LATE fromListM #-}
 fromListM :: Applicative m => Unfold m [m a] a
-fromListM = Unfold step pure
+fromListM = Unfold step id
 
     where
 
@@ -514,7 +512,7 @@ fromListM = Unfold step pure
 
 {-# INLINE fromPtr #-}
 fromPtr :: forall m a. (MonadIO m, Storable a) => Unfold m (Ptr a) a
-fromPtr = Unfold step return
+fromPtr = Unfold step id
 
     where
 
@@ -536,7 +534,7 @@ replicateM = Unfold step inject
 
     where
 
-    inject = pure
+    inject = id
 
     {-# INLINE_LATE step #-}
     step (i, action) =
@@ -548,7 +546,7 @@ replicateM = Unfold step inject
 --
 {-# INLINE repeatM #-}
 repeatM :: Applicative m => Unfold m (m a) a
-repeatM = Unfold step pure
+repeatM = Unfold step id
 
     where
 
@@ -568,7 +566,7 @@ repeat = lmap pure repeatM
 {-# INLINE_NORMAL zipRepeat #-}
 zipRepeat :: Functor m => Unfold m a b -> Unfold m (c,a) (c,b)
 -- zipRepeat = zipArrowWith (,) repeat
-zipRepeat (Unfold ustep uinject) = Unfold step (\(c,a) -> (c,) <$> uinject a)
+zipRepeat (Unfold ustep uinject) = Unfold step (fmap uinject)
 
     where
 
@@ -585,8 +583,8 @@ zipRepeat (Unfold ustep uinject) = Unfold step (\(c,a) -> (c,) <$> uinject a)
 -- given function repeatedly.
 --
 {-# INLINE iterateM #-}
-iterateM :: Applicative m => (a -> m a) -> Unfold m (m a) a
-iterateM f = Unfold step id
+iterateM :: Functor m => (a -> m a) -> Unfold m (m a) a
+iterateM f = mkUnfoldM step id
 
     where
 
@@ -604,7 +602,7 @@ iterateM f = Unfold step id
 --
 {-# INLINE_NORMAL fromIndicesM #-}
 fromIndicesM :: Applicative m => (Int -> m a) -> Unfold m Int a
-fromIndicesM gen = Unfold step pure
+fromIndicesM gen = Unfold step id
 
     where
 
@@ -626,7 +624,7 @@ take n (Unfold step1 inject1) = Unfold step inject
 
     where
 
-    inject x = (, 0) <$> inject1 x
+    inject x = (inject1 x, 0)
 
     {-# INLINE_LATE step #-}
     step (st, i) | i < n = do
@@ -666,7 +664,7 @@ drop n (Unfold step inject) = Unfold step' inject'
 
     where
 
-    inject' a = (, n) <$> inject a
+    inject' a = (inject a, n)
 
     {-# INLINE_LATE step' #-}
     step' (st, i)
@@ -690,9 +688,7 @@ dropWhileM f (Unfold step inject) = Unfold step' inject'
 
     where
 
-    inject' a = do
-        b <- inject a
-        return $ Left b
+    inject' a = Left (inject a)
 
     {-# INLINE_LATE step' #-}
     step' (Left st) = do
@@ -751,14 +747,13 @@ gbracket_
     -> Unfold m c b                         -- ^ unfold to run
     -> Unfold m a b
 gbracket_ bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
-    Unfold step inject
+    mkUnfoldM step inject
 
     where
 
     inject x = do
         r <- bef x
-        s <- inject1 r
-        return $ Right (s, r)
+        return $ Right (inject1 r, r)
 
     {-# INLINE_LATE step #-}
     step (Right (st, v)) = do
@@ -769,9 +764,7 @@ gbracket_ bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
                 Skip s    -> return $ Skip (Right (s, v))
                 Stop      -> aft v >> return Stop
             -- XXX Do not handle async exceptions, just rethrow them.
-            Left e -> do
-                r <- einject (v, e)
-                return $ Skip (Left r)
+            Left e -> return $ Skip (Left (einject (v, e)))
     step (Left st) = do
         res <- estep st
         return $ case res of
@@ -806,7 +799,7 @@ gbracketIO
     -> Unfold m c b                         -- ^ unfold to run
     -> Unfold m a b
 gbracketIO bef aft onExc (Unfold estep einject) ftry (Unfold step1 inject1) =
-    Unfold step inject
+    mkUnfoldM step inject
 
     where
 
@@ -817,8 +810,7 @@ gbracketIO bef aft onExc (Unfold estep einject) ftry (Unfold step1 inject1) =
             r <- bef x
             ref <- newIOFinalizer (aft r)
             return (r, ref)
-        s <- inject1 r
-        return $ Right (s, r, ref)
+        return $ Right (inject1 r, r, ref)
 
     {-# INLINE_LATE step #-}
     step (Right (st, v, ref)) = do
@@ -837,8 +829,7 @@ gbracketIO bef aft onExc (Unfold estep einject) ftry (Unfold step1 inject1) =
                 -- the finalizer and have not run the exception handler then we
                 -- may leak the resource.
                 liftIO $ clearingIOFinalizer ref (onExc v)
-                r <- einject e
-                return $ Skip (Left r)
+                return $ Skip (Left (einject e))
     step (Left st) = do
         res <- estep st
         return $ case res of
@@ -853,8 +844,8 @@ gbracketIO bef aft onExc (Unfold estep einject) ftry (Unfold step1 inject1) =
 --
 -- /Pre-release/
 {-# INLINE_NORMAL before #-}
-before :: (a -> m c) -> Unfold m a b -> Unfold m a b
-before action (Unfold step inject) = Unfold step (action >> inject)
+before :: Functor m => (a -> m c) -> Unfold m a b -> Unfold m a b
+before action (Unfold step inject) = mkUnfoldM step (\a -> inject a <$ action a)
 
 -- The custom implementation of "after_" is slightly faster (5-7%) than
 -- "_after".  This is just to document and make sure that we can always use
@@ -877,9 +868,7 @@ after_ action (Unfold step1 inject1) = Unfold step inject
 
     where
 
-    inject x = do
-        s <- inject1 x
-        return (s, x)
+    inject x = (inject1 x, x)
 
     {-# INLINE_LATE step #-}
     step (st, v) = do
@@ -902,14 +891,13 @@ after_ action (Unfold step1 inject1) = Unfold step inject
 {-# INLINE_NORMAL afterIO #-}
 afterIO :: MonadIO m
     => (a -> IO c) -> Unfold m a b -> Unfold m a b
-afterIO action (Unfold step1 inject1) = Unfold step inject
+afterIO action (Unfold step1 inject1) = mkUnfoldM step inject
 
     where
 
     inject x = do
-        s <- inject1 x
         ref <- liftIO $ newIOFinalizer (action x)
-        return (s, ref)
+        return (inject1 x, ref)
 
     {-# INLINE_LATE step #-}
     step (st, ref) = do
@@ -940,9 +928,7 @@ onException action (Unfold step1 inject1) = Unfold step inject
 
     where
 
-    inject x = do
-        s <- inject1 x
-        return (s, x)
+    inject x = (inject1 x, x)
 
     {-# INLINE_LATE step #-}
     step (st, v) = do
@@ -972,9 +958,7 @@ finally_ action (Unfold step1 inject1) = Unfold step inject
 
     where
 
-    inject x = do
-        s <- inject1 x
-        return (s, x)
+    inject x = (inject1 x, x)
 
     {-# INLINE_LATE step #-}
     step (st, v) = do
@@ -1003,14 +987,13 @@ finally_ action (Unfold step1 inject1) = Unfold step inject
 {-# INLINE_NORMAL finallyIO #-}
 finallyIO :: (MonadIO m, MonadCatch m)
     => (a -> IO c) -> Unfold m a b -> Unfold m a b
-finallyIO action (Unfold step1 inject1) = Unfold step inject
+finallyIO action (Unfold step1 inject1) = mkUnfoldM step inject
 
     where
 
     inject x = do
-        s <- inject1 x
         ref <- liftIO $ newIOFinalizer (action x)
-        return (s, ref)
+        return (inject1 x, ref)
 
     {-# INLINE_LATE step #-}
     step (st, ref) = do
@@ -1041,14 +1024,13 @@ _bracket bef aft =
 {-# INLINE_NORMAL bracket_ #-}
 bracket_ :: MonadCatch m
     => (a -> m c) -> (c -> m d) -> Unfold m c b -> Unfold m a b
-bracket_ bef aft (Unfold step1 inject1) = Unfold step inject
+bracket_ bef aft (Unfold step1 inject1) = mkUnfoldM step inject
 
     where
 
     inject x = do
         r <- bef x
-        s <- inject1 r
-        return (s, r)
+        return (inject1 r, r)
 
     {-# INLINE_LATE step #-}
     step (st, v) = do
@@ -1083,7 +1065,7 @@ bracket_ bef aft (Unfold step1 inject1) = Unfold step inject
 {-# INLINE_NORMAL bracketIO #-}
 bracketIO :: (MonadIO m, MonadCatch m)
     => (a -> IO c) -> (c -> IO d) -> Unfold m c b -> Unfold m a b
-bracketIO bef aft (Unfold step1 inject1) = Unfold step inject
+bracketIO bef aft (Unfold step1 inject1) = mkUnfoldM step inject
 
     where
 
@@ -1094,8 +1076,7 @@ bracketIO bef aft (Unfold step1 inject1) = Unfold step inject
             r <- bef x
             ref <- newIOFinalizer (aft r)
             return (r, ref)
-        s <- inject1 r
-        return (s, ref)
+        return (inject1 r, ref)
 
     {-# INLINE_LATE step #-}
     step (st, ref) = do

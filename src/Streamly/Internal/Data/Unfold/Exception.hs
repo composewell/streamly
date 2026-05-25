@@ -55,7 +55,7 @@ gbracket
     -> Unfold m c b                         -- ^ unfold to run
     -> Unfold m a b
 gbracket bef aft (Unfold estep einject) ftry (Unfold step1 inject1) =
-    Unfold step inject
+    mkUnfoldM step inject
 
     where
 
@@ -66,8 +66,7 @@ gbracket bef aft (Unfold estep einject) ftry (Unfold step1 inject1) =
             r <- bef x
             ref <- newIOFinalizer (aft r)
             return (r, ref)
-        s <- inject1 r
-        return $ Right (s, r, ref)
+        return $ Right (inject1 r, r, ref)
 
     {-# INLINE_LATE step #-}
     step (Right (st, v, ref)) = do
@@ -85,7 +84,7 @@ gbracket bef aft (Unfold estep einject) ftry (Unfold step1 inject1) =
                 -- be atomic wrt async exceptions. Otherwise if we have cleared
                 -- the finalizer and have not run the exception handler then we
                 -- may leak the resource.
-                r <- clearingIOFinalizer ref (einject (v, e))
+                r <- clearingIOFinalizer ref (return (einject (v, e)))
                 return $ Skip (Left r)
     step (Left st) = do
         res <- estep st
@@ -107,14 +106,13 @@ gbracket bef aft (Unfold estep einject) ftry (Unfold step1 inject1) =
 {-# INLINE_NORMAL after #-}
 after :: MonadRunInIO m
     => (a -> m c) -> Unfold m a b -> Unfold m a b
-after action (Unfold step1 inject1) = Unfold step inject
+after action (Unfold step1 inject1) = mkUnfoldM step inject
 
     where
 
     inject x = do
-        s <- inject1 x
         ref <- newIOFinalizer (action x)
-        return (s, ref)
+        return (inject1 x, ref)
 
     {-# INLINE_LATE step #-}
     step (st, ref) = do
@@ -145,14 +143,13 @@ after action (Unfold step1 inject1) = Unfold step inject
 {-# INLINE_NORMAL finally #-}
 finally :: (MonadAsync m, MonadCatch m)
     => (a -> m c) -> Unfold m a b -> Unfold m a b
-finally action (Unfold step1 inject1) = Unfold step inject
+finally action (Unfold step1 inject1) = mkUnfoldM step inject
 
     where
 
     inject x = do
-        s <- inject1 x
         ref <- newIOFinalizer (action x)
-        return (s, ref)
+        return (inject1 x, ref)
 
     {-# INLINE_LATE step #-}
     step (st, ref) = do
@@ -189,7 +186,7 @@ finally action (Unfold step1 inject1) = Unfold step inject
 {-# INLINE_NORMAL bracket #-}
 bracket :: (MonadAsync m, MonadCatch m)
     => (a -> m c) -> (c -> m d) -> Unfold m c b -> Unfold m a b
-bracket bef aft (Unfold step1 inject1) = Unfold step inject
+bracket bef aft (Unfold step1 inject1) = mkUnfoldM step inject
 
     where
 
@@ -200,8 +197,7 @@ bracket bef aft (Unfold step1 inject1) = Unfold step inject
             r <- bef x
             ref <- newIOFinalizer (aft r)
             return (r, ref)
-        s <- inject1 r
-        return (s, ref)
+        return (inject1 r, ref)
 
     {-# INLINE_LATE step #-}
     step (st, ref) = do

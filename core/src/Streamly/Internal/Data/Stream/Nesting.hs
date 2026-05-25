@@ -296,7 +296,7 @@ appendUnfoldLast (Unfold ustep inject) (Stream ostep ost) =
         ) <$> ostep (adaptState gst) o
 
     step _ (AppendUnfoldLastInject lst) =
-        Skip . AppendUnfoldLastOutput <$> inject lst
+        pure (Skip (AppendUnfoldLastOutput (inject lst)))
 
     step _ (AppendUnfoldLastOutput i) =
         (\case
@@ -874,10 +874,10 @@ unfoldFirst (Unfold ustep inject) (Stream ostep ost) =
         ) <$> ostep (adaptState gst) o
 
     step _ UnfoldFirstInjectEmpty =
-        Skip . UnfoldFirstOutputEmpty <$> inject Nothing
+        pure (Skip (UnfoldFirstOutputEmpty (inject Nothing)))
 
     step _ (UnfoldFirstInjectSome x o) =
-        (\i -> Skip (UnfoldFirstOutputSome i o)) <$> inject (Just x)
+        pure (Skip (UnfoldFirstOutputSome (inject (Just x)) o))
 
     step _ (UnfoldFirstOutputEmpty i) =
         (\case
@@ -943,7 +943,7 @@ unfoldLast (Unfold ustep inject) (Stream ostep ost) =
         ) <$> ostep (adaptState gst) o
 
     step _ (UnfoldLastInject lst) =
-        Skip . UnfoldLastOutput <$> inject lst
+        pure (Skip (UnfoldLastOutput (inject lst)))
 
     step _ (UnfoldLastOutput i) =
         (\case
@@ -1122,12 +1122,12 @@ bfsUnfoldEach (Unfold istep inject) (Stream ostep ost) =
     {-# INLINE_LATE step #-}
     step gst (BfsUnfoldEachOuter o ls) = do
         r <- ostep (adaptState gst) o
-        case r of
-            Yield a o' -> do
-                i <- inject a
-                i `seq` return (Skip (BfsUnfoldEachOuter o' (ls . (i :))))
-            Skip o' -> return $ Skip (BfsUnfoldEachOuter o' ls)
-            Stop -> return $ Skip (BfsUnfoldEachInner (ls []) id)
+        return $ case r of
+            Yield a o1 ->
+                let i = inject a
+                 in i `seq` Skip (BfsUnfoldEachOuter o1 (ls . (i :)))
+            Skip o1 -> Skip (BfsUnfoldEachOuter o1 ls)
+            Stop -> Skip (BfsUnfoldEachInner (ls []) id)
 
     step _ (BfsUnfoldEachInner [] rs) =
         case rs [] of
@@ -1169,12 +1169,12 @@ altBfsUnfoldEach (Unfold istep inject) (Stream ostep ost) =
     {-# INLINE_LATE step #-}
     step gst (ConcatUnfoldInterleaveOuter o ls) = do
         r <- ostep (adaptState gst) o
-        case r of
-            Yield a o' -> do
-                i <- inject a
-                i `seq` return (Skip (ConcatUnfoldInterleaveInner o' (i : ls)))
-            Skip o' -> return $ Skip (ConcatUnfoldInterleaveOuter o' ls)
-            Stop -> return $ Skip (ConcatUnfoldInterleaveInnerL ls [])
+        return $ case r of
+            Yield a o1 ->
+                let i = inject a
+                 in i `seq` Skip (ConcatUnfoldInterleaveInner o1 (i : ls))
+            Skip o1 -> Skip (ConcatUnfoldInterleaveOuter o1 ls)
+            Stop -> Skip (ConcatUnfoldInterleaveInnerL ls [])
 
     step _ (ConcatUnfoldInterleaveInner _ []) = undefined
     step _ (ConcatUnfoldInterleaveInner o (st:ls)) = do
@@ -1240,12 +1240,12 @@ unfoldSched (Unfold istep inject) (Stream ostep ost) =
     {-# INLINE_LATE step #-}
     step gst (BfsUnfoldEachOuter o ls) = do
         r <- ostep (adaptState gst) o
-        case r of
-            Yield a o' -> do
-                i <- inject a
-                i `seq` return (Skip (BfsUnfoldEachOuter o' (ls . (i :))))
-            Skip o' -> return $ Skip (BfsUnfoldEachOuter o' ls)
-            Stop -> return $ Skip (BfsUnfoldEachInner (ls []) id)
+        return $ case r of
+            Yield a o1 ->
+                let i = inject a
+                 in i `seq` Skip (BfsUnfoldEachOuter o1 (ls . (i :)))
+            Skip o1 -> Skip (BfsUnfoldEachOuter o1 ls)
+            Stop -> Skip (BfsUnfoldEachInner (ls []) id)
 
     step _ (BfsUnfoldEachInner [] rs) =
         case rs [] of
@@ -1364,12 +1364,12 @@ fairUnfoldSched (Unfold istep inject) (Stream ostep ost) =
     {-# INLINE_LATE step #-}
     step gst (FairUnfoldInit o ls) = do
         r <- ostep (adaptState gst) o
-        case r of
-            Yield a o' -> do
-                i <- inject a
-                i `seq` return (Skip (FairUnfoldNext o' id (ls [i])))
-            Skip o' -> return $ Skip (FairUnfoldNext o' id (ls []))
-            Stop -> return $ Skip (FairUnfoldDrain id (ls []))
+        return $ case r of
+            Yield a o1 ->
+                let i = inject a
+                 in i `seq` Skip (FairUnfoldNext o1 id (ls [i]))
+            Skip o1 -> Skip (FairUnfoldNext o1 id (ls []))
+            Stop -> Skip (FairUnfoldDrain id (ls []))
 
     step _ (FairUnfoldNext o ys []) =
             return $ Skip (FairUnfoldInit o ys)
@@ -1415,12 +1415,12 @@ fairUnfoldEach (Unfold istep inject) (Stream ostep ost) =
     {-# INLINE_LATE step #-}
     step gst (FairUnfoldInit o ls) = do
         r <- ostep (adaptState gst) o
-        case r of
-            Yield a o' -> do
-                i <- inject a
-                i `seq` return (Skip (FairUnfoldNext o' id (ls [i])))
-            Skip o' -> return $ Skip (FairUnfoldInit o' ls)
-            Stop -> return $ Skip (FairUnfoldDrain id (ls []))
+        return $ case r of
+            Yield a o1 ->
+                let i = inject a
+                 in i `seq` Skip (FairUnfoldNext o1 id (ls [i]))
+            Skip o1 -> Skip (FairUnfoldInit o1 ls)
+            Stop -> Skip (FairUnfoldDrain id (ls []))
 
     step _ (FairUnfoldNext o ys []) =
             return $ Skip (FairUnfoldInit o ys)
@@ -1783,13 +1783,13 @@ unfoldEachEndByM
     {-# INLINE_LATE step #-}
     step gst (InterposeSuffixFirst s1) = do
         r <- step1 (adaptState gst) s1
-        case r of
-            Yield a s -> do
-                i <- inject1 a
-                i `seq` return (Skip (InterposeSuffixFirstInner s i))
-                -- i `seq` return (Skip (InterposeSuffixFirstYield s i))
-            Skip s -> return $ Skip (InterposeSuffixFirst s)
-            Stop -> return Stop
+        return $ case r of
+            Yield a s ->
+                let i = inject1 a
+                 in i `seq` Skip (InterposeSuffixFirstInner s i)
+                -- i `seq` Skip (InterposeSuffixFirstYield s i)
+            Skip s -> Skip (InterposeSuffixFirst s)
+            Stop -> Stop
 
     {-
     step _ (InterposeSuffixFirstYield s1 i1) = do
@@ -1864,13 +1864,13 @@ unfoldEachSepByM
     {-# INLINE_LATE step #-}
     step gst (InterposeFirst s1) = do
         r <- step1 (adaptState gst) s1
-        case r of
-            Yield a s -> do
-                i <- inject1 a
-                i `seq` return (Skip (InterposeFirstInner s i))
-                -- i `seq` return (Skip (InterposeFirstYield s i))
-            Skip s -> return $ Skip (InterposeFirst s)
-            Stop -> return Stop
+        return $ case r of
+            Yield a s ->
+                let i = inject1 a
+                 in i `seq` Skip (InterposeFirstInner s i)
+                -- i `seq` Skip (InterposeFirstYield s i)
+            Skip s -> Skip (InterposeFirst s)
+            Stop -> Stop
 
     {-
     step _ (InterposeFirstYield s1 i1) = do
@@ -1890,13 +1890,13 @@ unfoldEachSepByM
 
     step gst (InterposeFirstInject s1) = do
         r <- step1 (adaptState gst) s1
-        case r of
-            Yield a s -> do
-                i <- inject1 a
-                -- i `seq` return (Skip (InterposeFirstBuf s i))
-                i `seq` return (Skip (InterposeSecondYield s i))
-            Skip s -> return $ Skip (InterposeFirstInject s)
-            Stop -> return Stop
+        return $ case r of
+            Yield a s ->
+                let i = inject1 a
+                    -- in i `seq` Skip (InterposeFirstBuf s i)
+                 in i `seq` Skip (InterposeSecondYield s i)
+            Skip s -> Skip (InterposeFirstInject s)
+            Stop -> Stop
 
     {-
     step _ (InterposeFirstBuf s1 i1) = do
@@ -1979,21 +1979,21 @@ intercalateEndBy
     {-# INLINE_LATE step #-}
     step gst (ICUFirst s1 s2) = do
         r <- step1 (adaptState gst) s1
-        case r of
-            Yield a s -> do
-                i <- inject1 a
-                i `seq` return (Skip (ICUFirstInner s s2 i))
-            Skip s -> return $ Skip (ICUFirst s s2)
-            Stop -> return Stop
+        return $ case r of
+            Yield a s ->
+                let i = inject1 a
+                 in i `seq` Skip (ICUFirstInner s s2 i)
+            Skip s -> Skip (ICUFirst s s2)
+            Stop -> Stop
 
     step gst (ICUFirstOnly s1) = do
         r <- step1 (adaptState gst) s1
-        case r of
-            Yield a s -> do
-                i <- inject1 a
-                i `seq` return (Skip (ICUFirstOnlyInner s i))
-            Skip s -> return $ Skip (ICUFirstOnly s)
-            Stop -> return Stop
+        return $ case r of
+            Yield a s ->
+                let i = inject1 a
+                 in i `seq` Skip (ICUFirstOnlyInner s i)
+            Skip s -> Skip (ICUFirstOnly s)
+            Stop -> Stop
 
     step _ (ICUFirstInner s1 s2 i1) = do
         r <- istep1 i1
@@ -2011,12 +2011,12 @@ intercalateEndBy
 
     step gst (ICUSecond s1 s2) = do
         r <- step2 (adaptState gst) s2
-        case r of
-            Yield a s -> do
-                i <- inject2 a
-                i `seq` return (Skip (ICUSecondInner s1 s i))
-            Skip s -> return $ Skip (ICUSecond s1 s)
-            Stop -> return $ Skip (ICUFirstOnly s1)
+        return $ case r of
+            Yield a s ->
+                let i = inject2 a
+                 in i `seq` Skip (ICUSecondInner s1 s i)
+            Skip s -> Skip (ICUSecond s1 s)
+            Stop -> Skip (ICUFirstOnly s1)
 
     step _ (ICUSecondInner s1 s2 i2) = do
         r <- istep2 i2
@@ -2089,13 +2089,13 @@ intercalateSepBy
     {-# INLINE_LATE step #-}
     step gst (ICALFirst s1 s2) = do
         r <- step1 (adaptState gst) s1
-        case r of
-            Yield a s -> do
-                i <- inject1 a
-                i `seq` return (Skip (ICALFirstInner s s2 i))
-                -- i `seq` return (Skip (ICALFirstYield s s2 i))
-            Skip s -> return $ Skip (ICALFirst s s2)
-            Stop -> return Stop
+        return $ case r of
+            Yield a s ->
+                let i = inject1 a
+                 in i `seq` Skip (ICALFirstInner s s2 i)
+                -- in i `seq` Skip (ICALFirstYield s s2 i)
+            Skip s -> Skip (ICALFirst s s2)
+            Stop -> Stop
 
     {-
     step _ (ICALFirstYield s1 s2 i1) = do
@@ -2115,12 +2115,12 @@ intercalateSepBy
 
     step gst (ICALFirstOnly s1) = do
         r <- step1 (adaptState gst) s1
-        case r of
-            Yield a s -> do
-                i <- inject1 a
-                i `seq` return (Skip (ICALFirstOnlyInner s i))
-            Skip s -> return $ Skip (ICALFirstOnly s)
-            Stop -> return Stop
+        return $ case r of
+            Yield a s ->
+                let i = inject1 a
+                 in i `seq` Skip (ICALFirstOnlyInner s i)
+            Skip s -> Skip (ICALFirstOnly s)
+            Stop -> Stop
 
     step _ (ICALFirstOnlyInner s1 i1) = do
         r <- istep1 i1
@@ -2135,22 +2135,22 @@ intercalateSepBy
     -- machine a bit simpler though.
     step gst (ICALSecondInject s1 s2) = do
         r <- step2 (adaptState gst) s2
-        case r of
-            Yield a s -> do
-                i <- inject2 a
-                i `seq` return (Skip (ICALFirstInject s1 s i))
-            Skip s -> return $ Skip (ICALSecondInject s1 s)
-            Stop -> return $ Skip (ICALFirstOnly s1)
+        return $ case r of
+            Yield a s ->
+                let i = inject2 a
+                 in i `seq` Skip (ICALFirstInject s1 s i)
+            Skip s -> Skip (ICALSecondInject s1 s)
+            Stop -> Skip (ICALFirstOnly s1)
 
     step gst (ICALFirstInject s1 s2 i2) = do
         r <- step1 (adaptState gst) s1
-        case r of
-            Yield a s -> do
-                i <- inject1 a
-                i `seq` return (Skip (ICALSecondInner s s2 i i2))
-                -- i `seq` return (Skip (ICALFirstBuf s s2 i i2))
-            Skip s -> return $ Skip (ICALFirstInject s s2 i2)
-            Stop -> return Stop
+        return $ case r of
+            Yield a s ->
+                let i = inject1 a
+                 in i `seq` Skip (ICALSecondInner s s2 i i2)
+                -- in i `seq` Skip (ICALFirstBuf s s2 i i2)
+            Skip s -> Skip (ICALFirstInject s s2 i2)
+            Stop -> Stop
 
     {-
     step _ (ICALFirstBuf s1 s2 i1 i2) = do

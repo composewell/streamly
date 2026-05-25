@@ -465,7 +465,7 @@ reader = Unfold step inject
 
     where
 
-    inject rb = return (rb, ringSize rb)
+    inject rb = (rb, ringSize rb)
 
     step (rb, n) = do
         if n <= 0
@@ -483,7 +483,7 @@ readerRev = Unfold step inject
 
     where
 
-    inject rb = return (moveReverse rb, ringSize rb)
+    inject rb = (moveReverse rb, ringSize rb)
 
     step (rb, n) = do
         if n <= 0

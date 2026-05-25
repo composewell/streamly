@@ -2224,7 +2224,7 @@ unfoldMany (Unfold ustep inject) (Fold fstep initial extract final) =
             StreamD.Stop -> return $ Partial fs
 
     {-# INLINE_LATE consume #-}
-    consume s a = inject a >>= produce s
+    consume s a = produce s (inject a)
 
 -- | Get the bottom most @n@ elements using the supplied comparison function.
 --

@@ -39,7 +39,7 @@ where
 import Streamly.Internal.Data.Stream.Step (Step(..))
 import Streamly.Internal.Data.Stream.Type (Stream(..))
 import Streamly.Internal.Data.SVar.Type (defState)
-import Streamly.Internal.Data.Unfold.Type (Unfold(..))
+import Streamly.Internal.Data.Unfold.Type (Unfold, mkUnfoldM)
 
 import Streamly.Internal.Data.Producer.Source
 import Streamly.Internal.Data.Producer.Type
@@ -56,8 +56,8 @@ import Prelude hiding (concat)
 --
 -- /Pre-release/
 {-# INLINE simplify #-}
-simplify :: Producer m a b -> Unfold m a b
-simplify (Producer step inject _) = Unfold step inject
+simplify :: Functor m => Producer m a b -> Unfold m a b
+simplify (Producer step inject _) = mkUnfoldM step inject
 
 -------------------------------------------------------------------------------
 -- Unfolds

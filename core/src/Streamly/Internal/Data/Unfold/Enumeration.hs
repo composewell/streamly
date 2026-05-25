@@ -104,7 +104,7 @@ enumerateFromStepNum = Unfold step inject
 
     where
 
-    inject (!from, !stride) = return (from, stride, 0)
+    inject (!from, !stride) = (from, stride, 0)
 
     -- Note that the counter "i" is the same type as the type being enumerated.
     -- It may overflow, for example, if we are enumerating Word8, after 255 the
@@ -186,7 +186,7 @@ enumerateFromStepIntegral = Unfold step inject
 
     where
 
-    inject (from, stride) = from `seq` stride `seq` return (from, stride)
+    inject (from, stride) = from `seq` stride `seq` (from, stride)
 
     {-# INLINE_LATE step #-}
     step (x, stride) = return $ Yield x $! (x + stride, stride)

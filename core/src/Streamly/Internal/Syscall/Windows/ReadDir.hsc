@@ -277,7 +277,7 @@ readDirStreamEither _ (DirStream (h, ref, fdata)) =
 streamEitherReader :: MonadIO m =>
     (ReadOptions -> ReadOptions) ->
     Unfold m DirStream (Either Path Path)
-streamEitherReader f = Unfold step return
+streamEitherReader f = Unfold step id
     where
 
     step strm = do

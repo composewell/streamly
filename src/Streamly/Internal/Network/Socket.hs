@@ -89,7 +89,7 @@ import qualified Network.Socket as Net
 import Streamly.Internal.Data.Array (Array(..))
 import Streamly.Data.Fold (Fold)
 import Streamly.Data.Stream (Stream)
-import Streamly.Internal.Data.Unfold (Unfold(..))
+import Streamly.Internal.Data.Unfold (Unfold(..), mkUnfoldM)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 import Streamly.Internal.System.IO (defaultChunkSize)
 
@@ -167,7 +167,7 @@ initListener listenQLen SockSpec{..} addr =
 {-# INLINE listenTuples #-}
 listenTuples :: MonadIO m
     => Unfold m (Int, SockSpec, SockAddr) (Socket, SockAddr)
-listenTuples = Unfold step inject
+listenTuples = mkUnfoldM step inject
     where
     inject (listenQLen, spec, addr) =
         liftIO $ initListener listenQLen spec addr
@@ -365,7 +365,7 @@ readChunks = readChunksWith defaultChunkSize
 --
 {-# INLINE_NORMAL chunkReaderWith #-}
 chunkReaderWith :: MonadIO m => Unfold m (Int, Socket) (Array Word8)
-chunkReaderWith = Unfold step return
+chunkReaderWith = Unfold step id
     where
     {-# INLINE_LATE step #-}
     step (size, h) = do

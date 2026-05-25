@@ -1628,7 +1628,7 @@ indexReaderWith liftio (D.Stream stepi sti) = Unfold step inject
     where
 
     inject (MutArray contents start end _) =
-        return $ GetIndicesState contents start end sti
+        GetIndicesState contents start end sti
 
     {-# INLINE_LATE step #-}
     step (GetIndicesState contents start end st) = do
@@ -2215,7 +2215,7 @@ readerRevWith liftio = Unfold step inject
 
     inject (MutArray contents start end _) =
         let p = INDEX_PREV(end,a)
-         in return $ ArrayUnsafe contents start p
+         in ArrayUnsafe contents start p
 
     {-# INLINE_LATE step #-}
     step (ArrayUnsafe _ start p) | p < start = return D.Stop

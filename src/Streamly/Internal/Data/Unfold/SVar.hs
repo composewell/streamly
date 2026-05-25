@@ -46,7 +46,7 @@ data FromSVarState t m a =
 --
 {-# INLINE_NORMAL fromSVar #-}
 fromSVar :: MonadAsync m => Unfold m (SVar t m a) a
-fromSVar = Unfold step (return . FromSVarInit)
+fromSVar = Unfold step FromSVarInit
     where
 
     {-# INLINE_LATE step #-}
@@ -129,7 +129,7 @@ fromSVar = Unfold step (return . FromSVarInit)
 --
 {-# INLINE_NORMAL fromProducer #-}
 fromProducer :: MonadAsync m => Unfold m (SVar t m a) a
-fromProducer = Unfold step (return . FromSVarRead)
+fromProducer = Unfold step FromSVarRead
     where
 
     {-# INLINE_LATE step #-}

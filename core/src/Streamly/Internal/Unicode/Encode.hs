@@ -211,7 +211,7 @@ readCharUtf8With surr = Unfold step inject
     where
 
     inject c =
-        return $ case ord c of
+        case ord c of
             x | x <= 0x7F -> fromIntegral x `WCons` WNil
               | x <= 0x7FF -> ord2 c
               | x <= 0xFFFF -> if isSurrogate c then surr else ord3 c
@@ -303,7 +303,7 @@ readCharUtf16With invalidReplacement = Unfold step inject
     where
 
     inject c =
-        return $ case ord c of
+        case ord c of
             x | x < 0xD800 -> fromIntegral x `WCons` WNil
               | x > 0xDFFF && x <= 0xFFFF -> fromIntegral x `WCons` WNil
               | x >= 0x10000 && x <= 0x10FFFF ->

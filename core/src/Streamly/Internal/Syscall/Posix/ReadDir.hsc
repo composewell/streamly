@@ -325,7 +325,7 @@ readDirStreamEither confMod (curdir, (DirStream dirp)) = loop
 streamEitherReader :: MonadIO m =>
     (ReadOptions -> ReadOptions) ->
     Unfold m (PosixPath, DirStream) (Either Path Path)
-streamEitherReader confMod = Unfold step return
+streamEitherReader confMod = Unfold step id
     where
 
     step s = do

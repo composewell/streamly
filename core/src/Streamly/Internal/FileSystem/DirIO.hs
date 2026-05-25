@@ -157,7 +157,7 @@ toChunksWithBufferOf size h = D.fromStreamD (D.Stream step ())
 -- @since 0.7.0
 {-# INLINE_NORMAL readChunksWithBufferOf #-}
 readChunksWithBufferOf :: MonadIO m => Unfold m (Int, Handle) (Array Word8)
-readChunksWithBufferOf = Unfold step return
+readChunksWithBufferOf = Unfold step id
     where
     {-# INLINE_LATE step #-}
     step (size, h) = do

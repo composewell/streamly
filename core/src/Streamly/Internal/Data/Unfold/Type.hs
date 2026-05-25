@@ -124,7 +124,6 @@ where
 
 -- import Control.Arrow (Arrow(..))
 -- import Control.Category (Category(..))
-import Control.Monad ((>=>))
 import Data.Void (Void)
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Stream.Step (Step(..))
@@ -226,20 +225,34 @@ import Prelude hiding (map, mapM, concatMap, zipWith, takeWhile)
 --
 data Unfold m a b =
     -- | @Unfold step inject@
-    forall s. Unfold (s -> m (Step s b)) (a -> m s)
+    forall s. Unfold (s -> m (Step s b)) (a -> s)
 
 ------------------------------------------------------------------------------
 -- Basic constructors
 ------------------------------------------------------------------------------
 
+-- | State used by 'mkUnfoldM' to defer a monadic inject effect to the first
+-- step.
+{-# ANN type MkUnfoldMState Fuse #-}
+data MkUnfoldMState a s = MkUnfoldMPre a | MkUnfoldMRun s
+
 -- XXX unfoldWith?
 
--- | Make an unfold from @step@ and @inject@ functions.
+-- | Make an unfold from @step@ and a /monadic/ @inject@ function. The inject
+-- effect is deferred to the first step.
 --
 -- /Pre-release/
-{-# INLINE mkUnfoldM #-}
-mkUnfoldM :: (s -> m (Step s b)) -> (a -> m s) -> Unfold m a b
-mkUnfoldM = Unfold
+{-# INLINE_NORMAL mkUnfoldM #-}
+mkUnfoldM :: Functor m => (s -> m (Step s b)) -> (a -> m s) -> Unfold m a b
+mkUnfoldM ustep uinject = Unfold step MkUnfoldMPre
+  where
+    {-# INLINE_LATE step #-}
+    step (MkUnfoldMPre a) = Skip . MkUnfoldMRun <$> uinject a
+    step (MkUnfoldMRun s) =
+        (\r -> case r of
+            Yield x s1 -> Yield x (MkUnfoldMRun s1)
+            Skip s1    -> Skip (MkUnfoldMRun s1)
+            Stop       -> Stop) <$> ustep s
 
 -- | Make an unfold from a step function.
 --
@@ -247,8 +260,8 @@ mkUnfoldM = Unfold
 --
 -- /Pre-release/
 {-# INLINE mkUnfoldrM #-}
-mkUnfoldrM :: Applicative m => (a -> m (Step a b)) -> Unfold m a b
-mkUnfoldrM step = Unfold step pure
+mkUnfoldrM :: (a -> m (Step a b)) -> Unfold m a b
+mkUnfoldrM step = Unfold step id
 
 -- The type 'Step' is isomorphic to 'Maybe'. Ideally unfoldrM should be the
 -- same as mkUnfoldrM, this is for compatibility with traditional Maybe based
@@ -259,8 +272,8 @@ mkUnfoldrM step = Unfold step pure
 -- value. When it is done it returns 'Nothing' and the stream ends.
 --
 {-# INLINE unfoldrM #-}
-unfoldrM :: Applicative m => (a -> m (Maybe (b, a))) -> Unfold m a b
-unfoldrM next = Unfold step pure
+unfoldrM :: Functor m => (a -> m (Maybe (b, a))) -> Unfold m a b
+unfoldrM next = Unfold step id
   where
     {-# INLINE_LATE step #-}
     step st =
@@ -307,8 +320,8 @@ lmap f (Unfold ustep uinject) = Unfold ustep (uinject Prelude.. f)
 -- lmapM f = Unfold.unfoldEach (Unfold.functionM f)
 --
 {-# INLINE_NORMAL lmapM #-}
-lmapM :: Monad m => (a -> m c) -> Unfold m c b -> Unfold m a b
-lmapM f (Unfold ustep uinject) = Unfold ustep (f >=> uinject)
+lmapM :: Functor m => (a -> m c) -> Unfold m c b -> Unfold m a b
+lmapM f (Unfold ustep uinject) = mkUnfoldM ustep (fmap uinject Prelude.. f)
 
 -- | Supply the seed to an unfold closing the input end of the unfold.
 --
@@ -461,7 +474,7 @@ mapM f (Unfold ustep uinject) = Unfold step uinject
 --
 {-# INLINE_NORMAL carry #-}
 carry :: Functor m => Unfold m a b -> Unfold m a (a,b)
-carry (Unfold ustep uinject) = Unfold step (\a -> (a,) <$> uinject a)
+carry (Unfold ustep uinject) = Unfold step (\a -> (a, uinject a))
 
     where
 
@@ -488,7 +501,7 @@ consInputWith f (Unfold ustep uinject) = Unfold step inject
 
     where
 
-    inject a = ConsInputFirst a <$> uinject a
+    inject a = ConsInputFirst a (uinject a)
 
     next r = case r of
         Yield x s1 -> Yield x (ConsInputRest s1)
@@ -547,7 +560,7 @@ fromEffect m = Unfold step inject
 
     where
 
-    inject _ = pure False
+    inject _ = False
 
     step False = (`Yield` True) <$> m
     step True = pure Stop
@@ -570,7 +583,7 @@ data TupleState a = TupleBoth a a | TupleOne a | TupleNone
 --
 {-# INLINE_LATE fromTuple #-}
 fromTuple :: Applicative m => Unfold m (a,a) a
-fromTuple = Unfold step (\(x,y) -> pure $ TupleBoth x y)
+fromTuple = Unfold step (\(x,y) -> TupleBoth x y)
 
     where
 
@@ -586,7 +599,7 @@ fromTuple = Unfold step (\(x,y) -> pure $ TupleBoth x y)
 --
 {-# INLINE_LATE fromList #-}
 fromList :: Applicative m => Unfold m [a] a
-fromList = Unfold step pure
+fromList = Unfold step id
 
     where
 
@@ -666,19 +679,15 @@ crossWithM f (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
 
     where
 
-    inject a = do
-        s1 <- inject1 a
-        return $ CrossOuter a s1
+    inject a = CrossOuter a (inject1 a)
 
     {-# INLINE_LATE step #-}
     step (CrossOuter a s1) = do
         r <- step1 s1
-        case r of
-            Yield b s -> do
-                s2 <- inject2 a
-                return $ Skip (CrossInner a s b s2)
-            Skip s    -> return $ Skip (CrossOuter a s)
-            Stop      -> return Stop
+        return $ case r of
+            Yield b s -> Skip (CrossInner a s b (inject2 a))
+            Skip s    -> Skip (CrossOuter a s)
+            Stop      -> Stop
 
     step (CrossInner a s1 b s2) = do
         r <- step2 s2
@@ -700,19 +709,17 @@ fairCrossWithM f (Unfold step1 inject1) (Unfold step2 inject2) =
 
     where
 
-    inject a = do
-        s1 <- inject1 a
-        return $ FairUnfoldInit a s1 id
+    inject a = FairUnfoldInit a (inject1 a) id
 
     {-# INLINE_LATE step #-}
     step (FairUnfoldInit a o ls) = do
         r <- step1 o
-        case r of
-            Yield b o' -> do
-                i <- inject2 a
-                i `seq` return (Skip (FairUnfoldNext a o' id (ls [(b,i)])))
-            Skip o' -> return $ Skip (FairUnfoldInit a o' ls)
-            Stop -> return $ Skip (FairUnfoldDrain id (ls []))
+        return $ case r of
+            Yield b o1 ->
+                let i = inject2 a
+                 in i `seq` Skip (FairUnfoldNext a o1 id (ls [(b,i)]))
+            Skip o1 -> Skip (FairUnfoldInit a o1 ls)
+            Stop -> Skip (FairUnfoldDrain id (ls []))
 
     step (FairUnfoldNext a o ys []) =
             return $ Skip (FairUnfoldInit a o ys)
@@ -833,9 +840,7 @@ concatMapM f (Unfold step1 inject1) = Unfold step inject
 
     where
 
-    inject x = do
-        s <- inject1 x
-        return $ ConcatMapOuter x s
+    inject x = ConcatMapOuter x (inject1 x)
 
     {-# INLINE_LATE step #-}
     step (ConcatMapOuter seed st) = do
@@ -843,8 +848,7 @@ concatMapM f (Unfold step1 inject1) = Unfold step inject
         case r of
             Yield x s -> do
                 Unfold step2 inject2 <- f x
-                innerSt <- inject2 seed
-                return $ Skip (ConcatMapInner seed s innerSt step2)
+                return $ Skip (ConcatMapInner seed s (inject2 seed) step2)
             Skip s    -> return $ Skip (ConcatMapOuter seed s)
             Stop      -> return Stop
 
@@ -908,7 +912,7 @@ functionM f = Unfold step inject
 
     where
 
-    inject x = pure $ Just x
+    inject x = Just x
 
     {-# INLINE_LATE step #-}
     step (Just x) = (`Yield` Nothing) <$> f x
@@ -932,7 +936,7 @@ functionMaybeM f = Unfold step inject
 
     where
 
-    inject a = return (Just a)
+    inject a = Just a
 
     {-# INLINE_LATE step #-}
     step (Just a) = do
@@ -966,19 +970,15 @@ unfoldEach (Unfold step2 inject2) (Unfold step1 inject1) = Unfold step inject
 
     where
 
-    inject x = do
-        s <- inject1 x
-        return $ ConcatOuter s
+    inject x = ConcatOuter (inject1 x)
 
     {-# INLINE_LATE step #-}
     step (ConcatOuter st) = do
         r <- step1 st
-        case r of
-            Yield x s -> do
-                innerSt <- inject2 x
-                return $ Skip (ConcatInner s innerSt)
-            Skip s    -> return $ Skip (ConcatOuter s)
-            Stop      -> return Stop
+        return $ case r of
+            Yield x s -> Skip (ConcatInner s (inject2 x))
+            Skip s    -> Skip (ConcatOuter s)
+            Stop      -> Stop
 
     step (ConcatInner ost ist) = do
         r <- step2 ist
@@ -1017,10 +1017,7 @@ zipArrowWithM f (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inje
 
     where
 
-    inject (x,y) = do
-        s1 <- inject1 x
-        s2 <- inject2 y
-        return (s1, s2, Nothing)
+    inject (x,y) = (inject1 x, inject2 y, Nothing)
 
     {-# INLINE_LATE step #-}
     step (s1, s2, Nothing) = do
@@ -1156,10 +1153,7 @@ interleave (Unfold step1 inject1) (Unfold step2 inject2) =
 
     where
 
-    inject (a,b) = do
-        s1 <- inject1 a
-        s2 <- inject2 b
-        return (InterleaveFirst s1 s2)
+    inject (a,b) = InterleaveFirst (inject1 a) (inject2 b)
 
     {-# INLINE_LATE step #-}
     step (InterleaveFirst st1 st2) = do
@@ -1208,19 +1202,17 @@ unfoldEachInterleave (Unfold istep iinject) (Unfold ostep oinject) =
 
     where
 
-    inject x = do
-        ost <- oinject x
-        return (ManyInterleaveOuter ost [])
+    inject x = ManyInterleaveOuter (oinject x) []
 
     {-# INLINE_LATE step #-}
     step (ManyInterleaveOuter o ls) = do
         r <- ostep o
-        case r of
-            Yield a o' -> do
-                i <- iinject a
-                i `seq` return (Skip (ManyInterleaveInner o' (i : ls)))
-            Skip o' -> return $ Skip (ManyInterleaveOuter o' ls)
-            Stop -> return $ Skip (ManyInterleaveInnerL ls [])
+        return $ case r of
+            Yield a o1 ->
+                let i = iinject a
+                 in i `seq` Skip (ManyInterleaveInner o1 (i : ls))
+            Skip o1 -> Skip (ManyInterleaveOuter o1 ls)
+            Stop -> Skip (ManyInterleaveInnerL ls [])
 
     step (ManyInterleaveInner _ []) = undefined
     step (ManyInterleaveInner o (st:ls)) = do
