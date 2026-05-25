@@ -123,6 +123,22 @@ testConcatMapLastEmpty =
     trailer =
         maybe (Stream.fromList []) (\x -> Stream.fromList [x * 10, x * 100])
 
+testAppendIfEmptyNonEmpty :: Expectation
+testAppendIfEmptyNonEmpty =
+    Stream.toList
+        (Stream.appendIfEmpty
+            (Stream.fromList [1, 2 :: Int])
+            (Stream.fromList [3, 4]))
+        `shouldReturn` [1, 2]
+
+testAppendIfEmptyEmpty :: Expectation
+testAppendIfEmptyEmpty =
+    Stream.toList
+        (Stream.appendIfEmpty
+            (Stream.fromList ([] :: [Int]))
+            (Stream.fromList [3, 4]))
+        `shouldReturn` [3, 4]
+
 moduleName :: String
 moduleName = "Data.Stream"
 
@@ -255,3 +271,7 @@ main = hspec
     describe "Tests for Stream.concatMapLast" $ do
         prop "testConcatMapLastNonEmpty" testConcatMapLastNonEmpty
         prop "testConcatMapLastEmpty" testConcatMapLastEmpty
+
+    describe "Tests for Stream.appendIfEmpty" $ do
+        prop "testAppendIfEmptyNonEmpty" testAppendIfEmptyNonEmpty
+        prop "testAppendIfEmptyEmpty" testAppendIfEmptyEmpty

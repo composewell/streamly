@@ -38,6 +38,7 @@ module Streamly.Internal.Data.Stream.Nesting
 
     -- *** Appending
       AppendUnfoldLastState (..)
+    , AppendIfEmptyState (..)
 
     -- stateful appends
     , appendIfEmpty
@@ -200,22 +201,53 @@ import Prelude hiding (concatMap, zipWith)
 -- second stream is appended to the first's effects if there is no visible
 -- output.
 
+{-# ANN type AppendIfEmptyState Fuse #-}
+data AppendIfEmptyState s1 s2 =
+      AppendIfEmptyFirstUnseen s1
+    | AppendIfEmptyFirstSeen s1
+    | AppendIfEmptySecond s2
+
 -- | Use the second stream only if the first stream is empty.
 --
 -- The first stream is evaluated completely. If it yields at least one
 -- element, its output is used and the second stream is discarded.
 -- Otherwise, the second stream is evaluated and used instead.
 --
--- > appendIfEmpty [1,2] [3,4] == [1,2]
--- > appendIfEmpty []    [3,4] == [3,4]
+-- >>> Stream.toList $ Stream.appendIfEmpty (Stream.fromList [1,2 :: Int]) (Stream.fromList [3,4])
+-- [1,2]
+-- >>> Stream.toList $ Stream.appendIfEmpty (Stream.fromList ([] :: [Int])) (Stream.fromList [3,4])
+-- [3,4]
 --
 -- This is analogous to a left-biased alternative on streams.
 --
--- /Unimplemented/
---
-appendIfEmpty :: Stream m a -> Stream m a -> Stream m a
--- ifEmpty s1 s2 = appendMapLast (\x -> maybe s2 (const nil) x) s1
-appendIfEmpty = undefined
+{-# INLINE_NORMAL appendIfEmpty #-}
+appendIfEmpty :: Applicative m => Stream m a -> Stream m a -> Stream m a
+appendIfEmpty (Stream step1 state1) (Stream step2 state2) =
+    Stream step (AppendIfEmptyFirstUnseen state1)
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (AppendIfEmptyFirstUnseen st) =
+        (\r -> case r of
+            Yield x s -> Yield x (AppendIfEmptyFirstSeen s)
+            Skip s    -> Skip (AppendIfEmptyFirstUnseen s)
+            Stop      -> Skip (AppendIfEmptySecond state2)
+        ) <$> step1 gst st
+
+    step gst (AppendIfEmptyFirstSeen st) =
+        (\r -> case r of
+            Yield x s -> Yield x (AppendIfEmptyFirstSeen s)
+            Skip s    -> Skip (AppendIfEmptyFirstSeen s)
+            Stop      -> Stop
+        ) <$> step1 gst st
+
+    step gst (AppendIfEmptySecond st) =
+        (\r -> case r of
+            Yield x s -> Yield x (AppendIfEmptySecond s)
+            Skip s    -> Skip (AppendIfEmptySecond s)
+            Stop      -> Stop
+        ) <$> step2 gst st
 
 {-# ANN type AppendUnfoldLastState Fuse #-}
 data AppendUnfoldLastState o i b =
