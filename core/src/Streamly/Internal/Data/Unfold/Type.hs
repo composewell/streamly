@@ -931,7 +931,7 @@ function f = functionM $ pure Prelude.. f
 -- generates a singleton stream.
 --
 {-# INLINE functionMaybeM #-}
-functionMaybeM :: Monad m => (a -> m (Maybe b)) -> Unfold m a b
+functionMaybeM :: Applicative m => (a -> m (Maybe b)) -> Unfold m a b
 functionMaybeM f = Unfold step inject
 
     where
@@ -939,12 +939,10 @@ functionMaybeM f = Unfold step inject
     inject a = Just a
 
     {-# INLINE_LATE step #-}
-    step (Just a) = do
-        result <- f a
-        case result of
-            Just b  -> pure $ Yield b Nothing
-            Nothing -> pure Stop
-
+    step (Just a) =
+        (\case
+            Just b  -> Yield b Nothing
+            Nothing -> Stop) <$> f a
     step Nothing = pure Stop
 
 -- | Identity unfold. The unfold generates a singleton stream having the input
