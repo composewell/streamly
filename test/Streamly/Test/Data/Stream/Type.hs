@@ -81,6 +81,48 @@ testAppendMapLastEmpty =
     trailer =
         maybe (Stream.fromList [-1]) (\x -> Stream.fromList [x * 10, x * 100])
 
+testUnfoldLastNonEmpty :: Expectation
+testUnfoldLastNonEmpty =
+    Stream.toList
+        (Stream.unfoldLast trailer (Stream.fromList [1, 2, 3 :: Int]))
+        `shouldReturn` [1, 2, 30, 300]
+
+    where
+
+    trailer = Unfold.lmap (maybe [] (\x -> [x * 10, x * 100])) Unfold.fromList
+
+testUnfoldLastEmpty :: Expectation
+testUnfoldLastEmpty =
+    Stream.toList
+        (Stream.unfoldLast trailer (Stream.fromList ([] :: [Int])))
+        `shouldReturn` []
+
+    where
+
+    trailer = Unfold.lmap (maybe [] (\x -> [x * 10, x * 100])) Unfold.fromList
+
+testConcatMapLastNonEmpty :: Expectation
+testConcatMapLastNonEmpty =
+    Stream.toList
+        (Stream.concatMapLast trailer (Stream.fromList [1, 2, 3 :: Int]))
+        `shouldReturn` [1, 2, 30, 300]
+
+    where
+
+    trailer =
+        maybe (Stream.fromList []) (\x -> Stream.fromList [x * 10, x * 100])
+
+testConcatMapLastEmpty :: Expectation
+testConcatMapLastEmpty =
+    Stream.toList
+        (Stream.concatMapLast trailer (Stream.fromList ([] :: [Int])))
+        `shouldReturn` []
+
+    where
+
+    trailer =
+        maybe (Stream.fromList []) (\x -> Stream.fromList [x * 10, x * 100])
+
 moduleName :: String
 moduleName = "Data.Stream"
 
@@ -205,3 +247,11 @@ main = hspec
     describe "Tests for Stream.appendMapLast" $ do
         prop "testAppendMapLastNonEmpty" testAppendMapLastNonEmpty
         prop "testAppendMapLastEmpty" testAppendMapLastEmpty
+
+    describe "Tests for Stream.unfoldLast" $ do
+        prop "testUnfoldLastNonEmpty" testUnfoldLastNonEmpty
+        prop "testUnfoldLastEmpty" testUnfoldLastEmpty
+
+    describe "Tests for Stream.concatMapLast" $ do
+        prop "testConcatMapLastNonEmpty" testConcatMapLastNonEmpty
+        prop "testConcatMapLastEmpty" testConcatMapLastEmpty
