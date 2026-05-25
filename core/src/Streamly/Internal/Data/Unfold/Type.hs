@@ -231,28 +231,7 @@ data Unfold m a b =
 -- Basic constructors
 ------------------------------------------------------------------------------
 
--- | State used by 'mkUnfoldM' to defer a monadic inject effect to the first
--- step.
-{-# ANN type MkUnfoldMState Fuse #-}
-data MkUnfoldMState a s = MkUnfoldMPre a | MkUnfoldMRun s
-
 -- XXX unfoldWith?
-
--- | Make an unfold from @step@ and a /monadic/ @inject@ function. The inject
--- effect is deferred to the first step.
---
--- /Pre-release/
-{-# INLINE_NORMAL mkUnfoldM #-}
-mkUnfoldM :: Functor m => (s -> m (Step s b)) -> (a -> m s) -> Unfold m a b
-mkUnfoldM ustep uinject = Unfold step MkUnfoldMPre
-  where
-    {-# INLINE_LATE step #-}
-    step (MkUnfoldMPre a) = Skip . MkUnfoldMRun <$> uinject a
-    step (MkUnfoldMRun s) =
-        (\r -> case r of
-            Yield x s1 -> Yield x (MkUnfoldMRun s1)
-            Skip s1    -> Skip (MkUnfoldMRun s1)
-            Stop       -> Stop) <$> ustep s
 
 -- | Make an unfold from a step function.
 --
@@ -313,6 +292,11 @@ unfoldr step = unfoldrM (pure . step)
 lmap :: (a -> c) -> Unfold m c b -> Unfold m a b
 lmap f (Unfold ustep uinject) = Unfold ustep (uinject Prelude.. f)
 
+-- | State used by 'lmapM' to defer the monadic input transformation to the
+-- first step.
+{-# ANN type LMapMState Fuse #-}
+data LMapMState a s = LMapMPre a | LMapMRun s
+
 -- | Map an action on the input argument of the 'Unfold'.
 --
 -- Definition:
@@ -321,7 +305,23 @@ lmap f (Unfold ustep uinject) = Unfold ustep (uinject Prelude.. f)
 --
 {-# INLINE_NORMAL lmapM #-}
 lmapM :: Functor m => (a -> m c) -> Unfold m c b -> Unfold m a b
-lmapM f (Unfold ustep uinject) = mkUnfoldM ustep (fmap uinject Prelude.. f)
+lmapM f (Unfold ustep uinject) = Unfold step LMapMPre
+  where
+    {-# INLINE_LATE step #-}
+    step (LMapMPre a) = Skip . LMapMRun . uinject <$> f a
+    step (LMapMRun s) =
+        (\r -> case r of
+            Yield x s1 -> Yield x (LMapMRun s1)
+            Skip s1    -> Skip (LMapMRun s1)
+            Stop       -> Stop) <$> ustep s
+
+-- | Make an unfold from @step@ and a /monadic/ @inject@ function. The inject
+-- effect is deferred to the first step.
+--
+-- /Pre-release/
+{-# INLINE mkUnfoldM #-}
+mkUnfoldM :: Functor m => (s -> m (Step s b)) -> (a -> m s) -> Unfold m a b
+mkUnfoldM step inject = lmapM inject (Unfold step id)
 
 -- | Supply the seed to an unfold closing the input end of the unfold.
 --
