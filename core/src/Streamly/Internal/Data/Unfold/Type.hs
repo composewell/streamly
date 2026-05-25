@@ -326,10 +326,14 @@ lmapM f (Unfold ustep uinject) = Unfold step LMapMPre
 -- | Make an unfold from @step@ and a /monadic/ @inject@ function. The inject
 -- effect is deferred to the first step.
 --
+-- Definition:
+--
+-- >>> mkUnfoldM step inject = Unfold.lmapM inject (Unfold.mkUnfold step id)
+--
 -- /Pre-release/
 {-# INLINE mkUnfoldM #-}
 mkUnfoldM :: Functor m => (s -> m (Step s b)) -> (a -> m s) -> Unfold m a b
-mkUnfoldM step inject = lmapM inject (Unfold step id)
+mkUnfoldM step inject = lmapM inject (mkUnfold step id)
 
 -- | Supply the seed to an unfold closing the input end of the unfold.
 --
