@@ -49,7 +49,6 @@ module Streamly.Internal.Data.Unfold.Type
 
     -- * Basic Constructors
     , mkUnfoldM
-    , mkUnfoldrM
     , unfoldrM
     , unfoldr
     , functionM
@@ -109,6 +108,7 @@ module Streamly.Internal.Data.Unfold.Type
     , zipWith
 
     -- * Deprecated
+    , mkUnfoldrM
     , many
     , many2
     , manyInterleave
@@ -245,7 +245,7 @@ mkUnfoldM = Unfold
 --
 -- See also: 'unfoldrM'
 --
--- /Pre-release/
+{-# DEPRECATED mkUnfoldrM "Use mkUnfoldM with pure as the inject function instead." #-}
 {-# INLINE mkUnfoldrM #-}
 mkUnfoldrM :: Applicative m => (a -> m (Step a b)) -> Unfold m a b
 mkUnfoldrM step = Unfold step pure
