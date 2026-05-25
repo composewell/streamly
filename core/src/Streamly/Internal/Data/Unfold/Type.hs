@@ -47,6 +47,12 @@ module Streamly.Internal.Data.Unfold.Type
       Step(..)
     , Unfold (..)
 
+    -- Constructor Naming:
+    -- - "mk" prefix marks the primitive constructors. Use mkUnfold vs unfold
+    --   because it would collide with 'Data.Stream.unfold'.
+    -- - Bare names follow Data.List APIs.
+    -- - Suffixes track the variants
+
     -- * Basic Constructors
     , mkUnfold
     , mkUnfoldM
