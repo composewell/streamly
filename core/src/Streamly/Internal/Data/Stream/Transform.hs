@@ -2096,20 +2096,48 @@ rollingMap2 f = catMaybes . rollingMap g
 -- Selective Map
 ------------------------------------------------------------------------------
 
+{-# ANN type ModifyLastState Fuse #-}
+data ModifyLastState s a =
+      ModifyLastInit s
+    | ModifyLastBuf s a
+    | ModifyLastDone
+
 -- | Modify the final element of a stream.
 --
 -- The supplied function is applied only to the terminal element of
 -- the stream. All preceding elements are emitted unchanged.
 --
--- > modifyLast f [a,b,c] == [a,b,f c]
+-- >>> Stream.toList $ Stream.modifyLast negate $ Stream.fromList [1,2,3]
+-- [1,2,-3]
 --
 -- If the stream is empty, the result is empty.
 --
--- /Unimplemented/
+-- Space: @O(1)@
 --
-{-# INLINE modifyLast #-}
-modifyLast :: (a -> a) -> Stream m a -> Stream m a
-modifyLast = undefined
+-- /Pre-release/
+--
+{-# INLINE_NORMAL modifyLast #-}
+modifyLast :: Monad m => (a -> a) -> Stream m a -> Stream m a
+modifyLast f (Stream step1 state1) = Stream step (ModifyLastInit state1)
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (ModifyLastInit s1) = do
+        r <- step1 (adaptState gst) s1
+        return $ case r of
+            Yield x s2 -> Skip (ModifyLastBuf s2 x)
+            Skip s2 -> Skip (ModifyLastInit s2)
+            Stop -> Stop
+
+    step gst (ModifyLastBuf s1 a) = do
+        r <- step1 (adaptState gst) s1
+        return $ case r of
+            Yield x s2 -> Yield a (ModifyLastBuf s2 x)
+            Skip s2 -> Skip (ModifyLastBuf s2 a)
+            Stop -> Yield (f a) ModifyLastDone
+
+    step _ ModifyLastDone = return Stop
 
 ------------------------------------------------------------------------------
 -- Maybe Streams
