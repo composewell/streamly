@@ -77,6 +77,9 @@ module Streamly.Internal.Data.Unfold
     , drop
     , dropWhile
     , dropWhileM
+    , mapMaybe
+    , mapMaybeM
+    , catMaybes
 
     -- ** Cross product
     , innerJoin
@@ -640,6 +643,7 @@ take n (Unfold step1 inject1) = Unfold step inject
 --
 {-# INLINE_NORMAL filterM #-}
 filterM :: Monad m => (b -> m Bool) -> Unfold m a b -> Unfold m a b
+-- filterM p = mapMaybeM (\x -> fmap (\b -> if b then Just x else Nothing) (p x))
 filterM f (Unfold step1 inject1) = Unfold step inject1
   where
     {-# INLINE_LATE step #-}
@@ -719,6 +723,58 @@ dropWhileM f (Unfold step inject) = Unfold step' inject'
 {-# INLINE dropWhile #-}
 dropWhile :: Monad m => (b -> Bool) -> Unfold m a b -> Unfold m a b
 dropWhile f = dropWhileM (return . f)
+
+------------------------------------------------------------------------------
+-- Maybe Unfolds
+------------------------------------------------------------------------------
+
+-- Note: do not define in terms of "filter", avoid partial fromJust.
+-- instead define filter in terms of mapMaybe.
+
+-- | Like 'mapMaybe' but maps a monadic function.
+--
+-- Definition:
+--
+-- >>> mapMaybeM f = Unfold.catMaybes . Unfold.mapM f
+--
+{-# INLINE_NORMAL mapMaybeM #-}
+mapMaybeM :: Monad m => (b -> m (Maybe c)) -> Unfold m a b -> Unfold m a c
+mapMaybeM f (Unfold step1 inject1) = Unfold step inject1
+  where
+    {-# INLINE_LATE step #-}
+    step st = do
+        r <- step1 st
+        case r of
+            Yield x s -> do
+                b <- f x
+                return $ case b of
+                    Just c  -> Yield c s
+                    Nothing -> Skip s
+            Skip s -> return $ Skip s
+            Stop   -> return Stop
+
+-- | Map a 'Maybe' returning function on the output of the unfold, filter out
+-- the 'Nothing' elements, and return an unfold yielding the values extracted
+-- from 'Just'.
+--
+-- Definition:
+--
+-- >>> mapMaybe f = Unfold.catMaybes . fmap f
+--
+{-# INLINE mapMaybe #-}
+mapMaybe :: Monad m => (b -> Maybe c) -> Unfold m a b -> Unfold m a c
+mapMaybe f = mapMaybeM (return . f)
+
+-- | In an unfold whose output is a 'Maybe', discard 'Nothing's and unwrap
+-- 'Just's.
+--
+-- Definition:
+--
+-- >>> catMaybes = Unfold.mapMaybe id
+--
+{-# INLINE catMaybes #-}
+catMaybes :: Monad m => Unfold m a (Maybe b) -> Unfold m a b
+catMaybes = mapMaybe id
 
 -- | Cross intersection of two unfolds. See
 -- 'Streamly.Internal.Data.Stream.innerJoin' for more details.
