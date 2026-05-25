@@ -22,9 +22,7 @@ test/Streamly/Test/Unicode/Stream.hs
 test/Streamly/Test/Data/Unbox.hs
 benchmark/lib/Streamly/Benchmark/Common.hs
 benchmark/lib/Streamly/Benchmark/Common/Handle.hs
-benchmark/NanoBenchmarks.hs
 benchmark/Streamly/Benchmark/Data/Array.hs
 benchmark/Streamly/Benchmark/Data/ParserK.hs
-benchmark/Streamly/Benchmark/Data/Stream/StreamK.hs
 benchmark/Streamly/Benchmark/Data/Unfold.hs
 benchmark/Streamly/Benchmark/FileSystem/Handle.hs
