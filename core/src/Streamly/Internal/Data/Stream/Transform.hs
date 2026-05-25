@@ -1063,25 +1063,43 @@ scanl1' f = scanl1M' (\x y -> return (f x y))
 -- Mealy style scans
 -------------------------------------------------------------------------------
 
--- XXX implement this directly instead of using postscanlM'
-
 -- | postscan and mapAccum (without terminal extraction) are identical in
 -- behavior and implementable in terms of each other. mapAccum is cleaner to
 -- have because postscan implementation in terms of it is clean whereas the
 -- vice-versa requires an undefined.
 --
-{-# INLINE mapAccumM #-}
+{-# INLINE_NORMAL mapAccumM #-}
 mapAccumM :: Monad m =>
        (s -> a -> m (s, b))
     -> m s
     -> Stream m a
     -> Stream m b
+{-
+-- It can be implemented in terms of 'postscanlM'' but
+-- requires an @undefined@ for the initial output.
 mapAccumM step initial stream =
     let r = postscanlM'
                 (\(s, _) a -> step s a)
                 (fmap (,undefined) initial)
                 stream
      in fmap snd r
+ -}
+mapAccumM fstep begin (Stream step state) =
+    Stream step' Nothing
+  where
+    {-# INLINE_LATE step' #-}
+    step' _ Nothing = do
+        !x <- begin
+        return $ Skip (Just (state, x))
+
+    step' gst (Just (st, acc)) = do
+        r <- step (adaptState gst) st
+        case r of
+            Yield x s -> do
+                (!acc1, !y) <- fstep acc x
+                return $ Yield y (Just (s, acc1))
+            Skip s -> return $ Skip (Just (s, acc))
+            Stop   -> return Stop
 
 -------------------------------------------------------------------------------
 -- Filtering
