@@ -999,6 +999,12 @@ transformCombineOpsCommon constr desc eq = do
     prop (desc <> " mapAccumM identity (== postscanlM')") $
         transform (tail . scanl' (const id) 0)
                   (S.mapAccumM (\_ a -> return (a, a)) (return 0))
+    let modifyLastList _ [] = []
+        modifyLastList f xs = init xs ++ [f (last xs)]
+    prop (desc <> " modifyLast negate") $
+        transform (modifyLastList negate) (S.modifyLast negate)
+    prop (desc <> " modifyLast id") $
+        transform (modifyLastList id) (S.modifyLast id)
     prop (desc <> " scanl1'") $ transform (scanl1 (const id))
                                          (S.scanl1' (const id))
     prop (desc <> " scanl1M'") $ transform (scanl1 (const id))
