@@ -89,7 +89,7 @@ testUnfoldLastNonEmpty =
 
     where
 
-    trailer = Unfold.lmap (maybe [] (\x -> [x * 10, x * 100])) Unfold.fromList
+    trailer = Unfold.lmap (foldMap (\x -> [x * 10, x * 100])) Unfold.fromList
 
 testUnfoldLastEmpty :: Expectation
 testUnfoldLastEmpty =
@@ -99,7 +99,7 @@ testUnfoldLastEmpty =
 
     where
 
-    trailer = Unfold.lmap (maybe [] (\x -> [x * 10, x * 100])) Unfold.fromList
+    trailer = Unfold.lmap (foldMap (\x -> [x * 10, x * 100])) Unfold.fromList
 
 testConcatMapLastNonEmpty :: Expectation
 testConcatMapLastNonEmpty =
@@ -147,7 +147,7 @@ testUnfoldFirstNonEmpty =
 
     where
 
-    header = Unfold.lmap (maybe [] (\x -> [x * 10, x * 100])) Unfold.fromList
+    header = Unfold.lmap (foldMap (\x -> [x * 10, x * 100])) Unfold.fromList
 
 testUnfoldFirstEmpty :: Expectation
 testUnfoldFirstEmpty =
@@ -157,7 +157,7 @@ testUnfoldFirstEmpty =
 
     where
 
-    header = Unfold.lmap (maybe [] (\x -> [x * 10, x * 100])) Unfold.fromList
+    header = Unfold.lmap (foldMap (\x -> [x * 10, x * 100])) Unfold.fromList
 
 testConcatMapFirstNonEmpty :: Expectation
 testConcatMapFirstNonEmpty =

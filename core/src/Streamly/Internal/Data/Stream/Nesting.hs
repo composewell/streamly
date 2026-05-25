@@ -230,21 +230,21 @@ appendIfEmpty (Stream step1 state1) (Stream step2 state2) =
 
     {-# INLINE_LATE step #-}
     step gst (AppendIfEmptyFirstUnseen st) =
-        (\r -> case r of
+        (\case
             Yield x s -> Yield x (AppendIfEmptyFirstSeen s)
             Skip s    -> Skip (AppendIfEmptyFirstUnseen s)
             Stop      -> Skip (AppendIfEmptySecond state2)
         ) <$> step1 gst st
 
     step gst (AppendIfEmptyFirstSeen st) =
-        (\r -> case r of
+        (\case
             Yield x s -> Yield x (AppendIfEmptyFirstSeen s)
             Skip s    -> Skip (AppendIfEmptyFirstSeen s)
             Stop      -> Stop
         ) <$> step1 gst st
 
     step gst (AppendIfEmptySecond st) =
-        (\r -> case r of
+        (\case
             Yield x s -> Yield x (AppendIfEmptySecond s)
             Skip s    -> Skip (AppendIfEmptySecond s)
             Stop      -> Stop
@@ -289,17 +289,17 @@ appendUnfoldLast (Unfold ustep inject) (Stream ostep ost) =
 
     {-# INLINE_LATE step #-}
     step gst (AppendUnfoldLastInput o lst) =
-        (\r -> case r of
+        (\case
             Yield x o1 -> Yield x (AppendUnfoldLastInput o1 (Just x))
             Skip o1    -> Skip (AppendUnfoldLastInput o1 lst)
             Stop       -> Skip (AppendUnfoldLastInject lst)
         ) <$> ostep (adaptState gst) o
 
     step _ (AppendUnfoldLastInject lst) =
-        (Skip . AppendUnfoldLastOutput) <$> inject lst
+        Skip . AppendUnfoldLastOutput <$> inject lst
 
     step _ (AppendUnfoldLastOutput i) =
-        (\r -> case r of
+        (\case
             Yield x i1 -> Yield x (AppendUnfoldLastOutput i1)
             Skip i1    -> Skip (AppendUnfoldLastOutput i1)
             Stop       -> Stop
@@ -331,14 +331,14 @@ appendMapLast f (Stream ostep ost) = Stream step (Left (ost, Nothing))
 
     {-# INLINE_LATE step #-}
     step gst (Left (o, lst)) =
-        (\r -> case r of
+        (\case
             Yield x o1 -> Yield x (Left (o1, Just x))
             Skip o1    -> Skip (Left (o1, lst))
             Stop       -> Skip (Right (f lst))
         ) <$> ostep (adaptState gst) o
 
     step gst (Right (UnStream istep ist)) =
-        (\r -> case r of
+        (\case
             Yield x i1 -> Yield x (Right (Stream istep i1))
             Skip i1    -> Skip (Right (Stream istep i1))
             Stop       -> Stop
@@ -867,34 +867,34 @@ unfoldFirst (Unfold ustep inject) (Stream ostep ost) =
 
     {-# INLINE_LATE step #-}
     step gst (UnfoldFirstWaitInput o) =
-        (\r -> case r of
+        (\case
             Yield x o1 -> Skip (UnfoldFirstInjectSome x o1)
             Skip o1    -> Skip (UnfoldFirstWaitInput o1)
             Stop       -> Skip UnfoldFirstInjectEmpty
         ) <$> ostep (adaptState gst) o
 
     step _ UnfoldFirstInjectEmpty =
-        (Skip . UnfoldFirstOutputEmpty) <$> inject Nothing
+        Skip . UnfoldFirstOutputEmpty <$> inject Nothing
 
     step _ (UnfoldFirstInjectSome x o) =
         (\i -> Skip (UnfoldFirstOutputSome i o)) <$> inject (Just x)
 
     step _ (UnfoldFirstOutputEmpty i) =
-        (\r -> case r of
+        (\case
             Yield y i1 -> Yield y (UnfoldFirstOutputEmpty i1)
             Skip i1    -> Skip (UnfoldFirstOutputEmpty i1)
             Stop       -> Stop
         ) <$> ustep i
 
     step _ (UnfoldFirstOutputSome i o) =
-        (\r -> case r of
+        (\case
             Yield y i1 -> Yield y (UnfoldFirstOutputSome i1 o)
             Skip i1    -> Skip (UnfoldFirstOutputSome i1 o)
             Stop       -> Skip (UnfoldFirstRest o)
         ) <$> ustep i
 
     step gst (UnfoldFirstRest o) =
-        (\r -> case r of
+        (\case
             Yield y o1 -> Yield y (UnfoldFirstRest o1)
             Skip o1    -> Skip (UnfoldFirstRest o1)
             Stop       -> Stop
@@ -934,7 +934,7 @@ unfoldLast (Unfold ustep inject) (Stream ostep ost) =
 
     {-# INLINE_LATE step #-}
     step gst (UnfoldLastInput o lst) =
-        (\r -> case r of
+        (\case
             Yield x o1 -> case lst of
                 Nothing   -> Skip    (UnfoldLastInput o1 (Just x))
                 Just prev -> Yield prev (UnfoldLastInput o1 (Just x))
@@ -943,10 +943,10 @@ unfoldLast (Unfold ustep inject) (Stream ostep ost) =
         ) <$> ostep (adaptState gst) o
 
     step _ (UnfoldLastInject lst) =
-        (Skip . UnfoldLastOutput) <$> inject lst
+        Skip . UnfoldLastOutput <$> inject lst
 
     step _ (UnfoldLastOutput i) =
-        (\r -> case r of
+        (\case
             Yield x i1 -> Yield x (UnfoldLastOutput i1)
             Skip i1    -> Skip (UnfoldLastOutput i1)
             Stop       -> Stop
@@ -992,28 +992,28 @@ concatMapFirst f (Stream ostep ost) =
 
     {-# INLINE_LATE step #-}
     step gst (ConcatMapFirstWaitInput o) =
-        (\r -> case r of
+        (\case
             Yield x o1 -> Skip (ConcatMapFirstOutputSome (f (Just x)) o1)
             Skip o1    -> Skip (ConcatMapFirstWaitInput o1)
             Stop       -> Skip (ConcatMapFirstOutputEmpty (f Nothing))
         ) <$> ostep (adaptState gst) o
 
     step gst (ConcatMapFirstOutputEmpty (UnStream istep ist)) =
-        (\r -> case r of
+        (\case
             Yield y i1 -> Yield y (ConcatMapFirstOutputEmpty (Stream istep i1))
             Skip i1    -> Skip (ConcatMapFirstOutputEmpty (Stream istep i1))
             Stop       -> Stop
         ) <$> istep gst ist
 
     step gst (ConcatMapFirstOutputSome (UnStream istep ist) o) =
-        (\r -> case r of
+        (\case
             Yield y i1 -> Yield y (ConcatMapFirstOutputSome (Stream istep i1) o)
             Skip i1    -> Skip (ConcatMapFirstOutputSome (Stream istep i1) o)
             Stop       -> Skip (ConcatMapFirstRest o)
         ) <$> istep gst ist
 
     step gst (ConcatMapFirstRest o) =
-        (\r -> case r of
+        (\case
             Yield y o1 -> Yield y (ConcatMapFirstRest o1)
             Skip o1    -> Skip (ConcatMapFirstRest o1)
             Stop       -> Stop
@@ -1047,7 +1047,7 @@ concatMapLast f (Stream ostep ost) = Stream step (Left (ost, Nothing))
 
     {-# INLINE_LATE step #-}
     step gst (Left (o, lst)) =
-        (\r -> case r of
+        (\case
             Yield x o1 -> case lst of
                 Nothing   -> Skip    (Left (o1, Just x))
                 Just prev -> Yield prev (Left (o1, Just x))
@@ -1056,7 +1056,7 @@ concatMapLast f (Stream ostep ost) = Stream step (Left (ost, Nothing))
         ) <$> ostep (adaptState gst) o
 
     step gst (Right (UnStream istep ist)) =
-        (\r -> case r of
+        (\case
             Yield x i1 -> Yield x (Right (Stream istep i1))
             Skip i1    -> Skip (Right (Stream istep i1))
             Stop       -> Stop
