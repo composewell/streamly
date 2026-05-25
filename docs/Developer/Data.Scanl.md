@@ -1,50 +1,8 @@
-## Moore vs Mealy Machine
+## Related docs
 
-Moore:   observes states
-Mealy:   observes transitions
+See the state machines doc.
 
-Moore naturally exposes an initial observation.
-Mealy naturally supports terminal extraction.
-
-Moore and Mealy both can represent stream transformations as well as folds
-equally well. The Mealy formulation is usually more straightforward to think as
-an explicit state machine. We have an initial state, each input causes a state
-transition and an output.
-
-Producer: A state machine that produces output without any input
-Transducer: A state machine that produces output on input
-
-## Unfold and Stream (Simplest Producer)
-
-A state machine with no input:
-```
-unfold :: (s -> m (s, b)) -> m s -> Stream m b
-```
-
-Reification of the above unfold function as a data type with termination
-support and open injectable state.
-```
-data Step s b = Yield b s | Stop
-data Unfold m a b = forall s. Unfold (s -> m (Step s b)) (a -> m s)
-```
-
-For filtering we can use `Maybe b` as the output type of the machine or
-equivalently we can use an explicit `Skip` constructor:
-```
-data Step s b = Yield b s | Skip s | Stop
-data Unfold m a b = forall s. Unfold (s -> m (Step s b)) (a -> m s)
-```
-
-Stream is an unfold with a closed state.
-```
-data Stream m a = forall s. Stream (s -> m (Step s a)) s
-```
-
-In a producer machine, the driver keeps cranking the machine until the machine
-stops, the machines decides how many items to produce and when to stop. The
-machine also controls whether to produce an output or just pass on each crank.
-
-## Rescan and Scan (Simplest Transducer)
+# Transition Functions
 
 The simplest transducer is a Mealy style scan without a terminal state
 emission or we can say Moore without an initial state emission:
@@ -52,11 +10,26 @@ emission or we can say Moore without an initial state emission:
 transduce :: (s -> a -> m (s, b)) -> m s -> Stream m a -> Stream m b
 ```
 
+With termination and output filtering support:
+```
+data Outcome s b = Yield b s | Skip s | Stop
+data Transition s a m b = Transition (s -> a -> m (Outcome s b))
+-- instance MonadTrans (Transition s a)
+```
+
+We should have both SkipInput and SkipOutout. Alternatively it can be supported
+by Maybe type input and output. The catMaybes can be used to strip the Maybe to
+get a normal type on the surface.
+
+Should we name the result on the function e.g. TransitionResult, ProducerResult
+etc?
+
+## OpenScan (Simplest Transducer)
+
 Reification of the above transduce function as a data type with termination
 support and open injectable state.
 ```
-data Step s b = Yield b s | Skip s | Stop
-data Rescan m c a b = forall s. Rescan (s -> a -> m (Step s b)) (c -> m s)
+data OpenScan m c a b = forall s. OpenScan (Transition s a m b) (c -> m s)
 ```
 
 Equivalently instead of using the Skip constructor we can use a `Maybe b` type
@@ -64,9 +37,14 @@ instead if we want to filter outputs (consumer mode). And we can use `Maybe a`
 type if we want to allow the machine to be cranked without any input (producer
 mode).
 
-Scan is a Rescan with a closed state:
+Injection is monadic to keep lmapM fusible. See Stream docs for details.
+
+## Scan
+
+Scan is a OpenScan with a closed state:
 ```
-data Scan m a b = forall s. Scan (s -> a -> m (Step s b)) s
+data Scan m a b = forall s. Scan (Transition s a m b) s
+newtype ScanT a m b = ScanT (Scan m a b)
 ```
 
 In a scan the driver cranks the machine and decides whether to supply an input
@@ -222,15 +200,9 @@ extract function is called once per input as the state advances:
 This represents a uni-directional pipe, we can represent it using a data type
 UniPipe.
 
-## Streaming Types
+## Pipes
 
-Unfold: injectible state stream generation
-Stream: opaque state stream
-
-Rescan: injectible state transducer
-Scan: opaque state transducer
-
-Pipe: Combination of Rescan and Unfold
+Pipe: Arbitrary consumption and producer modes
 
 unfoldAccum/concatMapAccum is a restricted Pipe: it has the fixed
 rhythm of consuming one input and unfolding/concatenating its
@@ -239,13 +211,6 @@ arbitrarily. (Note: a concatMapAccum whose sub-streams are opaque
 Streams cannot be expressed in the fused Pipe representation, because
 the sub-stream's existential state cannot be merged; the fused form
 corresponds to sub-streams produced by Unfold.)
-
-Rescanl: injectible state Moore machine (with initial state)
-Scanl: opaque state Moore machine
-
-Refold: Rescanl with only the final output
-Fold: Scanl with only the final output
-Parser: A Fold with error and backtracking
 
 ## Scan Variants
 
@@ -298,6 +263,11 @@ operation rather than using `scanl`. The restart-on-termination variant
 `scanlMany` is renamed to `composeMany` accordingly, so that the `scanl` root
 is fully freed. And `scanlMaybe` to `composeMaybe`.
 
+* Scanl.scanl -> compose
+* Scanl.scanlMany -> composeMany
+* Scanl.postscanl -> postcompose
+* Scanl.postscanlMany -> postcomposeMany
+
 Directly running a scan using a step function
     Stream.scanl'
     Stream.postscanl'
@@ -329,7 +299,7 @@ Directly running a concatMapAccum using a step function
 These are stateful 1-to-n transformations. unfoldAccum is the fused version and
 concatMapAccum is the unfused version because of the existential type in the
 Stream. The reified type that can represent unfoldAccum is the `Pipe` type.
-However, the Pipe type may be more general because it can do n-to-1
+However, the Pipe type is more general because it can do n-to-1
 transformations and 1-to-n as well i.e. it can fold and produce. There is no
 reified type corresponding to concatMapAccum.
 
@@ -387,84 +357,6 @@ can drop the mk prefix and use the exact same names as the Data.List scan
 operations. That way it will become consistent with the Fold module and the
 names will be discoverable and familiar.
 
-## State Machines: At a Glance
-
-* Stream consumers, producers, and transformations can be represented
-  as state machines.
-* A state machine transition is represented by a function.
-* iterate (basic producer step): f :: s -> s
-* Builder (foldr style) step (consumer or transformation): f :: a -> b -> b
-* Accumulator (foldl style) step (consumer or transformation): f :: b -> a -> b
-* Moore step: f :: s -> a -> s, state transformation, output implicit in state
-* Mealy step: f :: s -> a -> (s, b), state transformation with explicit output
-
-* Moore style stream producer (iterate)
-  * iterate can be viewed as a degenerate Moore machine with no external input.
-  * Moore style producer step (iterate): f :: s -> s
-  * Moore style stream producer (iterate): f :: (s -> s) -> s -> Stream m s
-  * Endo represents the transition algebra used by iterate.
-
-* Moore style stream consumer (iterate)
-  * When input ~ state, append becomes a degenerate Moore transition.
-  * Moore style step (append): f :: s -> s -> s
-  * Moore style transformation: f :: (s -> s -> s) -> s -> Stream m s -> Stream m s
-  * Moore style consumer (fold): f :: (s -> s -> s) -> s -> Stream m s -> s
-  * Semigroup can be used to fold by additionally supplying an initial value
-  * Monoid can be used to fold without supplying an additional initial value (e.g. Sum)
-
-* Mealy style stream producer (unfold)
-  * unfold can be viewed as a degenerate Mealy machine with no input.
-  * Unfold step: f :: s -> (s, b), Mealy with no input
-  * Unfold: Mealy machine with no input, explicit state and termination
-  * unfold: f :: (s -> (s, b)) -> s -> Stream m b
-  * The data representation is Unfold
-  * A stream can be represented as a Mealy machine with no input,
-    using existential state and termination.
-  * The streamly representation is `Stream` type.
-
-* Moore stream transducer (scan):
-  * treating `s` as input in iterate style fold is restrictive
-  * it can only do `Stream m s -> Stream m s` transformation
-  * so separate the input from state
-  * output is derived from state after transition
-  * scan using the same state and output type:
-  * f :: (s -> a -> s) -> s -> Stream m a -> Stream m s
-  * scan using a separate state and output type:
-  * f :: (s -> a -> s) -> s -> (s -> b) -> Stream m a -> Stream m b
-
-* Mealy stream transducer (mapAccum):
-  * treating `s` as output is restrictive
-  * So split the state and output
-  * output produced by the transition itself
-  * mapAccum: Mealy machine with existential state and termination
-  * Scan step: f :: s -> a -> (s, b)
-  * Scan without final extract:
-    * f :: (s -> a -> (s, b)) -> s -> Stream m a -> Stream m b
-  * Scan with final extract:
-    * f :: (s -> a -> (s, b)) -> s -> (s -> b) -> Stream m a -> Stream m b
-
-* Streamly Scanl (conceptual):
-  * Scan with initial projection and final extraction
-    * f step initial project final
-    * f :: (s -> a -> s) -> s -> (s -> b) -> (s -> b) -> Stream m a -> Stream m b
-
-* Other state machine formulations:
-    * Moore with s ~ (s, b), split state and output
-    * Dropping first element and "fmap snd" gives Mealy
-    * f :: ((s, b) -> a -> (s, b)) -> (s, b) -> Stream m a -> Stream m (s, b)
-    * But we do not need to pass the output back, only the state
-    * f :: (s -> a -> (s, b)) -> (s, b) -> Stream m a -> Stream m (s, b)
-    * If we do not need the final state
-    * f :: (s -> a -> (s, b)) -> (s, b) -> Stream m a -> Stream m b
-    * If we do not need the initial output
-    * f :: (s -> a -> (s, b)) -> s -> Stream m a -> Stream m b
-
-* State machines composed of state machines (concatMapAccum)
-    * Moore style:
-      * f :: (s -> a -> m s) -> s -> (s -> Stream m b) -> Stream m a -> Stream m b
-    * Mealy style:
-      * f :: (s -> a -> (s, Stream m b)) -> s -> Stream m a -> Stream m b
-
 ## TODO
 
 * Formulate the Scanl/Fold type using the Scan type.
@@ -497,3 +389,16 @@ names will be discoverable and familiar.
 * Monadic inject in Unfold forces a separate init state when converting to a
   stream. We can remove the monadic inject or create a pure type or ensure that
   the additional state fuses in the most efficient way.
+
+* Decide on names of scant/foldt -- mkScanl, mkFold might be better
+  After that stop exporting the Fold and Scanl constructors so that we can
+  change it freely.
+
+*  The Step type maybe different in Producer and Transition. Similarly,
+   will the Step type be different for Scanl? In that case we may need such a
+   function type for Scanl as well. For Scanl and Fold it would be the same.
+
+* Downgrade the constraints in Unfold/Stream/Fold/Scan/Scanl where possible.
+
+* Transition (transducer) function specializations -- Emitter/Producer,
+  Collector/Consumer.
