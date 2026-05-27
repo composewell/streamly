@@ -231,6 +231,7 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
 import qualified Streamly.Internal.Data.Fold.Type as FL hiding (foldr)
 import qualified Streamly.Internal.Data.StreamK.Type as K
+import qualified Streamly.Internal.Data.Transition as Transition
 import qualified Streamly.Internal.Data.Unfold.Type as Unfold
 
 #include "DocTestDataStream.hs"
@@ -1162,17 +1163,12 @@ take n (Stream step state) = n `seq` Stream step' (state, 0)
 {-# INLINE_NORMAL takeWhileM #-}
 takeWhileM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
 -- takeWhileM p = scanMaybe (FL.takingEndByM_ (\x -> not <$> p x))
-takeWhileM f (Stream step state) = Stream step' state
-  where
-    {-# INLINE_LATE step' #-}
-    step' gst st = do
-        r <- step gst st
-        case r of
-            Yield x s -> do
-                b <- f x
-                return $ if b then Yield x s else Stop
-            Skip s -> return $ Skip s
-            Stop   -> return Stop
+takeWhileM f (Stream step1 state1) = Stream step state1
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst = Transition.takeWhileM f (step1 gst)
 
 -- | End the stream as soon as the predicate fails on an element.
 --

@@ -13,6 +13,7 @@
 module Streamly.Internal.Data.Transition
     (
       mapMaybeM
+    , takeWhileM
     )
 where
 
@@ -36,5 +37,17 @@ mapMaybeM f step1 st = do
             return $ case b of
                 Just c  -> Yield c s
                 Nothing -> Skip s
+        Skip s -> return (Skip s)
+        Stop   -> return Stop
+
+{-# INLINE_LATE takeWhileM #-}
+takeWhileM :: Monad m
+    => (b -> m Bool) -> Transition m s b -> Transition m s b
+takeWhileM f step1 st = do
+    r <- step1 st
+    case r of
+        Yield x s -> do
+            b <- f x
+            return $ if b then Yield x s else Stop
         Skip s -> return (Skip s)
         Stop   -> return Stop
