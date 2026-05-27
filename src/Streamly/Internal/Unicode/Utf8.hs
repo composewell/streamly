@@ -34,8 +34,9 @@ import System.IO.Unsafe (unsafePerformIO)
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Array as Array
-    ( fromStreamN
+    ( fromPureStreamN
     , read
+    , rightSize
     )
 import qualified Streamly.Internal.Unicode.Stream as Unicode
 
@@ -58,9 +59,13 @@ toArray (Utf8 arr) = arr
 {-# INLINEABLE pack #-}
 pack :: String -> Utf8
 pack s =
+    -- UTF-8 emits up to 4 bytes per char; allocate the worst case so the
+    -- encoded stream cannot overflow, then rightSize trims the slack.
     Utf8
-        $ unsafePerformIO
-        $ Array.fromStreamN len $ Unicode.encodeUtf8' $ Stream.fromList s
+        $ Array.rightSize
+        $ Array.fromPureStreamN (4 * len)
+        $ Unicode.encodeUtf8'
+        $ Stream.fromList s
 
     where
 
