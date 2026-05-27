@@ -12,6 +12,7 @@ module Main (main) where
 import Streamly.Internal.Data.Unfold (Unfold)
 
 import qualified Data.List as List
+import qualified Data.Tuple as Tuple
 import qualified Prelude
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Scanl as Scanl
@@ -78,12 +79,12 @@ both =
 
 first :: Bool
 first =
-    let unf = UF.first 1 (UF.function id)
+    let unf = UF.supplyFirst 1 (UF.function id)
      in testUnfold unf 2 ([(1, 2)] :: [(Int, Int)])
 
 second :: Bool
 second =
-    let unf = UF.second 1 (UF.function id)
+    let unf = UF.supplySecond 1 (UF.function id)
      in testUnfold unf 2 ([(2, 1)] :: [(Int, Int)])
 
 discardFirst :: Bool
@@ -98,7 +99,7 @@ discardSecond =
 
 swap :: Bool
 swap =
-    let unf = UF.swap (UF.function id)
+    let unf = UF.lmap Tuple.swap (UF.function id)
      in testUnfold unf ((1, 2) :: (Int, Int)) [(2, 1)]
 
 consInput :: Bool
@@ -480,7 +481,7 @@ mapM2 =
         $ \f list ->
               let fA = applyFun2 f :: [Int] -> Int -> Int
                   fM (x, y) = modify (+ 1) >> return (fA x y)
-                  unf = UF.mapM fM (UF.carry UF.fromList)
+                  unf = UF.mapM fM (UF.carryInput UF.fromList)
                   mList = Prelude.map (fA list) list
                in testUnfoldMD unf list 0 (length list) mList
 

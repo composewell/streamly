@@ -334,14 +334,14 @@ inspect $ 'unfoldEach `hasNoType` ''SPEC
 {-# INLINE unfoldEach2 #-}
 unfoldEach2 :: Int -> Int -> Int -> IO ()
 unfoldEach2 outer inner start = drain $
-     S.unfoldEach (UF.carry (sourceUnfoldrMUnfold inner start))
+     S.unfoldEach (UF.carryInput (sourceUnfoldrMUnfold inner start))
         $ sourceUnfoldrM outer start
 
 {-# INLINE unfoldEach3 #-}
 unfoldEach3 :: Int -> Int -> IO ()
 unfoldEach3 linearCount start = drain $ do
-    S.unfoldEach (UF.carry (UF.lmap snd (sourceUnfoldrMUnfold nestedCount3 start)))
-         $ S.unfoldEach (UF.carry (sourceUnfoldrMUnfold nestedCount3 start))
+    S.unfoldEach (UF.carryInput (UF.lmap snd (sourceUnfoldrMUnfold nestedCount3 start)))
+         $ S.unfoldEach (UF.carryInput (sourceUnfoldrMUnfold nestedCount3 start))
             $ sourceUnfoldrM nestedCount3 start
     where
 
@@ -732,28 +732,28 @@ fairUnfoldCrossEqn input =
 
 unfoldEachEqn :: Monad m => Unfold m ((), ()) Int -> Stream m Int -> m ()
 unfoldEachEqn input ints =
-    let intu = Unfold.carry $ Unfold.lmap (const (undefined, undefined)) input
+    let intu = Unfold.carryInput $ Unfold.lmap (const (undefined, undefined)) input
      in result
         $ Stream.mapM checkPair
         $ Stream.unfoldEach intu ints
 
 fairUnfoldEachEqn :: Monad m => Unfold m ((), ()) Int -> Stream m Int -> m ()
 fairUnfoldEachEqn input ints =
-    let intu = Unfold.carry $ Unfold.lmap (const (undefined, undefined)) input
+    let intu = Unfold.carryInput $ Unfold.lmap (const (undefined, undefined)) input
      in result
         $ Stream.mapM checkPair
         $ Stream.fairUnfoldEach intu ints
 
 unfoldSchedEqn :: Monad m => Unfold m ((), ()) Int -> Stream m Int -> m ()
 unfoldSchedEqn input ints =
-    let intu = Unfold.carry $ Unfold.lmap (const (undefined, undefined)) input
+    let intu = Unfold.carryInput $ Unfold.lmap (const (undefined, undefined)) input
      in result
         $ Stream.mapM checkPair
         $ Stream.unfoldSched intu ints
 
 fairUnfoldSchedEqn :: Monad m => Unfold m ((), ()) Int -> Stream m Int -> m ()
 fairUnfoldSchedEqn input ints =
-    let intu = Unfold.carry $ Unfold.lmap (const (undefined, undefined)) input
+    let intu = Unfold.carryInput $ Unfold.lmap (const (undefined, undefined)) input
      in result
         $ Stream.mapM checkPair
         $ Stream.fairUnfoldSched intu ints

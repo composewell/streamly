@@ -27,6 +27,7 @@ module Main (main) where
 import Control.DeepSeq (NFData(..))
 import Control.Exception (SomeException, ErrorCall, try)
 import Data.Char (ord)
+import qualified Data.Tuple as Tuple
 import Data.Word (Word8)
 import Streamly.Internal.Data.Unfold (Unfold)
 import System.IO (Handle, hClose)
@@ -61,7 +62,7 @@ benchIO name f = bench name $ nfIO $ randomRIO (1,1) >>= f
 -- generate numbers up to the argument value
 {-# INLINE source #-}
 source :: Monad m => Int -> Unfold m Int Int
-source n = UF.second n UF.enumerateFromToIntegral
+source n = UF.supplySecond n UF.enumerateFromToIntegral
 
 -------------------------------------------------------------------------------
 -- Benchmark helpers
@@ -80,7 +81,7 @@ drainTransformation unf f seed = drainGeneration (f unf) seed
 drainTransformationDefault ::
        Monad m => Int -> (Unfold m Int Int -> Unfold m c d) -> c -> m ()
 drainTransformationDefault to =
-    drainTransformation (UF.second to UF.enumerateFromToIntegral)
+    drainTransformation (UF.supplySecond to UF.enumerateFromToIntegral)
 
 {-# INLINE drainProduct #-}
 drainProduct ::
@@ -103,7 +104,7 @@ drainProductDefault to = drainProduct src src
 
     where
 
-    src = UF.second to UF.enumerateFromToIntegral
+    src = UF.supplySecond to UF.enumerateFromToIntegral
 
 -------------------------------------------------------------------------------
 -- Operations on input
@@ -130,7 +131,7 @@ first :: Monad m => Int -> Int -> m ()
 first size start =
     drainTransformation
         (UF.take size UF.enumerateFromThenIntegral)
-        (UF.first start)
+        (UF.supplyFirst start)
         1
 
 {-# INLINE second #-}
@@ -138,7 +139,7 @@ second :: Monad m => Int -> Int -> m ()
 second size start =
     drainTransformation
         (UF.take size UF.enumerateFromThenIntegral)
-        (UF.second 1)
+        (UF.supplySecond 1)
         start
 
 {-# INLINE discardFirst #-}
@@ -156,7 +157,7 @@ swap :: Monad m => Int -> Int -> m ()
 swap size start =
     drainTransformation
         (UF.take size UF.enumerateFromThenIntegral)
-        UF.swap
+        (UF.lmap Tuple.swap)
         (1, start)
 
 -------------------------------------------------------------------------------
@@ -265,7 +266,7 @@ enumerateFromThenIntegral size start =
 enumerateFromToIntegral :: Monad m => Int -> Int -> m ()
 enumerateFromToIntegral size start =
     drainGeneration
-    ( UF.second
+    ( UF.supplySecond
       (size + start)
       UF.enumerateFromToIntegral
     ) start
@@ -289,7 +290,7 @@ enumerateFromToFractional :: Monad m => Int -> Int -> m ()
 enumerateFromToFractional size start =
     let intToDouble x = (fromInteger (fromIntegral x)) :: Double
      in drainGeneration
-            ( UF.second
+            ( UF.supplySecond
               (intToDouble $ start + size)
               UF.enumerateFromToFractional
             )
@@ -318,7 +319,7 @@ mapM2 :: Monad m => Int -> Int -> m ()
 mapM2 size start =
     drainTransformationDefault
         size
-        (UF.mapM (\(a, b) -> return $ a + b) . UF.carry)
+        (UF.mapM (\(a, b) -> return $ a + b) . UF.carryInput)
         start
 
 -------------------------------------------------------------------------------
@@ -458,8 +459,8 @@ concatMapM inner outer start =
 
     where
 
-    unfoldInGen i = return (UF.second (i + inner) UF.enumerateFromToIntegral)
-    unfoldOut = UF.second (start + outer) UF.enumerateFromToIntegral
+    unfoldInGen i = return (UF.supplySecond (i + inner) UF.enumerateFromToIntegral)
+    unfoldOut = UF.supplySecond (start + outer) UF.enumerateFromToIntegral
 
 {-# INLINE toNull #-}
 toNull :: Monad m => Int -> Int -> m ()

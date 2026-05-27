@@ -1534,7 +1534,7 @@ loop = crossWith (\b a -> (a,b))
 loopBy :: Monad m => Unfold m x b -> x -> Stream m a -> Stream m (a, b)
 loopBy u x s =
     let u1 = Unfold.lmap snd u
-        u2 = Unfold.map (first fst) (Unfold.carry u1)
+        u2 = Unfold.map (first fst) (Unfold.carryInput u1)
      in unfoldEach u2 $ fmap (, x) s
 
 ------------------------------------------------------------------------------
@@ -1573,7 +1573,7 @@ data UnfoldEachState o i =
 --   flip Stream.mapM (Stream.fromList [1,2,3]) $ \x -> do
 --       liftIO $ putStrLn (show x)
 --       return x
--- innerUnfold = Unfold.carry $ Unfold.lmap (const [4,5,6]) Unfold.fromList
+-- innerUnfold = Unfold.carryInput $ Unfold.lmap (const [4,5,6]) Unfold.fromList
 -- innerLoop =
 --      flip Unfold.mapM innerUnfold $ \(x, y) -> do
 --          when (x == 1) $ liftIO $ putStrLn (show y)

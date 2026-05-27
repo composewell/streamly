@@ -1344,7 +1344,7 @@ schedFor = flip schedMap
 --
 -- >>> :{
 -- outerLoop = Stream.fromList [1,2,3]
--- innerLoop = Unfold.carry $ Unfold.lmap (const [4,5,6]) Unfold.fromList
+-- innerLoop = Unfold.carryInput $ Unfold.lmap (const [4,5,6]) Unfold.fromList
 -- :}
 --
 -- >>> Stream.toList $ Stream.fairUnfoldSched innerLoop outerLoop
@@ -1398,7 +1398,7 @@ fairUnfoldSched (Unfold istep inject) (Stream ostep ost) =
 --
 -- >>> :{
 -- outerLoop = Stream.fromList [1,2,3]
--- innerLoop = Unfold.carry $ Unfold.lmap (const [4,5,6]) Unfold.fromList
+-- innerLoop = Unfold.carryInput $ Unfold.lmap (const [4,5,6]) Unfold.fromList
 -- :}
 --
 -- >>> Stream.toList $ Stream.fairUnfoldEach innerLoop outerLoop

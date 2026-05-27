@@ -190,7 +190,7 @@ toChunks = toChunksWithBufferOf defaultChunkSize
 -- @since 0.7.0
 {-# INLINE readChunks #-}
 readChunks :: MonadIO m => Unfold m Handle (Array Word8)
-readChunks = UF.first readChunksWithBufferOf defaultChunkSize
+readChunks = UF.supplyFirst defaultChunkSize readChunksWithBufferOf
 
 -------------------------------------------------------------------------------
 -- Read a Directory to Stream
@@ -243,7 +243,7 @@ eitherReaderPaths ::(MonadIO m, MonadCatch m) => (ReadOptions -> ReadOptions) ->
 eitherReaderPaths f =
     let (</>) = Path.join
      in fmap (\(dir, x) -> bimap (dir </>) (dir </>) x)
-            $ UF.carry (OS.eitherReader f)
+            $ UF.carryInput (OS.eitherReader f)
 
 --
 -- | Read files only.

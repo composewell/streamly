@@ -50,9 +50,12 @@ module Streamly.Internal.Data.Unfold
 
     -- * Combinators
     -- ** Mapping on Input
-    , discardFirst
-    , discardSecond
-    , swap
+
+    -- A named lmap specialization earns its name only if it's more
+    -- forward-thinkable than lmap f itself.
+
+    , discardFirst -- asSecond
+    , discardSecond -- asFirst
     -- coapply
     -- comonad
 
@@ -115,6 +118,7 @@ module Streamly.Internal.Data.Unfold
     , postscanlM'
     , scan
     , scanMany
+    , swap
     )
 where
 
@@ -192,6 +196,7 @@ discardSecond = lmap fst
 --
 -- /Pre-release/
 --
+{-# DEPRECATED swap "Please use \"lmap Tuple.swap\" instead" #-}
 {-# INLINE_NORMAL swap #-}
 swap :: Unfold m (a, c) b -> Unfold m (c, a) b
 swap = lmap Tuple.swap
@@ -572,7 +577,7 @@ repeat = lmap pure repeatM
 -- | Takes a tuple whose first element is repeated and the second element is
 -- passed through the supplied unfold.
 --
--- >>> zipRepeat = fmap (\(x,y) -> (fst x, y)) . Unfold.carry . Unfold.lmap snd
+-- >>> zipRepeat = fmap (\(x,y) -> (fst x, y)) . Unfold.carryInput . Unfold.lmap snd
 -- >>> zipRepeat = Unfold.zipArrowWith (,) Unfold.repeat
 --
 {-# INLINE_NORMAL zipRepeat #-}

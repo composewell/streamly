@@ -29,7 +29,7 @@ unfold :: Property
 unfold = monadicIO $ do
     a <- pick $ choose (0, max_length `div` 2)
     b <- pick $ choose (0, max_length)
-    let unf = Unfold.second b Unfold.enumerateFromToIntegral
+    let unf = Unfold.supplySecond b Unfold.enumerateFromToIntegral
     ls <- toList $ Stream.unfold unf a
     return $ ls == [a..b]
 

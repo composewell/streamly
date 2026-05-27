@@ -65,9 +65,9 @@ module Streamly.Data.Unfold
     -- ** Mapping on Input
     , lmap
     , lmapM
-    , first
-    , second
-    , carry
+    , supplyFirst
+    , supplySecond
+    , carryInput
 
     -- ** Mapping on Output
     , mapM
@@ -93,6 +93,9 @@ module Streamly.Data.Unfold
 
     -- * Deprecated
     , many
+    , first
+    , second
+    , carry
 
     )
 where

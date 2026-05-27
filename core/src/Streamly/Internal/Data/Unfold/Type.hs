@@ -71,14 +71,14 @@ module Streamly.Internal.Data.Unfold.Type
     , fromTuple
 
     -- * Transformations
-    , lmap
-    , lmapM
+    , lmap -- XXX plug
+    , lmapM -- XXX plugM
     , map
     , mapM
-    , supply -- input or useInput
-    , first -- asFirst
-    , second --asSecond
-    , carry -- XXX carryInput?
+    , supply
+    , supplyFirst
+    , supplySecond
+    , carryInput
     , consInput
     , consInputWith
 
@@ -122,6 +122,9 @@ module Streamly.Internal.Data.Unfold.Type
     , mapM2
     , takeWhileMWithInput
     , both
+    , first
+    , second
+    , carry
     )
 where
 
@@ -336,39 +339,43 @@ both a = lmap (Prelude.const a)
 -- as a seed.
 --
 -- @
--- first a = Unfold.lmap (a, )
+-- supplyFirst a = Unfold.lmap (a, )
 -- @
 --
 -- /Pre-release/
 --
-{-# INLINE_NORMAL first #-}
-first :: a -> Unfold m (a, b) c -> Unfold m b c
-first a = lmap (a, )
+{-# INLINE_NORMAL supplyFirst #-}
+supplyFirst, first :: a -> Unfold m (a, b) c -> Unfold m b c
+supplyFirst a = lmap (a, )
+
+RENAME(first,supplyFirst)
 
 -- | Supply the second component of the tuple to an unfold that accepts a tuple
 -- as a seed resulting in a fold that accepts the first component of the tuple
 -- as a seed.
 --
 -- @
--- second b = Unfold.lmap (, b)
+-- supplySecond b = Unfold.lmap (, b)
 -- @
 --
 -- /Pre-release/
 --
-{-# INLINE_NORMAL second #-}
-second :: b -> Unfold m (a, b) c -> Unfold m a c
-second b = lmap (, b)
+{-# INLINE_NORMAL supplySecond #-}
+supplySecond, second :: b -> Unfold m (a, b) c -> Unfold m a c
+supplySecond b = lmap (, b)
+
+RENAME(second,supplySecond)
 
 ------------------------------------------------------------------------------
 -- Filter input
 ------------------------------------------------------------------------------
 
 -- |
--- >>> takeWhileMWithInput f u = Unfold.map snd $ Unfold.takeWhileM (\(a,b) -> f a b) (Unfold.carry u)
+-- >>> takeWhileMWithInput f u = Unfold.map snd $ Unfold.takeWhileM (\(a,b) -> f a b) (Unfold.carryInput u)
 {-# INLINE_NORMAL takeWhileMWithInput #-}
 takeWhileMWithInput :: Monad m =>
     (a -> b -> m Bool) -> Unfold m a b -> Unfold m a b
-takeWhileMWithInput f u = map snd $ takeWhileM (\(a,b) -> f a b) (carry u)
+takeWhileMWithInput f u = map snd $ takeWhileM (\(a,b) -> f a b) (carryInput u)
 {-
 takeWhileMWithInput f (Unfold step1 inject1) = Unfold step inject
 
@@ -420,10 +427,10 @@ takeWhile f = takeWhileM (return . f)
 -- Functor
 ------------------------------------------------------------------------------
 
-{-# DEPRECATED mapM2 "Use carry with mapM instead." #-}
+{-# DEPRECATED mapM2 "Use carryInput with mapM instead." #-}
 {-# INLINE_NORMAL mapM2 #-}
 mapM2 :: Monad m => (a -> b -> m c) -> Unfold m a b -> Unfold m a c
-mapM2 f = mapM (uncurry f) . carry
+mapM2 f = mapM (uncurry f) . carryInput
 {-
 mapM2 f (Unfold ustep uinject) = Unfold step inject
     where
@@ -459,15 +466,15 @@ mapM f (Unfold ustep uinject) = Unfold step uinject
 -- | Carry the input along with the output as the first element of the output
 -- tuple.
 --
--- carry = Unfold.lmap (\x -> (x,x)) . Unfold.zipRepeat
+-- carryInput = Unfold.lmap (\x -> (x,x)) . Unfold.zipRepeat
 --
 -- Note that the input seed may mutate (e.g. if the seed is a Handle or IORef)
 -- as stream is generated from it, so we need to be careful when reusing the
 -- seed while the stream is being generated from it.
 --
-{-# INLINE_NORMAL carry #-}
-carry :: Functor m => Unfold m a b -> Unfold m a (a,b)
-carry (Unfold ustep uinject) = Unfold step (\a -> (a,) <$> uinject a)
+{-# INLINE_NORMAL carryInput #-}
+carryInput, carry :: Functor m => Unfold m a b -> Unfold m a (a,b)
+carryInput (Unfold ustep uinject) = Unfold step (\a -> (a,) <$> uinject a)
 
     where
 
@@ -479,6 +486,8 @@ carry (Unfold ustep uinject) = Unfold step (\a -> (a,) <$> uinject a)
 
     {-# INLINE_LATE step #-}
     step (a, st) = fmap (func a) (ustep st)
+
+RENAME(carry,carryInput)
 
 {-# ANN type ConsInputState Fuse #-}
 data ConsInputState a s = ConsInputFirst a s | ConsInputRest s
@@ -514,10 +523,10 @@ consInputWith f (Unfold ustep uinject) = Unfold step inject
 consInput :: Applicative m => Unfold m a a -> Unfold m a a
 consInput = consInputWith id
 
-{-# DEPRECATED map2 "Use carry with map instead." #-}
+{-# DEPRECATED map2 "Use carryInput with map instead." #-}
 {-# INLINE_NORMAL map2 #-}
 map2 :: Functor m => (a -> b -> c) -> Unfold m a b -> Unfold m a c
-map2 f = map (uncurry f) . carry
+map2 f = map (uncurry f) . carryInput
 
 -- | Map a function on the output of the unfold (the type @b@).
 --
@@ -623,11 +632,11 @@ crossApplyFst (Unfold _step1 _inject1) (Unfold _step2 _inject2) = undefined
 data Many2State x s1 s2 = Many2Outer x s1 | Many2Inner x s1 s2
 -}
 
-{-# DEPRECATED many2 "Use carry with unfoldEach instead." #-}
+{-# DEPRECATED many2 "Use carryInput with unfoldEach instead." #-}
 {-# INLINE_NORMAL many2 #-}
 many2 :: Monad m =>
     Unfold m (a, b) c -> Unfold m a b -> Unfold m a c
-many2 u1 u2 = unfoldEach u1 (carry u2)
+many2 u1 u2 = unfoldEach u1 (carryInput u2)
 {-
 unfoldEach2 (Unfold step2 inject2) (Unfold step1 inject1) = Unfold step inject
 
@@ -657,7 +666,7 @@ unfoldEach2 (Unfold step2 inject2) (Unfold step1 inject1) = Unfold step inject
 
 data Cross a s1 b s2 = CrossOuter a s1 | CrossInner a s1 b s2
 
--- >> f1 f u = Unfold.mapM (\((_, c), b) -> f b c) Unfold.carry (Unfold.lmap fst u))
+-- >> f1 f u = Unfold.mapM (\((_, c), b) -> f b c) Unfold.carryInput (Unfold.lmap fst u))
 -- >> crossWithM f u = Unfold.unfoldEach2 (f1 f u)
 
 -- | Create a cross product (vector product or cartesian product) of the
