@@ -260,8 +260,8 @@ benchmark Data.Array.Generic
     buildable: False
   else
     buildable: True
-  if flag(limit-build-mem) && !flag(fusion-plugin)
-    ghc-options: +RTS -M500M -RTS
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M600M -RTS
 
 benchmark Data.Array.Stream
   import: bench-options
