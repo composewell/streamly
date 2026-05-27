@@ -519,6 +519,8 @@ library
                     , Streamly.Internal.Data.Stream.Transformer
                     , Streamly.Internal.Data.Stream.Type
 
+                    , Streamly.Internal.Data.Transition
+
                     , Streamly.Internal.Data.StreamK.Type
                     , Streamly.Internal.Data.StreamK.Transformer
 

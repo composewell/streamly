@@ -226,6 +226,7 @@ import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 import qualified Streamly.Internal.Data.StreamK.Type as K
+import qualified Streamly.Internal.Data.Transition as Transition
 
 import Prelude hiding
        ( drop, dropWhile, filter, map, mapM, reverse
@@ -2166,7 +2167,12 @@ mapMaybe f = fmap fromJust . filter isJust . map f
 --
 {-# INLINE_NORMAL mapMaybeM #-}
 mapMaybeM :: Monad m => (a -> m (Maybe b)) -> Stream m a -> Stream m b
-mapMaybeM f = fmap fromJust . filter isJust . mapM f
+mapMaybeM f (Stream step1 state1) = Stream step state1
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst = Transition.mapMaybeM f (step1 (adaptState gst))
 
 -- | In a stream of 'Maybe's, discard 'Nothing's and unwrap 'Just's.
 --
