@@ -61,7 +61,7 @@ module Streamly.Internal.Data.Unfold
 
     -- ** Mapping on Output
     , postscanlM'
-    , postscan
+    , postscanl
     , scanl
     , scanlMany
     , foldMany
@@ -112,6 +112,7 @@ module Streamly.Internal.Data.Unfold
     , handle
 
     -- ** Deprecated
+    , postscan
     , scan
     , scanMany
     )
@@ -134,6 +135,7 @@ import Streamly.Internal.Data.SVar.Type (defState)
 import qualified Control.Monad.Catch as MC
 import qualified Data.Tuple as Tuple
 import qualified Streamly.Internal.Data.Fold.Type as FL
+import qualified Streamly.Internal.Data.Scanl.Type as Scanl
 import qualified Streamly.Internal.Data.Stream.Type as D
 import qualified Streamly.Internal.Data.StreamK.Type as K
 import qualified Prelude
@@ -320,13 +322,14 @@ either (Unfold stepL injectL) (Unfold stepR injectR) = Unfold step inject
 
 -- postscan2 :: Monad m => Refold m a b c -> Unfold m a b -> Unfold m a c
 
--- | Scan the output of an 'Unfold' to change it in a stateful manner.
+-- | Scan the output of an 'Unfold' to change it in a stateful manner, using a
+-- 'Scanl'. The initial value of the scan is not emitted in the output.
 --
 -- /Pre-release/
-{-# INLINE_NORMAL postscan #-}
-postscan :: Monad m => Fold m b c -> Unfold m a b -> Unfold m a c
-postscan (Fold stepF initial extract final) (Unfold stepU injectU) =
-    Unfold step inject
+{-# INLINE_NORMAL postscanl #-}
+postscanl :: Monad m => Scanl m b c -> Unfold m a b -> Unfold m a c
+postscanl (Scanl stepF initial extract final) (Unfold stepU injectU) =
+    mkUnfoldM step inject
 
     where
 
@@ -351,6 +354,12 @@ postscan (Fold stepF initial extract final) (Unfold stepU injectU) =
             Stop -> final fs >> return Stop
 
     step Nothing = return Stop
+
+-- When we remove extract from Fold this function should be removed.
+{-# DEPRECATED postscan "Please use postscanl instead" #-}
+{-# INLINE_NORMAL postscan #-}
+postscan :: Monad m => Fold m b c -> Unfold m a b -> Unfold m a c
+postscan (Fold s i e f) = postscanl (Scanl s i e f)
 
 data ScanState s f = ScanInit s | ScanDo s !f | ScanDone
 
@@ -427,7 +436,7 @@ scan (Fold s i e f) = scanWith False (Scanl s i e f)
 -- /Pre-release/
 {-# INLINE_NORMAL postscanlM' #-}
 postscanlM' :: Monad m => (b -> a -> m b) -> m b -> Unfold m c a -> Unfold m c b
-postscanlM' f z = postscan (FL.foldlM' f z)
+postscanlM' f z = postscanl (Scanl.scanlM' f z)
 
 -------------------------------------------------------------------------------
 -- Convert streams into unfolds
