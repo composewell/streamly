@@ -14,7 +14,7 @@ module Streamly.Internal.Data.Pipe.Type
 
     -- * From folds
     , fromStream
-    , fromScanr
+    , fromScan
     , fromFold
     , scanFold
 
@@ -41,7 +41,7 @@ import Data.Kind (Type)
 #endif
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.Scan (Scanr(..))
+import Streamly.Internal.Data.Scan (Scan(..))
 import Streamly.Internal.Data.Stream.Type (Stream(..))
 -- import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.SVar.Type (defState)
@@ -714,9 +714,9 @@ fromStream (Stream step state) = Pipe consume produce ()
             Stream.Skip s -> SkipP s
             Stream.Stop -> Stop
 
-{-# INLINE fromScanr #-}
-fromScanr :: Monad m => Scanr m a b -> Pipe m a b
-fromScanr (Scanr step initial) = Pipe consume undefined initial
+{-# INLINE fromScan #-}
+fromScan :: Monad m => Scan m a b -> Pipe m a b
+fromScan (Scan step initial) = Pipe consume undefined initial
 
     where
 

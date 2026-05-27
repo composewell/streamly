@@ -84,7 +84,7 @@ import Streamly.Internal.Data.Stream (Stream)
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Pipe as Pipe
 import qualified Streamly.Internal.Data.Scanl as Scanl
-import qualified Streamly.Internal.Data.Scan as Scanr
+import qualified Streamly.Internal.Data.Scan as Scan
 import qualified Streamly.Internal.Data.Stream as Stream
 
 import Test.Tasty.Bench
@@ -449,7 +449,7 @@ scanMapM ::
     => Int
     -> Stream m Int
     -> m ()
-scanMapM n = composeN n $ Stream.scanr (Scanr.functionM return)
+scanMapM n = composeN n $ Stream.scanr (Scan.functionM return)
 
 {-# INLINE transformComposeMapM #-}
 transformComposeMapM ::
@@ -472,8 +472,8 @@ scanComposeMapM ::
 scanComposeMapM n =
     composeN n $
     Stream.scanr
-        (Scanr.functionM (\x -> return (x + 1)) `Scanr.compose`
-         Scanr.functionM (\x -> return (x + 2)))
+        (Scan.functionM (\x -> return (x + 1)) `Scan.compose`
+         Scan.functionM (\x -> return (x + 2)))
 
 {-# INLINE transformTeeMapM #-}
 transformTeeMapM ::
@@ -496,8 +496,8 @@ scanTeeMapM ::
 scanTeeMapM n =
     composeN n $
     Stream.scanr
-        (Scanr.teeWith (+) (Scanr.functionM (\x -> return (x + 1)))
-         (Scanr.functionM (\x -> return (x + 2))))
+        (Scan.teeWith (+) (Scan.functionM (\x -> return (x + 1)))
+         (Scan.functionM (\x -> return (x + 2))))
 
 {-
 {-# INLINE transformZipMapM #-}

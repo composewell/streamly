@@ -6,7 +6,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- 'Scanr' is a right scan. The 'Scanr' type facilitates a stateful
+-- 'Scan' is a right scan. The 'Scan' type facilitates a stateful
 -- transformation from a stream to another stream. In addition to simple
 -- transformation of a stream, scans can also be used to split a stream into
 -- multiple branches, perform different stateful transformations in each branch
@@ -21,14 +21,14 @@
 -- stream.
 --
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Data.Scan as Scanr
+-- >>> import qualified Streamly.Internal.Data.Scan as Scan
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream
 -- >>> import Data.Function ((&))
 --
--- >>> scan1 = Scanr.function (\x -> x * x)
--- >>> scan2 = Scanr.function (\x -> 3 * x)
--- >>> scan3 = Scanr.teeWith (+) scan1 scan2 -- Compute x^2 + 3x
--- >>> scan4 = Scanr.compose scan1 scan3     -- compute x^2 then pass it to scan3
+-- >>> scan1 = Scan.function (\x -> x * x)
+-- >>> scan2 = Scan.function (\x -> 3 * x)
+-- >>> scan3 = Scan.teeWith (+) scan1 scan2 -- Compute x^2 + 3x
+-- >>> scan4 = Scan.compose scan1 scan3     -- compute x^2 then pass it to scan3
 --
 -- >>> :{
 -- main =
@@ -53,10 +53,10 @@
 -- one input it can produce at most one output, in other words it can shrink or
 -- filter a stream but it cannot expand it.
 --
--- == Scanr vs Scanl
+-- == Scan vs Scanl
 --
--- 'Scanr' is a right scan, and 'Scanl' is a left scan. 'Scanr' is to 'Stream'
--- as 'Scanl' is to 'Fold'. 'Scanr' is for composing producer stream
+-- 'Scan' is a right scan, and 'Scanl' is a left scan. 'Scan' is to 'Stream'
+-- as 'Scanl' is to 'Fold'. 'Scan' is for composing producer stream
 -- transformations whereas 'Scanl' is for composing consumer stream
 -- transformations.
 --
@@ -75,7 +75,7 @@
 module Streamly.Data.Scanr
     (
     -- * Type
-      Scanr
+      Scan
 
     -- * Primitive Scans
     , identity

@@ -8,13 +8,13 @@
 --
 -- Right scans.
 --
--- == Scanr vs Stream
+-- == Scan vs Stream
 --
 -- A scan is a generalization of a stream. Like streams, a scan has an internal
 -- state. Unlike a stream, a scan produces an output only on an input, the
 -- output is a function of the scan state and the input. A scan produces at
 -- most one output on one input, in other words it is driven solely by the
--- input, it cannot produce output on its own. A @Scanr m () a@ can represent a
+-- input, it cannot produce output on its own. A @Scan m () a@ can represent a
 -- @Stream m a@ by supplying the scan with () inputs.
 --
 -- == Scans vs pipes:
@@ -45,7 +45,7 @@
 module Streamly.Internal.Data.Scan
     (
     -- * Type
-      Scanr (..)
+      Scan (..)
 
     -- * Constructors
     , postscanl'
@@ -91,7 +91,7 @@ import Prelude hiding
 -- >>> import Control.Category
 --
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Data.Scan as Scanr
+-- >>> import qualified Streamly.Internal.Data.Scan as Scan
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream
 
 ------------------------------------------------------------------------------
@@ -118,8 +118,8 @@ import Prelude hiding
 -- type @a@ to outputs of type @b@ in 'Monad' @m@.
 --
 -- The constructor is @Scan consume initial@.
-data Scanr m a b =
-    forall s. Scanr
+data Scan m a b =
+    forall s. Scan
         (s -> a -> m (Step s b))
         s
 
@@ -129,12 +129,12 @@ data Scanr m a b =
 
 -- | 'fmap' maps a pure function on a scan output.
 --
--- >>> Stream.toList $ Stream.scanr (fmap (+1) Scanr.identity) $ Stream.fromList [1..5::Int]
+-- >>> Stream.toList $ Stream.scanr (fmap (+1) Scan.identity) $ Stream.fromList [1..5::Int]
 -- [2,3,4,5,6]
 --
-instance Functor m => Functor (Scanr m a) where
+instance Functor m => Functor (Scan m a) where
     {-# INLINE_NORMAL fmap #-}
-    fmap f (Scanr consume initial) = Scanr consume1 initial
+    fmap f (Scan consume initial) = Scan consume1 initial
 
         where
 
@@ -174,8 +174,8 @@ liftResult2 = mapResult2 pure
 -- | Like 'postscanl'' but with a monadic step function.
 --
 {-# INLINE postscanlM' #-}
-postscanlM' :: Monad m => (b -> a -> m b) -> b -> Scanr m a b
-postscanlM' step = Scanr consume
+postscanlM' :: Monad m => (b -> a -> m b) -> b -> Scan m a b
+postscanlM' step = Scan consume
 
     where
 
@@ -188,11 +188,11 @@ postscanlM' step = Scanr consume
 -- of the accumulator. The accumulator is also the output of the scan (Moore
 -- style).
 --
--- >>> Stream.toList $ Stream.scanr (Scanr.postscanl' (+) 0) $ Stream.fromList [1..5::Int]
+-- >>> Stream.toList $ Stream.scanr (Scan.postscanl' (+) 0) $ Stream.fromList [1..5::Int]
 -- [1,3,6,10,15]
 --
 {-# INLINE postscanl' #-}
-postscanl' :: Monad m => (b -> a -> b) -> b -> Scanr m a b
+postscanl' :: Monad m => (b -> a -> b) -> b -> Scan m a b
 postscanl' reducer = postscanlM' (liftResult2 reducer)
 
 -- XXX if we change Yield b s to Yield s b, it will be equivalent to the tuple
@@ -204,8 +204,8 @@ postscanl' reducer = postscanlM' (liftResult2 reducer)
 -- | Like 'mapAccum' but with a monadic step function.
 --
 {-# INLINE mapAccumM #-}
-mapAccumM :: Monad m => (s -> a -> m (s, b)) -> s -> Scanr m a b
-mapAccumM step = Scanr consume
+mapAccumM :: Monad m => (s -> a -> m (s, b)) -> s -> Scan m a b
+mapAccumM step = Scan consume
 
     where
 
@@ -217,11 +217,11 @@ mapAccumM step = Scanr consume
 -- | Make a scan from a Mealy style pure step function and an initial state.
 -- The step function returns the next state and the output separately.
 --
--- >>> Stream.toList $ Stream.scanr (Scanr.mapAccum (\s a -> (s + a, s)) 0) $ Stream.fromList [1..5::Int]
+-- >>> Stream.toList $ Stream.scanr (Scan.mapAccum (\s a -> (s + a, s)) 0) $ Stream.fromList [1..5::Int]
 -- [0,1,3,6,10]
 --
 {-# INLINE mapAccum #-}
-mapAccum :: Monad m => (s -> a -> (s, b)) -> s -> Scanr m a b
+mapAccum :: Monad m => (s -> a -> (s, b)) -> s -> Scan m a b
 mapAccum reducer = mapAccumM (liftResult2 reducer)
 
 -------------------------------------------------------------------------------
@@ -235,14 +235,14 @@ mapAccum reducer = mapAccumM (liftResult2 reducer)
 -- second scan.
 --
 -- >>> import Control.Category
--- >>> Stream.toList $ Stream.scanr (Scanr.function (+1) >>> Scanr.function (+1)) $ Stream.fromList [1..5::Int]
+-- >>> Stream.toList $ Stream.scanr (Scan.function (+1) >>> Scan.function (+1)) $ Stream.fromList [1..5::Int]
 -- [3,4,5,6,7]
 --
 {-# INLINE_NORMAL compose #-}
-compose :: Monad m => Scanr m b c -> Scanr m a b -> Scanr m a c
+compose :: Monad m => Scan m b c -> Scan m a b -> Scan m a c
 compose
-    (Scanr stepR initialR)
-    (Scanr stepL initialL) = Scanr step (initialL, initialR)
+    (Scan stepR initialR)
+    (Scan stepL initialL) = Scan step (initialL, initialR)
 
     where
 
@@ -262,7 +262,7 @@ compose
 
 -- | A scan representing mapping of a monadic action.
 --
--- >>> Stream.toList $ Stream.scanr (Scanr.functionM print) $ Stream.fromList [1..5::Int]
+-- >>> Stream.toList $ Stream.scanr (Scan.functionM print) $ Stream.fromList [1..5::Int]
 -- 1
 -- 2
 -- 3
@@ -271,32 +271,32 @@ compose
 -- [(),(),(),(),()]
 --
 {-# INLINE functionM #-}
-functionM :: Monad m => (a -> m b) -> Scanr m a b
-functionM f = Scanr (\() a -> fmap (`Yield` ()) (f a)) ()
+functionM :: Monad m => (a -> m b) -> Scan m a b
+functionM f = Scan (\() a -> fmap (`Yield` ()) (f a)) ()
 
 -- | A scan representing mapping of a pure function.
 --
--- >>> Stream.toList $ Stream.scanr (Scanr.function (+1)) $ Stream.fromList [1..5::Int]
+-- >>> Stream.toList $ Stream.scanr (Scan.function (+1)) $ Stream.fromList [1..5::Int]
 -- [2,3,4,5,6]
 --
 {-# INLINE function #-}
-function :: Monad m => (a -> b) -> Scanr m a b
+function :: Monad m => (a -> b) -> Scan m a b
 function f = functionM (return Prelude.. f)
 
 {- HLINT ignore "Redundant map" -}
 
 -- | An identity scan producing the same output as input.
 --
--- >>> identity = Scanr.function Prelude.id
+-- >>> identity = Scan.function Prelude.id
 --
--- >>> Stream.toList $ Stream.scanr (Scanr.identity) $ Stream.fromList [1..5::Int]
+-- >>> Stream.toList $ Stream.scanr (Scan.identity) $ Stream.fromList [1..5::Int]
 -- [1,2,3,4,5]
 --
 {-# INLINE identity #-}
-identity :: Monad m => Scanr m a a
+identity :: Monad m => Scan m a a
 identity = function Prelude.id
 
-instance Monad m => Category (Scanr m) where
+instance Monad m => Category (Scan m) where
     {-# INLINE id #-}
     id = identity
 
@@ -316,14 +316,14 @@ data TeeWith sL sR = TeeWith !sL !sR
 -- zip their outputs. If the scan filters the output, 'Nothing' is emitted
 -- otherwise 'Just' is emitted. The scan stops if any of the scans stop.
 --
--- >>> Stream.toList $ Stream.scanr (Scanr.teeWithMay (,) Scanr.identity (Scanr.function (\x -> x * x))) $ Stream.fromList [1..5::Int]
+-- >>> Stream.toList $ Stream.scanr (Scan.teeWithMay (,) Scan.identity (Scan.function (\x -> x * x))) $ Stream.fromList [1..5::Int]
 -- [(Just 1,Just 1),(Just 2,Just 4),(Just 3,Just 9),(Just 4,Just 16),(Just 5,Just 25)]
 --
 {-# INLINE_NORMAL teeWithMay #-}
 teeWithMay :: Monad m =>
-    (Maybe b -> Maybe c -> d) -> Scanr m a b -> Scanr m a c -> Scanr m a d
-teeWithMay f (Scanr stepL initialL) (Scanr stepR initialR) =
-    Scanr step (TeeWith initialL initialR)
+    (Maybe b -> Maybe c -> d) -> Scan m a b -> Scan m a c -> Scan m a d
+teeWithMay f (Scan stepL initialL) (Scan stepR initialR) =
+    Scan step (TeeWith initialL initialR)
 
     where
 
@@ -360,26 +360,26 @@ teeWithMay f (Scanr stepL initialL) (Scanr stepR initialR) =
 -- the scans skips the output then the composed scan also skips. Stops when any
 -- of the scans stop.
 --
--- >>> Stream.toList $ Stream.scanr (Scanr.teeWith (,) Scanr.identity (Scanr.function (\x -> x * x))) $ Stream.fromList [1..5::Int]
+-- >>> Stream.toList $ Stream.scanr (Scan.teeWith (,) Scan.identity (Scan.function (\x -> x * x))) $ Stream.fromList [1..5::Int]
 -- [(1,1),(2,4),(3,9),(4,16),(5,25)]
 --
 {-# INLINE_NORMAL teeWith #-}
 teeWith :: Monad m =>
-    (b -> c -> d) -> Scanr m a b -> Scanr m a c -> Scanr m a d
+    (b -> c -> d) -> Scan m a b -> Scan m a c -> Scan m a d
 teeWith f s1 s2 =
     fmap fromJust
         $ compose (filter isJust)
         $ teeWithMay (\b c -> f <$> b <*> c) s1 s2
 
 -- | Zips the outputs only when both scans produce outputs, discards otherwise.
-instance Monad m => Applicative (Scanr m a) where
+instance Monad m => Applicative (Scan m a) where
     {-# INLINE pure #-}
-    pure b = Scanr (\_ _ -> pure $ Yield b ()) ()
+    pure b = Scan (\_ _ -> pure $ Yield b ()) ()
 
     (<*>) = teeWith id
 
 {-# INLINE_NORMAL tee #-}
-tee :: Monad m => Scanr m a b -> Scanr m a c -> Scanr m a (b,c)
+tee :: Monad m => Scan m a b -> Scan m a c -> Scan m a (b,c)
 tee = teeWith (,)
 
 -------------------------------------------------------------------------------
@@ -393,9 +393,9 @@ tee = teeWith (,)
 --
 {-# INLINE_NORMAL unzipMay #-}
 unzipMay :: Monad m =>
-    Scanr m a x -> Scanr m b y -> Scanr m (a, b) (Maybe x, Maybe y)
-unzipMay (Scanr stepL initialL) (Scanr stepR initialR) =
-    Scanr step (Tuple' initialL initialR)
+    Scan m a x -> Scan m b y -> Scan m (a, b) (Maybe x, Maybe y)
+unzipMay (Scan stepL initialL) (Scan stepR initialR) =
+    Scan step (Tuple' initialL initialR)
 
     where
 
@@ -431,7 +431,7 @@ unzipMay (Scanr stepL initialL) (Scanr stepR initialR) =
 -- | Like 'unzipMay' but produces an output only when both the scans produce an
 -- output. Other outputs are filtered out.
 {-# INLINE_NORMAL unzip #-}
-unzip :: Monad m => Scanr m a x -> Scanr m b y -> Scanr m (a, b) (x, y)
+unzip :: Monad m => Scan m a x -> Scan m b y -> Scan m (a, b) (x, y)
 unzip s1 s2 = fmap (fromJust Prelude.. f) $ unzipMay s1 s2
 
     where
@@ -444,7 +444,7 @@ unzip s1 s2 = fmap (fromJust Prelude.. f) $ unzipMay s1 s2
                     Nothing -> Nothing
             Nothing -> Nothing
 
-instance Monad m => Arrow (Scanr m) where
+instance Monad m => Arrow (Scan m) where
     {-# INLINE arr #-}
     arr = function
 
@@ -460,8 +460,8 @@ instance Monad m => Arrow (Scanr m) where
 
 -- | A filtering scan using a monadic predicate.
 {-# INLINE filterM #-}
-filterM :: Monad m => (a -> m Bool) -> Scanr m a a
-filterM f = Scanr (\() a -> f a >>= g a) ()
+filterM :: Monad m => (a -> m Bool) -> Scan m a a
+filterM f = Scan (\() a -> f a >>= g a) ()
 
     where
 
@@ -474,17 +474,17 @@ filterM f = Scanr (\() a -> f a >>= g a) ()
 
 -- | A filtering scan using a pure predicate.
 --
--- >>> Stream.toList $ Stream.scanr (Scanr.filter odd) $ Stream.fromList [1..5::Int]
+-- >>> Stream.toList $ Stream.scanr (Scan.filter odd) $ Stream.fromList [1..5::Int]
 -- [1,3,5]
 --
 {-# INLINE filter #-}
-filter :: Monad m => (a -> Bool) -> Scanr m a a
+filter :: Monad m => (a -> Bool) -> Scan m a a
 filter f = filterM (return Prelude.. f)
 
 {-# INLINE length #-}
-length :: Monad m => Scanr m a Int
-length = Scanr (\acc _ -> pure $ let !n = acc + 1 in Yield n n) 0
+length :: Monad m => Scan m a Int
+length = Scan (\acc _ -> pure $ let !n = acc + 1 in Yield n n) 0
 
 {-# INLINE sum #-}
-sum :: (Monad m, Num a) => Scanr m a a
-sum = Scanr (\acc x -> pure $ let !n = acc + x in Yield n n) 0
+sum :: (Monad m, Num a) => Scan m a a
+sum = Scan (\acc x -> pure $ let !n = acc + x in Yield n n) 0
