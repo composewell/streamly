@@ -561,7 +561,7 @@ composeMany = scanWith True
 --
 {-# INLINE_NORMAL deleteBy #-}
 deleteBy :: Monad m => (a -> a -> Bool) -> a -> Scanl m a (Maybe a)
-deleteBy eq x0 = fmap extract $ mkScanl step (Tuple' False Nothing)
+deleteBy eq x0 = fmap extract $ scanl' step (Tuple' False Nothing)
 
     where
 
@@ -718,7 +718,7 @@ drainMapM f = lmapM f drain
 --
 {-# INLINE the #-}
 the :: (Monad m, Eq a) => Scanl m a (Maybe a)
-the = mkScant step initial id
+the = scant' step initial id
 
     where
 
@@ -742,7 +742,7 @@ the = mkScant step initial id
 --
 -- Same as following but numerically stable:
 --
--- >>> sum = Scanl.mkScanl (+) 0
+-- >>> sum = Scanl.scanl' (+) 0
 -- >>> sum = fmap Data.Monoid.getSum $ Scanl.foldMap Data.Monoid.Sum
 --
 {-# INLINE sum #-}
@@ -759,7 +759,7 @@ sum = Scanl.cumulativeScan Scanl.incrSum
 --
 {-# INLINE product #-}
 product :: (Monad m, Num a, Eq a) => Scanl m a a
-product =  mkScant step (Partial 1) id
+product =  scant' step (Partial 1) id
 
     where
 
@@ -777,7 +777,7 @@ product =  mkScant step (Partial 1) id
 --
 {-# INLINE mean #-}
 mean :: (Monad m, Fractional a) => Scanl m a a
-mean = fmap done $ mkScanl step begin
+mean = fmap done $ scanl' step begin
 
     where
 
@@ -802,7 +802,7 @@ mean = fmap done $ mkScanl step begin
 --
 {-# INLINE rollingHashWithSalt #-}
 rollingHashWithSalt :: (Monad m, Enum a) => Int64 -> Scanl m a Int64
-rollingHashWithSalt = mkScanl step
+rollingHashWithSalt = scanl' step
 
     where
 
@@ -842,7 +842,7 @@ rollingHashFirstN n = take n rollingHash
 --
 -- Definition:
 --
--- >>> sconcat = Scanl.mkScanl (<>)
+-- >>> sconcat = Scanl.scanl' (<>)
 --
 -- >>> semigroups = fmap Data.Monoid.Sum $ Stream.enumerateFromTo 1 3
 -- >>> Stream.toList $ Stream.scanl (Scanl.sconcat 3) semigroups
@@ -850,7 +850,7 @@ rollingHashFirstN n = take n rollingHash
 --
 {-# INLINE sconcat #-}
 sconcat :: (Monad m, Semigroup a) => a -> Scanl m a a
-sconcat = mkScanl (<>)
+sconcat = scanl' (<>)
 
 -- | Monoid concat. Scan an input stream consisting of monoidal elements using
 -- 'mappend' and 'mempty'.
@@ -899,7 +899,7 @@ foldMap f = lmap f mconcat
 --
 {-# INLINE foldMapM #-}
 foldMapM ::  (Monad m, Monoid b) => (a -> m b) -> Scanl m a b
-foldMapM act = mkScanlM step (pure mempty)
+foldMapM act = scanlM' step (pure mempty)
 
     where
 
@@ -919,7 +919,7 @@ foldMapM act = mkScanlM step (pure mempty)
 --
 -- Definition:
 --
--- >>> toListRev = Scanl.mkScanl (flip (:)) []
+-- >>> toListRev = Scanl.scanl' (flip (:)) []
 --
 -- /Warning!/ working on large lists accumulated as buffers in memory could be
 -- very inefficient, consider using "Streamly.Array" instead.
@@ -928,7 +928,7 @@ foldMapM act = mkScanlM step (pure mempty)
 --  xn : ... : x2 : x1 : []
 {-# INLINE toListRev #-}
 toListRev :: Monad m => Scanl m a [a]
-toListRev = mkScanl (flip (:)) []
+toListRev = scanl' (flip (:)) []
 
 ------------------------------------------------------------------------------
 -- Partial Scans
@@ -956,7 +956,7 @@ drainN n = take n drain
 -- /Pre-release/
 {-# INLINE genericIndex #-}
 genericIndex :: (Integral i, Monad m) => i -> Scanl m a (Maybe a)
-genericIndex i = mkScant step (Partial 0) (const Nothing)
+genericIndex i = scant' step (Partial 0) (const Nothing)
 
     where
 
@@ -982,7 +982,7 @@ index = genericIndex
 --
 {-# INLINE maybe #-}
 maybe :: Monad m => (a -> Maybe b) -> Scanl m a (Maybe b)
-maybe f = mkScant (const (Done . f)) (Partial Nothing) id
+maybe f = scant' (const (Done . f)) (Partial Nothing) id
 
 -- | Consume a single element and return it if it passes the predicate else
 -- return 'Nothing'.
@@ -1074,7 +1074,7 @@ find p = findM (return . p)
 --
 {-# INLINE lookup #-}
 lookup :: (Eq a, Monad m) => a -> Scanl m (a,b) (Maybe b)
-lookup a0 = mkScant step (Partial ()) (const Nothing)
+lookup a0 = scant' step (Partial ()) (const Nothing)
 
     where
 
@@ -1087,7 +1087,7 @@ lookup a0 = mkScant step (Partial ()) (const Nothing)
 --
 {-# INLINE findIndex #-}
 findIndex :: Monad m => (a -> Bool) -> Scanl m a (Maybe Int)
-findIndex predicate = mkScant step (Partial 0) (const Nothing)
+findIndex predicate = scant' step (Partial 0) (const Nothing)
 
     where
 
@@ -1104,7 +1104,7 @@ findIndex predicate = mkScant step (Partial 0) (const Nothing)
 findIndices :: Monad m => (a -> Bool) -> Scanl m a (Maybe Int)
 findIndices predicate =
     -- XXX implement by combining indexing and filtering scans
-    fmap (either (Prelude.const Nothing) Just) $ mkScanl step (Left (-1))
+    fmap (either (Prelude.const Nothing) Just) $ scanl' step (Left (-1))
 
     where
 
@@ -1154,7 +1154,7 @@ elemIndex a = findIndex (== a)
 --
 {-# INLINE null #-}
 null :: Monad m => Scanl m a Bool
-null = mkScant (\() _ -> Done False) (Partial ()) (const True)
+null = scant' (\() _ -> Done False) (Partial ()) (const True)
 
 -- | Returns 'True' if any element of the input satisfies the predicate.
 --
@@ -1169,7 +1169,7 @@ null = mkScant (\() _ -> Done False) (Partial ()) (const True)
 --
 {-# INLINE any #-}
 any :: Monad m => (a -> Bool) -> Scanl m a Bool
-any predicate = mkScant step initial id
+any predicate = scant' step initial id
 
     where
 
@@ -1203,7 +1203,7 @@ elem a = any (== a)
 --
 {-# INLINE all #-}
 all :: Monad m => (a -> Bool) -> Scanl m a Bool
-all predicate = mkScant step initial id
+all predicate = scant' step initial id
 
     where
 
@@ -2056,7 +2056,7 @@ zipStream = zipStreamWithM (curry return)
 --
 {-# INLINE indexingWith #-}
 indexingWith :: Monad m => Int -> (Int -> Int) -> Scanl m a (Maybe (Int, a))
-indexingWith i f = fmap toMaybe $ mkScanl step initial
+indexingWith i f = fmap toMaybe $ scanl' step initial
 
     where
 

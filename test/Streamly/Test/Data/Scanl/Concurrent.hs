@@ -59,10 +59,10 @@ parDemuxScan_ScanEnd concOpts = do
     let streamLen = 10000
         evenLen = 100
         demuxer i = even (i :: Int)
-    ref <- newIORef (Scanl.take evenLen $ Scanl.mkScanl1 (\_ x -> x))
+    ref <- newIORef (Scanl.take evenLen $ Scanl.scanl1' (\_ x -> x))
     let gen True =
             atomicModifyIORef' ref (\xs -> (fmap (const Nothing) Scanl.drain, xs))
-        gen False = pure $ Scanl.mkScanl1 (\_ x -> x)
+        gen False = pure $ Scanl.scanl1' (\_ x -> x)
         inpList = [1..streamLen]
         inpStream = Stream.fromList inpList
     res <-
@@ -92,7 +92,7 @@ parDemuxScan_StreamEnd :: (Scanl.Config -> Scanl.Config) -> IO ()
 parDemuxScan_StreamEnd concOpts = do
     let streamLen = 10000
         demuxer i = even (i :: Int)
-        gen _ = pure $ Scanl.mkScanl1 (\_ x -> x)
+        gen _ = pure $ Scanl.scanl1' (\_ x -> x)
         inpList = [1..streamLen]
         inpStream = Stream.fromList inpList
     res <-
@@ -120,7 +120,7 @@ parDemuxScan_WorkerException concOpts = do
                     if (x :: Int) > throwAfter
                     then error "worker exception"
                     else pure x)
-            $ Scanl.mkScanl1 (\_ x -> x)
+            $ Scanl.scanl1' (\_ x -> x)
         -- Send enough items to fill the buffer (maxBuffer 1) and block
         inpList = [1..100]
         inpStream = Stream.fromList inpList

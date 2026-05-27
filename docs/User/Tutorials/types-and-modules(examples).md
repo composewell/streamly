@@ -97,10 +97,10 @@ each number in a stream.
 
 ```haskell
 scan1 :: Monad m => Scanl.Scanl m Int Int
-scan1 = Scanl.mkScanl (\_ x -> x * x) undefined
+scan1 = Scanl.scanl' (\_ x -> x * x) undefined
 
 scan2 :: Monad m => Scanl.Scanl m Int Int
-scan2 = Scanl.mkScanl (\_ x -> 3 * x) undefined
+scan2 = Scanl.scanl' (\_ x -> 3 * x) undefined
 
 scan3 :: Monad m => Scanl.Scanl m Int Int
 scan3 = Scanl.teeWith (+) scan1 scan2 -- Compute x^2 + 3x

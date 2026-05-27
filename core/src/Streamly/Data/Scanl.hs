@@ -21,10 +21,10 @@ module Streamly.Data.Scanl
       Scanl -- (..)
 
     -- * Constructors
-    , mkScanl
-    , mkScanlM
-    , mkScanl1
-    , mkScanl1M
+    , scanl'
+    , scanlM'
+    , scanl1'
+    , scanl1M'
     , mkScanr
 
     -- * Scans
@@ -176,6 +176,10 @@ module Streamly.Data.Scanl
 
     -- * Deprecated
     , scanl
+    , mkScanl
+    , mkScanlM
+    , mkScanl1
+    , mkScanl1M
     )
 where
 

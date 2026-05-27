@@ -439,7 +439,7 @@ scan (Fold s i e f) = scanWith False (Scanl s i e f)
 {-# DEPRECATED postscanlM' "Please use \"postscanl (Scanl.scanlM' f z)\" instead" #-}
 {-# INLINE_NORMAL postscanlM' #-}
 postscanlM' :: Monad m => (b -> a -> m b) -> m b -> Unfold m c a -> Unfold m c b
-postscanlM' f z = postscanl (Scanl.mkScanlM f z)
+postscanlM' f z = postscanl (Scanl.scanlM' f z)
 
 -------------------------------------------------------------------------------
 -- Convert streams into unfolds

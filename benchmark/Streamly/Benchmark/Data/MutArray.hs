@@ -155,7 +155,7 @@ composeN n f x =
 
 {-# INLINE scanl' #-}
 scanl' :: MonadIO m => Int -> Int -> Stream Int -> m (Stream Int)
-scanl' value n = composeN n $ onArray value $ Stream.scanl (Scanl.mkScanl (+) 0)
+scanl' value n = composeN n $ onArray value $ Stream.scanl (Scanl.scanl' (+) 0)
 
 {-# INLINE scanl1' #-}
 scanl1' :: MonadIO m => Int -> Int -> Stream Int -> m (Stream Int)

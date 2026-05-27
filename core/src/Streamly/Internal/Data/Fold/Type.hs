@@ -625,7 +625,7 @@ fromScanl (Scanl step initial extract final) = Fold step initial extract final
 --
 {-# INLINE foldl' #-}
 foldl' :: Monad m => (b -> a -> b) -> b -> Fold m a b
-foldl' step = fromScanl . Scanl.mkScanl step
+foldl' step = fromScanl . Scanl.scanl' step
 
 -- | Make a fold from a left fold style monadic step function and initial value
 -- of the accumulator.
@@ -639,7 +639,7 @@ foldl' step = fromScanl . Scanl.mkScanl step
 --
 {-# INLINE foldlM' #-}
 foldlM' :: Monad m => (b -> a -> m b) -> m b -> Fold m a b
-foldlM' step = fromScanl . Scanl.mkScanlM step
+foldlM' step = fromScanl . Scanl.scanlM' step
 
 -- | Make a strict left fold, for non-empty streams, using first element as the
 -- starting value. Returns Nothing if the stream is empty.
@@ -647,7 +647,7 @@ foldlM' step = fromScanl . Scanl.mkScanlM step
 -- /Pre-release/
 {-# INLINE foldl1' #-}
 foldl1' :: Monad m => (a -> a -> a) -> Fold m a (Maybe a)
-foldl1' = fromScanl . Scanl.mkScanl1
+foldl1' = fromScanl . Scanl.scanl1'
 
 -- | Like 'foldl1\'' but with a monadic step function.
 --
@@ -662,7 +662,7 @@ foldlM1' = foldl1M'
 -- /Pre-release/
 {-# INLINE foldl1M' #-}
 foldl1M' :: Monad m => (a -> a -> m a) -> Fold m a (Maybe a)
-foldl1M' = fromScanl . Scanl.mkScanl1M
+foldl1M' = fromScanl . Scanl.scanl1M'
 
 {-
 data FromScan s b = FromScanInit !s | FromScanGo !s !b
@@ -775,7 +775,7 @@ foldrM' g = fromScanl . Scanl.mkScanrM g
 --
 {-# INLINE foldt' #-}
 foldt' :: Monad m => (s -> a -> Step s b) -> Step s b -> (s -> b) -> Fold m a b
-foldt' step initial = fromScanl . Scanl.mkScant step initial
+foldt' step initial = fromScanl . Scanl.scant' step initial
 
 -- | Make a terminating fold with an effectful step function and initial state,
 -- and a state extraction function.

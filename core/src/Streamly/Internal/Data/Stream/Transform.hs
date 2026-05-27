@@ -643,7 +643,7 @@ scanWith restart (Fold fstep initial extract final) =
 --
 
 -- EXPLANATION:
--- >>> scanl' step z = Stream.scanl (Scanl.mkScanl step z)
+-- >>> scanl' step z = Stream.scanl (Scanl.scanl' step z)
 --
 -- Like 'map', 'scanl'' too is a one to one transformation,
 -- however it adds an extra element.
@@ -667,7 +667,7 @@ scanWith restart (Fold fstep initial extract final) =
 -- Consider the following monolithic example, computing the sum and the product
 -- of the elements in a stream in one go using a @foldl'@:
 --
--- >>> foldl' step z = Stream.fold (Scanl.mkScanl step z)
+-- >>> foldl' step z = Stream.fold (Scanl.scanl' step z)
 -- >>> foldl' (\(s, p) x -> (s + x, p * x)) (0,1) s
 -- (10,24)
 --
@@ -967,7 +967,7 @@ scanlMAfter' fstep initial done s =
 -- lazy expressions inside the accumulator, it is recommended that a strict
 -- data structure is used for accumulator.
 --
--- >>> scanl' step z = Stream.scanl (Scanl.mkScanl step z)
+-- >>> scanl' step z = Stream.scanl (Scanl.scanl' step z)
 -- >>> scanl' f z xs = Stream.scanlM' (\a b -> return (f a b)) (return z) xs
 --
 -- See also: 'usingStateT'
@@ -1888,7 +1888,7 @@ reassembleBy = undefined
 -- Adapted from the vector package
 
 -- |
--- >>> f = Scanl.mkScanl (\(i, _) x -> (i + 1, x)) (-1,undefined)
+-- >>> f = Scanl.scanl' (\(i, _) x -> (i + 1, x)) (-1,undefined)
 -- >>> indexed = Stream.postscanl f
 -- >>> indexed = Stream.zipWith (,) (Stream.enumerateFrom 0)
 -- >>> indexedR n = fmap (\(i, a) -> (n - i, a)) . indexed
@@ -1914,7 +1914,7 @@ indexed (Stream step state) = Stream step' (state, 0)
 -- Adapted from the vector package
 
 -- |
--- >>> f n = Scanl.mkScanl (\(i, _) x -> (i - 1, x)) (n + 1,undefined)
+-- >>> f n = Scanl.scanl' (\(i, _) x -> (i - 1, x)) (n + 1,undefined)
 -- >>> indexedR n = Stream.postscanl (f n)
 --
 -- >>> s n = Stream.enumerateFromThen n (n - 1)
@@ -2061,7 +2061,7 @@ rollingMapM f (Stream step1 state1) = Stream step (RollingMapGo state1 Nothing)
 -- rollingMap is a special case of an incremental sliding fold. It can be
 -- written as:
 --
--- > fld f = slidingWindow 1 (Scanl.mkScanl (\_ (x,y) -> f y x)
+-- > fld f = slidingWindow 1 (Scanl.scanl' (\_ (x,y) -> f y x)
 -- > rollingMap f = Stream.postscan (fld f) undefined
 
 -- | Apply a function on every two successive elements of a stream. The first

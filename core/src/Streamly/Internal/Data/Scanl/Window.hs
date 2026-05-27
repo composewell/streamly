@@ -243,7 +243,7 @@ cumulativeScan = Scanl.lmap Insert
 {-# INLINE incrRollingMapM #-}
 incrRollingMapM :: Monad m =>
     (Maybe a -> a -> m (Maybe b)) -> Scanl m (Incr a) (Maybe b)
-incrRollingMapM f = Scanl.mkScanlM f1 initial
+incrRollingMapM f = Scanl.scanlM' f1 initial
 
     where
 
@@ -260,7 +260,7 @@ incrRollingMapM f = Scanl.mkScanlM f1 initial
 {-# INLINE incrRollingMap #-}
 incrRollingMap :: Monad m =>
     (Maybe a -> a -> Maybe b) -> Scanl m (Incr a) (Maybe b)
-incrRollingMap f = Scanl.mkScanl f1 initial
+incrRollingMap f = Scanl.scanl' f1 initial
 
     where
 
@@ -367,7 +367,7 @@ incrSum = Scanl step initial extract extract
 --
 {-# INLINE incrCount #-}
 incrCount :: (Monad m, Num b) => Scanl m (Incr a) b
-incrCount = Scanl.mkScanl step 0
+incrCount = Scanl.scanl' step 0
 
     where
 

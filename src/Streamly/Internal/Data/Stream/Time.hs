@@ -897,7 +897,7 @@ sampleBurst sampleAtEnd gap xs =
     -- but the tick stream should work well as long as the timer
     -- granularity is small enough compared to the gap.
     Stream.mapMaybe extract
-        $ Stream.scanl (Scanl.mkScanl step BurstNone)
+        $ Stream.scanl (Scanl.scanl' step BurstNone)
         $ Stream.timeIndexed
         $ interject (return Nothing) 0.01 (fmap Just xs)
 

@@ -78,12 +78,12 @@ module Streamly.Internal.Data.Scanl.Type
     , Scanl (..)
 
     -- * Constructors
-    , mkScanl
-    , mkScanlM
-    , mkScanl1
-    , mkScanl1M
-    , mkScant
-    , mkScantM
+    , scanl'
+    , scanlM'
+    , scanl1'
+    , scanl1M'
+    , scant'
+    , scantM'
     , mkScanr
     , mkScanrM
 
@@ -181,10 +181,19 @@ module Streamly.Internal.Data.Scanl.Type
     -- * Transforming inner monad
     , morphInner
     , generalizeInner
+
+    -- * Deprecated
+    , mkScanl
+    , mkScanlM
+    , mkScanl1
+    , mkScanl1M
+    , mkScant
+    , mkScantM
     )
 where
 
 #include "inline.hs"
+#include "deprecation.h"
 
 #if !MIN_VERSION_base(4,18,0)
 import Control.Applicative (liftA2)
@@ -319,11 +328,11 @@ rmapM f (Scanl step initial extract final) =
 -- the accumulator.
 --
 -- If your 'Scanl' returns only 'Partial' (i.e. never returns a 'Done') then
--- you can use @mkScanl*@ constructors.
+-- you can use @scanl*'@ constructors.
 --
-{-# INLINE mkScanl #-}
-mkScanl :: Monad m => (b -> a -> b) -> b -> Scanl m a b
-mkScanl step initial =
+{-# INLINE scanl' #-}
+scanl', mkScanl :: Monad m => (b -> a -> b) -> b -> Scanl m a b
+scanl' step initial =
     Scanl
         (\s a -> return $ Partial $ step s a)
         (return (Partial initial))
@@ -333,9 +342,9 @@ mkScanl step initial =
 -- | Make a scan from a left fold style monadic step function and initial value
 -- of the accumulator.
 --
-{-# INLINE mkScanlM #-}
-mkScanlM :: Monad m => (b -> a -> m b) -> m b -> Scanl m a b
-mkScanlM step initial =
+{-# INLINE scanlM' #-}
+scanlM', mkScanlM :: Monad m => (b -> a -> m b) -> m b -> Scanl m a b
+scanlM' step initial =
     Scanl (\s a -> Partial <$> step s a) (Partial <$> initial) return return
 
 -- | Maps a function on the output of the scan (the type @b@).
@@ -354,21 +363,21 @@ instance Functor m => Functor (Scanl m a) where
 -- starting value. Returns Nothing if the stream is empty.
 --
 -- /Pre-release/
-{-# INLINE mkScanl1 #-}
-mkScanl1 :: Monad m => (a -> a -> a) -> Scanl m a (Maybe a)
-mkScanl1 step = fmap toMaybe $ mkScanl step1 Nothing'
+{-# INLINE scanl1' #-}
+scanl1', mkScanl1 :: Monad m => (a -> a -> a) -> Scanl m a (Maybe a)
+scanl1' step = fmap toMaybe $ scanl' step1 Nothing'
 
     where
 
     step1 Nothing' a = Just' a
     step1 (Just' x) a = Just' $ step x a
 
--- | Like 'mkScanl1' but with a monadic step function.
+-- | Like 'scanl1'' but with a monadic step function.
 --
 -- /Pre-release/
-{-# INLINE mkScanl1M #-}
-mkScanl1M :: Monad m => (a -> a -> m a) -> Scanl m a (Maybe a)
-mkScanl1M  step = fmap toMaybe $ mkScanlM step1 (return Nothing')
+{-# INLINE scanl1M' #-}
+scanl1M', mkScanl1M :: Monad m => (a -> a -> m a) -> Scanl m a (Maybe a)
+scanl1M' step = fmap toMaybe $ scanlM' step1 (return Nothing')
 
     where
 
@@ -429,7 +438,7 @@ fromScan (Scan consume initial) =
 -- Definitions:
 --
 -- >>> mkScanr f z = fmap (flip appEndo z) $ Scanl.foldMap (Endo . f)
--- >>> mkScanr f z = fmap ($ z) $ Scanl.mkScanl (\g x -> g . f x) id
+-- >>> mkScanr f z = fmap ($ z) $ Scanl.scanl' (\g x -> g . f x) id
 --
 -- Example:
 --
@@ -438,7 +447,7 @@ fromScan (Scan consume initial) =
 --
 {-# INLINE mkScanr #-}
 mkScanr :: Monad m => (a -> b -> b) -> b -> Scanl m a b
-mkScanr f z = fmap ($ z) $ mkScanl (\g x -> g . f x) id
+mkScanr f z = fmap ($ z) $ scanl' (\g x -> g . f x) id
 
 -- XXX we have not seen any use of this yet, not releasing until we have a use
 -- case.
@@ -453,7 +462,7 @@ mkScanr f z = fmap ($ z) $ mkScanl (\g x -> g . f x) id
 {-# INLINE mkScanrM #-}
 mkScanrM :: Monad m => (a -> b -> m b) -> m b -> Scanl m a b
 mkScanrM g z =
-    rmapM (z >>=) $ mkScanlM (\f x -> return $ g x >=> f) (return return)
+    rmapM (z >>=) $ scanlM' (\f x -> return $ g x >=> f) (return return)
 
 ------------------------------------------------------------------------------
 -- General scan constructors
@@ -478,9 +487,9 @@ mkScanrM g z =
 --
 -- /Pre-release/
 --
-{-# INLINE mkScant #-}
-mkScant :: Monad m => (s -> a -> Step s b) -> Step s b -> (s -> b) -> Scanl m a b
-mkScant step initial extract =
+{-# INLINE scant' #-}
+scant', mkScant :: Monad m => (s -> a -> Step s b) -> Step s b -> (s -> b) -> Scanl m a b
+scant' step initial extract =
     Scanl
         (\s a -> return $ step s a)
         (return initial)
@@ -490,15 +499,15 @@ mkScant step initial extract =
 -- | Make a terminating scan with an effectful step function and initial state,
 -- and a state extraction function.
 --
--- >>> mkScantM = Scanl.Scanl
+-- >>> scantM' = Scanl.Scanl
 --
 --  We can just use 'Scanl' but it is provided for completeness.
 --
 -- /Pre-release/
 --
-{-# INLINE mkScantM #-}
-mkScantM :: (s -> a -> m (Step s b)) -> m (Step s b) -> (s -> m b) -> Scanl m a b
-mkScantM step initial extract = Scanl step initial extract extract
+{-# INLINE scantM' #-}
+scantM', mkScantM :: (s -> a -> m (Step s b)) -> m (Step s b) -> (s -> m b) -> Scanl m a b
+scantM' step initial extract = Scanl step initial extract extract
 
 ------------------------------------------------------------------------------
 -- Refold
@@ -522,20 +531,20 @@ fromRefold (Refold step inject extract) c =
 -- results.
 --
 -- >>> drain = Scanl.drainMapM (const (return ()))
--- >>> drain = Scanl.mkScanl (\_ _ -> ()) ()
+-- >>> drain = Scanl.scanl' (\_ _ -> ()) ()
 --
 {-# INLINE drain #-}
 drain :: Monad m => Scanl m a ()
-drain = mkScanl (\_ _ -> ()) ()
+drain = scanl' (\_ _ -> ()) ()
 
 -- | Returns the latest element of the input stream, if any.
 --
--- >>> latest = Scanl.mkScanl1 (\_ x -> x)
+-- >>> latest = Scanl.scanl1' (\_ x -> x)
 -- >>> latest = fmap getLast $ Scanl.foldMap (Last . Just)
 --
 {-# INLINE latest #-}
 latest :: Monad m => Scanl m a (Maybe a)
-latest = mkScanl1 (\_ x -> x)
+latest = scanl1' (\_ x -> x)
 
 -- | Lift a Maybe returning function to a scan.
 functionM :: Monad m => (a -> m (Maybe b)) -> Scanl m a (Maybe b)
@@ -570,7 +579,7 @@ toList = mkScanr (:) []
 --  xn : ... : x2 : x1 : []
 {-# INLINE toStreamKRev #-}
 toStreamKRev :: Monad m => Scanl m a (K.StreamK n a)
-toStreamKRev = mkScanl (flip K.cons) K.nil
+toStreamKRev = scanl' (flip K.cons) K.nil
 
 -- | Scans its input building a pure stream.
 --
@@ -586,12 +595,12 @@ toStreamK = mkScanr K.cons K.nil
 -- Definition:
 --
 -- >>> genericLength = fmap getSum $ Scanl.foldMap (Sum . const  1)
--- >>> genericLength = Scanl.mkScanl (\n _ -> n + 1) 0
+-- >>> genericLength = Scanl.scanl' (\n _ -> n + 1) 0
 --
 -- /Pre-release/
 {-# INLINE genericLength #-}
 genericLength :: (Monad m, Num b) => Scanl m a b
-genericLength = mkScanl (\n _ -> n + 1) 0
+genericLength = scanl' (\n _ -> n + 1) 0
 
 -- | Determine the length of the input stream.
 --
@@ -620,14 +629,14 @@ maxBy cmp x y =
 --
 {-# INLINE maximumBy #-}
 maximumBy :: Monad m => (a -> a -> Ordering) -> Scanl m a (Maybe a)
-maximumBy cmp = mkScanl1 (maxBy cmp)
+maximumBy cmp = scanl1' (maxBy cmp)
 
 -- | Determine the maximum element in a stream.
 --
 -- Definitions:
 --
 -- >>> maximum = Scanl.maximumBy compare
--- >>> maximum = Scanl.mkScanl1 max
+-- >>> maximum = Scanl.scanl1' max
 --
 -- Same as the following but without a default maximum. The 'Max' Monoid uses
 -- the 'minBound' as the default maximum:
@@ -636,7 +645,7 @@ maximumBy cmp = mkScanl1 (maxBy cmp)
 --
 {-# INLINE maximum #-}
 maximum :: (Monad m, Ord a) => Scanl m a (Maybe a)
-maximum = mkScanl1 max
+maximum = scanl1' max
 
 {-# INLINE minBy #-}
 minBy :: (a -> a -> Ordering) -> a -> a -> a
@@ -649,7 +658,7 @@ minBy cmp x y =
 --
 {-# INLINE minimumBy #-}
 minimumBy :: Monad m => (a -> a -> Ordering) -> Scanl m a (Maybe a)
-minimumBy cmp = mkScanl1 (minBy cmp)
+minimumBy cmp = scanl1' (minBy cmp)
 
 -- | Determine the minimum element in a stream using the supplied comparison
 -- function.
@@ -657,7 +666,7 @@ minimumBy cmp = mkScanl1 (minBy cmp)
 -- Definitions:
 --
 -- >>> minimum = Scanl.minimumBy compare
--- >>> minimum = Scanl.mkScanl1 min
+-- >>> minimum = Scanl.scanl1' min
 --
 -- Same as the following but without a default minimum. The 'Min' Monoid uses the
 -- 'maxBound' as the default maximum:
@@ -666,7 +675,7 @@ minimumBy cmp = mkScanl1 (minBy cmp)
 --
 {-# INLINE minimum #-}
 minimum :: (Monad m, Ord a) => Scanl m a (Maybe a)
-minimum = mkScanl1 min
+minimum = scanl1' min
 
 extractRange :: Range a -> Maybe (a, a)
 extractRange RangeNone = Nothing
@@ -678,7 +687,7 @@ data Range a = RangeNone | Range !a !a
 --
 {-# INLINE rangeBy #-}
 rangeBy :: Monad m => (a -> a -> Ordering) -> Scanl m a (Maybe (a, a))
-rangeBy cmp = fmap extractRange $ mkScanl step RangeNone
+rangeBy cmp = fmap extractRange $ scanl' step RangeNone
 
     where
 
@@ -689,7 +698,7 @@ rangeBy cmp = fmap extractRange $ mkScanl step RangeNone
 --
 {-# INLINE range #-}
 range :: (Monad m, Ord a) => Scanl m a (Maybe (a, a))
-range = fmap extractRange $ mkScanl step RangeNone
+range = fmap extractRange $ scanl' step RangeNone
 
     where
 
@@ -1331,7 +1340,7 @@ postscanlMaybe f1 f2 = postscanl f1 (catMaybes f2)
 --
 {-# INLINE filtering #-}
 filtering :: Monad m => (a -> Bool) -> Scanl m a (Maybe a)
-filtering f = mkScanl step Nothing
+filtering f = scanl' step Nothing
 
     where
 
@@ -1409,7 +1418,7 @@ data Tuple'Fused a b = Tuple'Fused !a !b deriving Show
 
 {-# INLINE taking #-}
 taking :: Monad m => Int -> Scanl m a (Maybe a)
-taking n = mkScant step initial extract
+taking n = scant' step initial extract
 
     where
 
@@ -1427,7 +1436,7 @@ taking n = mkScant step initial extract
 
 {-# INLINE dropping #-}
 dropping :: Monad m => Int -> Scanl m a (Maybe a)
-dropping n = mkScant step initial extract
+dropping n = scant' step initial extract
 
     where
 
@@ -2028,3 +2037,14 @@ morphInner f (Scanl step initial extract final) =
 -- /Pre-release/
 generalizeInner :: Monad m => Scanl Identity a b -> Scanl m a b
 generalizeInner = morphInner (return . runIdentity)
+
+------------------------------------------------------------------------------
+-- Deprecated
+------------------------------------------------------------------------------
+
+RENAME_PRIME(mkScanl,scanl)
+RENAME_PRIME(mkScanlM,scanlM)
+RENAME_PRIME(mkScanl1,scanl1)
+RENAME_PRIME(mkScanl1M,scanl1M)
+RENAME_PRIME(mkScant,scant)
+RENAME_PRIME(mkScantM,scantM)
