@@ -310,7 +310,7 @@ lmapM f (Unfold ustep uinject) = Unfold step LMapMPre
     {-# INLINE_LATE step #-}
     step (LMapMPre a) = Skip . LMapMRun . uinject <$> f a
     step (LMapMRun s) =
-        (\r -> case r of
+        (\case
             Yield x s1 -> Yield x (LMapMRun s1)
             Skip s1    -> Skip (LMapMRun s1)
             Stop       -> Stop) <$> ustep s
@@ -908,11 +908,9 @@ instance Monad m => Monad (Unfold m a) where
 --
 {-# INLINE functionM #-}
 functionM :: Applicative m => (a -> m b) -> Unfold m a b
-functionM f = Unfold step inject
+functionM f = Unfold step Just
 
     where
-
-    inject x = Just x
 
     {-# INLINE_LATE step #-}
     step (Just x) = (`Yield` Nothing) <$> f x
@@ -932,11 +930,9 @@ function f = functionM $ pure Prelude.. f
 --
 {-# INLINE functionMaybeM #-}
 functionMaybeM :: Applicative m => (a -> m (Maybe b)) -> Unfold m a b
-functionMaybeM f = Unfold step inject
+functionMaybeM f = Unfold step Just
 
     where
-
-    inject a = Just a
 
     {-# INLINE_LATE step #-}
     step (Just a) =
