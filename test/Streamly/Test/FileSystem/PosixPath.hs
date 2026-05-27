@@ -48,6 +48,11 @@ testFromString = describe "fromString" $ do
         str (p "/usr/bin") `shouldBe` "/usr/bin"
     it "relative roundtrip" $
         str (p "a/b/c") `shouldBe` "a/b/c"
+    -- test correct array size allocation for unicode encoding
+    it "non-ASCII roundtrip preserves trailing bytes" $
+        str (p "\945.txt") `shouldBe` "\945.txt"
+    it "multi-byte UTF-8 roundtrip (4-byte char)" $
+        str (p "\x1F600/file") `shouldBe` "\x1F600/file"
 
 -------------------------------------------------------------------------------
 -- Separators

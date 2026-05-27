@@ -62,6 +62,13 @@ testFromString = describe "fromString" $ do
         str (p "C:\\Users") `shouldBe` "C:\\Users"
     it "forward slashes preserved on roundtrip" $
         str (p "a/b") `shouldBe` "a/b"
+    -- test correct array size allocation for unicode encoding
+    it "non-ASCII (BMP) roundtrip" $
+        str (p "\945.txt") `shouldBe` "\945.txt"
+    -- Non-BMP chars require a UTF-16 surrogate pair (2 words for 1 char),
+    -- which would be truncated if the array were sized by char count.
+    it "multi-word UTF-16 roundtrip (non-BMP char)" $
+        str (p "\x1F600\\file") `shouldBe` "\x1F600\\file"
 
 -------------------------------------------------------------------------------
 -- Validation
