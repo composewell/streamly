@@ -60,7 +60,6 @@ module Streamly.Internal.Data.Unfold
     , fold
 
     -- ** Mapping on Output
-    , postscanlM'
     , postscanl
     , scanl
     , scanlMany
@@ -113,6 +112,7 @@ module Streamly.Internal.Data.Unfold
 
     -- ** Deprecated
     , postscan
+    , postscanlM'
     , scan
     , scanMany
     )
@@ -431,12 +431,10 @@ scanl = scanWith False
 scan :: Monad m => Fold m b c -> Unfold m a b -> Unfold m a c
 scan (Fold s i e f) = scanWith False (Scanl s i e f)
 
--- | Scan the output of an 'Unfold' to change it in a stateful manner.
---
--- /Pre-release/
+{-# DEPRECATED postscanlM' "Please use \"postscanl (Scanl.scanlM' f z)\" instead" #-}
 {-# INLINE_NORMAL postscanlM' #-}
 postscanlM' :: Monad m => (b -> a -> m b) -> m b -> Unfold m c a -> Unfold m c b
-postscanlM' f z = postscanl (Scanl.scanlM' f z)
+postscanlM' f z = postscanl (Scanl.mkScanlM f z)
 
 -------------------------------------------------------------------------------
 -- Convert streams into unfolds
