@@ -374,7 +374,7 @@ library
                      , Streamly.Internal.Data.Parser
                      , Streamly.Internal.Data.ParserK
                      , Streamly.Internal.Data.Pipe
-                     , Streamly.Internal.Data.Scanr
+                     , Streamly.Internal.Data.Scan
 
                      -- streamly-containers (non-base)
                      , Streamly.Internal.Data.Fold

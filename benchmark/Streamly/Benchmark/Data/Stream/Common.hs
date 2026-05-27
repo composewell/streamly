@@ -84,7 +84,7 @@ import Streamly.Internal.Data.Stream (Stream)
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Pipe as Pipe
 import qualified Streamly.Internal.Data.Scanl as Scanl
-import qualified Streamly.Internal.Data.Scanr as Scanr
+import qualified Streamly.Internal.Data.Scan as Scanr
 import qualified Streamly.Internal.Data.Stream as Stream
 
 import Test.Tasty.Bench

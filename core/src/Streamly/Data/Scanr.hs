@@ -21,7 +21,7 @@
 -- stream.
 --
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Data.Scanr as Scanr
+-- >>> import qualified Streamly.Internal.Data.Scan as Scanr
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream
 -- >>> import Data.Function ((&))
 --
@@ -91,5 +91,5 @@ module Streamly.Data.Scanr
     )
 where
 
-import Streamly.Internal.Data.Scanr
+import Streamly.Internal.Data.Scan
 import Prelude hiding (filter)

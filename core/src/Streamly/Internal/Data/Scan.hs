@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Data.Scanr
+-- Module      : Streamly.Internal.Data.Scan
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
@@ -42,7 +42,7 @@
 -- Another option could be if a Scan terminates do we want to start it again or
 -- not.
 
-module Streamly.Internal.Data.Scanr
+module Streamly.Internal.Data.Scan
     (
     -- * Type
       Scanr (..)
@@ -85,7 +85,7 @@ import Prelude hiding
 -- >>> import Control.Category
 --
 -- >>> import qualified Streamly.Internal.Data.Fold as Fold
--- >>> import qualified Streamly.Internal.Data.Scanr as Scanr
+-- >>> import qualified Streamly.Internal.Data.Scan as Scanr
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream
 
 ------------------------------------------------------------------------------

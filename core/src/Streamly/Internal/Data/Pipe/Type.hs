@@ -41,7 +41,7 @@ import Data.Kind (Type)
 #endif
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.Scanr (Scanr(..))
+import Streamly.Internal.Data.Scan (Scanr(..))
 import Streamly.Internal.Data.Stream.Type (Stream(..))
 -- import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.SVar.Type (defState)
