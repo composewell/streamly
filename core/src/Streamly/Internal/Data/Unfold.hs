@@ -50,6 +50,10 @@ module Streamly.Internal.Data.Unfold
 
     -- * Combinators
     -- ** Mapping on Input
+
+    -- A named lmap specialization earns its name only if it's more
+    -- forward-thinkable than lmap f itself.
+
     , discardFirst
     , discardSecond
     , swap
