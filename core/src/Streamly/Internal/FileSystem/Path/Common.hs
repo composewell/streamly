@@ -1337,7 +1337,10 @@ unsafeFromChars :: (Unbox a) =>
     -> Stream Identity Char
     -> Array a
 unsafeFromChars encode s =
-    let n = runIdentity $ Stream.fold Fold.length s
+    -- The encoded array may be longer than the char count. We are encoding it
+    -- twice, but it may still be cheaper than reallocating the array or
+    -- oversizing the array.
+    let n = runIdentity $ Stream.fold Fold.length (encode s)
      in Array.fromPureStreamN n (encode s)
 
 -- XXX Writing a custom fold for parsing a Posix path may be better for
