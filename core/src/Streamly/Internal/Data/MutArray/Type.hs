@@ -2728,6 +2728,11 @@ writeNAs ps = createWithOf (newAs ps)
 --
 -- The array capacity is guranteed to be at least @n@.
 --
+-- /WARNING/: this is a truncating fold. If the input stream has more than @n@
+-- elements, the trailing elements are silently dropped. Pass an @n@ that is
+-- at least the actual stream length, or use 'createMinOf' or 'create' (which
+-- grow on overflow) if the exact length is unknown.
+--
 -- >>> createOf = MutArray.createWithOf MutArray.emptyOf
 -- >>> createOf n = Fold.take n (MutArray.unsafeCreateOf n)
 -- >>> createOf n = MutArray.appendMax n MutArray.empty
@@ -2788,6 +2793,9 @@ writeRevNWith :: forall m a. (MonadIO m, Unbox a)
 writeRevNWith alloc n = FL.take n (writeRevNWithUnsafe alloc n)
 
 -- | Like 'createOf' but writes the array in reverse order.
+--
+-- /WARNING/: same truncation behaviour as 'createOf'; passing an @n@ smaller
+-- than the stream length silently drops trailing input.
 --
 -- /Pre-release/
 {-# INLINE_NORMAL revCreateOf #-}
@@ -2954,6 +2962,10 @@ fromStreamDNAs ps limit str = do
 
 -- | Create a MutArray of given size from a stream.
 --
+-- /WARNING/: this truncates. If the stream yields more than @n@ elements the
+-- trailing elements are silently dropped. Use a value of @n@ that is at
+-- least the actual stream length, or use a non-truncating builder.
+--
 -- >>> fromStreamN n = Stream.fold (MutArray.createOf n)
 --
 {-# INLINE_NORMAL fromStreamN #-}
@@ -2971,6 +2983,9 @@ fromStreamDN = fromStreamN
 -- | Create a 'MutArray' from the first N elements of a list. The array is
 -- allocated to size N, if the list terminates before N elements then the
 -- array may hold less than N elements.
+--
+-- /WARNING/: if the list has more than N elements the trailing elements are
+-- silently dropped.
 --
 {-# INLINABLE fromListN #-}
 fromListN :: (MonadIO m, Unbox a) => Int -> [a] -> m (MutArray a)
@@ -2990,6 +3005,12 @@ fromListRevN :: (MonadIO m, Unbox a) => Int -> [a] -> m (MutArray a)
 fromListRevN n xs = D.fold (revCreateOf n) $ D.fromList xs
 
 -- | Convert a pure stream in Identity monad to a mutable array.
+--
+-- /WARNING/: this truncates. If the stream has more than @n@ elements the
+-- trailing elements are silently dropped. Use 'fromPureStreamMinN' (which
+-- treats @n@ as a minimum and grows on overflow) or 'fromPureStream' when
+-- the exact length is not known up front.
+--
 {-# INLINABLE fromPureStreamN #-}
 fromPureStreamN :: (MonadIO m, Unbox a) =>
     Int -> Stream Identity a -> m (MutArray a)

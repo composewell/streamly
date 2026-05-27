@@ -102,6 +102,9 @@ foldr f z arr = runIdentity $ D.foldr f z $ toStreamD arr
 -- | @createOf n@ folds a maximum of @n@ elements from the input stream to an
 -- 'SmallArray'.
 --
+-- /WARNING/: this truncates. If the input stream has more than @n@ elements
+-- the trailing elements are silently dropped.
+--
 -- Since we are folding to a 'SmallArray' @n@ should be <= 128, for larger number
 -- of elements use an 'Array' from either "Streamly.Data.Array.Generic" or "Streamly.Data.Array.Foreign".
 {-# INLINE_NORMAL createOf #-}
@@ -144,6 +147,9 @@ fromStreamDN limit str = do
 -- array may hold less than @n@ elements if the length of the list <=
 -- @n@.
 --
+-- /WARNING/: if the list has more than @n@ elements the trailing elements
+-- are silently dropped.
+--
 -- It is recommended to use a value of @n@ <= 128. For larger sized
 -- arrays, use an 'Array' from "Streamly.Data.Array" or
 -- "Streamly.Data.Array.Foreign"
@@ -158,6 +164,9 @@ instance NFData a => NFData (SmallArray a) where
 -- | Create a 'SmallArray' from the first @n@ elements of a stream. The
 -- array is allocated to size @n@, if the stream terminates before @n@
 -- elements then the array may hold less than @n@ elements.
+--
+-- /WARNING/: this truncates. If the stream yields more than @n@ elements
+-- the trailing elements are silently dropped.
 --
 -- For optimal performance use this with @n@ <= 128.
 {-# INLINE fromStreamN #-}

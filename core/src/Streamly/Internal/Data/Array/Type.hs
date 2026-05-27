@@ -24,6 +24,7 @@ module Streamly.Internal.Data.Array.Type
     -- *** Mutable and Immutable
     , unsafeFreeze -- XXX unsafeFreezeMutArray
     , unsafeFreezeWithShrink -- XXX unsafeFreezeMutArrayShrink
+    , rightSize
     , unsafeThaw -- XXX unsafeThawArray
     , unsafeFromMutByteArray
     , unsafeCastMutByteArray
@@ -399,6 +400,13 @@ unsafeFreezeWithShrink arr = unsafePerformIO $ do
   MA.MutArray ac as ae _ <- MA.rightSize arr
   return $ Array ac as ae
 
+-- | Trim any reserved free space off the end of the array's backing buffer,
+-- reallocating to a tighter capacity if the waste exceeds 25%. See
+-- 'MA.rightSize' for the full policy.
+{-# INLINE rightSize #-}
+rightSize :: Unbox a => Array a -> Array a
+rightSize = unsafeFreezeWithShrink . unsafeThaw
+
 -- | Makes a mutable array using the underlying memory of the immutable array.
 --
 -- Please make sure that there are no other references to the immutable array
@@ -520,6 +528,9 @@ splice arr1 arr2 =
 -- allocated to size N, if the list terminates before N elements then the
 -- array may hold less than N elements.
 --
+-- /WARNING/: if the list has more than N elements the trailing elements are
+-- silently dropped.
+--
 {-# INLINABLE fromListN #-}
 fromListN :: Unbox a => Int -> [a] -> Array a
 fromListN n xs = unsafePerformIO $ unsafeFreeze <$> MA.fromListN n xs
@@ -534,6 +545,9 @@ RENAME_PRIME(pinnedFromListN,fromListN)
 -- | Create an 'Array' from the first N elements of a list in reverse order.
 -- The array is allocated to size N, if the list terminates before N elements
 -- then the array may hold less than N elements.
+--
+-- /WARNING/: if the list has more than N elements the trailing elements are
+-- silently dropped.
 --
 -- /Pre-release/
 {-# INLINABLE fromListRevN #-}
@@ -563,6 +577,10 @@ fromListRev xs = unsafePerformIO $ unsafeFreeze <$> MA.fromListRev xs
 -- | Create an 'Array' from the first N elements of a stream. The array is
 -- allocated to size N, if the stream terminates before N elements then the
 -- array may hold less than N elements.
+--
+-- /WARNING/: this truncates. If the stream yields more than N elements the
+-- trailing elements are silently dropped. Use 'fromStream' (which grows
+-- dynamically) when the exact length is unknown.
 --
 -- >>> fromStreamN n = Stream.fold (Array.createOf n)
 --
@@ -1192,6 +1210,11 @@ toList s = build (\c n -> toListFB c n s)
 -- | @createOf n@ folds a maximum of @n@ elements from the input stream to an
 -- 'Array'.
 --
+-- /WARNING/: this is a truncating fold. If the input stream has more than
+-- @n@ elements, the trailing elements are silently dropped. Pass an @n@
+-- that is at least the actual stream length, or use 'createWith' / 'create'
+-- (which grow on overflow) when the exact length is unknown.
+--
 {-# INLINE_NORMAL createOf #-}
 createOf :: forall m a. (MonadIO m, Unbox a) => Int -> Fold m a (Array a)
 createOf = fmap unsafeFreeze . MA.createOf
@@ -1327,6 +1350,14 @@ unsafeMakePure (Fold step initial extract final) =
          (\s -> return $! unsafeInlineIO $ extract s)
          (\s -> return $! unsafeInlineIO $ final s)
 
+-- | Convert a pure Identity stream to an array, allocating exactly @n@
+-- elements.
+--
+-- /WARNING/: this truncates. If the stream has more than @n@ elements the
+-- trailing elements are silently dropped. Use 'fromPureStreamMinN' (which
+-- treats @n@ as a minimum and grows on overflow) or 'fromPureStream' when
+-- the exact length is not known up front.
+--
 {-# INLINE fromPureStreamN #-}
 fromPureStreamN :: Unbox a => Int -> Stream Identity a -> Array a
 fromPureStreamN n x =
