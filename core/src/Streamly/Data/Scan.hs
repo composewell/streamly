@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Data.Scanr
+-- Module      : Streamly.Data.Scan
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
@@ -72,7 +72,7 @@
 -- @distribute@: Each input is supplied to all scans and the outputs are zipped
 -- or merged.
 --
-module Streamly.Data.Scanr
+module Streamly.Data.Scan
     (
     -- * Type
       Scan
