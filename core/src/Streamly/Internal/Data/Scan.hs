@@ -47,6 +47,12 @@ module Streamly.Internal.Data.Scan
     -- * Type
       Scanr (..)
 
+    -- * Constructors
+    , postscanl'
+    , postscanlM'
+    , mapAccum
+    , mapAccumM
+
     -- * Primitive Scans
     , identity
     , function
@@ -134,6 +140,89 @@ instance Functor m => Functor (Scanr m a) where
 
         {-# INLINE_LATE consume1 #-}
         consume1 s b = fmap (fmap f) (consume s b)
+
+-------------------------------------------------------------------------------
+-- Constructors
+-------------------------------------------------------------------------------
+
+{-
+-- Nested fmaps are commonly needed. Should put them in a resuable module.
+{-# INLINE fmap2 #-}
+fmap2 :: (Functor f, Functor g) => (a -> b) -> f (g a) -> f (g b)
+fmap2 = fmap Prelude.. fmap
+-}
+
+-- NOTE: this may not be very useful as a general function. Users may not want
+-- to fmap a function over the result of a function, they can just call that
+-- other function on the retult. liftResult2 is a special case to avoid that
+-- call in this special case because it is common.
+
+-- | Map a function over the result of a binary function.
+--
+-- >> mapResult2 f g x = f . g x
+-- >> mapResult2 f = fmap2 f
+--
+{-# INLINE mapResult2 #-}
+mapResult2 :: (c -> d) -> (a -> b -> c) -> (a -> b -> d)
+mapResult2 f g x = f Prelude.. g x
+
+-- | Lift the result of a binary function to an Applicative.
+{-# INLINE liftResult2 #-}
+liftResult2 :: Applicative m => (a -> b -> c) -> (a -> b -> m c)
+liftResult2 = mapResult2 pure
+
+-- | Like 'postscanl'' but with a monadic step function.
+--
+{-# INLINE postscanlM' #-}
+postscanlM' :: Monad m => (b -> a -> m b) -> b -> Scanr m a b
+postscanlM' step = Scanr consume
+
+    where
+
+    {-# INLINE_LATE consume #-}
+    consume s a = do
+        !s1 <- step s a
+        return (Yield s1 s1)
+
+-- | Make a scan from a left fold style pure step function and an initial value
+-- of the accumulator. The accumulator is also the output of the scan (Moore
+-- style).
+--
+-- >>> Stream.toList $ Stream.scanr (Scanr.postscanl' (+) 0) $ Stream.fromList [1..5::Int]
+-- [1,3,6,10,15]
+--
+{-# INLINE postscanl' #-}
+postscanl' :: Monad m => (b -> a -> b) -> b -> Scanr m a b
+postscanl' reducer = postscanlM' (liftResult2 reducer)
+
+-- XXX if we change Yield b s to Yield s b, it will be equivalent to the tuple
+-- returned by the mapAccum, it is essentially Partial s b of fold Step. We
+-- should probably make a single convention across Stream, Scan, Fold, Parser.
+-- Even the subtypes like the tuple (s,b) in mapAccum should follow the same
+-- convention.
+
+-- | Like 'mapAccum' but with a monadic step function.
+--
+{-# INLINE mapAccumM #-}
+mapAccumM :: Monad m => (s -> a -> m (s, b)) -> s -> Scanr m a b
+mapAccumM step = Scanr consume
+
+    where
+
+    {-# INLINE_LATE consume #-}
+    consume s a = do
+        (!s1, b) <- step s a
+        return (Yield b s1)
+
+-- | Make a scan from a Mealy style pure step function and an initial state.
+-- The step function returns the next state and the output separately.
+--
+-- >>> Stream.toList $ Stream.scanr (Scanr.mapAccum (\s a -> (s + a, s)) 0) $ Stream.fromList [1..5::Int]
+-- [0,1,3,6,10]
+--
+{-# INLINE mapAccum #-}
+mapAccum :: Monad m => (s -> a -> (s, b)) -> s -> Scanr m a b
+mapAccum reducer = mapAccumM (liftResult2 reducer)
 
 -------------------------------------------------------------------------------
 -- Category
