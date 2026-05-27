@@ -141,7 +141,7 @@ module Streamly.Data.Scanl
     -- | Transformations that combine two or more scans.
 
     -- ** Scanning
-    , scanl
+    , compose
     , postscanl
     , postscanlMaybe
 
@@ -173,6 +173,9 @@ module Streamly.Data.Scanl
     -- ** Key-value Scanners
     , demux
     , demuxIO
+
+    -- * Deprecated
+    , scanl
     )
 where
 

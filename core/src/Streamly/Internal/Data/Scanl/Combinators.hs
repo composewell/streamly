@@ -126,8 +126,8 @@ module Streamly.Internal.Data.Scanl.Combinators
     -- , slide2
 
     -- ** Scanning Input
-    , scanl
-    , scanlMany
+    , compose
+    , composeMany
     -- , runScan
     , pipe
     , indexed
@@ -197,11 +197,16 @@ module Streamly.Internal.Data.Scanl.Combinators
     -- ** Nesting
     , unfoldMany
     -- , concatSequence
+
+    -- * Deprecated
+    , scanl
+    , scanlMany
     )
 where
 
 #include "inline.hs"
 #include "ArrayMacros.h"
+#include "deprecation.h"
 
 -- import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
@@ -527,9 +532,9 @@ scanWith isMany
 -- This is basically an append operation.
 --
 -- /Pre-release/
-{-# INLINE scanl #-}
-scanl :: Monad m => Scanl m a b -> Scanl m b c -> Scanl m a c
-scanl = scanWith False
+{-# INLINE compose #-}
+compose, scanl :: Monad m => Scanl m a b -> Scanl m b c -> Scanl m a c
+compose = scanWith False
 
 -- XXX This does not fuse beacuse of the recursive step. Need to investigate.
 
@@ -537,9 +542,9 @@ scanl = scanWith False
 -- another 'Scanl'. The scan restarts with a fresh state if it terminates.
 --
 -- /Pre-release/
-{-# INLINE scanlMany #-}
-scanlMany :: Monad m => Scanl m a b -> Scanl m b c -> Scanl m a c
-scanlMany = scanWith True
+{-# INLINE composeMany #-}
+composeMany, scanlMany :: Monad m => Scanl m a b -> Scanl m b c -> Scanl m a c
+composeMany = scanWith True
 
 ------------------------------------------------------------------------------
 -- Filters
@@ -2391,3 +2396,10 @@ intersperseWithQuotes
         _ <- finalL sL
         error "intersperseWithQuotes: finished inside quote, at escape char"
 -}
+
+------------------------------------------------------------------------------
+-- Deprecated
+------------------------------------------------------------------------------
+
+RENAME(scanl,compose)
+RENAME(scanlMany,composeMany)
