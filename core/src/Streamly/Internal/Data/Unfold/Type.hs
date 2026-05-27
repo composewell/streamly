@@ -59,7 +59,7 @@ module Streamly.Internal.Data.Unfold.Type
     , unfoldr
     , functionM
     , function
-    , functionMaybeM
+    , functionMaybeM -- XXX remove in favor of catMaybes functionM?
     , identity
 
     -- * From Values
@@ -932,6 +932,8 @@ function f = functionM $ pure Prelude.. f
 -- | Lift a monadic Maybe returning function into an unfold. The unfold
 -- generates a singleton stream.
 --
+-- >>> functionMaybeM = Unfold.catMaybes . Unfold.functionM
+--
 {-# INLINE functionMaybeM #-}
 functionMaybeM :: Monad m => (a -> m (Maybe b)) -> Unfold m a b
 functionMaybeM f = Unfold step inject
@@ -941,12 +943,7 @@ functionMaybeM f = Unfold step inject
     inject a = return (Just a)
 
     {-# INLINE_LATE step #-}
-    step (Just a) = do
-        result <- f a
-        case result of
-            Just b  -> pure $ Yield b Nothing
-            Nothing -> pure Stop
-
+    step (Just a) = maybe Stop (`Yield` Nothing) <$> f a
     step Nothing = pure Stop
 
 -- | Identity unfold. The unfold generates a singleton stream having the input
