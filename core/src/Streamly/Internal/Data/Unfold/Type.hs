@@ -128,14 +128,14 @@ where
 #include "deprecation.h"
 #include "inline.hs"
 
--- import Control.Arrow (Arrow(..))
--- import Control.Category (Category(..))
+-- import Control.Arrow (Arrow(arr, (***)))
+import Control.Category (Category(id, (.)))
 import Control.Monad ((>=>))
 import Data.Void (Void)
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Stream.Step (Step(..))
 
-import Prelude hiding (map, mapM, concatMap, zipWith, takeWhile)
+import Prelude hiding (id, (.), map, mapM, concatMap, zipWith, takeWhile)
 
 #include "DocTestDataUnfold.hs"
 
@@ -304,7 +304,7 @@ unfoldr step = unfoldrM (pure . step)
 --
 {-# INLINE_NORMAL lmap #-}
 lmap :: (a -> c) -> Unfold m c b -> Unfold m a b
-lmap f (Unfold ustep uinject) = Unfold ustep (uinject Prelude.. f)
+lmap f (Unfold ustep uinject) = Unfold ustep (uinject . f)
 
 -- | Map an action on the input argument of the 'Unfold'.
 --
@@ -568,7 +568,7 @@ fromEffect m = Unfold step inject
 -- /Pre-release/
 {-# INLINE fromPure #-}
 fromPure :: Applicative m => b -> Unfold m a b
-fromPure = fromEffect Prelude.. pure
+fromPure = fromEffect . pure
 
 data TupleState a = TupleBoth a a | TupleOne a | TupleNone
 
@@ -863,7 +863,7 @@ concatMapM f (Unfold step1 inject1) = Unfold step inject
 
 {-# INLINE concatMap #-}
 concatMap :: Monad m => (b -> Unfold m a c) -> Unfold m a b -> Unfold m a c
-concatMap f = concatMapM (return Prelude.. f)
+concatMap f = concatMapM (return . f)
 
 infixl 1 `bind`
 
@@ -927,7 +927,7 @@ functionM f = Unfold step inject
 --
 {-# INLINE function #-}
 function :: Applicative m => (a -> b) -> Unfold m a b
-function f = functionM $ pure Prelude.. f
+function f = functionM $ pure . f
 
 -- | Lift a monadic Maybe returning function into an unfold. The unfold
 -- generates a singleton stream.
@@ -949,12 +949,12 @@ functionMaybeM f = Unfold step inject
 -- | Identity unfold. The unfold generates a singleton stream having the input
 -- as the only element.
 --
--- > identity = function Prelude.id
+-- > identity = function id
 --
 -- /Pre-release/
 {-# INLINE identity #-}
 identity :: Applicative m => Unfold m a a
-identity = function Prelude.id
+identity = function id
 
 {-# ANN type ConcatState Fuse #-}
 data ConcatState s1 s2 = ConcatOuter s1 | ConcatInner s1 s2
@@ -993,8 +993,8 @@ unfoldEach (Unfold step2 inject2) (Unfold step1 inject1) = Unfold step inject
 RENAME(many,unfoldEach)
 
 {-
--- XXX There are multiple possible ways to combine the unfolds, "many" appends
--- them, we could also have other variants of "many" e.g. manyInterleave.
+-- XXX There are multiple possible ways to combine the unfolds, "unfoldEach"
+-- appends them, we could also have other variants e.g. unfoldEachInterleave.
 -- Should we even have a category instance or just use these functions
 -- directly?
 --
@@ -1003,7 +1003,7 @@ instance Monad m => Category (Unfold m) where
     id = identity
 
     {-# INLINE (.) #-}
-    (.) = many
+    (.) = unfoldEach
 -}
 
 -------------------------------------------------------------------------------
@@ -1113,23 +1113,26 @@ zipArrowWith f = zipArrowWithM (\a b -> return (f a b))
 -- could zip, merge, append and more. What is the preferred way for Arrow
 -- instance? Should we even have an arrow instance or just use these functions
 -- directly?
+
+-- | '***' splits the input tuple between the two unfolds and zips their
+-- outputs (same as @Unfold.zipArrowWith (,)@). The default '&&&' distributes
+-- the same input to both unfolds and zips their outputs (same as
+-- @Unfold.zipWith (,)@).
 --
--- | '***' is a zip like operation, in fact it is the same as @Unfold.zipWith
--- (,)@, '&&&' is a tee like operation  i.e. distributes the input to both the
--- unfolds and then zips the output.
---
-{-# ANN module "HLint: ignore Use zip" #-}
 instance Monad m => Arrow (Unfold m) where
     {-# INLINE arr #-}
     arr = function
 
     {-# INLINE (***) #-}
-    u1 *** u2 = zipWith (,) (lmap fst u1) (lmap snd u2)
+    (***) = zipArrowWith (,)
 -}
 
 ------------------------------------------------------------------------------
 -- Interleaving
 ------------------------------------------------------------------------------
+
+-- XXX If we have interleave, we can have append as well and all binary
+-- operations that streams have.
 
 -- We can possibly have an "interleave" operation to interleave the streams
 -- from two seeds:
