@@ -89,6 +89,7 @@ module Streamly.Internal.Data.Array.Type
     , fromStreamN
     , fromStream
     , fromPureStreamN
+    , fromPureStreamMin
     , fromPureStream
     , fromCString#
     , fromCString
@@ -1330,6 +1331,13 @@ unsafeMakePure (Fold step initial extract final) =
 fromPureStreamN :: Unbox a => Int -> Stream Identity a -> Array a
 fromPureStreamN n x =
     unsafePerformIO $ fmap unsafeFreeze (MA.fromPureStreamN n x)
+
+-- | Like 'fromPureStreamN' but @n@ is a minimum capacity hint, not a cap; the
+-- buffer doubles on overflow so the full stream is always consumed.
+{-# INLINE fromPureStreamMin #-}
+fromPureStreamMin :: Unbox a => Int -> Stream Identity a -> Array a
+fromPureStreamMin n x =
+    unsafePerformIO $ fmap unsafeFreeze (MA.fromPureStreamMin n x)
 
 -- | Convert a pure stream in Identity monad to an immutable array.
 --

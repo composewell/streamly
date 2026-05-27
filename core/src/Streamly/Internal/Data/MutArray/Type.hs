@@ -146,6 +146,7 @@ module Streamly.Internal.Data.MutArray.Type
     , fromStreamN
     , fromStream
     , fromPureStreamN
+    , fromPureStreamMin
     , fromPureStream
     , fromCString#
     , fromW16CString#
@@ -2993,6 +2994,13 @@ fromListRevN n xs = D.fold (revCreateOf n) $ D.fromList xs
 fromPureStreamN :: (MonadIO m, Unbox a) =>
     Int -> Stream Identity a -> m (MutArray a)
 fromPureStreamN n = D.fold (createOf n) . D.generalizeInner
+
+-- | Like 'fromPureStreamN' but @n@ is a minimum capacity hint, not a cap; the
+-- buffer doubles on overflow so the full stream is always consumed.
+{-# INLINABLE fromPureStreamMin #-}
+fromPureStreamMin :: (MonadIO m, Unbox a) =>
+    Int -> Stream Identity a -> m (MutArray a)
+fromPureStreamMin n = D.fold (createMinOf n) . D.generalizeInner
 
 -- | Convert a pure stream in Identity monad to a mutable array.
 {-# INLINABLE fromPureStream #-}
