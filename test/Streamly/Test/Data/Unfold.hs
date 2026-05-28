@@ -14,6 +14,7 @@ import Streamly.Internal.Data.Unfold (Unfold)
 import qualified Data.List as List
 import qualified Prelude
 import qualified Streamly.Internal.Data.Fold as Fold
+import qualified Streamly.Internal.Data.Scanl as Scanl
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream as D
@@ -459,7 +460,7 @@ postscan :: Property
 postscan =
     property
         $ \(ls :: [Int]) ->
-              let unf = UF.postscan Fold.sum UF.fromList
+              let unf = UF.postscanl Scanl.sum UF.fromList
                   mList = scanl1 (+) ls
               in testUnfold unf ls mList
 
