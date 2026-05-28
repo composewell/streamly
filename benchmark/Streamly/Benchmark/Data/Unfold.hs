@@ -8,6 +8,11 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+#undef FUSION_CHECK
+#ifdef FUSION_CHECK
+{-# OPTIONS_GHC -ddump-simpl -ddump-to-file -dsuppress-all #-}
+#endif
+
 #ifdef __HADDOCK_VERSION__
 #undef INSPECTION
 #endif
@@ -828,6 +833,7 @@ o_1_space_copy_read_exceptions env =
 
 main :: IO ()
 main = do
+#ifndef FUSION_CHECK
     env <- mkHandleBenchEnv
     runWithCLIOpts defaultStreamSize (allBenchmarks env)
 
@@ -847,3 +853,11 @@ main = do
         , bgroup (o_n_space_prefix moduleName)
             $ Prelude.concat [o_n_space_nested size]
         ]
+#else
+    -- Enable FUSION_CHECK macro at the beginning of the file
+    -- Enable one benchmark below, and run the benchmark
+    -- Check the .dump-simpl output
+    let value = 100000
+    lmapM value 0
+    return ()
+#endif
