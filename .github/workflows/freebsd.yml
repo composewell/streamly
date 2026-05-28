@@ -1,0 +1,89 @@
+# FreeBSD CI
+#
+# FreeBSD is not a native GitHub Actions runner, so this workflow runs
+# the build inside a VM via vmactions/freebsd-vm. It is kept separate
+# from haskell.yml because the cache/restore step model in that
+# workflow (hackage index, ghcup, deps caches) does not apply inside
+# the VM.
+
+name: FREEBSD
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - master
+
+jobs:
+  build:
+    name: >-
+      freebsd-${{ matrix.release }}
+      ${{ matrix.command }}
+      ${{ matrix.ghc_version }}
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.ignore_error }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - release: "14.3"
+            command: cabal
+            ghc_version: 9.14.1
+            ignore_error: true
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Build on FreeBSD
+      uses: vmactions/freebsd-vm@v1
+      env:
+        PACKCHECK_COMMAND: ${{ matrix.command }}
+        GHCVER: ${{ matrix.ghc_version }}
+        # For updating see: https://downloads.haskell.org/~ghcup/
+        GHCUP_VERSION: 0.1.50.2
+        LC_ALL: C.UTF-8
+        CABAL_REINIT_CONFIG: y
+        CABAL_CHECK_RELAX: y
+        CABAL_PROJECT: cabal.project
+        DISABLE_BENCH: "y"
+        DISABLE_DOCS: "y"
+        DISABLE_SDIST_BUILD: "y"
+        DISABLE_DIST_CHECKS: "y"
+        PACKCHECK: "./packcheck.sh"
+        PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/composewell/packcheck"
+        PACKCHECK_GITHUB_COMMIT: "b3743510c7c26f83254ffd9ef91bcd71560cff05"
+      with:
+        release: ${{ matrix.release }}
+        usesh: true
+        copyback: false
+        envs: >-
+          PACKCHECK_COMMAND GHCVER GHCUP_VERSION LC_ALL
+          CABAL_REINIT_CONFIG CABAL_CHECK_RELAX CABAL_PROJECT
+          DISABLE_BENCH DISABLE_DOCS DISABLE_SDIST_BUILD DISABLE_DIST_CHECKS
+          PACKCHECK PACKCHECK_GITHUB_URL PACKCHECK_GITHUB_COMMIT
+        prepare: |
+          pkg update
+          pkg install -y gmake
+          pkg install -y bash
+          pkg install -y git
+          pkg install -y gmp
+        run: |
+          if test ! -e "$PACKCHECK"
+          then
+            if test -z "$PACKCHECK_GITHUB_COMMIT"
+            then
+              echo "PACKCHECK_GITHUB_COMMIT is not specified." >&2
+              exit 1
+            fi
+            PACKCHECK_URL=${PACKCHECK_GITHUB_URL}/${PACKCHECK_GITHUB_COMMIT}/packcheck.sh
+            curl --fail -sL -o "$PACKCHECK" $PACKCHECK_URL || exit 1
+            chmod +x $PACKCHECK
+          elif test ! -x "$PACKCHECK"
+          then
+            chmod +x $PACKCHECK
+          fi
+          # Use "bash -c" instead of invoking directly to preserve quoted
+          # arguments in PACKCHECK_COMMAND e.g. DOCSPEC_OPTIONS="--timeout 60".
+          # Direct invocation would word-split on spaces inside quoted values.
+          bash -c "$PACKCHECK $PACKCHECK_COMMAND"
