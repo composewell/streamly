@@ -1517,7 +1517,7 @@ loop = crossWith (\b a -> (a,b))
 loopBy :: Monad m => Unfold m x b -> x -> Stream m a -> Stream m (a, b)
 loopBy u x s =
     let u1 = Unfold.lmap snd u
-        u2 = Unfold.map (first fst) (Unfold.carry u1)
+        u2 = Unfold.map (first fst) (Unfold.carryInput u1)
      in unfoldEach u2 $ fmap (, x) s
 
 ------------------------------------------------------------------------------

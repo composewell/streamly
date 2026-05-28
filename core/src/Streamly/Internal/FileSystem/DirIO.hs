@@ -243,7 +243,7 @@ eitherReaderPaths ::(MonadIO m, MonadCatch m) => (ReadOptions -> ReadOptions) ->
 eitherReaderPaths f =
     let (</>) = Path.join
      in fmap (\(dir, x) -> bimap (dir </>) (dir </>) x)
-            $ UF.carry (OS.eitherReader f)
+            $ UF.carryInput (OS.eitherReader f)
 
 --
 -- | Read files only.

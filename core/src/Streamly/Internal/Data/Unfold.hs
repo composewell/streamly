@@ -54,9 +54,8 @@ module Streamly.Internal.Data.Unfold
     -- A named lmap specialization earns its name only if it's more
     -- forward-thinkable than lmap f itself.
 
-    , discardFirst
-    , discardSecond
-    , swap
+    , discardFirst -- asSecond
+    , discardSecond -- asFirst
     -- coapply
     -- comonad
 
@@ -119,6 +118,7 @@ module Streamly.Internal.Data.Unfold
     , postscanlM'
     , scan
     , scanMany
+    , swap
     )
 where
 
@@ -196,6 +196,7 @@ discardSecond = lmap fst
 --
 -- /Pre-release/
 --
+{-# DEPRECATED swap "Please use \"lmap Tuple.swap\" instead" #-}
 {-# INLINE_NORMAL swap #-}
 swap :: Unfold m (a, c) b -> Unfold m (c, a) b
 swap = lmap Tuple.swap

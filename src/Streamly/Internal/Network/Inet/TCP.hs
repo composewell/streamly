@@ -182,17 +182,17 @@ acceptorOnAddr = acceptorOnAddrWith []
 acceptorWith :: MonadIO m
     => [(SocketOption, Int)]
     -> Unfold m PortNumber Socket
-acceptorWith opts = UF.first (0,0,0,0) (acceptorOnAddrWith opts)
+acceptorWith opts = UF.supplyFirst (0,0,0,0) (acceptorOnAddrWith opts)
 
 -- | Like 'acceptorOnAddr' but binds on the IPv4 address @0.0.0.0@ i.e.  on all
 -- IPv4 addresses/interfaces of the machine and listens for TCP connections on
 -- the specified port.
 --
--- >>> acceptor = Unfold.first (0,0,0,0) TCP.acceptorOnAddr
+-- >>> acceptor = Unfold.supplyFirst (0,0,0,0) TCP.acceptorOnAddr
 --
 {-# INLINE acceptor #-}
 acceptor :: MonadIO m => Unfold m PortNumber Socket
-acceptor = UF.first (0,0,0,0) acceptorOnAddr
+acceptor = UF.supplyFirst (0,0,0,0) acceptorOnAddr
 
 {-# DEPRECATED acceptorOnPort "Use \"acceptor\" instead." #-}
 {-# INLINE acceptorOnPort #-}
@@ -203,11 +203,11 @@ acceptorOnPort = acceptor
 -- server can only be accessed from the local host, it cannot be accessed from
 -- other hosts on the network.
 --
--- >>> acceptorLocal = Unfold.first (127,0,0,1) TCP.acceptorOnAddr
+-- >>> acceptorLocal = Unfold.supplyFirst (127,0,0,1) TCP.acceptorOnAddr
 --
 {-# INLINE acceptorLocal #-}
 acceptorLocal :: MonadIO m => Unfold m PortNumber Socket
-acceptorLocal = UF.first (127,0,0,1) acceptorOnAddr
+acceptorLocal = UF.supplyFirst (127,0,0,1) acceptorOnAddr
 
 {-# DEPRECATED acceptorOnPortLocal "Use \"acceptorLocal\" instead." #-}
 {-# INLINE acceptorOnPortLocal #-}

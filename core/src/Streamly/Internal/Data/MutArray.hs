@@ -97,7 +97,7 @@ indexerFromLen from len =
     let fromThenTo n = (from, from + len, n - 1)
         mkSlice n i = return (i, min len (n - i))
      in Unfold.lmap length
-        $ Unfold.mapM (uncurry mkSlice) . Unfold.carry
+        $ Unfold.mapM (uncurry mkSlice) . Unfold.carryInput
         $ Unfold.lmap fromThenTo Unfold.enumerateFromThenTo
 RENAME(sliceIndexerFromLen,indexerFromLen)
 
@@ -121,7 +121,7 @@ splitterFromLen, slicerFromLen :: forall m a. (Monad m, Unbox a)
 splitterFromLen from len =
     let mkSlice arr (i, n) = return $ unsafeSliceOffLen i n arr
      in Unfold.mapM (uncurry mkSlice)
-        $ Unfold.carry (indexerFromLen from len)
+        $ Unfold.carryInput (indexerFromLen from len)
 RENAME(slicerFromLen,splitterFromLen)
 
 {-# DEPRECATED getSlicesFromLen "Please use splitterFromLen instead." #-}

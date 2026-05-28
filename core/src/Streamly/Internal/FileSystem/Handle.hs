@@ -304,11 +304,11 @@ readChunks = readChunksWith defaultChunkSize
 -- size of arrays in the resulting stream are therefore less than or equal to
 -- 'Streamly.Internal.Data.Array.Type.defaultChunkSize'.
 --
--- >>> chunkReader = Unfold.first IO.defaultChunkSize Handle.chunkReaderWith
+-- >>> chunkReader = Unfold.supplyFirst IO.defaultChunkSize Handle.chunkReaderWith
 --
 {-# INLINE chunkReader #-}
 chunkReader :: MonadIO m => Unfold m Handle (Array Word8)
-chunkReader = UF.first defaultChunkSize chunkReaderWith
+chunkReader = UF.supplyFirst defaultChunkSize chunkReaderWith
 
 -------------------------------------------------------------------------------
 -- Read File to Stream
