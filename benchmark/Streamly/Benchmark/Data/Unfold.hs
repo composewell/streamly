@@ -35,6 +35,7 @@ import System.Random (randomRIO)
 import qualified Prelude
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Scanl as Scanl
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.StreamK as K
@@ -301,7 +302,7 @@ enumerateFromToFractional size start =
 {-# INLINE postscan #-}
 postscan :: Monad m => Int -> Int -> m ()
 postscan size start =
-    drainTransformationDefault (size + start) (UF.postscan FL.sum) start
+    drainTransformationDefault (size + start) (UF.postscanl Scanl.sum) start
 
 {-# INLINE map #-}
 map :: Monad m => Int -> Int -> m ()
