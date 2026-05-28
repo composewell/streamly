@@ -372,6 +372,7 @@ RENAME(second,supplySecond)
 
 -- |
 -- >>> takeWhileMWithInput f u = Unfold.map snd $ Unfold.takeWhileM (\(a,b) -> f a b) (Unfold.carryInput u)
+{-# DEPRECATED takeWhileMWithInput "Use \"map snd . takeWhileM (uncurry f) . carryInput\" instead." #-}
 {-# INLINE_NORMAL takeWhileMWithInput #-}
 takeWhileMWithInput :: Monad m =>
     (a -> b -> m Bool) -> Unfold m a b -> Unfold m a b

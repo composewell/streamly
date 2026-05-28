@@ -65,7 +65,7 @@ import Data.Ratio
 import Data.Word
 import Numeric.Natural
 import Data.Functor.Identity (Identity(..))
-import Streamly.Internal.Data.Unfold.Type
+import Streamly.Internal.Data.Unfold.Type hiding (takeWhileMWithInput)
 import Prelude
        hiding (map, mapM, takeWhile, take, filter, const, zipWith
               , drop, dropWhile)
@@ -176,6 +176,11 @@ enumerateFromNum = lmap (\from -> (from, 1)) enumerateFromStepNum
 -- Enumeration of Integrals
 ------------------------------------------------------------------------------
 
+{-# INLINE takeWhileMWithInput #-}
+takeWhileMWithInput :: Monad m =>
+    (a -> b -> m Bool) -> Unfold m a b -> Unfold m a b
+takeWhileMWithInput f = map snd . takeWhileM (uncurry f) . carryInput
+
 -- | Can be used to enumerate unbounded integrals. This does not check for
 -- overflow or underflow for bounded integrals.
 --
@@ -226,7 +231,7 @@ enumerateFromThenToIntegral =
 {-# INLINE enumerateFromIntegralBounded #-}
 enumerateFromIntegralBounded :: (Monad m, Integral a, Bounded a) =>
     Unfold m a a
-enumerateFromIntegralBounded = second maxBound enumerateFromToIntegral
+enumerateFromIntegralBounded = supplySecond maxBound enumerateFromToIntegral
 
 {-# INLINE enumerateFromThenIntegralBounded #-}
 enumerateFromThenIntegralBounded :: (Monad m, Integral a, Bounded a ) =>
@@ -351,7 +356,7 @@ enumerateFromThenToSmall =
 --
 {-# INLINE enumerateFromSmallBounded #-}
 enumerateFromSmallBounded :: (Monad m, Enum a, Bounded a) => Unfold m a a
-enumerateFromSmallBounded = second maxBound enumerateFromToSmall
+enumerateFromSmallBounded = supplySecond maxBound enumerateFromToSmall
 
 -- | Enumerate from given starting Enum value 'from' and next Enum value 'next'
 -- with stride of (fromEnum next - fromEnum from) till maxBound.
