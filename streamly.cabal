@@ -549,7 +549,7 @@ library
 
                     -- Network
                     -- network version 3.2.8 is broken on windows
-                     , network           >= 2.6 && < 3.2.8
+                     , network           >= 2.6 && < 3.3
 
 
     if impl(ghc < 9.10)
