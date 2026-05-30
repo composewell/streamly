@@ -2,7 +2,8 @@
 
 ## 0.3.1 (May 2026)
 
-* Bug fix: Fixed `followSymlinks` option not working correctly on macOS.
+* Fixed `Path.fromString` truncation when unicode chars are present.
+* Fixed `DirIO.followSymlinks` option not working correctly on macOS.
 
 ## 0.3.0 (Sep 2025)
 
