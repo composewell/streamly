@@ -11,7 +11,7 @@ jobs:
 
     - name: Download ghc
       run: |
-        GHCUP_VER=0.1.20.0
+        GHCUP_VER=0.1.50.2
         curl -sL -o ./ghcup https://downloads.haskell.org/~ghcup/$GHCUP_VER/x86_64-linux-ghcup-$GHCUP_VER
         chmod +x ./ghcup
         GHCVER=9.8.1
@@ -28,12 +28,23 @@ jobs:
         key: cache-v2
 
     - name: Checkout the current branch
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0
+        ref: ${{ github.event.pull_request.head.sha }}
 
     - name: Run packdiff on streamly-core
-      run: cabal run packdiff --project-file=cabal.project.packdiff -- diff streamly-core $(git rev-parse origin/master) streamly-core $(git rev-parse HEAD)
+      run: |
+        cabal run packdiff --project-file=cabal.project.packdiff -- \
+          diff streamly-core \
+          ${{ github.event.pull_request.base.sha }} \
+          streamly-core \
+          $(git rev-parse HEAD)
 
     - name: Run packdiff on streamly
-      run: cabal run packdiff --project-file=cabal.project.packdiff -- diff streamly $(git rev-parse origin/master) streamly $(git rev-parse HEAD)
+      run: |
+        cabal run packdiff --project-file=cabal.project.packdiff -- \
+          diff streamly \
+          ${{ github.event.pull_request.base.sha }} \
+          streamly \
+          $(git rev-parse HEAD)
