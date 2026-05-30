@@ -51,6 +51,7 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
+        ref: ${{ github.event.pull_request.head.sha }}
 
     # Use a sane PATH, especially to pick the right GHC
     - name: Set PATH to add .local and .ghcup
@@ -79,8 +80,18 @@ jobs:
           cabal install packdiff --project-file=cabal.project.packdiff --installdir=$HOME/.local/bin --overwrite-policy=always
         fi
 
-    - name: API diff for streamly-core
-      run: packdiff diff streamly-core $(git rev-parse origin/master) streamly-core $(git rev-parse HEAD)
+    - name: Run packdiff on streamly-core
+      run: |
+        cabal run packdiff --project-file=cabal.project.packdiff -- \
+          diff streamly-core \
+          ${{ github.event.pull_request.base.sha }} \
+          streamly-core \
+          $(git rev-parse HEAD)
 
-    - name: API diff for streamly
-      run: packdiff diff streamly $(git rev-parse origin/master) streamly $(git rev-parse HEAD)
+    - name: Run packdiff on streamly
+      run: |
+        cabal run packdiff --project-file=cabal.project.packdiff -- \
+          diff streamly \
+          ${{ github.event.pull_request.base.sha }} \
+          streamly \
+          $(git rev-parse HEAD)
