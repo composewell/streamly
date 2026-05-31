@@ -577,6 +577,32 @@ outerProduct =
 
     crossProduct u1 u2 = UF.cross (UF.lmap fst u1) (UF.lmap snd u2)
 
+crossApply :: Bool
+crossApply =
+    let unf1 = UF.enumerateFromToIntegral
+        unf2 = UF.enumerateFromToIntegral
+        unf = UF.crossApply
+                  (UF.map (+) (UF.lmap fst unf1))
+                  (UF.lmap snd unf2)
+        lst = [a + b :: Int | a <- [0 .. 10], b <- [0 .. 20]]
+     in testUnfold unf (((0, 10), (0, 20)) :: ((Int, Int), (Int, Int))) lst
+
+crossApplyFst :: Bool
+crossApplyFst =
+    let unf1 = UF.enumerateFromToIntegral
+        unf2 = UF.enumerateFromToIntegral
+        unf = UF.crossApplyFst (UF.lmap fst unf1) (UF.lmap snd unf2)
+        lst = [a :: Int | a <- [0 .. 10], _ <- [0 .. 20 :: Int]]
+     in testUnfold unf (((0, 10), (0, 20)) :: ((Int, Int), (Int, Int))) lst
+
+crossApplySnd :: Bool
+crossApplySnd =
+    let unf1 = UF.enumerateFromToIntegral
+        unf2 = UF.enumerateFromToIntegral
+        unf = UF.crossApplySnd (UF.lmap fst unf1) (UF.lmap snd unf2)
+        lst = [b :: Int | _ <- [0 .. 10 :: Int], b <- [0 .. 20]]
+     in testUnfold unf (((0, 10), (0, 20)) :: ((Int, Int), (Int, Int))) lst
+
 concatMapM :: Bool
 concatMapM =
     let inner b =
@@ -693,9 +719,9 @@ testCombination =
             prop "concat" concat
             prop "concatMapM" concatMapM
             prop "outerProduct" outerProduct
-            -- prop "ap" ap
-            -- prop "apDiscardFst" apDiscardFst
-            -- prop "apDiscardSnd" apDiscardSnd
+            prop "crossApply" crossApply
+            prop "crossApplyFst" crossApplyFst
+            prop "crossApplySnd" crossApplySnd
 
 -------------------------------------------------------------------------------
 -- Main
