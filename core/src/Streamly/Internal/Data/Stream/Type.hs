@@ -48,6 +48,7 @@ module Streamly.Internal.Data.Stream.Type
     , fromEffect
 
     -- ** From Containers
+    , fromTuple
     , Streamly.Internal.Data.Stream.Type.fromList
 
     -- * Elimination
@@ -407,17 +408,18 @@ fromEffect m = Stream (const $ Producer.fromEffect m) True
 
 -- Adapted from the vector package.
 
+-- | Construct a stream from a tuple.
+{-# INLINE_LATE fromTuple #-}
+fromTuple :: Applicative m => (a, a) -> Stream m a
+fromTuple (x, y) = Stream (const Producer.fromTuple) (Producer.TupleBoth x y)
+
 -- | Construct a stream from a list of pure values.
 {-# INLINE_LATE fromList #-}
 fromList :: Applicative m => [a] -> Stream m a
 #ifdef USE_UNFOLDS_EVERYWHERE
 fromList = unfold Unfold.fromList
 #else
-fromList = Stream step
-  where
-    {-# INLINE_LATE step #-}
-    step _ (x:xs) = pure $ Yield x xs
-    step _ []     = pure Stop
+fromList = Stream (const Producer.fromList)
 #endif
 
 ------------------------------------------------------------------------------

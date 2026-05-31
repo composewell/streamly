@@ -12,7 +12,10 @@
 
 module Streamly.Internal.Data.Producer
     (
-      fromEffect
+      TupleState(..)
+    , fromEffect
+    , fromList
+    , fromTuple
     , mapM
     , mapMaybeM
     , takeWhileM
@@ -32,12 +35,25 @@ import Prelude hiding (mapM)
 -- delivers a new value alongside the updated state.
 type Producer m a b = a -> m (Step a b)
 
+data TupleState a = TupleBoth a a | TupleOne a | TupleNone
+
 -- | Build a single element 'Producer' from an effect. The 'Bool' state is
 -- 'True' before the effect is run and 'False' after, when the producer stops.
 {-# INLINE_LATE fromEffect #-}
 fromEffect :: Applicative m => m b -> Producer m Bool b
 fromEffect m True  = (`Yield` False) <$> m
 fromEffect _ False = pure Stop
+
+{-# INLINE_LATE fromTuple #-}
+fromTuple :: Applicative m => Producer m (TupleState a) a
+fromTuple (TupleBoth x y) = pure $ Yield x (TupleOne y)
+fromTuple (TupleOne y) = pure $ Yield y TupleNone
+fromTuple TupleNone = pure Stop
+
+{-# INLINE_LATE fromList #-}
+fromList :: Applicative m => Producer m [a] a
+fromList (x:xs) = pure $ Yield x xs
+fromList [] = pure Stop
 
 {-# INLINE_LATE mapM #-}
 mapM :: Monad m => (b -> m c) -> Producer m s b -> Producer m s c

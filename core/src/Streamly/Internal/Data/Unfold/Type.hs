@@ -552,20 +552,12 @@ fromEffect m = Unfold (Producer.fromEffect m) (const $ pure True)
 fromPure :: Applicative m => b -> Unfold m a b
 fromPure = fromEffect . pure
 
-data TupleState a = TupleBoth a a | TupleOne a | TupleNone
-
 -- | Convert a tuple to a 'Stream'.
 --
 {-# INLINE_LATE fromTuple #-}
 fromTuple :: Applicative m => Unfold m (a,a) a
-fromTuple = Unfold step (\(x,y) -> pure $ TupleBoth x y)
-
-    where
-
-    {-# INLINE_LATE step #-}
-    step (TupleBoth x y) = pure $ Yield x (TupleOne y)
-    step (TupleOne y) = pure $ Yield y TupleNone
-    step TupleNone = pure Stop
+fromTuple =
+    Unfold Producer.fromTuple (\(x,y) -> pure $ Producer.TupleBoth x y)
 
 -- XXX Check if "unfold (fromList [1..10])" fuses, if it doesn't we can use
 -- rewrite rules to rewrite list enumerations to unfold enumerations.
@@ -574,13 +566,7 @@ fromTuple = Unfold step (\(x,y) -> pure $ TupleBoth x y)
 --
 {-# INLINE_LATE fromList #-}
 fromList :: Applicative m => Unfold m [a] a
-fromList = Unfold step pure
-
-    where
-
-    {-# INLINE_LATE step #-}
-    step (x:xs) = pure $ Yield x xs
-    step [] = pure Stop
+fromList = Unfold Producer.fromList pure
 
 -- | Outer product discarding the first element.
 --
