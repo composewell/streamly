@@ -438,13 +438,19 @@ toNullAp value start =
     -- in UF.fold ((+) <$> s <*> s) FL.drain start
     in UF.fold FL.drain (((+) `fmap` s) `UF.crossApply` s) start
 
-{-# INLINE _apDiscardFst #-}
-_apDiscardFst :: Int -> Int -> m ()
-_apDiscardFst = undefined
+{-# INLINE crossApplyFst #-}
+crossApplyFst :: Monad m => Int -> Int -> m ()
+crossApplyFst value start =
+    let end = start + nthRoot 2 value
+        s = source end
+    in UF.fold FL.drain (s `UF.crossApplyFst` s) start
 
-{-# INLINE _apDiscardSnd #-}
-_apDiscardSnd :: Int -> Int -> m ()
-_apDiscardSnd = undefined
+{-# INLINE crossApplySnd #-}
+crossApplySnd :: Monad m => Int -> Int -> m ()
+crossApplySnd value start =
+    let end = start + nthRoot 2 value
+        s = source end
+    in UF.fold FL.drain (s `UF.crossApplySnd` s) start
 
 -------------------------------------------------------------------------------
 -- Monad
@@ -724,9 +730,8 @@ o_1_space_nested env size =
     [ bgroup
           "nested"
           [ benchIO "crossApply outer=inner=(sqrt Max)" $ toNullAp size
-          -- Unimplemented
-          -- , benchIO "apDiscardFst" $ apDiscardFst size
-          -- , benchIO "apDiscardSnd" $ apDiscardSnd size
+          , benchIO "crossApplyFst outer=inner=(sqrt Max)" $ crossApplyFst size
+          , benchIO "crossApplySnd outer=inner=(sqrt Max)" $ crossApplySnd size
 
           , benchIO "concatMapM outer=inner=(sqrt Max)" $ concatMapM sqrtVal sqrtVal
           , benchIO "bind2" $ toNull size
