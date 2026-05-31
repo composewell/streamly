@@ -14,11 +14,13 @@ module Streamly.Internal.Data.Producer
     (
       mapMaybeM
     , takeWhileM
+    , unfoldrM
     )
 where
 
 #include "inline.hs"
 
+import Data.Functor ((<&>))
 import Streamly.Internal.Data.Stream.Step (Step(..))
 
 -- | A stream transition: given the current state, produce the next 'Step'.
@@ -51,3 +53,13 @@ takeWhileM f step1 st = do
             return $ if b then Yield x s else Stop
         Skip s -> return (Skip s)
         Stop   -> return Stop
+
+-- | Build a 'Producer' from a /monadic/ step function that generates the next
+-- element and the next seed value from the current seed value. It is invoked
+-- until it returns 'Nothing'.
+{-# INLINE_LATE unfoldrM #-}
+unfoldrM :: Applicative m => (a -> m (Maybe (b, a))) -> Producer m a b
+unfoldrM next a =
+    next a <&> \case
+        Just (b, a1) -> Yield b a1
+        Nothing -> Stop

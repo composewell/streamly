@@ -119,6 +119,8 @@ import Streamly.Internal.System.IO (unsafeInlineIO)
 
 #ifdef USE_UNFOLDS_EVERYWHERE
 import qualified Streamly.Internal.Data.Unfold as Unfold
+#else
+import qualified Streamly.Internal.Data.Producer as Producer
 #endif
 
 import Data.Fixed
@@ -224,11 +226,7 @@ unfoldrM next = unfold (Unfold.unfoldrM next)
 unfoldrM next = Stream step
   where
     {-# INLINE_LATE step #-}
-    step _ st = do
-        r <- next st
-        return $ case r of
-            Just (x, s) -> Yield x s
-            Nothing     -> Stop
+    step _ = Producer.unfoldrM next
 #endif
 
 -- | Build a stream by unfolding a /pure/ step function @step@ starting from a

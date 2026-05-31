@@ -271,13 +271,7 @@ mkUnfoldrM step = Unfold step pure
 --
 {-# INLINE unfoldrM #-}
 unfoldrM :: Applicative m => (a -> m (Maybe (b, a))) -> Unfold m a b
-unfoldrM next = Unfold step pure
-  where
-    {-# INLINE_LATE step #-}
-    step st =
-        (\case
-            Just (x, s) -> Yield x s
-            Nothing     -> Stop) <$> next st
+unfoldrM next = Unfold (Producer.unfoldrM next) pure
 
 -- | Like 'unfoldrM' but uses a pure step function.
 --
