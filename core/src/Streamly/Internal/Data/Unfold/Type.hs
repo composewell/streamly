@@ -759,7 +759,17 @@ fairCross = fairCrossWith (,)
 
 {-# INLINE crossApply #-}
 crossApply :: Monad m => Unfold m a (b -> c) -> Unfold m a b -> Unfold m a c
-crossApply u1 u2 = fmap (\(a, b) -> a b) (cross u1 u2)
+crossApply (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
+
+    where
+
+    {-# INLINE_LATE inject #-}
+    inject a = do
+        s1 <- inject1 a
+        return $ Producer.CrossApplyOuter (inject2 a) s1
+
+    {-# INLINE_LATE step #-}
+    step = Producer.crossApply step1 step2
 
 -- XXX Applicative makes sense for unfolds, but monad does not. Use streams for
 -- monad.

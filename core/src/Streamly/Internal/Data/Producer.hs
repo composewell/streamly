@@ -12,7 +12,9 @@
 
 module Streamly.Internal.Data.Producer
     (
-      TupleState(..)
+      CrossApplyState(..)
+    , TupleState(..)
+    , crossApply
     , fromEffect
     , fromList
     , fromTuple
@@ -35,6 +37,10 @@ import Prelude hiding (mapM)
 -- delivers a new value alongside the updated state.
 type Producer m a b = a -> m (Step a b)
 
+data CrossApplyState m s1 s2 a b =
+      CrossApplyOuter (m s2) s1
+    | CrossApplyInner (m s2) (a -> b) s1 s2
+
 data TupleState a = TupleBoth a a | TupleOne a | TupleNone
 
 -- | Build a single element 'Producer' from an effect. The 'Bool' state is
@@ -54,6 +60,27 @@ fromTuple TupleNone = pure Stop
 fromList :: Applicative m => Producer m [a] a
 fromList (x:xs) = pure $ Yield x xs
 fromList [] = pure Stop
+
+{-# INLINE_LATE crossApply #-}
+crossApply
+    :: Monad m
+    => Producer m s1 (a -> b)
+    -> Producer m s2 a
+    -> Producer m (CrossApplyState m s1 s2 a b) b
+crossApply step1 _ (CrossApplyOuter inject2 st) = do
+    r <- step1 st
+    case r of
+        Yield f s -> do
+            s2 <- inject2
+            return $ Skip (CrossApplyInner inject2 f s s2)
+        Skip s -> return $ Skip (CrossApplyOuter inject2 s)
+        Stop -> return Stop
+crossApply _ step2 (CrossApplyInner inject2 f os st) = do
+    r <- step2 st
+    return $ case r of
+        Yield a s -> Yield (f a) (CrossApplyInner inject2 f os s)
+        Skip s -> Skip (CrossApplyInner inject2 f os s)
+        Stop -> Skip (CrossApplyOuter inject2 os)
 
 {-# INLINE_LATE mapM #-}
 mapM :: Monad m => (b -> m c) -> Producer m s b -> Producer m s c

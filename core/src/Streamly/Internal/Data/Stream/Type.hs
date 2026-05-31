@@ -1314,25 +1314,17 @@ zipWith f = zipWithM (\a b -> return (f a b))
 -- >>> crossApply = Stream.crossWith id
 --
 {-# INLINE_NORMAL crossApply #-}
-crossApply :: Functor f => Stream f (a -> b) -> Stream f a -> Stream f b
+crossApply :: Monad m => Stream m (a -> b) -> Stream m a -> Stream m b
 crossApply (Stream stepa statea) (Stream stepb stateb) =
-    Stream step' (Left statea)
+    Stream step (Producer.CrossApplyOuter (return stateb) statea)
 
     where
 
-    {-# INLINE_LATE step' #-}
-    step' gst (Left st) = fmap
-        (\case
-            Yield f s -> Skip (Right (f, s, stateb))
-            Skip    s -> Skip (Left s)
-            Stop      -> Stop)
-        (stepa (adaptState gst) st)
-    step' gst (Right (f, os, st)) = fmap
-        (\case
-            Yield a s -> Yield (f a) (Right (f, os, s))
-            Skip s    -> Skip (Right (f,os, s))
-            Stop      -> Skip (Left os))
-        (stepb (adaptState gst) st)
+    {-# INLINE_LATE step #-}
+    step gst =
+        Producer.crossApply
+            (stepa (adaptState gst))
+            (stepb (adaptState gst))
 
 -- This is shared by all fairUnfold, fairConcat combinators.
 data FairUnfoldState o i =
