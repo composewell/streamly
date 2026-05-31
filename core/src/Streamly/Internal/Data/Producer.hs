@@ -12,7 +12,8 @@
 
 module Streamly.Internal.Data.Producer
     (
-      mapM
+      fromEffect
+    , mapM
     , mapMaybeM
     , takeWhileM
     , unfoldrM
@@ -30,6 +31,13 @@ import Prelude hiding (mapM)
 -- The state type @a@ is also the type carried inside 'Step', so a 'Yield'
 -- delivers a new value alongside the updated state.
 type Producer m a b = a -> m (Step a b)
+
+-- | Build a single element 'Producer' from an effect. The 'Bool' state is
+-- 'True' before the effect is run and 'False' after, when the producer stops.
+{-# INLINE_LATE fromEffect #-}
+fromEffect :: Applicative m => m b -> Producer m Bool b
+fromEffect m True  = (`Yield` False) <$> m
+fromEffect _ False = pure Stop
 
 {-# INLINE_LATE mapM #-}
 mapM :: Monad m => (b -> m c) -> Producer m s b -> Producer m s c

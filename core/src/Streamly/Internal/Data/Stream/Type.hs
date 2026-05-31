@@ -399,13 +399,7 @@ fromPure x = Stream (\_ s -> pure $ step undefined s) True
 --
 {-# INLINE_NORMAL fromEffect #-}
 fromEffect :: Applicative m => m a -> Stream m a
-fromEffect m = Stream step True
-
-    where
-
-    {-# INLINE_LATE step #-}
-    step _ True  = (`Yield` False) <$> m
-    step _ False = pure Stop
+fromEffect m = Stream (const $ Producer.fromEffect m) True
 
 ------------------------------------------------------------------------------
 -- From Containers

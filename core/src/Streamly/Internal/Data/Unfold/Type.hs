@@ -538,14 +538,7 @@ instance Functor m => Functor (Unfold m a) where
 -- /Pre-release/
 {-# INLINE fromEffect #-}
 fromEffect :: Applicative m => m b -> Unfold m a b
-fromEffect m = Unfold step inject
-
-    where
-
-    inject _ = pure False
-
-    step False = (`Yield` True) <$> m
-    step True = pure Stop
+fromEffect m = Unfold (Producer.fromEffect m) (const $ pure True)
 
 -- XXX Shouldn't this be Unfold m a a ? Which is identity. Should this function
 -- even exist for Unfolds. Should we have applicative/Monad for unfolds?
