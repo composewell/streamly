@@ -570,21 +570,37 @@ fromList = Unfold Producer.fromList pure
 
 -- | Outer product discarding the first element.
 --
--- /Unimplemented/
---
 {-# INLINE_NORMAL crossApplySnd #-}
-crossApplySnd :: -- Monad m =>
+crossApplySnd :: Monad m =>
     Unfold m a b -> Unfold m a c -> Unfold m a c
-crossApplySnd (Unfold _step1 _inject1) (Unfold _step2 _inject2) = undefined
+crossApplySnd (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
+
+    where
+
+    {-# INLINE_LATE inject #-}
+    inject a = do
+        s1 <- inject1 a
+        return $ Producer.CrossApplyOuter (inject2 a) s1
+
+    {-# INLINE_LATE step #-}
+    step = Producer.crossApplySnd step1 step2
 
 -- | Outer product discarding the second element.
 --
--- /Unimplemented/
---
 {-# INLINE_NORMAL crossApplyFst #-}
-crossApplyFst :: -- Monad m =>
+crossApplyFst :: Monad m =>
     Unfold m a b -> Unfold m a c -> Unfold m a b
-crossApplyFst (Unfold _step1 _inject1) (Unfold _step2 _inject2) = undefined
+crossApplyFst (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
+
+    where
+
+    {-# INLINE_LATE inject #-}
+    inject a = do
+        s1 <- inject1 a
+        return $ Producer.CrossApplyOuter (inject2 a) s1
+
+    {-# INLINE_LATE step #-}
+    step = Producer.crossApplyFst step1 step2
 
 {-
 {-# ANN type Many2State Fuse #-}

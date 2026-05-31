@@ -15,6 +15,8 @@ module Streamly.Internal.Data.Producer
       CrossApplyState(..)
     , TupleState(..)
     , crossApply
+    , crossApplyFst
+    , crossApplySnd
     , fromEffect
     , fromList
     , fromTuple
@@ -76,6 +78,54 @@ crossApply step1 _ (CrossApplyOuter inject2 st) = do
         Skip s -> return $ Skip (CrossApplyOuter inject2 s)
         Stop -> return Stop
 crossApply _ step2 (CrossApplyInner inject2 f os st) = do
+    r <- step2 st
+    return $ case r of
+        Yield a s -> Yield (f a) (CrossApplyInner inject2 f os s)
+        Skip s -> Skip (CrossApplyInner inject2 f os s)
+        Stop -> Skip (CrossApplyOuter inject2 os)
+
+-- | Outer product discarding the second (inner) element. For each element of
+-- the first producer the entire second producer is run, yielding the first
+-- producer's element each time.
+{-# INLINE_LATE crossApplyFst #-}
+crossApplyFst
+    :: Monad m
+    => Producer m s1 b
+    -> Producer m s2 a
+    -> Producer m (CrossApplyState m s1 s2 a b) b
+crossApplyFst step1 _ (CrossApplyOuter inject2 st) = do
+    r <- step1 st
+    case r of
+        Yield b s -> do
+            s2 <- inject2
+            return $ Skip (CrossApplyInner inject2 (const b) s s2)
+        Skip s -> return $ Skip (CrossApplyOuter inject2 s)
+        Stop -> return Stop
+crossApplyFst _ step2 (CrossApplyInner inject2 f os st) = do
+    r <- step2 st
+    return $ case r of
+        Yield a s -> Yield (f a) (CrossApplyInner inject2 f os s)
+        Skip s -> Skip (CrossApplyInner inject2 f os s)
+        Stop -> Skip (CrossApplyOuter inject2 os)
+
+-- | Outer product discarding the first (outer) element. For each element of
+-- the first producer the entire second producer is run, yielding the second
+-- producer's elements.
+{-# INLINE_LATE crossApplySnd #-}
+crossApplySnd
+    :: Monad m
+    => Producer m s1 a
+    -> Producer m s2 b
+    -> Producer m (CrossApplyState m s1 s2 b b) b
+crossApplySnd step1 _ (CrossApplyOuter inject2 st) = do
+    r <- step1 st
+    case r of
+        Yield _ s -> do
+            s2 <- inject2
+            return $ Skip (CrossApplyInner inject2 id s s2)
+        Skip s -> return $ Skip (CrossApplyOuter inject2 s)
+        Stop -> return Stop
+crossApplySnd _ step2 (CrossApplyInner inject2 f os st) = do
     r <- step2 st
     return $ case r of
         Yield a s -> Yield (f a) (CrossApplyInner inject2 f os s)

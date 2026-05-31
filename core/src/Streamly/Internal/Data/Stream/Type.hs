@@ -1380,50 +1380,30 @@ fairCrossWithM f (Stream step1 state1) (Stream step2 state2) =
             Stop      -> return $ Skip (FairUnfoldDrain ys ls)
 
 {-# INLINE_NORMAL crossApplySnd #-}
-crossApplySnd :: Functor f => Stream f a -> Stream f b -> Stream f b
+crossApplySnd :: Monad f => Stream f a -> Stream f b -> Stream f b
 crossApplySnd (Stream stepa statea) (Stream stepb stateb) =
-    Stream step (Left statea)
+    Stream step (Producer.CrossApplyOuter (return stateb) statea)
 
     where
 
     {-# INLINE_LATE step #-}
-    step gst (Left st) =
-        fmap
-            (\case
-                 Yield _ s -> Skip (Right (s, stateb))
-                 Skip s -> Skip (Left s)
-                 Stop -> Stop)
-            (stepa (adaptState gst) st)
-    step gst (Right (ostate, st)) =
-        fmap
-            (\case
-                 Yield b s -> Yield b (Right (ostate, s))
-                 Skip s -> Skip (Right (ostate, s))
-                 Stop -> Skip (Left ostate))
-            (stepb gst st)
+    step gst =
+        Producer.crossApplySnd
+            (stepa (adaptState gst))
+            (stepb gst)
 
 {-# INLINE_NORMAL crossApplyFst #-}
-crossApplyFst :: Functor f => Stream f a -> Stream f b -> Stream f a
+crossApplyFst :: Monad f => Stream f a -> Stream f b -> Stream f a
 crossApplyFst (Stream stepa statea) (Stream stepb stateb) =
-    Stream step (Left statea)
+    Stream step (Producer.CrossApplyOuter (return stateb) statea)
 
     where
 
     {-# INLINE_LATE step #-}
-    step gst (Left st) =
-        fmap
-            (\case
-                 Yield b s -> Skip (Right (s, stateb, b))
-                 Skip s -> Skip (Left s)
-                 Stop -> Stop)
-            (stepa gst st)
-    step gst (Right (ostate, st, b)) =
-        fmap
-            (\case
-                 Yield _ s -> Yield b (Right (ostate, s, b))
-                 Skip s -> Skip (Right (ostate, s, b))
-                 Stop -> Skip (Left ostate))
-            (stepb (adaptState gst) st)
+    step gst =
+        Producer.crossApplyFst
+            (stepa gst)
+            (stepb (adaptState gst))
 
 {-
 instance Applicative f => Applicative (Stream f) where
