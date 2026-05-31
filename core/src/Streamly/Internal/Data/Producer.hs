@@ -13,6 +13,7 @@
 module Streamly.Internal.Data.Producer
     (
       CrossApplyState(..)
+    , CrossApplyFstState(..)
     , TupleState(..)
     , crossApply
     , crossApplyFst
@@ -39,9 +40,24 @@ import Prelude hiding (mapM)
 -- delivers a new value alongside the updated state.
 type Producer m a b = a -> m (Step a b)
 
-data CrossApplyState m s1 s2 a b =
-      CrossApplyOuter (m s2) s1
-    | CrossApplyInner (m s2) (a -> b) s1 s2
+-- | State of a cross-apply style producer. @x@ is the seed from which the
+-- inner producer's state is (re)injected for every element of the outer
+-- producer. We store the first-order @x@ seed rather than the injection
+-- action @m s2@ so that the inner injection stays a known, statically inlined
+-- call and the loop state remains unboxable (storing @m s2@ here defeats
+-- fusion and forces per-element allocation).
+data CrossApplyState x s1 s2 a b =
+      CrossApplyOuter x s1
+    | CrossApplyInner x (a -> b) s1 s2
+
+-- | State for 'crossApplyFst'. The inner constructor stores the outer
+-- producer's value @b@ /directly/ so that it can be re-yielded for each element
+-- of the inner producer as a loop-invariant value. Storing a function
+-- (@const b@) here instead would force a per-element PAP application in the hot
+-- inner loop and defeat the hoisting the original yielded value gets.
+data CrossApplyFstState x s1 s2 b =
+      CrossApplyFstOuter x s1
+    | CrossApplyFstInner x b s1 s2
 
 data TupleState a = TupleBoth a a | TupleOne a | TupleNone
 
@@ -66,23 +82,24 @@ fromList [] = pure Stop
 {-# INLINE_LATE crossApply #-}
 crossApply
     :: Monad m
-    => Producer m s1 (a -> b)
+    => (x -> m s2)
+    -> Producer m s1 (a -> b)
     -> Producer m s2 a
-    -> Producer m (CrossApplyState m s1 s2 a b) b
-crossApply step1 _ (CrossApplyOuter inject2 st) = do
+    -> Producer m (CrossApplyState x s1 s2 a b) b
+crossApply inject2 step1 _ (CrossApplyOuter seed st) = do
     r <- step1 st
     case r of
         Yield f s -> do
-            s2 <- inject2
-            return $ Skip (CrossApplyInner inject2 f s s2)
-        Skip s -> return $ Skip (CrossApplyOuter inject2 s)
+            s2 <- inject2 seed
+            return $ Skip (CrossApplyInner seed f s s2)
+        Skip s -> return $ Skip (CrossApplyOuter seed s)
         Stop -> return Stop
-crossApply _ step2 (CrossApplyInner inject2 f os st) = do
+crossApply _ _ step2 (CrossApplyInner seed f os st) = do
     r <- step2 st
     return $ case r of
-        Yield a s -> Yield (f a) (CrossApplyInner inject2 f os s)
-        Skip s -> Skip (CrossApplyInner inject2 f os s)
-        Stop -> Skip (CrossApplyOuter inject2 os)
+        Yield a s -> Yield (f a) (CrossApplyInner seed f os s)
+        Skip s -> Skip (CrossApplyInner seed f os s)
+        Stop -> Skip (CrossApplyOuter seed os)
 
 -- | Outer product discarding the second (inner) element. For each element of
 -- the first producer the entire second producer is run, yielding the first
@@ -90,23 +107,24 @@ crossApply _ step2 (CrossApplyInner inject2 f os st) = do
 {-# INLINE_LATE crossApplyFst #-}
 crossApplyFst
     :: Monad m
-    => Producer m s1 b
+    => (x -> m s2)
+    -> Producer m s1 b
     -> Producer m s2 a
-    -> Producer m (CrossApplyState m s1 s2 a b) b
-crossApplyFst step1 _ (CrossApplyOuter inject2 st) = do
+    -> Producer m (CrossApplyFstState x s1 s2 b) b
+crossApplyFst inject2 step1 _ (CrossApplyFstOuter seed st) = do
     r <- step1 st
     case r of
         Yield b s -> do
-            s2 <- inject2
-            return $ Skip (CrossApplyInner inject2 (const b) s s2)
-        Skip s -> return $ Skip (CrossApplyOuter inject2 s)
+            s2 <- inject2 seed
+            return $ Skip (CrossApplyFstInner seed b s s2)
+        Skip s -> return $ Skip (CrossApplyFstOuter seed s)
         Stop -> return Stop
-crossApplyFst _ step2 (CrossApplyInner inject2 f os st) = do
+crossApplyFst _ _ step2 (CrossApplyFstInner seed b os st) = do
     r <- step2 st
     return $ case r of
-        Yield a s -> Yield (f a) (CrossApplyInner inject2 f os s)
-        Skip s -> Skip (CrossApplyInner inject2 f os s)
-        Stop -> Skip (CrossApplyOuter inject2 os)
+        Yield _ s -> Yield b (CrossApplyFstInner seed b os s)
+        Skip s -> Skip (CrossApplyFstInner seed b os s)
+        Stop -> Skip (CrossApplyFstOuter seed os)
 
 -- | Outer product discarding the first (outer) element. For each element of
 -- the first producer the entire second producer is run, yielding the second
@@ -114,23 +132,24 @@ crossApplyFst _ step2 (CrossApplyInner inject2 f os st) = do
 {-# INLINE_LATE crossApplySnd #-}
 crossApplySnd
     :: Monad m
-    => Producer m s1 a
+    => (x -> m s2)
+    -> Producer m s1 a
     -> Producer m s2 b
-    -> Producer m (CrossApplyState m s1 s2 b b) b
-crossApplySnd step1 _ (CrossApplyOuter inject2 st) = do
+    -> Producer m (CrossApplyState x s1 s2 b b) b
+crossApplySnd inject2 step1 _ (CrossApplyOuter seed st) = do
     r <- step1 st
     case r of
         Yield _ s -> do
-            s2 <- inject2
-            return $ Skip (CrossApplyInner inject2 id s s2)
-        Skip s -> return $ Skip (CrossApplyOuter inject2 s)
+            s2 <- inject2 seed
+            return $ Skip (CrossApplyInner seed id s s2)
+        Skip s -> return $ Skip (CrossApplyOuter seed s)
         Stop -> return Stop
-crossApplySnd _ step2 (CrossApplyInner inject2 f os st) = do
+crossApplySnd _ _ step2 (CrossApplyInner seed f os st) = do
     r <- step2 st
     return $ case r of
-        Yield a s -> Yield (f a) (CrossApplyInner inject2 f os s)
-        Skip s -> Skip (CrossApplyInner inject2 f os s)
-        Stop -> Skip (CrossApplyOuter inject2 os)
+        Yield a s -> Yield (f a) (CrossApplyInner seed f os s)
+        Skip s -> Skip (CrossApplyInner seed f os s)
+        Stop -> Skip (CrossApplyOuter seed os)
 
 {-# INLINE_LATE mapM #-}
 mapM :: Monad m => (b -> m c) -> Producer m s b -> Producer m s c

@@ -1316,13 +1316,14 @@ zipWith f = zipWithM (\a b -> return (f a b))
 {-# INLINE_NORMAL crossApply #-}
 crossApply :: Monad m => Stream m (a -> b) -> Stream m a -> Stream m b
 crossApply (Stream stepa statea) (Stream stepb stateb) =
-    Stream step (Producer.CrossApplyOuter (return stateb) statea)
+    Stream step (Producer.CrossApplyOuter stateb statea)
 
     where
 
     {-# INLINE_LATE step #-}
     step gst =
         Producer.crossApply
+            return
             (stepa (adaptState gst))
             (stepb (adaptState gst))
 
@@ -1382,26 +1383,28 @@ fairCrossWithM f (Stream step1 state1) (Stream step2 state2) =
 {-# INLINE_NORMAL crossApplySnd #-}
 crossApplySnd :: Monad f => Stream f a -> Stream f b -> Stream f b
 crossApplySnd (Stream stepa statea) (Stream stepb stateb) =
-    Stream step (Producer.CrossApplyOuter (return stateb) statea)
+    Stream step (Producer.CrossApplyOuter stateb statea)
 
     where
 
     {-# INLINE_LATE step #-}
     step gst =
         Producer.crossApplySnd
+            return
             (stepa (adaptState gst))
             (stepb gst)
 
 {-# INLINE_NORMAL crossApplyFst #-}
 crossApplyFst :: Monad f => Stream f a -> Stream f b -> Stream f a
 crossApplyFst (Stream stepa statea) (Stream stepb stateb) =
-    Stream step (Producer.CrossApplyOuter (return stateb) statea)
+    Stream step (Producer.CrossApplyFstOuter stateb statea)
 
     where
 
     {-# INLINE_LATE step #-}
     step gst =
         Producer.crossApplyFst
+            return
             (stepa gst)
             (stepb (adaptState gst))
 
