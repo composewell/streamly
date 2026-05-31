@@ -349,7 +349,6 @@ library
                      -- streamly-core-stream-types
                      , Streamly.Internal.Data.SVar.Type
                      , Streamly.Internal.Data.Refold.Type
-                     , Streamly.Internal.Data.Producer
 
                      -- streamly-core-array-types
                      , Streamly.Internal.Data.MutByteArray
@@ -541,9 +540,6 @@ library
                     , Streamly.Internal.Data.Serialize.TH.RecHeader
                     , Streamly.Internal.Data.Serialize.TH.Common
                     , Streamly.Internal.Data.Serialize.TH.Bottom
-
-                    , Streamly.Internal.Data.Producer.Type
-                    , Streamly.Internal.Data.Producer.Source
 
                     , Streamly.Internal.Data.Time.Clock.Type
                     , Streamly.Internal.FileSystem.Path.Common

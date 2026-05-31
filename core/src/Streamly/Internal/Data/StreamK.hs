@@ -39,7 +39,6 @@ module Streamly.Internal.Data.StreamK
     , fold
     , foldBreak
     , foldEither
-    , foldConcat
     , ParserK.toParserK -- XXX move the code to this module
     , parseDBreak
     , parseD
@@ -142,12 +141,10 @@ import Control.Monad (void, join)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Ord (comparing)
-import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.IOFinalizer (newIOFinalizer, runIOFinalizer)
 import Streamly.Internal.Data.ParserK.Type (ParserK)
-import Streamly.Internal.Data.Producer.Type (Producer(..))
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
 import Streamly.Internal.Data.Unbox (Unbox)
 
@@ -395,68 +392,6 @@ foldBreak fld strm = do
                 FL.Partial s -> do
                     b <- final s
                     return (b, nil)
-
--- XXX Array folds can be implemented using this.
--- foldContainers? Specialized to foldArrays.
-
--- | Generate streams from individual elements of a stream and fold the
--- concatenation of those streams using the supplied fold. Return the result of
--- the fold and residual stream.
---
--- For example, this can be used to efficiently fold an Array Word8 stream
--- using Word8 folds.
---
--- /Internal/
-{-# INLINE foldConcat #-}
-foldConcat :: Monad m =>
-    Producer m a b -> Fold m b c -> StreamK m a -> m (c, StreamK m a)
-foldConcat
-    (Producer pstep pinject pextract)
-    (Fold fstep begin _ final)
-    stream = do
-
-    res <- begin
-    case res of
-        FL.Partial fs -> go fs stream
-        FL.Done fb -> return (fb, stream)
-
-    where
-
-    go !acc m1 = do
-        let stop = do
-                r <- final acc
-                return (r, nil)
-            single a = do
-                st <- pinject a
-                res <- go1 SPEC acc st
-                case res of
-                    Left fs -> do
-                        r <- final fs
-                        return (r, nil)
-                    Right (b, s) -> do
-                        x <- pextract s
-                        return (b, fromPure x)
-            yieldk a r = do
-                st <- pinject a
-                res <- go1 SPEC acc st
-                case res of
-                    Left fs -> go fs r
-                    Right (b, s) -> do
-                        x <- pextract s
-                        return (b, x `cons` r)
-         in foldStream defState yieldk single stop m1
-
-    {-# INLINE go1 #-}
-    go1 !_ !fs st = do
-        r <- pstep st
-        case r of
-            Stream.Yield x s -> do
-                res <- fstep fs x
-                case res of
-                    FL.Done b -> return $ Right (b, s)
-                    FL.Partial fs1 -> go1 SPEC fs1 s
-            Stream.Skip s -> go1 SPEC fs s
-            Stream.Stop -> return $ Left fs
 
 ------------------------------------------------------------------------------
 -- Specialized folds

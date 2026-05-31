@@ -26,8 +26,6 @@ import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as P
 import qualified Streamly.Internal.Data.ParserK as PK
-import qualified Streamly.Internal.Data.Producer as Producer
-import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Stream as SI
 import qualified Streamly.Internal.Data.StreamK as K
 import qualified Test.Hspec as H
@@ -121,35 +119,6 @@ parseMany =
                         $ S.parseMany p (S.fromList $ concat ins)
                 listEquals (==) outs ins
 
-
--- basic sanity test for parsing from arrays
-parseUnfold :: Property
-parseUnfold = do
-    let len = 200
-    -- ls = input list (stream)
-    -- clen = chunk size
-    -- tlen = parser take size
-    forAll
-        ((,,)
-            <$> vectorOf len (chooseAny :: Gen Int)
-            <*> chooseInt (1, len)
-            <*> chooseInt (1, len)) $ \(ls, clen, tlen) ->
-        monadicIO $ do
-            arrays <- S.toList $ A.chunksOf clen (S.fromList ls)
-            let src = Producer.source (Just (Producer.OuterLoop arrays))
-            let parser = P.fromFold (FL.take tlen FL.toList)
-            let readSrc =
-                    Producer.producer
-                        $ Producer.concat Producer.fromList A.producer
-            let streamParser =
-                    Producer.simplify (Producer.parseManyD parser readSrc)
-            xs <- run
-                $ S.toList
-                $ S.unfoldEach Unfold.fromList
-                $ S.catRights
-                $ S.unfold streamParser src
-
-            listEquals (==) xs ls
 
 parserSequence :: Property
 parserSequence =
@@ -326,13 +295,6 @@ quotedWordTest inp expected = do
 -- Parser sanity tests
 --------------------------------------------------------------------------------
 
-{-
-TODO:
-Add sanity tests for
-- Producer.parse
-- Producer.parseMany
--}
-
 sanityParseBreak :: [Move] -> SpecWith ()
 sanityParseBreak jumps = it (show jumps) $ do
     (val, rest) <- SI.parseBreakPos (jumpParser jumps) $ S.fromList tape
@@ -448,7 +410,6 @@ main = do
         describe "Stream parsing" $ do
             prop "parseMany" parseMany
             prop "parseMany2Events" parseMany2Events
-            prop "parseUnfold" parseUnfold
             prop "parserSequence" parserSequence
 
         describe "test for sequence parser" $ do

@@ -87,10 +87,10 @@ import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.MutArray.Generic as MArray
 import qualified Streamly.Internal.Data.Parser.Type as ParserD
 import qualified Streamly.Internal.Data.ParserK.Type as ParserK
-import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.RingArray.Generic as RB
 import qualified Streamly.Internal.Data.Stream.Type as D
 import qualified Streamly.Internal.Data.Stream.Generate as D
+import qualified Streamly.Internal.Data.Unfold.Type as Unfold
 import qualified Text.ParserCombinators.ReadPrec as ReadPrec
 
 import Prelude hiding (Foldable(..), read)
@@ -206,9 +206,8 @@ length arr = arrEnd arr - arrStart arr
 {-# INLINE_NORMAL reader #-}
 reader :: Monad m => Unfold m (Array a) a
 reader =
-    Producer.simplify
-        $ Producer.translate unsafeThaw unsafeFreeze
-        $ MArray.producerWith (return . unsafeInlineIO)
+    Unfold.lmap unsafeThaw
+        $ MArray.readerWith (return . unsafeInlineIO)
 
 -------------------------------------------------------------------------------
 -- Elimination - to streams

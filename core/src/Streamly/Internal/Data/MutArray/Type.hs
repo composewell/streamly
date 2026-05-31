@@ -212,8 +212,7 @@ module Streamly.Internal.Data.MutArray.Type
 
     -- *** Unfolds
     -- experimental
-    , producerWith
-    , producer
+    , readerWith
 
     , reader
     , readerRevWith
@@ -541,7 +540,6 @@ import GHC.Exts (byteArrayContents#, unsafeCoerce#)
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.MutByteArray.Type (isPower2, roundUpLargeArray)
-import Streamly.Internal.Data.Producer.Type (Producer (..))
 import Streamly.Internal.Data.Scanl.Type (Scanl (..))
 import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Parser.Type (Parser (..))
@@ -555,7 +553,6 @@ import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.MutByteArray.Type as Unboxed
 import qualified Streamly.Internal.Data.Parser.Type as Parser
 -- import qualified Streamly.Internal.Data.Fold.Type as Fold
-import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream.Type as D
 import qualified Streamly.Internal.Data.Stream.Lift as D
 import qualified Streamly.Internal.Data.Stream.Generate as D
@@ -2174,11 +2171,11 @@ fromArrayUnsafe :: ArrayUnsafe a -> MutArray a
 fromArrayUnsafe (ArrayUnsafe contents start end) =
          MutArray contents start end end
 
-{-# INLINE_NORMAL producerWith #-}
-producerWith ::
+{-# INLINE_NORMAL readerWith #-}
+readerWith ::
        forall m a. (Monad m, Unbox a)
-    => (forall b. IO b -> m b) -> Producer m (MutArray a) a
-producerWith liftio = Producer step (return . toArrayUnsafe) extract
+    => (forall b. IO b -> m b) -> Unfold m (MutArray a) a
+readerWith liftio = Unfold step (return . toArrayUnsafe)
     where
 
     {-# INLINE_LATE step #-}
@@ -2192,19 +2189,11 @@ producerWith liftio = Producer step (return . toArrayUnsafe) extract
             !x <- liftio $ peekAt cur contents
             return $ D.Yield x (ArrayUnsafe contents (INDEX_NEXT(cur,a)) end)
 
-    extract = return . fromArrayUnsafe
-
--- | Resumable unfold of an array.
---
-{-# INLINE_NORMAL producer #-}
-producer :: forall m a. (MonadIO m, Unbox a) => Producer m (MutArray a) a
-producer = producerWith liftIO
-
 -- | Unfold an array into a stream.
 --
 {-# INLINE_NORMAL reader #-}
 reader :: forall m a. (MonadIO m, Unbox a) => Unfold m (MutArray a) a
-reader = Producer.simplify producer
+reader = readerWith liftIO
 
 {-# INLINE_NORMAL readerRevWith #-}
 readerRevWith ::

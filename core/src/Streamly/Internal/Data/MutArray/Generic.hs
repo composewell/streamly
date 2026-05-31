@@ -91,8 +91,7 @@ module Streamly.Internal.Data.MutArray.Generic
     -- ** Unfolds
     , reader
     -- , readerRev
-    , producerWith -- experimental
-    , producer -- experimental
+    , readerWith
 
     -- ** To containers
     , read
@@ -200,13 +199,11 @@ import GHC.Base
 import GHC.IO (IO(..))
 import GHC.Int (Int(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
-import Streamly.Internal.Data.Producer.Type (Producer (..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.SVar.Type (adaptState)
 
 import qualified Streamly.Internal.Data.Fold.Type as FL
-import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream.Type as D
 import qualified Streamly.Internal.Data.Stream.Generate as D
 import qualified Streamly.Internal.Data.Stream.Lift as D
@@ -813,20 +810,16 @@ chunksOf n (D.Stream step state) =
 -- Unfolds
 -------------------------------------------------------------------------------
 
--- | Resumable unfold of an array.
+-- | Unfold an array into a stream.
 --
-{-# INLINE_NORMAL producerWith #-}
-producerWith :: Monad m => (forall b. IO b -> m b) -> Producer m (MutArray a) a
-producerWith liftio = Producer step inject extract
+{-# INLINE_NORMAL readerWith #-}
+readerWith :: Monad m => (forall b. IO b -> m b) -> Unfold m (MutArray a) a
+readerWith liftio = Unfold step inject
 
     where
 
     {-# INLINE inject #-}
     inject arr = return (arr, 0)
-
-    {-# INLINE extract #-}
-    extract (arr, i) =
-        return $ arr {arrStart = arrStart arr + i}
 
     {-# INLINE_LATE step #-}
     step (arr, i)
@@ -835,17 +828,11 @@ producerWith liftio = Producer step inject extract
         x <- liftio $ unsafeGetIndex i arr
         return $ D.Yield x (arr, i + 1)
 
--- | Resumable unfold of an array.
---
-{-# INLINE_NORMAL producer #-}
-producer :: MonadIO m => Producer m (MutArray a) a
-producer = producerWith liftIO
-
 -- | Unfold an array into a stream.
 --
 {-# INLINE_NORMAL reader #-}
 reader :: MonadIO m => Unfold m (MutArray a) a
-reader = Producer.simplify producer
+reader = readerWith liftIO
 
 --------------------------------------------------------------------------------
 -- Appending arrays

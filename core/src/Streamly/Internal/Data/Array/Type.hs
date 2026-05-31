@@ -119,7 +119,6 @@ module Streamly.Internal.Data.Array.Type
     , toList
 
     -- *** Unfolds
-    , producer -- experimental
     , unsafeReader
     , reader
     , readerRev
@@ -233,7 +232,6 @@ import GHC.ForeignPtr (ForeignPtr(..), ForeignPtrContents(..))
 
 import GHC.IO (unsafePerformIO)
 import GHC.Ptr (Ptr(..), nullPtr)
-import Streamly.Internal.Data.Producer.Type (Producer(..))
 import Streamly.Internal.Data.MutArray.Type (MutArray)
 import Streamly.Internal.Data.MutByteArray.Type (MutByteArray)
 import Streamly.Internal.Data.Fold.Type (Fold(..))
@@ -254,7 +252,6 @@ import qualified Streamly.Internal.Data.MutArray.Type as MA
 import qualified Streamly.Internal.Data.Stream.Type as D
 import qualified Streamly.Internal.Data.StreamK.Type as K
 import qualified Streamly.Internal.Data.MutByteArray.Type as Unboxed
-import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Scanl.Type as Scanl
 import qualified Streamly.Internal.Data.Unfold.Type as Unfold
 import qualified Text.ParserCombinators.ReadPrec as ReadPrec
@@ -987,17 +984,11 @@ byteLength = MA.byteLength . unsafeThaw
 length :: Unbox a => Array a -> Int
 length arr = MA.length (unsafeThaw arr)
 
-{-# INLINE_NORMAL producer #-}
-producer :: forall m a. (Monad m, Unbox a) => Producer m (Array a) a
-producer =
-    Producer.translate unsafeThaw unsafeFreeze
-        $ MA.producerWith (return . unsafeInlineIO)
-
 -- | Unfold an array into a stream.
 --
 {-# INLINE_NORMAL reader #-}
 reader :: forall m a. (Monad m, Unbox a) => Unfold m (Array a) a
-reader = Producer.simplify producer
+reader = Unfold.lmap unsafeThaw $ MA.readerWith (return . unsafeInlineIO)
 
 -- | Unfold an array into a stream, does not check the end of the array, the
 -- user is responsible for terminating the stream within the array bounds. For

@@ -34,7 +34,6 @@ import Streamly.Benchmark.Data.Parser.Alternative as Alternative
 import Streamly.Benchmark.Data.Parser.Applicative as Applicative
 import Streamly.Benchmark.Data.Parser.Monad as Monad
 import Streamly.Benchmark.Data.Parser.Sequence as Sequence
-import Streamly.Benchmark.Data.Parser.Producer as Producer
 import Streamly.Benchmark.Data.Parser.Interleave as Interleave
 import Streamly.Benchmark.Data.Parser.Groups as Groups
 
@@ -46,13 +45,12 @@ benchmarkList ::
     -> BenchEnv
     -> [Array.Array Int]
     -> [(SpaceComplexity, Benchmark)]
-benchmarkList value env arrays =
+benchmarkList value env _arrays =
     Alternative.benchmarks value
         ++ Applicative.benchmarks value
         ++ Monad.benchmarks value
         ++ Sequence.benchmarks value
         ++ Sequence.benchmarksFileIO env
-        ++ Producer.benchmarks value arrays
         ++ Groups.benchmarks value
         ++ Interleave.benchmarks value
 

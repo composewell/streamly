@@ -330,7 +330,6 @@ benchmark Data.Parser
     , Streamly.Benchmark.Data.Parser.Monad
     , Streamly.Benchmark.Data.Parser.Interleave
     , Streamly.Benchmark.Data.Parser.Sequence
-    , Streamly.Benchmark.Data.Parser.Producer
     , Streamly.Benchmark.Data.Parser.Groups
   if impl(ghcjs)
     buildable: False
