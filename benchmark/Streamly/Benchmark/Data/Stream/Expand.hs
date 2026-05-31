@@ -461,6 +461,39 @@ cross2 linearCount start = drain $
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
+{-# INLINE crossApply #-}
+crossApply :: MonadAsync m => Int -> Int -> m ()
+crossApply linearCount start = drain $
+    Stream.crossApply
+        ((+) <$> sourceUnfoldrM nestedCount2 start)
+        (sourceUnfoldrM nestedCount2 start)
+
+    where
+
+    nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
+
+{-# INLINE crossApplyFst #-}
+crossApplyFst :: MonadAsync m => Int -> Int -> m ()
+crossApplyFst linearCount start = drain $
+    Stream.crossApplyFst
+        (sourceUnfoldrM nestedCount2 start)
+        (sourceUnfoldrM nestedCount2 start)
+
+    where
+
+    nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
+
+{-# INLINE crossApplySnd #-}
+crossApplySnd :: MonadAsync m => Int -> Int -> m ()
+crossApplySnd linearCount start = drain $
+    Stream.crossApplySnd
+        (sourceUnfoldrM nestedCount2 start)
+        (sourceUnfoldrM nestedCount2 start)
+
+    where
+
+    nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
+
 o_1_space_applicative :: Int -> [Benchmark]
 o_1_space_applicative value =
     [ bgroup "Applicative"
@@ -468,6 +501,9 @@ o_1_space_applicative value =
         , benchIO "(<*)" $ apDiscardSnd value
         , benchIO "(<*>)" $ toNullAp value
         , benchIO "liftA2" $ apLiftA2 value
+        , benchIO "crossApply" $ crossApply value
+        , benchIO "crossApplyFst" $ crossApplyFst value
+        , benchIO "crossApplySnd" $ crossApplySnd value
         , benchIO "pureDrain2" $ toNullApPure value
         , benchIO "pureCross2" $ cross2 value
         ]
