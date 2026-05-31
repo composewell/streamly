@@ -231,7 +231,7 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
 import qualified Streamly.Internal.Data.Fold.Type as FL hiding (foldr)
 import qualified Streamly.Internal.Data.StreamK.Type as K
-import qualified Streamly.Internal.Data.Transition as Transition
+import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Unfold.Type as Unfold
 
 #include "DocTestDataStream.hs"
@@ -1168,7 +1168,7 @@ takeWhileM f (Stream step1 state1) = Stream step state1
     where
 
     {-# INLINE_LATE step #-}
-    step gst = Transition.takeWhileM f (step1 gst)
+    step gst = Producer.takeWhileM f (step1 gst)
 
 -- | End the stream as soon as the predicate fails on an element.
 --

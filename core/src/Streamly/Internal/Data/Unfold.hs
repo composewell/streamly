@@ -142,7 +142,7 @@ import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Scanl.Type as Scanl
 import qualified Streamly.Internal.Data.Stream.Type as D
 import qualified Streamly.Internal.Data.StreamK.Type as K
-import qualified Streamly.Internal.Data.Transition as Transition
+import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Prelude
 
 import Streamly.Internal.Data.Unfold.Enumeration
@@ -753,7 +753,7 @@ dropWhile f = dropWhileM (return . f)
 {-# INLINE_NORMAL mapMaybeM #-}
 mapMaybeM :: Monad m => (b -> m (Maybe c)) -> Unfold m a b -> Unfold m a c
 mapMaybeM f (Unfold step1 inject1) =
-    Unfold (Transition.mapMaybeM f step1) inject1
+    Unfold (Producer.mapMaybeM f step1) inject1
 
 -- | Map a 'Maybe' returning function on the output of the unfold, filter out
 -- the 'Nothing' elements, and return an unfold yielding the values extracted
