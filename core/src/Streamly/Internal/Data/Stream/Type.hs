@@ -979,12 +979,7 @@ mapM f (Stream step state) = Stream step1 state
     where
 
     {-# INLINE_LATE step1 #-}
-    step1 gst st = do
-        r <- step (adaptState gst) st
-        case r of
-            Yield x s -> f x >>= \a -> return $ Yield a s
-            Skip s    -> return $ Skip s
-            Stop      -> return Stop
+    step1 gst = Producer.mapM f (step (adaptState gst))
 
 {-# INLINE map #-}
 map :: Monad m => (a -> b) -> Stream m a -> Stream m b

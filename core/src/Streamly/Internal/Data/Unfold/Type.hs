@@ -441,15 +441,7 @@ mapM2 f (Unfold ustep uinject) = Unfold step inject
 {-# INLINE_NORMAL mapM #-}
 mapM :: Monad m => (b -> m c) -> Unfold m a b -> Unfold m a c
 -- mapM f = mapM2 (const f)
-mapM f (Unfold ustep uinject) = Unfold step uinject
-    where
-    {-# INLINE_LATE step #-}
-    step st = do
-        r <- ustep st
-        case r of
-            Yield x s -> f x >>= \a -> return $ Yield a s
-            Skip s    -> return $ Skip s
-            Stop      -> return Stop
+mapM f (Unfold ustep uinject) = Unfold (Producer.mapM f ustep) uinject
 
 -- | Carry the input along with the output as the first element of the output
 -- tuple.

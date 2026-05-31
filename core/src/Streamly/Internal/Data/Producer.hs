@@ -12,7 +12,8 @@
 
 module Streamly.Internal.Data.Producer
     (
-      mapMaybeM
+      mapM
+    , mapMaybeM
     , takeWhileM
     , unfoldrM
     )
@@ -23,10 +24,23 @@ where
 import Data.Functor ((<&>))
 import Streamly.Internal.Data.Stream.Step (Step(..))
 
+import Prelude hiding (mapM)
+
 -- | A stream transition: given the current state, produce the next 'Step'.
 -- The state type @a@ is also the type carried inside 'Step', so a 'Yield'
 -- delivers a new value alongside the updated state.
 type Producer m a b = a -> m (Step a b)
+
+{-# INLINE_LATE mapM #-}
+mapM :: Monad m => (b -> m c) -> Producer m s b -> Producer m s c
+mapM f step1 st = do
+    r <- step1 st
+    case r of
+        Yield x s -> do
+            b <- f x
+            return $ Yield b s
+        Skip s -> return (Skip s)
+        Stop   -> return Stop
 
 {-# INLINE_LATE mapMaybeM #-}
 mapMaybeM :: Monad m
