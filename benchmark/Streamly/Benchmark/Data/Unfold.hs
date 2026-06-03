@@ -180,31 +180,52 @@ fromStreamD :: Monad m => Int -> Int -> m ()
 fromStreamD size start =
     drainGeneration UF.fromStreamD (S.replicate size start)
 
-{-# INLINE _nilM #-}
-_nilM :: Monad m => Int -> Int -> m ()
-_nilM _ start = drainGeneration (UF.nilM return) start
+-- 'nilM' runs its action on the seed but yields no output, so unfold it over an
+-- outer source of value seeds to run it ~value times.
+{-# INLINE nilM #-}
+nilM :: Monad m => Int -> Int -> m ()
+nilM value start =
+    drainGeneration (UF.unfoldEach (UF.nilM return) (source (start + value))) start
 
 {-# INLINE consM #-}
 consM :: Monad m => Int -> Int -> m ()
 consM size start =
     drainTransformationDefault (size + start) (UF.consM return) start
 
-{-# INLINE _functionM #-}
-_functionM :: Monad m => Int -> Int -> m ()
-_functionM _ start = drainGeneration (UF.functionM return) start
+-- 'functionM', 'function', 'identity' and 'fromEffect' generate a single
+-- element per seed, so to process ~value elements we unfold them over an outer
+-- source of value seeds.
+{-# INLINE functionM #-}
+functionM :: Monad m => Int -> Int -> m ()
+functionM value start =
+    drainGeneration
+        (UF.unfoldEach (UF.functionM return) (source (start + value))) start
 
-{-# INLINE _function #-}
-_function :: Monad m => Int -> Int -> m ()
-_function _ start = drainGeneration (UF.function id) start
+{-# INLINE function #-}
+function :: Monad m => Int -> Int -> m ()
+function value start =
+    drainGeneration
+        (UF.unfoldEach (UF.function id) (source (start + value))) start
 
-{-# INLINE _identity #-}
-_identity :: Monad m => Int -> Int -> m ()
-_identity _ start = drainGeneration UF.identity start
+{-# INLINE identity #-}
+identity :: Monad m => Int -> Int -> m ()
+identity value start =
+    drainGeneration (UF.unfoldEach UF.identity (source (start + value))) start
 
-{-# INLINE _const #-}
-_const :: Monad m => Int -> Int -> m ()
-_const size start =
-    drainGeneration (UF.take size (UF.fromEffect (return start))) undefined
+{-# INLINE fromEffect #-}
+fromEffect :: Monad m => Int -> Int -> m ()
+fromEffect value start =
+    drainGeneration
+        (UF.unfoldEach (UF.fromEffect (return start)) (source (start + value)))
+        start
+
+-- 'fromTuple' generates two elements per seed, so unfold it over value/2 tuples
+-- to emit and drain ~value elements.
+{-# INLINE fromTuple #-}
+fromTuple :: Monad m => Int -> Int -> m ()
+fromTuple value start =
+    let outer = UF.map (\i -> (i, i)) (source (start + value `div` 2))
+     in drainGeneration (UF.unfoldEach UF.fromTuple outer) start
 
 {-# INLINE sourceUnfoldrM #-}
 sourceUnfoldrM :: Monad m => Int -> Int -> Unfold m Int Int
@@ -359,10 +380,14 @@ filterM size start =
         (UF.filterM (\_ -> (return True)))
         start
 
-{-# INLINE _dropOne #-}
-_dropOne :: Monad m => Int -> Int -> m ()
-_dropOne size start =
-    drainTransformationDefault (size + start) (UF.drop 1) start
+-- Dropping one element from a large stream is dominated by generation, so
+-- instead exercise 'drop' ~value/2 times: generate value/2 two-element streams
+-- with 'fromTuple', 'drop' the first element of each, and flatten the rest.
+{-# INLINE dropOne #-}
+dropOne :: Monad m => Int -> Int -> m ()
+dropOne value start =
+    let outer = UF.map (\i -> (i, i)) (source (start + value `div` 2))
+     in drainGeneration (UF.unfoldEach (UF.drop 1 UF.fromTuple) outer) start
 
 {-# INLINE dropAll #-}
 dropAll :: Monad m => Int -> Int -> m ()
@@ -678,19 +703,16 @@ o_1_space_generation size =
           [ benchIO "fromStream" $ fromStream size
           , benchIO "fromStreamK" $ fromStreamK size
           , benchIO "fromStreamD" $ fromStreamD size
-          -- Very small benchmarks, reporting in ns
-          -- , benchIO "nilM" $ nilM size
+          , benchIO "nilM" $ nilM size
           , benchIO "consM" $ consM size
-          -- , benchIO "functionM" $ functionM size
-          -- , benchIO "function" $ function size
-          -- , benchIO "identity" $ identity size
-          -- , benchIO "const" $ const size
+          , benchIO "functionM" $ functionM size
+          , benchIO "function" $ function size
+          , benchIO "identity" $ identity size
+          , benchIO "fromEffect" $ fromEffect size
+          , benchIO "fromTuple" $ fromTuple size
           , benchIO "unfoldrM" $ unfoldrM size
           , benchIO "fromList" $ fromList size
           , benchIO "fromListM" $ fromListM size
-          -- Unimplemented
-          -- , benchIO "fromSVar" $ fromSVar size
-          -- , benchIO "fromProducer" $ fromProducer size
           , benchIO "replicateM" $ replicateM size
           , benchIO "repeatM" $ repeatM size
           , benchIO "iterateM" $ iterateM size
@@ -724,8 +746,7 @@ o_1_space_filtering size =
           , benchIO "take" $ take size
           , benchIO "filter" $ filter size
           , benchIO "filterM" $ filterM size
-          -- Very small benchmark, reporting in ns
-          -- , benchIO "dropOne" $ dropOne size
+          , benchIO "dropOne" $ dropOne size
           , benchIO "dropAll" $ dropAll size
           , benchIO "dropWhileTrue" $ dropWhileTrue size
           , benchIO "dropWhileFalse" $ dropWhileFalse size

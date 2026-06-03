@@ -39,6 +39,16 @@ import Prelude hiding (repeat, replicate, iterate)
 sourceFromList :: Monad m => Int -> Int -> Stream m Int
 sourceFromList value n = Stream.fromList [n..n+value]
 
+-- | 'fromTuple' yields two elements per tuple. To emit and drain ~value
+-- elements we generate value/2 tuples and reduce each tuple's 'fromTuple'
+-- stream with a light 'sum' fold (avoiding a heavy, non-fusible 'concatMap'
+-- that would mask the cost of 'fromTuple').
+{-# INLINE sourceFromTuple #-}
+sourceFromTuple :: Monad m => Int -> Int -> Stream m Int
+sourceFromTuple value n =
+    Stream.mapM (Stream.fold Fold.sum . Stream.fromTuple)
+        $ Stream.fromList (fmap (\i -> (i, i)) [n .. n + value `div` 2])
+
 {-# INLINE sourceFromListM #-}
 sourceFromListM :: MonadAsync m => Int -> Int -> Stream m Int
 sourceFromListM value n = fromListM (fmap return [n..n+value])
@@ -168,6 +178,7 @@ o_1_space_generation value =
         , benchIOSrc "fracFromThenTo" (sourceFracFromThenTo value)
         , benchIOSrc "fracFromTo" (sourceFracFromTo value)
         , benchIOSrc "fromList" (sourceFromList value)
+        , benchIOSrc "fromTuple" (sourceFromTuple value)
         , benchIOSrc "fromListM" (sourceFromListM value)
         , benchPureSrc "IsList.fromList" (sourceIsList value)
         , benchPureSrc "IsString.fromString" (sourceIsString value)
