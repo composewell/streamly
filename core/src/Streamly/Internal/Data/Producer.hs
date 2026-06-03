@@ -19,11 +19,13 @@ module Streamly.Internal.Data.Producer
     , TupleState(..)
     , ConcatState(..)
     , InterleaveState(..)
+    , InterleaveEachState(..)
     , ConcatMapState(..)
     , InnerProducer(..)
     , concatMapM
     , unfoldEach
     , unfoldEachInterleave
+    , interleave
     , crossApply
     , crossApplyFst
     , crossApplySnd
@@ -313,7 +315,7 @@ unfoldEach _ _ step2 (ConcatInner ost ist) = do
 -- between the two lists, reversing the traversal direction at each end (a
 -- boustrophedon walk) so that no per-round reversal or difference-list closure
 -- is needed.
-data InterleaveState o i =
+data InterleaveEachState o i =
       InterleaveOuter o [i]
     | InterleaveInner o [i]
     | InterleaveInnerL [i] [i]
@@ -333,7 +335,7 @@ unfoldEachInterleave
     => (b -> m s2)
     -> Producer m s1 b
     -> Producer m s2 c
-    -> Producer m (InterleaveState s1 s2) c
+    -> Producer m (InterleaveEachState s1 s2) c
 unfoldEachInterleave inject2 step1 _ (InterleaveOuter o ls) = do
     r <- step1 o
     case r of
@@ -370,6 +372,51 @@ unfoldEachInterleave _ _ step2 (InterleaveInnerR ls (st:rs)) = do
         Yield x s -> Yield x (InterleaveInnerR (s:ls) rs)
         Skip s    -> Skip (InterleaveInnerR ls (s:rs))
         Stop      -> Skip (InterleaveInnerR ls rs)
+
+-- | State of an 'interleave' producer. @s1@ and @s2@ are the states of the two
+-- producers being interleaved. We alternate stepping the first and the second
+-- producer; once one of them stops we switch to a state that drains only the
+-- other.
+data InterleaveState s1 s2 =
+      InterleaveFirst s1 s2
+    | InterleaveSecond s1 s2
+    | InterleaveSecondOnly s2
+    | InterleaveFirstOnly s1
+
+-- | Interleave the elements produced by two producers, yielding one element
+-- from each alternately, starting from the first. When one producer stops, the
+-- remaining elements of the other are emitted. Both producers are completely
+-- exhausted.
+{-# INLINE_LATE interleave #-}
+interleave
+    :: Monad m
+    => Producer m s1 c
+    -> Producer m s2 c
+    -> Producer m (InterleaveState s1 s2) c
+interleave step1 _ (InterleaveFirst st1 st2) = do
+    r <- step1 st1
+    return $ case r of
+        Yield a s -> Yield a (InterleaveSecond s st2)
+        Skip s    -> Skip (InterleaveFirst s st2)
+        Stop      -> Skip (InterleaveSecondOnly st2)
+interleave _ step2 (InterleaveSecond st1 st2) = do
+    r <- step2 st2
+    return $ case r of
+        Yield a s -> Yield a (InterleaveFirst st1 s)
+        Skip s    -> Skip (InterleaveSecond st1 s)
+        Stop      -> Skip (InterleaveFirstOnly st1)
+interleave step1 _ (InterleaveFirstOnly st1) = do
+    r <- step1 st1
+    return $ case r of
+        Yield a s -> Yield a (InterleaveFirstOnly s)
+        Skip s    -> Skip (InterleaveFirstOnly s)
+        Stop      -> Stop
+interleave _ step2 (InterleaveSecondOnly st2) = do
+    r <- step2 st2
+    return $ case r of
+        Yield a s -> Yield a (InterleaveSecondOnly s)
+        Skip s    -> Skip (InterleaveSecondOnly s)
+        Stop      -> Stop
 
 {-# INLINE_LATE mapM #-}
 mapM :: Monad m => (b -> m c) -> Producer m s b -> Producer m s c

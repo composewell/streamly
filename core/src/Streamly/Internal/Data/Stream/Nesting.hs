@@ -384,38 +384,12 @@ data InterleaveState s1 s2 = InterleaveFirst s1 s2 | InterleaveSecond s1 s2
 {-# INLINE_NORMAL interleave #-}
 interleave :: Monad m => Stream m a -> Stream m a -> Stream m a
 interleave (Stream step1 state1) (Stream step2 state2) =
-    Stream step (InterleaveFirst state1 state2)
+    Stream step (Producer.InterleaveFirst state1 state2)
 
     where
 
     {-# INLINE_LATE step #-}
-    step gst (InterleaveFirst st1 st2) = do
-        r <- step1 gst st1
-        return $ case r of
-            Yield a s -> Yield a (InterleaveSecond s st2)
-            Skip s -> Skip (InterleaveFirst s st2)
-            Stop -> Skip (InterleaveSecondOnly st2)
-
-    step gst (InterleaveSecond st1 st2) = do
-        r <- step2 gst st2
-        return $ case r of
-            Yield a s -> Yield a (InterleaveFirst st1 s)
-            Skip s -> Skip (InterleaveSecond st1 s)
-            Stop -> Skip (InterleaveFirstOnly st1)
-
-    step gst (InterleaveFirstOnly st1) = do
-        r <- step1 gst st1
-        return $ case r of
-            Yield a s -> Yield a (InterleaveFirstOnly s)
-            Skip s -> Skip (InterleaveFirstOnly s)
-            Stop -> Stop
-
-    step gst (InterleaveSecondOnly st2) = do
-        r <- step2 gst st2
-        return $ case r of
-            Yield a s -> Yield a (InterleaveSecondOnly s)
-            Skip s -> Skip (InterleaveSecondOnly s)
-            Stop -> Stop
+    step gst = Producer.interleave (step1 gst) (step2 gst)
 
 -- XXX Check the performance of the implementation, we can write a custom one.
 

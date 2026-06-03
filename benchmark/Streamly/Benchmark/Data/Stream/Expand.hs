@@ -81,7 +81,7 @@ interleave2 count n =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'interleave2
 inspect $ 'interleave2 `hasNoType` ''SPEC
-inspect $ 'interleave2 `hasNoType` ''S.InterleaveState
+inspect $ 'interleave2 `hasNoType` ''Producer.InterleaveState
 #endif
 
 {-# INLINE roundRobin2 #-}
