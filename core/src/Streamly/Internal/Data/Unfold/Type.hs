@@ -333,9 +333,7 @@ both a = lmap (Prelude.const a)
 -- as a seed resulting in a fold that accepts the second component of the tuple
 -- as a seed.
 --
--- @
--- supplyFirst a = Unfold.lmap (a, )
--- @
+-- >>> supplyFirst a = Unfold.lmap (a, )
 --
 -- /Pre-release/
 --
@@ -349,9 +347,7 @@ RENAME(first,supplyFirst)
 -- as a seed resulting in a fold that accepts the first component of the tuple
 -- as a seed.
 --
--- @
--- supplySecond b = Unfold.lmap (, b)
--- @
+-- >>> supplySecond b = Unfold.lmap (, b)
 --
 -- /Pre-release/
 --
@@ -445,7 +441,7 @@ mapM f (Unfold ustep uinject) = Unfold (Producer.mapM f ustep) uinject
 -- | Carry the input along with the output as the first element of the output
 -- tuple.
 --
--- carryInput = Unfold.lmap (\x -> (x,x)) . Unfold.zipRepeat
+-- >>> carryInput = Unfold.lmap (\x -> (x,x)) . Unfold.zipRepeat
 --
 -- Note that the input seed may mutate (e.g. if the seed is a Handle or IORef)
 -- as stream is generated from it, so we need to be careful when reusing the
@@ -534,6 +530,8 @@ instance Functor m => Functor (Unfold m a) where
 -- | The unfold discards its input and generates a function stream using the
 -- supplied monadic action.
 --
+-- >>> fromEffect m = Unfold.functionM (const m)
+--
 -- /Pre-release/
 {-# INLINE fromEffect #-}
 fromEffect :: Applicative m => m b -> Unfold m a b
@@ -544,7 +542,7 @@ fromEffect m = Unfold (Producer.fromEffect m) (const $ pure True)
 
 -- | Discards the unfold input and always returns the argument of 'fromPure'.
 --
--- > fromPure = fromEffect . pure
+-- >>> fromPure = Unfold.fromEffect . pure
 --
 -- /Pre-release/
 {-# INLINE fromPure #-}
@@ -841,6 +839,8 @@ instance Monad m => Monad (Unfold m a) where
 -- | Lift a monadic function into an unfold. The unfold generates a singleton
 -- stream.
 --
+-- >>> functionM f = Unfold.lmapM f Unfold.identity
+--
 {-# INLINE functionM #-}
 functionM :: Applicative m => (a -> m b) -> Unfold m a b
 functionM f = Unfold (Producer.functionM f) (pure . Just)
@@ -848,7 +848,7 @@ functionM f = Unfold (Producer.functionM f) (pure . Just)
 -- | Lift a pure function into an unfold. The unfold generates a singleton
 -- stream.
 --
--- > function f = functionM $ return . f
+-- >>> function f = Unfold.functionM $ pure . f
 --
 {-# INLINE function #-}
 function :: Applicative m => (a -> b) -> Unfold m a b
@@ -874,7 +874,7 @@ functionMaybeM f = Unfold step inject
 -- | Identity unfold. The unfold generates a singleton stream having the input
 -- as the only element.
 --
--- > identity = function id
+-- >>> identity = Unfold.function id
 --
 -- /Pre-release/
 {-# INLINE identity #-}
@@ -987,7 +987,7 @@ zipWithM f (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
 -- >>> Unfold.fold Fold.toList u [1..5]
 -- [(1,1),(4,8),(9,27),(16,64),(25,125)]
 --
--- > zipWith f = zipWithM (\a b -> return $ f a b)
+-- >>> zipWith f = Unfold.zipWithM (\a b -> return $ f a b)
 --
 {-# INLINE zipWith #-}
 zipWith :: Monad m
@@ -1060,7 +1060,7 @@ interleave (Unfold step1 inject1) (Unfold step2 inject2) =
     {-# INLINE_LATE step #-}
     step st = Producer.interleave step1 step2 st
 
--- | See 'Streamly.Internal.Data.Stream.unfoldEachInterleave' for
+-- | See 'Streamly.Internal.Data.Stream.altBfsUnfoldEach' for
 -- documentation and notes.
 --
 -- /Internal/
