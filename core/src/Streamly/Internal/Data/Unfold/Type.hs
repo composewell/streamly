@@ -767,10 +767,6 @@ instance Monad m => Applicative (Unfold m a) where
 -- Monad
 ------------------------------------------------------------------------------
 
-data ConcatMapState m b s1 x =
-      ConcatMapOuter x s1
-    | forall s2. ConcatMapInner x s1 s2 (s2 -> m (Step s2 b))
-
 -- XXX This is experimental. We should rather use streams if concatMap like
 -- functionality is needed. This is no more efficient than streams.
 
@@ -786,25 +782,15 @@ concatMapM f (Unfold step1 inject1) = Unfold step inject
 
     inject x = do
         s <- inject1 x
-        return $ ConcatMapOuter x s
+        return $ Producer.ConcatMapOuter x s
+
+    g seed x = do
+        Unfold istep iinject <- f x
+        ist <- iinject seed
+        return $ Producer.InnerProducer istep ist
 
     {-# INLINE_LATE step #-}
-    step (ConcatMapOuter seed st) = do
-        r <- step1 st
-        case r of
-            Yield x s -> do
-                Unfold step2 inject2 <- f x
-                innerSt <- inject2 seed
-                return $ Skip (ConcatMapInner seed s innerSt step2)
-            Skip s    -> return $ Skip (ConcatMapOuter seed s)
-            Stop      -> return Stop
-
-    step (ConcatMapInner seed ost ist istep) = do
-        r <- istep ist
-        return $ case r of
-            Yield x s -> Yield x (ConcatMapInner seed ost s istep)
-            Skip s    -> Skip (ConcatMapInner seed ost s istep)
-            Stop      -> Skip (ConcatMapOuter seed ost)
+    step = Producer.concatMapM g step1
 
 {-# INLINE concatMap #-}
 concatMap :: Monad m => (b -> Unfold m a c) -> Unfold m a b -> Unfold m a c

@@ -17,6 +17,9 @@ module Streamly.Internal.Data.Producer
     , CrossState(..)
     , FairCrossState(..)
     , TupleState(..)
+    , ConcatMapState(..)
+    , InnerProducer(..)
+    , concatMapM
     , crossApply
     , crossApplyFst
     , crossApplySnd
@@ -232,6 +235,43 @@ fairCrossWithM f _ _ step2 (FairCrossDrain ys ((b, st):ls)) = do
                 return $ Yield d (FairCrossDrain (ys . ((b, s) :)) ls)
         Skip s -> return $ Skip (FairCrossDrain ys ((b, s) : ls))
         Stop -> return $ Skip (FairCrossDrain ys ls)
+
+-- | An inner producer of a 'concatMapM' bundling its step function with its
+-- current state. It is the existential package that allows the dynamically
+-- generated inner stream to be stored in the loop state of 'concatMapM'.
+data InnerProducer m c = forall s. InnerProducer (s -> m (Step s c)) s
+
+-- | State of a 'concatMapM' producer. @x@ is the seed carried for the whole
+-- loop (used to (re)generate the inner producer for each outer element), @s1@
+-- is the outer producer's state.
+data ConcatMapState m c x s1 =
+      ConcatMapOuter x s1
+    | ConcatMapInner x s1 (InnerProducer m c)
+
+-- | Map an inner-producer generating action to each element of the outer
+-- producer and flatten the results into a single stream. The supplied function
+-- is given the loop seed @x@ along with the outer element so that the inner
+-- producer can be (re)generated from the seed.
+{-# INLINE_LATE concatMapM #-}
+concatMapM
+    :: Monad m
+    => (x -> b -> m (InnerProducer m c))
+    -> Producer m s1 b
+    -> Producer m (ConcatMapState m c x s1) c
+concatMapM f step1 (ConcatMapOuter seed st) = do
+    r <- step1 st
+    case r of
+        Yield b s -> do
+            inner <- f seed b
+            return $ Skip (ConcatMapInner seed s inner)
+        Skip s -> return $ Skip (ConcatMapOuter seed s)
+        Stop -> return Stop
+concatMapM _ _ (ConcatMapInner seed ost (InnerProducer istep ist)) = do
+    r <- istep ist
+    return $ case r of
+        Yield x s -> Yield x (ConcatMapInner seed ost (InnerProducer istep s))
+        Skip s -> Skip (ConcatMapInner seed ost (InnerProducer istep s))
+        Stop -> Skip (ConcatMapOuter seed ost)
 
 {-# INLINE_LATE mapM #-}
 mapM :: Monad m => (b -> m c) -> Producer m s b -> Producer m s c
