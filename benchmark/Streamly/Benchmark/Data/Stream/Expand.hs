@@ -78,12 +78,6 @@ interleave2 count n =
             (sourceUnfoldrM count n)
             (sourceUnfoldrM count (n + 1))
 
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'interleave2
-inspect $ 'interleave2 `hasNoType` ''SPEC
-inspect $ 'interleave2 `hasNoType` ''Producer.InterleaveState
-#endif
-
 {-# INLINE roundRobin2 #-}
 roundRobin2 :: Int -> Int -> IO ()
 roundRobin2 value n =
@@ -91,12 +85,6 @@ roundRobin2 value n =
     S.roundRobin
         (sourceUnfoldrM (value `div` 2) n)
         (sourceUnfoldrM (value `div` 2) (n + 1))
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'roundRobin2
-inspect $ 'roundRobin2 `hasNoType` ''SPEC
-inspect $ 'roundRobin2 `hasNoType` ''S.InterleaveState
-#endif
 
 -------------------------------------------------------------------------------
 -- Merging
@@ -142,39 +130,17 @@ mergeBy = mergeWith Stream.mergeBy
 mergeByM :: (Int -> Int -> Ordering) -> Int -> Int -> IO ()
 mergeByM = mergeWithM Stream.mergeByM
 
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'mergeBy
-inspect $ 'mergeBy `hasNoType` ''SPEC
--- inspect $ 'mergeBy `hasNoType` ''S.Step
-
-inspect $ hasNoTypeClasses 'mergeByM
-inspect $ 'mergeByM `hasNoType` ''SPEC
--- inspect $ 'mergeByM `hasNoType` ''S.Step
-#endif
-
 -------------------------------------------------------------------------------
 -- Zipping
 -------------------------------------------------------------------------------
 
 {-# INLINE zipWith #-}
-zipWith :: Monad m => Stream m Int -> m ()
+zipWith :: Stream IO Int -> IO ()
 zipWith src = drain $ S.zipWith (,) src src
 
-#ifdef INSPECTION
--- inspect $ hasNoTypeClasses 'zipWith
-inspect $ 'zipWith `hasNoType` ''SPEC
--- inspect $ 'zipWith `hasNoType` ''S.Step
-#endif
-
 {-# INLINE zipWithM #-}
-zipWithM :: Monad m => Stream m Int -> m ()
+zipWithM :: Stream IO Int -> IO ()
 zipWithM src = drain $ S.zipWithM (curry return) src src
-
-#ifdef INSPECTION
--- inspect $ hasNoTypeClasses 'zipWithM
-inspect $ 'zipWithM `hasNoType` ''SPEC
--- inspect $ 'zipWithM `hasNoType` ''S.Step
-#endif
 
 -------------------------------------------------------------------------------
 -- joining 2 streams using n-ary ops
@@ -199,13 +165,6 @@ bfsUnfoldEach outer inner n =
         (UF.lmap (\x -> (x,x)) (sourceUnfoldrMUF inner))
         (sourceUnfoldrM outer n)
 
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'bfsUnfoldEach
--- inspect $ 'bfsUnfoldEach `hasNoType` ''SPEC
--- inspect $ 'bfsUnfoldEach `hasNoType`
---      ''S.ConcatUnfoldInterleaveState
-#endif
-
 {-# INLINE altBfsUnfoldEach #-}
 altBfsUnfoldEach :: Int -> Int -> Int -> IO ()
 altBfsUnfoldEach outer inner n =
@@ -214,13 +173,6 @@ altBfsUnfoldEach outer inner n =
         (UF.lmap (\x -> (x,x)) (sourceUnfoldrMUF inner))
         (sourceUnfoldrM outer n)
 
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'altBfsUnfoldEach
--- inspect $ 'altBfsUnfoldEach `hasNoType` ''SPEC
--- inspect $ 'altBfsUnfoldEach `hasNoType`
---      ''S.ConcatUnfoldInterleaveState
-#endif
-
 {-# INLINE unfoldSched #-}
 unfoldSched :: Int -> Int -> Int -> IO ()
 unfoldSched outer inner n =
@@ -228,13 +180,6 @@ unfoldSched outer inner n =
         -- (UF.lmap return (UF.replicateM inner))
         (UF.lmap (\x -> (x,x)) (sourceUnfoldrMUF inner))
         (sourceUnfoldrM outer n)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'unfoldSched
--- inspect $ 'unfoldSched `hasNoType` ''SPEC
--- inspect $ 'unfoldSched `hasNoType`
---      ''Stream.ConcatUnfoldInterleaveState
-#endif
 
 o_1_space_joining :: Int -> [Benchmark]
 o_1_space_joining value =
@@ -298,11 +243,6 @@ concatMapM outer inner n =
         (\_ -> return $ sourceUnfoldrM inner n)
         (sourceUnfoldrM outer n)
 
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'concatMap
-inspect $ 'concatMap `hasNoType` ''SPEC
-#endif
-
 -- concatMap unfoldr/unfoldr
 
 {-# INLINE concatMapPure #-}
@@ -311,15 +251,6 @@ concatMapPure outer inner n =
     drain $ S.concatMap
         (\_ -> sourceUnfoldr inner n)
         (sourceUnfoldr outer n)
-
-#ifdef INSPECTION
-#if __GLASGOW_HASKELL__ >= 906
-inspect $ hasNoTypeClassesExcept 'concatMapPure [''Applicative]
-#else
-inspect $ hasNoTypeClasses 'concatMapPure
-#endif
-inspect $ 'concatMapPure `hasNoType` ''SPEC
-#endif
 
 {-# INLINE sourceUnfoldrMUnfold #-}
 sourceUnfoldrMUnfold :: Monad m => Int -> Int -> Unfold m Int Int
@@ -341,12 +272,6 @@ unfoldEach outer inner start = drain $
      -- S.unfoldEach (UF.lmap ((inner,) . return) UF.replicateM)
      S.unfoldEach (sourceUnfoldrMUnfold inner start)
         $ sourceUnfoldrM outer start
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'unfoldEach
-inspect $ 'unfoldEach `hasNoType` ''Producer.ConcatState
-inspect $ 'unfoldEach `hasNoType` ''SPEC
-#endif
 
 {-# INLINE unfoldEach2 #-}
 unfoldEach2 :: Int -> Int -> Int -> IO ()
@@ -920,6 +845,106 @@ o_n_heap_buffering value =
     halfVal = value `div` 2
     sqrtVal = round $ sqrt (fromIntegral value :: Double)
 -}
+
+-------------------------------------------------------------------------------
+-- Inspection
+-------------------------------------------------------------------------------
+
+#ifdef INSPECTION
+-- Combinators that combine two or more streams via direct (non-concatMap)
+-- fusion must fully fuse: no stream constructors (the 'Yield', 'Skip' and
+-- 'Stop' of the 'Step' type) should remain in the optimized core. The
+-- 'concatMap', monadic 'bind', scheduling ('bfs'/'sched'), 'merge' and 'zip'
+-- based combinators thread the other stream through opaque state, so their
+-- 'Step' constructors survive; those 'S.Step' checks are kept but commented
+-- out.
+
+-- Appending
+inspect $ hasNoTypeClasses 'serial2
+inspect $ 'serial2 `hasNoType` ''SPEC
+inspect $ 'serial2 `hasNoType` ''S.Step
+inspect $ 'serial2 `hasNoType` ''Fold.Step
+inspect $ hasNoTypeClasses 'serial4
+inspect $ 'serial4 `hasNoType` ''SPEC
+inspect $ 'serial4 `hasNoType` ''S.Step
+inspect $ 'serial4 `hasNoType` ''Fold.Step
+
+-- Interleaving
+inspect $ hasNoTypeClasses 'interleave2
+inspect $ 'interleave2 `hasNoType` ''SPEC
+inspect $ 'interleave2 `hasNoType` ''Producer.InterleaveState
+inspect $ 'interleave2 `hasNoType` ''S.Step
+inspect $ 'interleave2 `hasNoType` ''Fold.Step
+inspect $ hasNoTypeClasses 'roundRobin2
+inspect $ 'roundRobin2 `hasNoType` ''SPEC
+inspect $ 'roundRobin2 `hasNoType` ''S.InterleaveState
+inspect $ 'roundRobin2 `hasNoType` ''S.Step
+inspect $ 'roundRobin2 `hasNoType` ''Fold.Step
+
+-- Merging
+inspect $ hasNoTypeClasses 'mergeBy
+inspect $ 'mergeBy `hasNoType` ''SPEC
+-- inspect $ 'mergeBy `hasNoType` ''S.Step
+inspect $ 'mergeBy `hasNoType` ''Fold.Step
+inspect $ hasNoTypeClasses 'mergeByM
+inspect $ 'mergeByM `hasNoType` ''SPEC
+-- inspect $ 'mergeByM `hasNoType` ''S.Step
+inspect $ 'mergeByM `hasNoType` ''Fold.Step
+
+-- Zipping
+inspect $ 'zipWith `hasNoType` ''SPEC
+-- inspect $ 'zipWith `hasNoType` ''S.Step
+inspect $ 'zipWith `hasNoType` ''Fold.Step
+inspect $ 'zipWithM `hasNoType` ''SPEC
+-- inspect $ 'zipWithM `hasNoType` ''S.Step
+inspect $ 'zipWithM `hasNoType` ''Fold.Step
+
+-- joining 2 streams using n-ary ops
+inspect $ hasNoTypeClasses 'bfsUnfoldEach
+-- inspect $ 'bfsUnfoldEach `hasNoType` ''S.Step
+inspect $ 'bfsUnfoldEach `hasNoType` ''Fold.Step
+inspect $ 'bfsUnfoldEach `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'altBfsUnfoldEach
+-- inspect $ 'altBfsUnfoldEach `hasNoType` ''S.Step
+inspect $ 'altBfsUnfoldEach `hasNoType` ''Fold.Step
+-- inspect $ 'altBfsUnfoldEach `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'unfoldSched
+-- inspect $ 'unfoldSched `hasNoType` ''S.Step
+inspect $ 'unfoldSched `hasNoType` ''Fold.Step
+inspect $ 'unfoldSched `hasNoType` ''SPEC
+
+-- Concat
+inspect $ hasNoTypeClasses 'concatMap
+inspect $ 'concatMap `hasNoType` ''SPEC
+-- inspect $ 'concatMap `hasNoType` ''S.Step
+inspect $ 'concatMap `hasNoType` ''Fold.Step
+#if __GLASGOW_HASKELL__ >= 906
+inspect $ hasNoTypeClassesExcept 'concatMapPure [''Applicative]
+#else
+inspect $ hasNoTypeClasses 'concatMapPure
+#endif
+inspect $ 'concatMapPure `hasNoType` ''SPEC
+-- inspect $ 'concatMapPure `hasNoType` ''S.Step
+inspect $ 'concatMapPure `hasNoType` ''Fold.Step
+
+inspect $ hasNoTypeClasses 'unfoldEach
+inspect $ 'unfoldEach `hasNoType` ''Producer.ConcatState
+inspect $ 'unfoldEach `hasNoType` ''SPEC
+inspect $ 'unfoldEach `hasNoType` ''S.Step
+inspect $ 'unfoldEach `hasNoType` ''Fold.Step
+inspect $ hasNoTypeClasses 'unfoldEach2
+inspect $ 'unfoldEach2 `hasNoType` ''S.Step
+inspect $ 'unfoldEach2 `hasNoType` ''Fold.Step
+inspect $ 'unfoldEach2 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'unfoldEach3
+inspect $ 'unfoldEach3 `hasNoType` ''S.Step
+inspect $ 'unfoldEach3 `hasNoType` ''Fold.Step
+inspect $ 'unfoldEach3 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'unfoldCross
+inspect $ 'unfoldCross `hasNoType` ''S.Step
+inspect $ 'unfoldCross `hasNoType` ''Fold.Step
+inspect $ 'unfoldCross `hasNoType` ''SPEC
+#endif
 
 -------------------------------------------------------------------------------
 -- Main
