@@ -18,10 +18,12 @@ module Streamly.Internal.Data.Producer
     , FairCrossState(..)
     , TupleState(..)
     , ConcatState(..)
+    , InterleaveState(..)
     , ConcatMapState(..)
     , InnerProducer(..)
     , concatMapM
     , unfoldEach
+    , unfoldEachInterleave
     , crossApply
     , crossApplyFst
     , crossApplySnd
@@ -304,6 +306,70 @@ unfoldEach _ _ step2 (ConcatInner ost ist) = do
         Yield x s -> Yield x (ConcatInner ost s)
         Skip s    -> Skip (ConcatInner ost s)
         Stop      -> Skip (ConcatOuter ost)
+
+-- | State of an 'unfoldEachInterleave' producer. @o@ is the outer producer's
+-- state and @i@ an inner producer's state. The @[i]@ lists hold the live inner
+-- producers; we step one inner producer per round and shuttle the survivors
+-- between the two lists, reversing the traversal direction at each end (a
+-- boustrophedon walk) so that no per-round reversal or difference-list closure
+-- is needed.
+data InterleaveState o i =
+      InterleaveOuter o [i]
+    | InterleaveInner o [i]
+    | InterleaveInnerL [i] [i]
+    | InterleaveInnerR [i] [i]
+
+-- | Run the inner producer for every element of the outer producer, like
+-- 'unfoldEach', but interleave the inner producers breadth-first instead of
+-- concatenating them: advance each live inner producer by one step in a round
+-- before moving on to the next. After the outer producer is exhausted the
+-- direction of traversal is reversed at each end, alternating the order on
+-- successive rounds. The same statically known inner producer is used for every
+-- outer element; only its state is (re)injected from the outer element via the
+-- supplied action.
+{-# INLINE_LATE unfoldEachInterleave #-}
+unfoldEachInterleave
+    :: Monad m
+    => (b -> m s2)
+    -> Producer m s1 b
+    -> Producer m s2 c
+    -> Producer m (InterleaveState s1 s2) c
+unfoldEachInterleave inject2 step1 _ (InterleaveOuter o ls) = do
+    r <- step1 o
+    case r of
+        Yield a o1 -> do
+            i <- inject2 a
+            i `seq` return (Skip (InterleaveInner o1 (i : ls)))
+        Skip o1 -> return $ Skip (InterleaveOuter o1 ls)
+        Stop -> return $ Skip (InterleaveInnerL ls [])
+
+unfoldEachInterleave _ _ _ (InterleaveInner _ []) = undefined
+unfoldEachInterleave _ _ step2 (InterleaveInner o (st:ls)) = do
+    r <- step2 st
+    return $ case r of
+        Yield x s -> Yield x (InterleaveOuter o (s:ls))
+        Skip s    -> Skip (InterleaveInner o (s:ls))
+        Stop      -> Skip (InterleaveOuter o ls)
+
+unfoldEachInterleave _ _ _ (InterleaveInnerL [] []) = return Stop
+unfoldEachInterleave _ _ _ (InterleaveInnerL [] rs) =
+    return $ Skip (InterleaveInnerR [] rs)
+unfoldEachInterleave _ _ step2 (InterleaveInnerL (st:ls) rs) = do
+    r <- step2 st
+    return $ case r of
+        Yield x s -> Yield x (InterleaveInnerL ls (s:rs))
+        Skip s    -> Skip (InterleaveInnerL (s:ls) rs)
+        Stop      -> Skip (InterleaveInnerL ls rs)
+
+unfoldEachInterleave _ _ _ (InterleaveInnerR [] []) = return Stop
+unfoldEachInterleave _ _ _ (InterleaveInnerR ls []) =
+    return $ Skip (InterleaveInnerL ls [])
+unfoldEachInterleave _ _ step2 (InterleaveInnerR ls (st:rs)) = do
+    r <- step2 st
+    return $ case r of
+        Yield x s -> Yield x (InterleaveInnerR (s:ls) rs)
+        Skip s    -> Skip (InterleaveInnerR ls (s:rs))
+        Stop      -> Skip (InterleaveInnerR ls rs)
 
 {-# INLINE_LATE mapM #-}
 mapM :: Monad m => (b -> m c) -> Producer m s b -> Producer m s c

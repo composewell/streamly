@@ -97,7 +97,6 @@ module Streamly.Internal.Data.Stream.Nesting
     -- stream, append the resulting streams and flatten. A special case of
     -- intercalate.
     , unfoldEachFoldBy
-    , ConcatUnfoldInterleaveState (..)
     , bfsUnfoldEach -- XXX breadthFirstUnfoldEach / bfUnfoldEach
     , altBfsUnfoldEach -- alternating directions
     , fairUnfoldEach
@@ -178,6 +177,7 @@ import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
+import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream.Generate as Stream
 import qualified Streamly.Internal.Data.Unfold.Type as Unfold
 
@@ -1141,12 +1141,6 @@ bfsUnfoldEach (Unfold istep inject) (Stream ostep ost) =
             Skip s    -> Skip (BfsUnfoldEachInner (s:ls) rs)
             Stop      -> Skip (BfsUnfoldEachInner ls rs)
 
-data ConcatUnfoldInterleaveState o i =
-      ConcatUnfoldInterleaveOuter o [i]
-    | ConcatUnfoldInterleaveInner o [i]
-    | ConcatUnfoldInterleaveInnerL [i] [i]
-    | ConcatUnfoldInterleaveInnerR [i] [i]
-
 -- | Like 'bfsUnfoldEach' but reverses the traversal direction after reaching
 -- the last stream and then after reaching the first stream, thus alternating
 -- the directions. This could be a little bit more efficient if the order of
@@ -1162,49 +1156,16 @@ data ConcatUnfoldInterleaveState o i =
 altBfsUnfoldEach, unfoldInterleave :: Monad m =>
     Unfold m a b -> Stream m a -> Stream m b
 altBfsUnfoldEach (Unfold istep inject) (Stream ostep ost) =
-    Stream step (ConcatUnfoldInterleaveOuter ost [])
+    Stream step (Producer.InterleaveOuter ost [])
 
     where
 
     {-# INLINE_LATE step #-}
-    step gst (ConcatUnfoldInterleaveOuter o ls) = do
-        r <- ostep (adaptState gst) o
-        case r of
-            Yield a o' -> do
-                i <- inject a
-                i `seq` return (Skip (ConcatUnfoldInterleaveInner o' (i : ls)))
-            Skip o' -> return $ Skip (ConcatUnfoldInterleaveOuter o' ls)
-            Stop -> return $ Skip (ConcatUnfoldInterleaveInnerL ls [])
-
-    step _ (ConcatUnfoldInterleaveInner _ []) = undefined
-    step _ (ConcatUnfoldInterleaveInner o (st:ls)) = do
-        r <- istep st
-        return $ case r of
-            Yield x s -> Yield x (ConcatUnfoldInterleaveOuter o (s:ls))
-            Skip s    -> Skip (ConcatUnfoldInterleaveInner o (s:ls))
-            Stop      -> Skip (ConcatUnfoldInterleaveOuter o ls)
-
-    step _ (ConcatUnfoldInterleaveInnerL [] []) = return Stop
-    step _ (ConcatUnfoldInterleaveInnerL [] rs) =
-        return $ Skip (ConcatUnfoldInterleaveInnerR [] rs)
-
-    step _ (ConcatUnfoldInterleaveInnerL (st:ls) rs) = do
-        r <- istep st
-        return $ case r of
-            Yield x s -> Yield x (ConcatUnfoldInterleaveInnerL ls (s:rs))
-            Skip s    -> Skip (ConcatUnfoldInterleaveInnerL (s:ls) rs)
-            Stop      -> Skip (ConcatUnfoldInterleaveInnerL ls rs)
-
-    step _ (ConcatUnfoldInterleaveInnerR [] []) = return Stop
-    step _ (ConcatUnfoldInterleaveInnerR ls []) =
-        return $ Skip (ConcatUnfoldInterleaveInnerL ls [])
-
-    step _ (ConcatUnfoldInterleaveInnerR ls (st:rs)) = do
-        r <- istep st
-        return $ case r of
-            Yield x s -> Yield x (ConcatUnfoldInterleaveInnerR (s:ls) rs)
-            Skip s    -> Skip (ConcatUnfoldInterleaveInnerR ls (s:rs))
-            Stop      -> Skip (ConcatUnfoldInterleaveInnerR ls rs)
+    step gst =
+        Producer.unfoldEachInterleave
+            inject
+            (ostep (adaptState gst))
+            istep
 
 RENAME(unfoldInterleave,altBfsUnfoldEach)
 

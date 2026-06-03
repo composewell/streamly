@@ -1109,12 +1109,6 @@ interleave (Unfold step1 inject1) (Unfold step2 inject2) =
             Skip s -> Skip (InterleaveSecondOnly s)
             Stop -> Stop
 
-data ManyInterleaveState o i =
-      ManyInterleaveOuter o [i]
-    | ManyInterleaveInner o [i]
-    | ManyInterleaveInnerL [i] [i]
-    | ManyInterleaveInnerR [i] [i]
-
 -- | See 'Streamly.Internal.Data.Stream.unfoldEachInterleave' for
 -- documentation and notes.
 --
@@ -1129,46 +1123,9 @@ unfoldEachInterleave (Unfold istep iinject) (Unfold ostep oinject) =
 
     inject x = do
         ost <- oinject x
-        return (ManyInterleaveOuter ost [])
+        return (Producer.InterleaveOuter ost [])
 
     {-# INLINE_LATE step #-}
-    step (ManyInterleaveOuter o ls) = do
-        r <- ostep o
-        case r of
-            Yield a o' -> do
-                i <- iinject a
-                i `seq` return (Skip (ManyInterleaveInner o' (i : ls)))
-            Skip o' -> return $ Skip (ManyInterleaveOuter o' ls)
-            Stop -> return $ Skip (ManyInterleaveInnerL ls [])
-
-    step (ManyInterleaveInner _ []) = undefined
-    step (ManyInterleaveInner o (st:ls)) = do
-        r <- istep st
-        return $ case r of
-            Yield x s -> Yield x (ManyInterleaveOuter o (s:ls))
-            Skip s    -> Skip (ManyInterleaveInner o (s:ls))
-            Stop      -> Skip (ManyInterleaveOuter o ls)
-
-    step (ManyInterleaveInnerL [] []) = return Stop
-    step (ManyInterleaveInnerL [] rs) =
-        return $ Skip (ManyInterleaveInnerR [] rs)
-
-    step (ManyInterleaveInnerL (st:ls) rs) = do
-        r <- istep st
-        return $ case r of
-            Yield x s -> Yield x (ManyInterleaveInnerL ls (s:rs))
-            Skip s    -> Skip (ManyInterleaveInnerL (s:ls) rs)
-            Stop      -> Skip (ManyInterleaveInnerL ls rs)
-
-    step (ManyInterleaveInnerR [] []) = return Stop
-    step (ManyInterleaveInnerR ls []) =
-        return $ Skip (ManyInterleaveInnerL ls [])
-
-    step (ManyInterleaveInnerR ls (st:rs)) = do
-        r <- istep st
-        return $ case r of
-            Yield x s -> Yield x (ManyInterleaveInnerR (s:ls) rs)
-            Skip s    -> Skip (ManyInterleaveInnerR ls (s:rs))
-            Stop      -> Skip (ManyInterleaveInnerR ls rs)
+    step = Producer.unfoldEachInterleave iinject ostep istep
 
 RENAME(manyInterleave,unfoldEachInterleave)
