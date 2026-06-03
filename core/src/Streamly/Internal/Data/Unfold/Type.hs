@@ -936,25 +936,10 @@ zipArrowWithM f (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inje
     inject (x,y) = do
         s1 <- inject1 x
         s2 <- inject2 y
-        return (s1, s2, Nothing)
+        return (Producer.ZipFirst s1 s2)
 
     {-# INLINE_LATE step #-}
-    step (s1, s2, Nothing) = do
-        r <- step1 s1
-        return $
-          case r of
-            Yield x s -> Skip (s, s2, Just x)
-            Skip s    -> Skip (s, s2, Nothing)
-            Stop      -> Stop
-
-    step (s1, s2, Just x) = do
-        r <- step2 s2
-        case r of
-            Yield y s -> do
-                z <- f x y
-                return $ Yield z (s1, s, Nothing)
-            Skip s -> return $ Skip (s1, s, Just x)
-            Stop   -> return Stop
+    step = Producer.zipWithM f step1 step2
 
 -- | Distribute the input to two unfolds and then zip the outputs to a single
 -- stream using a monadic zip function.

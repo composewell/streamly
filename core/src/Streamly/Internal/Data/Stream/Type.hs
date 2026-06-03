@@ -1260,25 +1260,15 @@ append (Stream step1 state1) (Stream step2 state2) =
 {-# INLINE_NORMAL zipWithM #-}
 zipWithM :: Monad m
     => (a -> b -> m c) -> Stream m a -> Stream m b -> Stream m c
-zipWithM f (Stream stepa ta) (Stream stepb tb) = Stream step (ta, tb, Nothing)
+zipWithM f (Stream stepa ta) (Stream stepb tb) =
+    Stream step (Producer.ZipFirst ta tb)
   where
     {-# INLINE_LATE step #-}
-    step gst (sa, sb, Nothing) = do
-        r <- stepa (adaptState gst) sa
-        return $
-          case r of
-            Yield x sa' -> Skip (sa', sb, Just x)
-            Skip sa'    -> Skip (sa', sb, Nothing)
-            Stop        -> Stop
-
-    step gst (sa, sb, Just x) = do
-        r <- stepb (adaptState gst) sb
-        case r of
-            Yield y sb' -> do
-                z <- f x y
-                return $ Yield z (sa, sb', Nothing)
-            Skip sb' -> return $ Skip (sa, sb', Just x)
-            Stop     -> return Stop
+    step gst =
+        Producer.zipWithM
+            f
+            (stepa (adaptState gst))
+            (stepb (adaptState gst))
 
 {-# RULES "zipWithM xs xs"
     forall f xs. zipWithM @Identity f xs xs = mapM (\x -> f x x) xs #-}

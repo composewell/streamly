@@ -20,12 +20,14 @@ module Streamly.Internal.Data.Producer
     , ConcatState(..)
     , InterleaveState(..)
     , InterleaveEachState(..)
+    , ZipState(..)
     , ConcatMapState(..)
     , InnerProducer(..)
     , concatMapM
     , unfoldEach
     , unfoldEachInterleave
     , interleave
+    , zipWithM
     , crossApply
     , crossApplyFst
     , crossApplySnd
@@ -417,6 +419,36 @@ interleave _ step2 (InterleaveSecondOnly st2) = do
         Yield a s -> Yield a (InterleaveSecondOnly s)
         Skip s    -> Skip (InterleaveSecondOnly s)
         Stop      -> Stop
+
+-- | State of a 'zipWithM' producer. In 'ZipFirst' we pull the next element from
+-- the first producer; in 'ZipSecond' we hold that buffered element @b@ and pull
+-- from the second producer to zip with it.
+data ZipState s1 s2 b = ZipFirst s1 s2 | ZipSecond s1 s2 b
+
+-- | Zip the elements produced by two producers using a monadic zip function.
+-- The first producer is advanced to get an element, then the second is advanced
+-- and the two elements are combined. Stops as soon as either producer stops.
+{-# INLINE_LATE zipWithM #-}
+zipWithM
+    :: Monad m
+    => (b -> c -> m d)
+    -> Producer m s1 b
+    -> Producer m s2 c
+    -> Producer m (ZipState s1 s2 b) d
+zipWithM _ step1 _ (ZipFirst s1 s2) = do
+    r <- step1 s1
+    return $ case r of
+        Yield x s -> Skip (ZipSecond s s2 x)
+        Skip s    -> Skip (ZipFirst s s2)
+        Stop      -> Stop
+zipWithM f _ step2 (ZipSecond s1 s2 x) = do
+    r <- step2 s2
+    case r of
+        Yield y s -> do
+            z <- f x y
+            return $ Yield z (ZipFirst s1 s)
+        Skip s -> return $ Skip (ZipSecond s1 s x)
+        Stop   -> return Stop
 
 {-# INLINE_LATE mapM #-}
 mapM :: Monad m => (b -> m c) -> Producer m s b -> Producer m s c
