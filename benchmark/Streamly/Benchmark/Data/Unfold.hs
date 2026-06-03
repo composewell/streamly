@@ -111,23 +111,23 @@ drainProductDefault to = drainProduct src src
 -------------------------------------------------------------------------------
 
 {-# INLINE lmap #-}
-lmap :: Monad m => Int -> Int -> m ()
+lmap :: Int -> Int -> IO ()
 lmap size start =
     drainTransformationDefault (size + start) (UF.lmap (+ 1)) start
 
 {-# INLINE lmapM #-}
-lmapM :: Monad m => Int -> Int -> m ()
+lmapM :: Int -> Int -> IO ()
 lmapM size start =
     drainTransformationDefault (size + start) (UF.lmapM (return . (+) 1)) start
 
 {-# INLINE both #-}
-both :: Monad m => Int -> Int -> m ()
+both :: Int -> Int -> IO ()
 both size start =
     drainTransformationDefault (size + start) (UF.supply start) ()
 
 
 {-# INLINE first #-}
-first :: Monad m => Int -> Int -> m ()
+first :: Int -> Int -> IO ()
 first size start =
     drainTransformation
         (UF.take size UF.enumerateFromThenIntegral)
@@ -135,7 +135,7 @@ first size start =
         1
 
 {-# INLINE second #-}
-second :: Monad m => Int -> Int -> m ()
+second :: Int -> Int -> IO ()
 second size start =
     drainTransformation
         (UF.take size UF.enumerateFromThenIntegral)
@@ -143,17 +143,17 @@ second size start =
         start
 
 {-# INLINE discardFirst #-}
-discardFirst :: Monad m => Int -> Int -> m ()
+discardFirst :: Int -> Int -> IO ()
 discardFirst size start =
     drainTransformationDefault (size + start) UF.discardFirst (start, start)
 
 {-# INLINE discardSecond #-}
-discardSecond :: Monad m => Int -> Int -> m ()
+discardSecond :: Int -> Int -> IO ()
 discardSecond size start =
     drainTransformationDefault (size + start) UF.discardSecond (start, start)
 
 {-# INLINE swap #-}
-swap :: Monad m => Int -> Int -> m ()
+swap :: Int -> Int -> IO ()
 swap size start =
     drainTransformation
         (UF.take size UF.enumerateFromThenIntegral)
@@ -172,23 +172,23 @@ fromStream size start =
 -- XXX INVESTIGATE: Although the performance of this should be equivalant to
 -- fromStream, this is considerably worse. More than 4x worse.
 {-# INLINE fromStreamK #-}
-fromStreamK :: Monad m => Int -> Int -> m ()
+fromStreamK :: Int -> Int -> IO ()
 fromStreamK size start = drainGeneration UF.fromStreamK (K.replicate size start)
 
 {-# INLINE fromStreamD #-}
-fromStreamD :: Monad m => Int -> Int -> m ()
+fromStreamD :: Int -> Int -> IO ()
 fromStreamD size start =
     drainGeneration UF.fromStreamD (S.replicate size start)
 
 -- 'nilM' runs its action on the seed but yields no output, so unfold it over an
 -- outer source of value seeds to run it ~value times.
 {-# INLINE nilM #-}
-nilM :: Monad m => Int -> Int -> m ()
+nilM :: Int -> Int -> IO ()
 nilM value start =
     drainGeneration (UF.unfoldEach (UF.nilM return) (source (start + value))) start
 
 {-# INLINE consM #-}
-consM :: Monad m => Int -> Int -> m ()
+consM :: Int -> Int -> IO ()
 consM size start =
     drainTransformationDefault (size + start) (UF.consM return) start
 
@@ -196,24 +196,24 @@ consM size start =
 -- element per seed, so to process ~value elements we unfold them over an outer
 -- source of value seeds.
 {-# INLINE functionM #-}
-functionM :: Monad m => Int -> Int -> m ()
+functionM :: Int -> Int -> IO ()
 functionM value start =
     drainGeneration
         (UF.unfoldEach (UF.functionM return) (source (start + value))) start
 
 {-# INLINE function #-}
-function :: Monad m => Int -> Int -> m ()
+function :: Int -> Int -> IO ()
 function value start =
     drainGeneration
         (UF.unfoldEach (UF.function id) (source (start + value))) start
 
 {-# INLINE identity #-}
-identity :: Monad m => Int -> Int -> m ()
+identity :: Int -> Int -> IO ()
 identity value start =
     drainGeneration (UF.unfoldEach UF.identity (source (start + value))) start
 
 {-# INLINE fromEffect #-}
-fromEffect :: Monad m => Int -> Int -> m ()
+fromEffect :: Int -> Int -> IO ()
 fromEffect value start =
     drainGeneration
         (UF.unfoldEach (UF.fromEffect (return start)) (source (start + value)))
@@ -222,7 +222,7 @@ fromEffect value start =
 -- 'fromTuple' generates two elements per seed, so unfold it over value/2 tuples
 -- to emit and drain ~value elements.
 {-# INLINE fromTuple #-}
-fromTuple :: Monad m => Int -> Int -> m ()
+fromTuple :: Int -> Int -> IO ()
 fromTuple value start =
     let outer = UF.map (\i -> (i, i)) (source (start + value `div` 2))
      in drainGeneration (UF.unfoldEach UF.fromTuple outer) start
@@ -240,15 +240,15 @@ sourceUnfoldrM size start = UF.unfoldrM step
               else Nothing
 
 {-# INLINE unfoldrM #-}
-unfoldrM :: Monad m => Int -> Int -> m ()
+unfoldrM :: Int -> Int -> IO ()
 unfoldrM size start = drainGeneration (sourceUnfoldrM size start) start
 
 {-# INLINE fromList #-}
-fromList :: Monad m => Int -> Int -> m ()
+fromList :: Int -> Int -> IO ()
 fromList size start = drainGeneration UF.fromList [start .. start + size]
 
 {-# INLINE fromListM #-}
-fromListM :: Monad m => Int -> Int -> m ()
+fromListM :: Int -> Int -> IO ()
 fromListM size start =
     drainGeneration UF.fromListM (Prelude.map return [start .. start + size])
 
@@ -261,30 +261,30 @@ _fromProducer :: Int -> Int -> m ()
 _fromProducer = undefined
 
 {-# INLINE replicateM #-}
-replicateM :: Monad m => Int -> Int -> m ()
+replicateM :: Int -> Int -> IO ()
 replicateM size start = drainGeneration UF.replicateM (size, return start)
 
 {-# INLINE repeatM #-}
-repeatM :: Monad m => Int -> Int -> m ()
+repeatM :: Int -> Int -> IO ()
 repeatM size start = drainGeneration (UF.take size UF.repeatM) (return start)
 
 {-# INLINE iterateM #-}
-iterateM :: Monad m => Int -> Int -> m ()
+iterateM :: Int -> Int -> IO ()
 iterateM size start =
     drainGeneration (UF.take size (UF.iterateM return)) (return start)
 
 {-# INLINE fromIndicesM #-}
-fromIndicesM :: Monad m => Int -> Int -> m ()
+fromIndicesM :: Int -> Int -> IO ()
 fromIndicesM size start =
     drainGeneration (UF.take size (UF.fromIndicesM return)) start
 
 {-# INLINE enumerateFromThenIntegral #-}
-enumerateFromThenIntegral :: Monad m => Int -> Int -> m ()
+enumerateFromThenIntegral :: Int -> Int -> IO ()
 enumerateFromThenIntegral size start =
     drainGeneration (UF.take size UF.enumerateFromThenIntegral) (start, 1)
 
 {-# INLINE enumerateFromToIntegral #-}
-enumerateFromToIntegral :: Monad m => Int -> Int -> m ()
+enumerateFromToIntegral :: Int -> Int -> IO ()
 enumerateFromToIntegral size start =
     drainGeneration
     ( UF.supplySecond
@@ -293,21 +293,21 @@ enumerateFromToIntegral size start =
     ) start
 
 {-# INLINE enumerateFromIntegral #-}
-enumerateFromIntegral :: Monad m => Int -> Int -> m ()
+enumerateFromIntegral :: Int -> Int -> IO ()
 enumerateFromIntegral size start =
     drainGeneration (UF.take size UF.enumerateFromIntegral) start
 
 {-# INLINE enumerateFromStepNum #-}
-enumerateFromStepNum :: Monad m => Int -> Int -> m ()
+enumerateFromStepNum :: Int -> Int -> IO ()
 enumerateFromStepNum size start =
     drainGeneration (UF.take size (UF.enumerateFromThenNum)) (start, 1)
 
 {-# INLINE enumerateFromNum #-}
-enumerateFromNum :: Monad m => Int -> Int -> m ()
+enumerateFromNum :: Int -> Int -> IO ()
 enumerateFromNum size start = drainGeneration (UF.take size UF.enumerateFromNum) start
 
 {-# INLINE enumerateFromToFractional #-}
-enumerateFromToFractional :: Monad m => Int -> Int -> m ()
+enumerateFromToFractional :: Int -> Int -> IO ()
 enumerateFromToFractional size start =
     let intToDouble x = (fromInteger (fromIntegral x)) :: Double
      in drainGeneration
@@ -322,21 +322,21 @@ enumerateFromToFractional size start =
 -------------------------------------------------------------------------------
 
 {-# INLINE postscan #-}
-postscan :: Monad m => Int -> Int -> m ()
+postscan :: Int -> Int -> IO ()
 postscan size start =
     drainTransformationDefault (size + start) (UF.postscanl Scanl.sum) start
 
 {-# INLINE map #-}
-map :: Monad m => Int -> Int -> m ()
+map :: Int -> Int -> IO ()
 map size start = drainTransformationDefault (size + start) (UF.map (+1)) start
 
 {-# INLINE mapM #-}
-mapM :: Monad m => Int -> Int -> m ()
+mapM :: Int -> Int -> IO ()
 mapM size start =
     drainTransformationDefault (size + start) (UF.mapM (return . (+) 1)) start
 
 {-# INLINE mapM2 #-}
-mapM2 :: Monad m => Int -> Int -> m ()
+mapM2 :: Int -> Int -> IO ()
 mapM2 size start =
     drainTransformationDefault
         size
@@ -348,7 +348,7 @@ mapM2 size start =
 -------------------------------------------------------------------------------
 
 {-# INLINE takeWhileM #-}
-takeWhileM :: Monad m => Int -> Int -> m ()
+takeWhileM :: Int -> Int -> IO ()
 takeWhileM size start =
     drainTransformationDefault
         size
@@ -356,7 +356,7 @@ takeWhileM size start =
         start
 
 {-# INLINE takeWhile #-}
-takeWhile :: Monad m => Int -> Int -> m ()
+takeWhile :: Int -> Int -> IO ()
 takeWhile size start =
     drainTransformationDefault
         size
@@ -364,16 +364,16 @@ takeWhile size start =
         start
 
 {-# INLINE take #-}
-take :: Monad m => Int -> Int -> m ()
+take :: Int -> Int -> IO ()
 take size start = drainTransformationDefault (size + start) (UF.take size) start
 
 {-# INLINE filter #-}
-filter :: Monad m => Int -> Int -> m ()
+filter :: Int -> Int -> IO ()
 filter size start =
     drainTransformationDefault (size + start) (UF.filter (\_ -> True)) start
 
 {-# INLINE filterM #-}
-filterM :: Monad m => Int -> Int -> m ()
+filterM :: Int -> Int -> IO ()
 filterM size start =
     drainTransformationDefault
         (size + start)
@@ -384,18 +384,18 @@ filterM size start =
 -- instead exercise 'drop' ~value/2 times: generate value/2 two-element streams
 -- with 'fromTuple', 'drop' the first element of each, and flatten the rest.
 {-# INLINE dropOne #-}
-dropOne :: Monad m => Int -> Int -> m ()
+dropOne :: Int -> Int -> IO ()
 dropOne value start =
     let outer = UF.map (\i -> (i, i)) (source (start + value `div` 2))
      in drainGeneration (UF.unfoldEach (UF.drop 1 UF.fromTuple) outer) start
 
 {-# INLINE dropAll #-}
-dropAll :: Monad m => Int -> Int -> m ()
+dropAll :: Int -> Int -> IO ()
 dropAll size start =
     drainTransformationDefault (size + start) (UF.drop (size + 1)) start
 
 {-# INLINE dropWhileTrue #-}
-dropWhileTrue :: Monad m => Int -> Int -> m ()
+dropWhileTrue :: Int -> Int -> IO ()
 dropWhileTrue size start =
     drainTransformationDefault
         (size + start)
@@ -403,7 +403,7 @@ dropWhileTrue size start =
         start
 
 {-# INLINE dropWhileFalse #-}
-dropWhileFalse :: Monad m => Int -> Int -> m ()
+dropWhileFalse :: Int -> Int -> IO ()
 dropWhileFalse size start =
     drainTransformationDefault
         (size + start)
@@ -411,7 +411,7 @@ dropWhileFalse size start =
         start
 
 {-# INLINE dropWhileMTrue #-}
-dropWhileMTrue :: Monad m => Int -> Int -> m ()
+dropWhileMTrue :: Int -> Int -> IO ()
 dropWhileMTrue size start =
     drainTransformationDefault
         size
@@ -419,7 +419,7 @@ dropWhileMTrue size start =
         start
 
 {-# INLINE dropWhileMFalse #-}
-dropWhileMFalse :: Monad m => Int -> Int -> m ()
+dropWhileMFalse :: Int -> Int -> IO ()
 dropWhileMFalse size start =
     drainTransformationDefault
         size
@@ -431,12 +431,12 @@ dropWhileMFalse size start =
 -------------------------------------------------------------------------------
 
 {-# INLINE zipWith #-}
-zipWith :: Monad m => Int -> Int -> m ()
+zipWith :: Int -> Int -> IO ()
 zipWith size start =
     drainProductDefault (size + start) (UF.zipWith (+)) start
 
 {-# INLINE zipWithM #-}
-zipWithM :: Monad m => Int -> Int -> m ()
+zipWithM :: Int -> Int -> IO ()
 zipWithM size start =
     drainProductDefault
         (size + start)
@@ -444,12 +444,12 @@ zipWithM size start =
         start
 
 {-# INLINE teeZipWith #-}
-teeZipWith :: Monad m => Int -> Int -> m ()
+teeZipWith :: Int -> Int -> IO ()
 teeZipWith size start =
     drainProductDefault (size + start) (UF.zipWith (+)) start
 
 {-# INLINE interleave #-}
-interleave :: Monad m => Int -> Int -> m ()
+interleave :: Int -> Int -> IO ()
 interleave size start =
     drainProductDefault (size + start) UF.interleave (start, start)
 
@@ -461,7 +461,7 @@ nthRoot :: Double -> Int -> Int
 nthRoot n value = round (fromIntegral value**(1/n))
 
 {-# INLINE toNullAp #-}
-toNullAp :: Monad m => Int -> Int -> m ()
+toNullAp :: Int -> Int -> IO ()
 toNullAp value start =
     let end = start + nthRoot 2 value
         s = source end
@@ -469,28 +469,28 @@ toNullAp value start =
     in UF.fold FL.drain (((+) `fmap` s) `UF.crossApply` s) start
 
 {-# INLINE crossApplyFst #-}
-crossApplyFst :: Monad m => Int -> Int -> m ()
+crossApplyFst :: Int -> Int -> IO ()
 crossApplyFst value start =
     let end = start + nthRoot 2 value
         s = source end
     in UF.fold FL.drain (s `UF.crossApplyFst` s) start
 
 {-# INLINE crossApplySnd #-}
-crossApplySnd :: Monad m => Int -> Int -> m ()
+crossApplySnd :: Int -> Int -> IO ()
 crossApplySnd value start =
     let end = start + nthRoot 2 value
         s = source end
     in UF.fold FL.drain (s `UF.crossApplySnd` s) start
 
 {-# INLINE cross #-}
-cross :: Monad m => Int -> Int -> m ()
+cross :: Int -> Int -> IO ()
 cross value start =
     let end = start + nthRoot 2 value
         s = source end
     in UF.fold FL.drain (s `UF.cross` s) start
 
 {-# INLINE fairCross #-}
-fairCross :: Monad m => Int -> Int -> m ()
+fairCross :: Int -> Int -> IO ()
 fairCross value start =
     let end = start + nthRoot 2 value
         s = source end
@@ -503,7 +503,7 @@ fairCross value start =
 -- XXX to keep the benchmarks same as Stream we should use sourceUnfoldrM in
 -- all of these, and other benchmarks too.
 {-# INLINE concatMapM #-}
-concatMapM :: Monad m => Int -> Int -> Int -> m ()
+concatMapM :: Int -> Int -> Int -> IO ()
 concatMapM inner outer start =
     drainGeneration (UF.concatMapM unfoldInGen unfoldOut) start
 
@@ -513,7 +513,7 @@ concatMapM inner outer start =
     unfoldOut = UF.supplySecond (start + outer) UF.enumerateFromToIntegral
 
 {-# INLINE toNull #-}
-toNull :: Monad m => Int -> Int -> m ()
+toNull :: Int -> Int -> IO ()
 toNull value start =
     let end = start + nthRoot 2 value
         src = source end
@@ -530,7 +530,7 @@ toNull value start =
 
 
 {-# INLINE toNull3 #-}
-toNull3 :: Monad m => Int -> Int -> m ()
+toNull3 :: Int -> Int -> IO ()
 toNull3 value start =
     let end = start + nthRoot 3 value
         src = source end
@@ -548,7 +548,7 @@ toNull3 value start =
      in UF.fold FL.drain u start
 
 {-# INLINE toList #-}
-toList :: Monad m => Int -> Int -> m [Int]
+toList :: Int -> Int -> IO [Int]
 toList value start = do
     let end = start + nthRoot 2 value
         src = source end
@@ -564,7 +564,7 @@ toList value start = do
      in UF.fold FL.toList u start
 
 {-# INLINE toListSome #-}
-toListSome :: Monad m => Int -> Int -> m [Int]
+toListSome :: Int -> Int -> IO [Int]
 toListSome value start = do
     let end = start + nthRoot 2 value
         src = source end
@@ -580,7 +580,7 @@ toListSome value start = do
      in UF.fold FL.toList (UF.take 1000 u) start
 
 {-# INLINE filterAllOut #-}
-filterAllOut :: Monad m => Int -> Int -> m ()
+filterAllOut :: Int -> Int -> IO ()
 filterAllOut value start = do
     let end = start + nthRoot 2 value
         src = source end
@@ -598,7 +598,7 @@ filterAllOut value start = do
      in UF.fold FL.drain u start
 
 {-# INLINE filterAllIn #-}
-filterAllIn :: Monad m => Int -> Int -> m ()
+filterAllIn :: Int -> Int -> IO ()
 filterAllIn value start = do
     let end = start + nthRoot 2 value
         src = source end
@@ -616,7 +616,7 @@ filterAllIn value start = do
      in UF.fold FL.drain u start
 
 {-# INLINE filterSome #-}
-filterSome :: Monad m => Int -> Int -> m ()
+filterSome :: Int -> Int -> IO ()
 filterSome value start = do
     let end = start + nthRoot 2 value
         src = source end
@@ -658,7 +658,7 @@ breakAfterSome value start =
 -------------------------------------------------------------------------------
 
 {-# INLINE unfoldEach #-}
-unfoldEach :: Monad m => Int -> Int -> Int -> m ()
+unfoldEach :: Int -> Int -> Int -> IO ()
 unfoldEach inner outer start = do
     UF.fold
         FL.drain
@@ -666,13 +666,105 @@ unfoldEach inner outer start = do
         start
 
 {-# INLINE unfoldEachInterleave #-}
-unfoldEachInterleave :: Monad m => Int -> Int -> Int -> m ()
+unfoldEachInterleave :: Int -> Int -> Int -> IO ()
 unfoldEachInterleave inner outer start = do
     UF.fold
         FL.drain
         (UF.unfoldEachInterleave
             (sourceUnfoldrM inner start) (sourceUnfoldrM outer start))
         start
+
+-------------------------------------------------------------------------------
+-- Inspection
+-------------------------------------------------------------------------------
+
+#ifdef INSPECTION
+-- All benchmarks must fully fuse: no stream constructors (the 'Yield', 'Skip'
+-- and 'Stop' of the 'Step' type) should remain in the optimized core.
+
+-- input
+inspect $ 'lmap `hasNoType` ''S.Step
+inspect $ 'lmapM `hasNoType` ''S.Step
+inspect $ 'both `hasNoType` ''S.Step
+inspect $ 'first `hasNoType` ''S.Step
+inspect $ 'second `hasNoType` ''S.Step
+inspect $ 'discardFirst `hasNoType` ''S.Step
+inspect $ 'discardSecond `hasNoType` ''S.Step
+inspect $ 'swap `hasNoType` ''S.Step
+
+-- generation
+-- 'fromStream', 'fromStreamD' and 'consM' wrap an opaque stream/cons cell, so
+-- the 'Step' is not eliminated.
+-- inspect $ 'fromStream `hasNoType` ''S.Step
+-- inspect $ 'fromStreamD `hasNoType` ''S.Step
+-- inspect $ 'consM `hasNoType` ''S.Step
+inspect $ 'fromStreamK `hasNoType` ''S.Step
+inspect $ 'nilM `hasNoType` ''S.Step
+inspect $ 'functionM `hasNoType` ''S.Step
+inspect $ 'function `hasNoType` ''S.Step
+inspect $ 'identity `hasNoType` ''S.Step
+inspect $ 'fromEffect `hasNoType` ''S.Step
+inspect $ 'fromTuple `hasNoType` ''S.Step
+inspect $ 'unfoldrM `hasNoType` ''S.Step
+inspect $ 'fromList `hasNoType` ''S.Step
+inspect $ 'fromListM `hasNoType` ''S.Step
+inspect $ 'replicateM `hasNoType` ''S.Step
+inspect $ 'repeatM `hasNoType` ''S.Step
+inspect $ 'iterateM `hasNoType` ''S.Step
+inspect $ 'fromIndicesM `hasNoType` ''S.Step
+inspect $ 'enumerateFromThenIntegral `hasNoType` ''S.Step
+inspect $ 'enumerateFromToIntegral `hasNoType` ''S.Step
+inspect $ 'enumerateFromIntegral `hasNoType` ''S.Step
+inspect $ 'enumerateFromStepNum `hasNoType` ''S.Step
+inspect $ 'enumerateFromNum `hasNoType` ''S.Step
+inspect $ 'enumerateFromToFractional `hasNoType` ''S.Step
+
+-- transformation
+inspect $ 'map `hasNoType` ''S.Step
+inspect $ 'mapM `hasNoType` ''S.Step
+inspect $ 'mapM2 `hasNoType` ''S.Step
+inspect $ 'postscan `hasNoType` ''S.Step
+
+-- filtering
+inspect $ 'takeWhileM `hasNoType` ''S.Step
+inspect $ 'takeWhile `hasNoType` ''S.Step
+inspect $ 'take `hasNoType` ''S.Step
+inspect $ 'filter `hasNoType` ''S.Step
+inspect $ 'filterM `hasNoType` ''S.Step
+inspect $ 'dropOne `hasNoType` ''S.Step
+inspect $ 'dropAll `hasNoType` ''S.Step
+inspect $ 'dropWhileTrue `hasNoType` ''S.Step
+inspect $ 'dropWhileFalse `hasNoType` ''S.Step
+inspect $ 'dropWhileMTrue `hasNoType` ''S.Step
+inspect $ 'dropWhileMFalse `hasNoType` ''S.Step
+
+-- zip
+inspect $ 'zipWith `hasNoType` ''S.Step
+inspect $ 'zipWithM `hasNoType` ''S.Step
+inspect $ 'teeZipWith `hasNoType` ''S.Step
+inspect $ 'interleave `hasNoType` ''S.Step
+
+-- nested
+inspect $ 'toNullAp `hasNoType` ''S.Step
+inspect $ 'crossApplyFst `hasNoType` ''S.Step
+inspect $ 'crossApplySnd `hasNoType` ''S.Step
+inspect $ 'cross `hasNoType` ''S.Step
+inspect $ 'fairCross `hasNoType` ''S.Step
+inspect $ 'unfoldEach `hasNoType` ''S.Step
+-- The 'bind'-based benchmarks use the Unfold monad ('UF.bind'), which is a
+-- concatMap and does not fuse, so the 'Step' constructors remain. The same is
+-- true for 'concatMapM' and 'unfoldEachInterleave'.
+-- inspect $ 'concatMapM `hasNoType` ''S.Step
+-- inspect $ 'toNull `hasNoType` ''S.Step
+-- inspect $ 'toNull3 `hasNoType` ''S.Step
+-- inspect $ 'toList `hasNoType` ''S.Step
+-- inspect $ 'toListSome `hasNoType` ''S.Step
+-- inspect $ 'filterAllOut `hasNoType` ''S.Step
+-- inspect $ 'filterAllIn `hasNoType` ''S.Step
+-- inspect $ 'filterSome `hasNoType` ''S.Step
+-- inspect $ 'breakAfterSome `hasNoType` ''S.Step
+-- inspect $ 'unfoldEachInterleave `hasNoType` ''S.Step
+#endif
 
 -------------------------------------------------------------------------------
 -- Benchmarks
