@@ -109,6 +109,7 @@ module Streamly.Internal.Data.Stream.Type
     , crossApply
     , crossApplyFst
     , crossApplySnd
+    , crossWithM
     , crossWith
     , cross
     , FairUnfoldState (..)
@@ -1438,10 +1439,30 @@ instance Applicative f => Applicative (Stream f) where
 -- effects multiple times. Or it could be an array or an unfold i.e.
 -- unfoldCross.
 
+-- | Create a cross product (vector product or cartesian product) of the two
+-- streams using a monadic combining function. The second stream is evaluated
+-- multiple times.
+--
+{-# INLINE_NORMAL crossWithM #-}
+crossWithM :: Monad m =>
+    (a -> b -> m c) -> Stream m a -> Stream m b -> Stream m c
+crossWithM f (Stream stepa statea) (Stream stepb stateb) =
+    Stream step (Producer.CrossOuter stateb statea)
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst =
+        Producer.crossWithM
+            f
+            return
+            (stepa (adaptState gst))
+            (stepb (adaptState gst))
+
 -- |
 -- Definition:
 --
--- >>> crossWith f m1 m2 = fmap f m1 `Stream.crossApply` m2
+-- >>> crossWith f = Stream.crossWithM (\a b -> return (f a b))
 --
 -- Note that the second stream is evaluated multiple times.
 --
@@ -1450,7 +1471,7 @@ instance Applicative f => Applicative (Stream f) where
 --
 {-# INLINE crossWith #-}
 crossWith :: Monad m => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
-crossWith f m1 m2 = fmap f m1 `crossApply` m2
+crossWith f = crossWithM (\a b -> return (f a b))
 
 -- | Like 'crossWith' but interleaves the outer and inner loops fairly. See
 -- 'fairConcatFor' for more details.

@@ -14,10 +14,12 @@ module Streamly.Internal.Data.Producer
     (
       CrossApplyState(..)
     , CrossApplyFstState(..)
+    , CrossState(..)
     , TupleState(..)
     , crossApply
     , crossApplyFst
     , crossApplySnd
+    , crossWithM
     , fromEffect
     , fromList
     , fromTuple
@@ -150,6 +152,37 @@ crossApplySnd _ _ step2 (CrossApplyInner seed f os st) = do
         Yield a s -> Yield (f a) (CrossApplyInner seed f os s)
         Skip s -> Skip (CrossApplyInner seed f os s)
         Stop -> Skip (CrossApplyOuter seed os)
+
+data CrossState x s1 s2 b =
+      CrossOuter x s1
+    | CrossInner x b s1 s2
+
+-- | Cross product (vector or cartesian product) of two producers using a
+-- monadic combining function. For each element of the first (outer) producer
+-- the entire second (inner) producer is run, combining the outer element with
+-- each inner element.
+{-# INLINE_LATE crossWithM #-}
+crossWithM
+    :: Monad m
+    => (b -> c -> m d)
+    -> (x -> m s2)
+    -> Producer m s1 b
+    -> Producer m s2 c
+    -> Producer m (CrossState x s1 s2 b) d
+crossWithM _ inject2 step1 _ (CrossOuter seed st) = do
+    r <- step1 st
+    case r of
+        Yield b s -> do
+            s2 <- inject2 seed
+            return $ Skip (CrossInner seed b s s2)
+        Skip s -> return $ Skip (CrossOuter seed s)
+        Stop -> return Stop
+crossWithM f _ _ step2 (CrossInner seed b os st) = do
+    r <- step2 st
+    case r of
+        Yield c s -> f b c >>= \d -> return $ Yield d (CrossInner seed b os s)
+        Skip s -> return $ Skip (CrossInner seed b os s)
+        Stop -> return $ Skip (CrossOuter seed os)
 
 {-# INLINE_LATE mapM #-}
 mapM :: Monad m => (b -> m c) -> Producer m s b -> Producer m s c

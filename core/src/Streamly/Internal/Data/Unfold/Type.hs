@@ -641,8 +641,6 @@ unfoldEach2 (Unfold step2 inject2) (Unfold step1 inject1) = Unfold step inject
             Stop      -> Skip (Many2Outer a ost)
 -}
 
-data Cross a s1 b s2 = CrossOuter a s1 | CrossInner a s1 b s2
-
 -- >> f1 f u = Unfold.mapM (\((_, c), b) -> f b c) Unfold.carryInput (Unfold.lmap fst u))
 -- >> crossWithM f u = Unfold.unfoldEach2 (f1 f u)
 
@@ -658,26 +656,13 @@ crossWithM f (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
 
     where
 
+    {-# INLINE_LATE inject #-}
     inject a = do
         s1 <- inject1 a
-        return $ CrossOuter a s1
+        return $ Producer.CrossOuter a s1
 
     {-# INLINE_LATE step #-}
-    step (CrossOuter a s1) = do
-        r <- step1 s1
-        case r of
-            Yield b s -> do
-                s2 <- inject2 a
-                return $ Skip (CrossInner a s b s2)
-            Skip s    -> return $ Skip (CrossOuter a s)
-            Stop      -> return Stop
-
-    step (CrossInner a s1 b s2) = do
-        r <- step2 s2
-        case r of
-            Yield c s -> f b c >>= \d -> return $ Yield d (CrossInner a s1 b s)
-            Skip s    -> return $ Skip (CrossInner a s1 b s)
-            Stop      -> return $ Skip (CrossOuter a s1)
+    step = Producer.crossWithM f inject2 step1 step2
 
 data FairUnfoldState a o i =
       FairUnfoldInit a o ([i] -> [i])
