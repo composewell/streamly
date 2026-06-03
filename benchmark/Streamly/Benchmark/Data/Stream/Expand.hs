@@ -205,6 +205,21 @@ inspect $ hasNoTypeClasses 'bfsUnfoldEach
 --      ''S.ConcatUnfoldInterleaveState
 #endif
 
+{-# INLINE altBfsUnfoldEach #-}
+altBfsUnfoldEach :: Int -> Int -> Int -> IO ()
+altBfsUnfoldEach outer inner n =
+    S.drain $ S.altBfsUnfoldEach
+        -- (UF.lmap return (UF.replicateM inner))
+        (UF.lmap (\x -> (x,x)) (sourceUnfoldrMUF inner))
+        (sourceUnfoldrM outer n)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'altBfsUnfoldEach
+-- inspect $ 'altBfsUnfoldEach `hasNoType` ''SPEC
+-- inspect $ 'altBfsUnfoldEach `hasNoType`
+--      ''S.ConcatUnfoldInterleaveState
+#endif
+
 {-# INLINE unfoldSched #-}
 unfoldSched :: Int -> Int -> Int -> IO ()
 unfoldSched outer inner n =
@@ -245,6 +260,7 @@ o_1_space_joining value =
 
         -- join 2 streams using n-ary ops
         , benchIOSrc1 "bfsUnfoldEach" (bfsUnfoldEach 2 (value `div` 2))
+        , benchIOSrc1 "altBfsUnfoldEach" (altBfsUnfoldEach 2 (value `div` 2))
         , benchIOSrc1 "unfoldSched" (unfoldSched 2 (value `div` 2))
         , benchIOSrc1 "concatMap" (concatMap 2 (value `div` 2))
         ]
@@ -431,6 +447,13 @@ o_n_heap_concat value = sqrtVal `seq`
         , benchIOSrc1
               "bfsUnfoldEach (sqrtVal of sqrtVal)"
               (bfsUnfoldEach sqrtVal sqrtVal)
+
+        , benchIOSrc1
+              "altBfsUnfoldEach (n of 1)"
+              (altBfsUnfoldEach value 1)
+        , benchIOSrc1
+              "altBfsUnfoldEach (sqrtVal of sqrtVal)"
+              (altBfsUnfoldEach sqrtVal sqrtVal)
 
         , benchIOSrc1
               "unfoldSched (n of 1)"
