@@ -63,6 +63,19 @@ testUnfold unf seed lst = runIdentity action
 testUnfoldD :: Unfold Identity a Int -> a -> [Int] -> Bool
 testUnfoldD = testUnfold
 
+-- | Like 'testUnfold' but compares the outputs as multisets (order
+-- independent). Useful for combinators like 'UF.fairCross' and
+-- 'UF.unfoldEachInterleave' that produce the same elements as their
+-- non-interleaving counterparts but in a different order.
+testUnfoldSorted :: Ord b => Unfold Identity a b -> a -> [b] -> Bool
+testUnfoldSorted unf seed lst = runIdentity action
+
+    where
+
+    action = do
+        x <- S.fold Fold.toList $ S.unfold unf seed
+        return $ List.sort x == List.sort lst
+
 -------------------------------------------------------------------------------
 -- Operations on input
 -------------------------------------------------------------------------------
@@ -612,6 +625,34 @@ concatMapM =
         list = List.concatMap (replicate 10) [1 .. 10]
      in testUnfoldMD unf (1, 10) 0 110 list
 
+fromTuple :: Bool
+fromTuple = testUnfold UF.fromTuple ((1, 2) :: (Int, Int)) [1, 2]
+
+interleave :: Bool
+interleave =
+    let unf = UF.interleave UF.fromList UF.fromList
+     in testUnfold unf ([1, 3, 5], [2, 4, 6]) ([1 .. 6] :: [Int])
+
+-- | 'fairCross' yields the same pairs as 'cross' (outerProduct) but in a
+-- breadth-first order, so compare as multisets.
+fairCross :: Bool
+fairCross =
+    let unf1 = UF.enumerateFromToIntegral
+        unf2 = UF.enumerateFromToIntegral
+        unf = UF.fairCross (UF.lmap fst unf1) (UF.lmap snd unf2)
+        lst = [(a, b) :: (Int, Int) | a <- [0 .. 10], b <- [0 .. 20]]
+     in testUnfoldSorted unf (((0, 10), (0, 20)) :: ((Int, Int), (Int, Int))) lst
+
+-- | 'unfoldEachInterleave' yields the same elements as 'unfoldEach' (concat)
+-- but interleaved breadth-first, so compare as multisets.
+unfoldEachInterleave :: Bool
+unfoldEachInterleave =
+    let unfIn = UF.replicateM
+        unfOut = UF.map ((10,) . return) UF.enumerateFromToIntegral
+        unf = UF.unfoldEachInterleave unfIn unfOut
+        lst = Prelude.concat $ Prelude.map (Prelude.replicate 10) [1 .. 10]
+     in testUnfoldSorted unf (1, 10) (lst :: [Int])
+
 -------------------------------------------------------------------------------
 -- Test groups
 -------------------------------------------------------------------------------
@@ -647,6 +688,7 @@ testGeneration =
             prop "unfoldrM" unfoldrM
             -- prop "fromList" fromList
             prop "fromListM" fromListM
+            prop "fromTuple" fromTuple
             -- prop "fromSVar" fromSVar
             -- prop "fromProducer" fromProducer
             prop "replicateM" replicateM
@@ -722,6 +764,9 @@ testCombination =
             prop "crossApply" crossApply
             prop "crossApplyFst" crossApplyFst
             prop "crossApplySnd" crossApplySnd
+            prop "fairCross" fairCross
+            prop "interleave" interleave
+            prop "unfoldEachInterleave" unfoldEachInterleave
 
 -------------------------------------------------------------------------------
 -- Main
