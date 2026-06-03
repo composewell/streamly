@@ -1347,43 +1347,17 @@ data FairUnfoldState o i =
 fairCrossWithM :: Monad m =>
     (a -> b -> m c) -> Stream m a -> Stream m b -> Stream m c
 fairCrossWithM f (Stream step1 state1) (Stream step2 state2) =
-    Stream step (FairUnfoldInit state1 id)
+    Stream step (Producer.FairCrossInit state2 state1 id)
 
     where
 
     {-# INLINE_LATE step #-}
-    step gst (FairUnfoldInit o ls) = do
-        r <- step1 (adaptState gst) o
-        return $ case r of
-            Yield b o' -> Skip (FairUnfoldNext o' id (ls [(b,state2)]))
-            Skip o' -> Skip (FairUnfoldInit o' ls)
-            Stop -> Skip (FairUnfoldDrain id (ls []))
-
-    step _ (FairUnfoldNext o ys []) =
-            return $ Skip (FairUnfoldInit o ys)
-
-    step gst (FairUnfoldNext o ys ((b,st):ls)) = do
-        r <- step2 (adaptState gst) st
-        case r of
-            Yield c s ->
-                f b c >>= \x ->
-                    return $ Yield x (FairUnfoldNext o (ys . ((b, s) :)) ls)
-            Skip s    -> return $ Skip (FairUnfoldNext o ys ((b,s) : ls))
-            Stop      -> return $ Skip (FairUnfoldNext o ys ls)
-
-    step _ (FairUnfoldDrain ys []) =
-        case ys [] of
-            [] -> return Stop
-            xs -> return $ Skip (FairUnfoldDrain id xs)
-
-    step gst (FairUnfoldDrain ys ((b,st):ls)) = do
-        r <- step2 (adaptState gst) st
-        case r of
-            Yield c s ->
-                f b c >>= \x ->
-                    return $ Yield x (FairUnfoldDrain (ys . ((b,s) :)) ls)
-            Skip s    -> return $ Skip (FairUnfoldDrain ys ((b,s) : ls))
-            Stop      -> return $ Skip (FairUnfoldDrain ys ls)
+    step gst =
+        Producer.fairCrossWithM
+            f
+            return
+            (step1 (adaptState gst))
+            (step2 (adaptState gst))
 
 {-# INLINE_NORMAL crossApplySnd #-}
 crossApplySnd :: Monad f => Stream f a -> Stream f b -> Stream f b

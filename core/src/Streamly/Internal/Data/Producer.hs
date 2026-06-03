@@ -15,11 +15,13 @@ module Streamly.Internal.Data.Producer
       CrossApplyState(..)
     , CrossApplyFstState(..)
     , CrossState(..)
+    , FairCrossState(..)
     , TupleState(..)
     , crossApply
     , crossApplyFst
     , crossApplySnd
     , crossWithM
+    , fairCrossWithM
     , fromEffect
     , fromList
     , fromTuple
@@ -183,6 +185,53 @@ crossWithM f _ _ step2 (CrossInner seed b os st) = do
         Yield c s -> f b c >>= \d -> return $ Yield d (CrossInner seed b os s)
         Skip s -> return $ Skip (CrossInner seed b os s)
         Stop -> return $ Skip (CrossOuter seed os)
+
+data FairCrossState x s1 i =
+      FairCrossInit x s1 ([i] -> [i])
+    | FairCrossNext x s1 ([i] -> [i]) [i]
+    | FairCrossDrain ([i] -> [i]) [i]
+
+-- | Like 'crossWithM' but interleaves the inner producers fairly: it advances
+-- every live inner producer by one step in a round before injecting the next
+-- outer element, instead of running each inner producer to completion.
+{-# INLINE_LATE fairCrossWithM #-}
+fairCrossWithM
+    :: Monad m
+    => (b -> c -> m d)
+    -> (x -> m s2)
+    -> Producer m s1 b
+    -> Producer m s2 c
+    -> Producer m (FairCrossState x s1 (b, s2)) d
+fairCrossWithM _ inject2 step1 _ (FairCrossInit seed o ls) = do
+    r <- step1 o
+    case r of
+        Yield b o1 -> do
+            i <- inject2 seed
+            i `seq` return (Skip (FairCrossNext seed o1 id (ls [(b, i)])))
+        Skip o1 -> return $ Skip (FairCrossInit seed o1 ls)
+        Stop -> return $ Skip (FairCrossDrain id (ls []))
+fairCrossWithM _ _ _ _ (FairCrossNext seed o ys []) =
+    return $ Skip (FairCrossInit seed o ys)
+fairCrossWithM f _ _ step2 (FairCrossNext seed o ys ((b, st):ls)) = do
+    r <- step2 st
+    case r of
+        Yield c s ->
+            f b c >>= \d ->
+                return $ Yield d (FairCrossNext seed o (ys . ((b, s) :)) ls)
+        Skip s -> return $ Skip (FairCrossNext seed o ys ((b, s) : ls))
+        Stop -> return $ Skip (FairCrossNext seed o ys ls)
+fairCrossWithM _ _ _ _ (FairCrossDrain ys []) =
+    case ys [] of
+        [] -> return Stop
+        xs -> return $ Skip (FairCrossDrain id xs)
+fairCrossWithM f _ _ step2 (FairCrossDrain ys ((b, st):ls)) = do
+    r <- step2 st
+    case r of
+        Yield c s ->
+            f b c >>= \d ->
+                return $ Yield d (FairCrossDrain (ys . ((b, s) :)) ls)
+        Skip s -> return $ Skip (FairCrossDrain ys ((b, s) : ls))
+        Stop -> return $ Skip (FairCrossDrain ys ls)
 
 {-# INLINE_LATE mapM #-}
 mapM :: Monad m => (b -> m c) -> Producer m s b -> Producer m s c

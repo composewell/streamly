@@ -664,11 +664,6 @@ crossWithM f (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
     {-# INLINE_LATE step #-}
     step = Producer.crossWithM f inject2 step1 step2
 
-data FairUnfoldState a o i =
-      FairUnfoldInit a o ([i] -> [i])
-    | FairUnfoldNext a o ([i] -> [i]) [i]
-    | FairUnfoldDrain ([i] -> [i]) [i]
-
 {-# INLINE_NORMAL fairCrossWithM #-}
 fairCrossWithM :: Monad m =>
     (b -> c -> m d) -> Unfold m a b -> Unfold m a c -> Unfold m a d
@@ -677,45 +672,13 @@ fairCrossWithM f (Unfold step1 inject1) (Unfold step2 inject2) =
 
     where
 
+    {-# INLINE_LATE inject #-}
     inject a = do
         s1 <- inject1 a
-        return $ FairUnfoldInit a s1 id
+        return $ Producer.FairCrossInit a s1 id
 
     {-# INLINE_LATE step #-}
-    step (FairUnfoldInit a o ls) = do
-        r <- step1 o
-        case r of
-            Yield b o' -> do
-                i <- inject2 a
-                i `seq` return (Skip (FairUnfoldNext a o' id (ls [(b,i)])))
-            Skip o' -> return $ Skip (FairUnfoldInit a o' ls)
-            Stop -> return $ Skip (FairUnfoldDrain id (ls []))
-
-    step (FairUnfoldNext a o ys []) =
-            return $ Skip (FairUnfoldInit a o ys)
-
-    step (FairUnfoldNext a o ys ((b,st):ls)) = do
-        r <- step2 st
-        case r of
-            Yield c s ->
-                f b c >>= \x ->
-                    return $ Yield x (FairUnfoldNext a o (ys . ((b, s) :)) ls)
-            Skip s    -> return $ Skip (FairUnfoldNext a o ys ((b,s) : ls))
-            Stop      -> return $ Skip (FairUnfoldNext a o ys ls)
-
-    step (FairUnfoldDrain ys []) =
-        case ys [] of
-            [] -> return Stop
-            xs -> return $ Skip (FairUnfoldDrain id xs)
-
-    step (FairUnfoldDrain ys ((b,st):ls)) = do
-        r <- step2 st
-        case r of
-            Yield c s ->
-                f b c >>= \x ->
-                    return $ Yield x (FairUnfoldDrain (ys . ((b,s) :)) ls)
-            Skip s    -> return $ Skip (FairUnfoldDrain ys ((b,s) : ls))
-            Stop      -> return $ Skip (FairUnfoldDrain ys ls)
+    step = Producer.fairCrossWithM f inject2 step1 step2
 
 -- | Like 'crossWithM' but uses a pure combining function.
 --
