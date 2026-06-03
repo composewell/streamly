@@ -34,6 +34,7 @@ module Streamly.Internal.Data.Producer
     , crossWithM
     , fairCrossWithM
     , fromEffect
+    , functionM
     , fromList
     , fromTuple
     , mapM
@@ -82,6 +83,12 @@ data TupleState a = TupleBoth a a | TupleOne a | TupleNone
 fromEffect :: Applicative m => m b -> Producer m Bool b
 fromEffect m True  = (`Yield` False) <$> m
 fromEffect _ False = pure Stop
+
+-- | Lift a monadic function into a single element 'Producer'.
+{-# INLINE_LATE functionM #-}
+functionM :: Applicative m => (a -> m b) -> Producer m (Maybe a) b
+functionM f (Just x) = (`Yield` Nothing) <$> f x
+functionM _ Nothing = pure Stop
 
 {-# INLINE_LATE fromTuple #-}
 fromTuple :: Applicative m => Producer m (TupleState a) a

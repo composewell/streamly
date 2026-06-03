@@ -840,15 +840,7 @@ instance Monad m => Monad (Unfold m a) where
 --
 {-# INLINE functionM #-}
 functionM :: Applicative m => (a -> m b) -> Unfold m a b
-functionM f = Unfold step inject
-
-    where
-
-    inject x = pure $ Just x
-
-    {-# INLINE_LATE step #-}
-    step (Just x) = (`Yield` Nothing) <$> f x
-    step Nothing = pure Stop
+functionM f = Unfold (Producer.functionM f) (pure . Just)
 
 -- | Lift a pure function into an unfold. The unfold generates a singleton
 -- stream.
