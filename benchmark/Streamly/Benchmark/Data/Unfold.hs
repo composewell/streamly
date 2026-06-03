@@ -635,6 +635,15 @@ unfoldEach inner outer start = do
         (UF.unfoldEach (sourceUnfoldrM inner start) (sourceUnfoldrM outer start))
         start
 
+{-# INLINE unfoldEachInterleave #-}
+unfoldEachInterleave :: Monad m => Int -> Int -> Int -> m ()
+unfoldEachInterleave inner outer start = do
+    UF.fold
+        FL.drain
+        (UF.unfoldEachInterleave
+            (sourceUnfoldrM inner start) (sourceUnfoldrM outer start))
+        start
+
 -------------------------------------------------------------------------------
 -- Benchmarks
 -------------------------------------------------------------------------------
@@ -760,6 +769,12 @@ o_1_space_nested env size =
           , benchIO "unfoldEach inner=outer=(sqrt Max)" $ unfoldEach sqrtVal sqrtVal
           , benchIO "unfoldEach inner=1 outer=Max" $ unfoldEach 1 size
           , benchIO "unfoldEach inner=Max outer=1" $ unfoldEach size 1
+          , benchIO "unfoldEachInterleave inner=outer=(sqrt Max)"
+            $ unfoldEachInterleave sqrtVal sqrtVal
+          , benchIO "unfoldEachInterleave inner=1 outer=Max"
+            $ unfoldEachInterleave 1 size
+          , benchIO "unfoldEachInterleave inner=Max outer=1"
+            $ unfoldEachInterleave size 1
           , mkBench "foldMany (Fold.takeEndBy_ (== lf) Fold.drain)" env
             $ \inh _ -> foldManySepBy inh
           ]
