@@ -55,6 +55,7 @@ module Streamly.Internal.Data.Unfold.Type
 
     -- * Basic Constructors
     , mkUnfoldM
+  --, mkUnfold
     , unfoldrM
     , unfoldr
     , functionM
@@ -92,15 +93,17 @@ module Streamly.Internal.Data.Unfold.Type
     , unfoldEachInterleave -- XXX rename according to stream variant
 
     -- Applicative
+    , crossApply
     , crossApplySnd
     , crossApplyFst
+
     , crossWithM
+    , crossWith
+    , cross
+
     , fairCrossWithM
     , fairCrossWith
     , fairCross
-    , crossWith
-    , cross
-    , crossApply
 
     -- Monad
     , concatMapM
