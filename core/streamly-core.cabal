@@ -364,6 +364,8 @@ library
 
                      -- streamly-core-streams
                      , Streamly.Internal.Data.StreamK
+                     -- Shared step-function combinators used by Stream and Unfold
+                     , Streamly.Internal.Data.Producer
                      -- StreamD depends on streamly-array-types
                      , Streamly.Internal.Data.Stream
 
@@ -518,8 +520,6 @@ library
                     , Streamly.Internal.Data.Stream.Transform
                     , Streamly.Internal.Data.Stream.Transformer
                     , Streamly.Internal.Data.Stream.Type
-
-                    , Streamly.Internal.Data.Producer
 
                     , Streamly.Internal.Data.StreamK.Type
                     , Streamly.Internal.Data.StreamK.Transformer
