@@ -423,6 +423,11 @@ teeZipWith :: Monad m => Int -> Int -> m ()
 teeZipWith size start =
     drainProductDefault (size + start) (UF.zipWith (+)) start
 
+{-# INLINE interleave #-}
+interleave :: Monad m => Int -> Int -> m ()
+interleave size start =
+    drainProductDefault (size + start) UF.interleave (start, start)
+
 -------------------------------------------------------------------------------
 -- Applicative
 -------------------------------------------------------------------------------
@@ -736,6 +741,7 @@ o_1_space_zip size =
           [ benchIO "zipWithM" $ zipWithM size
           , benchIO "zipWith" $ zipWith size
           , benchIO "teeZipWith" $ teeZipWith size
+          , benchIO "interleave" $ interleave size
           ]
     ]
 
