@@ -459,6 +459,13 @@ cross value start =
         s = source end
     in UF.fold FL.drain (s `UF.cross` s) start
 
+{-# INLINE fairCross #-}
+fairCross :: Monad m => Int -> Int -> m ()
+fairCross value start =
+    let end = start + nthRoot 2 value
+        s = source end
+    in UF.fold FL.drain (s `UF.fairCross` s) start
+
 -------------------------------------------------------------------------------
 -- Monad
 -------------------------------------------------------------------------------
@@ -740,6 +747,7 @@ o_1_space_nested env size =
           , benchIO "crossApplyFst outer=inner=(sqrt Max)" $ crossApplyFst size
           , benchIO "crossApplySnd outer=inner=(sqrt Max)" $ crossApplySnd size
           , benchIO "cross outer=inner=(sqrt Max)" $ cross size
+          , benchIO "fairCross outer=inner=(sqrt Max)" $ fairCross size
 
           , benchIO "concatMapM outer=inner=(sqrt Max)" $ concatMapM sqrtVal sqrtVal
           , benchIO "bind2" $ toNull size
