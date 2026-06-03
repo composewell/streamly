@@ -89,7 +89,7 @@ module Streamly.Internal.Data.Unfold.Type
     -- * Nesting
     , interleave
     , unfoldEach
-    , unfoldEachInterleave
+    , unfoldEachInterleave -- XXX rename according to stream variant
 
     -- Applicative
     , crossApplySnd

@@ -98,8 +98,8 @@ module Streamly.Internal.Data.Stream.Nesting
     -- intercalate.
     , unfoldEachFoldBy
     , ConcatUnfoldInterleaveState (..)
-    , bfsUnfoldEach
-    , altBfsUnfoldEach
+    , bfsUnfoldEach -- XXX breadthFirstUnfoldEach / bfUnfoldEach
+    , altBfsUnfoldEach -- alternating directions
     , fairUnfoldEach
 
     -- *** unfoldEach joined by elements
@@ -136,9 +136,9 @@ module Streamly.Internal.Data.Stream.Nesting
 
     -- | Like unfoldEach but schedules the generated streams based on time
     -- slice instead of based on the outputs.
-    , unfoldSched
+    , unfoldSched -- XXX schedUnfoldEach
     -- , altUnfoldSched -- alternating directions
-    , fairUnfoldSched
+    , fairUnfoldSched -- XXX fairSchedUnfoldEach
 
     -- *** schedMap
     , schedMapM
