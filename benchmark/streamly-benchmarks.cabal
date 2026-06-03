@@ -448,7 +448,7 @@ benchmark Data.Stream
     if flag(dev)
       ghc-options: +RTS -M1000M -RTS
     else
-      ghc-options: +RTS -M500M -RTS
+      ghc-options: +RTS -M800M -RTS
 
 benchmark Data.Stream.Adaptive
   import: bench-options-threaded
