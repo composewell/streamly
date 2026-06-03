@@ -120,7 +120,6 @@ module Streamly.Internal.Data.Stream.Type
     , loopBy
 
     -- * Unfold Many
-    , UnfoldEachState (..)
     , unfoldEach
 
     -- * UnfoldCross
@@ -1506,11 +1505,6 @@ loopBy u x s =
 -- Combine N Streams - unfoldEach
 ------------------------------------------------------------------------------
 
-{-# ANN type UnfoldEachState Fuse #-}
-data UnfoldEachState o i =
-      UnfoldEachOuter o
-    | UnfoldEachInner o i
-
 -- | @unfoldEach unfold stream@ uses @unfold@ to map the input stream elements
 -- to streams and then flattens the generated streams into a single output
 -- stream.
@@ -1557,26 +1551,16 @@ data UnfoldEachState o i =
 {-# INLINE_NORMAL unfoldEach #-}
 unfoldEach, unfoldMany :: Monad m => Unfold m a b -> Stream m a -> Stream m b
 unfoldEach (Unfold istep inject) (Stream ostep ost) =
-    Stream step (UnfoldEachOuter ost)
+    Stream step (Producer.ConcatOuter ost)
 
     where
 
     {-# INLINE_LATE step #-}
-    step gst (UnfoldEachOuter o) = do
-        r <- ostep (adaptState gst) o
-        case r of
-            Yield a o' -> do
-                i <- inject a
-                i `seq` return (Skip (UnfoldEachInner o' i))
-            Skip o' -> return $ Skip (UnfoldEachOuter o')
-            Stop -> return Stop
-
-    step _ (UnfoldEachInner o i) = do
-        r <- istep i
-        return $ case r of
-            Yield x i' -> Yield x (UnfoldEachInner o i')
-            Skip i'    -> Skip (UnfoldEachInner o i')
-            Stop       -> Skip (UnfoldEachOuter o)
+    step gst =
+        Producer.unfoldEach
+            inject
+            (ostep (adaptState gst))
+            istep
 
 RENAME(unfoldMany,unfoldEach)
 

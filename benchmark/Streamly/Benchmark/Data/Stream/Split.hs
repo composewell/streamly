@@ -40,7 +40,7 @@ import Streamly.Benchmark.Common.Handle
 import Streamly.Internal.Data.Stream (Step(..))
 
 import qualified Streamly.Internal.Data.MutArray as MutArray
-import qualified Streamly.Internal.Data.Unfold as Unfold
+import qualified Streamly.Internal.Data.Producer as Producer
 
 import Test.Inspection
 #endif
@@ -65,7 +65,7 @@ splitOn inh =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'splitOn
 inspect $ 'splitOn `hasNoType` ''Step
-inspect $ 'splitOn `hasNoType` ''Unfold.ConcatState -- FH.read/UF.many
+inspect $ 'splitOn `hasNoType` ''Producer.ConcatState -- FH.read/UF.many
 inspect $ 'splitOn `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 #endif
 
@@ -79,7 +79,7 @@ wordsBy inh =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'wordsBy
 inspect $ 'wordsBy `hasNoType` ''Step
-inspect $ 'wordsBy `hasNoType` ''Unfold.ConcatState -- FH.read/UF.many
+inspect $ 'wordsBy `hasNoType` ''Producer.ConcatState -- FH.read/UF.many
 inspect $ 'wordsBy `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 #endif
 

@@ -88,7 +88,6 @@ module Streamly.Internal.Data.Unfold.Type
 
     -- * Nesting
     , interleave
-    , ConcatState (..)
     , unfoldEach
     , unfoldEachInterleave
 
@@ -887,9 +886,6 @@ functionMaybeM f = Unfold step inject
 identity :: Applicative m => Unfold m a a
 identity = function id
 
-{-# ANN type ConcatState Fuse #-}
-data ConcatState s1 s2 = ConcatOuter s1 | ConcatInner s1 s2
-
 -- | Apply the first unfold to each output element of the second unfold and
 -- flatten the output in a single stream.
 --
@@ -902,24 +898,10 @@ unfoldEach (Unfold step2 inject2) (Unfold step1 inject1) = Unfold step inject
 
     inject x = do
         s <- inject1 x
-        return $ ConcatOuter s
+        return $ Producer.ConcatOuter s
 
     {-# INLINE_LATE step #-}
-    step (ConcatOuter st) = do
-        r <- step1 st
-        case r of
-            Yield x s -> do
-                innerSt <- inject2 x
-                return $ Skip (ConcatInner s innerSt)
-            Skip s    -> return $ Skip (ConcatOuter s)
-            Stop      -> return Stop
-
-    step (ConcatInner ost ist) = do
-        r <- step2 ist
-        return $ case r of
-            Yield x s -> Yield x (ConcatInner ost s)
-            Skip s    -> Skip (ConcatInner ost s)
-            Stop      -> Skip (ConcatOuter ost)
+    step = Producer.unfoldEach inject2 step1 step2
 
 RENAME(many,unfoldEach)
 

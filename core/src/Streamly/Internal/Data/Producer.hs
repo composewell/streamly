@@ -17,9 +17,11 @@ module Streamly.Internal.Data.Producer
     , CrossState(..)
     , FairCrossState(..)
     , TupleState(..)
+    , ConcatState(..)
     , ConcatMapState(..)
     , InnerProducer(..)
     , concatMapM
+    , unfoldEach
     , crossApply
     , crossApplyFst
     , crossApplySnd
@@ -272,6 +274,36 @@ concatMapM _ _ (ConcatMapInner seed ost (InnerProducer istep ist)) = do
         Yield x s -> Yield x (ConcatMapInner seed ost (InnerProducer istep s))
         Skip s -> Skip (ConcatMapInner seed ost (InnerProducer istep s))
         Stop -> Skip (ConcatMapOuter seed ost)
+
+-- | State of an 'unfoldEach' producer. @s1@ is the outer producer's state and
+-- @s2@ the inner producer's state which is re-injected from each outer element.
+data ConcatState s1 s2 = ConcatOuter s1 | ConcatInner s1 s2
+
+-- | Run the inner producer for every element of the outer producer and flatten
+-- the results into a single stream. Unlike 'concatMapM' the inner producer is
+-- the same statically known producer for every outer element; only its state is
+-- (re)injected from the outer element via the supplied action.
+{-# INLINE_LATE unfoldEach #-}
+unfoldEach
+    :: Monad m
+    => (b -> m s2)
+    -> Producer m s1 b
+    -> Producer m s2 c
+    -> Producer m (ConcatState s1 s2) c
+unfoldEach inject2 step1 _ (ConcatOuter st) = do
+    r <- step1 st
+    case r of
+        Yield b s -> do
+            i <- inject2 b
+            i `seq` return (Skip (ConcatInner s i))
+        Skip s    -> return $ Skip (ConcatOuter s)
+        Stop      -> return Stop
+unfoldEach _ _ step2 (ConcatInner ost ist) = do
+    r <- step2 ist
+    return $ case r of
+        Yield x s -> Yield x (ConcatInner ost s)
+        Skip s    -> Skip (ConcatInner ost s)
+        Stop      -> Skip (ConcatOuter ost)
 
 {-# INLINE_LATE mapM #-}
 mapM :: Monad m => (b -> m c) -> Producer m s b -> Producer m s c

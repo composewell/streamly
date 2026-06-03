@@ -22,6 +22,7 @@ module Stream.Expand (benchmarks) where
 
 #ifdef INSPECTION
 import GHC.Types (SPEC(..))
+import qualified Streamly.Internal.Data.Producer as Producer
 import Test.Inspection
 #endif
 
@@ -343,7 +344,7 @@ unfoldEach outer inner start = drain $
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'unfoldEach
-inspect $ 'unfoldEach `hasNoType` ''Stream.UnfoldEachState
+inspect $ 'unfoldEach `hasNoType` ''Producer.ConcatState
 inspect $ 'unfoldEach `hasNoType` ''SPEC
 #endif
 

@@ -46,8 +46,7 @@ import Streamly.Benchmark.Common.Handle
 import Streamly.Internal.Data.Stream (Step(..), FoldMany)
 
 import qualified Streamly.Internal.Data.MutArray as MutArray
-import qualified Streamly.Internal.Data.Stream as D
-import qualified Streamly.Internal.Data.Unfold as IUF
+import qualified Streamly.Internal.Data.Producer as Producer
 
 import Test.Inspection
 #endif
@@ -65,7 +64,7 @@ readLast = S.fold Fold.latest . S.unfold FH.reader
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readLast
 inspect $ 'readLast `hasNoType` ''Step -- S.unfold
-inspect $ 'readLast `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
+inspect $ 'readLast `hasNoType` ''Producer.ConcatState -- FH.read/UF.many
 inspect $ 'readLast `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 #endif
 
@@ -77,7 +76,7 @@ readCountBytes = S.fold Fold.length . S.unfold FH.reader
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readCountBytes
 inspect $ 'readCountBytes `hasNoType` ''Step -- S.unfold
-inspect $ 'readCountBytes `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
+inspect $ 'readCountBytes `hasNoType` ''Producer.ConcatState -- FH.read/UF.many
 inspect $ 'readCountBytes `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 #endif
 
@@ -92,7 +91,7 @@ readCountLines =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readCountLines
 inspect $ 'readCountLines `hasNoType` ''Step
-inspect $ 'readCountLines `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
+inspect $ 'readCountLines `hasNoType` ''Producer.ConcatState -- FH.read/UF.many
 inspect $ 'readCountLines `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 #endif
 
@@ -116,7 +115,7 @@ readSumBytes = S.fold Fold.sum . S.unfold FH.reader
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'readSumBytes
 inspect $ 'readSumBytes `hasNoType` ''Step
-inspect $ 'readSumBytes `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
+inspect $ 'readSumBytes `hasNoType` ''Producer.ConcatState -- FH.read/UF.many
 inspect $ 'readSumBytes `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 #endif
 
@@ -195,7 +194,7 @@ getChunksConcatUnfoldCountLines inh =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'getChunksConcatUnfoldCountLines
 inspect $ 'getChunksConcatUnfoldCountLines `hasNoType` ''Step
-inspect $ 'getChunksConcatUnfoldCountLines `hasNoType` ''D.UnfoldEachState
+inspect $ 'getChunksConcatUnfoldCountLines `hasNoType` ''Producer.ConcatState
 #endif
 
 o_1_space_reduce_toBytes :: BenchEnv -> [Benchmark]
@@ -241,7 +240,7 @@ inspect $ 'groupsOf `hasNoType` ''Step
 inspect $ 'groupsOf `hasNoType` ''FoldMany
 inspect $ 'groupsOf `hasNoType` ''MutArray.ArrayUnsafe -- AT.writeNUnsafe
                                                  -- FH.read/A.read
-inspect $ 'groupsOf `hasNoType` ''IUF.ConcatState -- FH.read/UF.many
+inspect $ 'groupsOf `hasNoType` ''Producer.ConcatState -- FH.read/UF.many
 #endif
 
 {-# INLINE chunksOf #-}
