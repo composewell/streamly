@@ -40,6 +40,7 @@ import Streamly.Internal.Data.Stream (Step(..))
 import qualified Streamly.Internal.Data.MutArray as MutArray
 import qualified Streamly.Internal.Data.Unfold as Unfold
 
+import GHC.Types (SPEC(..))
 import Test.Inspection
 #endif
 
@@ -54,6 +55,21 @@ splitOnSeqUtf8 str inh =
         $ Stream.splitSepBySeq_ (Array.fromList str) Fold.drain
         $ Unicode.decodeUtf8Chunks
         $ Handle.readChunks inh -- >>= print
+
+-------------------------------------------------------------------------------
+-- Inspection
+-------------------------------------------------------------------------------
+
+#ifdef INSPECTION
+-- splitOnSeqUtf8: sequence-matching state machine over UTF-8 decoded chunks;
+-- Step constructors survive.
+-- inspect $ hasNoTypeClasses 'splitOnSeqUtf8
+-- inspect $ 'splitOnSeqUtf8 `hasNoType` ''Step
+inspect $ 'splitOnSeqUtf8 `hasNoType` ''Fold.Step
+inspect $ 'splitOnSeqUtf8 `hasNoType` ''SPEC
+-- inspect $ 'splitOnSeqUtf8 `hasNoType` ''MutArray.ArrayUnsafe  -- FH.readChunks/A.read
+-- inspect $ 'splitOnSeqUtf8 `hasNoType` ''Unfold.ConcatState    -- decodeUtf8Chunks
+#endif
 
 o_1_space_reduce_toChunks_split :: BenchEnv -> [Benchmark]
 o_1_space_reduce_toChunks_split env =
