@@ -8,6 +8,7 @@
 
 module Streamly.Test.Data.Stream.Type (main) where
 
+import Data.List (sort)
 import Streamly.Internal.Data.Stream (Stream)
 import Test.QuickCheck (Property, choose)
 import Test.QuickCheck.Monadic (monadicIO, pick)
@@ -181,6 +182,46 @@ testConcatMapFirstEmpty =
     header =
         maybe (Stream.fromList []) (\x -> Stream.fromList [x * 10, x * 100])
 
+testCrossWithM :: Expectation
+testCrossWithM =
+    Stream.toList
+        (Stream.crossWithM (\a b -> return (a, b))
+            (Stream.fromList [1, 2 :: Int])
+            (Stream.fromList [3, 4 :: Int]))
+        `shouldReturn` [(1, 3), (1, 4), (2, 3), (2, 4)]
+
+testCrossWith :: Expectation
+testCrossWith =
+    Stream.toList
+        (Stream.crossWith (,)
+            (Stream.fromList [1, 2 :: Int])
+            (Stream.fromList [3, 4 :: Int]))
+        `shouldReturn` [(1, 3), (1, 4), (2, 3), (2, 4)]
+
+testFairCrossWithM :: Expectation
+testFairCrossWithM = do
+    result <- fmap sort $ Stream.toList $
+        Stream.fairCrossWithM (\a b -> return (a, b))
+            (Stream.fromList [1, 2 :: Int])
+            (Stream.fromList [3, 4 :: Int])
+    result `shouldBe` sort [(1, 3), (1, 4), (2, 3), (2, 4)]
+
+testInterleave :: Expectation
+testInterleave =
+    Stream.toList
+        (Stream.interleave
+            (Stream.fromList [1, 3, 5 :: Int])
+            (Stream.fromList [2, 4, 6]))
+        `shouldReturn` [1, 2, 3, 4, 5, 6]
+
+testAltBfsUnfoldEach :: Expectation
+testAltBfsUnfoldEach = do
+    result <- fmap sort $ Stream.toList $
+        Stream.altBfsUnfoldEach
+            (Unfold.lmap (\n -> (1, n)) Unfold.enumerateFromToIntegral)
+            (Stream.fromList [2, 3 :: Int])
+    result `shouldBe` sort [1, 2, 1, 2, 3]
+
 moduleName :: String
 moduleName = "Data.Stream"
 
@@ -325,3 +366,18 @@ main = hspec
     describe "Tests for Stream.concatMapFirst" $ do
         prop "testConcatMapFirstNonEmpty" testConcatMapFirstNonEmpty
         prop "testConcatMapFirstEmpty" testConcatMapFirstEmpty
+
+    describe "Tests for Stream.crossWithM" $ do
+        prop "testCrossWithM" testCrossWithM
+
+    describe "Tests for Stream.crossWith" $ do
+        prop "testCrossWith" testCrossWith
+
+    describe "Tests for Stream.fairCrossWithM" $ do
+        prop "testFairCrossWithM" testFairCrossWithM
+
+    describe "Tests for Stream.interleave" $ do
+        prop "testInterleave" testInterleave
+
+    describe "Tests for Stream.altBfsUnfoldEach" $ do
+        prop "testAltBfsUnfoldEach" testAltBfsUnfoldEach
