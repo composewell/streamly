@@ -1,6 +1,7 @@
 {- $setup
 
 >>> :m
+>>> :set -XTupleSections
 >>> import Streamly.Data.Unfold (Unfold)
 >>> import qualified Streamly.Data.Fold as Fold
 >>> import qualified Streamly.Data.Scanl as Scanl
