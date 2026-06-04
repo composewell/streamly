@@ -225,8 +225,9 @@ unfoldrM next = unfold (Unfold.unfoldrM next)
 #else
 unfoldrM next = Stream step
   where
+    {- HLINT ignore "Eta reduce" -}
     {-# INLINE_LATE step #-}
-    step _ = Producer.unfoldrM next
+    step _ st = Producer.unfoldrM next st
 #endif
 
 -- | Build a stream by unfolding a /pure/ step function @step@ starting from a

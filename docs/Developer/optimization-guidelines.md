@@ -111,6 +111,43 @@ Step function of a stream or unfold:
   may help in such cases.
 * The step function must be annotated such that it gets inlined after the main
   combinator (`INLINE_LATE`).
+* Always declare the step function with all arguments explicit, even when the
+  body delegates to a helper:
+
+  ```haskell
+  -- Good: full arity visible to GHC from the source
+  {-# INLINE_LATE step #-}
+  step gst st = Helper.mapM f (innerStep (adaptState gst)) st
+
+  -- Bad: eta-reduced, last argument missing
+  {-# INLINE_LATE step #-}
+  step gst = Helper.mapM f (innerStep (adaptState gst))
+  ```
+
+  The eta-reduced form causes a performance problem.
+  In runtime-composed pipelines (iterated/dynamic composition):** When the
+  `Stream` object is constructed at runtime the step closure is invoked
+  through a dynamic function pointer rather than at a known call site, so
+  GHC's static inlining cannot eliminate the intermediate partial
+  applications at all. Each call to `step gst` allocates a PAP for
+  `innerStep (adaptState gst)` and another for `Helper.mapM f <pap>` —
+  even if the helper carries `INLINE_LATE`. For example, eta-reducing the
+  `mapM`, `crossApply`, `crossApplySnd`, and `crossApplyFst` step functions
+  caused the following regressions in o-n-space (iterated, not fused)
+  benchmarks:
+
+  ```
+  o-n-space/iterated/(<$)  :  14 MB  →  24 MB  (+71%)
+  o-n-space/iterated/fmap  :  15 MB  →  26 MB  (+73%)
+  o-n-space/iterated/mapM  :  3.6 MB →  9.1 MB (+153%)
+  ```
+
+  Making the arity explicit in the source prevents these allocations regardless
+  of inlining phase or order.
+
+  Note: helpers referenced by value with no free variables
+  (e.g. `Stream (const Producer.fromList)`) are unaffected because returning a
+  top-level function reference does not allocate.
 
 Multiple yield points or single?:
 

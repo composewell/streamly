@@ -2171,8 +2171,9 @@ mapMaybeM f (Stream step1 state1) = Stream step state1
 
     where
 
+    {- HLINT ignore "Eta reduce" -}
     {-# INLINE_LATE step #-}
-    step gst = Producer.mapMaybeM f (step1 (adaptState gst))
+    step gst st = Producer.mapMaybeM f (step1 (adaptState gst)) st
 
 -- | In a stream of 'Maybe's, discard 'Nothing's and unwrap 'Just's.
 --

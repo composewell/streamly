@@ -974,8 +974,9 @@ mapM f (Stream step state) = Stream step1 state
 
     where
 
+    {- HLINT ignore "Eta reduce" -}
     {-# INLINE_LATE step1 #-}
-    step1 gst = Producer.mapM f (step (adaptState gst))
+    step1 gst st = Producer.mapM f (step (adaptState gst)) st
 
 {-# INLINE map #-}
 map :: Monad m => (a -> b) -> Stream m a -> Stream m b
@@ -1158,8 +1159,9 @@ takeWhileM f (Stream step1 state1) = Stream step state1
 
     where
 
+    {- HLINT ignore "Eta reduce" -}
     {-# INLINE_LATE step #-}
-    step gst = Producer.takeWhileM f (step1 gst)
+    step gst st = Producer.takeWhileM f (step1 gst) st
 
 -- | End the stream as soon as the predicate fails on an element.
 --
@@ -1320,12 +1322,14 @@ crossApply (Stream stepa statea) (Stream stepb stateb) =
 
     where
 
+    {- HLINT ignore "Eta reduce" -}
     {-# INLINE_LATE step #-}
-    step gst =
+    step gst st =
         Producer.crossApply
             return
             (stepa (adaptState gst))
             (stepb (adaptState gst))
+            st
 
 -- This is shared by all fairUnfold, fairConcat combinators.
 data FairUnfoldState o i =
@@ -1387,12 +1391,14 @@ crossApplySnd (Stream stepa statea) (Stream stepb stateb) =
 
     where
 
+    {- HLINT ignore "Eta reduce" -}
     {-# INLINE_LATE step #-}
-    step gst =
+    step gst st =
         Producer.crossApplySnd
             return
             (stepa (adaptState gst))
             (stepb gst)
+            st
 
 {-# INLINE_NORMAL crossApplyFst #-}
 crossApplyFst :: Monad f => Stream f a -> Stream f b -> Stream f a
@@ -1401,12 +1407,14 @@ crossApplyFst (Stream stepa statea) (Stream stepb stateb) =
 
     where
 
+    {- HLINT ignore "Eta reduce" -}
     {-# INLINE_LATE step #-}
-    step gst =
+    step gst st =
         Producer.crossApplyFst
             return
             (stepa gst)
             (stepb (adaptState gst))
+            st
 
 {-
 instance Applicative f => Applicative (Stream f) where

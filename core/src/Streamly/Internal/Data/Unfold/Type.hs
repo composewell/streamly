@@ -582,8 +582,9 @@ crossApplySnd (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
         s1 <- inject1 a
         return $ Producer.CrossApplyOuter a s1
 
+    {- HLINT ignore "Eta reduce" -}
     {-# INLINE_LATE step #-}
-    step = Producer.crossApplySnd inject2 step1 step2
+    step st = Producer.crossApplySnd inject2 step1 step2 st
 
 -- | Outer product discarding the second element.
 --
@@ -599,8 +600,9 @@ crossApplyFst (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
         s1 <- inject1 a
         return $ Producer.CrossApplyFstOuter a s1
 
+    {- HLINT ignore "Eta reduce" -}
     {-# INLINE_LATE step #-}
-    step = Producer.crossApplyFst inject2 step1 step2
+    step st = Producer.crossApplyFst inject2 step1 step2 st
 
 {-
 {-# ANN type Many2State Fuse #-}
@@ -784,8 +786,9 @@ crossApply (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
         s1 <- inject1 a
         return $ Producer.CrossApplyOuter a s1
 
+    {- HLINT ignore "Eta reduce" -}
     {-# INLINE_LATE step #-}
-    step = Producer.crossApply inject2 step1 step2
+    step st = Producer.crossApply inject2 step1 step2 st
 
 -- XXX Applicative makes sense for unfolds, but monad does not. Use streams for
 -- monad.
