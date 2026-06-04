@@ -388,8 +388,9 @@ interleave (Stream step1 state1) (Stream step2 state2) =
 
     where
 
+    {- HLINT ignore "Eta reduce" -}
     {-# INLINE_LATE step #-}
-    step gst = Producer.interleave (step1 gst) (step2 gst)
+    step gst st = Producer.interleave (step1 gst) (step2 gst) st
 
 -- XXX Check the performance of the implementation, we can write a custom one.
 
@@ -1134,12 +1135,14 @@ altBfsUnfoldEach (Unfold istep inject) (Stream ostep ost) =
 
     where
 
+    {- HLINT ignore "Eta reduce" -}
     {-# INLINE_LATE step #-}
-    step gst =
+    step gst st =
         Producer.unfoldEachInterleave
             inject
             (ostep (adaptState gst))
             istep
+            st
 
 RENAME(unfoldInterleave,altBfsUnfoldEach)
 

@@ -1263,12 +1263,14 @@ zipWithM :: Monad m
 zipWithM f (Stream stepa ta) (Stream stepb tb) =
     Stream step (Producer.ZipFirst ta tb)
   where
+    {- HLINT ignore "Eta reduce" -}
     {-# INLINE_LATE step #-}
-    step gst =
+    step gst st =
         Producer.zipWithM
             f
             (stepa (adaptState gst))
             (stepb (adaptState gst))
+            st
 
 {-# RULES "zipWithM xs xs"
     forall f xs. zipWithM @Identity f xs xs = mapM (\x -> f x x) xs #-}
@@ -1340,13 +1342,15 @@ fairCrossWithM f (Stream step1 state1) (Stream step2 state2) =
 
     where
 
+    {- HLINT ignore "Eta reduce" -}
     {-# INLINE_LATE step #-}
-    step gst =
+    step gst st =
         Producer.fairCrossWithM
             f
             return
             (step1 (adaptState gst))
             (step2 (adaptState gst))
+            st
 
 {-# INLINE_NORMAL crossApplySnd #-}
 crossApplySnd :: Monad f => Stream f a -> Stream f b -> Stream f b
@@ -1414,13 +1418,15 @@ crossWithM f (Stream stepa statea) (Stream stepb stateb) =
 
     where
 
+    {- HLINT ignore "Eta reduce" -}
     {-# INLINE_LATE step #-}
-    step gst =
+    step gst st =
         Producer.crossWithM
             f
             return
             (stepa (adaptState gst))
             (stepb (adaptState gst))
+            st
 
 -- |
 -- Definition:
@@ -1545,12 +1551,14 @@ unfoldEach (Unfold istep inject) (Stream ostep ost) =
 
     where
 
+    {- HLINT ignore "Eta reduce" -}
     {-# INLINE_LATE step #-}
-    step gst =
+    step gst st =
         Producer.unfoldEach
             inject
             (ostep (adaptState gst))
             istep
+            st
 
 RENAME(unfoldMany,unfoldEach)
 
@@ -1622,8 +1630,9 @@ concatMapM f (Stream step state) =
 
   where
 
+    {- HLINT ignore "Eta reduce" -}
     {-# INLINE_LATE step' #-}
-    step' gst = Producer.concatMapM g (step (adaptState gst))
+    step' gst st = Producer.concatMapM g (step (adaptState gst)) st
 
       where
 

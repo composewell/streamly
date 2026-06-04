@@ -660,8 +660,9 @@ crossWithM f (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
         s1 <- inject1 a
         return $ Producer.CrossOuter a s1
 
+    {- HLINT ignore "Eta reduce" -}
     {-# INLINE_LATE step #-}
-    step = Producer.crossWithM f inject2 step1 step2
+    step st = Producer.crossWithM f inject2 step1 step2 st
 
 {-# INLINE_NORMAL fairCrossWithM #-}
 fairCrossWithM :: Monad m =>
@@ -676,8 +677,9 @@ fairCrossWithM f (Unfold step1 inject1) (Unfold step2 inject2) =
         s1 <- inject1 a
         return $ Producer.FairCrossInit a s1 id
 
+    {- HLINT ignore "Eta reduce" -}
     {-# INLINE_LATE step #-}
-    step = Producer.fairCrossWithM f inject2 step1 step2
+    step st = Producer.fairCrossWithM f inject2 step1 step2 st
 
 -- | Like 'crossWithM' but uses a pure combining function.
 --
@@ -788,8 +790,9 @@ concatMapM f (Unfold step1 inject1) = Unfold step inject
         ist <- iinject seed
         return $ Producer.InnerProducer istep ist
 
+    {- HLINT ignore "Eta reduce" -}
     {-# INLINE_LATE step #-}
-    step = Producer.concatMapM g step1
+    step st = Producer.concatMapM g step1 st
 
 {-# INLINE concatMap #-}
 concatMap :: Monad m => (b -> Unfold m a c) -> Unfold m a b -> Unfold m a c
@@ -892,8 +895,9 @@ unfoldEach (Unfold step2 inject2) (Unfold step1 inject1) = Unfold step inject
         s <- inject1 x
         return $ Producer.ConcatOuter s
 
+    {- HLINT ignore "Eta reduce" -}
     {-# INLINE_LATE step #-}
-    step = Producer.unfoldEach inject2 step1 step2
+    step st = Producer.unfoldEach inject2 step1 step2 st
 
 RENAME(many,unfoldEach)
 
@@ -930,8 +934,9 @@ zipArrowWithM f (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inje
         s2 <- inject2 y
         return (Producer.ZipFirst s1 s2)
 
+    {- HLINT ignore "Eta reduce" -}
     {-# INLINE_LATE step #-}
-    step = Producer.zipWithM f step1 step2
+    step st = Producer.zipWithM f step1 step2 st
 
 -- | Distribute the input to two unfolds and then zip the outputs to a single
 -- stream using a monadic zip function.
@@ -1051,8 +1056,9 @@ interleave (Unfold step1 inject1) (Unfold step2 inject2) =
         s2 <- inject2 b
         return (Producer.InterleaveFirst s1 s2)
 
+    {- HLINT ignore "Eta reduce" -}
     {-# INLINE_LATE step #-}
-    step = Producer.interleave step1 step2
+    step st = Producer.interleave step1 step2 st
 
 -- | See 'Streamly.Internal.Data.Stream.unfoldEachInterleave' for
 -- documentation and notes.
@@ -1070,7 +1076,8 @@ unfoldEachInterleave (Unfold istep iinject) (Unfold ostep oinject) =
         ost <- oinject x
         return (Producer.InterleaveOuter ost [])
 
+    {- HLINT ignore "Eta reduce" -}
     {-# INLINE_LATE step #-}
-    step = Producer.unfoldEachInterleave iinject ostep istep
+    step st = Producer.unfoldEachInterleave iinject ostep istep st
 
 RENAME(manyInterleave,unfoldEachInterleave)
