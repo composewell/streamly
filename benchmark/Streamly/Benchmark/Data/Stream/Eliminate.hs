@@ -577,12 +577,6 @@ eqBy' src = S.eqBy (==) src src
 eqByPure :: Int -> Int -> Identity Bool
 eqByPure value n = eqBy' (sourceUnfoldr value n)
 
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'eqByPure
-inspect $ 'eqByPure `hasNoType` ''SPEC
-inspect $ 'eqByPure `hasNoType` ''S.Step
-#endif
-
 {-# INLINE eqInstance #-}
 eqInstance :: Stream Identity Int -> Bool
 eqInstance src = src == src
@@ -598,12 +592,6 @@ cmpBy' src = S.cmpBy compare src src
 {-# INLINE cmpByPure #-}
 cmpByPure :: Int -> Int -> Identity Ordering
 cmpByPure value n = cmpBy' (sourceUnfoldr value n)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'cmpByPure
-inspect $ 'cmpByPure `hasNoType` ''SPEC
-inspect $ 'cmpByPure `hasNoType` ''S.Step
-#endif
 
 {-# INLINE ordInstance #-}
 ordInstance :: Stream Identity Int -> Bool
@@ -638,21 +626,9 @@ stripPrefix src = do
 eqBy :: Int -> Int -> IO Bool
 eqBy value n = eqBy' (sourceUnfoldrM value n)
 
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'eqBy
-inspect $ 'eqBy `hasNoType` ''SPEC
-inspect $ 'eqBy `hasNoType` ''S.Step
-#endif
-
 {-# INLINE cmpBy #-}
 cmpBy :: Int -> Int -> IO Ordering
 cmpBy value n = cmpBy' (sourceUnfoldrM value n)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'cmpBy
-inspect $ 'cmpBy `hasNoType` ''SPEC
-inspect $ 'cmpBy `hasNoType` ''S.Step
-#endif
 
 o_1_space_elimination_multi_stream :: Int -> [Benchmark]
 o_1_space_elimination_multi_stream value =
@@ -664,6 +640,484 @@ o_1_space_elimination_multi_stream value =
         , benchIOSink value "stripPrefix" stripPrefix
         ]
     ]
+
+-------------------------------------------------------------------------------
+-- Inspection
+-------------------------------------------------------------------------------
+
+#ifdef INSPECTION
+-- Most elimination benchmarks consume a stream down to a scalar, so the whole
+-- generate+fold pipeline must fully fuse: no 'Step' constructors should remain
+-- in the optimized core. We bake in a concrete source (the same one the
+-- benchmark supplies) and assert 'Step'-freedom. Folds that build a structure
+-- (toList/toStream, foldrM reduce, list/show buffering) are inherently
+-- non-streaming and keep their 'Step'/list constructors; those are not tested
+-- (see the reminders at the end).
+
+-- Stream folds: IO wrappers that bake a monadic 'sourceUnfoldrM' source into
+-- the polymorphic folds.
+
+{-# INLINE inspToNull #-}
+inspToNull :: Int -> Int -> IO ()
+inspToNull value n = toNull (sourceUnfoldrM value n)
+
+{-# INLINE inspUncons #-}
+inspUncons :: Int -> Int -> IO ()
+inspUncons value n = uncons (sourceUnfoldrM value n)
+
+{-# INLINE inspInit #-}
+inspInit :: Int -> Int -> IO ()
+inspInit value n = init (sourceUnfoldrM value n)
+
+{-# INLINE inspMapM_ #-}
+inspMapM_ :: Int -> Int -> IO ()
+inspMapM_ value n = mapM_ (sourceUnfoldrM value n)
+
+{-# INLINE inspFoldBreak #-}
+inspFoldBreak :: Int -> Int -> IO ()
+inspFoldBreak value n = foldBreak (sourceUnfoldrM value n)
+
+{-# INLINE inspFoldrMElem #-}
+inspFoldrMElem :: Int -> Int -> IO Bool
+inspFoldrMElem value n = foldrMElem value (sourceUnfoldrM value n)
+
+{-# INLINE inspFoldl' #-}
+inspFoldl' :: Int -> Int -> IO Int
+inspFoldl' value n = foldl'Reduce (sourceUnfoldrM value n)
+
+{-# INLINE inspFoldl1' #-}
+inspFoldl1' :: Int -> Int -> IO (Maybe Int)
+inspFoldl1' value n = foldl1'Reduce (sourceUnfoldrM value n)
+
+{-# INLINE inspFoldlM' #-}
+inspFoldlM' :: Int -> Int -> IO Int
+inspFoldlM' value n = foldlM'Reduce (sourceUnfoldrM value n)
+
+{-# INLINE inspLast #-}
+inspLast :: Int -> Int -> IO (Maybe Int)
+inspLast value n = last (sourceUnfoldrM value n)
+
+{-# INLINE inspLength #-}
+inspLength :: Int -> Int -> IO Int
+inspLength value n = length (sourceUnfoldrM value n)
+
+{-# INLINE inspSum #-}
+inspSum :: Int -> Int -> IO Int
+inspSum value n = sum (sourceUnfoldrM value n)
+
+{-# INLINE inspProduct #-}
+inspProduct :: Int -> Int -> IO Int
+inspProduct value n = product (sourceUnfoldrM value n)
+
+{-# INLINE inspMaximum #-}
+inspMaximum :: Int -> Int -> IO (Maybe Int)
+inspMaximum value n = maximum (sourceUnfoldrM value n)
+
+{-# INLINE inspMinimum #-}
+inspMinimum :: Int -> Int -> IO (Maybe Int)
+inspMinimum value n = minimum (sourceUnfoldrM value n)
+
+{-# INLINE inspMaximumBy #-}
+inspMaximumBy :: Int -> Int -> IO (Maybe Int)
+inspMaximumBy value n = maximumBy (sourceUnfoldrM value n)
+
+{-# INLINE inspMinimumBy #-}
+inspMinimumBy :: Int -> Int -> IO (Maybe Int)
+inspMinimumBy value n = minimumBy (sourceUnfoldrM value n)
+
+{-# INLINE inspThe #-}
+inspThe :: Int -> Int -> IO (Maybe Int)
+inspThe value n = the (sourceUnfoldrM value n)
+
+{-# INLINE inspDrainN #-}
+inspDrainN :: Int -> Int -> IO ()
+inspDrainN value n = drainN value (sourceUnfoldrM value n)
+
+{-# INLINE inspElem #-}
+inspElem :: Int -> Int -> IO Bool
+inspElem value n = elem value (sourceUnfoldrM value n)
+
+{-# INLINE inspNotElem #-}
+inspNotElem :: Int -> Int -> IO Bool
+inspNotElem value n = notElem value (sourceUnfoldrM value n)
+
+{-# INLINE inspAll #-}
+inspAll :: Int -> Int -> IO Bool
+inspAll value n = all value (sourceUnfoldrM value n)
+
+{-# INLINE inspAny #-}
+inspAny :: Int -> Int -> IO Bool
+inspAny value n = any value (sourceUnfoldrM value n)
+
+{-# INLINE inspAnd #-}
+inspAnd :: Int -> Int -> IO Bool
+inspAnd value n = and value (sourceUnfoldrM value n)
+
+{-# INLINE inspOr #-}
+inspOr :: Int -> Int -> IO Bool
+inspOr value n = or value (sourceUnfoldrM value n)
+
+{-# INLINE inspFind #-}
+inspFind :: Int -> Int -> IO (Maybe Int)
+inspFind value n = find value (sourceUnfoldrM value n)
+
+{-# INLINE inspFindM #-}
+inspFindM :: Int -> Int -> IO (Maybe Int)
+inspFindM value n = findM value (sourceUnfoldrM value n)
+
+{-# INLINE inspFindIndex #-}
+inspFindIndex :: Int -> Int -> IO (Maybe Int)
+inspFindIndex value n = findIndex value (sourceUnfoldrM value n)
+
+{-# INLINE inspElemIndex #-}
+inspElemIndex :: Int -> Int -> IO (Maybe Int)
+inspElemIndex value n = elemIndex value (sourceUnfoldrM value n)
+
+{-# INLINE inspIndexOp #-}
+inspIndexOp :: Int -> Int -> IO (Maybe Int)
+inspIndexOp value n = value !! sourceUnfoldrM value n
+
+{-# INLINE inspLookup #-}
+inspLookup :: Int -> Int -> IO (Maybe Int)
+inspLookup value n = lookup (value + 1) (sourceUnfoldrM value n)
+
+-- Multi-stream folds.
+{-# INLINE inspIsPrefixOf #-}
+inspIsPrefixOf :: Int -> Int -> IO Bool
+inspIsPrefixOf value n = isPrefixOf (sourceUnfoldrM value n)
+
+{-# INLINE inspIsSubsequenceOf #-}
+inspIsSubsequenceOf :: Int -> Int -> IO Bool
+inspIsSubsequenceOf value n = isSubsequenceOf (sourceUnfoldrM value n)
+
+{-# INLINE inspStripPrefix #-}
+inspStripPrefix :: Int -> Int -> IO ()
+inspStripPrefix value n = stripPrefix (sourceUnfoldrM value n)
+
+-- 'foldableMapM_' is the only 'Foldable' benchmark that is polymorphic in the
+-- monad; the rest already bake a concrete 'Stream Identity' source and are
+-- inspected directly.
+{-# INLINE inspFoldableMapM_ #-}
+inspFoldableMapM_ :: Int -> Int -> IO ()
+inspFoldableMapM_ = foldableMapM_
+
+-- Type-class instance comparisons over a pure 'Stream Identity' source.
+{-# INLINE inspEqInstance #-}
+inspEqInstance :: Int -> Int -> Bool
+inspEqInstance value n = eqInstance (sourceUnfoldr value n)
+
+{-# INLINE inspEqInstanceNotEq #-}
+inspEqInstanceNotEq :: Int -> Int -> Bool
+inspEqInstanceNotEq value n = eqInstanceNotEq (sourceUnfoldr value n)
+
+{-# INLINE inspOrdInstance #-}
+inspOrdInstance :: Int -> Int -> Bool
+inspOrdInstance value n = ordInstance (sourceUnfoldr value n)
+
+-- 'min' (the 'Ord' instance) returns a 'Stream', so we drain it purely.
+{-# INLINE inspOrdInstanceMin #-}
+inspOrdInstanceMin :: Int -> Int -> ()
+inspOrdInstanceMin value n =
+    runIdentity $ drain $ ordInstanceMin (sourceUnfoldr value n)
+
+-- 'generalizeInner' lifts a pure 'Stream Identity' source into 'IO'.
+{-# INLINE inspGeneralizeInner #-}
+inspGeneralizeInner :: Int -> Int -> IO Int
+inspGeneralizeInner value n =
+    (S.fold Fold.length . S.generalizeInner) (sourceUnfoldr value n)
+
+-- 'Identity'-monad reduce/build variants over the pure source (the IO variants
+-- with 'sourceUnfoldrM' are tested above).
+{-# INLINE inspFoldl'Identity #-}
+inspFoldl'Identity :: Int -> Int -> Identity Int
+inspFoldl'Identity value n = foldl'Reduce (sourceUnfoldr value n)
+
+{-# INLINE inspFoldl1'Identity #-}
+inspFoldl1'Identity :: Int -> Int -> Identity (Maybe Int)
+inspFoldl1'Identity value n = foldl1'Reduce (sourceUnfoldr value n)
+
+{-# INLINE inspFoldlM'Identity #-}
+inspFoldlM'Identity :: Int -> Int -> Identity Int
+inspFoldlM'Identity value n = foldlM'Reduce (sourceUnfoldr value n)
+
+{-# INLINE inspFoldrMElemIdentity #-}
+inspFoldrMElemIdentity :: Int -> Int -> Identity Bool
+inspFoldrMElemIdentity value n = foldrMElem value (sourceUnfoldr value n)
+
+-- Stream folds
+inspect $ hasNoTypeClasses 'inspToNull
+inspect $ 'inspToNull `hasNoType` ''S.Step
+inspect $ 'inspToNull `hasNoType` ''Fold.Step
+inspect $ 'inspToNull `hasNoType` ''SPEC
+-- 'uncons' and 'foldBreak' recurse explicitly, reconstructing (and re-matching)
+-- the stream on each step, so a 'Step' constructor survives.
+inspect $ hasNoTypeClasses 'inspUncons
+-- inspect $ 'inspUncons `hasNoType` ''S.Step
+inspect $ 'inspUncons `hasNoType` ''Fold.Step
+inspect $ 'inspUncons `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'inspInit
+inspect $ 'inspInit `hasNoType` ''S.Step
+inspect $ 'inspInit `hasNoType` ''Fold.Step
+inspect $ 'inspInit `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'inspMapM_
+inspect $ 'inspMapM_ `hasNoType` ''S.Step
+inspect $ 'inspMapM_ `hasNoType` ''Fold.Step
+inspect $ 'inspMapM_ `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'inspFoldBreak
+-- inspect $ 'inspFoldBreak `hasNoType` ''S.Step
+inspect $ 'inspFoldBreak `hasNoType` ''Fold.Step
+inspect $ 'inspFoldBreak `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'inspFoldrMElem
+inspect $ 'inspFoldrMElem `hasNoType` ''S.Step
+inspect $ 'inspFoldrMElem `hasNoType` ''Fold.Step
+inspect $ 'inspFoldrMElem `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'inspFoldl'
+inspect $ 'inspFoldl' `hasNoType` ''S.Step
+inspect $ hasNoTypeClasses 'inspFoldl1'
+inspect $ 'inspFoldl1' `hasNoType` ''S.Step
+inspect $ hasNoTypeClasses 'inspFoldlM'
+inspect $ 'inspFoldlM' `hasNoType` ''S.Step
+inspect $ hasNoTypeClasses 'inspLast
+inspect $ 'inspLast `hasNoType` ''S.Step
+inspect $ 'inspLast `hasNoType` ''Fold.Step
+inspect $ 'inspLast `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'inspLength
+inspect $ 'inspLength `hasNoType` ''S.Step
+inspect $ 'inspLength `hasNoType` ''Fold.Step
+inspect $ 'inspLength `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'inspSum
+inspect $ 'inspSum `hasNoType` ''S.Step
+inspect $ 'inspSum `hasNoType` ''Fold.Step
+inspect $ 'inspSum `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'inspProduct
+inspect $ 'inspProduct `hasNoType` ''S.Step
+inspect $ 'inspProduct `hasNoType` ''Fold.Step
+inspect $ 'inspProduct `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'inspMaximum
+inspect $ 'inspMaximum `hasNoType` ''S.Step
+inspect $ 'inspMaximum `hasNoType` ''Fold.Step
+inspect $ 'inspMaximum `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'inspMinimum
+inspect $ 'inspMinimum `hasNoType` ''S.Step
+inspect $ 'inspMinimum `hasNoType` ''Fold.Step
+inspect $ 'inspMinimum `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'inspMaximumBy
+inspect $ 'inspMaximumBy `hasNoType` ''S.Step
+inspect $ 'inspMaximumBy `hasNoType` ''Fold.Step
+inspect $ 'inspMaximumBy `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'inspMinimumBy
+inspect $ 'inspMinimumBy `hasNoType` ''S.Step
+inspect $ 'inspMinimumBy `hasNoType` ''Fold.Step
+inspect $ 'inspMinimumBy `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'inspThe
+inspect $ 'inspThe `hasNoType` ''S.Step
+inspect $ 'inspThe `hasNoType` ''Fold.Step
+inspect $ 'inspThe `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'inspDrainN
+inspect $ 'inspDrainN `hasNoType` ''S.Step
+inspect $ 'inspDrainN `hasNoType` ''Fold.Step
+inspect $ 'inspDrainN `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'inspElem
+inspect $ 'inspElem `hasNoType` ''S.Step
+inspect $ 'inspElem `hasNoType` ''Fold.Step
+inspect $ 'inspElem `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'inspNotElem
+inspect $ 'inspNotElem `hasNoType` ''S.Step
+inspect $ 'inspNotElem `hasNoType` ''Fold.Step
+inspect $ 'inspNotElem `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'inspAll
+inspect $ 'inspAll `hasNoType` ''S.Step
+inspect $ 'inspAll `hasNoType` ''Fold.Step
+inspect $ 'inspAll `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'inspAny
+inspect $ 'inspAny `hasNoType` ''S.Step
+inspect $ 'inspAny `hasNoType` ''Fold.Step
+inspect $ 'inspAny `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'inspAnd
+inspect $ 'inspAnd `hasNoType` ''S.Step
+inspect $ 'inspAnd `hasNoType` ''Fold.Step
+inspect $ 'inspAnd `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'inspOr
+inspect $ 'inspOr `hasNoType` ''S.Step
+inspect $ 'inspOr `hasNoType` ''Fold.Step
+inspect $ 'inspOr `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'inspFind
+inspect $ 'inspFind `hasNoType` ''S.Step
+inspect $ 'inspFind `hasNoType` ''Fold.Step
+inspect $ 'inspFind `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'inspFindM
+inspect $ 'inspFindM `hasNoType` ''S.Step
+inspect $ 'inspFindM `hasNoType` ''Fold.Step
+inspect $ 'inspFindM `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'inspFindIndex
+inspect $ 'inspFindIndex `hasNoType` ''S.Step
+inspect $ 'inspFindIndex `hasNoType` ''Fold.Step
+inspect $ 'inspFindIndex `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'inspElemIndex
+inspect $ 'inspElemIndex `hasNoType` ''S.Step
+inspect $ 'inspElemIndex `hasNoType` ''Fold.Step
+inspect $ 'inspElemIndex `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'inspIndexOp
+inspect $ 'inspIndexOp `hasNoType` ''S.Step
+inspect $ 'inspIndexOp `hasNoType` ''Fold.Step
+inspect $ 'inspIndexOp `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'inspLookup
+inspect $ 'inspLookup `hasNoType` ''S.Step
+inspect $ 'inspLookup `hasNoType` ''Fold.Step
+inspect $ 'inspLookup `hasNoType` ''SPEC
+
+-- Multi-stream pure
+inspect $ hasNoTypeClasses 'eqByPure
+inspect $ 'eqByPure `hasNoType` ''SPEC
+inspect $ 'eqByPure `hasNoType` ''S.Step
+inspect $ 'eqByPure `hasNoType` ''Fold.Step
+inspect $ hasNoTypeClasses 'cmpByPure
+inspect $ 'cmpByPure `hasNoType` ''SPEC
+inspect $ 'cmpByPure `hasNoType` ''S.Step
+inspect $ 'cmpByPure `hasNoType` ''Fold.Step
+
+-- Multi-stream
+inspect $ hasNoTypeClasses 'eqBy
+inspect $ 'eqBy `hasNoType` ''SPEC
+inspect $ 'eqBy `hasNoType` ''S.Step
+inspect $ 'eqBy `hasNoType` ''Fold.Step
+inspect $ hasNoTypeClasses 'cmpBy
+inspect $ 'cmpBy `hasNoType` ''SPEC
+inspect $ 'cmpBy `hasNoType` ''S.Step
+inspect $ 'cmpBy `hasNoType` ''Fold.Step
+inspect $ hasNoTypeClasses 'inspIsPrefixOf
+inspect $ 'inspIsPrefixOf `hasNoType` ''S.Step
+inspect $ 'inspIsPrefixOf `hasNoType` ''Fold.Step
+inspect $ 'inspIsPrefixOf `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'inspIsSubsequenceOf
+inspect $ 'inspIsSubsequenceOf `hasNoType` ''S.Step
+inspect $ 'inspIsSubsequenceOf `hasNoType` ''Fold.Step
+inspect $ 'inspIsSubsequenceOf `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'inspStripPrefix
+inspect $ 'inspStripPrefix `hasNoType` ''S.Step
+inspect $ 'inspStripPrefix `hasNoType` ''Fold.Step
+inspect $ 'inspStripPrefix `hasNoType` ''SPEC
+
+-- Foldable (pure 'Stream Identity' source baked in)
+inspect $ hasNoTypeClasses 'foldableFoldl'
+inspect $ 'foldableFoldl' `hasNoType` ''S.Step
+inspect $ hasNoTypeClasses 'foldableFoldrElem
+inspect $ 'foldableFoldrElem `hasNoType` ''S.Step
+inspect $ 'foldableFoldrElem `hasNoType` ''Fold.Step
+inspect $ 'foldableFoldrElem `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'foldableSum
+inspect $ 'foldableSum `hasNoType` ''S.Step
+inspect $ 'foldableSum `hasNoType` ''Fold.Step
+inspect $ 'foldableSum `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'foldableProduct
+inspect $ 'foldableProduct `hasNoType` ''S.Step
+inspect $ 'foldableProduct `hasNoType` ''Fold.Step
+inspect $ 'foldableProduct `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'foldableElem
+inspect $ 'foldableElem `hasNoType` ''S.Step
+inspect $ 'foldableElem `hasNoType` ''Fold.Step
+inspect $ 'foldableElem `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'foldableNotElem
+inspect $ 'foldableNotElem `hasNoType` ''S.Step
+inspect $ 'foldableNotElem `hasNoType` ''Fold.Step
+inspect $ 'foldableNotElem `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'foldableFind
+inspect $ 'foldableFind `hasNoType` ''S.Step
+inspect $ 'foldableFind `hasNoType` ''Fold.Step
+inspect $ 'foldableFind `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'foldableAll
+inspect $ 'foldableAll `hasNoType` ''S.Step
+inspect $ 'foldableAll `hasNoType` ''Fold.Step
+inspect $ 'foldableAll `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'foldableAny
+inspect $ 'foldableAny `hasNoType` ''S.Step
+inspect $ 'foldableAny `hasNoType` ''Fold.Step
+inspect $ 'foldableAny `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'foldableAnd
+inspect $ 'foldableAnd `hasNoType` ''S.Step
+inspect $ 'foldableAnd `hasNoType` ''Fold.Step
+inspect $ 'foldableAnd `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'foldableOr
+inspect $ 'foldableOr `hasNoType` ''S.Step
+inspect $ 'foldableOr `hasNoType` ''Fold.Step
+inspect $ 'foldableOr `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'foldableLength
+inspect $ 'foldableLength `hasNoType` ''S.Step
+inspect $ 'foldableLength `hasNoType` ''Fold.Step
+inspect $ 'foldableLength `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'foldableMin
+inspect $ 'foldableMin `hasNoType` ''S.Step
+inspect $ 'foldableMin `hasNoType` ''Fold.Step
+inspect $ 'foldableMin `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'foldableMax
+inspect $ 'foldableMax `hasNoType` ''S.Step
+inspect $ 'foldableMax `hasNoType` ''Fold.Step
+inspect $ 'foldableMax `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'foldableMinBy
+inspect $ 'foldableMinBy `hasNoType` ''S.Step
+inspect $ 'foldableMinBy `hasNoType` ''Fold.Step
+inspect $ 'foldableMinBy `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'foldableMaxBy
+inspect $ 'foldableMaxBy `hasNoType` ''S.Step
+inspect $ 'foldableMaxBy `hasNoType` ''Fold.Step
+inspect $ 'foldableMaxBy `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'foldableToList
+inspect $ 'foldableToList `hasNoType` ''S.Step
+inspect $ 'foldableToList `hasNoType` ''Fold.Step
+inspect $ 'foldableToList `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'foldableSequence_
+inspect $ 'foldableSequence_ `hasNoType` ''S.Step
+inspect $ 'foldableSequence_ `hasNoType` ''Fold.Step
+inspect $ 'foldableSequence_ `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'inspFoldableMapM_
+inspect $ 'inspFoldableMapM_ `hasNoType` ''S.Step
+inspect $ 'inspFoldableMapM_ `hasNoType` ''Fold.Step
+inspect $ 'inspFoldableMapM_ `hasNoType` ''SPEC
+
+-- Type-class instance comparisons (pure source)
+inspect $ hasNoTypeClasses 'inspEqInstance
+inspect $ 'inspEqInstance `hasNoType` ''S.Step
+inspect $ 'inspEqInstance `hasNoType` ''Fold.Step
+inspect $ 'inspEqInstance `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'inspEqInstanceNotEq
+inspect $ 'inspEqInstanceNotEq `hasNoType` ''S.Step
+inspect $ 'inspEqInstanceNotEq `hasNoType` ''Fold.Step
+inspect $ 'inspEqInstanceNotEq `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'inspOrdInstance
+inspect $ 'inspOrdInstance `hasNoType` ''S.Step
+inspect $ 'inspOrdInstance `hasNoType` ''Fold.Step
+inspect $ 'inspOrdInstance `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'inspOrdInstanceMin
+inspect $ 'inspOrdInstanceMin `hasNoType` ''S.Step
+inspect $ 'inspOrdInstanceMin `hasNoType` ''Fold.Step
+inspect $ 'inspOrdInstanceMin `hasNoType` ''SPEC
+
+-- generalizeInner
+inspect $ hasNoTypeClasses 'inspGeneralizeInner
+inspect $ 'inspGeneralizeInner `hasNoType` ''S.Step
+inspect $ 'inspGeneralizeInner `hasNoType` ''Fold.Step
+inspect $ 'inspGeneralizeInner `hasNoType` ''SPEC
+
+-- Identity-monad reduce/build variants (pure source)
+inspect $ hasNoTypeClasses 'inspFoldl'Identity
+inspect $ 'inspFoldl'Identity `hasNoType` ''S.Step
+inspect $ hasNoTypeClasses 'inspFoldl1'Identity
+inspect $ 'inspFoldl1'Identity `hasNoType` ''S.Step
+inspect $ hasNoTypeClasses 'inspFoldlM'Identity
+inspect $ 'inspFoldlM'Identity `hasNoType` ''S.Step
+inspect $ hasNoTypeClasses 'inspFoldrMElemIdentity
+inspect $ 'inspFoldrMElemIdentity `hasNoType` ''S.Step
+inspect $ 'inspFoldrMElemIdentity `hasNoType` ''Fold.Step
+inspect $ 'inspFoldrMElemIdentity `hasNoType` ''SPEC
+
+-- Not inspection-tested (not 'Step'-free fusion targets):
+--   * Structure-building folds buffer the whole stream, so they keep their
+--     'Step'/list constructors: 'foldl'Build'/'foldlM'Build' (o_n_heap),
+--     'foldrMBuild'/'foldrMReduce' (o_n_space foldr), 'S.toList'/'S.toListRev'
+--     and the 'Fold.toStream'/'Fold.toStreamRev' folds.
+--   * 'showInstance'/'showInstanceList' (o_n_heap buffered) render via 'show'.
+--   * 'foldableListMinBy' folds a plain list, not a stream.
+#endif
 
 -------------------------------------------------------------------------------
 -- Main
