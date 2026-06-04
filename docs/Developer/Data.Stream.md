@@ -655,3 +655,19 @@ data Stream m b = forall s. Stream (Producer m s b) s
 
 Other alternatives for Yield, Emit.
 Alternatives for Outcome, StepResult.
+
+## Stream Configuration
+
+The implicit state parameter in the Direct and CPS stream
+definitions can be used to pass the implicit stream pipeline level
+configuration. For example, this could be a global limit on maxThreads
+in a pipeline. The config can be specified using config modifier combinators
+within the pipeline in the same way as we did in pre-0.9 .
+
+If we explicitly specify an output (streams) or input channel (folds)
+via the config we can even reuse that instead of automatic allocation,
+if it is not specified in the stream config then we can auto allocate
+the channel if it is a parallel combinator. This way we can implement
+n-ary stream combining combinators as well instead of binary only.  This
+way parallel combinators need not even have a config argument as config
+can be specified via in-pipeline combinators for downstream components.
