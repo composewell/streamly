@@ -9,6 +9,15 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
 
+#ifdef __HADDOCK_VERSION__
+#undef INSPECTION
+#endif
+
+#ifdef INSPECTION
+{-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
+#endif
+
 module Stream.Lift (benchmarks) where
 
 import Control.DeepSeq (NFData(..))
@@ -25,6 +34,13 @@ import qualified Streamly.Internal.Data.Stream as Stream
 import Test.Tasty.Bench
 import Streamly.Benchmark.Common
 import Prelude hiding (reverse, tail)
+
+#ifdef INSPECTION
+import Streamly.Internal.Data.Stream (Step(..))
+
+import GHC.Types (SPEC(..))
+import Test.Inspection
+#endif
 
 -------------------------------------------------------------------------------
 -- Monad transformation (hoisting etc.)
@@ -60,6 +76,34 @@ benchHoistSink
     => Int -> String -> (Stream Identity Int -> IO b) -> Benchmark
 benchHoistSink value name f =
     bench name $ nfIO $ randomRIO (1,1) >>= f .  sourceUnfoldr value
+
+-------------------------------------------------------------------------------
+-- Inspection
+-------------------------------------------------------------------------------
+
+#ifdef INSPECTION
+{-# INLINE inspEvalStateT #-}
+inspEvalStateT :: Int -> Int -> IO ()
+inspEvalStateT value n = Stream.fold Fold.drain (evalStateT value n :: Stream IO Int)
+
+{-# INLINE inspWithState #-}
+inspWithState :: Int -> Int -> IO ()
+inspWithState value n = Stream.fold Fold.drain (withState value n :: Stream IO Int)
+
+inspect $ hasNoTypeClasses 'inspEvalStateT
+inspect $ 'inspEvalStateT `hasNoType` ''Step
+inspect $ 'inspEvalStateT `hasNoType` ''Fold.Step
+inspect $ 'inspEvalStateT `hasNoType` ''SPEC
+
+inspect $ hasNoTypeClasses 'inspWithState
+inspect $ 'inspWithState `hasNoType` ''Step
+inspect $ 'inspWithState `hasNoType` ''Fold.Step
+inspect $ 'inspWithState `hasNoType` ''SPEC
+
+-- The generalizeInner benchmark uses an anonymous lambda over sourceUnfoldr;
+-- the equivalent named function is tested in Stream/Eliminate.hs
+-- (inspGeneralizeInner).
+#endif
 
 o_1_space_hoisting :: Int -> [Benchmark]
 o_1_space_hoisting value =

@@ -37,6 +37,8 @@ import Streamly.Benchmark.Common.Handle
 
 #ifdef INSPECTION
 import Control.Monad.Catch (MonadCatch)
+import qualified Streamly.Internal.Data.Fold as FL
+import GHC.Types (SPEC(..))
 import Test.Inspection
 #endif
 
@@ -63,10 +65,6 @@ readWriteOnExceptionStream inh devNull =
     let readEx = Stream.onException (hClose inh) (Stream.unfold FH.reader inh)
     in Stream.fold (FH.write devNull) readEx
 
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'readWriteOnExceptionStream
-#endif
-
 -- | Send the file contents to /dev/null with exception handling
 readWriteHandleExceptionStream :: Handle -> Handle -> IO ()
 readWriteHandleExceptionStream inh devNull =
@@ -75,20 +73,12 @@ readWriteHandleExceptionStream inh devNull =
         readEx = Stream.handle handler (Stream.unfold FH.reader inh)
     in Stream.fold (FH.write devNull) readEx
 
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'readWriteHandleExceptionStream
-#endif
-
 -- | Send the file contents to /dev/null with exception handling
 readWriteFinally_Stream :: Handle -> Handle -> IO ()
 readWriteFinally_Stream inh devNull =
     let readEx =
             Stream.finallyUnsafe (hClose inh) (Stream.unfold FH.reader inh)
     in Stream.fold (FH.write devNull) readEx
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'readWriteFinally_Stream
-#endif
 
 -- | Send the file contents to /dev/null with exception handling
 fromToBytesBracket_Stream :: Handle -> Handle -> IO ()
@@ -97,19 +87,10 @@ fromToBytesBracket_Stream inh devNull =
                     (\_ -> IFH.read inh)
     in IFH.putBytes devNull readEx
 
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'fromToBytesBracket_Stream
-#endif
-
 readWriteAfter_Stream :: Handle -> Handle -> IO ()
 readWriteAfter_Stream inh devNull =
     let readEx = Stream.afterUnsafe (hClose inh) (Stream.unfold FH.reader inh)
      in Stream.fold (FH.write devNull) readEx
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'readWriteAfter_Stream
-inspect $ 'readWriteAfter_Stream `hasNoType` ''Stream.Step
-#endif
 
 o_1_space_copy_stream_exceptions :: BenchEnv -> [Benchmark]
 o_1_space_copy_stream_exceptions env =
@@ -139,27 +120,11 @@ readChunksOnException inh devNull =
     let readEx = IUF.onException (\_ -> hClose inh) FH.chunkReader
     in IUF.fold (IFH.writeChunks devNull) readEx inh
 
-#ifdef INSPECTION
-#if __GLASGOW_HASKELL__ >= 906
-inspect $ hasNoTypeClassesExcept 'readChunksOnException [''MonadCatch]
-#else
-inspect $ hasNoTypeClasses 'readChunksOnException
-#endif
-#endif
-
 -- | Send the file contents to /dev/null with exception handling
 readChunksBracket_ :: Handle -> Handle -> IO ()
 readChunksBracket_ inh devNull =
     let readEx = IUF.bracket_ return (\_ -> hClose inh) FH.chunkReader
     in IUF.fold (IFH.writeChunks devNull) readEx inh
-
-#ifdef INSPECTION
-#if __GLASGOW_HASKELL__ >= 906
-inspect $ hasNoTypeClassesExcept 'readChunksBracket_ [''MonadCatch]
-#else
-inspect $ hasNoTypeClasses 'readChunksBracket_
-#endif
-#endif
 
 o_1_space_copy_exceptions_readChunks :: BenchEnv -> [Benchmark]
 o_1_space_copy_exceptions_readChunks env =
@@ -184,8 +149,66 @@ toChunksBracket_ inh devNull =
             (\_ -> IFH.readChunks inh)
     in Stream.fold (IFH.writeChunks devNull) readEx
 
+-------------------------------------------------------------------------------
+-- Inspection
+-------------------------------------------------------------------------------
+
 #ifdef INSPECTION
+-- stream exceptions
+-- onException/finallyUnsafe/bracketUnsafe wrap the stream in a try/catch,
+-- keeping Either SomeException (Step ...) in the exception path; Step survives.
+inspect $ hasNoTypeClasses 'readWriteOnExceptionStream
+-- inspect $ 'readWriteOnExceptionStream `hasNoType` ''Stream.Step
+inspect $ 'readWriteOnExceptionStream `hasNoType` ''FL.Step
+inspect $ 'readWriteOnExceptionStream `hasNoType` ''SPEC
+
+-- handle provides an alternative stream on exception; Step survives.
+inspect $ hasNoTypeClasses 'readWriteHandleExceptionStream
+-- inspect $ 'readWriteHandleExceptionStream `hasNoType` ''Stream.Step
+inspect $ 'readWriteHandleExceptionStream `hasNoType` ''FL.Step
+inspect $ 'readWriteHandleExceptionStream `hasNoType` ''SPEC
+
+inspect $ hasNoTypeClasses 'readWriteFinally_Stream
+-- inspect $ 'readWriteFinally_Stream `hasNoType` ''Stream.Step
+inspect $ 'readWriteFinally_Stream `hasNoType` ''FL.Step
+inspect $ 'readWriteFinally_Stream `hasNoType` ''SPEC
+
+inspect $ hasNoTypeClasses 'fromToBytesBracket_Stream
+-- inspect $ 'fromToBytesBracket_Stream `hasNoType` ''Stream.Step
+inspect $ 'fromToBytesBracket_Stream `hasNoType` ''FL.Step
+inspect $ 'fromToBytesBracket_Stream `hasNoType` ''SPEC
+
+-- afterUnsafe runs a cleanup action after the stream ends with no try/catch
+-- around the stream body, so Step constructors are fully eliminated.
+inspect $ hasNoTypeClasses 'readWriteAfter_Stream
+inspect $ 'readWriteAfter_Stream `hasNoType` ''Stream.Step
+inspect $ 'readWriteAfter_Stream `hasNoType` ''FL.Step
+inspect $ 'readWriteAfter_Stream `hasNoType` ''SPEC
+
+-- readChunks (unfold-based; exception path keeps Step constructors)
+#if __GLASGOW_HASKELL__ >= 906
+inspect $ hasNoTypeClassesExcept 'readChunksOnException [''MonadCatch]
+#else
+inspect $ hasNoTypeClasses 'readChunksOnException
+#endif
+-- inspect $ 'readChunksOnException `hasNoType` ''Stream.Step
+inspect $ 'readChunksOnException `hasNoType` ''FL.Step
+inspect $ 'readChunksOnException `hasNoType` ''SPEC
+
+#if __GLASGOW_HASKELL__ >= 906
+inspect $ hasNoTypeClassesExcept 'readChunksBracket_ [''MonadCatch]
+#else
+inspect $ hasNoTypeClasses 'readChunksBracket_
+#endif
+-- inspect $ 'readChunksBracket_ `hasNoType` ''Stream.Step
+inspect $ 'readChunksBracket_ `hasNoType` ''FL.Step
+inspect $ 'readChunksBracket_ `hasNoType` ''SPEC
+
+-- toChunks (bracketUnsafe wraps readChunks; Step constructors survive)
 inspect $ hasNoTypeClasses 'toChunksBracket_
+-- inspect $ 'toChunksBracket_ `hasNoType` ''Stream.Step
+inspect $ 'toChunksBracket_ `hasNoType` ''FL.Step
+inspect $ 'toChunksBracket_ `hasNoType` ''SPEC
 #endif
 
 o_1_space_copy_exceptions_toChunks :: BenchEnv -> [Benchmark]
