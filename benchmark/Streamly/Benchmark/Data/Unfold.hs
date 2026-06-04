@@ -48,6 +48,7 @@ import Streamly.Benchmark.Common.Handle
 
 #ifdef INSPECTION
 import Control.Monad.Catch (MonadCatch)
+import GHC.Types (SPEC(..))
 import Test.Inspection
 #endif
 
@@ -680,90 +681,224 @@ unfoldEachInterleave inner outer start = do
 
 #ifdef INSPECTION
 -- All benchmarks must fully fuse: no stream constructors (the 'Yield', 'Skip'
--- and 'Stop' of the 'Step' type) should remain in the optimized core.
+-- and 'Stop' of the 'Step' type), no fold step constructors ('Partial'/'Done'
+-- of 'FL.Step'), and no 'SPEC' from the fold driver loop should remain in the
+-- optimized core.
 
 -- input
 inspect $ 'lmap `hasNoType` ''S.Step
+inspect $ 'lmap `hasNoType` ''FL.Step
+inspect $ 'lmap `hasNoType` ''SPEC
 inspect $ 'lmapM `hasNoType` ''S.Step
+inspect $ 'lmapM `hasNoType` ''FL.Step
+inspect $ 'lmapM `hasNoType` ''SPEC
 inspect $ 'both `hasNoType` ''S.Step
+inspect $ 'both `hasNoType` ''FL.Step
+inspect $ 'both `hasNoType` ''SPEC
 inspect $ 'first `hasNoType` ''S.Step
+inspect $ 'first `hasNoType` ''FL.Step
+inspect $ 'first `hasNoType` ''SPEC
 inspect $ 'second `hasNoType` ''S.Step
+inspect $ 'second `hasNoType` ''FL.Step
+inspect $ 'second `hasNoType` ''SPEC
 inspect $ 'discardFirst `hasNoType` ''S.Step
+inspect $ 'discardFirst `hasNoType` ''FL.Step
+inspect $ 'discardFirst `hasNoType` ''SPEC
 inspect $ 'discardSecond `hasNoType` ''S.Step
+inspect $ 'discardSecond `hasNoType` ''FL.Step
+inspect $ 'discardSecond `hasNoType` ''SPEC
 inspect $ 'swap `hasNoType` ''S.Step
+inspect $ 'swap `hasNoType` ''FL.Step
+inspect $ 'swap `hasNoType` ''SPEC
 
 -- generation
 -- 'fromStream', 'fromStreamD' and 'consM' wrap an opaque stream/cons cell, so
 -- the 'Step' is not eliminated.
 -- inspect $ 'fromStream `hasNoType` ''S.Step
+inspect $ 'fromStream `hasNoType` ''FL.Step
+inspect $ 'fromStream `hasNoType` ''SPEC
 -- inspect $ 'fromStreamD `hasNoType` ''S.Step
+inspect $ 'fromStreamD `hasNoType` ''FL.Step
+inspect $ 'fromStreamD `hasNoType` ''SPEC
 -- inspect $ 'consM `hasNoType` ''S.Step
+inspect $ 'consM `hasNoType` ''FL.Step
+inspect $ 'consM `hasNoType` ''SPEC
 inspect $ 'fromStreamK `hasNoType` ''S.Step
+inspect $ 'fromStreamK `hasNoType` ''FL.Step
+inspect $ 'fromStreamK `hasNoType` ''SPEC
 inspect $ 'nilM `hasNoType` ''S.Step
+inspect $ 'nilM `hasNoType` ''FL.Step
+inspect $ 'nilM `hasNoType` ''SPEC
 inspect $ 'functionM `hasNoType` ''S.Step
+inspect $ 'functionM `hasNoType` ''FL.Step
+inspect $ 'functionM `hasNoType` ''SPEC
 inspect $ 'function `hasNoType` ''S.Step
+inspect $ 'function `hasNoType` ''FL.Step
+inspect $ 'function `hasNoType` ''SPEC
 inspect $ 'identity `hasNoType` ''S.Step
+inspect $ 'identity `hasNoType` ''FL.Step
+inspect $ 'identity `hasNoType` ''SPEC
 inspect $ 'fromEffect `hasNoType` ''S.Step
+inspect $ 'fromEffect `hasNoType` ''FL.Step
+inspect $ 'fromEffect `hasNoType` ''SPEC
 inspect $ 'fromTuple `hasNoType` ''S.Step
+inspect $ 'fromTuple `hasNoType` ''FL.Step
+inspect $ 'fromTuple `hasNoType` ''SPEC
 inspect $ 'unfoldrM `hasNoType` ''S.Step
+inspect $ 'unfoldrM `hasNoType` ''FL.Step
+inspect $ 'unfoldrM `hasNoType` ''SPEC
 inspect $ 'fromList `hasNoType` ''S.Step
+inspect $ 'fromList `hasNoType` ''FL.Step
+inspect $ 'fromList `hasNoType` ''SPEC
 inspect $ 'fromListM `hasNoType` ''S.Step
+inspect $ 'fromListM `hasNoType` ''FL.Step
+inspect $ 'fromListM `hasNoType` ''SPEC
 inspect $ 'replicateM `hasNoType` ''S.Step
+inspect $ 'replicateM `hasNoType` ''FL.Step
+inspect $ 'replicateM `hasNoType` ''SPEC
 inspect $ 'repeatM `hasNoType` ''S.Step
+inspect $ 'repeatM `hasNoType` ''FL.Step
+inspect $ 'repeatM `hasNoType` ''SPEC
 inspect $ 'iterateM `hasNoType` ''S.Step
+inspect $ 'iterateM `hasNoType` ''FL.Step
+inspect $ 'iterateM `hasNoType` ''SPEC
 inspect $ 'fromIndicesM `hasNoType` ''S.Step
+inspect $ 'fromIndicesM `hasNoType` ''FL.Step
+inspect $ 'fromIndicesM `hasNoType` ''SPEC
 inspect $ 'enumerateFromThenIntegral `hasNoType` ''S.Step
+inspect $ 'enumerateFromThenIntegral `hasNoType` ''FL.Step
+inspect $ 'enumerateFromThenIntegral `hasNoType` ''SPEC
 inspect $ 'enumerateFromToIntegral `hasNoType` ''S.Step
+inspect $ 'enumerateFromToIntegral `hasNoType` ''FL.Step
+inspect $ 'enumerateFromToIntegral `hasNoType` ''SPEC
 inspect $ 'enumerateFromIntegral `hasNoType` ''S.Step
+inspect $ 'enumerateFromIntegral `hasNoType` ''FL.Step
+inspect $ 'enumerateFromIntegral `hasNoType` ''SPEC
 inspect $ 'enumerateFromStepNum `hasNoType` ''S.Step
+inspect $ 'enumerateFromStepNum `hasNoType` ''FL.Step
+inspect $ 'enumerateFromStepNum `hasNoType` ''SPEC
 inspect $ 'enumerateFromNum `hasNoType` ''S.Step
+inspect $ 'enumerateFromNum `hasNoType` ''FL.Step
+inspect $ 'enumerateFromNum `hasNoType` ''SPEC
 inspect $ 'enumerateFromToFractional `hasNoType` ''S.Step
+inspect $ 'enumerateFromToFractional `hasNoType` ''FL.Step
+inspect $ 'enumerateFromToFractional `hasNoType` ''SPEC
 
 -- transformation
 inspect $ 'map `hasNoType` ''S.Step
+inspect $ 'map `hasNoType` ''FL.Step
+inspect $ 'map `hasNoType` ''SPEC
 inspect $ 'mapM `hasNoType` ''S.Step
+inspect $ 'mapM `hasNoType` ''FL.Step
+inspect $ 'mapM `hasNoType` ''SPEC
 inspect $ 'mapM2 `hasNoType` ''S.Step
+inspect $ 'mapM2 `hasNoType` ''FL.Step
+inspect $ 'mapM2 `hasNoType` ''SPEC
 inspect $ 'postscan `hasNoType` ''S.Step
+inspect $ 'postscan `hasNoType` ''FL.Step
+inspect $ 'postscan `hasNoType` ''SPEC
 
 -- filtering
 inspect $ 'takeWhileM `hasNoType` ''S.Step
+inspect $ 'takeWhileM `hasNoType` ''FL.Step
+inspect $ 'takeWhileM `hasNoType` ''SPEC
 inspect $ 'takeWhile `hasNoType` ''S.Step
+inspect $ 'takeWhile `hasNoType` ''FL.Step
+inspect $ 'takeWhile `hasNoType` ''SPEC
 inspect $ 'take `hasNoType` ''S.Step
+inspect $ 'take `hasNoType` ''FL.Step
+inspect $ 'take `hasNoType` ''SPEC
 inspect $ 'filter `hasNoType` ''S.Step
+inspect $ 'filter `hasNoType` ''FL.Step
+inspect $ 'filter `hasNoType` ''SPEC
 inspect $ 'filterM `hasNoType` ''S.Step
+inspect $ 'filterM `hasNoType` ''FL.Step
+inspect $ 'filterM `hasNoType` ''SPEC
 inspect $ 'dropOne `hasNoType` ''S.Step
+inspect $ 'dropOne `hasNoType` ''FL.Step
+inspect $ 'dropOne `hasNoType` ''SPEC
 inspect $ 'dropAll `hasNoType` ''S.Step
+inspect $ 'dropAll `hasNoType` ''FL.Step
+inspect $ 'dropAll `hasNoType` ''SPEC
 inspect $ 'dropWhileTrue `hasNoType` ''S.Step
+inspect $ 'dropWhileTrue `hasNoType` ''FL.Step
+inspect $ 'dropWhileTrue `hasNoType` ''SPEC
 inspect $ 'dropWhileFalse `hasNoType` ''S.Step
+inspect $ 'dropWhileFalse `hasNoType` ''FL.Step
+inspect $ 'dropWhileFalse `hasNoType` ''SPEC
 inspect $ 'dropWhileMTrue `hasNoType` ''S.Step
+inspect $ 'dropWhileMTrue `hasNoType` ''FL.Step
+inspect $ 'dropWhileMTrue `hasNoType` ''SPEC
 inspect $ 'dropWhileMFalse `hasNoType` ''S.Step
+inspect $ 'dropWhileMFalse `hasNoType` ''FL.Step
+inspect $ 'dropWhileMFalse `hasNoType` ''SPEC
 
 -- zip
 inspect $ 'zipWith `hasNoType` ''S.Step
+inspect $ 'zipWith `hasNoType` ''FL.Step
+inspect $ 'zipWith `hasNoType` ''SPEC
 inspect $ 'zipWithM `hasNoType` ''S.Step
+inspect $ 'zipWithM `hasNoType` ''FL.Step
+inspect $ 'zipWithM `hasNoType` ''SPEC
 inspect $ 'teeZipWith `hasNoType` ''S.Step
+inspect $ 'teeZipWith `hasNoType` ''FL.Step
+inspect $ 'teeZipWith `hasNoType` ''SPEC
 inspect $ 'interleave `hasNoType` ''S.Step
+inspect $ 'interleave `hasNoType` ''FL.Step
+inspect $ 'interleave `hasNoType` ''SPEC
 
 -- nested
 inspect $ 'toNullAp `hasNoType` ''S.Step
+inspect $ 'toNullAp `hasNoType` ''FL.Step
+inspect $ 'toNullAp `hasNoType` ''SPEC
 inspect $ 'crossApplyFst `hasNoType` ''S.Step
+inspect $ 'crossApplyFst `hasNoType` ''FL.Step
+inspect $ 'crossApplyFst `hasNoType` ''SPEC
 inspect $ 'crossApplySnd `hasNoType` ''S.Step
+inspect $ 'crossApplySnd `hasNoType` ''FL.Step
+inspect $ 'crossApplySnd `hasNoType` ''SPEC
 inspect $ 'cross `hasNoType` ''S.Step
+inspect $ 'cross `hasNoType` ''FL.Step
+inspect $ 'cross `hasNoType` ''SPEC
 inspect $ 'fairCross `hasNoType` ''S.Step
+inspect $ 'fairCross `hasNoType` ''FL.Step
+inspect $ 'fairCross `hasNoType` ''SPEC
 inspect $ 'unfoldEach `hasNoType` ''S.Step
+inspect $ 'unfoldEach `hasNoType` ''FL.Step
+inspect $ 'unfoldEach `hasNoType` ''SPEC
 -- The 'bind'-based benchmarks use the Unfold monad ('UF.bind'), which is a
--- concatMap and does not fuse, so the 'Step' constructors remain. The same is
--- true for 'concatMapM' and 'unfoldEachInterleave'.
+-- concatMap and does not fuse, so the 'Step' constructors remain.
 -- inspect $ 'concatMapM `hasNoType` ''S.Step
+inspect $ 'concatMapM `hasNoType` ''FL.Step
+inspect $ 'concatMapM `hasNoType` ''SPEC
 -- inspect $ 'toNull `hasNoType` ''S.Step
+inspect $ 'toNull `hasNoType` ''FL.Step
+inspect $ 'toNull `hasNoType` ''SPEC
 -- inspect $ 'toNull3 `hasNoType` ''S.Step
+inspect $ 'toNull3 `hasNoType` ''FL.Step
+inspect $ 'toNull3 `hasNoType` ''SPEC
 -- inspect $ 'toList `hasNoType` ''S.Step
+inspect $ 'toList `hasNoType` ''FL.Step
+inspect $ 'toList `hasNoType` ''SPEC
 -- inspect $ 'toListSome `hasNoType` ''S.Step
+inspect $ 'toListSome `hasNoType` ''FL.Step
+inspect $ 'toListSome `hasNoType` ''SPEC
 -- inspect $ 'filterAllOut `hasNoType` ''S.Step
+inspect $ 'filterAllOut `hasNoType` ''FL.Step
+inspect $ 'filterAllOut `hasNoType` ''SPEC
 -- inspect $ 'filterAllIn `hasNoType` ''S.Step
+inspect $ 'filterAllIn `hasNoType` ''FL.Step
+inspect $ 'filterAllIn `hasNoType` ''SPEC
 -- inspect $ 'filterSome `hasNoType` ''S.Step
+inspect $ 'filterSome `hasNoType` ''FL.Step
+inspect $ 'filterSome `hasNoType` ''SPEC
 -- inspect $ 'breakAfterSome `hasNoType` ''S.Step
+inspect $ 'breakAfterSome `hasNoType` ''FL.Step
+inspect $ 'breakAfterSome `hasNoType` ''SPEC
+-- 'unfoldEachInterleave' does not fuse: 'Step' and 'SPEC' are not eliminated.
 -- inspect $ 'unfoldEachInterleave `hasNoType` ''S.Step
+-- inspect $ 'unfoldEachInterleave `hasNoType` ''SPEC
+inspect $ 'unfoldEachInterleave `hasNoType` ''FL.Step
 #endif
 
 -------------------------------------------------------------------------------
