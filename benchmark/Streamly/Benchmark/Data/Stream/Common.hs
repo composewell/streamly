@@ -429,9 +429,11 @@ mapM ::
     -> m ()
 mapM n = composeN n $ Stream.mapM return
 
+{-# INLINE foldl' #-}
 foldl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> m b
 foldl' f z = Stream.fold (Fold.foldl' f z)
 
+{-# INLINE scanl' #-}
 scanl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> Stream m b
 scanl' f z = Stream.scanl (Scanl.scanl' f z)
 
