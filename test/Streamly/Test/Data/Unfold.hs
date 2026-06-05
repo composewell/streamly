@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
 -- |
 -- Module      : Main
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -21,13 +22,20 @@ import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.StreamK as K
 
+import Control.Exception (Exception, SomeException, try)
+import Control.Monad.Catch (throwM)
 import Control.Monad.Trans.State.Strict
 import Data.Functor.Identity
-import Prelude hiding (const, take, drop, concat, mapM)
+import Data.IORef (newIORef, readIORef, writeIORef)
+import Foreign.Marshal.Array (withArray)
+import Prelude hiding (const, take, drop, concat, mapM, either, filter, dropWhile, repeat, scanl)
 import Test.Hspec as H
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
 import Test.QuickCheck.Function
+
+newtype TestException = TestException String deriving (Eq, Show)
+instance Exception TestException
 
 -------------------------------------------------------------------------------
 -- Helper functions
@@ -219,6 +227,12 @@ fromIndicesM =
                   list = Prelude.take 100 $ Prelude.map indFA [1 ..]
                   unf = UF.take 100 $ UF.fromIndicesM indFM
                in testUnfoldMD unf 1 0 (length list) list
+
+nil :: Bool
+nil = testUnfold UF.nil (1 :: Int) ([] :: [Int])
+
+repeat :: Bool
+repeat = testUnfold (UF.take 5 UF.repeat) (1 :: Int) [1,1,1,1,1]
 
 -------------------------------------------------------------------------------
 -- Test for Num type
@@ -478,6 +492,45 @@ postscan =
                   mList = scanl1 (+) ls
               in testUnfold unf ls mList
 
+fold :: Bool
+fold = runIdentity (UF.fold Fold.sum UF.fromList [1..10 :: Int]) == 55
+
+scanl :: Bool
+scanl =
+    let unf = UF.scanl (Scanl.take 2 Scanl.sum) UF.fromList
+    in testUnfold unf ([1,2,3,4,5] :: [Int]) [0,1,3]
+
+scanlMany :: Bool
+scanlMany =
+    let unf = UF.scanlMany (Scanl.take 2 Scanl.sum) UF.fromList
+    in testUnfold unf ([1,2,3,4,5] :: [Int]) [0,1,3,0,3,7,0,5]
+
+foldMany :: Bool
+foldMany =
+    let unf = UF.foldMany (Fold.take 2 Fold.toList) UF.fromList
+    in testUnfold unf ([1,2,3,4,5] :: [Int]) [[1,2],[3,4],[5]]
+
+either :: Bool
+either =
+    let unf = UF.either UF.fromList UF.fromList
+    in testUnfold unf (Left [1,2,3 :: Int]) [1,2,3]
+       && testUnfold unf (Right [4,5,6 :: Int]) [4,5,6]
+
+postscanlM' :: Bool
+postscanlM' =
+    let unf = UF.postscanlM' (\b a -> return (b + a)) (return (0 :: Int)) UF.fromList
+    in testUnfold unf [1,2,3,4,5 :: Int] [1,3,6,10,15]
+
+scan :: Bool
+scan =
+    let unf = UF.scan (Fold.take 2 Fold.sum) UF.fromList
+    in testUnfold unf ([1,2,3,4,5] :: [Int]) [0,1,3]
+
+scanMany :: Bool
+scanMany =
+    let unf = UF.scanMany (Fold.take 2 Fold.sum) UF.fromList
+    in testUnfold unf ([1,2,3,4,5] :: [Int]) [0,1,3,0,3,7,0,5]
+
 mapM :: Property
 mapM =
     property
@@ -553,6 +606,53 @@ dropWhileM =
                   fL = Prelude.dropWhile (apply f) list
                   fS = Prelude.length list - Prelude.length fL
                in testUnfoldMD unf list 0 fS fL
+
+filter :: Property
+filter =
+    property
+        $ \f list ->
+              let unf = UF.filter (apply f) UF.fromList
+                  fL = Prelude.filter (apply f) (list :: [Int])
+               in testUnfoldD unf list fL
+
+dropWhile :: Property
+dropWhile =
+    property
+        $ \f list ->
+              let unf = UF.dropWhile (apply f) UF.fromList
+                  fL = Prelude.dropWhile (apply f) (list :: [Int])
+               in testUnfoldD unf list fL
+
+mapMaybe :: Property
+mapMaybe =
+    property
+        $ \list ->
+              let f x = if even x then Just (x * 2 :: Int) else Nothing
+                  unf = UF.mapMaybe f UF.fromList
+                  expected = [x * 2 | x <- list :: [Int], even x]
+               in testUnfoldD unf list expected
+
+mapMaybeM :: Property
+mapMaybeM =
+    property
+        $ \list ->
+              let fM x =
+                      if even x
+                      then modify (+ 1) >> return (Just (x * 2))
+                      else return Nothing
+                  unf = UF.mapMaybeM fM UF.fromList
+                  expected = [x * 2 | x <- list :: [Int], even x]
+                  evens = Prelude.length $ Prelude.filter even list
+               in testUnfoldMD unf list 0 evens expected
+
+catMaybes :: Property
+catMaybes =
+    property
+        $ \list ->
+              let lst = Prelude.map (\x -> if even x then Just x else Nothing) (list :: [Int])
+                  unf = UF.catMaybes UF.fromList
+                  expected = [x | x <- list, even x]
+               in testUnfoldD unf lst expected
 
 -------------------------------------------------------------------------------
 -- Stream combination
@@ -653,6 +753,158 @@ unfoldEachInterleave =
         lst = Prelude.concat $ Prelude.map (Prelude.replicate 10) [1 .. 10]
      in testUnfoldSorted unf (1, 10) (lst :: [Int])
 
+innerJoin :: Bool
+innerJoin =
+    let unf = UF.innerJoin (==) (UF.lmap fst UF.fromList) (UF.lmap snd UF.fromList)
+        ls1 = [1,2,3,4 :: Int]
+        ls2 = [2,3,4,5 :: Int]
+        expected = [(a,b) | a <- ls1, b <- ls2, a == b]
+    in testUnfold unf (ls1, ls2) expected
+
+zipRepeat :: Property
+zipRepeat =
+    property
+        $ \list ->
+              let c = 42 :: Int
+                  unf = UF.zipRepeat UF.fromList
+                  expected = Prelude.map (c,) (list :: [Int])
+               in testUnfold unf (c, list) expected
+
+-------------------------------------------------------------------------------
+-- Resource management / exception tests
+-------------------------------------------------------------------------------
+
+testResourceManagement :: Spec
+testResourceManagement =
+    describe "Resource Management" $ do
+        it "before" $ do
+            ref <- newIORef (0 :: Int)
+            xs <- S.fold Fold.toList
+                      $ S.unfold
+                          (UF.before (\_ -> writeIORef ref 1) UF.fromList)
+                          [1,2,3 :: Int]
+            val <- readIORef ref
+            xs `shouldBe` [1,2,3]
+            val `shouldBe` 1
+        it "after_" $ do
+            ref <- newIORef (0 :: Int)
+            xs <- S.fold Fold.toList
+                      $ S.unfold
+                          (UF.after_ (\_ -> writeIORef ref 1) UF.fromList)
+                          [1,2,3 :: Int]
+            val <- readIORef ref
+            xs `shouldBe` [1,2,3]
+            val `shouldBe` 1
+        it "afterIO" $ do
+            ref <- newIORef (0 :: Int)
+            xs <- S.fold Fold.toList
+                      $ S.unfold
+                          (UF.afterIO (\_ -> writeIORef ref 1) UF.fromList)
+                          [1,2,3 :: Int]
+            val <- readIORef ref
+            xs `shouldBe` [1,2,3]
+            val `shouldBe` 1
+        it "finally_ normal end" $ do
+            ref <- newIORef (0 :: Int)
+            xs <- S.fold Fold.toList
+                      $ S.unfold
+                          (UF.finally_ (\_ -> writeIORef ref 1) UF.fromList)
+                          [1,2,3 :: Int]
+            val <- readIORef ref
+            xs `shouldBe` [1,2,3]
+            val `shouldBe` 1
+        it "finally_ on exception" $ do
+            ref <- newIORef (0 :: Int)
+            let throwingList = [return 1 :: IO Int, throwM (TestException "e")]
+            res <- try . S.fold Fold.drain
+                       $ S.unfold
+                           (UF.finally_ (\_ -> writeIORef ref 1) UF.fromListM)
+                           throwingList
+            val <- readIORef ref
+            res `shouldBe` (Left (TestException "e") :: Either TestException ())
+            val `shouldBe` 1
+        it "finallyIO normal end" $ do
+            ref <- newIORef (0 :: Int)
+            xs <- S.fold Fold.toList
+                      $ S.unfold
+                          (UF.finallyIO (\_ -> writeIORef ref 1) UF.fromList)
+                          [1,2,3 :: Int]
+            val <- readIORef ref
+            xs `shouldBe` [1,2,3]
+            val `shouldBe` 1
+        it "bracket_ alloc and cleanup" $ do
+            ref <- newIORef (0 :: Int)
+            xs <- S.fold Fold.toList
+                      $ S.unfold
+                          (UF.bracket_
+                              (\(lst :: [Int]) -> writeIORef ref 1 >> return lst)
+                              (\_ -> writeIORef ref 2)
+                              UF.fromList)
+                          [1,2,3 :: Int]
+            val <- readIORef ref
+            xs `shouldBe` [1,2,3]
+            val `shouldBe` 2
+        it "bracketIO alloc and cleanup" $ do
+            ref <- newIORef (0 :: Int)
+            xs <- S.fold Fold.toList
+                      $ S.unfold
+                          (UF.bracketIO
+                              (\(lst :: [Int]) -> writeIORef ref 1 >> return lst)
+                              (\_ -> writeIORef ref 2)
+                              UF.fromList)
+                          [1,2,3 :: Int]
+            val <- readIORef ref
+            xs `shouldBe` [1,2,3]
+            val `shouldBe` 2
+        it "onException runs on exception" $ do
+            ref <- newIORef (0 :: Int)
+            let throwingList = [return 1 :: IO Int, throwM (TestException "e"), return 3]
+            res <- try . S.fold Fold.drain
+                       $ S.unfold
+                           (UF.onException (\_ -> writeIORef ref 1) UF.fromListM)
+                           throwingList
+            val <- readIORef ref
+            res `shouldBe` (Left (TestException "e") :: Either TestException ())
+            val `shouldBe` 1
+        it "handle catches exception" $ do
+            let throwingList = [return 1 :: IO Int, throwM (TestException "e"), return 3]
+            xs <- S.fold Fold.toList
+                      $ S.unfold
+                          (UF.handle
+                              (UF.lmap (\(_ :: TestException) -> [99 :: Int]) UF.fromList)
+                              UF.fromListM)
+                          throwingList
+            xs `shouldBe` [1, 99]
+        it "gbracket_ normal end" $ do
+            ref <- newIORef (0 :: Int)
+            xs <- S.fold Fold.toList
+                      $ S.unfold
+                          (UF.gbracket_
+                              (\(lst :: [Int]) -> writeIORef ref 1 >> return lst)
+                              (fmap Right)
+                              (\_ -> writeIORef ref 2)
+                              (UF.nil :: Unfold IO ([Int], SomeException) Int)
+                              UF.fromList)
+                          [1,2,3 :: Int]
+            val <- readIORef ref
+            xs `shouldBe` [1,2,3]
+            val `shouldBe` 2
+        it "gbracketIO normal end" $ do
+            ref <- newIORef (0 :: Int)
+            xs <- S.fold Fold.toList
+                      $ S.unfold
+                          (UF.gbracketIO
+                              (\(lst :: [Int]) -> writeIORef ref 1 >> return lst)
+                              (\_ -> writeIORef ref 2)
+                              (\_ -> return ())
+                              (UF.nil :: Unfold IO SomeException Int)
+                              (fmap Right)
+                              UF.fromList)
+                          [1,2,3 :: Int]
+            val <- readIORef ref
+            xs `shouldBe` [1,2,3]
+            val `shouldBe` 2
+
 -------------------------------------------------------------------------------
 -- Test groups
 -------------------------------------------------------------------------------
@@ -680,6 +932,7 @@ testGeneration =
             prop "fromStreamK" fromStreamK
             prop "fromStreamD" fromStreamD
             prop "nilM" nilM
+            prop "nil" nil
             prop "consM" consM
             prop "functionM" functionM
             -- prop "function" function
@@ -693,8 +946,12 @@ testGeneration =
             -- prop "fromProducer" fromProducer
             prop "replicateM" replicateM
             prop "repeatM" repeatM
+            prop "repeat" repeat
             prop "iterateM" iterateM
             prop "fromIndicesM" fromIndicesM
+            it "fromPtr" $ withArray [1,2,3,4,5 :: Int] $ \ptr -> do
+                xs <- S.fold Fold.toList $ S.unfold (UF.take 5 UF.fromPtr) ptr
+                xs `shouldBe` [1,2,3,4,5]
             ----------- Enumerate from Num ------------------------------------
             prop "enumerateFromNum" enumerateFromNum
             prop "enumerateFromThenNum" enumerateFromThenNum
@@ -740,16 +997,28 @@ testTransformation =
         $ do
             -- prop "map" map
             prop "postscan" postscan
+            prop "fold" fold
+            prop "scanl" scanl
+            prop "scanlMany" scanlMany
+            prop "foldMany" foldMany
+            prop "either" either
             prop "mapM" mapM
             prop "mapM2" mapM2
             prop "takeWhileM" takeWhileM
             -- prop "takeWhile" takeWhile
             prop "take" take
-            -- prop "filter" filter
+            prop "filter" filter
             prop "filterM" filterM
             prop "drop" drop
-            -- prop "dropWhile" dropWhile
+            prop "dropWhile" dropWhile
             prop "dropWhileM" dropWhileM
+            prop "mapMaybe" mapMaybe
+            prop "mapMaybeM" mapMaybeM
+            prop "catMaybes" catMaybes
+            -- deprecated
+            prop "postscanlM'" postscanlM'
+            prop "scan" scan
+            prop "scanMany" scanMany
 
 testCombination :: Spec
 testCombination =
@@ -767,6 +1036,8 @@ testCombination =
             prop "fairCross" fairCross
             prop "interleave" interleave
             prop "unfoldEachInterleave" unfoldEachInterleave
+            prop "innerJoin" innerJoin
+            prop "zipRepeat" zipRepeat
 
 -------------------------------------------------------------------------------
 -- Main
@@ -784,3 +1055,4 @@ main =
             testGeneration
             testTransformation
             testCombination
+            testResourceManagement
