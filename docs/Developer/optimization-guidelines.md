@@ -177,6 +177,73 @@ Recursion in step function:
   loop arguments as strict where needed. We have observed that when the
   arguments were not strict the loop does not fuse (splitOnSeq).
 
+### Eta reduction, Partial Application, Lambdas, and Argument Order
+
+Eta reduction = Partial application = lambda => may not be inlined, if we have
+to pass a lambda form it has to be boxed which is not good for fusion. So in
+fast fused loops eta reduction and using lambdas may cost a lot due to boxing
+and not inlining. Specialization and inlining may not happen.
+
+Argument order matters only for partial application as explained below. If
+called fully applied every time the following examples are equivalent. The
+performance difference occurs only when partially applied.
+
+When we call "has xs" it returns a lambda, Set.fromList is evaluated
+once and stored in the lambda, when "has xs" lambda is used Set.fromList
+is not computed every time. Here the expensive work is shared and done only
+once.
+```
+import qualified Data.Set as Set
+has :: [Int] -> Int -> Bool
+has xs =
+  let s = Set.fromList xs
+  in \y -> Set.member y s
+```
+
+Now look at this, if we use "has y" as a lambda and apply it to "xs"
+then "Set.fromList xs" is computed for each y, and computing this is
+expensive. Here, the expensive work is not shared and done every time.
+```
+has :: Int -> [Int] -> Bool
+has y xs = Set.member y (Set.fromList xs)
+```
+
+Note that just the argument order is not enough for sharing, e.g. "has xs" int
+he following will still apply "xs" every time, for sharing we need to float it
+out of the final lambda as in the first example above.
+```
+has :: Int -> [Int] -> Bool
+has xs y = Set.member y (Set.fromList xs)
+```
+
+In streaming, sharing is much more explicit, it is sort of clear that
+we should be using a stream only once. Lazy computations are similar
+to streaming but not explicit, programmer's can write code in any
+order without thinking about the performance characterstics. Sometimes
+compiler optimizations float out the shared computations but sometimes
+they may not. And the decision of the compiler may be wrong. Therefore,
+programmer must know what will be shared and what should be shared when
+writing the code. If we do that performance will be more reliable rather
+than relying on the compiler which is unpredictable.
+
+Basically when we are doing nested looping computations in lazy code
+we should know which loop is the outer loop and which is the inner
+loop. This problem is exactly the same as inverting the loop order in
+imperative loops. But here it is nastier because it is hidden under the
+laziness abstraction rather than being very explicit as in imperative
+loops.
+
+One way to reduce the occurrence of performance problems is to keep the
+argument order in such a way that currying the leftmost argument would share
+expensive work and give us an optimal lambda.
+
+It may be better if the compiler or linter points out all such cases and let
+the programmer express the intent explicitly.
+
+However, if the computation stored is not expensive, storing the lambda
+in a boxed pointer would cost much more in the fusion cost (boxing and
+unboxing) than the savings.
+
 ### Fold and Parser drivers
 
 Recursive loop closing operations:
