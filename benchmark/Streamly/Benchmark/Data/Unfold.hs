@@ -42,7 +42,7 @@ import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.StreamK as K
 
 import Test.Tasty.Bench hiding (env)
-import Prelude hiding (take, filter, zipWith, map, mapM, takeWhile)
+import Prelude hiding (take, filter, zipWith, map, mapM, takeWhile, scanl, repeat, dropWhile)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Common.Handle
 
@@ -153,6 +153,16 @@ discardSecond :: Int -> Int -> IO ()
 discardSecond size start =
     drainTransformationDefault (size + start) UF.discardSecond (start, start)
 
+{-# INLINE consInput #-}
+consInput :: Int -> Int -> IO ()
+consInput size start =
+    drainTransformationDefault (size + start) UF.consInput start
+
+{-# INLINE consInputWith #-}
+consInputWith :: Int -> Int -> IO ()
+consInputWith size start =
+    drainTransformationDefault (size + start) (UF.consInputWith (+1)) start
+
 {-# INLINE swap #-}
 swap :: Int -> Int -> IO ()
 swap size start =
@@ -188,6 +198,11 @@ nilM :: Int -> Int -> IO ()
 nilM value start =
     drainGeneration (UF.unfoldEach (UF.nilM return) (source (start + value))) start
 
+{-# INLINE nil #-}
+nil :: Int -> Int -> IO ()
+nil value start =
+    drainGeneration (UF.unfoldEach UF.nil (source (start + value))) start
+
 {-# INLINE consM #-}
 consM :: Int -> Int -> IO ()
 consM size start =
@@ -220,6 +235,20 @@ fromEffect value start =
         (UF.unfoldEach (UF.fromEffect (return start)) (source (start + value)))
         start
 
+{-# INLINE fromPure #-}
+fromPure :: Int -> Int -> IO ()
+fromPure value start =
+    drainGeneration
+        (UF.unfoldEach (UF.fromPure start) (source (start + value)))
+        start
+
+{-# INLINE functionMaybeM #-}
+functionMaybeM :: Int -> Int -> IO ()
+functionMaybeM value start =
+    drainGeneration
+        (UF.unfoldEach (UF.functionMaybeM (return . Just)) (source (start + value)))
+        start
+
 -- 'fromTuple' generates two elements per seed, so unfold it over value/2 tuples
 -- to emit and drain ~value elements.
 {-# INLINE fromTuple #-}
@@ -243,6 +272,12 @@ sourceUnfoldrM size start = UF.unfoldrM step
 {-# INLINE unfoldrM #-}
 unfoldrM :: Int -> Int -> IO ()
 unfoldrM size start = drainGeneration (sourceUnfoldrM size start) start
+
+{-# INLINE unfoldr #-}
+unfoldr :: Int -> Int -> IO ()
+unfoldr size start = drainGeneration (UF.unfoldr step) start
+    where
+    step i = if i < start + size then Just (i, i + 1) else Nothing
 
 {-# INLINE fromList #-}
 fromList :: Int -> Int -> IO ()
@@ -268,6 +303,10 @@ replicateM size start = drainGeneration UF.replicateM (size, return start)
 {-# INLINE repeatM #-}
 repeatM :: Int -> Int -> IO ()
 repeatM size start = drainGeneration (UF.take size UF.repeatM) (return start)
+
+{-# INLINE repeat #-}
+repeat :: Int -> Int -> IO ()
+repeat size start = drainGeneration (UF.take size UF.repeat) start
 
 {-# INLINE iterateM #-}
 iterateM :: Int -> Int -> IO ()
@@ -343,6 +382,16 @@ mapM2 size start =
         size
         (UF.mapM (\(a, b) -> return $ a + b) . UF.carryInput)
         start
+
+{-# INLINE scanl #-}
+scanl :: Int -> Int -> IO ()
+scanl size start =
+    drainTransformationDefault (size + start) (UF.scanl Scanl.sum) start
+
+{-# INLINE scanlMany #-}
+scanlMany :: Int -> Int -> IO ()
+scanlMany size start =
+    drainTransformationDefault (size + start) (UF.scanlMany (Scanl.take 2 Scanl.sum)) start
 
 -------------------------------------------------------------------------------
 -- Stream filtering
@@ -427,6 +476,29 @@ dropWhileMFalse size start =
         (UF.dropWhileM (\_ -> return False))
         start
 
+{-# INLINE dropWhile #-}
+dropWhile :: Int -> Int -> IO ()
+dropWhile size start =
+    drainTransformationDefault
+        (size + start)
+        (UF.dropWhile (\_ -> False))
+        start
+
+{-# INLINE mapMaybe #-}
+mapMaybe :: Int -> Int -> IO ()
+mapMaybe size start =
+    drainTransformationDefault (size + start) (UF.mapMaybe Just) start
+
+{-# INLINE mapMaybeM #-}
+mapMaybeM :: Int -> Int -> IO ()
+mapMaybeM size start =
+    drainTransformationDefault (size + start) (UF.mapMaybeM (return . Just)) start
+
+{-# INLINE catMaybes #-}
+catMaybes :: Int -> Int -> IO ()
+catMaybes size start =
+    drainTransformationDefault (size + start) (UF.catMaybes . UF.map Just) start
+
 -------------------------------------------------------------------------------
 -- Stream combination
 -------------------------------------------------------------------------------
@@ -453,6 +525,31 @@ teeZipWith size start =
 interleave :: Int -> Int -> IO ()
 interleave size start =
     drainProductDefault (size + start) UF.interleave (start, start)
+
+{-# INLINE eitherLeft #-}
+eitherLeft :: Int -> Int -> IO ()
+eitherLeft size start =
+    drainGeneration
+        (UF.either (source (size + start)) (source (size + start)))
+        (Left start)
+
+{-# INLINE zipArrowWithM #-}
+zipArrowWithM :: Int -> Int -> IO ()
+zipArrowWithM size start =
+    drainProductDefault
+        (size + start)
+        (UF.zipArrowWithM (\a b -> return (a + b)))
+        (start, start)
+
+{-# INLINE zipArrowWith #-}
+zipArrowWith :: Int -> Int -> IO ()
+zipArrowWith size start =
+    drainProductDefault (size + start) (UF.zipArrowWith (+)) (start, start)
+
+{-# INLINE zipRepeat #-}
+zipRepeat :: Int -> Int -> IO ()
+zipRepeat size start =
+    drainGeneration (UF.zipRepeat (source (size + start))) (start, start)
 
 -------------------------------------------------------------------------------
 -- Applicative
@@ -496,6 +593,48 @@ fairCross value start =
     let end = start + nthRoot 2 value
         s = source end
     in UF.fold FL.drain (s `UF.fairCross` s) start
+
+{-# INLINE crossApply #-}
+crossApply :: Int -> Int -> IO ()
+crossApply value start =
+    let end = start + nthRoot 2 value
+        s = source end
+    in UF.fold FL.drain (UF.crossApply (UF.map (+) s) s) start
+
+{-# INLINE crossWithM #-}
+crossWithM :: Int -> Int -> IO ()
+crossWithM value start =
+    let end = start + nthRoot 2 value
+        s = source end
+    in UF.fold FL.drain (UF.crossWithM (\a b -> return (a + b)) s s) start
+
+{-# INLINE crossWith #-}
+crossWith :: Int -> Int -> IO ()
+crossWith value start =
+    let end = start + nthRoot 2 value
+        s = source end
+    in UF.fold FL.drain (UF.crossWith (+) s s) start
+
+{-# INLINE fairCrossWithM #-}
+fairCrossWithM :: Int -> Int -> IO ()
+fairCrossWithM value start =
+    let end = start + nthRoot 2 value
+        s = source end
+    in UF.fold FL.drain (UF.fairCrossWithM (\a b -> return (a + b)) s s) start
+
+{-# INLINE fairCrossWith #-}
+fairCrossWith :: Int -> Int -> IO ()
+fairCrossWith value start =
+    let end = start + nthRoot 2 value
+        s = source end
+    in UF.fold FL.drain (UF.fairCrossWith (+) s s) start
+
+{-# INLINE innerJoin #-}
+innerJoin :: Int -> Int -> IO ()
+innerJoin value start =
+    let end = start + nthRoot 2 value
+        s = source end
+    in UF.fold FL.drain (UF.innerJoin (==) s s) start
 
 -------------------------------------------------------------------------------
 -- Monad
@@ -696,6 +835,54 @@ unfoldEachInterleave inner outer start = do
             (sourceUnfoldrM inner start) (sourceUnfoldrM outer start))
         start
 
+{-# INLINE concatMapPure #-}
+concatMapPure :: Int -> Int -> Int -> IO ()
+concatMapPure inner outer start =
+    drainGeneration (UF.concatMap unfoldInGen unfoldOut) start
+
+    where
+
+    unfoldInGen i = UF.supplySecond (i + inner) UF.enumerateFromToIntegral
+    unfoldOut = UF.supplySecond (start + outer) UF.enumerateFromToIntegral
+
+-------------------------------------------------------------------------------
+-- Resource management
+-------------------------------------------------------------------------------
+
+{-# INLINE before #-}
+before :: Int -> Int -> IO ()
+before size start =
+    drainTransformationDefault (size + start) (UF.before (\_ -> return ())) start
+
+{-# INLINE after_ #-}
+after_ :: Int -> Int -> IO ()
+after_ size start =
+    drainTransformationDefault (size + start) (UF.after_ (\_ -> return ())) start
+
+{-# INLINE afterIO #-}
+afterIO :: Int -> Int -> IO ()
+afterIO size start =
+    UF.fold FL.drain
+        (UF.afterIO (\_ -> return ())
+            (UF.supplySecond (size + start) UF.enumerateFromToIntegral))
+        start
+
+{-# INLINE finallyIO #-}
+finallyIO :: Int -> Int -> IO ()
+finallyIO size start =
+    UF.fold FL.drain
+        (UF.finallyIO (\_ -> return ())
+            (UF.supplySecond (size + start) UF.enumerateFromToIntegral))
+        start
+
+{-# INLINE bracketIO #-}
+bracketIO :: Int -> Int -> IO ()
+bracketIO size start =
+    UF.fold FL.drain
+        (UF.bracketIO return (\_ -> return ())
+            (UF.supplySecond (size + start) UF.enumerateFromToIntegral))
+        start
+
 -------------------------------------------------------------------------------
 -- Inspection
 -------------------------------------------------------------------------------
@@ -728,6 +915,12 @@ inspect $ 'discardFirst `hasNoType` ''SPEC
 inspect $ 'discardSecond `hasNoType` ''S.Step
 inspect $ 'discardSecond `hasNoType` ''FL.Step
 inspect $ 'discardSecond `hasNoType` ''SPEC
+inspect $ 'consInput `hasNoType` ''S.Step
+inspect $ 'consInput `hasNoType` ''FL.Step
+inspect $ 'consInput `hasNoType` ''SPEC
+inspect $ 'consInputWith `hasNoType` ''S.Step
+inspect $ 'consInputWith `hasNoType` ''FL.Step
+inspect $ 'consInputWith `hasNoType` ''SPEC
 inspect $ 'swap `hasNoType` ''S.Step
 inspect $ 'swap `hasNoType` ''FL.Step
 inspect $ 'swap `hasNoType` ''SPEC
@@ -750,6 +943,9 @@ inspect $ 'fromStreamK `hasNoType` ''SPEC
 inspect $ 'nilM `hasNoType` ''S.Step
 inspect $ 'nilM `hasNoType` ''FL.Step
 inspect $ 'nilM `hasNoType` ''SPEC
+inspect $ 'nil `hasNoType` ''S.Step
+inspect $ 'nil `hasNoType` ''FL.Step
+inspect $ 'nil `hasNoType` ''SPEC
 inspect $ 'functionM `hasNoType` ''S.Step
 inspect $ 'functionM `hasNoType` ''FL.Step
 inspect $ 'functionM `hasNoType` ''SPEC
@@ -762,12 +958,21 @@ inspect $ 'identity `hasNoType` ''SPEC
 inspect $ 'fromEffect `hasNoType` ''S.Step
 inspect $ 'fromEffect `hasNoType` ''FL.Step
 inspect $ 'fromEffect `hasNoType` ''SPEC
+inspect $ 'fromPure `hasNoType` ''S.Step
+inspect $ 'fromPure `hasNoType` ''FL.Step
+inspect $ 'fromPure `hasNoType` ''SPEC
+inspect $ 'functionMaybeM `hasNoType` ''S.Step
+inspect $ 'functionMaybeM `hasNoType` ''FL.Step
+inspect $ 'functionMaybeM `hasNoType` ''SPEC
 inspect $ 'fromTuple `hasNoType` ''S.Step
 inspect $ 'fromTuple `hasNoType` ''FL.Step
 inspect $ 'fromTuple `hasNoType` ''SPEC
 inspect $ 'unfoldrM `hasNoType` ''S.Step
 inspect $ 'unfoldrM `hasNoType` ''FL.Step
 inspect $ 'unfoldrM `hasNoType` ''SPEC
+inspect $ 'unfoldr `hasNoType` ''S.Step
+inspect $ 'unfoldr `hasNoType` ''FL.Step
+inspect $ 'unfoldr `hasNoType` ''SPEC
 inspect $ 'fromList `hasNoType` ''S.Step
 inspect $ 'fromList `hasNoType` ''FL.Step
 inspect $ 'fromList `hasNoType` ''SPEC
@@ -780,6 +985,9 @@ inspect $ 'replicateM `hasNoType` ''SPEC
 inspect $ 'repeatM `hasNoType` ''S.Step
 inspect $ 'repeatM `hasNoType` ''FL.Step
 inspect $ 'repeatM `hasNoType` ''SPEC
+inspect $ 'repeat `hasNoType` ''S.Step
+inspect $ 'repeat `hasNoType` ''FL.Step
+inspect $ 'repeat `hasNoType` ''SPEC
 inspect $ 'iterateM `hasNoType` ''S.Step
 inspect $ 'iterateM `hasNoType` ''FL.Step
 inspect $ 'iterateM `hasNoType` ''SPEC
@@ -818,6 +1026,12 @@ inspect $ 'mapM2 `hasNoType` ''SPEC
 inspect $ 'postscan `hasNoType` ''S.Step
 inspect $ 'postscan `hasNoType` ''FL.Step
 inspect $ 'postscan `hasNoType` ''SPEC
+inspect $ 'scanl `hasNoType` ''S.Step
+inspect $ 'scanl `hasNoType` ''FL.Step
+inspect $ 'scanl `hasNoType` ''SPEC
+inspect $ 'scanlMany `hasNoType` ''S.Step
+inspect $ 'scanlMany `hasNoType` ''FL.Step
+inspect $ 'scanlMany `hasNoType` ''SPEC
 
 -- filtering
 inspect $ 'takeWhileM `hasNoType` ''S.Step
@@ -853,6 +1067,18 @@ inspect $ 'dropWhileMTrue `hasNoType` ''SPEC
 inspect $ 'dropWhileMFalse `hasNoType` ''S.Step
 inspect $ 'dropWhileMFalse `hasNoType` ''FL.Step
 inspect $ 'dropWhileMFalse `hasNoType` ''SPEC
+inspect $ 'dropWhile `hasNoType` ''S.Step
+inspect $ 'dropWhile `hasNoType` ''FL.Step
+inspect $ 'dropWhile `hasNoType` ''SPEC
+inspect $ 'mapMaybe `hasNoType` ''S.Step
+inspect $ 'mapMaybe `hasNoType` ''FL.Step
+inspect $ 'mapMaybe `hasNoType` ''SPEC
+inspect $ 'mapMaybeM `hasNoType` ''S.Step
+inspect $ 'mapMaybeM `hasNoType` ''FL.Step
+inspect $ 'mapMaybeM `hasNoType` ''SPEC
+inspect $ 'catMaybes `hasNoType` ''S.Step
+inspect $ 'catMaybes `hasNoType` ''FL.Step
+inspect $ 'catMaybes `hasNoType` ''SPEC
 
 -- zip
 inspect $ 'zipWith `hasNoType` ''S.Step
@@ -867,6 +1093,18 @@ inspect $ 'teeZipWith `hasNoType` ''SPEC
 inspect $ 'interleave `hasNoType` ''S.Step
 inspect $ 'interleave `hasNoType` ''FL.Step
 inspect $ 'interleave `hasNoType` ''SPEC
+inspect $ 'eitherLeft `hasNoType` ''S.Step
+inspect $ 'eitherLeft `hasNoType` ''FL.Step
+inspect $ 'eitherLeft `hasNoType` ''SPEC
+inspect $ 'zipArrowWithM `hasNoType` ''S.Step
+inspect $ 'zipArrowWithM `hasNoType` ''FL.Step
+inspect $ 'zipArrowWithM `hasNoType` ''SPEC
+inspect $ 'zipArrowWith `hasNoType` ''S.Step
+inspect $ 'zipArrowWith `hasNoType` ''FL.Step
+inspect $ 'zipArrowWith `hasNoType` ''SPEC
+inspect $ 'zipRepeat `hasNoType` ''S.Step
+inspect $ 'zipRepeat `hasNoType` ''FL.Step
+inspect $ 'zipRepeat `hasNoType` ''SPEC
 
 -- nested
 inspect $ 'toNullAp `hasNoType` ''S.Step
@@ -884,6 +1122,24 @@ inspect $ 'cross `hasNoType` ''SPEC
 inspect $ 'fairCross `hasNoType` ''S.Step
 inspect $ 'fairCross `hasNoType` ''FL.Step
 inspect $ 'fairCross `hasNoType` ''SPEC
+inspect $ 'crossApply `hasNoType` ''S.Step
+inspect $ 'crossApply `hasNoType` ''FL.Step
+inspect $ 'crossApply `hasNoType` ''SPEC
+inspect $ 'crossWithM `hasNoType` ''S.Step
+inspect $ 'crossWithM `hasNoType` ''FL.Step
+inspect $ 'crossWithM `hasNoType` ''SPEC
+inspect $ 'crossWith `hasNoType` ''S.Step
+inspect $ 'crossWith `hasNoType` ''FL.Step
+inspect $ 'crossWith `hasNoType` ''SPEC
+inspect $ 'fairCrossWithM `hasNoType` ''S.Step
+inspect $ 'fairCrossWithM `hasNoType` ''FL.Step
+inspect $ 'fairCrossWithM `hasNoType` ''SPEC
+inspect $ 'fairCrossWith `hasNoType` ''S.Step
+inspect $ 'fairCrossWith `hasNoType` ''FL.Step
+inspect $ 'fairCrossWith `hasNoType` ''SPEC
+inspect $ 'innerJoin `hasNoType` ''S.Step
+inspect $ 'innerJoin `hasNoType` ''FL.Step
+inspect $ 'innerJoin `hasNoType` ''SPEC
 inspect $ 'unfoldEach `hasNoType` ''S.Step
 inspect $ 'unfoldEach `hasNoType` ''FL.Step
 inspect $ 'unfoldEach `hasNoType` ''SPEC
@@ -892,6 +1148,9 @@ inspect $ 'unfoldEach `hasNoType` ''SPEC
 -- inspect $ 'concatMapM `hasNoType` ''S.Step
 inspect $ 'concatMapM `hasNoType` ''FL.Step
 inspect $ 'concatMapM `hasNoType` ''SPEC
+-- inspect $ 'concatMapPure `hasNoType` ''S.Step
+inspect $ 'concatMapPure `hasNoType` ''FL.Step
+inspect $ 'concatMapPure `hasNoType` ''SPEC
 -- inspect $ 'toNull `hasNoType` ''S.Step
 inspect $ 'toNull `hasNoType` ''FL.Step
 inspect $ 'toNull `hasNoType` ''SPEC
@@ -940,6 +1199,8 @@ o_1_space_transformation_input size =
           , benchIO "second" $ second size
           , benchIO "discardFirst" $ discardFirst size
           , benchIO "discardSecond" $ discardSecond size
+          , benchIO "consInput" $ consInput size
+          , benchIO "consInputWith" $ consInputWith size
           , benchIO "swap" $ swap size
           ]
     ]
@@ -952,17 +1213,22 @@ o_1_space_generation size =
           , benchIO "fromStreamK" $ fromStreamK size
           , benchIO "fromStreamD" $ fromStreamD size
           , benchIO "nilM" $ nilM size
+          , benchIO "nil" $ nil size
           , benchIO "consM" $ consM size
           , benchIO "functionM" $ functionM size
           , benchIO "function" $ function size
           , benchIO "identity" $ identity size
           , benchIO "fromEffect" $ fromEffect size
+          , benchIO "fromPure" $ fromPure size
+          , benchIO "functionMaybeM" $ functionMaybeM size
           , benchIO "fromTuple" $ fromTuple size
           , benchIO "unfoldrM" $ unfoldrM size
+          , benchIO "unfoldr" $ unfoldr size
           , benchIO "fromList" $ fromList size
           , benchIO "fromListM" $ fromListM size
           , benchIO "replicateM" $ replicateM size
           , benchIO "repeatM" $ repeatM size
+          , benchIO "repeat" $ repeat size
           , benchIO "iterateM" $ iterateM size
           , benchIO "fromIndicesM" $ fromIndicesM size
           , benchIO "enumerateFromThenIntegral" $ enumerateFromThenIntegral size
@@ -982,6 +1248,8 @@ o_1_space_transformation size =
           , benchIO "mapM" $ mapM size
           , benchIO "mapM2" $ mapM2 size
           , benchIO "postscan" $ postscan size
+          , benchIO "scanl" $ scanl size
+          , benchIO "scanlMany" $ scanlMany size
           ]
     ]
 
@@ -1000,6 +1268,10 @@ o_1_space_filtering size =
           , benchIO "dropWhileFalse" $ dropWhileFalse size
           , benchIO "dropWhileMTrue" $ dropWhileMTrue size
           , benchIO "dropWhileMFalse" $ dropWhileMFalse size
+          , benchIO "dropWhile" $ dropWhile size
+          , benchIO "mapMaybe" $ mapMaybe size
+          , benchIO "mapMaybeM" $ mapMaybeM size
+          , benchIO "catMaybes" $ catMaybes size
           ]
     ]
 
@@ -1011,6 +1283,10 @@ o_1_space_zip size =
           , benchIO "zipWith" $ zipWith size
           , benchIO "teeZipWith" $ teeZipWith size
           , benchIO "interleave" $ interleave size
+          , benchIO "eitherLeft" $ eitherLeft size
+          , benchIO "zipArrowWithM" $ zipArrowWithM size
+          , benchIO "zipArrowWith" $ zipArrowWith size
+          , benchIO "zipRepeat" $ zipRepeat size
           ]
     ]
 
@@ -1032,6 +1308,12 @@ o_1_space_nested env size =
           , benchIO "crossApplySnd outer=inner=(sqrt Max)" $ crossApplySnd size
           , benchIO "cross outer=inner=(sqrt Max)" $ cross size
           , benchIO "fairCross outer=inner=(sqrt Max)" $ fairCross size
+          , benchIO "crossApply2 outer=inner=(sqrt Max)" $ crossApply size
+          , benchIO "crossWithM outer=inner=(sqrt Max)" $ crossWithM size
+          , benchIO "crossWith outer=inner=(sqrt Max)" $ crossWith size
+          , benchIO "fairCrossWithM outer=inner=(sqrt Max)" $ fairCrossWithM size
+          , benchIO "fairCrossWith outer=inner=(sqrt Max)" $ fairCrossWith size
+          , benchIO "innerJoin outer=inner=(sqrt Max)" $ innerJoin size
 
           , benchIO "unfoldEach inner=outer=(sqrt Max)" $ unfoldEach sqrtVal sqrtVal
           , benchIO "unfoldEach inner=1 outer=Max" $ unfoldEach 1 size
@@ -1056,6 +1338,7 @@ o_1_space_concat size =
     [ bgroup
           "concat"
           [ benchIO "concatMapM outer=inner=(sqrt Max)" $ concatMapM sqrtVal sqrtVal
+          , benchIO "concatMapPure outer=inner=(sqrt Max)" $ concatMapPure sqrtVal sqrtVal
           , benchIO "bind2" $ toNull size
           , benchIO "bind3" $ toNull3 size
           , benchIO "concatMap2" $ toNullConcatMap size
@@ -1077,6 +1360,18 @@ o_n_space_concat size =
           "concat"
           [ benchIO "toList2" $ toList size
           , benchIO "toListSome2" $ toListSome size
+          ]
+    ]
+
+o_1_space_resource_management :: Int -> [Benchmark]
+o_1_space_resource_management size =
+    [ bgroup
+          "resource-management"
+          [ benchIO "before" $ before size
+          , benchIO "after_" $ after_ size
+          , benchIO "afterIO" $ afterIO size
+          , benchIO "finallyIO" $ finallyIO size
+          , benchIO "bracketIO" $ bracketIO size
           ]
     ]
 
@@ -1174,6 +1469,7 @@ main = do
                   , o_1_space_zip size
                   , o_1_space_nested env size
                   , o_1_space_concat size
+                  , o_1_space_resource_management size
                   , o_1_space_copy_read_exceptions env
                   ]
         , bgroup (o_n_space_prefix moduleName)
