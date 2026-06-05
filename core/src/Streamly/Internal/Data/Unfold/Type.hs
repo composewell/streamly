@@ -771,6 +771,10 @@ instance Monad m => Applicative (Unfold m a) where
 
 -- XXX This is experimental. We should rather use streams if concatMap like
 -- functionality is needed. This is no more efficient than streams.
+--
+-- NOTE: we can implement this using ReaderT over Producer.concatMapM but that
+-- is 15-20% slower in nested binds though significantly faster in a single
+-- use, so a direct implementation is used.
 
 -- | Map an unfold generating action to each element of an unfold and
 -- flatten the results into a single stream.
@@ -784,16 +788,17 @@ concatMapM f (Unfold step1 inject1) = Unfold step inject
 
     inject x = do
         s <- inject1 x
-        return $ Producer.ConcatMapOuter x s
+        return $ Producer.ConcatMapReaderOuter x s
 
+    {-# INLINE g #-}
     g seed x = do
         Unfold istep iinject <- f x
         ist <- iinject seed
-        return $ Producer.InnerProducer istep ist
+        return $ Producer.InnerStream istep ist
 
     {- HLINT ignore "Eta reduce" -}
     {-# INLINE_LATE step #-}
-    step st = Producer.concatMapM g step1 st
+    step st = Producer.concatMapReaderM g step1 st
 
 {-# INLINE concatMap #-}
 concatMap :: Monad m => (b -> Unfold m a c) -> Unfold m a b -> Unfold m a c

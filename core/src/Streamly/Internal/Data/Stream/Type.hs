@@ -1262,7 +1262,9 @@ zipWithM :: Monad m
     => (a -> b -> m c) -> Stream m a -> Stream m b -> Stream m c
 zipWithM f (Stream stepa ta) (Stream stepb tb) =
     Stream step (Producer.ZipFirst ta tb)
-  where
+
+    where
+
     {- HLINT ignore "Eta reduce" -}
     {-# INLINE_LATE step #-}
     step gst st =
@@ -1625,8 +1627,11 @@ unfoldCross unf m1 m2 = unfoldEach unf $ crossWith (,) m1 m2
 --
 {-# INLINE_NORMAL concatMapM #-}
 concatMapM :: Monad m => (a -> m (Stream m b)) -> Stream m a -> Stream m b
+{-
+-- With this implementation, allocations remain the same or improve but cputime
+-- for some benchmarks gets better and for some others it gets worse.
 concatMapM f (Stream step state) =
-    Stream step' (Producer.ConcatMapOuter () state)
+    Stream step' (Producer.ConcatMapOuter state)
 
   where
 
@@ -1634,16 +1639,44 @@ concatMapM f (Stream step state) =
     {-# INLINE_LATE step' #-}
     step' gst st = Producer.concatMapM g (step (adaptState gst)) st
 
-      where
+    {-# INLINE g #-}
+    g a = do
+        UnStream inner_step inner_st <- f a
+        return $ Producer.InnerStream (inner_step gst) inner_st
+-}
 
-        -- XXX using the pattern synonym "Stream" to match the inner stream
-        -- causes a major performance issue here even if the synonym does not
-        -- include an adaptState call. Need to find out why. Is that something
-        -- to be fixed in GHC? Hence we match on UnStream directly.
-        g () a = do
-            UnStream inner_step inner_st <- f a
-            return $
-                Producer.InnerProducer (inner_step (adaptState gst)) inner_st
+-- NOTE: we could use a flattened state as follows:
+-- data ConcatMapState m c s1 =
+--       ConcatMapOuter s1
+--     | forall s. ConcatMapInner s1 (State K.StreamK m c -> s -> m (Step s c)) s
+--
+-- But it showed mixed results in benchmarks.
+--
+-- NOTE: storing the state in a mutable IORef does not give any better results.
+
+concatMapM f (Stream step state) = Stream step' (Left state)
+  where
+    {-# INLINE_LATE step' #-}
+    step' gst (Left st) = do
+        r <- step (adaptState gst) st
+        case r of
+            Yield a s -> do
+                b_stream <- f a
+                return $ Skip (Right (b_stream, s))
+            Skip s -> return $ Skip (Left s)
+            Stop -> return Stop
+
+    -- XXX using the pattern synonym "Stream" causes a major performance issue
+    -- here even if the synonym does not include an adaptState call. Need to
+    -- find out why. Is that something to be fixed in GHC?
+    step' gst (Right (UnStream inner_step inner_st, st)) = do
+        r <- inner_step gst inner_st
+        case r of
+            Yield b inner_s ->
+                return $ Yield b (Right (Stream inner_step inner_s, st))
+            Skip inner_s ->
+                return $ Skip (Right (Stream inner_step inner_s, st))
+            Stop -> return $ Skip (Left st)
 
 -- | Map a stream producing function on each element of the stream and then
 -- flatten the results into a single stream.
@@ -1728,7 +1761,8 @@ concatMap f = concatMapM (return . f)
 --
 {-# INLINE concatFor #-}
 concatFor :: Monad m => Stream m a -> (a -> Stream m b) -> Stream m b
-concatFor = flip concatMap
+concatFor xs f = concatForM xs (return . f)
+-- concatFor = flip concatMap
 
 -- NOTE: A monad instance can do with just concatMap because we lift an effect
 -- explicitly using liftIO and then bind/applicative concats it. Not sure if it
@@ -1805,7 +1839,7 @@ instance Monad m => Monad (Stream m) where
     return = pure
 
     {-# INLINE (>>=) #-}
-    (>>=) = flip concatMap
+    (>>=) = concatFor
 
     {-# INLINE (>>) #-}
     (>>) = (*>)

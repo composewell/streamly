@@ -21,8 +21,10 @@ module Streamly.Internal.Data.Producer
     , InterleaveState(..)
     , InterleaveEachState(..)
     , ZipState(..)
+    , ConcatMapReaderState(..)
     , ConcatMapState(..)
-    , InnerProducer(..)
+    , InnerStream(..)
+    , concatMapReaderM
     , concatMapM
     , unfoldEach
     , unfoldEachInterleave
@@ -254,14 +256,14 @@ fairCrossWithM f _ _ step2 (FairCrossDrain ys ((b, st):ls)) = do
 -- | An inner producer of a 'concatMapM' bundling its step function with its
 -- current state. It is the existential package that allows the dynamically
 -- generated inner stream to be stored in the loop state of 'concatMapM'.
-data InnerProducer m c = forall s. InnerProducer (s -> m (Step s c)) s
+data InnerStream m c = forall s. InnerStream (s -> m (Step s c)) s
 
 -- | State of a 'concatMapM' producer. @x@ is the seed carried for the whole
 -- loop (used to (re)generate the inner producer for each outer element), @s1@
 -- is the outer producer's state.
-data ConcatMapState m c x s1 =
-      ConcatMapOuter x s1
-    | ConcatMapInner x s1 (InnerProducer m c)
+data ConcatMapState m c s1 =
+      ConcatMapOuter s1
+    | ConcatMapInner s1 (InnerStream m c)
 
 -- | Map an inner-producer generating action to each element of the outer
 -- producer and flatten the results into a single stream. The supplied function
@@ -270,23 +272,67 @@ data ConcatMapState m c x s1 =
 {-# INLINE_LATE concatMapM #-}
 concatMapM
     :: Monad m
-    => (x -> b -> m (InnerProducer m c))
+    => (b -> m (InnerStream m c))
     -> Producer m s1 b
-    -> Producer m (ConcatMapState m c x s1) c
-concatMapM f step1 (ConcatMapOuter seed st) = do
-    r <- step1 st
-    case r of
-        Yield b s -> do
-            inner <- f seed b
-            return $ Skip (ConcatMapInner seed s inner)
-        Skip s -> return $ Skip (ConcatMapOuter seed s)
-        Stop -> return Stop
-concatMapM _ _ (ConcatMapInner seed ost (InnerProducer istep ist)) = do
-    r <- istep ist
-    return $ case r of
-        Yield x s -> Yield x (ConcatMapInner seed ost (InnerProducer istep s))
-        Skip s -> Skip (ConcatMapInner seed ost (InnerProducer istep s))
-        Stop -> Skip (ConcatMapOuter seed ost)
+    -> Producer m (ConcatMapState m c s1) c
+concatMapM f step1 =
+    \case
+        (ConcatMapOuter st) -> do
+            r <- step1 st
+            case r of
+                Yield b s -> do
+                    stream <- f b
+                    return $ Skip (ConcatMapInner s stream)
+                Skip s -> return $ Skip (ConcatMapOuter s)
+                Stop -> return Stop
+        (ConcatMapInner ost (InnerStream istep ist)) -> do
+            r <- istep ist
+            return $ case r of
+                Yield x s -> Yield x (ConcatMapInner ost (InnerStream istep s))
+                Skip s -> Skip (ConcatMapInner ost (InnerStream istep s))
+                Stop -> Skip (ConcatMapOuter ost)
+
+-- Note: Using the following type does not make any perf difference.
+--
+-- data ConcatMapState m b s1 x =
+--       ConcatMapOuter x s1
+--     | ConcatMapInner x s1 (Producer.InnerStream m b)
+
+-- | State of a 'concatMapM' producer. @x@ is the seed carried for the whole
+-- loop (used to (re)generate the inner producer for each outer element), @s1@
+-- is the outer producer's state.
+data ConcatMapReaderState m c x s1 =
+      ConcatMapReaderOuter x s1
+    | forall s. ConcatMapReaderInner x s1 (s -> m (Step s c)) s
+
+-- NOTE: this is essentially concatMap with ReaderT environment.
+
+-- | Map an inner-producer generating action to each element of the outer
+-- producer and flatten the results into a single stream. The supplied function
+-- is given the loop seed @x@ along with the outer element so that the inner
+-- producer can be (re)generated from the seed.
+{-# INLINE_LATE concatMapReaderM #-}
+concatMapReaderM
+    :: Monad m
+    => (x -> b -> m (InnerStream m c))
+    -> Producer m s1 b
+    -> Producer m (ConcatMapReaderState m c x s1) c
+concatMapReaderM f step1 =
+    \case
+        (ConcatMapReaderOuter seed st) -> do
+            r <- step1 st
+            case r of
+                Yield b s -> do
+                    InnerStream istep ist <- f seed b
+                    return $ Skip (ConcatMapReaderInner seed s istep ist)
+                Skip s -> return $ Skip (ConcatMapReaderOuter seed s)
+                Stop -> return Stop
+        (ConcatMapReaderInner seed ost istep ist) -> do
+            r <- istep ist
+            return $ case r of
+                Yield x s -> Yield x (ConcatMapReaderInner seed ost istep s)
+                Skip s -> Skip (ConcatMapReaderInner seed ost istep s)
+                Stop -> Skip (ConcatMapReaderOuter seed ost)
 
 -- | State of an 'unfoldEach' producer. @s1@ is the outer producer's state and
 -- @s2@ the inner producer's state which is re-injected from each outer element.
