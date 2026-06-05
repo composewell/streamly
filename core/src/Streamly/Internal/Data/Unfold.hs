@@ -911,8 +911,8 @@ gbracketIO bef aft onExc (Unfold estep einject) ftry (Unfold step1 inject1) =
 --
 -- /Pre-release/
 {-# INLINE_NORMAL before #-}
-before :: (a -> m c) -> Unfold m a b -> Unfold m a b
-before action (Unfold step inject) = Unfold step (action >> inject)
+before :: Monad m => (a -> m c) -> Unfold m a b -> Unfold m a b
+before action (Unfold step inject) = Unfold step (\a -> action a >> inject a)
 
 -- The custom implementation of "after_" is slightly faster (5-7%) than
 -- "_after".  This is just to document and make sure that we can always use
