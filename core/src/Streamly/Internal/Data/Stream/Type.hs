@@ -2446,7 +2446,7 @@ refoldMany (Refold fstep inject extract) action (Stream step state) =
 {-# ANN type CIterState Fuse #-}
 data CIterState s f fs b
     = CIterInit s f
-    | CIterConsume s fs
+    | CIterConsume s fs Bool
     | CIterYield b (CIterState s f fs b)
     | CIterStop
 
@@ -2468,20 +2468,27 @@ refoldIterateM (Refold fstep finject fextract) initial (Stream step state) =
         return
             $ Skip
             $ case res of
-                  FL.Partial fs -> CIterConsume st fs
+                  FL.Partial fs -> CIterConsume st fs False
                   FL.Done fb -> CIterYield fb $ CIterInit st (return fb)
 
     {-# INLINE_LATE stepOuter #-}
     stepOuter _ (CIterInit st action) = do
         iterStep st (action >>= finject)
-    stepOuter gst (CIterConsume st fs) = do
+    stepOuter gst (CIterConsume st fs consumed) = do
         r <- step (adaptState gst) st
         case r of
-            Yield x s -> iterStep s (fstep fs x)
-            Skip s -> return $ Skip $ CIterConsume s fs
-            Stop -> do
-                b <- fextract fs
-                return $ Skip $ CIterYield b CIterStop
+            Yield x s -> do
+                res <- fstep fs x
+                return $ Skip $ case res of
+                    FL.Partial fs1 -> CIterConsume s fs1 True
+                    FL.Done fb -> CIterYield fb $ CIterInit s (return fb)
+            Skip s -> return $ Skip $ CIterConsume s fs consumed
+            Stop ->
+                if consumed
+                then do
+                    b <- fextract fs
+                    return $ Skip $ CIterYield b CIterStop
+                else return Stop
     stepOuter _ (CIterYield a next) = return $ Yield a next
     stepOuter _ CIterStop = return Stop
 
