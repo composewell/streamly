@@ -8,13 +8,16 @@
 
 module Streamly.Test.Data.Stream.Type (main) where
 
+import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.List (sort)
 import Streamly.Internal.Data.Stream (Stream)
 import Test.QuickCheck (Property, choose)
 import Test.QuickCheck.Monadic (monadicIO, pick)
 
 import qualified Streamly.Internal.Data.Fold as Fold
+import qualified Streamly.Internal.Data.Refold.Type as Refold
 import qualified Streamly.Internal.Data.Stream as Stream
+import Streamly.Internal.Data.Unfold (Unfold)
 import qualified Streamly.Internal.Data.Unfold as Unfold
 
 import Test.Hspec as H
@@ -222,6 +225,382 @@ testAltBfsUnfoldEach = do
             (Stream.fromList [2, 3 :: Int])
     result `shouldBe` sort [1, 2, 1, 2, 3]
 
+-------------------------------------------------------------------------------
+-- Construction
+-------------------------------------------------------------------------------
+
+testNilM :: Expectation
+testNilM = do
+    ref <- newIORef (0 :: Int)
+    Stream.toList (Stream.nilM (writeIORef ref 1))
+        `shouldReturn` ([] :: [Int])
+    readIORef ref `shouldReturn` 1
+
+testConsM :: Expectation
+testConsM =
+    Stream.toList (Stream.consM (return 1) (Stream.fromList [2, 3 :: Int]))
+        `shouldReturn` [1, 2, 3]
+
+testFromTuple :: Expectation
+testFromTuple =
+    Stream.toList (Stream.fromTuple (1, 2 :: Int))
+        `shouldReturn` [1, 2]
+
+-------------------------------------------------------------------------------
+-- Elimination
+-------------------------------------------------------------------------------
+
+testUncons :: Expectation
+testUncons = do
+    r <- Stream.uncons (Stream.fromList [1, 2, 3 :: Int])
+    case r of
+        Nothing -> expectationFailure "expected non-empty stream"
+        Just (h, t) -> do
+            h `shouldBe` 1
+            Stream.toList t `shouldReturn` [2, 3]
+
+testUnconsEmpty :: Expectation
+testUnconsEmpty = do
+    r <- Stream.uncons (Stream.fromList ([] :: [Int]))
+    case r of
+        Nothing -> return ()
+        Just _ -> expectationFailure "expected empty stream"
+
+testFoldAddLazy :: Expectation
+testFoldAddLazy = do
+    let streams = [Stream.fromList [1..5], Stream.fromList [6..10 :: Int]]
+    let f = foldl Stream.foldAddLazy Fold.sum streams
+    Stream.fold f Stream.nil `shouldReturn` 55
+
+testFoldAdd :: Expectation
+testFoldAdd = do
+    f <- Stream.foldAdd Fold.sum (Stream.fromList [1..5 :: Int])
+    Stream.fold f (Stream.fromList [6..10]) `shouldReturn` 55
+
+testFoldBreakEitherLeft :: Expectation
+testFoldBreakEitherLeft = do
+    r <- Stream.foldBreakEither Fold.sum (Stream.fromList [1..5 :: Int])
+    case r of
+        Left _ -> return ()
+        Right _ -> expectationFailure "expected Left (fold incomplete)"
+
+testFoldBreakEitherRight :: Expectation
+testFoldBreakEitherRight = do
+    r <- Stream.foldBreakEither (Fold.take 2 Fold.sum) (Stream.fromList [1..5 :: Int])
+    case r of
+        Right (s, rest) -> do
+            s `shouldBe` (3 :: Int)
+            Stream.toList rest `shouldReturn` [3, 4, 5]
+        Left _ -> expectationFailure "expected Right (fold completed)"
+
+testFoldlM :: Expectation
+testFoldlM =
+    Stream.foldlM' (\acc x -> return (acc + x)) (return 0)
+        (Stream.fromList [1..5 :: Int])
+        `shouldReturn` 15
+
+testFoldlx :: Expectation
+testFoldlx =
+    Stream.foldlx' (+) (0 :: Int) id (Stream.fromList [1..5 :: Int])
+        `shouldReturn` 15
+
+testFoldlMx :: Expectation
+testFoldlMx =
+    Stream.foldlMx' (\acc x -> return (acc + x)) (return 0) return
+        (Stream.fromList [1..5 :: Int])
+        `shouldReturn` (15 :: Int)
+
+testFoldrM :: Expectation
+testFoldrM =
+    Stream.foldrM (\x acc -> (x:) <$> acc) (return [])
+        (Stream.fromList [1..5 :: Int])
+        `shouldReturn` [1, 2, 3, 4, 5]
+
+testFoldrMx :: Expectation
+testFoldrMx =
+    Stream.foldrMx (\x acc -> (x:) <$> acc) (return []) id
+        (Stream.fromList [1..5 :: Int])
+        `shouldReturn` [1, 2, 3, 4, 5]
+
+testFoldr :: Expectation
+testFoldr =
+    Stream.foldr (:) [] (Stream.fromList [1..5 :: Int])
+        `shouldReturn` [1, 2, 3, 4, 5]
+
+testFoldrS :: Expectation
+testFoldrS =
+    Stream.toList
+        (Stream.foldrS Stream.cons Stream.nil (Stream.fromList [1..5 :: Int]))
+        `shouldReturn` [1, 2, 3, 4, 5]
+
+testHeadElse :: Expectation
+testHeadElse = do
+    Stream.headElse 0 (Stream.fromList [1, 2, 3 :: Int]) `shouldReturn` 1
+    Stream.headElse 0 (Stream.fromList []) `shouldReturn` (0 :: Int)
+
+-------------------------------------------------------------------------------
+-- Stateful Filters
+-------------------------------------------------------------------------------
+
+testTakeEndBy_ :: Expectation
+testTakeEndBy_ =
+    Stream.toList (Stream.takeEndBy_ (== 3) (Stream.fromList [1..5 :: Int]))
+        `shouldReturn` [1, 2]
+
+testTakeEndByM :: Expectation
+testTakeEndByM =
+    Stream.toList
+        (Stream.takeEndByM (return . (== 3)) (Stream.fromList [1..5 :: Int]))
+        `shouldReturn` [1, 2, 3]
+
+-------------------------------------------------------------------------------
+-- Combining Two Streams
+-------------------------------------------------------------------------------
+
+testCross :: Expectation
+testCross =
+    Stream.toList
+        (Stream.cross
+            (Stream.fromList [1, 2 :: Int])
+            (Stream.fromList [3, 4 :: Int]))
+        `shouldReturn` [(1, 3), (1, 4), (2, 3), (2, 4)]
+
+testFairCrossWith :: Expectation
+testFairCrossWith = do
+    result <- fmap sort $ Stream.toList $
+        Stream.fairCrossWith (,)
+            (Stream.fromList [1, 2 :: Int])
+            (Stream.fromList [3, 4 :: Int])
+    result `shouldBe` sort [(1, 3), (1, 4), (2, 3), (2, 4)]
+
+testFairCross :: Expectation
+testFairCross = do
+    result <- fmap sort $ Stream.toList $
+        Stream.fairCross
+            (Stream.fromList [1, 2 :: Int])
+            (Stream.fromList [3, 4 :: Int])
+    result `shouldBe` sort [(1, 3), (1, 4), (2, 3), (2, 4)]
+
+testLoop :: Expectation
+testLoop =
+    Stream.toList
+        (Stream.loop
+            (Stream.fromList [3, 4 :: Int])
+            (Stream.fromList [1, 2 :: Int]))
+        `shouldReturn` [(1, 3), (2, 3), (1, 4), (2, 4)]
+
+testLoopBy :: Expectation
+testLoopBy =
+    Stream.toList
+        (Stream.loopBy
+            Unfold.fromList
+            [3, 4 :: Int]
+            (Stream.fromList [1, 2 :: Int]))
+        `shouldReturn` [(1, 3), (1, 4), (2, 3), (2, 4)]
+
+-------------------------------------------------------------------------------
+-- UnfoldCross
+-------------------------------------------------------------------------------
+
+testUnfoldCross :: Expectation
+testUnfoldCross =
+    Stream.toList
+        (Stream.unfoldCross
+            Unfold.identity
+            (Stream.fromList [1, 2 :: Int])
+            (Stream.fromList [3, 4 :: Int]))
+        `shouldReturn` [(1, 3), (1, 4), (2, 3), (2, 4)]
+
+-------------------------------------------------------------------------------
+-- ConcatMap
+-------------------------------------------------------------------------------
+
+testConcatEffect :: Expectation
+testConcatEffect =
+    Stream.toList
+        (Stream.concatEffect (return (Stream.fromList [1..5 :: Int])))
+        `shouldReturn` [1..5]
+
+testConcat :: Expectation
+testConcat =
+    Stream.toList
+        (Stream.concat
+            (Stream.fromList
+                [ Stream.fromList [1, 2]
+                , Stream.fromList [3, 4 :: Int]
+                ]))
+        `shouldReturn` [1, 2, 3, 4]
+
+testConcatForM :: Expectation
+testConcatForM =
+    Stream.toList
+        (Stream.concatForM
+            (Stream.fromList [1, 2, 3 :: Int])
+            (\x -> return (Stream.fromPure x)))
+        `shouldReturn` [1, 2, 3]
+
+-------------------------------------------------------------------------------
+-- Unfold Iterate / Concat Iterate (DFS/BFS tree traversal)
+--
+-- Tree used: 1->[2,3], 2->[4,5], 3->[6,7], leaves have no children.
+-- DFS order:               1, 2, 4, 5, 3, 6, 7
+-- BFS order:               1, 2, 3, 4, 5, 6, 7
+-- altBfs order (reversed): 1, 2, 3, 6, 7, 4, 5
+-------------------------------------------------------------------------------
+
+treeChildren :: Int -> [Int]
+treeChildren n
+    | n == 1    = [2, 3]
+    | n == 2    = [4, 5]
+    | n == 3    = [6, 7]
+    | otherwise = []
+
+treeUnfold :: Unfold IO Int Int
+treeUnfold = Unfold.lmap treeChildren Unfold.fromList
+
+treeConcatF :: Int -> Maybe (Stream IO Int)
+treeConcatF n =
+    let cs = treeChildren n
+     in if null cs then Nothing else Just (Stream.fromList cs)
+
+testUnfoldIterate :: Expectation
+testUnfoldIterate = do
+    result <- Stream.toList $
+        Stream.unfoldIterate treeUnfold (Stream.fromPure (1 :: Int))
+    result `shouldBe` [1, 2, 4, 5, 3, 6, 7]
+
+_testBfsUnfoldIterate :: Expectation
+_testBfsUnfoldIterate = do
+    result <- Stream.toList $
+        Stream.bfsUnfoldIterate treeUnfold (Stream.fromPure (1 :: Int))
+    result `shouldBe` [1, 2, 3, 4, 5, 6, 7]
+
+_testAltBfsUnfoldIterate :: Expectation
+_testAltBfsUnfoldIterate = do
+    result <- Stream.toList $
+        Stream.altBfsUnfoldIterate treeUnfold (Stream.fromPure (1 :: Int))
+    result `shouldBe` [1, 2, 3, 6, 7, 4, 5]
+
+_testConcatIterate :: Expectation
+_testConcatIterate = do
+    result <- Stream.toList $
+        Stream.concatIterate treeConcatF (Stream.fromPure (1 :: Int))
+    result `shouldBe` [1, 2, 4, 5, 3, 6, 7]
+
+_testBfsConcatIterate :: Expectation
+_testBfsConcatIterate = do
+    result <- Stream.toList $
+        Stream.bfsConcatIterate treeConcatF (Stream.fromPure (1 :: Int))
+    result `shouldBe` [1, 2, 3, 4, 5, 6, 7]
+
+_testAltBfsConcatIterate :: Expectation
+_testAltBfsConcatIterate = do
+    result <- Stream.toList $
+        Stream.altBfsConcatIterate treeConcatF (Stream.fromPure (1 :: Int))
+    result `shouldBe` [1, 2, 3, 6, 7, 4, 5]
+
+testConcatIterateScan :: Expectation
+testConcatIterateScan = do
+    -- generate: from acc, produce stream [acc+1, acc+2] while acc < 6
+    -- scanner:  acc + element
+    -- acc=0 -> stream [1,2], scan: 0+1=1, 1+2=3  (yields 1, 2)
+    -- acc=3 -> stream [4,5], scan: 3+4=7, 7+5=12 (yields 4, 5)
+    -- acc=12 >= 6 -> stop
+    let generate acc =
+            if acc >= 6
+            then return Nothing
+            else return $ Just (acc, Stream.fromList [acc + 1, acc + 2])
+    result <- Stream.toList $
+        Stream.concatIterateScan
+            (\acc x -> return (acc + x))
+            generate
+            (0 :: Int)
+    result `shouldBe` [1, 2, 4, 5]
+
+-------------------------------------------------------------------------------
+-- Fold Many
+-------------------------------------------------------------------------------
+
+testFoldManyPost :: Expectation
+testFoldManyPost = do
+    let f = Fold.take 2 Fold.toList
+    Stream.toList (Stream.foldManyPost f (Stream.fromList ([] :: [Int])))
+        `shouldReturn` [[]]
+    Stream.toList (Stream.foldManyPost f (Stream.fromList [1..4 :: Int]))
+        `shouldReturn` [[1, 2], [3, 4], []]
+    Stream.toList (Stream.foldManyPost f (Stream.fromList [1..5 :: Int]))
+        `shouldReturn` [[1, 2], [3, 4], [5]]
+
+testRefoldMany :: Expectation
+testRefoldMany = do
+    -- Groups of 2, summed from 0 each time: [1+2=3, 3+4=7, 5+6=11]
+    let rf = Refold.take 2 (Refold.foldl' (+))
+    result <- Stream.toList $
+        Stream.refoldMany rf (return (0 :: Int)) (Stream.fromList [1..6 :: Int])
+    result `shouldBe` [3, 7, 11]
+
+testRefoldIterateM :: Expectation
+testRefoldIterateM = do
+    -- Takes 2, feeds output as next initial value:
+    -- init=0: 0+1+2=3 (yield 3)
+    -- init=3: 3+3+4=10 (yield 10)
+    -- init=10: 10+5+6=21 (yield 21)
+    let rf = Refold.take 2 (Refold.foldl' (+))
+    result <- Stream.toList $
+        Stream.refoldIterateM rf (return (0 :: Int)) (Stream.fromList [1..6 :: Int])
+    result `shouldBe` [3, 10, 21]
+
+-------------------------------------------------------------------------------
+-- Fold Iterate
+-------------------------------------------------------------------------------
+
+testBfsReduceIterate :: Expectation
+testBfsReduceIterate = do
+    r1 <- Stream.bfsReduceIterate (\a b -> return (a + b :: Int))
+            (Stream.fromList [1..4 :: Int])
+    r1 `shouldBe` Just 10
+    r2 <- Stream.bfsReduceIterate (\a b -> return (a + b :: Int))
+            (Stream.fromList ([] :: [Int]))
+    r2 `shouldBe` Nothing
+
+-------------------------------------------------------------------------------
+-- Splitting
+-------------------------------------------------------------------------------
+
+testIndexEndBy_ :: Expectation
+testIndexEndBy_ =
+    Stream.toList
+        (Stream.indexEndBy_ (== '/') (Stream.fromList "/home/harendra"))
+        `shouldReturn` [(0, 0), (1, 4), (6, 8)]
+
+testIndexEndBy :: Expectation
+testIndexEndBy =
+    Stream.toList
+        (Stream.indexEndBy (== '/') (Stream.fromList "/home/harendra"))
+        `shouldReturn` [(0, 1), (1, 5), (6, 8)]
+
+-------------------------------------------------------------------------------
+-- Multi-stream folds
+-------------------------------------------------------------------------------
+
+testTakeCommonPrefixBy :: Expectation
+testTakeCommonPrefixBy = do
+    Stream.toList
+        (Stream.takeCommonPrefixBy (==)
+            (Stream.fromList [1, 2, 3, 4 :: Int])
+            (Stream.fromList [1, 2, 5, 6 :: Int]))
+        `shouldReturn` [1, 2]
+    Stream.toList
+        (Stream.takeCommonPrefixBy (==)
+            (Stream.fromList [1, 2, 3 :: Int])
+            (Stream.fromList [1, 2, 3 :: Int]))
+        `shouldReturn` [1, 2, 3]
+    Stream.toList
+        (Stream.takeCommonPrefixBy (==)
+            (Stream.fromList [1, 2, 3 :: Int])
+            (Stream.fromList [4, 5, 6 :: Int]))
+        `shouldReturn` []
+
 moduleName :: String
 moduleName = "Data.Stream"
 
@@ -336,48 +715,107 @@ main = hspec
         serialOps    $ transformCombineOpsOrdered folded "serially" (==)
     -}
 
-    describe "Tests for Stream.groupsOf" $ do
-        prop "testgroupsOf" testgroupsOf
+    -- Construction
+    it "nilM" testNilM
+    it "consM" testConsM
+    it "fromTuple" testFromTuple
 
-    describe "Tests for Stream.appendUnfoldLast" $ do
-        prop "testAppendUnfoldLastNonEmpty" testAppendUnfoldLastNonEmpty
-        prop "testAppendUnfoldLastEmpty" testAppendUnfoldLastEmpty
+    -- scans
+    it "indexEndBy_" testIndexEndBy_
+    it "indexEndBy" testIndexEndBy
+    it "takeEndBy_" testTakeEndBy_
+    it "takeEndByM" testTakeEndByM
+    it "takeCommonPrefixBy" testTakeCommonPrefixBy
 
-    describe "Tests for Stream.appendMapLast" $ do
-        prop "testAppendMapLastNonEmpty" testAppendMapLastNonEmpty
-        prop "testAppendMapLastEmpty" testAppendMapLastEmpty
+    -- Elimination
+    describe "uncons" $ do
+        it "non-empty" testUncons
+        it "empty" testUnconsEmpty
 
-    describe "Tests for Stream.unfoldLast" $ do
-        prop "testUnfoldLastNonEmpty" testUnfoldLastNonEmpty
-        prop "testUnfoldLastEmpty" testUnfoldLastEmpty
+    it "foldAddLazy" testFoldAddLazy
+    it "foldAdd" testFoldAdd
 
-    describe "Tests for Stream.concatMapLast" $ do
-        prop "testConcatMapLastNonEmpty" testConcatMapLastNonEmpty
-        prop "testConcatMapLastEmpty" testConcatMapLastEmpty
+    describe "foldBreakEither" $ do
+        it "stream ends first returns Left" testFoldBreakEitherLeft
+        it "fold completes returns Right" testFoldBreakEitherRight
 
-    describe "Tests for Stream.appendIfEmpty" $ do
-        prop "testAppendIfEmptyNonEmpty" testAppendIfEmptyNonEmpty
-        prop "testAppendIfEmptyEmpty" testAppendIfEmptyEmpty
+    it "foldlM'" testFoldlM
+    it "foldlx'" testFoldlx
+    it "foldlMx'" testFoldlMx
+    it "foldrM" testFoldrM
+    it "foldrMx" testFoldrMx
+    it "foldr" testFoldr
+    it "foldrS" testFoldrS
+    it "headElse" testHeadElse
 
-    describe "Tests for Stream.unfoldFirst" $ do
-        prop "testUnfoldFirstNonEmpty" testUnfoldFirstNonEmpty
-        prop "testUnfoldFirstEmpty" testUnfoldFirstEmpty
+    -- Selective Appends
+    describe "appendIfEmpty" $ do
+        it "non-empty" testAppendIfEmptyNonEmpty
+        it "empty" testAppendIfEmptyEmpty
 
-    describe "Tests for Stream.concatMapFirst" $ do
-        prop "testConcatMapFirstNonEmpty" testConcatMapFirstNonEmpty
-        prop "testConcatMapFirstEmpty" testConcatMapFirstEmpty
+    describe "appendUnfoldLast" $ do
+        it "non-empty" testAppendUnfoldLastNonEmpty
+        it "empty" testAppendUnfoldLastEmpty
 
-    describe "Tests for Stream.crossWithM" $ do
-        prop "testCrossWithM" testCrossWithM
+    describe "appendMapLast" $ do
+        it "non-empty" testAppendMapLastNonEmpty
+        it "empty" testAppendMapLastEmpty
 
-    describe "Tests for Stream.crossWith" $ do
-        prop "testCrossWith" testCrossWith
+    -- Selective Concat/Unfold
+    describe "unfoldLast" $ do
+        it "non-empty" testUnfoldLastNonEmpty
+        it "empty" testUnfoldLastEmpty
 
-    describe "Tests for Stream.fairCrossWithM" $ do
-        prop "testFairCrossWithM" testFairCrossWithM
+    describe "concatMapLast" $ do
+        it "non-empty" testConcatMapLastNonEmpty
+        it "empty" testConcatMapLastEmpty
 
-    describe "Tests for Stream.interleave" $ do
-        prop "testInterleave" testInterleave
+    describe "unfoldFirst" $ do
+        it "non-empty" testUnfoldFirstNonEmpty
+        it "empty" testUnfoldFirstEmpty
 
-    describe "Tests for Stream.altBfsUnfoldEach" $ do
-        prop "testAltBfsUnfoldEach" testAltBfsUnfoldEach
+    describe "concatMapFirst" $ do
+        it "non-empty" testConcatMapFirstNonEmpty
+        it "empty" testConcatMapFirstEmpty
+
+    -- Concat/Unfold
+    it "cross" testCross
+    it "crossWith" testCrossWith
+    it "crossWithM" testCrossWithM
+
+    it "fairCross" testFairCross
+    it "fairCrossWith" testFairCrossWith
+    it "fairCrossWithM" testFairCrossWithM
+    it "interleave" testInterleave
+
+    it "loop" testLoop
+    it "loopBy" testLoopBy
+
+    it "unfoldCross" testUnfoldCross
+    it "altBfsUnfoldEach" testAltBfsUnfoldEach
+
+    it "concatEffect" testConcatEffect
+    it "concat" testConcat
+    it "concatForM" testConcatForM
+
+    -- Splitting
+    it "foldManyPost" testFoldManyPost
+    it "refoldMany" testRefoldMany
+    it "groupsOf" testgroupsOf
+
+    -- tree/graph traversal
+    it "unfoldIterate" testUnfoldIterate
+    -- XXX Compiling these gets stuck with lot of memory and cpu use
+    -- need to investigate. Even though compiling the function themselves is
+    -- fine, using them here is what causes the problem.
+    {-
+    it "concatIterate" _testConcatIterate
+    it "bfsConcatIterate" _testBfsConcatIterate
+    it "altBfsConcatIterate" _testAltBfsConcatIterate
+    it "bfsUnfoldIterate" _testBfsUnfoldIterate
+    it "altBfsUnfoldIterate" _testAltBfsUnfoldIterate
+    -}
+
+    it "concatIterateScan" testConcatIterateScan
+    it "refoldIterateM" testRefoldIterateM
+    it "bfsReduceIterate" testBfsReduceIterate
