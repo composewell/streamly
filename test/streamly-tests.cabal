@@ -13,7 +13,7 @@ flag fusion-plugin
 flag limit-build-mem
   description: Limits memory when building the executables
   manual: True
-  default: False
+  default: True
 
 flag limit-test-mem
   description: Limits the RTS heap to 2 GB when running the tests
