@@ -119,7 +119,7 @@ checkFoldrLaziness = do
         `shouldReturn` True
 
 moduleName :: String
-moduleName = "Prelude.Fold"
+moduleName = "Data.Stream"
 
 main :: IO ()
 main = hspec

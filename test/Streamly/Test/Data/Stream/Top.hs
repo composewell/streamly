@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wno-deprecations #-}
 
-module Main (main) where
+module Streamly.Test.Data.Stream.Top (main) where
 
 import Data.List (elem, intersect, nub, sort)
 import Data.Maybe (isNothing)
@@ -203,18 +203,18 @@ intersectBy srt intersectFunc cmp =
 -------------------------------------------------------------------------------
 
 moduleName :: String
-moduleName = "Prelude.Top"
+moduleName = "Data.Stream"
 
 main :: IO ()
 main = hspec $ do
     describe moduleName $ do
         -- Joins
-        prop "joinInner" Main.joinInner
-        prop "joinInnerMap" Main.joinInnerMap
-        -- prop "joinOuter" Main.joinOuter
-        prop "joinOuterMap" Main.joinOuterMap
-        -- prop "joinLeft" Main.joinLeft
-        prop "joinLeftMap" Main.joinLeftMap
+        prop "joinInner" joinInner
+        prop "joinInnerMap" joinInnerMap
+        -- prop "joinOuter" joinOuter
+        prop "joinOuterMap" joinOuterMap
+        -- prop "joinLeft" joinLeft
+        prop "joinLeftMap" joinLeftMap
         -- intersect
         prop "intersectBy"
             (intersectBy id Stream.intersectBy (==))
