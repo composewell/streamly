@@ -16,7 +16,6 @@
 module Streamly.Test.Data.Stream.Serial (main) where
 
 import Control.Monad ( forM_ )
-import Data.Function ( (&) )
 import Data.IORef ( newIORef, readIORef, modifyIORef' )
 import Data.List (sort, group, intercalate)
 import Data.Word (Word8)

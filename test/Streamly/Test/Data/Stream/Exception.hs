@@ -2,12 +2,15 @@ module Streamly.Test.Data.Stream.Exception (main)
 
 where
 
-import Control.Exception (finally)
+import Control.Exception (Exception, finally)
+import Control.Monad.Catch (throwM)
 import Data.Foldable (sequenceA_)
 import Data.Function ((&))
-import Data.IORef (newIORef)
+import Data.IORef (atomicModifyIORef', newIORef, readIORef)
 import Streamly.Internal.Data.Stream.Prelude (Config)
+import Test.Hspec
 
+import qualified Data.Map.Strict as Map
 import qualified Streamly.Internal.Data.Stream.Prelude as Stream
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Data.Fold as Fold
@@ -45,6 +48,41 @@ finallyGC t cfg = do
     Stream.finallyIO (finalAction True ref t) (stream ref cfg)
         & Stream.fold Fold.drain
 
+newtype ExampleException = ExampleException String deriving (Eq, Show, Ord)
+
+instance Exception ExampleException
+
+retry :: Spec
+retry = do
+    ref <- runIO $ newIORef (0 :: Int)
+    res <- runIO $ Stream.toList (Stream.retry emap handler1 (stream1 ref))
+    refVal <- runIO $ readIORef ref
+    spec res refVal
+
+    where
+
+    emap = Map.singleton (ExampleException "E") 10
+
+    stream1 ref =
+        Stream.fromListM
+            [ return 1
+            , return 2
+            , atomicModifyIORef' ref (\a -> (a + 1, ()))
+                  >> throwM (ExampleException "E")
+                  >> return 3
+            , return 4
+            ]
+
+    stream2 = Stream.fromList [5, 6, 7 :: Int]
+    handler1 = const stream2
+    expectedRes = [1, 2, 5, 6, 7]
+    expectedRefVal = 11
+
+    spec res refVal = do
+        it "Runs the exception handler properly" $ res `shouldBe` expectedRes
+        it "Runs retires the exception correctly"
+            $ refVal `shouldBe` expectedRefVal
+
 funcs :: [(String, Int -> (Stream.Config -> Stream.Config) -> IO ())]
 funcs =
     [ ("Stream.withAcquireIO", testStream)
@@ -71,3 +109,4 @@ main = do
                 (snd x1 . snd x2 . cfg)
         | f <- funcs, x1 <- limits, x2 <- sched
         ]
+    hspec $ describe "Stream.retry" retry
