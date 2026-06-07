@@ -16,6 +16,7 @@ module Streamly.Test.Data.Stream.Parse (main) where
 
 import Control.Monad ( forM_ )
 import Control.Monad.IO.Class (MonadIO)
+import Data.Functor.Identity (Identity)
 import Data.List (group, intercalate)
 import Data.Semigroup (Sum(..), getSum)
 import Data.Word (Word8)
@@ -661,6 +662,313 @@ foldIterateM =
             Nothing -> assert $ s1 == 0
             Just s2 -> assert $ s1 == s2
 
+-------------------------------------------------------------------------------
+-- groupsRollingBy
+-------------------------------------------------------------------------------
+
+testGroupsRollingBy :: Expectation
+testGroupsRollingBy =
+    Stream.toList
+        (Stream.groupsRollingBy (==) Fold.toList
+            (Stream.fromList [1, 1, 2, 2, 3, 3 :: Int]))
+        `shouldReturn` [[1, 1], [2, 2], [3, 3]]
+
+testGroupsRollingByEmpty :: Expectation
+testGroupsRollingByEmpty =
+    Stream.toList
+        (Stream.groupsRollingBy (==) Fold.toList
+            (Stream.fromList ([] :: [Int])))
+        `shouldReturn` []
+
+testGroupsRollingByNonEq :: Expectation
+testGroupsRollingByNonEq =
+    Stream.toList
+        (Stream.groupsRollingBy (<) Fold.toList
+            (Stream.fromList [1, 2, 3, 1, 2 :: Int]))
+        `shouldReturn` [[1, 2, 3], [1, 2]]
+
+-------------------------------------------------------------------------------
+-- groupsWhile
+-------------------------------------------------------------------------------
+
+testGroupsWhile :: Expectation
+testGroupsWhile =
+    Stream.toList
+        (Stream.groupsWhile (==) Fold.toList (Stream.fromList [1, 1, 2, 2, 3 :: Int]))
+        `shouldReturn` [[1, 1], [2, 2], [3]]
+
+testGroupsWhileEmpty :: Expectation
+testGroupsWhileEmpty =
+    Stream.toList
+        (Stream.groupsWhile (==) Fold.toList (Stream.fromList ([] :: [Int])))
+        `shouldReturn` []
+
+-------------------------------------------------------------------------------
+-- wordsBy
+-------------------------------------------------------------------------------
+
+testWordsBy :: Expectation
+testWordsBy =
+    Stream.toList
+        (Stream.wordsBy (== '.') Fold.toList (Stream.fromList "a.b"))
+        `shouldReturn` ["a", "b"]
+
+testWordsByMultiSep :: Expectation
+testWordsByMultiSep =
+    Stream.toList
+        (Stream.wordsBy (== '.') Fold.toList (Stream.fromList ".a..b."))
+        `shouldReturn` ["a", "b"]
+
+testWordsByEmpty :: Expectation
+testWordsByEmpty =
+    Stream.toList
+        (Stream.wordsBy (== '.') Fold.toList (Stream.fromList ""))
+        `shouldReturn` []
+
+-------------------------------------------------------------------------------
+-- parseMany / parseManyPos
+-------------------------------------------------------------------------------
+
+testParseMany :: Expectation
+testParseMany = do
+    xs <- Stream.toList $ Stream.catRights $
+              Stream.parseMany
+                  (Parser.takeBetween 2 2 Fold.toList)
+                  (Stream.fromList [1 .. 6 :: Int])
+    xs `shouldBe` [[1, 2], [3, 4], [5, 6]]
+
+testParseManyPos :: Expectation
+testParseManyPos = do
+    xs <- Stream.toList $ Stream.catRights $
+              Stream.parseManyPos
+                  (Parser.takeBetween 2 2 Fold.toList)
+                  (Stream.fromList [1 .. 4 :: Int])
+    xs `shouldBe` [[1, 2], [3, 4]]
+
+-------------------------------------------------------------------------------
+-- parseIterate / parseIteratePos
+-------------------------------------------------------------------------------
+
+testParseIterate :: Expectation
+testParseIterate = do
+    xs <- Stream.toList $ Stream.catRights $
+              Stream.parseIterate
+                  (\_ -> Parser.takeBetween 2 2 Fold.toList)
+                  ([] :: [Int])
+                  (Stream.fromList [1 .. 6 :: Int])
+    xs `shouldBe` [[1, 2], [3, 4], [5, 6]]
+
+testParseIteratePos :: Expectation
+testParseIteratePos = do
+    xs <- Stream.toList $ Stream.catRights $
+              Stream.parseIteratePos
+                  (\_ -> Parser.takeBetween 2 2 Fold.toList)
+                  ([] :: [Int])
+                  (Stream.fromList [1 .. 4 :: Int])
+    xs `shouldBe` [[1, 2], [3, 4]]
+
+-------------------------------------------------------------------------------
+-- splitSepByOneOf
+-------------------------------------------------------------------------------
+
+testSplitSepByOneOfSingle :: Expectation
+testSplitSepByOneOfSingle = do
+    let pats = map Array.fromList [".", ","] :: [Array Char]
+    xs <- Stream.toList $
+              Stream.splitSepByOneOf pats Fold.toList
+                  (Stream.fromList "a.b,c")
+    xs `shouldBe` ["a", "b", "c"]
+
+testSplitSepByOneOfSeq :: Expectation
+testSplitSepByOneOfSeq = do
+    let pats = [Array.fromList ".."] :: [Array Char]
+    xs <- Stream.toList $
+              Stream.splitSepByOneOf pats Fold.toList
+                  (Stream.fromList "a..b..c")
+    xs `shouldBe` ["a", "b", "c"]
+
+testSplitSepByOneOfEmpty :: Expectation
+testSplitSepByOneOfEmpty = do
+    let pats = [Array.fromList "."] :: [Array Char]
+    xs <- Stream.toList $
+              Stream.splitSepByOneOf pats Fold.toList
+                  (Stream.fromList "")
+    xs `shouldBe` []
+
+-------------------------------------------------------------------------------
+-- splitInnerBy / splitInnerBySuffix
+-------------------------------------------------------------------------------
+
+-- splitter splits at '.' for String chunks
+innerSplitter :: String -> IO (String, Maybe String)
+innerSplitter xs =
+    let (a, b) = span (/= '.') xs
+    in return $ if null b then (a, Nothing) else (a, Just (tail b))
+
+innerJoiner :: String -> String -> IO String
+innerJoiner a b = return (a ++ b)
+
+testSplitInnerBy :: Expectation
+testSplitInnerBy = do
+    xs <- Stream.toList $
+              Stream.splitInnerBy innerSplitter innerJoiner
+                  (Stream.fromList ["a.b", "c"])
+    xs `shouldBe` ["a", "bc"]
+
+testSplitInnerBySuffix :: Expectation
+testSplitInnerBySuffix = do
+    xs <- Stream.toList $
+              Stream.splitInnerBySuffix null innerSplitter innerJoiner
+                  (Stream.fromList ["a.", "b."])
+    xs `shouldBe` ["a", "b"]
+
+testSplitInnerBySuffixNoTrail :: Expectation
+testSplitInnerBySuffixNoTrail = do
+    xs <- Stream.toList $
+              Stream.splitInnerBySuffix null innerSplitter innerJoiner
+                  (Stream.fromList ["a.", "bc"])
+    xs `shouldBe` ["a", "bc"]
+
+-------------------------------------------------------------------------------
+-- dropCommonPrefixBy
+-------------------------------------------------------------------------------
+
+testDropCommonPrefixByMatch :: Expectation
+testDropCommonPrefixByMatch = do
+    xs <- Stream.toList $
+              Stream.dropCommonPrefixBy (==)
+                  (Stream.fromList [1, 2 :: Int])
+                  (Stream.fromList [1, 2, 3, 4])
+    xs `shouldBe` [3, 4]
+
+testDropCommonPrefixByMismatch :: Expectation
+testDropCommonPrefixByMismatch = do
+    xs <- Stream.toList $
+              Stream.dropCommonPrefixBy (==)
+                  (Stream.fromList [1, 3 :: Int])
+                  (Stream.fromList [1, 2, 3, 4])
+    xs `shouldBe` [2, 3, 4]
+
+testDropCommonPrefixByEmpty :: Expectation
+testDropCommonPrefixByEmpty = do
+    xs <- Stream.toList $
+              Stream.dropCommonPrefixBy (==)
+                  (Stream.fromList ([] :: [Int]))
+                  (Stream.fromList [1, 2, 3])
+    xs `shouldBe` [1, 2, 3]
+
+-------------------------------------------------------------------------------
+-- dropPrefix
+-------------------------------------------------------------------------------
+
+testDropPrefixMatch :: Expectation
+testDropPrefixMatch = do
+    xs <- Stream.toList $
+              Stream.dropPrefix
+                  (Stream.fromList [1, 2] :: Stream Identity Int)
+                  (Stream.fromList [1, 2, 3, 4])
+    xs `shouldBe` [3, 4]
+
+testDropPrefixNoMatch :: Expectation
+testDropPrefixNoMatch = do
+    xs <- Stream.toList $
+              Stream.dropPrefix
+                  (Stream.fromList [1, 3] :: Stream Identity Int)
+                  (Stream.fromList [1, 2, 3, 4])
+    xs `shouldBe` [1, 2, 3, 4]
+
+testDropPrefixEmpty :: Expectation
+testDropPrefixEmpty = do
+    xs <- Stream.toList $
+              Stream.dropPrefix
+                  (Stream.fromList [] :: Stream Identity Int)
+                  (Stream.fromList [1, 2, 3])
+    xs `shouldBe` [1, 2, 3]
+
+-------------------------------------------------------------------------------
+-- dropMatches
+-------------------------------------------------------------------------------
+
+testDropMatches :: Expectation
+testDropMatches =
+    Stream.toList
+        (Stream.dropMatches (Array.fromList "..") (Stream.fromList "a..b..c"))
+        `shouldReturn` "abc"
+
+testDropMatchesNoMatch :: Expectation
+testDropMatchesNoMatch =
+    Stream.toList
+        (Stream.dropMatches (Array.fromList "..") (Stream.fromList "abc"))
+        `shouldReturn` "abc"
+
+testDropMatchesEmptyPat :: Expectation
+testDropMatchesEmptyPat =
+    Stream.toList
+        (Stream.dropMatches (Array.fromList "") (Stream.fromList "abc"))
+        `shouldReturn` "abc"
+
+testDropMatchesOverlap :: Expectation
+testDropMatchesOverlap =
+    Stream.toList
+        (Stream.dropMatches (Array.fromList "aa") (Stream.fromList "aaaa"))
+        `shouldReturn` ""
+
+-------------------------------------------------------------------------------
+-- dropSuffix
+-------------------------------------------------------------------------------
+
+testDropSuffix :: Expectation
+testDropSuffix =
+    Stream.toList
+        (Stream.dropSuffix (Array.fromList "..") (Stream.fromList "ab.."))
+        `shouldReturn` "ab"
+
+testDropSuffixNoMatch :: Expectation
+testDropSuffixNoMatch =
+    Stream.toList
+        (Stream.dropSuffix (Array.fromList "..") (Stream.fromList "abc"))
+        `shouldReturn` "abc"
+
+testDropSuffixEmptyPat :: Expectation
+testDropSuffixEmptyPat =
+    Stream.toList
+        (Stream.dropSuffix (Array.fromList "") (Stream.fromList "abc"))
+        `shouldReturn` "abc"
+
+-------------------------------------------------------------------------------
+-- replaceMatches
+-------------------------------------------------------------------------------
+
+testReplaceMatches :: Expectation
+testReplaceMatches =
+    Stream.toList
+        (Stream.replaceMatches (Array.fromList "..") (Array.fromList "!")
+            (Stream.fromList "a..b..c"))
+        `shouldReturn` "a!b!c"
+
+testReplaceMatchesLonger :: Expectation
+testReplaceMatchesLonger =
+    Stream.toList
+        (Stream.replaceMatches (Array.fromList "..") (Array.fromList "---")
+            (Stream.fromList "a..b..c"))
+        `shouldReturn` "a---b---c"
+
+testReplaceMatchesEmptyRepl :: Expectation
+testReplaceMatchesEmptyRepl =
+    Stream.toList
+        (Stream.replaceMatches (Array.fromList "..") (Array.fromList "")
+            (Stream.fromList "a..b..c"))
+        `shouldReturn` "abc"
+
+testReplaceMatchesOverlap :: Expectation
+testReplaceMatchesOverlap =
+    Stream.toList
+        (Stream.replaceMatches (Array.fromList "aa") (Array.fromList "b")
+            (Stream.fromList "aaaa"))
+        `shouldReturn` "bb"
+
+-------------------------------------------------------------------------------
+
 moduleName :: String
 moduleName = "Data.Stream"
 
@@ -708,3 +1016,68 @@ main = hspec
 
     describe "Nesting" $ do
         prop "foldIterateM" foldIterateM
+
+    describe "groupsRollingBy" $ do
+        it "groups equal consecutive elements" testGroupsRollingBy
+        it "empty stream" testGroupsRollingByEmpty
+        it "groups by rolling predicate" testGroupsRollingByNonEq
+
+    describe "groupsWhile" $ do
+        it "groups equal consecutive elements" testGroupsWhile
+        it "empty stream" testGroupsWhileEmpty
+
+    describe "wordsBy" $ do
+        it "splits on separator" testWordsBy
+        it "multiple and leading/trailing seps dropped" testWordsByMultiSep
+        it "empty stream" testWordsByEmpty
+
+    describe "parseMany" $ do
+        it "applies parser repeatedly" testParseMany
+
+    describe "parseManyPos" $ do
+        it "applies parser with positions" testParseManyPos
+
+    describe "parseIterate" $ do
+        it "iterates parser on stream" testParseIterate
+
+    describe "parseIteratePos" $ do
+        it "iterates parser with positions" testParseIteratePos
+
+    describe "splitSepByOneOf" $ do
+        it "splits on any of the patterns" testSplitSepByOneOfSingle
+        it "splits on multi-element pattern" testSplitSepByOneOfSeq
+        it "empty stream" testSplitSepByOneOfEmpty
+
+    describe "splitInnerBy" $ do
+        it "splits inner containers" testSplitInnerBy
+
+    describe "splitInnerBySuffix" $ do
+        it "drops trailing empty segment" testSplitInnerBySuffix
+        it "preserves non-empty trailing segment" testSplitInnerBySuffixNoTrail
+
+    describe "dropCommonPrefixBy" $ do
+        it "drops matching prefix" testDropCommonPrefixByMatch
+        it "stops at mismatch" testDropCommonPrefixByMismatch
+        it "empty prefix" testDropCommonPrefixByEmpty
+
+    describe "dropPrefix" $ do
+        it "drops prefix when matched" testDropPrefixMatch
+        it "returns original when not matched" testDropPrefixNoMatch
+        it "empty prefix" testDropPrefixEmpty
+
+    describe "dropMatches" $ do
+        it "drops all occurrences" testDropMatches
+        it "no match leaves stream unchanged" testDropMatchesNoMatch
+        it "empty pattern leaves stream unchanged" testDropMatchesEmptyPat
+        it "overlapping matches" testDropMatchesOverlap
+
+    describe "dropSuffix" $ do
+        it "drops matching suffix" testDropSuffix
+        it "no suffix leaves stream unchanged" testDropSuffixNoMatch
+        it "empty pattern leaves stream unchanged" testDropSuffixEmptyPat
+
+    describe "replaceMatches" $ do
+        it "replaces with shorter replacement" testReplaceMatches
+        it "replaces with longer replacement" testReplaceMatchesLonger
+        it "replaces with empty (drops)" testReplaceMatchesEmptyRepl
+        it "overlapping pattern" testReplaceMatchesOverlap
