@@ -48,7 +48,7 @@ testgroupsOf =
 testCrossWithM :: Expectation
 testCrossWithM =
     Stream.toList
-        (Stream.crossWithM (\a b -> return (a, b))
+        (Stream.crossWithM (curry return)
             (Stream.fromList [1, 2 :: Int])
             (Stream.fromList [3, 4 :: Int]))
         `shouldReturn` [(1, 3), (1, 4), (2, 3), (2, 4)]
@@ -64,7 +64,7 @@ testCrossWith =
 testFairCrossWithM :: Expectation
 testFairCrossWithM = do
     result <- fmap sort $ Stream.toList $
-        Stream.fairCrossWithM (\a b -> return (a, b))
+        Stream.fairCrossWithM (curry return)
             (Stream.fromList [1, 2 :: Int])
             (Stream.fromList [3, 4 :: Int])
     result `shouldBe` sort [(1, 3), (1, 4), (2, 3), (2, 4)]
@@ -257,6 +257,58 @@ testUnfoldCross =
         `shouldReturn` [(1, 3), (1, 4), (2, 3), (2, 4)]
 
 -------------------------------------------------------------------------------
+-- FoldBreak
+-------------------------------------------------------------------------------
+
+testFoldBreakFull :: Expectation
+testFoldBreakFull = do
+    (s, rest) <- Stream.foldBreak Fold.sum (Stream.fromList [1..5 :: Int])
+    s `shouldBe` 15
+    Stream.toList rest `shouldReturn` []
+
+testFoldBreakEarly :: Expectation
+testFoldBreakEarly = do
+    (s, rest) <- Stream.foldBreak (Fold.take 3 Fold.sum) (Stream.fromList [1..5 :: Int])
+    s `shouldBe` 6
+    Stream.toList rest `shouldReturn` [4, 5]
+
+testFoldBreakEmpty :: Expectation
+testFoldBreakEmpty = do
+    (s, rest) <- Stream.foldBreak Fold.sum (Stream.fromList ([] :: [Int]))
+    s `shouldBe` 0
+    Stream.toList rest `shouldReturn` []
+
+-------------------------------------------------------------------------------
+-- ConcatFor
+-------------------------------------------------------------------------------
+
+testConcatFor :: Expectation
+testConcatFor =
+    Stream.toList
+        (Stream.concatFor
+            (Stream.fromList [1, 2, 3 :: Int])
+            (\x -> Stream.fromList [x, x * 10]))
+        `shouldReturn` [1, 10, 2, 20, 3, 30]
+
+testConcatForEmpty :: Expectation
+testConcatForEmpty =
+    Stream.toList
+        (Stream.concatFor
+            (Stream.fromList ([] :: [Int]))
+            (\x -> Stream.fromList [x]))
+        `shouldReturn` []
+
+-------------------------------------------------------------------------------
+-- SplitAt
+-------------------------------------------------------------------------------
+
+testSplitAt :: Expectation
+testSplitAt = do
+    Stream.splitAt "test" 3 ([1..5] :: [Int]) `shouldBe` ([1,2,3], [4,5])
+    Stream.splitAt "test" 0 ([1..3] :: [Int]) `shouldBe` ([], [1,2,3])
+    Stream.splitAt "test" 5 ([1..5] :: [Int]) `shouldBe` ([1..5], [])
+
+-------------------------------------------------------------------------------
 -- ConcatMap
 -------------------------------------------------------------------------------
 
@@ -281,7 +333,7 @@ testConcatForM =
     Stream.toList
         (Stream.concatForM
             (Stream.fromList [1, 2, 3 :: Int])
-            (\x -> return (Stream.fromPure x)))
+            (return . Stream.fromPure))
         `shouldReturn` [1, 2, 3]
 
 -------------------------------------------------------------------------------
@@ -660,6 +712,17 @@ main = hspec
     it "loopBy" testLoopBy
 
     it "unfoldCross" testUnfoldCross
+
+    describe "foldBreak" $ do
+        it "fold consumes full stream" testFoldBreakFull
+        it "fold terminates early" testFoldBreakEarly
+        it "empty stream" testFoldBreakEmpty
+
+    describe "concatFor" $ do
+        it "maps and concatenates" testConcatFor
+        it "empty source" testConcatForEmpty
+
+    it "splitAt" testSplitAt
 
     it "concatEffect" testConcatEffect
     it "concat" testConcat
