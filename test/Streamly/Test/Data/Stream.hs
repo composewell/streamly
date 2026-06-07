@@ -9,6 +9,7 @@
 module Streamly.Test.Data.Stream (main) where
 
 import qualified Streamly.Test.Data.Stream.Container as Container
+import qualified Streamly.Test.Data.Stream.Eliminate as Eliminate
 import qualified Streamly.Test.Data.Stream.Generate as Generate
 import qualified Streamly.Test.Data.Stream.Nesting as Nesting
 import qualified Streamly.Test.Data.Stream.Parse as Parse
@@ -22,6 +23,7 @@ main :: IO ()
 main = do
     Type.main
     Generate.main
+    Eliminate.main
     Nesting.main
     Container.main
     Parse.main
