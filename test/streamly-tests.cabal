@@ -379,6 +379,7 @@ test-suite Data.Stream
   ghc-options: -main-is Streamly.Test.Data.Stream.main
   other-modules:
     Streamly.Test.Data.Stream.Container
+    Streamly.Test.Data.Stream.Generate
     Streamly.Test.Data.Stream.Nesting
     Streamly.Test.Data.Stream.Parse
     Streamly.Test.Data.Stream.Serial
