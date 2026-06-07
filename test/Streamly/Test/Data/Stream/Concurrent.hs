@@ -31,6 +31,14 @@ import qualified Streamly.Internal.Data.Stream.Prelude as Async
 
 import Streamly.Test.Common (withNumTests, listEquals)
 
+#ifdef DEVBUILD
+import Control.Monad (when)
+import Data.Int (Int64)
+import Streamly.Internal.Data.Time.Units
+       (AbsTime, NanoSecond64(..), toRelTime64, diffAbsTime64)
+import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
+#endif
+
 moduleName :: String
 moduleName = "Data.Stream.Concurrent"
 
@@ -133,10 +141,10 @@ exceptionPropagation f = do
             (Left (ExampleException "E") :: Either ExampleException [Int])
     it "append nested throwM" $ do
         let nested =
-                (Stream.fromList [1..10])
+                Stream.fromList [1..10]
                     `f` Stream.fromEffect (throwM (ExampleException "E"))
-                    `f` (Stream.fromList [1..10])
-        try (tl (Stream.nil `f` nested `f` (Stream.fromList [1..10])))
+                    `f` Stream.fromList [1..10]
+        try (tl (Stream.nil `f` nested `f` Stream.fromList [1..10]))
             `shouldReturn`
                 (Left (ExampleException "E")
                     :: Either ExampleException [Int])
@@ -176,6 +184,51 @@ timeOrdering f = do
             `shouldReturn` [1..4]
 
     where event n = Stream.fromEffect (threadDelay (n * 200000) >> return n)
+
+tenPow8 :: Int64
+tenPow8 = 10^(8 :: Int)
+
+tenPow7 :: Int64
+tenPow7 = 10^(7 :: Int)
+
+takeDropTime :: NanoSecond64
+takeDropTime = NanoSecond64 $ 5 * tenPow8
+
+checkTakeDropTime :: (Maybe AbsTime, Maybe AbsTime) -> IO Bool
+checkTakeDropTime (mt0, mt1) = do
+    let graceTime = NanoSecond64 $ 8 * tenPow7
+    case mt0 of
+        Nothing -> return True
+        Just t0 ->
+            case mt1 of
+                Nothing -> return True
+                Just t1 -> do
+                    let tMax = toRelTime64 (takeDropTime + graceTime)
+                    let tMin = toRelTime64 (takeDropTime - graceTime)
+                    let t = diffAbsTime64 t1 t0
+                    let r = t >= tMin && t <= tMax
+                    when (not r) $ putStrLn $
+                        "t = " ++ show t ++
+                        " tMin = " ++ show tMin ++
+                        " tMax = " ++ show tMax
+                    return r
+
+testTakeInterval :: IO Bool
+testTakeInterval = do
+    r <-
+          Stream.fold (Fold.tee Fold.head Fold.last)
+        $ Stream.takeInterval (fromIntegral takeDropTime * 10**(-9))
+        $ Stream.repeatM (threadDelay 1000 >> getTime Monotonic)
+    checkTakeDropTime r
+
+testDropInterval :: IO Bool
+testDropInterval = do
+    t0 <- getTime Monotonic
+    mt1 <-
+          Stream.fold Fold.head
+        $ Stream.dropInterval (fromIntegral takeDropTime * 10**(-9))
+        $ Stream.repeatM (threadDelay 1000 >> getTime Monotonic)
+    checkTakeDropTime (Just t0, mt1)
 #endif
 
 -------------------------------------------------------------------------------
@@ -356,7 +409,7 @@ main = hspec
                         (s1 cfg)
                         (Stream.fromPure 3) :: Stream IO (Int, Int)
             in prop1
-                "parCrossApply (async arg1)" . cmp (==) ( [(1, 3), (2, 3)]) . s2
+                "parCrossApply (async arg1)" . cmp (==) [(1, 3), (2, 3)] . s2
 
         asyncSpec $
             let par2 cfg =
@@ -366,7 +419,7 @@ main = hspec
                         (Stream.fromPure 3)
                 s1 = Stream.fromPure (1 :: Int,)
                 s2 cfg = Async.parCrossApply cfg s1 (par2 cfg)
-            in prop1 "apply (async arg2)" . cmp (==) ([(1, 2), (1, 3)]) . s2
+            in prop1 "apply (async arg2)" . cmp (==) [(1, 2), (1, 3)] . s2
 
         -- concat
         asyncSpec $
@@ -388,6 +441,11 @@ main = hspec
 
 #ifdef DEVBUILD
         describe "Time ordering" $ timeOrdering (Async.parList id)
+        describe "Filtering" $ do
+            it "takeInterval" (testTakeInterval `shouldReturn` True)
+#ifdef INCLUDE_FLAKY_TESTS
+            it "dropInterval" (testDropInterval `shouldReturn` True)
+#endif
 #endif
         let async = Async.parTwo id
         describe "Exception propagation" $ exceptionPropagation async

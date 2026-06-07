@@ -15,12 +15,10 @@
 
 module Streamly.Test.Data.Stream.Serial (main) where
 
-import Control.Concurrent ( threadDelay )
 import Control.Monad ( forM_ )
 import Data.Function ( (&) )
-import Data.IORef ( newIORef, readIORef, writeIORef, modifyIORef' )
+import Data.IORef ( newIORef, readIORef, modifyIORef' )
 import Data.List (sort, group, intercalate)
-import Data.Maybe ( isJust, fromJust )
 import Data.Word (Word8)
 import Data.Semigroup (Sum(..), getSum)
 import Streamly.Data.Stream (Stream)
@@ -41,7 +39,7 @@ import Test.QuickCheck
 import Test.QuickCheck.Monadic (assert, monadicIO, pick, run)
 import Test.Hspec as H
 
-import qualified Streamly.Data.Stream.Prelude as S
+import qualified Streamly.Data.Stream as S
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Stream as IS
@@ -49,13 +47,6 @@ import qualified Streamly.Internal.Data.StreamK as K
 import qualified Streamly.Data.Array as A
 import qualified Streamly.Internal.Data.Parser as Parser
 
-#ifdef DEVBUILD
-import Control.Monad ( when )
-import Data.Int (Int64)
-import Streamly.Internal.Data.Time.Units
-       (AbsTime, NanoSecond64(..), toRelTime64, diffAbsTime64)
-import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
-#endif
 
 import Streamly.Test.Common
 import Streamly.Test.Data.Stream.Serial.Common
@@ -91,9 +82,6 @@ groupsByRolling cmp f m =
 
 drainWhile :: Monad m => (a -> Bool) -> Stream m a -> m ()
 drainWhile p m = S.fold FL.drain $ S.takeWhile p m
-
-drainMapM :: Monad m => (a -> m b) -> S.Stream m a -> m ()
-drainMapM f = S.fold (FL.drainMapM f)
 
 splitOnSeq :: Spec
 splitOnSeq = do
@@ -438,53 +426,6 @@ associativityCheck desc = prop desc assocCheckProp
 max_length :: Int
 max_length = 1000
 
-#ifdef DEVBUILD
-tenPow8 :: Int64
-tenPow8 = 10^(8 :: Int)
-
-tenPow7 :: Int64
-tenPow7 = 10^(7 :: Int)
-
-takeDropTime :: NanoSecond64
-takeDropTime = NanoSecond64 $ 5 * tenPow8
-
-checkTakeDropTime :: (Maybe AbsTime, Maybe AbsTime) -> IO Bool
-checkTakeDropTime (mt0, mt1) = do
-    let graceTime = NanoSecond64 $ 8 * tenPow7
-    case mt0 of
-        Nothing -> return True
-        Just t0 ->
-            case mt1 of
-                Nothing -> return True
-                Just t1 -> do
-                    let tMax = toRelTime64 (takeDropTime + graceTime)
-                    let tMin = toRelTime64 (takeDropTime - graceTime)
-                    let t = diffAbsTime64 t1 t0
-                    let r = t >= tMin && t <= tMax
-                    when (not r) $ putStrLn $
-                        "t = " ++ show t ++
-                        " tMin = " ++ show tMin ++
-                        " tMax = " ++ show tMax
-                    return r
-
-testTakeInterval :: IO Bool
-testTakeInterval = do
-    r <-
-          S.fold (FL.tee FL.head FL.last)
-        $ S.takeInterval (fromIntegral takeDropTime * 10**(-9))
-        $ S.repeatM (threadDelay 1000 >> getTime Monotonic)
-    checkTakeDropTime r
-
-testDropInterval :: IO Bool
-testDropInterval = do
-    t0 <- getTime Monotonic
-    mt1 <-
-          S.fold FL.head
-        $ S.dropInterval (fromIntegral takeDropTime * 10**(-9))
-        $ S.repeatM (threadDelay 1000 >> getTime Monotonic)
-    checkTakeDropTime (Just t0, mt1)
-#endif
-
 unfold :: Property
 unfold = monadicIO $ do
     a <- pick $ choose (0, max_length `div` 2)
@@ -492,34 +433,6 @@ unfold = monadicIO $ do
     let unf = UF.supplySecond b UF.enumerateFromToIntegral
     ls <- toList $ S.unfold unf a
     return $ ls == [a..b]
-
-testFromCallback :: IO Int
-testFromCallback = do
-    ref <- newIORef Nothing
-    let stream =
-            S.parList (S.eager True)
-                [ fmap Just (S.fromCallback (setCallback ref))
-                , runCallback ref
-                ]
-    S.fold FL.sum $ fmap fromJust $ S.takeWhile isJust stream
-
-    where
-
-    setCallback ref cb = do
-        writeIORef ref (Just cb)
-
-    runCallback ref = S.fromEffect $ do
-        cb <-
-              S.repeatM (readIORef ref)
-                & IS.delayPost 0.1
-                & S.mapMaybe id
-                & S.fold FL.head
-
-        S.fromList [1..100]
-            & IS.delayPost 0.001
-            & drainMapM (fromJust cb)
-        threadDelay 100000
-        return Nothing
 
 foldIterateM :: Property
 foldIterateM =
@@ -657,14 +570,6 @@ main = hspec
         transformCombineOpsOrdered IS.fromFoldable "serially" (==)
         transformCombineOpsOrdered folded "serially" (==)
 
-#ifdef DEVBUILD
-        describe "Filtering" $ do
-            it "takeInterval" (testTakeInterval `shouldReturn` True)
-#ifdef INCLUDE_FLAKY_TESTS
-            it "dropInterval" (testDropInterval `shouldReturn` True)
-#endif
-#endif
-
     -- Just some basic sanity tests for now
     let input = [[1,1] :: [Int],[2,2],[3,3],[4,4],[5,5],[6,6],[7,7],[8,8]]
         mustBe g inp out =
@@ -716,8 +621,6 @@ main = hspec
     describe "Tests for exceptions" $ exceptionOps "serially"
 
     describe "Composed MonadThrow serially" composeWithMonadThrow
-
-    it "fromCallback" $ testFromCallback `shouldReturn` (50*101)
 
     describe "Nesting" $ do
         prop "foldIterateM" foldIterateM
