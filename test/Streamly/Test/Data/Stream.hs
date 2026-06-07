@@ -12,6 +12,7 @@ import qualified Streamly.Test.Data.Stream.Container as Container
 import qualified Streamly.Test.Data.Stream.Eliminate as Eliminate
 import qualified Streamly.Test.Data.Stream.Exception as Exception
 import qualified Streamly.Test.Data.Stream.Generate as Generate
+import qualified Streamly.Test.Data.Stream.Lift as Lift
 import qualified Streamly.Test.Data.Stream.Nesting as Nesting
 import qualified Streamly.Test.Data.Stream.Parse as Parse
 import qualified Streamly.Test.Data.Stream.Serial as Serial
@@ -26,6 +27,7 @@ main = do
     Generate.main
     Eliminate.main
     Exception.main
+    Lift.main
     Nesting.main
     Container.main
     Parse.main

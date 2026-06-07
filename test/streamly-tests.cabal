@@ -382,6 +382,7 @@ test-suite Data.Stream
     Streamly.Test.Data.Stream.Eliminate
     Streamly.Test.Data.Stream.Exception
     Streamly.Test.Data.Stream.Generate
+    Streamly.Test.Data.Stream.Lift
     Streamly.Test.Data.Stream.Nesting
     Streamly.Test.Data.Stream.Parse
     Streamly.Test.Data.Stream.Serial
