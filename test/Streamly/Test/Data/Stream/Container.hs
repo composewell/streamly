@@ -23,6 +23,86 @@ import qualified Streamly.Internal.Data.Stream as Stream
 import Test.Hspec as H
 import Test.Hspec.QuickCheck
 
+-------------------------------------------------------------------------------
+-- Deduplication
+-------------------------------------------------------------------------------
+
+testOrdNub :: Expectation
+testOrdNub =
+    Stream.toList (Stream.ordNub (Stream.fromList [1, 2, 1, 3, 2, 4 :: Int]))
+        `shouldReturn` [1, 2, 3, 4]
+
+testOrdNubEmpty :: Expectation
+testOrdNubEmpty =
+    Stream.toList (Stream.ordNub (Stream.fromList ([] :: [Int])))
+        `shouldReturn` []
+
+testOrdNubAllSame :: Expectation
+testOrdNubAllSame =
+    Stream.toList (Stream.ordNub (Stream.fromList [1, 1, 1 :: Int]))
+        `shouldReturn` [1]
+
+testOrdNubNoDups :: Expectation
+testOrdNubNoDups =
+    Stream.toList (Stream.ordNub (Stream.fromList [1, 2, 3 :: Int]))
+        `shouldReturn` [1, 2, 3]
+
+-------------------------------------------------------------------------------
+-- Left Join
+-------------------------------------------------------------------------------
+
+testLeftJoin :: Expectation
+testLeftJoin = do
+    xs <- Stream.toList
+            $ Stream.leftJoin (==)
+                (Stream.fromList [1, 2, 3 :: Int])
+                (Stream.fromList [2, 3, 4])
+    xs `shouldBe` [(1, Nothing), (2, Just 2), (3, Just 3)]
+
+testLeftJoinEmpty :: Expectation
+testLeftJoinEmpty = do
+    xs <- Stream.toList
+            $ Stream.leftJoin (==)
+                (Stream.fromList ([] :: [Int]))
+                (Stream.fromList [1, 2, 3])
+    xs `shouldBe` []
+
+testLeftJoinNoMatch :: Expectation
+testLeftJoinNoMatch = do
+    xs <- Stream.toList
+            $ Stream.leftJoin (==)
+                (Stream.fromList [1, 2 :: Int])
+                (Stream.fromList [3, 4])
+    xs `shouldBe` [(1, Nothing), (2, Nothing)]
+
+-------------------------------------------------------------------------------
+-- Outer Join
+-------------------------------------------------------------------------------
+
+testOuterJoin :: Expectation
+testOuterJoin = do
+    xs <- fmap sort $ Stream.toList
+            $ Stream.outerJoin (==)
+                (Stream.fromList [1, 2, 3 :: Int])
+                (Stream.fromList [2, 3, 4])
+    xs `shouldBe` [(Nothing, Just 4), (Just 1, Nothing), (Just 2, Just 2), (Just 3, Just 3)]
+
+testOuterJoinEmptyLeft :: Expectation
+testOuterJoinEmptyLeft = do
+    xs <- fmap sort $ Stream.toList
+            $ Stream.outerJoin (==)
+                (Stream.fromList ([] :: [Int]))
+                (Stream.fromList [1, 2])
+    xs `shouldBe` [(Nothing, Just 1), (Nothing, Just 2)]
+
+testOuterJoinEmptyRight :: Expectation
+testOuterJoinEmptyRight = do
+    xs <- fmap sort $ Stream.toList
+            $ Stream.outerJoin (==)
+                (Stream.fromList [1, 2 :: Int])
+                (Stream.fromList [])
+    xs `shouldBe` [(Just 1, Nothing), (Just 2, Nothing)]
+
 min_value :: Int
 min_value = 0
 
@@ -164,8 +244,23 @@ moduleName = "Data.Stream.Container"
 main :: IO ()
 main = hspec $ do
     describe moduleName $ do
-        prop "joinInnerMap" joinInnerMap
-        -- prop "joinOuter" joinOuter
-        prop "joinOuterMap" joinOuterMap
-        -- prop "joinLeft" joinLeft
-        prop "joinLeftMap" joinLeftMap
+        describe "Deduplication" $ do
+            it "ordNub" testOrdNub
+            it "ordNub empty" testOrdNubEmpty
+            it "ordNub all same" testOrdNubAllSame
+            it "ordNub no duplicates" testOrdNubNoDups
+
+        describe "Left Join" $ do
+            it "leftJoin" testLeftJoin
+            it "leftJoin empty left" testLeftJoinEmpty
+            it "leftJoin no match" testLeftJoinNoMatch
+
+        describe "Outer Join" $ do
+            it "outerJoin" testOuterJoin
+            it "outerJoin empty left" testOuterJoinEmptyLeft
+            it "outerJoin empty right" testOuterJoinEmptyRight
+
+        describe "Ord Joins" $ do
+            prop "innerOrdJoin" joinInnerMap
+            prop "outerOrdJoin" joinOuterMap
+            prop "leftOrdJoin" joinLeftMap
