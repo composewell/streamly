@@ -8,7 +8,8 @@
 
 module Streamly.Test.Data.Stream.Type (main) where
 
-import Data.IORef (newIORef, readIORef, writeIORef)
+import Control.Exception (ErrorCall(..), catch)
+import Data.IORef (newIORef, readIORef, writeIORef, IORef)
 import Data.List (sort)
 import Streamly.Internal.Data.Stream (Stream)
 import Test.QuickCheck (Property, choose)
@@ -445,6 +446,52 @@ testTakeCommonPrefixBy = do
             (Stream.fromList [4, 5, 6 :: Int]))
         `shouldReturn` []
 
+-------------------------------------------------------------------------------
+-- Strictness / Laziness
+-------------------------------------------------------------------------------
+
+checkFoldMStrictness :: (IORef Int -> Stream IO Int -> IO ()) -> IO ()
+checkFoldMStrictness f = do
+  ref <- newIORef 0
+  let s = Stream.fromList ((1 :: Int) : error "x")
+  catch (f ref s) (\(_ :: ErrorCall) -> return ())
+  readIORef ref `shouldReturn` 1
+
+#ifdef DEVBUILD
+checkFoldxStrictness :: IO ()
+checkFoldxStrictness = do
+  let s = Stream.fromList ((1 :: Int) : error "failure")
+  catch (Stream.foldlx' (\_ a -> if a == 1 then error "success" else "done")
+                      "begin" id s)
+    (\(ErrorCall err) -> return err)
+    `shouldReturn` "success"
+
+foldxMStrictCheck :: IORef Int -> Stream IO Int -> IO ()
+foldxMStrictCheck ref = Stream.foldlMx' (\_ _ -> writeIORef ref 1) (return ()) return
+#endif
+
+checkFoldl'Strictness :: IO ()
+checkFoldl'Strictness = do
+  let s = Stream.fromList ((1 :: Int) : error "failure")
+  catch (Stream.foldl' (\_ a -> if a == 1 then error "success" else "done")
+                      "begin" s)
+    (\(ErrorCall err) -> return err)
+    `shouldReturn` "success"
+
+foldlM'StrictCheck :: IORef Int -> Stream IO Int -> IO ()
+foldlM'StrictCheck ref = Stream.foldlM' (\_ _ -> writeIORef ref 1) (return ())
+
+checkFoldrLaziness :: IO ()
+checkFoldrLaziness = do
+    Stream.foldrM (\x xs -> if odd x then return True else xs)
+             (return False) (Stream.fromList (2:4:5:undefined :: [Int]))
+        `shouldReturn` True
+
+    Stream.toList (Stream.foldrS (\x xs -> if odd x then Stream.fromPure True else xs)
+                        (Stream.fromPure False)
+                        (Stream.fromList (2:4:5:undefined) :: Stream IO Int))
+        `shouldReturn` [True]
+
 moduleName :: String
 moduleName = "Data.Stream"
 
@@ -591,6 +638,14 @@ main = hspec
     it "foldr" testFoldr
     it "foldrS" testFoldrS
     it "headElse" testHeadElse
+
+#ifdef DEVBUILD
+    it "foldx is strict enough" checkFoldxStrictness
+    it "foldxM is strict enough" (checkFoldMStrictness foldxMStrictCheck)
+#endif
+    it "foldl' is strict enough" checkFoldl'Strictness
+    it "foldlM' is strict enough" (checkFoldMStrictness foldlM'StrictCheck)
+    it "right folds are lazy enough" checkFoldrLaziness
 
     -- Concat/Unfold
     it "cross" testCross
