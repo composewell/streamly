@@ -393,11 +393,17 @@ test-suite Data.StreamK
   main-is: Streamly/Test/Data/StreamK.hs
   ghc-options: -main-is Streamly.Test.Data.StreamK.main
 
-test-suite Data.Stream.Ahead
+test-suite Data.Stream.MkType
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Stream/Ahead.hs
-  ghc-options: -main-is Streamly.Test.Data.Stream.Ahead.main
+  main-is: Streamly/Test/Data/Stream/MkType.hs
+  ghc-options: -main-is Streamly.Test.Data.Stream.MkType.main
+  other-modules:
+    Streamly.Test.Data.Stream.MkType.Ahead
+    Streamly.Test.Data.Stream.MkType.ZipAsync
+    Streamly.Test.Data.Stream.MkType.ZipSerial
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M750M -RTS
   if flag(use-streamly-core)
     buildable: False
 
@@ -423,24 +429,6 @@ test-suite Data.Stream.Rate
   else
     buildable: False
   if flag(use-streamly-core) || !flag(include-flaky-tests)
-    buildable: False
-
-test-suite Data.Stream.ZipAsync
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Stream/ZipAsync.hs
-  ghc-options: -main-is Streamly.Test.Data.Stream.ZipAsync.main
-  if flag(limit-build-mem)
-    ghc-options: +RTS -M750M -RTS
-  if flag(use-streamly-core)
-    buildable: False
-
-test-suite Data.Stream.ZipSerial
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Stream/ZipSerial.hs
-  ghc-options: -main-is Streamly.Test.Data.Stream.ZipSerial.main
-  if flag(use-streamly-core)
     buildable: False
 
 -- XXX Rename to MutByteArray.Unbox

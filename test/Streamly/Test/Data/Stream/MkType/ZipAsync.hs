@@ -11,7 +11,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Test.Data.Stream.ZipAsync  (main) where
+module Streamly.Test.Data.Stream.MkType.ZipAsync (main) where
 
 import Control.Applicative (ZipList(..))
 import Test.Hspec.QuickCheck

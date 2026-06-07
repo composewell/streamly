@@ -13,7 +13,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Test.Data.Stream.ZipSerial (main) where
+module Streamly.Test.Data.Stream.MkType.ZipSerial (main) where
 
 import Control.Applicative (ZipList(..))
 import Test.Hspec.QuickCheck

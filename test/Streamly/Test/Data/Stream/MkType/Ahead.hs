@@ -11,7 +11,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Test.Data.Stream.Ahead (main) where
+module Streamly.Test.Data.Stream.MkType.Ahead (main) where
 
 import Control.Exception (Exception, try)
 import Data.IORef (newIORef, readIORef, writeIORef)
