@@ -29,7 +29,8 @@ module Stream.Common
     , sourceUnfoldr
     , sourceUnfoldrM
     , sourceUnfoldrAction
-    , sourceConcatMapId
+    , sourceConcatMapSingletonStreams
+    , sourceConcatMapStreams
     , sourceFromFoldable
     , sourceFromFoldableM
 
@@ -127,7 +128,7 @@ fromFoldableM :: MonadAsync m => [m a] -> Stream m a
 fromFoldableM = Stream.sequence . Stream.fromFoldable
 
 {-# INLINE sourceUnfoldrM #-}
-sourceUnfoldrM :: MonadAsync m => Int -> Int -> Stream m Int
+sourceUnfoldrM :: Monad m => Int -> Int -> Stream m Int
 sourceUnfoldrM count start = Stream.unfoldrM step start
 
     where
@@ -194,11 +195,17 @@ benchIOSrc name f =
 benchIO :: (NFData b) => String -> (Int -> IO b) -> Benchmark
 benchIO name f = bench name $ nfIO $ randomRIO (1,1) >>= f
 
-{-# INLINE sourceConcatMapId #-}
-sourceConcatMapId :: (Monad m)
+{-# INLINE sourceConcatMapSingletonStreams #-}
+sourceConcatMapSingletonStreams :: (Monad m)
     => Int -> Int -> Stream m (Stream m Int)
-sourceConcatMapId value n =
-    Stream.fromList $ fmap (Stream.fromEffect . return) [n..n+value]
+sourceConcatMapSingletonStreams count start =
+    fmap Stream.fromPure $ sourceUnfoldr count start
+
+{-# INLINE sourceConcatMapStreams #-}
+sourceConcatMapStreams :: (Monad m)
+    => Int -> Int -> Int -> Stream m (Stream m Int)
+sourceConcatMapStreams outer inner start =
+    fmap (sourceUnfoldr inner) $ sourceUnfoldr outer start
 
 {-# INLINE apDiscardFst #-}
 apDiscardFst :: MonadAsync m =>

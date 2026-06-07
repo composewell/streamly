@@ -548,6 +548,27 @@ toNull3 value start =
                 UF.fromPure (x + y + z)
      in UF.fold FL.drain u start
 
+{-# INLINE toNullConcatMap #-}
+toNullConcatMap :: Int -> Int -> IO ()
+toNullConcatMap value start =
+    let end = start + nthRoot 2 value
+        src = source end
+        u = UF.concatMap (\x ->
+            UF.concatMap (\y ->
+                UF.fromPure (x + y)) src) src
+     in UF.fold FL.drain u start
+
+{-# INLINE toNull3ConcatMap #-}
+toNull3ConcatMap :: Int -> Int -> IO ()
+toNull3ConcatMap value start =
+    let end = start + nthRoot 3 value
+        src = source end
+        u = UF.concatMap (\x ->
+            UF.concatMap (\y ->
+            UF.concatMap (\z ->
+                UF.fromPure (x + y + z)) src) src) src
+     in UF.fold FL.drain u start
+
 {-# INLINE toList #-}
 toList :: Int -> Int -> IO [Int]
 toList value start = do
@@ -1012,14 +1033,6 @@ o_1_space_nested env size =
           , benchIO "cross outer=inner=(sqrt Max)" $ cross size
           , benchIO "fairCross outer=inner=(sqrt Max)" $ fairCross size
 
-          , benchIO "concatMapM outer=inner=(sqrt Max)" $ concatMapM sqrtVal sqrtVal
-          , benchIO "bind2" $ toNull size
-          , benchIO "bind3" $ toNull3 size
-          , benchIO "breakAfterSome2" $ breakAfterSome size
-          , benchIO "filterAllOut2" $ filterAllOut size
-          , benchIO "filterAllIn2" $ filterAllIn size
-          , benchIO "filterSome2" $ filterSome size
-
           , benchIO "unfoldEach inner=outer=(sqrt Max)" $ unfoldEach sqrtVal sqrtVal
           , benchIO "unfoldEach inner=1 outer=Max" $ unfoldEach 1 size
           , benchIO "unfoldEach inner=Max outer=1" $ unfoldEach size 1
@@ -1038,10 +1051,30 @@ o_1_space_nested env size =
 
     sqrtVal = round $ sqrt (fromIntegral size :: Double)
 
-o_n_space_nested :: Int -> [Benchmark]
-o_n_space_nested size =
+o_1_space_concat :: Int -> [Benchmark]
+o_1_space_concat size =
     [ bgroup
-          "nested"
+          "concat"
+          [ benchIO "concatMapM outer=inner=(sqrt Max)" $ concatMapM sqrtVal sqrtVal
+          , benchIO "bind2" $ toNull size
+          , benchIO "bind3" $ toNull3 size
+          , benchIO "concatMap2" $ toNullConcatMap size
+          , benchIO "concatMap3" $ toNull3ConcatMap size
+          , benchIO "breakAfterSome2" $ breakAfterSome size
+          , benchIO "filterAllOut2" $ filterAllOut size
+          , benchIO "filterAllIn2" $ filterAllIn size
+          , benchIO "filterSome2" $ filterSome size
+          ]
+    ]
+
+    where
+
+    sqrtVal = round $ sqrt (fromIntegral size :: Double)
+
+o_n_space_concat :: Int -> [Benchmark]
+o_n_space_concat size =
+    [ bgroup
+          "concat"
           [ benchIO "toList2" $ toList size
           , benchIO "toListSome2" $ toListSome size
           ]
@@ -1140,10 +1173,11 @@ main = do
                   , o_1_space_filtering size
                   , o_1_space_zip size
                   , o_1_space_nested env size
+                  , o_1_space_concat size
                   , o_1_space_copy_read_exceptions env
                   ]
         , bgroup (o_n_space_prefix moduleName)
-            $ Prelude.concat [o_n_space_nested size]
+            $ Prelude.concat [o_n_space_concat size]
         ]
 #else
     -- Enable FUSION_CHECK macro at the beginning of the file

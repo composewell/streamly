@@ -222,14 +222,29 @@ o_1_space_joining value =
 concatMap :: Int -> Int -> Int -> IO ()
 concatMap outer inner n =
     drain $ S.concatMap
-        (\_ -> sourceUnfoldrM inner n)
+        (sourceUnfoldrM inner)
         (sourceUnfoldrM outer n)
+
+{-# INLINE concatMapM2 #-}
+concatMapM2 :: Monad m => Stream m Int -> m ()
+concatMapM2 s = drain $ do
+    Stream.concatMapM (\x ->
+        pure $ Stream.concatMapM (\y ->
+            pure $ Stream.fromPure $ x + y) s) s
+
+{-# INLINE concatMapM3 #-}
+concatMapM3 :: Monad m => Stream m Int -> m ()
+concatMapM3 s = drain $ do
+    Stream.concatMapM (\x ->
+        pure $ Stream.concatMapM (\y ->
+            pure $ Stream.concatMapM (\z ->
+                pure $ Stream.fromPure $ x + y + z) s) s) s
 
 {-# INLINE concatMapViaUnfoldEach #-}
 concatMapViaUnfoldEach :: Int -> Int -> Int -> IO ()
 concatMapViaUnfoldEach outer inner n =
     drain $ cmap
-        (\_ -> sourceUnfoldrM inner n)
+        (sourceUnfoldrM inner)
         (sourceUnfoldrM outer n)
 
     where
@@ -240,7 +255,7 @@ concatMapViaUnfoldEach outer inner n =
 concatMapM :: Int -> Int -> Int -> IO ()
 concatMapM outer inner n =
     drain $ S.concatMapM
-        (\_ -> return $ sourceUnfoldrM inner n)
+        (return . sourceUnfoldrM inner)
         (sourceUnfoldrM outer n)
 
 -- concatMap unfoldr/unfoldr
@@ -249,7 +264,7 @@ concatMapM outer inner n =
 concatMapPure :: Int -> Int -> Int -> IO ()
 concatMapPure outer inner n =
     drain $ S.concatMap
-        (\_ -> sourceUnfoldr inner n)
+        (sourceUnfoldr inner)
         (sourceUnfoldr outer n)
 
 {-# INLINE sourceUnfoldrMUnfold #-}
@@ -300,30 +315,39 @@ unfoldCross outer inner start = drain $
 o_1_space_concat :: Int -> [Benchmark]
 o_1_space_concat value = sqrtVal `seq`
     [ bgroup "concat"
-        [ benchIOSrc1 "concatMapPure outer=Max inner=1"
+        [ benchIOSrc1 "concatMap unfoldr outer=Max inner=1"
             (concatMapPure value 1)
-        , benchIOSrc1 "concatMapPure outer=inner=(sqrt Max)"
+        , benchIOSrc1 "concatMap unfoldr outer=inner=(sqrt Max)"
             (concatMapPure sqrtVal sqrtVal)
-        , benchIOSrc1 "concatMapPure outer=1 inner=Max"
+        , benchIOSrc1 "concatMap unfoldr outer=1 inner=Max"
             (concatMapPure 1 value)
 
-        , benchIOSrc1 "concatMap outer=max inner=1"
+        , benchIOSrc1 "concatMap unfoldrM outer=max inner=1"
             (concatMap value 1)
-        , benchIOSrc1 "concatMap outer=inner=(sqrt Max)"
+        , benchIOSrc1 "concatMap unfoldrM outer=inner=(sqrt Max)"
             (concatMap sqrtVal sqrtVal)
-        , benchIOSrc1 "concatMap outer=1 inner=Max"
+        , benchIOSrc1 "concatMap unfoldrM outer=1 inner=Max"
             (concatMap 1 value)
 
-        -- This is for comparison with foldMapWith
-        , benchIOSrc "concatMapId outer=max inner=1 (fromFoldable)"
-            (S.concatMap id . sourceConcatMapId value)
+        -- Using boxed values/streams may have entirely different perf profile
+        , benchIOSrc "concatMap Streams fromPure outer=max inner=1"
+            (S.concatMap id . sourceConcatMapSingletonStreams value)
+        , benchIOSrc1 "concatMap Streams unfoldr outer=max inner=1"
+            (S.drain . S.concatMap id . sourceConcatMapStreams value 1)
+        , benchIOSrc1 "concatMap Streams unfoldr outer=inner=(sqrt Max)"
+            (S.drain . S.concatMap id . sourceConcatMapStreams sqrtVal sqrtVal)
+        , benchIOSrc1 "concatMap Streams unfoldr outer=1 inner=Max"
+            (S.drain . S.concatMap id . sourceConcatMapStreams 1 value)
 
-        , benchIOSrc1 "concatMapM outer=max inner=1"
+        , benchIOSrc1 "concatMapM unfoldrM outer=max inner=1"
             (concatMapM value 1)
-        , benchIOSrc1 "concatMapM outer=inner=(sqrt Max)"
+        , benchIOSrc1 "concatMapM unfoldrM outer=inner=(sqrt Max)"
             (concatMapM sqrtVal sqrtVal)
-        , benchIOSrc1 "concatMapM outer=1 inner=Max"
+        , benchIOSrc1 "concatMapM unfoldrM outer=1 inner=Max"
             (concatMapM 1 value)
+
+        , benchFold "concatMapM2 fromPure" concatMapM2 (sourceUnfoldrM sqrtVal)
+        , benchFold "concatMapM3 fromPure" concatMapM3 (sourceUnfoldrM cubertVal)
 
         , benchIOSrc1 "concatMapViaUnfoldEach outer=max inner=1"
             (concatMapViaUnfoldEach value 1)
@@ -362,6 +386,7 @@ o_1_space_concat value = sqrtVal `seq`
     where
 
     sqrtVal = round $ sqrt (fromIntegral value :: Double)
+    cubertVal = round (fromIntegral value**(1/3::Double)) -- triple nested loop
 
 o_n_heap_concat :: Int -> [Benchmark]
 o_n_heap_concat value = sqrtVal `seq`
@@ -617,173 +642,186 @@ infiniteIntsUnfold _ _ =
         (Unfold.supply (0 :: Int) Unfold.enumerateFrom)
         (Unfold.supply (-1, -2) Unfold.enumerateFromThen)
 
+-- In bounded case, the x stream is 0 to maxVal and y stream is -1 to -maxVal.
+-- The solution of the equation is x = maxVal y = -maxVal, so in the worst case
+-- we get to the solution only after exhausting both the streams.
+--
+-- In the infinite stream case we terminate after we get to the solution or
+-- both streams go beyond maxVal, in this case if one stream is explored more
+-- then we might go through more than maxVal x maxVal cases.
+--
 {-# INLINE checkStream #-}
 checkStream :: Applicative m =>
-    Int -> Int -> Stream m (Maybe (Maybe (Int, Int)))
-checkStream x y =
+    Int -> Int -> Int -> Stream m (Maybe (Maybe (Int, Int)))
+checkStream maxVal x y =
     let eq1 = x + y == 0
-        eq2 = x - y == 1994
+        eq2 = x - y == 2 * maxVal
      in if eq1 && eq2
         then Stream.fromPure (Just (Just (x,y)))
-        else if abs x > 1000 && abs y > 1000
+        else if abs x > maxVal && abs y > maxVal
         then Stream.fromPure (Just Nothing)
         else Stream.fromPure Nothing
 
 {-# INLINE checkStreamK #-}
-checkStreamK :: Int -> Int -> StreamK.StreamK m (Maybe (Maybe (Int, Int)))
-checkStreamK x y =
+checkStreamK :: Int -> Int -> Int -> StreamK.StreamK m (Maybe (Maybe (Int, Int)))
+checkStreamK maxVal x y =
     let eq1 = x + y == 0
-        eq2 = x - y == 1994
+        eq2 = x - y == 2 * maxVal
      in if eq1 && eq2
         then StreamK.fromPure (Just (Just (x,y)))
-        else if abs x > 1000 && abs y > 1000
+        else if abs x > maxVal && abs y > maxVal
         then StreamK.fromPure (Just Nothing)
         else StreamK.fromPure Nothing
 
 {-# INLINE checkPair #-}
-checkPair :: Monad m => (Int, Int) -> m (Maybe (Maybe (Int, Int)))
-checkPair (x, y) =
+checkPair :: Monad m => Int -> (Int, Int) -> m (Maybe (Maybe (Int, Int)))
+checkPair maxVal (x, y) =
     let eq1 = x + y == 0
-        eq2 = x - y == 1994
+        eq2 = x - y == 2 * maxVal
      in if eq1 && eq2
         then pure (Just (Just (x,y)))
-        else if abs x > 1000 && abs y > 1000
+        else if abs x > maxVal && abs y > maxVal
         then pure (Just Nothing)
         else pure Nothing
 
+-- Terminate the stream as soon as we get a Just value
 result :: Monad m => Stream m (Maybe a) -> m ()
 result = Stream.fold (Fold.take 1 Fold.drain) . Stream.catMaybes
 
-fairConcatForEqn :: Monad m => Stream m Int -> m ()
-fairConcatForEqn input =
+fairConcatForEqn :: Monad m => Int -> Stream m Int -> m ()
+fairConcatForEqn maxVal input =
     result
         $ Stream.fairConcatFor input $ \x ->
               Stream.fairConcatForM input $ \y -> do
-                return $ checkStream x y
+                return $ checkStream maxVal x y
 
-fairConcatForEqnK :: Monad m => Stream m Int -> m ()
-fairConcatForEqnK input =
+fairConcatForEqnK :: Monad m => Int -> Stream m Int -> m ()
+fairConcatForEqnK maxVal input =
     let inputK = StreamK.fromStream input
     in result
         $ StreamK.toStream
         $ StreamK.fairConcatFor inputK $ \x ->
               StreamK.fairConcatForM inputK $ \y -> do
-                return $ checkStreamK x y
+                return $ checkStreamK maxVal x y
 
-concatForEqn :: Monad m => Stream m Int -> m ()
-concatForEqn input =
+concatForEqn :: Monad m => Int -> Stream m Int -> m ()
+concatForEqn maxVal input =
     result
         $ Stream.concatFor input $ \x ->
               Stream.concatForM input $ \y -> do
-                return $ checkStream x y
+                return $ checkStream maxVal x y
 
-fairSchedForEqn :: Monad m => Stream m Int -> m ()
-fairSchedForEqn input =
+fairSchedForEqn :: Monad m => Int -> Stream m Int -> m ()
+fairSchedForEqn maxVal input =
     result
         $ Stream.fairSchedFor input $ \x ->
               Stream.fairSchedForM input $ \y -> do
-                return $ checkStream x y
+                return $ checkStream maxVal x y
 
-_schedForEqn :: Monad m => Stream m Int -> m ()
-_schedForEqn input =
+_schedForEqn :: Monad m => Int -> Stream m Int -> m ()
+_schedForEqn maxVal input =
     result
         $ Stream.schedFor input $ \x ->
               Stream.schedForM input $ \y -> do
-                return $ checkStream x y
+                return $ checkStream maxVal x y
 
-streamCrossEqn :: Monad m => Stream m Int -> m ()
-streamCrossEqn input =
+streamCrossEqn :: Monad m => Int -> Stream m Int -> m ()
+streamCrossEqn maxVal input =
     result
-        $ Stream.mapM checkPair
+        $ Stream.mapM (checkPair maxVal)
         $ Stream.cross input input
 
-fairStreamCrossEqn :: Monad m => Stream m Int -> m ()
-fairStreamCrossEqn input =
+fairStreamCrossEqn :: Monad m => Int -> Stream m Int -> m ()
+fairStreamCrossEqn maxVal input =
     result
-        $ Stream.mapM checkPair
+        $ Stream.mapM (checkPair maxVal)
         $ Stream.fairCross input input
 
-unfoldCrossEqn :: Monad m => Unfold m ((), ()) Int -> m ()
-unfoldCrossEqn input =
+unfoldCrossEqn :: Monad m => Int -> Unfold m ((), ()) Int -> m ()
+unfoldCrossEqn maxVal input =
     result
-        $ Stream.mapM checkPair
+        $ Stream.mapM (checkPair maxVal)
         $ Stream.unfold (Unfold.cross input input) (undefined, undefined)
 
-fairUnfoldCrossEqn :: Monad m => Unfold m ((), ()) Int -> m ()
-fairUnfoldCrossEqn input =
+fairUnfoldCrossEqn :: Monad m => Int -> Unfold m ((), ()) Int -> m ()
+fairUnfoldCrossEqn maxVal input =
     result
-        $ Stream.mapM checkPair
+        $ Stream.mapM (checkPair maxVal)
         $ Stream.unfold (Unfold.fairCross input input) (undefined, undefined)
 
-unfoldEachEqn :: Monad m => Unfold m ((), ()) Int -> Stream m Int -> m ()
-unfoldEachEqn input ints =
+unfoldEachEqn :: Monad m => Int -> Unfold m ((), ()) Int -> Stream m Int -> m ()
+unfoldEachEqn maxVal input ints =
     let intu = Unfold.carryInput $ Unfold.lmap (const (undefined, undefined)) input
      in result
-        $ Stream.mapM checkPair
+        $ Stream.mapM (checkPair maxVal)
         $ Stream.unfoldEach intu ints
 
-fairUnfoldEachEqn :: Monad m => Unfold m ((), ()) Int -> Stream m Int -> m ()
-fairUnfoldEachEqn input ints =
+fairUnfoldEachEqn :: Monad m => Int -> Unfold m ((), ()) Int -> Stream m Int -> m ()
+fairUnfoldEachEqn maxVal input ints =
     let intu = Unfold.carryInput $ Unfold.lmap (const (undefined, undefined)) input
      in result
-        $ Stream.mapM checkPair
+        $ Stream.mapM (checkPair maxVal)
         $ Stream.fairUnfoldEach intu ints
 
-unfoldSchedEqn :: Monad m => Unfold m ((), ()) Int -> Stream m Int -> m ()
-unfoldSchedEqn input ints =
+unfoldSchedEqn :: Monad m => Int -> Unfold m ((), ()) Int -> Stream m Int -> m ()
+unfoldSchedEqn maxVal input ints =
     let intu = Unfold.carryInput $ Unfold.lmap (const (undefined, undefined)) input
      in result
-        $ Stream.mapM checkPair
+        $ Stream.mapM (checkPair maxVal)
         $ Stream.unfoldSched intu ints
 
-fairUnfoldSchedEqn :: Monad m => Unfold m ((), ()) Int -> Stream m Int -> m ()
-fairUnfoldSchedEqn input ints =
+fairUnfoldSchedEqn :: Monad m => Int -> Unfold m ((), ()) Int -> Stream m Int -> m ()
+fairUnfoldSchedEqn maxVal input ints =
     let intu = Unfold.carryInput $ Unfold.lmap (const (undefined, undefined)) input
      in result
-        $ Stream.mapM checkPair
+        $ Stream.mapM (checkPair maxVal)
         $ Stream.fairUnfoldSched intu ints
 
 -- Solve simultaneous equations by exploring all possibilities
 o_1_space_equations :: Int -> [Benchmark]
-o_1_space_equations _ =
+o_1_space_equations value =
     [ bgroup "equations"
-        [ benchFold "concatFor (bounded)" concatForEqn (boundedInts 1000)
+        [ benchFold "concatFor (bounded)" (concatForEqn sqrtVal) (boundedInts sqrtVal)
         , benchFold "fairConcatFor (bounded)"
-            fairConcatForEqn (boundedInts 1000)
+            (fairConcatForEqn sqrtVal) (boundedInts sqrtVal)
         , benchFold "fairConcatForK (bounded)"
-            fairConcatForEqnK (boundedInts 1000)
+            (fairConcatForEqnK sqrtVal) (boundedInts sqrtVal)
         , benchFold "fairConcatFor (infinite)"
-            fairConcatForEqn (infiniteInts 1000)
+            (fairConcatForEqn sqrtVal) (infiniteInts sqrtVal)
         , benchFold "fairSchedFor (bounded)"
-            fairSchedForEqn (boundedInts 1000)
+            (fairSchedForEqn sqrtVal) (boundedInts sqrtVal)
         , benchFold "fairSchedFor (infinite)"
-            fairSchedForEqn (infiniteInts 1000)
+            (fairSchedForEqn sqrtVal) (infiniteInts sqrtVal)
         , benchFold "streamCross (bounded)"
-            streamCrossEqn (boundedInts 1000)
+            (streamCrossEqn sqrtVal) (boundedInts sqrtVal)
         , benchFold "fairStreamCross (bounded)"
-            fairStreamCrossEqn (boundedInts 1000)
+            (fairStreamCrossEqn sqrtVal) (boundedInts sqrtVal)
         , benchFold "fairStreamCross (infinite)"
-            fairStreamCrossEqn (infiniteInts 1000)
+            (fairStreamCrossEqn sqrtVal) (infiniteInts sqrtVal)
         , bench "unfoldCross (bounded)"
-            $ nfIO $ unfoldCrossEqn (boundedIntsUnfold 1000 0)
+            $ nfIO $ unfoldCrossEqn sqrtVal (boundedIntsUnfold sqrtVal 0)
         , bench "fairUnfoldCross (bounded)"
-            $ nfIO $ fairUnfoldCrossEqn (boundedIntsUnfold 1000 0)
+            $ nfIO $ fairUnfoldCrossEqn sqrtVal (boundedIntsUnfold sqrtVal 0)
         , bench "fairUnfoldCross (infinite)"
-            $ nfIO $ fairUnfoldCrossEqn (infiniteIntsUnfold 1000 0)
+            $ nfIO $ fairUnfoldCrossEqn sqrtVal (infiniteIntsUnfold sqrtVal 0)
         , benchFold "unfoldEach (bounded)"
-            (unfoldEachEqn (boundedIntsUnfold 1000 0)) (boundedInts 1000)
+            (unfoldEachEqn sqrtVal (boundedIntsUnfold sqrtVal 0)) (boundedInts sqrtVal)
         , benchFold "fairUnfoldEach (bounded)"
-            (fairUnfoldEachEqn (boundedIntsUnfold 1000 0)) (boundedInts 1000)
+            (fairUnfoldEachEqn sqrtVal (boundedIntsUnfold sqrtVal 0)) (boundedInts sqrtVal)
         , benchFold "fairUnfoldEach (infinite)"
-            (fairUnfoldEachEqn (infiniteIntsUnfold 1000 0)) (infiniteInts 1000)
+            (fairUnfoldEachEqn sqrtVal (infiniteIntsUnfold sqrtVal 0)) (infiniteInts sqrtVal)
         , benchFold "unfoldSched (bounded)"
-            (unfoldSchedEqn (boundedIntsUnfold 1000 0)) (boundedInts 1000)
+            (unfoldSchedEqn sqrtVal (boundedIntsUnfold sqrtVal 0)) (boundedInts sqrtVal)
         , benchFold "fairUnfoldSched (bounded)"
-            (fairUnfoldSchedEqn (boundedIntsUnfold 1000 0)) (boundedInts 1000)
+            (fairUnfoldSchedEqn sqrtVal (boundedIntsUnfold sqrtVal 0)) (boundedInts sqrtVal)
         , benchFold "fairUnfoldSched (infinite)"
-            (fairUnfoldSchedEqn (infiniteIntsUnfold 1000 0)) (infiniteInts 1000)
+            (fairUnfoldSchedEqn sqrtVal (infiniteIntsUnfold sqrtVal 0)) (infiniteInts sqrtVal)
         ]
     ]
+
+    where
+
+    sqrtVal = round $ sqrt (fromIntegral value :: Double)
 
 -------------------------------------------------------------------------------
 -- Joining
