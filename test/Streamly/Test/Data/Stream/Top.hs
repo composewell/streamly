@@ -2,7 +2,7 @@
 
 module Streamly.Test.Data.Stream.Top (main) where
 
-import Data.List (intersect, sort)
+import Data.List (deleteFirstsBy, intersect, sort, unionBy)
 import Test.QuickCheck
     ( Gen
     , Property
@@ -75,6 +75,86 @@ intersectBy srt intersectFunc cmp =
                 assert (sort v1 == sort v2)
 
 -------------------------------------------------------------------------------
+-- deleteFirstsBy
+-------------------------------------------------------------------------------
+
+testDeleteFirstsBy :: Expectation
+testDeleteFirstsBy = do
+    xs <- Stream.toList $
+              Stream.deleteFirstsBy eq
+                  (Stream.fromList [1, 2, 3, 4 :: Int])
+                  (Stream.fromList [2, 3])
+    xs `shouldBe` [1, 4]
+
+testDeleteFirstsByDups :: Expectation
+testDeleteFirstsByDups = do
+    xs <- Stream.toList $
+              Stream.deleteFirstsBy eq
+                  (Stream.fromList [1, 1, 2 :: Int])
+                  (Stream.fromList [1, 1])
+    xs `shouldBe` [2]
+
+testDeleteFirstsByEmpty :: Expectation
+testDeleteFirstsByEmpty = do
+    xs <- Stream.toList $
+              Stream.deleteFirstsBy eq
+                  (Stream.fromList [1, 2, 3 :: Int])
+                  (Stream.fromList [])
+    xs `shouldBe` [1, 2, 3]
+
+deleteFirstsByMatchesList :: Property
+deleteFirstsByMatchesList =
+    forAll (listOf (chooseInt (min_value, max_value))) $ \ls0 ->
+        forAll (listOf (chooseInt (min_value, max_value))) $ \ls1 ->
+            monadicIO $ do
+                v1 <- run $ Stream.toList $
+                                Stream.deleteFirstsBy eq
+                                    (Stream.fromList ls0)
+                                    (Stream.fromList ls1)
+                let v2 = deleteFirstsBy eq ls0 ls1
+                assert (v1 == v2)
+
+-------------------------------------------------------------------------------
+-- unionBy
+-------------------------------------------------------------------------------
+
+testUnionBy :: Expectation
+testUnionBy = do
+    xs <- Stream.toList $
+              Stream.unionBy eq
+                  (Stream.fromList [1, 2, 2, 4 :: Int])
+                  (Stream.fromList [1, 1, 2, 3, 3])
+    xs `shouldBe` [1, 2, 2, 4, 3]
+
+testUnionByDisjoint :: Expectation
+testUnionByDisjoint = do
+    xs <- Stream.toList $
+              Stream.unionBy eq
+                  (Stream.fromList [1, 2 :: Int])
+                  (Stream.fromList [3, 4])
+    xs `shouldBe` [1, 2, 3, 4]
+
+testUnionBySubset :: Expectation
+testUnionBySubset = do
+    xs <- Stream.toList $
+              Stream.unionBy eq
+                  (Stream.fromList [1, 2, 3 :: Int])
+                  (Stream.fromList [1, 2, 3])
+    xs `shouldBe` [1, 2, 3]
+
+unionByMatchesList :: Property
+unionByMatchesList =
+    forAll (listOf (chooseInt (min_value, max_value))) $ \ls0 ->
+        forAll (listOf (chooseInt (min_value, max_value))) $ \ls1 ->
+            monadicIO $ do
+                v1 <- run $ Stream.toList $
+                                Stream.unionBy eq
+                                    (Stream.fromList ls0)
+                                    (Stream.fromList ls1)
+                let v2 = unionBy eq ls0 ls1
+                assert (v1 == v2)
+
+-------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
 
@@ -91,3 +171,13 @@ main = hspec $ do
             (intersectBy id Stream.intersectBy (==))
         prop "intersectBySorted"
             (intersectBy sort Stream.sortedIntersectBy compare)
+        -- deleteFirstsBy
+        it "deleteFirstsBy basic" testDeleteFirstsBy
+        it "deleteFirstsBy duplicates" testDeleteFirstsByDups
+        it "deleteFirstsBy empty delete list" testDeleteFirstsByEmpty
+        prop "deleteFirstsBy matches Data.List" deleteFirstsByMatchesList
+        -- unionBy
+        it "unionBy overlapping streams" testUnionBy
+        it "unionBy disjoint streams" testUnionByDisjoint
+        it "unionBy identical streams" testUnionBySubset
+        prop "unionBy matches Data.List" unionByMatchesList
