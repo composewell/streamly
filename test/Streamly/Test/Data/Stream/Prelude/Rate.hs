@@ -1,12 +1,12 @@
 -- |
--- Module      : Streamly.Test.Data.Stream.Rate
+-- Module      : Streamly.Test.Data.Stream.Prelude.Rate
 -- Copyright   : (c) 2018 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Test.Data.Stream.Rate (main) where
+module Streamly.Test.Data.Stream.Prelude.Rate (main) where
 
 import Data.Int (Int64)
 import Streamly.Data.Stream.Prelude (Config)

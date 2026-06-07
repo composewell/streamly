@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Test.Data.Stream.Concurrent
+-- Module      : Streamly.Test.Data.Stream.Prelude.Concurrent
 -- Copyright   : (c) 2020 Composewell Technologies
 --
 -- License     : BSD-3-Clause
@@ -7,7 +7,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Test.Data.Stream.Concurrent (main) where
+module Streamly.Test.Data.Stream.Prelude.Concurrent (main) where
 
 import Control.Concurrent (threadDelay)
 import Control.Exception (Exception, try)

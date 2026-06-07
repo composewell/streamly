@@ -1,4 +1,4 @@
-module Streamly.Test.Data.Stream.Exception (main)
+module Streamly.Test.Data.Stream.Prelude.Exception (main)
 
 where
 

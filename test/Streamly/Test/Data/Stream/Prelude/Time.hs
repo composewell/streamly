@@ -4,14 +4,14 @@
 #endif
 
 -- |
--- Module      : Streamly.Test.Data.Stream
+-- Module      : Streamly.Test.Data.Stream.Prelude.Time
 -- Copyright   : (c) 2019 Composewell technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Test.Data.Stream.Time (main) where
+module Streamly.Test.Data.Stream.Prelude.Time (main) where
 
 #ifdef DEVBUILD
 import Control.Concurrent ( threadDelay )
