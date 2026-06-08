@@ -124,6 +124,7 @@ where
 
 #include "inline.hs"
 #include "ArrayMacros.h"
+#include "deprecation.h"
 
 import Control.Exception (Exception, mask_)
 import Control.Monad.Catch (MonadCatch)
@@ -446,9 +447,9 @@ postscanlM' f z = postscanl (Scanl.scanlM' f z)
 -- Convert streams into unfolds
 -------------------------------------------------------------------------------
 
-{-# INLINE_NORMAL fromStreamD #-}
-fromStreamD :: Applicative m => Unfold m (Stream m a) a
-fromStreamD = Unfold step pure
+{-# INLINE_NORMAL fromStream #-}
+fromStream, fromStreamD :: Applicative m => Unfold m (Stream m a) a
+fromStream = Unfold step pure
 
     where
 
@@ -458,6 +459,8 @@ fromStreamD = Unfold step pure
             Yield x s -> Yield x (Stream step1 s)
             Skip s    -> Skip (Stream step1 s)
             Stop      -> Stop) <$> step1 defState state1
+
+RENAME(fromStreamD,fromStream)
 
 {-# INLINE_NORMAL fromStreamK #-}
 fromStreamK :: Applicative m => Unfold m (K.StreamK m a) a
@@ -470,10 +473,6 @@ fromStreamK = Unfold step pure
         (\case
             Just (x, xs) -> Yield x xs
             Nothing -> Stop) <$> K.uncons stream
-
-{-# INLINE fromStream #-}
-fromStream :: Applicative m => Unfold m (Stream m a) a
-fromStream = fromStreamD
 
 -------------------------------------------------------------------------------
 -- Unfolds
