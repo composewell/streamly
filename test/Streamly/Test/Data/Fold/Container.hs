@@ -1,0 +1,120 @@
+{-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
+-- |
+-- Module      : Streamly.Test.Data.Fold.Container
+-- Copyright   : (c) 2019 Composewell Technologies
+-- License     : BSD-3-Clause
+-- Maintainer  : streamly@composewell.com
+-- Stability   : experimental
+-- Portability : GHC
+
+module Streamly.Test.Data.Fold.Container (main) where
+
+import qualified Data.Map
+import qualified Streamly.Internal.Data.Fold as Fold
+import qualified Streamly.Internal.Data.Stream as Stream
+
+import Test.Hspec
+import Test.Hspec.QuickCheck
+import Test.QuickCheck (Property)
+import Test.QuickCheck.Monadic (monadicIO, assert)
+
+demux :: Expectation
+demux =
+    let table "SUM" = return $ Just Fold.sum
+        table "PRODUCT" = return $ Just Fold.product
+        table _ = return $ Just Fold.length
+        input = Stream.fromList
+                ([ ("SUM", 1)
+                , ("abc", 1)
+                , ("PRODUCT", 2)
+                , ("abc", 2)
+                , ("SUM",3)
+                , ("xyz", 1)
+                , ("PRODUCT", 4)
+                , ("xyz", 2)
+                , ("abc", 2)
+                ] :: [(String, Int)])
+    in Stream.fold
+        (Fold.demuxKvToMap table)
+        input
+        `shouldReturn`
+        Data.Map.fromList [("PRODUCT", 8),("SUM", 4),("abc",3),("xyz",2)]
+
+demuxWith :: Expectation
+demuxWith =
+    let getKey x | even x = "SUM"
+                 | otherwise = "PRODUCT"
+
+        getFold "SUM" = return Fold.sum
+        getFold "PRODUCT" = return Fold.product
+        getFold _ = error "demuxWith: bug"
+
+        input = Stream.fromList [1, 2, 3, 4 :: Int]
+    in Stream.fold
+        (Fold.demuxToContainer getKey (getFold . getKey))
+        input
+        `shouldReturn`
+        Data.Map.fromList [("PRODUCT",3),("SUM",6)]
+
+classifyWith :: Expectation
+classifyWith =
+    let input = Stream.fromList [("ONE",1),("ONE",1.1),("TWO",2), ("TWO",2.2)]
+    in Stream.fold
+        (Fold.toContainer fst (Fold.lmap snd Fold.toList))
+        input
+        `shouldReturn`
+        Data.Map.fromList
+        [("ONE",[1.0, 1.1 :: Double]), ("TWO",[2.0, 2.2])]
+
+classify :: Expectation
+classify =
+    let input =
+            Stream.fromList
+            [
+              ("ONE", (1::Int, 1))
+            , ("ONE", (1, 1.1:: Double))
+            , ("TWO", (2, 2))
+            , ("TWO",(2, 2.2))
+            ]
+    in Stream.fold
+        (Fold.kvToMap (Fold.lmap snd Fold.toList))
+        input
+        `shouldReturn`
+        Data.Map.fromList
+        [("ONE",[1.0, 1.1 :: Double]), ("TWO",[2.0, 2.2])]
+
+classifyScan :: Expectation
+classifyScan =
+    let getKey = fst
+        innerFold = Fold.lmap snd (Fold.take 2 Fold.sum)
+        input = Stream.fromList
+            [ ("ONE", 1::Int)
+            , ("TWO", 2)
+            , ("ONE", 3)
+            , ("TWO", 4)
+            , ("ONE", 5)
+            ]
+    in Stream.fold Fold.toList
+        (Stream.postscanlMaybe (Fold.classifyScan getKey innerFold) input)
+        `shouldReturn` [("ONE", 4), ("TWO", 6)]
+
+nub :: Property
+nub = monadicIO $ do
+    vals <- Stream.fold Fold.toList
+            $ Stream.catMaybes
+            $ Stream.postscan Fold.nub
+            $ Stream.fromList [1::Int, 1, 2, 3, 4, 4, 5, 1, 5, 7]
+    assert (vals == [1, 2, 3, 4, 5, 7])
+
+moduleName :: String
+moduleName = "Data.Fold.Container"
+
+main :: IO ()
+main = hspec $ do
+    describe moduleName $ do
+        prop "demux" demux
+        prop "demuxWith" demuxWith
+        prop "classifyWith" classifyWith
+        prop "classify" classify
+        prop "classifyScan" classifyScan
+        prop "nub" nub

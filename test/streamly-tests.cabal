@@ -273,6 +273,12 @@ test-suite Data.Fold
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Fold.hs
+  hs-source-dirs: .
+  ghc-options: -main-is Main.main
+  other-modules:
+    Streamly.Test.Data.Fold.Combinators
+    Streamly.Test.Data.Fold.Container
+    Streamly.Test.Data.Fold.Type
 
 test-suite Data.Fold.Window
   import: test-options
