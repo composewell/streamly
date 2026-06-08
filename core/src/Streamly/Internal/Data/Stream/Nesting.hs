@@ -104,6 +104,7 @@ module Streamly.Internal.Data.Stream.Nesting
     -- *** unfoldEach joined by elements
     -- | Like unfoldEach but intersperses an element between the streams after
     -- unfolding. A special case of intercalate.
+    , InterposeState (..)
     , unfoldEachSepBy
     , unfoldEachSepByM
     , unfoldEachEndBy

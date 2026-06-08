@@ -216,6 +216,12 @@ module Streamly.Internal.Data.Parser.Type
     , noErrorUnsafeConcatMap
 
     , localReaderT
+
+    -- * Internal
+    , SeqParseState (..)
+    , SeqAState (..)
+    , AltParseState (..)
+    , Fused3 (..)
     )
 where
 

@@ -32,6 +32,7 @@ import System.IO (Handle)
 
 import qualified Streamly.Data.Array as Array
 import qualified Streamly.Data.Fold as Fold
+import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.FileSystem.Handle as Handle
@@ -225,7 +226,7 @@ copyStreamLatin1' inh outh =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'copyStreamLatin1'
 inspect $ 'copyStreamLatin1' `hasNoType` ''Step
-inspect $ 'copyStreamLatin1' `hasNoType` ''Unfold.ConcatState -- Handle.read/UF.many
+inspect $ 'copyStreamLatin1' `hasNoType` ''Producer.ConcatState -- Handle.read/UF.many
 
 inspect $ 'copyStreamLatin1' `hasNoType` ''Fold.Step
 inspect $ 'copyStreamLatin1' `hasNoType` ''MutArray.ArrayUnsafe -- Handle.write/writeNUnsafe
@@ -245,7 +246,7 @@ copyStreamLatin1 inh outh =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'copyStreamLatin1
 inspect $ 'copyStreamLatin1 `hasNoType` ''Step
-inspect $ 'copyStreamLatin1 `hasNoType` ''Unfold.ConcatState -- Handle.read/UF.many
+inspect $ 'copyStreamLatin1 `hasNoType` ''Producer.ConcatState -- Handle.read/UF.many
 
 inspect $ 'copyStreamLatin1 `hasNoType` ''Fold.ManyState
 inspect $ 'copyStreamLatin1 `hasNoType` ''Fold.Step

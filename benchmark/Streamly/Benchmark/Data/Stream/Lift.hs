@@ -22,8 +22,7 @@ module Stream.Lift (benchmarks) where
 
 import Control.DeepSeq (NFData(..))
 import Control.Monad.State.Strict (StateT, get, put)
-import Data.Functor.Identity (Identity)
-import Stream.Common (sourceUnfoldr, sourceUnfoldrM, benchIOSrc)
+import Stream.Common (sourceUnfoldr, sourceUnfoldrM)
 import System.Random (randomRIO)
 import Streamly.Internal.Data.Stream (Stream)
 
@@ -41,6 +40,14 @@ import Streamly.Internal.Data.Stream (Step(..))
 import GHC.Types (SPEC(..))
 import Test.Inspection
 #endif
+
+{-# INLINE benchIO #-}
+benchIO :: NFData b => String -> IO b -> Benchmark
+benchIO name = bench name . nfIO
+
+{-# INLINE withRandomIntIO #-}
+withRandomIntIO :: (Int -> IO b) -> IO b
+withRandomIntIO f = randomRIO (1, 1 :: Int) >>= f
 
 -------------------------------------------------------------------------------
 -- Monad transformation (hoisting etc.)
@@ -70,49 +77,42 @@ withState value n =
     Stream.evalStateT
         (return (0 :: Int)) (Stream.liftInner (sourceUnfoldrM value n))
 
-{-# INLINE benchHoistSink #-}
-benchHoistSink
-    :: (NFData b)
-    => Int -> String -> (Stream Identity Int -> IO b) -> Benchmark
-benchHoistSink value name f =
-    bench name $ nfIO $ randomRIO (1,1) >>= f .  sourceUnfoldr value
-
--------------------------------------------------------------------------------
--- Inspection
--------------------------------------------------------------------------------
+{-# INLINE evalStateTIO #-}
+evalStateTIO :: Int -> IO ()
+evalStateTIO value = withRandomIntIO $ \n ->
+    Stream.fold Fold.drain (evalStateT value n :: Stream IO Int)
 
 #ifdef INSPECTION
-{-# INLINE inspEvalStateT #-}
-inspEvalStateT :: Int -> Int -> IO ()
-inspEvalStateT value n = Stream.fold Fold.drain (evalStateT value n :: Stream IO Int)
-
-{-# INLINE inspWithState #-}
-inspWithState :: Int -> Int -> IO ()
-inspWithState value n = Stream.fold Fold.drain (withState value n :: Stream IO Int)
-
-inspect $ hasNoTypeClasses 'inspEvalStateT
-inspect $ 'inspEvalStateT `hasNoType` ''Step
-inspect $ 'inspEvalStateT `hasNoType` ''Fold.Step
-inspect $ 'inspEvalStateT `hasNoType` ''SPEC
-
-inspect $ hasNoTypeClasses 'inspWithState
-inspect $ 'inspWithState `hasNoType` ''Step
-inspect $ 'inspWithState `hasNoType` ''Fold.Step
-inspect $ 'inspWithState `hasNoType` ''SPEC
-
--- The generalizeInner benchmark uses an anonymous lambda over sourceUnfoldr;
--- the equivalent named function is tested in Stream/Eliminate.hs
--- (inspGeneralizeInner).
+inspect $ hasNoTypeClasses 'evalStateTIO
+inspect $ 'evalStateTIO `hasNoType` ''Step
+inspect $ 'evalStateTIO `hasNoType` ''Fold.Step
+inspect $ 'evalStateTIO `hasNoType` ''SPEC
 #endif
+
+{-# INLINE withStateIO #-}
+withStateIO :: Int -> IO ()
+withStateIO value = withRandomIntIO $ \n ->
+    Stream.fold Fold.drain (withState value n :: Stream IO Int)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'withStateIO
+inspect $ 'withStateIO `hasNoType` ''Step
+inspect $ 'withStateIO `hasNoType` ''Fold.Step
+inspect $ 'withStateIO `hasNoType` ''SPEC
+#endif
+
+{-# INLINE generalizeInnerIO #-}
+generalizeInnerIO :: Int -> IO Int
+generalizeInnerIO value = withRandomIntIO $ \n ->
+    Stream.fold Fold.length
+        (Stream.generalizeInner (sourceUnfoldr value n) :: Stream IO Int)
 
 o_1_space_hoisting :: Int -> [Benchmark]
 o_1_space_hoisting value =
     [ bgroup "hoisting"
-        [ benchIOSrc "evalState" (evalStateT value)
-        , benchIOSrc "withState" (withState value)
-        , benchHoistSink value "generalizeInner"
-            ((\xs -> Stream.fold Fold.length xs :: IO Int)
-                . Stream.generalizeInner)
+        [ benchIO "evalState" $ evalStateTIO value
+        , benchIO "withState" $ withStateIO value
+        , benchIO "generalizeInner" $ generalizeInnerIO value
         ]
     ]
 

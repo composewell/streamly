@@ -236,6 +236,19 @@ module Streamly.Internal.Data.Parser
     , next
     , takeStartBy
     , takeStartBy_
+
+    -- * Internal
+    , Tuple'Fused (..)
+    , TakeGEState (..)
+    , FramedEscState (..)
+    , GroupByState (..)
+    , GroupByStatePair (..)
+    , DeintercalateAllState (..)
+    , DeintercalateState (..)
+    , Deintercalate1State (..)
+    , SepByState (..)
+    , SepBy1State (..)
+    , ManyTillState (..)
     )
 where
 

@@ -421,7 +421,6 @@ module Streamly.Internal.Data.Fold.Type
     , split_
 
     -- ** Repeated Application (Splitting)
-    , ManyState
     , many
     , manyPost
     , groupsOf
@@ -465,6 +464,15 @@ module Streamly.Internal.Data.Fold.Type
     , scan
     , scanMany
     , last
+
+    -- * Internal
+    , SeqFoldState (..)
+    , SeqFoldState_ (..)
+    , TeeState (..)
+    , TeeFstState (..)
+    , LongestState (..)
+    , Tuple'Fused (..)
+    , ManyState (..)
     )
 where
 

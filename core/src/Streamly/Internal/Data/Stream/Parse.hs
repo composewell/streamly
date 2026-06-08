@@ -98,6 +98,10 @@ module Streamly.Internal.Data.Stream.Parse
     , dropSuffix
     , replaceMatches
 
+    -- * Internal
+    , FIterState (..)
+    , GroupByState (..)
+
     -- * Deprecated
     , parseManyD
     , parseIterateD

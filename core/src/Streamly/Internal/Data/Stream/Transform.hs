@@ -34,6 +34,15 @@ module Streamly.Internal.Data.Stream.Transform
     , scanr
     , pipe
 
+    -- * Internal
+    , ScanState (..)
+    , PipeState (..)
+    , RunScanState (..)
+    , TapState (..)
+    , LoopState (..)
+    , DropWhileState (..)
+    , SplitSepBy (..)
+
     -- * Traditional Left Scans
     -- | Stateful, mostly one-to-one maps.
     -- ** Strict Scans

@@ -49,6 +49,7 @@ module Streamly.Internal.Data.Stream.Generate
     , enumerateFromThenIntegral
 
     -- ** Enumerating 'Integral' Types
+    , EnumState (..)
     , enumerateFromToIntegral
     , enumerateFromThenToIntegral
 

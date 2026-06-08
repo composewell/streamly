@@ -3,6 +3,15 @@
 {-# OPTIONS_GHC -ddump-simpl -ddump-to-file -dsuppress-all #-}
 #endif
 
+#ifdef __HADDOCK_VERSION__
+#undef INSPECTION
+#endif
+
+#ifdef INSPECTION
+{-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
+#endif
+
 -- |
 -- Module      : Streamly.Benchmark.Data.Parser.Alternative
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -26,7 +35,8 @@ import Streamly.Internal.Data.Fold (Fold(..))
 import Streamly.Internal.Data.Parser
     (ParseError(..), Parser(..), Initial(..), Step(..), Final(..))
 import Streamly.Internal.Data.Stream (Stream)
-import Test.Tasty.Bench (Benchmark)
+import System.Random (randomRIO)
+import Test.Tasty.Bench (Benchmark, bench, nfIO)
 
 import qualified Control.Applicative as AP
 import qualified Data.Foldable as F
@@ -35,34 +45,77 @@ import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Data.Stream as Stream
 
 import Streamly.Benchmark.Common
-import Streamly.Benchmark.Data.Parser.Common
+
+#ifdef INSPECTION
+import GHC.Types (SPEC(..))
+import Test.Inspection
+
+import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Stream as S
+#endif
+
+{-# INLINE benchIO #-}
+benchIO :: NFData b => String -> IO b -> Benchmark
+benchIO name = bench name . nfIO
+
+{-# INLINE withStream #-}
+withStream :: Int -> (Stream IO Int -> IO b) -> IO b
+withStream value f = randomRIO (1,1) >>= f . streamUnfoldrM value
 
 -------------------------------------------------------------------------------
 -- Parsers
 -------------------------------------------------------------------------------
 
 {-# INLINE manyWordByEven #-}
-manyWordByEven :: Monad m => Stream m Int -> m (Either ParseError ())
-manyWordByEven = Stream.parse (PR.many (PR.wordBy even Fold.drain) Fold.drain)
+manyWordByEven :: Int -> IO (Either ParseError ())
+manyWordByEven value =
+    withStream value $ Stream.parse (PR.many (PR.wordBy even Fold.drain) Fold.drain)
+
+#ifdef INSPECTION
+inspect $ 'manyWordByEven `hasNoType` ''S.Step
+inspect $ 'manyWordByEven `hasNoType` ''PR.Step
+inspect $ 'manyWordByEven `hasNoType` ''PR.Initial
+inspect $ 'manyWordByEven `hasNoType` ''FL.Step
+inspect $ 'manyWordByEven `hasNoType` ''SPEC
+inspect $ 'manyWordByEven `hasNoType` ''PR.Fused3
+#endif
 
 {-# INLINE many #-}
-many :: Monad m => Stream m Int -> m (Either ParseError Int)
-many = Stream.parse (PR.many (PR.satisfy (> 0)) Fold.length)
+many :: Int -> IO (Either ParseError Int)
+many value = withStream value $ Stream.parse (PR.many (PR.satisfy (> 0)) Fold.length)
+
+#ifdef INSPECTION
+inspect $ 'many `hasNoType` ''S.Step
+inspect $ 'many `hasNoType` ''PR.Step
+inspect $ 'many `hasNoType` ''PR.Initial
+inspect $ 'many `hasNoType` ''FL.Step
+inspect $ 'many `hasNoType` ''SPEC
+inspect $ 'many `hasNoType` ''PR.Fused3
+#endif
 
 {-# INLINE some #-}
-some :: Monad m => Stream m Int -> m (Either ParseError Int)
-some = Stream.parse (PR.some (PR.satisfy (> 0)) Fold.length)
+some :: Int -> IO (Either ParseError Int)
+some value = withStream value $ Stream.parse (PR.some (PR.satisfy (> 0)) Fold.length)
+
+#ifdef INSPECTION
+inspect $ 'some `hasNoType` ''S.Step
+inspect $ 'some `hasNoType` ''PR.Step
+inspect $ 'some `hasNoType` ''PR.Initial
+inspect $ 'some `hasNoType` ''FL.Step
+inspect $ 'some `hasNoType` ''SPEC
+inspect $ 'some `hasNoType` ''PR.Fused3
+#endif
 
 {-# INLINE manyAlt #-}
-manyAlt :: Monad m => Stream m Int -> m Int
-manyAlt xs = do
-    x <- Stream.parse (AP.many (PR.satisfy (> 0))) xs
+manyAlt :: Int -> IO Int
+manyAlt value = do
+    x <- withStream value $ Stream.parse (AP.many (PR.satisfy (> 0)))
     return $ Prelude.length x
 
 {-# INLINE someAlt #-}
-someAlt :: Monad m => Stream m Int -> m Int
-someAlt xs = do
-    x <- Stream.parse (AP.some (PR.satisfy (> 0))) xs
+someAlt :: Int -> IO Int
+someAlt value = do
+    x <- withStream value $ Stream.parse (AP.some (PR.satisfy (> 0)))
     return $ Prelude.length x
 
 -- XXX dropWhile with applicative does not fuse
@@ -93,74 +146,83 @@ takeWhileFail predicate (Fold fstep finitial _ ffinal) =
     extract s = fmap (FDone 0) (ffinal s)
 
 {-# INLINE alt2 #-}
-alt2 :: Monad m
-    => Int -> Stream m Int -> m (Either ParseError ())
+alt2 :: Int -> IO (Either ParseError ())
 alt2 value =
-    Stream.parse
-        (PR.alt
-            (takeWhileFail (<= (value `div` 2)) Fold.drain)
-            (PR.dropWhile (<= value))
-        )
+    withStream value $
+        Stream.parse
+            (PR.alt
+                (takeWhileFail (<= (value `div` 2)) Fold.drain)
+                (PR.dropWhile (<= value))
+            )
+
+#ifdef INSPECTION
+inspect $ 'alt2 `hasNoType` ''S.Step
+inspect $ 'alt2 `hasNoType` ''PR.Step
+inspect $ 'alt2 `hasNoType` ''PR.Initial
+inspect $ 'alt2 `hasNoType` ''FL.Step
+-- inspect $ 'alt2 `hasNoType` ''SPEC
+-- inspect $ 'alt2 `hasNoType` ''PR.AltParseState
+#endif
 
 {- HLINT ignore "Evaluate"-}
 {-# INLINE alt4 #-}
-alt4 :: Monad m
-    => Int -> Stream m Int -> m (Either ParseError ())
+alt4 :: Int -> IO (Either ParseError ())
 alt4 value =
-    Stream.parse
-        (   takeWhileFail (<= (value * 1 `div` 4)) Fold.drain
-        <|> takeWhileFail (<= (value * 2 `div` 4)) Fold.drain
-        <|> takeWhileFail (<= (value * 3 `div` 4)) Fold.drain
-        <|> PR.dropWhile (<= value)
-        )
+    withStream value $
+        Stream.parse
+            (   takeWhileFail (<= (value * 1 `div` 4)) Fold.drain
+            <|> takeWhileFail (<= (value * 2 `div` 4)) Fold.drain
+            <|> takeWhileFail (<= (value * 3 `div` 4)) Fold.drain
+            <|> PR.dropWhile (<= value)
+            )
 
 {-# INLINE alt8 #-}
-alt8 :: Monad m
-    => Int -> Stream m Int -> m (Either ParseError ())
+alt8 :: Int -> IO (Either ParseError ())
 alt8 value =
-    Stream.parse
-        (   takeWhileFail (<= (value * 1 `div` 8)) Fold.drain
-        <|> takeWhileFail (<= (value * 2 `div` 8)) Fold.drain
-        <|> takeWhileFail (<= (value * 3 `div` 8)) Fold.drain
-        <|> takeWhileFail (<= (value * 4 `div` 8)) Fold.drain
-        <|> takeWhileFail (<= (value * 5 `div` 8)) Fold.drain
-        <|> takeWhileFail (<= (value * 6 `div` 8)) Fold.drain
-        <|> takeWhileFail (<= (value * 7 `div` 8)) Fold.drain
-        <|> PR.dropWhile (<= value)
-        )
+    withStream value $
+        Stream.parse
+            (   takeWhileFail (<= (value * 1 `div` 8)) Fold.drain
+            <|> takeWhileFail (<= (value * 2 `div` 8)) Fold.drain
+            <|> takeWhileFail (<= (value * 3 `div` 8)) Fold.drain
+            <|> takeWhileFail (<= (value * 4 `div` 8)) Fold.drain
+            <|> takeWhileFail (<= (value * 5 `div` 8)) Fold.drain
+            <|> takeWhileFail (<= (value * 6 `div` 8)) Fold.drain
+            <|> takeWhileFail (<= (value * 7 `div` 8)) Fold.drain
+            <|> PR.dropWhile (<= value)
+            )
 
 {-# INLINE alt16 #-}
-alt16 :: Monad m
-    => Int -> Stream m Int -> m (Either ParseError ())
+alt16 :: Int -> IO (Either ParseError ())
 alt16 value =
-    Stream.parse
-        (   takeWhileFail (<= (value * 1 `div` 16)) Fold.drain
-        <|> takeWhileFail (<= (value * 2 `div` 16)) Fold.drain
-        <|> takeWhileFail (<= (value * 3 `div` 16)) Fold.drain
-        <|> takeWhileFail (<= (value * 4 `div` 16)) Fold.drain
-        <|> takeWhileFail (<= (value * 5 `div` 16)) Fold.drain
-        <|> takeWhileFail (<= (value * 6 `div` 16)) Fold.drain
-        <|> takeWhileFail (<= (value * 8 `div` 16)) Fold.drain
-        <|> takeWhileFail (<= (value * 9 `div` 16)) Fold.drain
-        <|> takeWhileFail (<= (value * 10 `div` 16)) Fold.drain
-        <|> takeWhileFail (<= (value * 11 `div` 16)) Fold.drain
-        <|> takeWhileFail (<= (value * 12 `div` 16)) Fold.drain
-        <|> takeWhileFail (<= (value * 13 `div` 16)) Fold.drain
-        <|> takeWhileFail (<= (value * 14 `div` 16)) Fold.drain
-        <|> takeWhileFail (<= (value * 15 `div` 16)) Fold.drain
-        <|> PR.dropWhile (<= value)
-        )
+    withStream value $
+        Stream.parse
+            (   takeWhileFail (<= (value * 1 `div` 16)) Fold.drain
+            <|> takeWhileFail (<= (value * 2 `div` 16)) Fold.drain
+            <|> takeWhileFail (<= (value * 3 `div` 16)) Fold.drain
+            <|> takeWhileFail (<= (value * 4 `div` 16)) Fold.drain
+            <|> takeWhileFail (<= (value * 5 `div` 16)) Fold.drain
+            <|> takeWhileFail (<= (value * 6 `div` 16)) Fold.drain
+            <|> takeWhileFail (<= (value * 8 `div` 16)) Fold.drain
+            <|> takeWhileFail (<= (value * 9 `div` 16)) Fold.drain
+            <|> takeWhileFail (<= (value * 10 `div` 16)) Fold.drain
+            <|> takeWhileFail (<= (value * 11 `div` 16)) Fold.drain
+            <|> takeWhileFail (<= (value * 12 `div` 16)) Fold.drain
+            <|> takeWhileFail (<= (value * 13 `div` 16)) Fold.drain
+            <|> takeWhileFail (<= (value * 14 `div` 16)) Fold.drain
+            <|> takeWhileFail (<= (value * 15 `div` 16)) Fold.drain
+            <|> PR.dropWhile (<= value)
+            )
 
 {-# INLINE altSmall #-}
-altSmall :: Monad m
-    => Int -> Stream m Int -> m ()
+altSmall :: Int -> IO ()
 altSmall value =
-    Stream.fold Fold.drain .
-        Stream.parseMany
-            (PR.alt
-                (PR.satisfy (>= value) *> PR.die "alt")
-                (PR.satisfy (<= value))
-            )
+    withStream value $
+        Stream.fold Fold.drain .
+            Stream.parseMany
+                (PR.alt
+                    (PR.satisfy (>= value) *> PR.die "alt")
+                    (PR.satisfy (<= value))
+                )
 
 {-
 {-# INLINE teeAllAny #-}
@@ -212,10 +274,12 @@ longestAllAny value =
 -- quadratic performance complexity.
 --
 {-# INLINE choiceAsum #-}
-choiceAsum :: Monad m => Int -> Stream m Int -> m (Either ParseError Int)
+choiceAsum :: Int -> IO (Either ParseError Int)
 choiceAsum value =
-    Stream.parse (F.asum (replicate value (PR.satisfy (< 0)))
-        AP.<|> PR.satisfy (> 0))
+    withStream value $
+        Stream.parse
+            (F.asum (replicate value (PR.satisfy (< 0)))
+                AP.<|> PR.satisfy (> 0))
 
 {-
 {-# INLINE choice #-}
@@ -237,28 +301,28 @@ benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks value =
     [
     -- Alternative
-      (SpaceO_1, benchIOSink value "alt2parseMany" $ altSmall value)
-    , (SpaceO_1, benchIOSink value "alt2" $ alt2 value)
-    , (SpaceO_1, benchIOSink value "alt4" $ alt4 value)
-    , (SpaceO_1, benchIOSink value "alt8" $ alt8 value)
-    , (SpaceO_1, benchIOSink value "alt16" $ alt16 value)
+      (SpaceO_1, benchIO "alt2parseMany" $ altSmall value)
+    , (SpaceO_1, benchIO "alt2" $ alt2 value)
+    , (SpaceO_1, benchIO "alt4" $ alt4 value)
+    , (SpaceO_1, benchIO "alt8" $ alt8 value)
+    , (SpaceO_1, benchIO "alt16" $ alt16 value)
 
     -- O_n as they accumulate the results in a list.
-    , (HeapO_n, benchIOSink value "manyAlt" manyAlt)
-    , (HeapO_n, benchIOSink value "someAlt" someAlt)
-    , (SpaceO_n, benchIOSink value "choice (asum)/100" $ choiceAsum (value `div` 100))
-    -- , benchIOSink value "choice/100" $ choice (value `div` 100)
+    , (HeapO_n, benchIO "manyAlt" $ manyAlt value)
+    , (HeapO_n, benchIO "someAlt" $ someAlt value)
+    , (SpaceO_n, benchIO "choice (asum)/100" $ choiceAsum (value `div` 100))
+    -- , benchIO "choice/100" $ choice (value `div` 100)
 
     -- Sequential Repetition
     -- XXX requires @-fspec-constr-recursive=12@.
-    , (SpaceO_1, benchIOSink value "many" many)
-    , (SpaceO_1, benchIOSink value "many (wordBy even)" manyWordByEven)
-    , (SpaceO_1, benchIOSink value "some" some)
+    , (SpaceO_1, benchIO "many" $ many value)
+    , (SpaceO_1, benchIO "many (wordBy even)" $ manyWordByEven value)
+    , (SpaceO_1, benchIO "some" $ some value)
 
     {-
-    , benchIOSink value "tee" $ teeAllAny value
-    , benchIOSink value "teeFst" $ teeFstAllAny value
-    , benchIOSink value "shortest" $ shortestAllAny value
-    , benchIOSink value "longest" $ longestAllAny value
+    , benchIO "tee" $ teeAllAny value
+    , benchIO "teeFst" $ teeFstAllAny value
+    , benchIO "shortest" $ shortestAllAny value
+    , benchIO "longest" $ longestAllAny value
     -}
     ]

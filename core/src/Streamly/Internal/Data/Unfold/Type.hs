@@ -115,6 +115,9 @@ module Streamly.Internal.Data.Unfold.Type
     , zipWithM
     , zipWith
 
+    -- * Internal
+    , ConsInputState (..)
+
     -- * Deprecated
     , mkUnfoldrM
     , many

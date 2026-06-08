@@ -149,8 +149,9 @@ module Streamly.Internal.Data.Stream.Type
     , altBfsConcatIterate
 
     -- * Fold Many
-    , FoldMany (..) -- for inspection testing
+    , FoldMany (..)
     , FoldManyPost (..)
+    , CIterState (..)
     , foldMany
     , foldManyPost
     , foldManySepBy

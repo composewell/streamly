@@ -63,6 +63,16 @@ splitOn inh =
         $ Stream.splitSepBy_ (== lf) Fold.drain
         $ Handle.read inh) -- >>= print
 
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'splitOn
+inspect $ 'splitOn `hasNoType` ''Step
+inspect $ 'splitOn `hasNoType` ''Fold.Step
+inspect $ 'splitOn `hasNoType` ''SPEC
+inspect $ 'splitOn `hasNoType` ''Stream.SplitSepBy
+inspect $ 'splitOn `hasNoType` ''Producer.ConcatState -- FH.read/UF.many
+inspect $ 'splitOn `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
+#endif
+
 -- | Words by space
 wordsBy :: Handle -> IO Int
 wordsBy inh =
@@ -70,11 +80,28 @@ wordsBy inh =
         $ Stream.wordsBy isSp Fold.drain
         $ Handle.read inh -- >>= print
 
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'wordsBy
+inspect $ 'wordsBy `hasNoType` ''Step
+inspect $ 'wordsBy `hasNoType` ''Fold.Step
+inspect $ 'wordsBy `hasNoType` ''SPEC
+inspect $ 'wordsBy `hasNoType` ''Producer.ConcatState -- FH.read/UF.many
+inspect $ 'wordsBy `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
+#endif
+
 -- | Split on a word8 sequence.
 splitOnSeq :: String -> Handle -> IO Int
 splitOnSeq str inh =
     (Stream.fold Fold.length $ Stream.splitSepBySeq_ (toarr str) Fold.drain
         $ Handle.read inh) -- >>= print
+
+#ifdef INSPECTION
+-- splitOnSeq/splitOnSeq100k: sequence-matching state machine; Step constructors survive.
+-- inspect $ hasNoTypeClasses 'splitOnSeq
+-- inspect $ 'splitOnSeq `hasNoType` ''Step
+inspect $ 'splitOnSeq `hasNoType` ''Fold.Step
+inspect $ 'splitOnSeq `hasNoType` ''SPEC
+#endif
 
 takeEndBy :: Word8 -> Handle -> IO Int
 takeEndBy c inh =
@@ -83,12 +110,30 @@ takeEndBy c inh =
         $ Stream.filter (/= fromIntegral (ord 'a'))
         $ Handle.read inh) -- >>= print
 
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'takeEndBy
+inspect $ 'takeEndBy `hasNoType` ''Step
+inspect $ 'takeEndBy `hasNoType` ''Fold.Step
+inspect $ 'takeEndBy `hasNoType` ''SPEC
+inspect $ 'takeEndBy `hasNoType` ''Producer.ConcatState -- FH.read/UF.many
+inspect $ 'takeEndBy `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
+#endif
+
 takeEndBy_ :: Word8 -> Handle -> IO Int
 takeEndBy_ c inh =
     (Stream.fold Fold.length
         $ Stream.takeEndBy_ (== c)
         $ Stream.filter (/= fromIntegral (ord 'a'))
         $ Handle.read inh) -- >>= print
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'takeEndBy_
+inspect $ 'takeEndBy_ `hasNoType` ''Step
+inspect $ 'takeEndBy_ `hasNoType` ''Fold.Step
+inspect $ 'takeEndBy_ `hasNoType` ''SPEC
+inspect $ 'takeEndBy_ `hasNoType` ''Producer.ConcatState -- FH.read/UF.many
+inspect $ 'takeEndBy_ `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
+#endif
 
 takeEndBySeq :: String -> Handle -> IO Int
 takeEndBySeq str inh =
@@ -97,12 +142,28 @@ takeEndBySeq str inh =
         $ Stream.filter (/= fromIntegral (ord 'a'))
         $ Handle.read inh) -- >>= print
 
+#ifdef INSPECTION
+-- takeEndBySeq/takeEndBySeq_: KR state machine; Step constructors survive
+-- unless -fspec-constr-recursive=12 is in effect.
+-- inspect $ hasNoTypeClasses 'takeEndBySeq
+-- inspect $ 'takeEndBySeq `hasNoType` ''Step
+inspect $ 'takeEndBySeq `hasNoType` ''Fold.Step
+inspect $ 'takeEndBySeq `hasNoType` ''SPEC
+#endif
+
 takeEndBySeq_ :: String -> Handle -> IO Int
 takeEndBySeq_ str inh =
     (Stream.fold Fold.length
         $ Stream.takeEndBySeq_ (toarr str)
         $ Stream.filter (/= fromIntegral (ord 'a'))
         $ Handle.read inh) -- >>= print
+
+#ifdef INSPECTION
+-- inspect $ hasNoTypeClasses 'takeEndBySeq_
+-- inspect $ 'takeEndBySeq_ `hasNoType` ''Step
+inspect $ 'takeEndBySeq_ `hasNoType` ''Fold.Step
+inspect $ 'takeEndBySeq_ `hasNoType` ''SPEC
+#endif
 
 takeEndBySeq100k :: Handle -> IO Int
 takeEndBySeq100k inh = do
@@ -112,6 +173,13 @@ takeEndBySeq100k inh = do
         $ Stream.filter (/= fromIntegral (ord 'a'))
         $ Handle.read inh) -- >>= print
 
+#ifdef INSPECTION
+-- inspect $ hasNoTypeClasses 'takeEndBySeq100k
+-- inspect $ 'takeEndBySeq100k `hasNoType` ''Step
+inspect $ 'takeEndBySeq100k `hasNoType` ''Fold.Step
+inspect $ 'takeEndBySeq100k `hasNoType` ''SPEC
+#endif
+
 takeEndBySeq_100k :: Handle -> IO Int
 takeEndBySeq_100k inh = do
     arr <- Stream.fold Array.create $ Stream.replicate 100000 123
@@ -119,6 +187,13 @@ takeEndBySeq_100k inh = do
         $ Stream.takeEndBySeq_ arr
         $ Stream.filter (/= fromIntegral (ord 'a'))
         $ Handle.read inh) -- >>= print
+
+#ifdef INSPECTION
+-- inspect $ hasNoTypeClasses 'takeEndBySeq_100k
+-- inspect $ 'takeEndBySeq_100k `hasNoType` ''Step
+inspect $ 'takeEndBySeq_100k `hasNoType` ''Fold.Step
+inspect $ 'takeEndBySeq_100k `hasNoType` ''SPEC
+#endif
 
 -- | Split on a word8 sequence.
 splitOnSeq100k :: Handle -> IO Int
@@ -128,12 +203,27 @@ splitOnSeq100k inh = do
         $ Stream.splitSepBySeq_ arr Fold.drain
         $ Handle.read inh) -- >>= print
 
+#ifdef INSPECTION
+-- inspect $ hasNoTypeClasses 'splitOnSeq100k
+-- inspect $ 'splitOnSeq100k `hasNoType` ''Step
+inspect $ 'splitOnSeq100k `hasNoType` ''Fold.Step
+inspect $ 'splitOnSeq100k `hasNoType` ''SPEC
+#endif
+
 -- | Split on suffix sequence.
 splitOnSuffixSeq :: String -> Handle -> IO Int
 splitOnSuffixSeq str inh =
     (Stream.fold Fold.length
         $ Stream.splitOnSuffixSeq False (toarr str) Fold.drain
         $ Handle.read inh) -- >>= print
+
+#ifdef INSPECTION
+-- splitOnSuffixSeq/splitWithSuffixSeq: sequence-matching state machine; Step constructors survive.
+-- inspect $ hasNoTypeClasses 'splitOnSuffixSeq
+-- inspect $ 'splitOnSuffixSeq `hasNoType` ''Step
+inspect $ 'splitOnSuffixSeq `hasNoType` ''Fold.Step
+inspect $ 'splitOnSuffixSeq `hasNoType` ''SPEC
+#endif
 
 -- | Split on suffix sequence.
 splitWithSuffixSeq :: String -> Handle -> IO Int
@@ -142,81 +232,11 @@ splitWithSuffixSeq str inh =
         $ Stream.splitOnSuffixSeq True (toarr str) Fold.drain
         $ Handle.read inh -- >>= print
 
--------------------------------------------------------------------------------
--- Inspection
--------------------------------------------------------------------------------
-
 #ifdef INSPECTION
--- All Handle-based pipelines below are fully monomorphic in IO and read from
--- a concrete Handle source, so the whole read+transform+fold pipeline must
--- fuse: no Step constructors should survive in the optimized core.
-
-inspect $ hasNoTypeClasses 'splitOn
-inspect $ 'splitOn `hasNoType` ''Step
-inspect $ 'splitOn `hasNoType` ''Fold.Step
-inspect $ 'splitOn `hasNoType` ''SPEC
-inspect $ 'splitOn `hasNoType` ''Producer.ConcatState -- FH.read/UF.many
-inspect $ 'splitOn `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
-
-inspect $ hasNoTypeClasses 'wordsBy
-inspect $ 'wordsBy `hasNoType` ''Step
-inspect $ 'wordsBy `hasNoType` ''Fold.Step
-inspect $ 'wordsBy `hasNoType` ''SPEC
-inspect $ 'wordsBy `hasNoType` ''Producer.ConcatState -- FH.read/UF.many
-inspect $ 'wordsBy `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
-
-inspect $ hasNoTypeClasses 'takeEndBy
-inspect $ 'takeEndBy `hasNoType` ''Step
-inspect $ 'takeEndBy `hasNoType` ''Fold.Step
-inspect $ 'takeEndBy `hasNoType` ''SPEC
-inspect $ 'takeEndBy `hasNoType` ''Producer.ConcatState -- FH.read/UF.many
-inspect $ 'takeEndBy `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
-
-inspect $ hasNoTypeClasses 'takeEndBy_
-inspect $ 'takeEndBy_ `hasNoType` ''Step
-inspect $ 'takeEndBy_ `hasNoType` ''Fold.Step
-inspect $ 'takeEndBy_ `hasNoType` ''SPEC
-inspect $ 'takeEndBy_ `hasNoType` ''Producer.ConcatState -- FH.read/UF.many
-inspect $ 'takeEndBy_ `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
-
--- splitOnSeq/splitOnSeq100k: sequence-matching state machine; Step constructors survive.
--- inspect $ hasNoTypeClasses 'splitOnSeq
--- inspect $ 'splitOnSeq `hasNoType` ''Step
-inspect $ 'splitOnSeq `hasNoType` ''Fold.Step
-inspect $ 'splitOnSeq `hasNoType` ''SPEC
--- inspect $ hasNoTypeClasses 'splitOnSeq100k
--- inspect $ 'splitOnSeq100k `hasNoType` ''Step
-inspect $ 'splitOnSeq100k `hasNoType` ''Fold.Step
-inspect $ 'splitOnSeq100k `hasNoType` ''SPEC
-
--- splitOnSuffixSeq/splitWithSuffixSeq: sequence-matching state machine; Step constructors survive.
--- inspect $ hasNoTypeClasses 'splitOnSuffixSeq
--- inspect $ 'splitOnSuffixSeq `hasNoType` ''Step
-inspect $ 'splitOnSuffixSeq `hasNoType` ''Fold.Step
-inspect $ 'splitOnSuffixSeq `hasNoType` ''SPEC
 -- inspect $ hasNoTypeClasses 'splitWithSuffixSeq
 -- inspect $ 'splitWithSuffixSeq `hasNoType` ''Step
 inspect $ 'splitWithSuffixSeq `hasNoType` ''Fold.Step
 inspect $ 'splitWithSuffixSeq `hasNoType` ''SPEC
-
--- takeEndBySeq/takeEndBySeq_: KR state machine; Step constructors survive
--- unless -fspec-constr-recursive=12 is in effect.
--- inspect $ hasNoTypeClasses 'takeEndBySeq
--- inspect $ 'takeEndBySeq `hasNoType` ''Step
-inspect $ 'takeEndBySeq `hasNoType` ''Fold.Step
-inspect $ 'takeEndBySeq `hasNoType` ''SPEC
--- inspect $ hasNoTypeClasses 'takeEndBySeq100k
--- inspect $ 'takeEndBySeq100k `hasNoType` ''Step
-inspect $ 'takeEndBySeq100k `hasNoType` ''Fold.Step
-inspect $ 'takeEndBySeq100k `hasNoType` ''SPEC
--- inspect $ hasNoTypeClasses 'takeEndBySeq_
--- inspect $ 'takeEndBySeq_ `hasNoType` ''Step
-inspect $ 'takeEndBySeq_ `hasNoType` ''Fold.Step
-inspect $ 'takeEndBySeq_ `hasNoType` ''SPEC
--- inspect $ hasNoTypeClasses 'takeEndBySeq_100k
--- inspect $ 'takeEndBySeq_100k `hasNoType` ''Step
-inspect $ 'takeEndBySeq_100k `hasNoType` ''Fold.Step
-inspect $ 'takeEndBySeq_100k `hasNoType` ''SPEC
 #endif
 
 o_1_space_reduce_read_split :: BenchEnv -> [Benchmark]

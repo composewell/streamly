@@ -34,6 +34,7 @@ import Data.Maybe (isJust)
 import Data.Monoid (Sum(..))
 import GHC.Generics (Generic)
 import Streamly.Internal.Data.Stream (Stream)
+import System.Random (randomRIO)
 
 import qualified Stream.Common as Common
 import qualified Streamly.Internal.Data.Fold as FL
@@ -42,7 +43,7 @@ import qualified Streamly.Internal.Data.Stream as S
 
 import Test.Tasty.Bench
 import Streamly.Benchmark.Common
-import Stream.Common
+import Stream.Common hiding (benchIO)
 import Prelude hiding (reverse, tail)
 
 -- Apply transformation g count times on a stream of length len
@@ -61,92 +62,185 @@ iterateSource g count len n = f count (sourceUnfoldrM len n)
     f (0 :: Int) stream = stream
     f i stream = f (i - 1) (g stream)
 
+{-# INLINE withRandomIntIO #-}
+withRandomIntIO :: (Int -> IO b) -> IO b
+withRandomIntIO f = randomRIO (1, 1 :: Int) >>= f
+
+{-# INLINE withStream #-}
+withStream :: Int -> (Stream IO Int -> IO b) -> IO b
+withStream value f = withRandomIntIO (f . sourceUnfoldrM value)
+
+{-# INLINE benchIO #-}
+benchIO :: NFData b => String -> IO b -> Benchmark
+benchIO name = bench name . nfIO
+
 -------------------------------------------------------------------------------
 -- Grouping transformations
 -------------------------------------------------------------------------------
 
 {-# INLINE groups #-}
-groups :: MonadIO m => Stream m Int -> m ()
-groups = Common.drain . S.groupsWhile (==) FL.drain
+groups :: Int -> IO ()
+groups value = withStream value $ Common.drain . S.groupsWhile (==) FL.drain
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'groups
+-- inspect $ 'groups `hasNoType` ''S.Step
+inspect $ 'groups `hasNoType` ''FL.Step
+inspect $ 'groups `hasNoType` ''SPEC
+#endif
 
 {-# INLINE groupsWhileLT #-}
-groupsWhileLT :: MonadIO m => Stream m Int -> m ()
-groupsWhileLT = Common.drain . S.groupsWhile (<) FL.drain
+groupsWhileLT :: Int -> IO ()
+groupsWhileLT value = withStream value $ Common.drain . S.groupsWhile (<) FL.drain
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'groupsWhileLT
+-- inspect $ 'groupsWhileLT `hasNoType` ''S.Step
+inspect $ 'groupsWhileLT `hasNoType` ''FL.Step
+inspect $ 'groupsWhileLT `hasNoType` ''SPEC
+#endif
 
 {-# INLINE groupsWhileEq #-}
-groupsWhileEq :: MonadIO m => Stream m Int -> m ()
-groupsWhileEq = Common.drain . S.groupsWhile (==) FL.drain
+groupsWhileEq :: Int -> IO ()
+groupsWhileEq value = withStream value $ Common.drain . S.groupsWhile (==) FL.drain
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'groupsWhileEq
+-- inspect $ 'groupsWhileEq `hasNoType` ''S.Step
+inspect $ 'groupsWhileEq `hasNoType` ''FL.Step
+inspect $ 'groupsWhileEq `hasNoType` ''SPEC
+#endif
 
 {-# INLINE groupsByRollingLT #-}
-groupsByRollingLT :: MonadIO m => Stream m Int -> m ()
-groupsByRollingLT = Common.drain . S.groupsRollingBy (<) FL.drain
+groupsByRollingLT :: Int -> IO ()
+groupsByRollingLT value = withStream value $ Common.drain . S.groupsRollingBy (<) FL.drain
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'groupsByRollingLT
+inspect $ 'groupsByRollingLT `hasNoType` ''S.Step
+-- inspect $ 'groupsByRollingLT `hasNoType` ''S.GroupByState
+inspect $ 'groupsByRollingLT `hasNoType` ''FL.Step
+inspect $ 'groupsByRollingLT `hasNoType` ''SPEC
+#endif
 
 {-# INLINE groupsByRollingEq #-}
-groupsByRollingEq :: MonadIO m => Stream m Int -> m ()
-groupsByRollingEq = Common.drain . S.groupsRollingBy (==) FL.drain
+groupsByRollingEq :: Int -> IO ()
+groupsByRollingEq value = withStream value $ Common.drain . S.groupsRollingBy (==) FL.drain
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'groupsByRollingEq
+inspect $ 'groupsByRollingEq `hasNoType` ''S.Step
+-- inspect $ 'groupsByRollingEq `hasNoType` ''S.GroupByState
+inspect $ 'groupsByRollingEq `hasNoType` ''FL.Step
+inspect $ 'groupsByRollingEq `hasNoType` ''SPEC
+#endif
 
 {-# INLINE foldMany #-}
-foldMany :: Monad m => Stream m Int -> m ()
-foldMany =
-      Common.drain
-    . fmap getSum
-    . S.foldMany (FL.take 2 FL.mconcat)
-    . fmap Sum
+foldMany :: Int -> IO ()
+foldMany value =
+    withStream value $
+          Common.drain
+        . fmap getSum
+        . S.foldMany (FL.take 2 FL.mconcat)
+        . fmap Sum
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'foldMany
+inspect $ 'foldMany `hasNoType` ''S.Step
+inspect $ 'foldMany `hasNoType` ''S.FoldMany
+inspect $ 'foldMany `hasNoType` ''FL.Step
+inspect $ 'foldMany `hasNoType` ''SPEC
+#endif
 
 {-# INLINE foldMany1 #-}
-foldMany1 :: Monad m => Stream m Int -> m ()
-foldMany1 =
-      Common.drain
-    . fmap getSum
-    . S.foldManyPost (FL.take 2 FL.mconcat)
-    . fmap Sum
+foldMany1 :: Int -> IO ()
+foldMany1 value =
+    withStream value $
+          Common.drain
+        . fmap getSum
+        . S.foldManyPost (FL.take 2 FL.mconcat)
+        . fmap Sum
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'foldMany1
+inspect $ 'foldMany1 `hasNoType` ''S.Step
+inspect $ 'foldMany1 `hasNoType` ''S.FoldManyPost
+inspect $ 'foldMany1 `hasNoType` ''FL.Step
+inspect $ 'foldMany1 `hasNoType` ''SPEC
+#endif
 
 {-# INLINE refoldMany #-}
-refoldMany :: Monad m => Stream m Int -> m ()
-refoldMany =
-      Common.drain
-    . fmap getSum
-    . S.refoldMany (Refold.take 2 Refold.sconcat) (return mempty)
-    . fmap Sum
+refoldMany :: Int -> IO ()
+refoldMany value =
+    withStream value $
+          Common.drain
+        . fmap getSum
+        . S.refoldMany (Refold.take 2 Refold.sconcat) (return mempty)
+        . fmap Sum
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'refoldMany
+inspect $ 'refoldMany `hasNoType` ''S.Step
+inspect $ 'refoldMany `hasNoType` ''S.FoldMany
+inspect $ 'refoldMany `hasNoType` ''FL.Step
+inspect $ 'refoldMany `hasNoType` ''SPEC
+#endif
 
 {-# INLINE foldIterateM #-}
-foldIterateM :: Monad m => Stream m Int -> m ()
-foldIterateM =
-    Common.drain
-        . fmap getSum
-        . S.foldIterateM
-            (return . FL.take 2 . FL.sconcat) (return (Sum 0))
-        . fmap Sum
+foldIterateM :: Int -> IO ()
+foldIterateM value =
+    withStream value $
+        Common.drain
+            . fmap getSum
+            . S.foldIterateM
+                (return . FL.take 2 . FL.sconcat) (return (Sum 0))
+            . fmap Sum
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'foldIterateM
+inspect $ 'foldIterateM `hasNoType` ''S.Step
+inspect $ 'foldIterateM `hasNoType` ''S.FIterState
+inspect $ 'foldIterateM `hasNoType` ''FL.Step
+inspect $ 'foldIterateM `hasNoType` ''SPEC
+#endif
 
 {-# INLINE refoldIterateM #-}
-refoldIterateM :: Monad m => Stream m Int -> m ()
-refoldIterateM =
-    Common.drain
-        . fmap getSum
-        . S.refoldIterateM
-            (Refold.take 2 Refold.sconcat) (return (Sum 0))
-        . fmap Sum
+refoldIterateM :: Int -> IO ()
+refoldIterateM value =
+    withStream value $
+        Common.drain
+            . fmap getSum
+            . S.refoldIterateM
+                (Refold.take 2 Refold.sconcat) (return (Sum 0))
+            . fmap Sum
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'refoldIterateM
+inspect $ 'refoldIterateM `hasNoType` ''S.Step
+inspect $ 'refoldIterateM `hasNoType` ''S.CIterState
+inspect $ 'refoldIterateM `hasNoType` ''FL.Step
+inspect $ 'refoldIterateM `hasNoType` ''SPEC
+#endif
 
 o_1_space_grouping :: Int -> [Benchmark]
 o_1_space_grouping value =
     -- Buffering operations using heap proportional to group/window sizes.
     [ bgroup "grouping"
         [
-          benchIOSink value "groups" groups
-        , benchIOSink value "groupsWhileLT" groupsWhileLT
-        , benchIOSink value "groupsWhileEq" groupsWhileEq
-        , benchIOSink value "groupsByRollingLT" groupsByRollingLT
-        , benchIOSink value "groupsByRollingEq" groupsByRollingEq
-        ,
+          benchIO "groups" $ groups value
+        , benchIO "groupsWhileLT" $ groupsWhileLT value
+        , benchIO "groupsWhileEq" $ groupsWhileEq value
+        , benchIO "groupsByRollingLT" $ groupsByRollingLT value
+        , benchIO "groupsByRollingEq" $ groupsByRollingEq value
 
         -- XXX parseMany/parseIterate benchmarks are in the Parser/ParserD
         -- modules we can bring those here. chunksOf benchmarks are in
         -- Parser/ParserD/Array.Stream/FileSystem.Handle.
-          benchIOSink value "foldMany" foldMany
-        , benchIOSink value "foldMany1" foldMany1
-        , benchIOSink value "refoldMany" refoldMany
-        , benchIOSink value "foldIterateM" foldIterateM
-        , benchIOSink value "refoldIterateM" refoldIterateM
+        , benchIO "foldMany" $ foldMany value
+        , benchIO "foldMany1" $ foldMany1 value
+        , benchIO "refoldMany" $ refoldMany value
+        , benchIO "foldIterateM" $ foldIterateM value
+        , benchIO "refoldIterateM" $ refoldIterateM value
         ]
     ]
 
@@ -155,20 +249,32 @@ o_1_space_grouping value =
 -------------------------------------------------------------------------------
 
 {-# INLINE reverse #-}
-reverse :: MonadIO m => Int -> Stream m Int -> m ()
-reverse n = composeN n S.reverse
+reverse :: Int -> IO ()
+reverse value = withStream value (composeN 1 S.reverse)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'reverse
+inspect $ 'reverse `hasNoType` ''S.Step
+inspect $ 'reverse `hasNoType` ''FL.Step
+-- inspect $ 'reverse `hasNoType` ''SPEC
+#endif
 
 {-# INLINE reverse' #-}
-reverse' :: MonadIO m => Int -> Stream m Int -> m ()
-reverse' n = composeN n S.reverseUnbox
+reverse' :: Int -> IO ()
+reverse' value = withStream value (composeN 1 S.reverseUnbox)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'reverse'
+-- inspect $ 'reverse' `hasNoType` ''S.Step
+#endif
 
 o_n_heap_buffering :: Int -> [Benchmark]
 o_n_heap_buffering value =
     [ bgroup "buffered"
         [
         -- Reversing a stream
-          benchIOSink value "reverse" (reverse 1)
-        , benchIOSink value "reverse'" (reverse' 1)
+          benchIO "reverse" $ reverse value
+        , benchIO "reverse'" $ reverse' value
         ]
     ]
 
@@ -180,45 +286,411 @@ o_n_heap_buffering value =
 scanMap :: MonadIO m => Int -> Stream m Int -> m ()
 scanMap n = composeN n $ fmap (subtract 1) . Common.scanl' (+) 0
 
+{-# INLINE scanMap1 #-}
+scanMap1 :: Int -> IO ()
+scanMap1 value = withStream value (scanMap 1)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'scanMap1
+inspect $ 'scanMap1 `hasNoType` ''S.Step
+inspect $ 'scanMap1 `hasNoType` ''S.ScanState
+inspect $ 'scanMap1 `hasNoType` ''FL.Step
+inspect $ 'scanMap1 `hasNoType` ''SPEC
+#endif
+
+{-# INLINE scanMap2 #-}
+scanMap2 :: Int -> IO ()
+scanMap2 value = withStream value (scanMap 2)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'scanMap2
+inspect $ 'scanMap2 `hasNoType` ''S.Step
+inspect $ 'scanMap2 `hasNoType` ''S.ScanState
+inspect $ 'scanMap2 `hasNoType` ''FL.Step
+inspect $ 'scanMap2 `hasNoType` ''SPEC
+#endif
+
+{-# INLINE scanMap4 #-}
+scanMap4 :: Int -> IO ()
+scanMap4 value = withStream value (scanMap 4)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'scanMap4
+inspect $ 'scanMap4 `hasNoType` ''S.Step
+inspect $ 'scanMap4 `hasNoType` ''S.ScanState
+inspect $ 'scanMap4 `hasNoType` ''FL.Step
+inspect $ 'scanMap4 `hasNoType` ''SPEC
+#endif
+
 {-# INLINE dropMap #-}
 dropMap :: MonadIO m => Int -> Stream m Int -> m ()
 dropMap n = composeN n $ fmap (subtract 1) . S.drop 1
+
+{-# INLINE dropMap1 #-}
+dropMap1 :: Int -> IO ()
+dropMap1 value = withStream value (dropMap 1)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'dropMap1
+inspect $ 'dropMap1 `hasNoType` ''S.Step
+inspect $ 'dropMap1 `hasNoType` ''FL.Step
+inspect $ 'dropMap1 `hasNoType` ''SPEC
+#endif
+
+{-# INLINE dropMap2 #-}
+dropMap2 :: Int -> IO ()
+dropMap2 value = withStream value (dropMap 2)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'dropMap2
+inspect $ 'dropMap2 `hasNoType` ''S.Step
+inspect $ 'dropMap2 `hasNoType` ''FL.Step
+inspect $ 'dropMap2 `hasNoType` ''SPEC
+#endif
+
+{-# INLINE dropMap4 #-}
+dropMap4 :: Int -> IO ()
+dropMap4 value = withStream value (dropMap 4)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'dropMap4
+inspect $ 'dropMap4 `hasNoType` ''S.Step
+inspect $ 'dropMap4 `hasNoType` ''FL.Step
+inspect $ 'dropMap4 `hasNoType` ''SPEC
+#endif
 
 {-# INLINE dropScan #-}
 dropScan :: MonadIO m => Int -> Stream m Int -> m ()
 dropScan n = composeN n $ Common.scanl' (+) 0 . S.drop 1
 
+{-# INLINE dropScan1 #-}
+dropScan1 :: Int -> IO ()
+dropScan1 value = withStream value (dropScan 1)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'dropScan1
+inspect $ 'dropScan1 `hasNoType` ''S.Step
+inspect $ 'dropScan1 `hasNoType` ''S.ScanState
+inspect $ 'dropScan1 `hasNoType` ''FL.Step
+inspect $ 'dropScan1 `hasNoType` ''SPEC
+#endif
+
+{-# INLINE dropScan2 #-}
+dropScan2 :: Int -> IO ()
+dropScan2 value = withStream value (dropScan 2)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'dropScan2
+inspect $ 'dropScan2 `hasNoType` ''S.Step
+inspect $ 'dropScan2 `hasNoType` ''S.ScanState
+inspect $ 'dropScan2 `hasNoType` ''FL.Step
+inspect $ 'dropScan2 `hasNoType` ''SPEC
+#endif
+
+{-# INLINE dropScan4 #-}
+dropScan4 :: Int -> IO ()
+dropScan4 value = withStream value (dropScan 4)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'dropScan4
+inspect $ 'dropScan4 `hasNoType` ''S.Step
+inspect $ 'dropScan4 `hasNoType` ''S.ScanState
+inspect $ 'dropScan4 `hasNoType` ''FL.Step
+inspect $ 'dropScan4 `hasNoType` ''SPEC
+#endif
+
 {-# INLINE takeDrop #-}
 takeDrop :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 takeDrop value n = composeN n $ S.drop 1 . S.take (value + 1)
+
+{-# INLINE takeDrop1 #-}
+takeDrop1 :: Int -> IO ()
+takeDrop1 value = withStream value (takeDrop value 1)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'takeDrop1
+inspect $ 'takeDrop1 `hasNoType` ''S.Step
+inspect $ 'takeDrop1 `hasNoType` ''FL.Step
+inspect $ 'takeDrop1 `hasNoType` ''SPEC
+#endif
+
+{-# INLINE takeDrop2 #-}
+takeDrop2 :: Int -> IO ()
+takeDrop2 value = withStream value (takeDrop value 2)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'takeDrop2
+inspect $ 'takeDrop2 `hasNoType` ''S.Step
+inspect $ 'takeDrop2 `hasNoType` ''FL.Step
+inspect $ 'takeDrop2 `hasNoType` ''SPEC
+#endif
+
+{-# INLINE takeDrop4 #-}
+takeDrop4 :: Int -> IO ()
+takeDrop4 value = withStream value (takeDrop value 4)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'takeDrop4
+inspect $ 'takeDrop4 `hasNoType` ''S.Step
+inspect $ 'takeDrop4 `hasNoType` ''FL.Step
+inspect $ 'takeDrop4 `hasNoType` ''SPEC
+#endif
 
 {-# INLINE takeScan #-}
 takeScan :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 takeScan value n = composeN n $ Common.scanl' (+) 0 . S.take (value + 1)
 
+{-# INLINE takeScan1 #-}
+takeScan1 :: Int -> IO ()
+takeScan1 value = withStream value (takeScan value 1)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'takeScan1
+inspect $ 'takeScan1 `hasNoType` ''S.Step
+inspect $ 'takeScan1 `hasNoType` ''S.ScanState
+inspect $ 'takeScan1 `hasNoType` ''FL.Step
+inspect $ 'takeScan1 `hasNoType` ''SPEC
+#endif
+
+{-# INLINE takeScan2 #-}
+takeScan2 :: Int -> IO ()
+takeScan2 value = withStream value (takeScan value 2)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'takeScan2
+inspect $ 'takeScan2 `hasNoType` ''S.Step
+inspect $ 'takeScan2 `hasNoType` ''S.ScanState
+inspect $ 'takeScan2 `hasNoType` ''FL.Step
+inspect $ 'takeScan2 `hasNoType` ''SPEC
+#endif
+
+{-# INLINE takeScan4 #-}
+takeScan4 :: Int -> IO ()
+takeScan4 value = withStream value (takeScan value 4)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'takeScan4
+inspect $ 'takeScan4 `hasNoType` ''S.Step
+inspect $ 'takeScan4 `hasNoType` ''S.ScanState
+inspect $ 'takeScan4 `hasNoType` ''FL.Step
+inspect $ 'takeScan4 `hasNoType` ''SPEC
+#endif
+
 {-# INLINE takeMap #-}
 takeMap :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 takeMap value n = composeN n $ fmap (subtract 1) . S.take (value + 1)
+
+{-# INLINE takeMap1 #-}
+takeMap1 :: Int -> IO ()
+takeMap1 value = withStream value (takeMap value 1)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'takeMap1
+inspect $ 'takeMap1 `hasNoType` ''S.Step
+inspect $ 'takeMap1 `hasNoType` ''FL.Step
+inspect $ 'takeMap1 `hasNoType` ''SPEC
+#endif
+
+{-# INLINE takeMap2 #-}
+takeMap2 :: Int -> IO ()
+takeMap2 value = withStream value (takeMap value 2)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'takeMap2
+inspect $ 'takeMap2 `hasNoType` ''S.Step
+inspect $ 'takeMap2 `hasNoType` ''FL.Step
+inspect $ 'takeMap2 `hasNoType` ''SPEC
+#endif
+
+{-# INLINE takeMap4 #-}
+takeMap4 :: Int -> IO ()
+takeMap4 value = withStream value (takeMap value 4)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'takeMap4
+inspect $ 'takeMap4 `hasNoType` ''S.Step
+inspect $ 'takeMap4 `hasNoType` ''FL.Step
+inspect $ 'takeMap4 `hasNoType` ''SPEC
+#endif
 
 {-# INLINE filterDrop #-}
 filterDrop :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 filterDrop value n = composeN n $ S.drop 1 . S.filter (<= (value + 1))
 
+{-# INLINE filterDrop1 #-}
+filterDrop1 :: Int -> IO ()
+filterDrop1 value = withStream value (filterDrop value 1)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'filterDrop1
+inspect $ 'filterDrop1 `hasNoType` ''S.Step
+inspect $ 'filterDrop1 `hasNoType` ''FL.Step
+inspect $ 'filterDrop1 `hasNoType` ''SPEC
+#endif
+
+{-# INLINE filterDrop2 #-}
+filterDrop2 :: Int -> IO ()
+filterDrop2 value = withStream value (filterDrop value 2)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'filterDrop2
+inspect $ 'filterDrop2 `hasNoType` ''S.Step
+inspect $ 'filterDrop2 `hasNoType` ''FL.Step
+inspect $ 'filterDrop2 `hasNoType` ''SPEC
+#endif
+
+{-# INLINE filterDrop4 #-}
+filterDrop4 :: Int -> IO ()
+filterDrop4 value = withStream value (filterDrop value 4)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'filterDrop4
+inspect $ 'filterDrop4 `hasNoType` ''S.Step
+inspect $ 'filterDrop4 `hasNoType` ''FL.Step
+inspect $ 'filterDrop4 `hasNoType` ''SPEC
+#endif
+
 {-# INLINE filterTake #-}
 filterTake :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 filterTake value n = composeN n $ S.take (value + 1) . S.filter (<= (value + 1))
+
+{-# INLINE filterTake1 #-}
+filterTake1 :: Int -> IO ()
+filterTake1 value = withStream value (filterTake value 1)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'filterTake1
+inspect $ 'filterTake1 `hasNoType` ''S.Step
+inspect $ 'filterTake1 `hasNoType` ''FL.Step
+inspect $ 'filterTake1 `hasNoType` ''SPEC
+#endif
+
+{-# INLINE filterTake2 #-}
+filterTake2 :: Int -> IO ()
+filterTake2 value = withStream value (filterTake value 2)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'filterTake2
+inspect $ 'filterTake2 `hasNoType` ''S.Step
+inspect $ 'filterTake2 `hasNoType` ''FL.Step
+inspect $ 'filterTake2 `hasNoType` ''SPEC
+#endif
+
+{-# INLINE filterTake4 #-}
+filterTake4 :: Int -> IO ()
+filterTake4 value = withStream value (filterTake value 4)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'filterTake4
+inspect $ 'filterTake4 `hasNoType` ''S.Step
+inspect $ 'filterTake4 `hasNoType` ''FL.Step
+inspect $ 'filterTake4 `hasNoType` ''SPEC
+#endif
 
 {-# INLINE filterScan #-}
 filterScan :: MonadIO m => Int -> Stream m Int -> m ()
 filterScan n = composeN n $ Common.scanl' (+) 0 . S.filter (<= maxBound)
 
+{-# INLINE filterScan1 #-}
+filterScan1 :: Int -> IO ()
+filterScan1 value = withStream value (filterScan 1)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'filterScan1
+inspect $ 'filterScan1 `hasNoType` ''S.Step
+inspect $ 'filterScan1 `hasNoType` ''S.ScanState
+inspect $ 'filterScan1 `hasNoType` ''FL.Step
+inspect $ 'filterScan1 `hasNoType` ''SPEC
+#endif
+
+{-# INLINE filterScan2 #-}
+filterScan2 :: Int -> IO ()
+filterScan2 value = withStream value (filterScan 2)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'filterScan2
+inspect $ 'filterScan2 `hasNoType` ''S.Step
+inspect $ 'filterScan2 `hasNoType` ''S.ScanState
+inspect $ 'filterScan2 `hasNoType` ''FL.Step
+inspect $ 'filterScan2 `hasNoType` ''SPEC
+#endif
+
+{-# INLINE filterScan4 #-}
+filterScan4 :: Int -> IO ()
+filterScan4 value = withStream value (filterScan 4)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'filterScan4
+inspect $ 'filterScan4 `hasNoType` ''S.Step
+inspect $ 'filterScan4 `hasNoType` ''S.ScanState
+inspect $ 'filterScan4 `hasNoType` ''FL.Step
+inspect $ 'filterScan4 `hasNoType` ''SPEC
+#endif
+
 {-# INLINE filterScanl1 #-}
 filterScanl1 :: MonadIO m => Int -> Stream m Int -> m ()
 filterScanl1 n = composeN n $ S.scanl1' (+) . S.filter (<= maxBound)
 
+{-# INLINE filterScanl12 #-}
+filterScanl12 :: Int -> IO ()
+filterScanl12 value = withStream value (filterScanl1 2)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'filterScanl12
+inspect $ 'filterScanl12 `hasNoType` ''S.Step
+inspect $ 'filterScanl12 `hasNoType` ''S.ScanState
+inspect $ 'filterScanl12 `hasNoType` ''FL.Step
+inspect $ 'filterScanl12 `hasNoType` ''SPEC
+#endif
+
+{-# INLINE filterScanl14 #-}
+filterScanl14 :: Int -> IO ()
+filterScanl14 value = withStream value (filterScanl1 4)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'filterScanl14
+inspect $ 'filterScanl14 `hasNoType` ''S.Step
+inspect $ 'filterScanl14 `hasNoType` ''S.ScanState
+inspect $ 'filterScanl14 `hasNoType` ''FL.Step
+inspect $ 'filterScanl14 `hasNoType` ''SPEC
+#endif
+
 {-# INLINE filterMap #-}
 filterMap :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 filterMap value n = composeN n $ fmap (subtract 1) . S.filter (<= (value + 1))
+
+{-# INLINE filterMap1 #-}
+filterMap1 :: Int -> IO ()
+filterMap1 value = withStream value (filterMap value 1)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'filterMap1
+inspect $ 'filterMap1 `hasNoType` ''S.Step
+inspect $ 'filterMap1 `hasNoType` ''FL.Step
+inspect $ 'filterMap1 `hasNoType` ''SPEC
+#endif
+
+{-# INLINE filterMap2 #-}
+filterMap2 :: Int -> IO ()
+filterMap2 value = withStream value (filterMap value 2)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'filterMap2
+inspect $ 'filterMap2 `hasNoType` ''S.Step
+inspect $ 'filterMap2 `hasNoType` ''FL.Step
+inspect $ 'filterMap2 `hasNoType` ''SPEC
+#endif
+
+{-# INLINE filterMap4 #-}
+filterMap4 :: Int -> IO ()
+filterMap4 value = withStream value (filterMap value 4)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'filterMap4
+inspect $ 'filterMap4 `hasNoType` ''S.Step
+inspect $ 'filterMap4 `hasNoType` ''FL.Step
+inspect $ 'filterMap4 `hasNoType` ''SPEC
+#endif
 
 -------------------------------------------------------------------------------
 -- Scan and fold
@@ -229,19 +701,43 @@ data Pair a b =
     deriving (Generic, NFData)
 
 {-# INLINE sumProductFold #-}
-sumProductFold :: Monad m => Stream m Int -> m (Pair Int Int)
-sumProductFold =
-    Common.foldl' (\(Pair s p) x -> Pair (s + x) (p * x)) (Pair 0 1)
+sumProductFold :: Int -> IO (Pair Int Int)
+sumProductFold value =
+    withStream value $
+        Common.foldl' (\(Pair s p) x -> Pair (s + x) (p * x)) (Pair 0 1)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'sumProductFold
+inspect $ 'sumProductFold `hasNoType` ''S.Step
+inspect $ 'sumProductFold `hasNoType` ''FL.Step
+inspect $ 'sumProductFold `hasNoType` ''SPEC
+#endif
 
 {-# INLINE sumProductScan #-}
-sumProductScan :: Monad m => Stream m Int -> m (Pair Int Int)
-sumProductScan =
-    Common.foldl' (\(Pair _ p) (s0, x) -> Pair s0 (p * x)) (Pair 0 1) .
-    Common.scanl' (\(s, _) x -> (s + x, x)) (0, 0)
+sumProductScan :: Int -> IO (Pair Int Int)
+sumProductScan value =
+    withStream value $
+        Common.foldl' (\(Pair _ p) (s0, x) -> Pair s0 (p * x)) (Pair 0 1) .
+        Common.scanl' (\(s, _) x -> (s + x, x)) (0, 0)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'sumProductScan
+inspect $ 'sumProductScan `hasNoType` ''S.Step
+inspect $ 'sumProductScan `hasNoType` ''S.ScanState
+inspect $ 'sumProductScan `hasNoType` ''FL.Step
+inspect $ 'sumProductScan `hasNoType` ''SPEC
+#endif
 
 {-# INLINE foldl'ReduceMap #-}
-foldl'ReduceMap :: Monad m => Stream m Int -> m Int
-foldl'ReduceMap = fmap (+ 1) . Common.foldl' (+) 0
+foldl'ReduceMap :: Int -> IO Int
+foldl'ReduceMap value = withStream value $ fmap (+ 1) . Common.foldl' (+) 0
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'foldl'ReduceMap
+inspect $ 'foldl'ReduceMap `hasNoType` ''S.Step
+inspect $ 'foldl'ReduceMap `hasNoType` ''FL.Step
+inspect $ 'foldl'ReduceMap `hasNoType` ''SPEC
+#endif
 
 o_1_space_transformations_mixed :: Int -> [Benchmark]
 o_1_space_transformations_mixed value =
@@ -249,53 +745,53 @@ o_1_space_transformations_mixed value =
     -- library. If scan/fold followed by a map is efficient enough we may not
     -- need monolithic implementations of these.
     [ bgroup "mixed"
-        [ benchIOSink value "scanl-map" (scanMap 1)
-        , benchIOSink value "drop-map" (dropMap 1)
-        , benchIOSink value "drop-scan" (dropScan 1)
-        , benchIOSink value "take-drop" (takeDrop value 1)
-        , benchIOSink value "take-scan" (takeScan value 1)
-        , benchIOSink value "take-map" (takeMap value 1)
-        , benchIOSink value "filter-drop" (filterDrop value 1)
-        , benchIOSink value "filter-take" (filterTake value 1)
-        , benchIOSink value "filter-scan" (filterScan 1)
-        , benchIOSink value "filter-map" (filterMap value 1)
-        , benchIOSink value "foldl-map" foldl'ReduceMap
-        , benchIOSink value "sum-product-fold" sumProductFold
-        , benchIOSink value "sum-product-scan" sumProductScan
+        [ benchIO "scanl-map" $ scanMap1 value
+        , benchIO "drop-map" $ dropMap1 value
+        , benchIO "drop-scan" $ dropScan1 value
+        , benchIO "take-drop" $ takeDrop1 value
+        , benchIO "take-scan" $ takeScan1 value
+        , benchIO "take-map" $ takeMap1 value
+        , benchIO "filter-drop" $ filterDrop1 value
+        , benchIO "filter-take" $ filterTake1 value
+        , benchIO "filter-scan" $ filterScan1 value
+        , benchIO "filter-map" $ filterMap1 value
+        , benchIO "foldl-map" $ foldl'ReduceMap value
+        , benchIO "sum-product-fold" $ sumProductFold value
+        , benchIO "sum-product-scan" $ sumProductScan value
         ]
     ]
 
 o_1_space_transformations_mixedX2 :: Int -> [Benchmark]
 o_1_space_transformations_mixedX2 value =
     [ bgroup "mixedX2"
-        [ benchIOSink value "scan-map" (scanMap 2)
-        , benchIOSink value "drop-map" (dropMap 2)
-        , benchIOSink value "drop-scan" (dropScan 2)
-        , benchIOSink value "take-drop" (takeDrop value 2)
-        , benchIOSink value "take-scan" (takeScan value 2)
-        , benchIOSink value "take-map" (takeMap value 2)
-        , benchIOSink value "filter-drop" (filterDrop value 2)
-        , benchIOSink value "filter-take" (filterTake value 2)
-        , benchIOSink value "filter-scan" (filterScan 2)
-        , benchIOSink value "filter-scanl1" (filterScanl1 2)
-        , benchIOSink value "filter-map" (filterMap value 2)
+        [ benchIO "scan-map" $ scanMap2 value
+        , benchIO "drop-map" $ dropMap2 value
+        , benchIO "drop-scan" $ dropScan2 value
+        , benchIO "take-drop" $ takeDrop2 value
+        , benchIO "take-scan" $ takeScan2 value
+        , benchIO "take-map" $ takeMap2 value
+        , benchIO "filter-drop" $ filterDrop2 value
+        , benchIO "filter-take" $ filterTake2 value
+        , benchIO "filter-scan" $ filterScan2 value
+        , benchIO "filter-scanl1" $ filterScanl12 value
+        , benchIO "filter-map" $ filterMap2 value
         ]
     ]
 
 o_1_space_transformations_mixedX4 :: Int -> [Benchmark]
 o_1_space_transformations_mixedX4 value =
     [ bgroup "mixedX4"
-        [ benchIOSink value "scan-map" (scanMap 4)
-        , benchIOSink value "drop-map" (dropMap 4)
-        , benchIOSink value "drop-scan" (dropScan 4)
-        , benchIOSink value "take-drop" (takeDrop value 4)
-        , benchIOSink value "take-scan" (takeScan value 4)
-        , benchIOSink value "take-map" (takeMap value 4)
-        , benchIOSink value "filter-drop" (filterDrop value 4)
-        , benchIOSink value "filter-take" (filterTake value 4)
-        , benchIOSink value "filter-scan" (filterScan 4)
-        , benchIOSink value "filter-scanl1" (filterScanl1 4)
-        , benchIOSink value "filter-map" (filterMap value 4)
+        [ benchIO "scan-map" $ scanMap4 value
+        , benchIO "drop-map" $ dropMap4 value
+        , benchIO "drop-scan" $ dropScan4 value
+        , benchIO "take-drop" $ takeDrop4 value
+        , benchIO "take-scan" $ takeScan4 value
+        , benchIO "take-map" $ takeMap4 value
+        , benchIO "filter-drop" $ filterDrop4 value
+        , benchIO "filter-take" $ filterTake4 value
+        , benchIO "filter-scan" $ filterScan4 value
+        , benchIO "filter-scanl1" $ filterScanl14 value
+        , benchIO "filter-map" $ filterMap4 value
         ]
     ]
 
@@ -305,103 +801,181 @@ o_1_space_transformations_mixedX4 value =
 
 -- this is quadratic
 {-# INLINE iterateScan #-}
-iterateScan :: MonadAsync m => Int -> Int -> Int -> Stream m Int
-iterateScan = iterateSource (Common.scanl' (+) 0)
+iterateScan :: Int -> Int -> IO ()
+iterateScan value iterCount =
+    withRandomIntIO $ Common.drain . iterateSource (Common.scanl' (+) 0) (value `div` iterCount) iterCount
 
 -- this is quadratic
 {-# INLINE iterateScanl1 #-}
-iterateScanl1 :: MonadAsync m => Int -> Int -> Int -> Stream m Int
-iterateScanl1 = iterateSource (S.scanl1' (+))
+iterateScanl1 :: Int -> Int -> IO ()
+iterateScanl1 value iterCount =
+    withRandomIntIO $ Common.drain . iterateSource (S.scanl1' (+)) (value `div` iterCount) iterCount
+
 {-# INLINE iterateMapM #-}
-iterateMapM :: MonadAsync m => Int -> Int -> Int -> Stream m Int
-iterateMapM = iterateSource (S.mapM return)
+iterateMapM :: Int -> Int -> IO ()
+iterateMapM value iterCount =
+    withRandomIntIO $ Common.drain . iterateSource (S.mapM return) (value `div` iterCount) iterCount
 
 {-# INLINE iterateFilterEven #-}
-iterateFilterEven :: MonadAsync m => Int -> Int -> Int -> Stream m Int
-iterateFilterEven = iterateSource (S.filter even)
+iterateFilterEven :: Int -> Int -> IO ()
+iterateFilterEven value iterCount =
+    withRandomIntIO $ Common.drain . iterateSource (S.filter even) (value `div` iterCount) iterCount
 
 {-# INLINE iterateTakeAll #-}
-iterateTakeAll :: MonadAsync m => Int -> Int -> Int -> Int -> Stream m Int
-iterateTakeAll value = iterateSource (S.take (value + 1))
+iterateTakeAll :: Int -> Int -> IO ()
+iterateTakeAll value iterCount =
+    withRandomIntIO
+        $ Common.drain . iterateSource (S.take (value + 1)) (value `div` iterCount) iterCount
 
 {-# INLINE iterateDropOne #-}
-iterateDropOne :: MonadAsync m => Int -> Int -> Int -> Stream m Int
-iterateDropOne = iterateSource (S.drop 1)
+iterateDropOne :: Int -> Int -> IO ()
+iterateDropOne value iterCount =
+    withRandomIntIO $ Common.drain . iterateSource (S.drop 1) (value `div` iterCount) iterCount
 
 {-# INLINE iterateDropWhileTrue #-}
-iterateDropWhileTrue :: MonadAsync m
-    => Int -> Int -> Int -> Int -> Stream m Int
-iterateDropWhileTrue value = iterateSource (S.dropWhile (<= (value + 1)))
+iterateDropWhileTrue :: Int -> Int -> IO ()
+iterateDropWhileTrue value iterCount =
+    withRandomIntIO
+        $ Common.drain . iterateSource (S.dropWhile (<= (value + 1))) (value `div` iterCount) iterCount
 
 {-# INLINE iterateDropWhileFalse #-}
-iterateDropWhileFalse :: MonadAsync m
-    => Int -> Int -> Int -> Int -> Stream m Int
-iterateDropWhileFalse value = iterateSource (S.dropWhile (> (value + 1)))
+iterateDropWhileFalse :: Int -> Int -> IO ()
+iterateDropWhileFalse value iterCount =
+    withRandomIntIO
+        $ Common.drain . iterateSource (S.dropWhile (> (value + 1))) (value `div` iterCount) iterCount
 
 {-# INLINE tail #-}
-tail :: Monad m => Stream m a -> m ()
-tail s = S.tail s >>= mapM_ tail
+tail :: Int -> IO ()
+tail value = withStream value go
+    where go s = S.tail s >>= mapM_ go
 
 {-# INLINE nullHeadTail #-}
-nullHeadTail :: Monad m => Stream m Int -> m ()
-nullHeadTail s = do
-    r <- S.null s
-    when (not r) $ do
-        _ <- S.head s
-        S.tail s >>= mapM_ nullHeadTail
-
-nullTail :: Monad m => Stream m Int -> m ()
-nullTail s = do
-    r <- S.null s
-    when (not r) $ S.tail s >>= mapM_ nullTail
-
-headTail :: Monad m => Stream m Int -> m ()
-headTail s = do
-    h <- S.head s
-    when (isJust h) $ S.tail s >>= mapM_ headTail
-
--- Head recursive operations.
-o_n_stack_iterated :: Int -> [Benchmark]
-o_n_stack_iterated value = by10 `seq` by100 `seq`
-    [ bgroup "iterated"
-        [ benchIOSrc "mapM (n/10 x 10)" $ iterateMapM by10 10
-        , benchIOSrc "scanl' (quadratic) (n/100 x 100)" $
-            iterateScan by100 100
-        , benchIOSrc "scanl1' (n/10 x 10)" $ iterateScanl1 by10 10
-        , benchIOSrc "filterEven (n/10 x 10)" $
-            iterateFilterEven by10 10
-        , benchIOSrc "takeAll (n/10 x 10)" $
-            iterateTakeAll value by10 10
-        , benchIOSrc "dropOne (n/10 x 10)" $ iterateDropOne by10 10
-        , benchIOSrc "dropWhileTrue (n/10 x 10)" $
-            iterateDropWhileTrue value by10 10
-        , benchIOSrc "dropWhileFalse (n/10 x 10)" $
-            iterateDropWhileFalse value by10 10
-        , benchIOSink value "tail" tail
-        , benchIOSink value "nullTail" nullTail
-        , benchIOSink value "headTail" headTail
-        , benchIOSink value "nullHeadTail" nullHeadTail
-     ]
-    ]
-
+nullHeadTail :: Int -> IO ()
+nullHeadTail value = withStream value go
     where
+    go s = do
+        r <- S.null s
+        when (not r) $ do
+            _ <- S.head s
+            S.tail s >>= mapM_ go
 
-    by10 = value `div` 10
-    by100 = value `div` 100
+nullTail :: Int -> IO ()
+nullTail value = withStream value go
+    where
+    go s = do
+        r <- S.null s
+        when (not r) $ S.tail s >>= mapM_ go
+
+headTail :: Int -> IO ()
+headTail value = withStream value go
+    where
+    go s = do
+        h <- S.head s
+        when (isJust h) $ S.tail s >>= mapM_ go
+
+o_n_stack_iterated :: Int -> [Benchmark]
+o_n_stack_iterated value =
+    [ bgroup "iterated"
+        [ benchIO "mapM (n/10 x 10)" $ iterateMapM value 10
+        , benchIO "scanl' (quadratic) (n/100 x 100)" $ iterateScan value 100
+        , benchIO "scanl1' (n/10 x 10)" $ iterateScanl1 value 10
+        , benchIO "filterEven (n/10 x 10)" $ iterateFilterEven value 10
+        , benchIO "takeAll (n/10 x 10)" $ iterateTakeAll value 10
+        , benchIO "dropOne (n/10 x 10)" $ iterateDropOne value 10
+        , benchIO "dropWhileTrue (n/10 x 10)" $ iterateDropWhileTrue value 10
+        , benchIO "dropWhileFalse (n/10 x 10)" $ iterateDropWhileFalse value 10
+        , benchIO "tail" $ tail value
+        , benchIO "nullTail" $ nullTail value
+        , benchIO "headTail" $ headTail value
+        , benchIO "nullHeadTail" $ nullHeadTail value
+        ]
+    ]
 
 -------------------------------------------------------------------------------
 -- Pipes
 -------------------------------------------------------------------------------
 
+{-# INLINE pipeMapM #-}
+pipeMapM :: Int -> IO ()
+pipeMapM value = withStream value (transformMapM 1)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'pipeMapM
+inspect $ 'pipeMapM `hasNoType` ''S.Step
+inspect $ 'pipeMapM `hasNoType` ''S.PipeState
+inspect $ 'pipeMapM `hasNoType` ''FL.Step
+inspect $ 'pipeMapM `hasNoType` ''SPEC
+#endif
+
+{-# INLINE pipeCompose #-}
+pipeCompose :: Int -> IO ()
+pipeCompose value = withStream value (transformComposeMapM 1)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'pipeCompose
+inspect $ 'pipeCompose `hasNoType` ''S.Step
+inspect $ 'pipeCompose `hasNoType` ''S.PipeState
+inspect $ 'pipeCompose `hasNoType` ''FL.Step
+inspect $ 'pipeCompose `hasNoType` ''SPEC
+#endif
+
+{-# INLINE pipeTee #-}
+pipeTee :: Int -> IO ()
+pipeTee value = withStream value (transformTeeMapM 1)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'pipeTee
+inspect $ 'pipeTee `hasNoType` ''S.Step
+inspect $ 'pipeTee `hasNoType` ''S.PipeState
+inspect $ 'pipeTee `hasNoType` ''FL.Step
+inspect $ 'pipeTee `hasNoType` ''SPEC
+#endif
+
+{-# INLINE pipeMapMX4 #-}
+pipeMapMX4 :: Int -> IO ()
+pipeMapMX4 value = withStream value (transformMapM 4)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'pipeMapMX4
+inspect $ 'pipeMapMX4 `hasNoType` ''S.Step
+inspect $ 'pipeMapMX4 `hasNoType` ''S.PipeState
+inspect $ 'pipeMapMX4 `hasNoType` ''FL.Step
+inspect $ 'pipeMapMX4 `hasNoType` ''SPEC
+#endif
+
+{-# INLINE pipeComposeX4 #-}
+pipeComposeX4 :: Int -> IO ()
+pipeComposeX4 value = withStream value (transformComposeMapM 4)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'pipeComposeX4
+inspect $ 'pipeComposeX4 `hasNoType` ''S.Step
+inspect $ 'pipeComposeX4 `hasNoType` ''S.PipeState
+inspect $ 'pipeComposeX4 `hasNoType` ''FL.Step
+inspect $ 'pipeComposeX4 `hasNoType` ''SPEC
+#endif
+
+{-# INLINE pipeTeeX4 #-}
+pipeTeeX4 :: Int -> IO ()
+pipeTeeX4 value = withStream value (transformTeeMapM 4)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'pipeTeeX4
+inspect $ 'pipeTeeX4 `hasNoType` ''S.Step
+inspect $ 'pipeTeeX4 `hasNoType` ''S.PipeState
+inspect $ 'pipeTeeX4 `hasNoType` ''FL.Step
+inspect $ 'pipeTeeX4 `hasNoType` ''SPEC
+#endif
+
 o_1_space_pipes :: Int -> [Benchmark]
 o_1_space_pipes value =
     [ bgroup "pipes"
-        [ benchIOSink value "mapM" (transformMapM 1)
-        , benchIOSink value "compose" (transformComposeMapM 1)
-        , benchIOSink value "tee" (transformTeeMapM 1)
+        [ benchIO "mapM" $ pipeMapM value
+        , benchIO "compose" $ pipeCompose value
+        , benchIO "tee" $ pipeTee value
 #ifdef DEVBUILD
         -- XXX this take 1 GB memory to compile
-        -- , benchIOSink value "zip" (transformZipMapM 1)
+        -- , benchIO "zip" $ pipeZip value
 #endif
         ]
     ]
@@ -409,13 +983,13 @@ o_1_space_pipes value =
 o_1_space_pipesX4 :: Int -> [Benchmark]
 o_1_space_pipesX4 value =
     [ bgroup "pipesX4"
-        [ benchIOSink value "mapM" (transformMapM 4)
-        , benchIOSink value "compose" (transformComposeMapM 4)
+        [ benchIO "mapM" $ pipeMapMX4 value
+        , benchIO "compose" $ pipeComposeX4 value
         -- XXX requires @-fspec-constr-recursive=16@.
-        , benchIOSink value "tee" (transformTeeMapM 4)
+        , benchIO "tee" $ pipeTeeX4 value
 #ifdef DEVBUILD
         -- XXX this take 1 GB memory to compile
-        -- , benchIOSink value "zip" (transformZipMapM 4)
+        -- , benchIO "zip" $ pipeZipX4 value
 #endif
         ]
     ]
@@ -424,540 +998,95 @@ o_1_space_pipesX4 value =
 -- Scans
 -------------------------------------------------------------------------------
 
+{-# INLINE scansMapM #-}
+scansMapM :: Int -> IO ()
+scansMapM value = withStream value (scanMapM 1)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'scansMapM
+inspect $ 'scansMapM `hasNoType` ''S.Step
+inspect $ 'scansMapM `hasNoType` ''S.RunScanState
+inspect $ 'scansMapM `hasNoType` ''FL.Step
+inspect $ 'scansMapM `hasNoType` ''SPEC
+#endif
+
+{-# INLINE scansCompose #-}
+scansCompose :: Int -> IO ()
+scansCompose value = withStream value (scanComposeMapM 1)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'scansCompose
+inspect $ 'scansCompose `hasNoType` ''S.Step
+inspect $ 'scansCompose `hasNoType` ''S.RunScanState
+inspect $ 'scansCompose `hasNoType` ''FL.Step
+inspect $ 'scansCompose `hasNoType` ''SPEC
+#endif
+
+{-# INLINE scansTee #-}
+scansTee :: Int -> IO ()
+scansTee value = withStream value (scanTeeMapM 1)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'scansTee
+inspect $ 'scansTee `hasNoType` ''S.Step
+inspect $ 'scansTee `hasNoType` ''S.RunScanState
+inspect $ 'scansTee `hasNoType` ''FL.Step
+inspect $ 'scansTee `hasNoType` ''SPEC
+#endif
+
+{-# INLINE scansMapMX4 #-}
+scansMapMX4 :: Int -> IO ()
+scansMapMX4 value = withStream value (scanMapM 4)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'scansMapMX4
+inspect $ 'scansMapMX4 `hasNoType` ''S.Step
+inspect $ 'scansMapMX4 `hasNoType` ''S.RunScanState
+inspect $ 'scansMapMX4 `hasNoType` ''FL.Step
+inspect $ 'scansMapMX4 `hasNoType` ''SPEC
+#endif
+
+{-# INLINE scansComposeX4 #-}
+scansComposeX4 :: Int -> IO ()
+scansComposeX4 value = withStream value (scanComposeMapM 4)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'scansComposeX4
+inspect $ 'scansComposeX4 `hasNoType` ''S.Step
+inspect $ 'scansComposeX4 `hasNoType` ''S.RunScanState
+inspect $ 'scansComposeX4 `hasNoType` ''FL.Step
+inspect $ 'scansComposeX4 `hasNoType` ''SPEC
+#endif
+
+{-# INLINE scansTeeX4 #-}
+scansTeeX4 :: Int -> IO ()
+scansTeeX4 value = withStream value (scanTeeMapM 4)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'scansTeeX4
+inspect $ 'scansTeeX4 `hasNoType` ''S.Step
+inspect $ 'scansTeeX4 `hasNoType` ''S.RunScanState
+inspect $ 'scansTeeX4 `hasNoType` ''FL.Step
+inspect $ 'scansTeeX4 `hasNoType` ''SPEC
+#endif
+
 o_1_space_scans :: Int -> [Benchmark]
 o_1_space_scans value =
     [ bgroup "scans"
-        [
-          benchIOSink value "mapM" (scanMapM 1)
-        , benchIOSink value "compose" (scanComposeMapM 1)
-        , benchIOSink value "tee" (scanTeeMapM 1)
+        [ benchIO "mapM" $ scansMapM value
+        , benchIO "compose" $ scansCompose value
+        , benchIO "tee" $ scansTee value
         ]
     ]
 
 o_1_space_scansX4 :: Int -> [Benchmark]
 o_1_space_scansX4 value =
     [ bgroup "scansX4"
-        [ benchIOSink value "mapM" (scanMapM 4)
-        , benchIOSink value "compose" (scanComposeMapM 4)
-        , benchIOSink value "tee" (scanTeeMapM 4)
+        [ benchIO "mapM" $ scansMapMX4 value
+        , benchIO "compose" $ scansComposeX4 value
+        , benchIO "tee" $ scansTeeX4 value
         ]
     ]
-
--------------------------------------------------------------------------------
--- Inspection
--------------------------------------------------------------------------------
-
-#ifdef INSPECTION
--- These benchmarks take an abstract input 'Stream', so a 'Step'-free core can
--- only be checked on a complete pipeline. We bake in a concrete
--- 'sourceUnfoldrM' source (the same one 'benchIOSink' supplies) and assert the
--- whole generate+transform+drain pipeline fully fuses: no 'Step' constructors
--- remain in the optimized core. Combinators that buffer or recurse through
--- opaque state keep their 'Step' constructors; those checks are kept but
--- commented out.
-
--- grouping
-{-# INLINE inspGroups #-}
-inspGroups :: Int -> Int -> IO ()
-inspGroups value n = groups (sourceUnfoldrM value n)
-
-{-# INLINE inspGroupsWhileLT #-}
-inspGroupsWhileLT :: Int -> Int -> IO ()
-inspGroupsWhileLT value n = groupsWhileLT (sourceUnfoldrM value n)
-
-{-# INLINE inspGroupsWhileEq #-}
-inspGroupsWhileEq :: Int -> Int -> IO ()
-inspGroupsWhileEq value n = groupsWhileEq (sourceUnfoldrM value n)
-
-{-# INLINE inspGroupsByRollingLT #-}
-inspGroupsByRollingLT :: Int -> Int -> IO ()
-inspGroupsByRollingLT value n = groupsByRollingLT (sourceUnfoldrM value n)
-
-{-# INLINE inspGroupsByRollingEq #-}
-inspGroupsByRollingEq :: Int -> Int -> IO ()
-inspGroupsByRollingEq value n = groupsByRollingEq (sourceUnfoldrM value n)
-
-{-# INLINE inspFoldMany #-}
-inspFoldMany :: Int -> Int -> IO ()
-inspFoldMany value n = foldMany (sourceUnfoldrM value n)
-
-{-# INLINE inspFoldMany1 #-}
-inspFoldMany1 :: Int -> Int -> IO ()
-inspFoldMany1 value n = foldMany1 (sourceUnfoldrM value n)
-
-{-# INLINE inspRefoldMany #-}
-inspRefoldMany :: Int -> Int -> IO ()
-inspRefoldMany value n = refoldMany (sourceUnfoldrM value n)
-
-{-# INLINE inspFoldIterateM #-}
-inspFoldIterateM :: Int -> Int -> IO ()
-inspFoldIterateM value n = foldIterateM (sourceUnfoldrM value n)
-
-{-# INLINE inspRefoldIterateM #-}
-inspRefoldIterateM :: Int -> Int -> IO ()
-inspRefoldIterateM value n = refoldIterateM (sourceUnfoldrM value n)
-
--- mixed (compose 1)
-{-# INLINE inspScanMap #-}
-inspScanMap :: Int -> Int -> IO ()
-inspScanMap value n = scanMap 1 (sourceUnfoldrM value n)
-
-{-# INLINE inspDropMap #-}
-inspDropMap :: Int -> Int -> IO ()
-inspDropMap value n = dropMap 1 (sourceUnfoldrM value n)
-
-{-# INLINE inspDropScan #-}
-inspDropScan :: Int -> Int -> IO ()
-inspDropScan value n = dropScan 1 (sourceUnfoldrM value n)
-
-{-# INLINE inspTakeDrop #-}
-inspTakeDrop :: Int -> Int -> IO ()
-inspTakeDrop value n = takeDrop value 1 (sourceUnfoldrM value n)
-
-{-# INLINE inspTakeScan #-}
-inspTakeScan :: Int -> Int -> IO ()
-inspTakeScan value n = takeScan value 1 (sourceUnfoldrM value n)
-
-{-# INLINE inspTakeMap #-}
-inspTakeMap :: Int -> Int -> IO ()
-inspTakeMap value n = takeMap value 1 (sourceUnfoldrM value n)
-
-{-# INLINE inspFilterDrop #-}
-inspFilterDrop :: Int -> Int -> IO ()
-inspFilterDrop value n = filterDrop value 1 (sourceUnfoldrM value n)
-
-{-# INLINE inspFilterTake #-}
-inspFilterTake :: Int -> Int -> IO ()
-inspFilterTake value n = filterTake value 1 (sourceUnfoldrM value n)
-
-{-# INLINE inspFilterScan #-}
-inspFilterScan :: Int -> Int -> IO ()
-inspFilterScan value n = filterScan 1 (sourceUnfoldrM value n)
-
-{-# INLINE inspFilterMap #-}
-inspFilterMap :: Int -> Int -> IO ()
-inspFilterMap value n = filterMap value 1 (sourceUnfoldrM value n)
-
-{-# INLINE inspFoldlReduceMap #-}
-inspFoldlReduceMap :: Int -> Int -> IO Int
-inspFoldlReduceMap value n = foldl'ReduceMap (sourceUnfoldrM value n)
-
-{-# INLINE inspSumProductFold #-}
-inspSumProductFold :: Int -> Int -> IO (Pair Int Int)
-inspSumProductFold value n = sumProductFold (sourceUnfoldrM value n)
-
-{-# INLINE inspSumProductScan #-}
-inspSumProductScan :: Int -> Int -> IO (Pair Int Int)
-inspSumProductScan value n = sumProductScan (sourceUnfoldrM value n)
-
--- mixedX2 (compose 2)
-{-# INLINE inspScanMapX2 #-}
-inspScanMapX2 :: Int -> Int -> IO ()
-inspScanMapX2 value n = scanMap 2 (sourceUnfoldrM value n)
-
-{-# INLINE inspDropMapX2 #-}
-inspDropMapX2 :: Int -> Int -> IO ()
-inspDropMapX2 value n = dropMap 2 (sourceUnfoldrM value n)
-
-{-# INLINE inspDropScanX2 #-}
-inspDropScanX2 :: Int -> Int -> IO ()
-inspDropScanX2 value n = dropScan 2 (sourceUnfoldrM value n)
-
-{-# INLINE inspTakeDropX2 #-}
-inspTakeDropX2 :: Int -> Int -> IO ()
-inspTakeDropX2 value n = takeDrop value 2 (sourceUnfoldrM value n)
-
-{-# INLINE inspTakeScanX2 #-}
-inspTakeScanX2 :: Int -> Int -> IO ()
-inspTakeScanX2 value n = takeScan value 2 (sourceUnfoldrM value n)
-
-{-# INLINE inspTakeMapX2 #-}
-inspTakeMapX2 :: Int -> Int -> IO ()
-inspTakeMapX2 value n = takeMap value 2 (sourceUnfoldrM value n)
-
-{-# INLINE inspFilterDropX2 #-}
-inspFilterDropX2 :: Int -> Int -> IO ()
-inspFilterDropX2 value n = filterDrop value 2 (sourceUnfoldrM value n)
-
-{-# INLINE inspFilterTakeX2 #-}
-inspFilterTakeX2 :: Int -> Int -> IO ()
-inspFilterTakeX2 value n = filterTake value 2 (sourceUnfoldrM value n)
-
-{-# INLINE inspFilterScanX2 #-}
-inspFilterScanX2 :: Int -> Int -> IO ()
-inspFilterScanX2 value n = filterScan 2 (sourceUnfoldrM value n)
-
-{-# INLINE inspFilterScanl1X2 #-}
-inspFilterScanl1X2 :: Int -> Int -> IO ()
-inspFilterScanl1X2 value n = filterScanl1 2 (sourceUnfoldrM value n)
-
-{-# INLINE inspFilterMapX2 #-}
-inspFilterMapX2 :: Int -> Int -> IO ()
-inspFilterMapX2 value n = filterMap value 2 (sourceUnfoldrM value n)
-
--- mixedX4 (compose 4)
-{-# INLINE inspScanMapX4 #-}
-inspScanMapX4 :: Int -> Int -> IO ()
-inspScanMapX4 value n = scanMap 4 (sourceUnfoldrM value n)
-
-{-# INLINE inspDropMapX4 #-}
-inspDropMapX4 :: Int -> Int -> IO ()
-inspDropMapX4 value n = dropMap 4 (sourceUnfoldrM value n)
-
-{-# INLINE inspDropScanX4 #-}
-inspDropScanX4 :: Int -> Int -> IO ()
-inspDropScanX4 value n = dropScan 4 (sourceUnfoldrM value n)
-
-{-# INLINE inspTakeDropX4 #-}
-inspTakeDropX4 :: Int -> Int -> IO ()
-inspTakeDropX4 value n = takeDrop value 4 (sourceUnfoldrM value n)
-
-{-# INLINE inspTakeScanX4 #-}
-inspTakeScanX4 :: Int -> Int -> IO ()
-inspTakeScanX4 value n = takeScan value 4 (sourceUnfoldrM value n)
-
-{-# INLINE inspTakeMapX4 #-}
-inspTakeMapX4 :: Int -> Int -> IO ()
-inspTakeMapX4 value n = takeMap value 4 (sourceUnfoldrM value n)
-
-{-# INLINE inspFilterDropX4 #-}
-inspFilterDropX4 :: Int -> Int -> IO ()
-inspFilterDropX4 value n = filterDrop value 4 (sourceUnfoldrM value n)
-
-{-# INLINE inspFilterTakeX4 #-}
-inspFilterTakeX4 :: Int -> Int -> IO ()
-inspFilterTakeX4 value n = filterTake value 4 (sourceUnfoldrM value n)
-
-{-# INLINE inspFilterScanX4 #-}
-inspFilterScanX4 :: Int -> Int -> IO ()
-inspFilterScanX4 value n = filterScan 4 (sourceUnfoldrM value n)
-
-{-# INLINE inspFilterScanl1X4 #-}
-inspFilterScanl1X4 :: Int -> Int -> IO ()
-inspFilterScanl1X4 value n = filterScanl1 4 (sourceUnfoldrM value n)
-
-{-# INLINE inspFilterMapX4 #-}
-inspFilterMapX4 :: Int -> Int -> IO ()
-inspFilterMapX4 value n = filterMap value 4 (sourceUnfoldrM value n)
-
--- pipes
-{-# INLINE inspPipeMapM #-}
-inspPipeMapM :: Int -> Int -> IO ()
-inspPipeMapM value n = transformMapM 1 (sourceUnfoldrM value n)
-
-{-# INLINE inspPipeCompose #-}
-inspPipeCompose :: Int -> Int -> IO ()
-inspPipeCompose value n = transformComposeMapM 1 (sourceUnfoldrM value n)
-
-{-# INLINE inspPipeTee #-}
-inspPipeTee :: Int -> Int -> IO ()
-inspPipeTee value n = transformTeeMapM 1 (sourceUnfoldrM value n)
-
-{-# INLINE inspPipeMapMX4 #-}
-inspPipeMapMX4 :: Int -> Int -> IO ()
-inspPipeMapMX4 value n = transformMapM 4 (sourceUnfoldrM value n)
-
-{-# INLINE inspPipeComposeX4 #-}
-inspPipeComposeX4 :: Int -> Int -> IO ()
-inspPipeComposeX4 value n = transformComposeMapM 4 (sourceUnfoldrM value n)
-
-{-# INLINE inspPipeTeeX4 #-}
-inspPipeTeeX4 :: Int -> Int -> IO ()
-inspPipeTeeX4 value n = transformTeeMapM 4 (sourceUnfoldrM value n)
-
--- scans
-{-# INLINE inspScanMapM #-}
-inspScanMapM :: Int -> Int -> IO ()
-inspScanMapM value n = scanMapM 1 (sourceUnfoldrM value n)
-
-{-# INLINE inspScanCompose #-}
-inspScanCompose :: Int -> Int -> IO ()
-inspScanCompose value n = scanComposeMapM 1 (sourceUnfoldrM value n)
-
-{-# INLINE inspScanTee #-}
-inspScanTee :: Int -> Int -> IO ()
-inspScanTee value n = scanTeeMapM 1 (sourceUnfoldrM value n)
-
-{-# INLINE inspScanMapMX4 #-}
-inspScanMapMX4 :: Int -> Int -> IO ()
-inspScanMapMX4 value n = scanMapM 4 (sourceUnfoldrM value n)
-
-{-# INLINE inspScanComposeX4 #-}
-inspScanComposeX4 :: Int -> Int -> IO ()
-inspScanComposeX4 value n = scanComposeMapM 4 (sourceUnfoldrM value n)
-
-{-# INLINE inspScanTeeX4 #-}
-inspScanTeeX4 :: Int -> Int -> IO ()
-inspScanTeeX4 value n = scanTeeMapM 4 (sourceUnfoldrM value n)
-
--- buffered (reverse materializes the whole stream)
-{-# INLINE inspReverse #-}
-inspReverse :: Int -> Int -> IO ()
-inspReverse value n = reverse 1 (sourceUnfoldrM value n)
-
-{-# INLINE inspReverse' #-}
-inspReverse' :: Int -> Int -> IO ()
-inspReverse' value n = reverse' 1 (sourceUnfoldrM value n)
-
--- grouping. 'groupsWhile' nests an inner fold over the stream, so a 'Step'
--- constructor survives (the 'groupsRollingBy' variants below do fuse).
-inspect $ hasNoTypeClasses 'inspGroups
--- inspect $ 'inspGroups `hasNoType` ''S.Step
-inspect $ 'inspGroups `hasNoType` ''FL.Step
-inspect $ 'inspGroups `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspGroupsWhileLT
--- inspect $ 'inspGroupsWhileLT `hasNoType` ''S.Step
-inspect $ 'inspGroupsWhileLT `hasNoType` ''FL.Step
-inspect $ 'inspGroupsWhileLT `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspGroupsWhileEq
--- inspect $ 'inspGroupsWhileEq `hasNoType` ''S.Step
-inspect $ 'inspGroupsWhileEq `hasNoType` ''FL.Step
-inspect $ 'inspGroupsWhileEq `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspGroupsByRollingLT
-inspect $ 'inspGroupsByRollingLT `hasNoType` ''S.Step
-inspect $ 'inspGroupsByRollingLT `hasNoType` ''FL.Step
-inspect $ 'inspGroupsByRollingLT `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspGroupsByRollingEq
-inspect $ 'inspGroupsByRollingEq `hasNoType` ''S.Step
-inspect $ 'inspGroupsByRollingEq `hasNoType` ''FL.Step
-inspect $ 'inspGroupsByRollingEq `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspFoldMany
-inspect $ 'inspFoldMany `hasNoType` ''S.Step
-inspect $ 'inspFoldMany `hasNoType` ''FL.Step
-inspect $ 'inspFoldMany `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspFoldMany1
-inspect $ 'inspFoldMany1 `hasNoType` ''S.Step
-inspect $ 'inspFoldMany1 `hasNoType` ''FL.Step
-inspect $ 'inspFoldMany1 `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspRefoldMany
-inspect $ 'inspRefoldMany `hasNoType` ''S.Step
-inspect $ 'inspRefoldMany `hasNoType` ''FL.Step
-inspect $ 'inspRefoldMany `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspFoldIterateM
-inspect $ 'inspFoldIterateM `hasNoType` ''S.Step
-inspect $ 'inspFoldIterateM `hasNoType` ''FL.Step
-inspect $ 'inspFoldIterateM `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspRefoldIterateM
-inspect $ 'inspRefoldIterateM `hasNoType` ''S.Step
-inspect $ 'inspRefoldIterateM `hasNoType` ''FL.Step
-inspect $ 'inspRefoldIterateM `hasNoType` ''SPEC
-
--- mixed
-inspect $ hasNoTypeClasses 'inspScanMap
-inspect $ 'inspScanMap `hasNoType` ''S.Step
-inspect $ 'inspScanMap `hasNoType` ''FL.Step
-inspect $ 'inspScanMap `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspDropMap
-inspect $ 'inspDropMap `hasNoType` ''S.Step
-inspect $ 'inspDropMap `hasNoType` ''FL.Step
-inspect $ 'inspDropMap `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspDropScan
-inspect $ 'inspDropScan `hasNoType` ''S.Step
-inspect $ 'inspDropScan `hasNoType` ''FL.Step
-inspect $ 'inspDropScan `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspTakeDrop
-inspect $ 'inspTakeDrop `hasNoType` ''S.Step
-inspect $ 'inspTakeDrop `hasNoType` ''FL.Step
-inspect $ 'inspTakeDrop `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspTakeScan
-inspect $ 'inspTakeScan `hasNoType` ''S.Step
-inspect $ 'inspTakeScan `hasNoType` ''FL.Step
-inspect $ 'inspTakeScan `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspTakeMap
-inspect $ 'inspTakeMap `hasNoType` ''S.Step
-inspect $ 'inspTakeMap `hasNoType` ''FL.Step
-inspect $ 'inspTakeMap `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspFilterDrop
-inspect $ 'inspFilterDrop `hasNoType` ''S.Step
-inspect $ 'inspFilterDrop `hasNoType` ''FL.Step
-inspect $ 'inspFilterDrop `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspFilterTake
-inspect $ 'inspFilterTake `hasNoType` ''S.Step
-inspect $ 'inspFilterTake `hasNoType` ''FL.Step
-inspect $ 'inspFilterTake `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspFilterScan
-inspect $ 'inspFilterScan `hasNoType` ''S.Step
-inspect $ 'inspFilterScan `hasNoType` ''FL.Step
-inspect $ 'inspFilterScan `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspFilterMap
-inspect $ 'inspFilterMap `hasNoType` ''S.Step
-inspect $ 'inspFilterMap `hasNoType` ''FL.Step
-inspect $ 'inspFilterMap `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspFoldlReduceMap
-inspect $ 'inspFoldlReduceMap `hasNoType` ''S.Step
-inspect $ 'inspFoldlReduceMap `hasNoType` ''FL.Step
-inspect $ 'inspFoldlReduceMap `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspSumProductFold
-inspect $ 'inspSumProductFold `hasNoType` ''S.Step
-inspect $ 'inspSumProductFold `hasNoType` ''FL.Step
-inspect $ 'inspSumProductFold `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspSumProductScan
-inspect $ 'inspSumProductScan `hasNoType` ''S.Step
-inspect $ 'inspSumProductScan `hasNoType` ''FL.Step
-inspect $ 'inspSumProductScan `hasNoType` ''SPEC
-
--- mixedX2
-inspect $ hasNoTypeClasses 'inspScanMapX2
-inspect $ 'inspScanMapX2 `hasNoType` ''S.Step
-inspect $ 'inspScanMapX2 `hasNoType` ''FL.Step
-inspect $ 'inspScanMapX2 `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspDropMapX2
-inspect $ 'inspDropMapX2 `hasNoType` ''S.Step
-inspect $ 'inspDropMapX2 `hasNoType` ''FL.Step
-inspect $ 'inspDropMapX2 `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspDropScanX2
-inspect $ 'inspDropScanX2 `hasNoType` ''S.Step
-inspect $ 'inspDropScanX2 `hasNoType` ''FL.Step
-inspect $ 'inspDropScanX2 `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspTakeDropX2
-inspect $ 'inspTakeDropX2 `hasNoType` ''S.Step
-inspect $ 'inspTakeDropX2 `hasNoType` ''FL.Step
-inspect $ 'inspTakeDropX2 `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspTakeScanX2
-inspect $ 'inspTakeScanX2 `hasNoType` ''S.Step
-inspect $ 'inspTakeScanX2 `hasNoType` ''FL.Step
-inspect $ 'inspTakeScanX2 `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspTakeMapX2
-inspect $ 'inspTakeMapX2 `hasNoType` ''S.Step
-inspect $ 'inspTakeMapX2 `hasNoType` ''FL.Step
-inspect $ 'inspTakeMapX2 `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspFilterDropX2
-inspect $ 'inspFilterDropX2 `hasNoType` ''S.Step
-inspect $ 'inspFilterDropX2 `hasNoType` ''FL.Step
-inspect $ 'inspFilterDropX2 `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspFilterTakeX2
-inspect $ 'inspFilterTakeX2 `hasNoType` ''S.Step
-inspect $ 'inspFilterTakeX2 `hasNoType` ''FL.Step
-inspect $ 'inspFilterTakeX2 `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspFilterScanX2
-inspect $ 'inspFilterScanX2 `hasNoType` ''S.Step
-inspect $ 'inspFilterScanX2 `hasNoType` ''FL.Step
-inspect $ 'inspFilterScanX2 `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspFilterScanl1X2
-inspect $ 'inspFilterScanl1X2 `hasNoType` ''S.Step
-inspect $ 'inspFilterScanl1X2 `hasNoType` ''FL.Step
-inspect $ 'inspFilterScanl1X2 `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspFilterMapX2
-inspect $ 'inspFilterMapX2 `hasNoType` ''S.Step
-inspect $ 'inspFilterMapX2 `hasNoType` ''FL.Step
-inspect $ 'inspFilterMapX2 `hasNoType` ''SPEC
-
--- mixedX4
-inspect $ hasNoTypeClasses 'inspScanMapX4
-inspect $ 'inspScanMapX4 `hasNoType` ''S.Step
-inspect $ 'inspScanMapX4 `hasNoType` ''FL.Step
-inspect $ 'inspScanMapX4 `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspDropMapX4
-inspect $ 'inspDropMapX4 `hasNoType` ''S.Step
-inspect $ 'inspDropMapX4 `hasNoType` ''FL.Step
-inspect $ 'inspDropMapX4 `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspDropScanX4
-inspect $ 'inspDropScanX4 `hasNoType` ''S.Step
-inspect $ 'inspDropScanX4 `hasNoType` ''FL.Step
-inspect $ 'inspDropScanX4 `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspTakeDropX4
-inspect $ 'inspTakeDropX4 `hasNoType` ''S.Step
-inspect $ 'inspTakeDropX4 `hasNoType` ''FL.Step
-inspect $ 'inspTakeDropX4 `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspTakeScanX4
-inspect $ 'inspTakeScanX4 `hasNoType` ''S.Step
-inspect $ 'inspTakeScanX4 `hasNoType` ''FL.Step
-inspect $ 'inspTakeScanX4 `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspTakeMapX4
-inspect $ 'inspTakeMapX4 `hasNoType` ''S.Step
-inspect $ 'inspTakeMapX4 `hasNoType` ''FL.Step
-inspect $ 'inspTakeMapX4 `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspFilterDropX4
-inspect $ 'inspFilterDropX4 `hasNoType` ''S.Step
-inspect $ 'inspFilterDropX4 `hasNoType` ''FL.Step
-inspect $ 'inspFilterDropX4 `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspFilterTakeX4
-inspect $ 'inspFilterTakeX4 `hasNoType` ''S.Step
-inspect $ 'inspFilterTakeX4 `hasNoType` ''FL.Step
-inspect $ 'inspFilterTakeX4 `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspFilterScanX4
-inspect $ 'inspFilterScanX4 `hasNoType` ''S.Step
-inspect $ 'inspFilterScanX4 `hasNoType` ''FL.Step
-inspect $ 'inspFilterScanX4 `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspFilterScanl1X4
-inspect $ 'inspFilterScanl1X4 `hasNoType` ''S.Step
-inspect $ 'inspFilterScanl1X4 `hasNoType` ''FL.Step
-inspect $ 'inspFilterScanl1X4 `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspFilterMapX4
-inspect $ 'inspFilterMapX4 `hasNoType` ''S.Step
-inspect $ 'inspFilterMapX4 `hasNoType` ''FL.Step
-inspect $ 'inspFilterMapX4 `hasNoType` ''SPEC
-
--- pipes
-inspect $ hasNoTypeClasses 'inspPipeMapM
-inspect $ 'inspPipeMapM `hasNoType` ''S.Step
-inspect $ 'inspPipeMapM `hasNoType` ''FL.Step
-inspect $ 'inspPipeMapM `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspPipeCompose
-inspect $ 'inspPipeCompose `hasNoType` ''S.Step
-inspect $ 'inspPipeCompose `hasNoType` ''FL.Step
-inspect $ 'inspPipeCompose `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspPipeTee
-inspect $ 'inspPipeTee `hasNoType` ''S.Step
-inspect $ 'inspPipeTee `hasNoType` ''FL.Step
-inspect $ 'inspPipeTee `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspPipeMapMX4
-inspect $ 'inspPipeMapMX4 `hasNoType` ''S.Step
-inspect $ 'inspPipeMapMX4 `hasNoType` ''FL.Step
-inspect $ 'inspPipeMapMX4 `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspPipeComposeX4
-inspect $ 'inspPipeComposeX4 `hasNoType` ''S.Step
-inspect $ 'inspPipeComposeX4 `hasNoType` ''FL.Step
-inspect $ 'inspPipeComposeX4 `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspPipeTeeX4
-inspect $ 'inspPipeTeeX4 `hasNoType` ''S.Step
-inspect $ 'inspPipeTeeX4 `hasNoType` ''FL.Step
-inspect $ 'inspPipeTeeX4 `hasNoType` ''SPEC
-
--- scans
-inspect $ hasNoTypeClasses 'inspScanMapM
-inspect $ 'inspScanMapM `hasNoType` ''S.Step
-inspect $ 'inspScanMapM `hasNoType` ''FL.Step
-inspect $ 'inspScanMapM `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspScanCompose
-inspect $ 'inspScanCompose `hasNoType` ''S.Step
-inspect $ 'inspScanCompose `hasNoType` ''FL.Step
-inspect $ 'inspScanCompose `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspScanTee
-inspect $ 'inspScanTee `hasNoType` ''S.Step
-inspect $ 'inspScanTee `hasNoType` ''FL.Step
-inspect $ 'inspScanTee `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspScanMapMX4
-inspect $ 'inspScanMapMX4 `hasNoType` ''S.Step
-inspect $ 'inspScanMapMX4 `hasNoType` ''FL.Step
-inspect $ 'inspScanMapMX4 `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspScanComposeX4
-inspect $ 'inspScanComposeX4 `hasNoType` ''S.Step
-inspect $ 'inspScanComposeX4 `hasNoType` ''FL.Step
-inspect $ 'inspScanComposeX4 `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspScanTeeX4
-inspect $ 'inspScanTeeX4 `hasNoType` ''S.Step
-inspect $ 'inspScanTeeX4 `hasNoType` ''FL.Step
-inspect $ 'inspScanTeeX4 `hasNoType` ''SPEC
-
--- buffered. 'reverse' buffers the whole stream; the boxed 'reverse' still
--- fuses generation+drain, but the unboxed 'reverse'' (reverseUnbox) writes to a
--- mutable array, so a 'Step' constructor survives.
-inspect $ hasNoTypeClasses 'inspReverse
-inspect $ 'inspReverse `hasNoType` ''S.Step
-inspect $ 'inspReverse `hasNoType` ''FL.Step
--- inspect $ 'inspReverse `hasNoType` ''SPEC
-inspect $ hasNoTypeClasses 'inspReverse'
--- inspect $ 'inspReverse' `hasNoType` ''S.Step
-
--- Not inspection-tested (not 'Step'-free fusion targets):
---   * The 'o_n_stack' "iterated" benchmarks ('iterateMapM', 'iterateScan',
---     'iterateScanl1', 'iterateFilterEven', 'iterateTakeAll', 'iterateDropOne',
---     'iterateDropWhileTrue', 'iterateDropWhileFalse') apply a transformation a
---     runtime number of times, so the nested 'Step's cannot be eliminated.
---   * 'tail', 'nullTail', 'headTail' and 'nullHeadTail' recurse explicitly,
---     reconstructing the stream on each step, so a 'Step' constructor survives.
-#endif
 
 -------------------------------------------------------------------------------
 -- Main
