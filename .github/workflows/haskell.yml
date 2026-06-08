@@ -238,6 +238,8 @@ jobs:
             pack_options: >-
               CABAL_PROJECT=cabal.project
               CABAL_BUILD_OPTIONS="--flag fusion-plugin --flag inspection"
+              DISABLE_BENCH="n"
+              DISABLE_TEST="y"
             ignore_error: false
 
           - name: ci
