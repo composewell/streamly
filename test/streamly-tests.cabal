@@ -278,6 +278,8 @@ test-suite Data.Fold
   other-modules:
     Streamly.Test.Data.Fold.Combinators
     Streamly.Test.Data.Fold.Container
+    Streamly.Test.Data.Fold.Exception
+    Streamly.Test.Data.Fold.Tee
     Streamly.Test.Data.Fold.Type
     Streamly.Test.Data.Fold.Window
 

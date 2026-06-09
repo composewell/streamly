@@ -26,6 +26,7 @@
 - ignore: {name: "Use ++"}
 - ignore: {name: "Replace case with maybe"} # case is more readable
 - ignore: {name: "Use mapMaybe"} # does not make any difference
+- ignore: {name: "Avoid lambda using `infix`"}
 
 # Warnings ignored in specific places
 - ignore: {name: "Use mapM", within: Stream.Transform}

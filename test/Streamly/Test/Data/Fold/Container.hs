@@ -9,7 +9,9 @@
 
 module Streamly.Test.Data.Fold.Container (main) where
 
+import qualified Data.IntSet as IntSet
 import qualified Data.Map
+import qualified Data.Set as Set
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream as Stream
 
@@ -106,6 +108,100 @@ nub = monadicIO $ do
             $ Stream.fromList [1::Int, 1, 2, 3, 4, 4, 5, 1, 5, 7]
     assert (vals == [1, 2, 3, 4, 5, 7])
 
+toSet :: Expectation
+toSet =
+    Stream.fold Fold.toSet (Stream.fromList [1,2,3,2,1 :: Int])
+        `shouldReturn` Set.fromList [1,2,3]
+
+toIntSet :: Expectation
+toIntSet =
+    Stream.fold Fold.toIntSet (Stream.fromList [1,2,3,2,1 :: Int])
+        `shouldReturn` IntSet.fromList [1,2,3]
+
+countDistinct :: Expectation
+countDistinct =
+    Stream.fold Fold.countDistinct (Stream.fromList [1,2,3,2,1 :: Int])
+        `shouldReturn` 3
+
+countDistinctInt :: Expectation
+countDistinctInt =
+    Stream.fold Fold.countDistinctInt (Stream.fromList [1,2,3,2,1 :: Int])
+        `shouldReturn` 3
+
+nubInt :: Property
+nubInt = monadicIO $ do
+    vals <- Stream.fold Fold.toList
+            $ Stream.catMaybes
+            $ Stream.postscan Fold.nubInt
+            $ Stream.fromList [1::Int, 1, 2, 3, 4, 4, 5, 1, 5, 7]
+    assert (vals == [1, 2, 3, 4, 5, 7])
+
+frequency :: Expectation
+frequency =
+    Stream.fold Fold.frequency
+        (Stream.fromList ["a","b","a","c","b","a" :: String])
+    `shouldReturn`
+    Data.Map.fromList [("a",3),("b",2),("c",1)]
+
+demuxerToMap :: Expectation
+demuxerToMap =
+    let getKey = fst
+        getFold "SUM" = return $ Just (Fold.lmap snd Fold.sum)
+        getFold _     = return $ Just (Fold.lmap snd Fold.length)
+        input = Stream.fromList
+                    [("SUM",1),("X",1),("SUM",3),("X",2),("X",3)] :: Stream.Stream IO (String, Int)
+    in Stream.fold
+        (Fold.demuxerToMap getKey getFold)
+        input
+        `shouldReturn`
+        Data.Map.fromList [("SUM", 4 :: Int), ("X", 3)]
+
+demuxerToContainer :: Expectation
+demuxerToContainer =
+    let getKey = fst
+        getFold "SUM" = return $ Just (Fold.lmap snd Fold.sum)
+        getFold _     = return $ Just (Fold.lmap snd Fold.length)
+        input = Stream.fromList
+                    [("SUM",1),("X",1),("SUM",3),("X",2),("X",3)] :: Stream.Stream IO (String, Int)
+    in Stream.fold
+        (Fold.demuxerToContainer getKey getFold)
+        input
+        `shouldReturn`
+        Data.Map.fromList [("SUM", 4 :: Int), ("X", 3)]
+
+demuxKvToContainer :: Expectation
+demuxKvToContainer =
+    let table "SUM" = return $ Just Fold.sum
+        table "PRODUCT" = return $ Just Fold.product
+        table _ = return $ Just Fold.length
+        input = Stream.fromList
+                    [("SUM",1),("PRODUCT",2),("SUM",3),("PRODUCT",4)] :: Stream.Stream IO (String, Int)
+    in Stream.fold
+        (Fold.demuxKvToContainer table)
+        input
+        `shouldReturn`
+        Data.Map.fromList [("PRODUCT",8 :: Int),("SUM",4)]
+
+toMap :: Expectation
+toMap =
+    let input = Stream.fromList [("ONE",1),("ONE",1.1),("TWO",2),("TWO",2.2)]
+    in Stream.fold
+        (Fold.toMap fst (Fold.lmap snd Fold.toList))
+        input
+        `shouldReturn`
+        Data.Map.fromList [("ONE",[1.0,1.1 :: Double]), ("TWO",[2.0,2.2])]
+
+demuxScan :: Expectation
+demuxScan = do
+    let getKey = fst
+        getFold _ = return $ Just (Fold.take 2 (Fold.lmap snd Fold.sum))
+        input = Stream.fromList
+                    [("A",1),("A",2),("B",3)] :: Stream.Stream IO (String, Int)
+    r <- Stream.fold Fold.toList
+             $ Stream.catMaybes
+             $ Stream.postscanl (Fold.demuxScan getKey getFold) input
+    r `shouldBe` [("A", 3 :: Int)]
+
 moduleName :: String
 moduleName = "Data.Fold.Container"
 
@@ -118,3 +214,14 @@ main = hspec $ do
         prop "classify" classify
         prop "classifyScan" classifyScan
         prop "nub" nub
+        it "toSet" toSet
+        it "toIntSet" toIntSet
+        it "countDistinct" countDistinct
+        it "countDistinctInt" countDistinctInt
+        prop "nubInt" nubInt
+        it "frequency" frequency
+        it "demuxerToMap" demuxerToMap
+        it "demuxerToContainer" demuxerToContainer
+        it "demuxKvToContainer" demuxKvToContainer
+        it "toMap" toMap
+        it "demuxScan" demuxScan
