@@ -11,9 +11,11 @@ module Main (main) where
 import qualified Streamly.Test.Data.Fold.Combinators as Combinators
 import qualified Streamly.Test.Data.Fold.Container as Container
 import qualified Streamly.Test.Data.Fold.Type as Type
+import qualified Streamly.Test.Data.Fold.Window as Window
 
 main :: IO ()
 main = do
     Type.main
     Combinators.main
     Container.main
+    Window.main

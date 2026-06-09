@@ -121,7 +121,7 @@ cradle:
             - path: "./test/Streamly/Test/Data/Fold.hs"
               component: "test:Data.Fold"
             - path: "./test/Streamly/Test/Data/Fold/Window.hs"
-              component: "test:Data.Fold.Window"
+              component: "test:Data.Fold"
             - path: "./test/Streamly/Test/Data/List.hs"
               component: "test:Data.List"
             - path: "./test/Streamly/Test/Data/List.hs"

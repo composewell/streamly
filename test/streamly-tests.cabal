@@ -279,12 +279,7 @@ test-suite Data.Fold
     Streamly.Test.Data.Fold.Combinators
     Streamly.Test.Data.Fold.Container
     Streamly.Test.Data.Fold.Type
-
-test-suite Data.Fold.Window
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Fold/Window.hs
-  ghc-options: -main-is Streamly.Test.Data.Fold.Window.main
+    Streamly.Test.Data.Fold.Window
 
 -- The Streamly.Data.List needs to be fixed to enable this
 -- test-suite Data.List
