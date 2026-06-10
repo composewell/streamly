@@ -1158,59 +1158,39 @@ o_1_space_list streamLen =
     streamLen2 = round (P.fromIntegral streamLen**(1/2::P.Double)) -- double nested loop
     streamLen3 = round (P.fromIntegral streamLen**(1/3::P.Double)) -- triple nested loop
 
-o_1_space :: Int -> Benchmark
-o_1_space streamLen =
-    bgroup (o_1_space_prefix moduleName)
-      [ o_1_space_generation streamLen
-      , o_1_space_elimination streamLen
-      , o_1_space_ap streamLen
-      , o_1_space_monad streamLen
-      , o_1_space_bind streamLen
-      , o_1_space_transformation streamLen
-      , o_1_space_transformationX4 streamLen
-      , o_1_space_concat streamLen
-      , o_1_space_filtering streamLen
-      , o_1_space_filteringX4 streamLen
-      , o_1_space_joining streamLen
-      , o_1_space_mixed streamLen
-      , o_1_space_mixedX2 streamLen
-      , o_1_space_mixedX4 streamLen
-      , o_1_space_list streamLen
-      ]
-
-o_n_heap :: Int -> Benchmark
-o_n_heap streamLen =
-    bgroup (o_n_heap_prefix moduleName)
-      [ bgroup "transformation"
+o_n_heap_transformation :: Int -> Benchmark
+o_n_heap_transformation streamLen =
+    bgroup "transformation"
         [ benchFold "foldlS" (foldlS 1) (unfoldrM streamLen)
         ]
-      , o_n_heap_concat streamLen
-      , o_n_heap_sorting streamLen
-      ]
 
-{-# INLINE benchK #-}
-benchK :: P.String -> (Int -> StreamK P.IO Int) -> Benchmark
-benchK name f = bench name $ nfIO $ randomRIO (1,1) >>= drain . f
-
-o_n_stack :: Int -> Int -> Int -> Benchmark
-o_n_stack streamLen iterStreamLen maxIters =
-    bgroup (o_n_stack_prefix moduleName)
-      [ bgroup "elimination"
-        [ benchFold "tail"   tail     (unfoldrM streamLen)
-        , benchFold "nullTail" nullTail (unfoldrM streamLen)
-        , benchFold "headTail" headTail (unfoldrM streamLen)
-        ]
-      , bgroup "transformation"
+o_n_stack_transformation :: Int -> Benchmark
+o_n_stack_transformation streamLen =
+    bgroup "transformation"
         [
           -- XXX why do these need so much stack
           benchFold "intersperse" (intersperse streamLen 1) (unfoldrM streamLen2)
         , benchFold "interspersePure" (intersperse streamLen 1) (unfoldr streamLen2)
         ]
-      , bgroup "transformationX4"
+    where
+    streamLen2 = round (P.fromIntegral streamLen**(1/2::P.Double))
+
+o_n_stack_transformationX4 :: Int -> Benchmark
+o_n_stack_transformationX4 streamLen =
+    bgroup "transformationX4"
         [
           benchFold "intersperse" (intersperse streamLen 4) (unfoldrM streamLen16)
         ]
-      , bgroup "iterated"
+    where
+    streamLen16 = round (P.fromIntegral streamLen**(1/16::P.Double))
+
+{-# INLINE benchK #-}
+benchK :: P.String -> (Int -> StreamK P.IO Int) -> Benchmark
+benchK name f = bench name $ nfIO $ randomRIO (1,1) >>= drain . f
+
+o_n_stack_iterated :: Int -> Int -> Int -> Benchmark
+o_n_stack_iterated streamLen iterStreamLen maxIters =
+    bgroup "iterated"
         [ benchK "mapM"                 (iterateMapM iterStreamLen maxIters)
         , benchK "scan(1/10)"           (iterateScan iterStreamLen maxIters)
         , benchK "filterEven"           (iterateFilterEven iterStreamLen maxIters)
@@ -1219,19 +1199,44 @@ o_n_stack streamLen iterStreamLen maxIters =
         , benchK "dropWhileFalse(1/10)" (iterateDropWhileFalse streamLen iterStreamLen maxIters)
         , benchK "dropWhileTrue"        (iterateDropWhileTrue streamLen iterStreamLen maxIters)
         ]
-      ]
-    where
-    streamLen2 = round (P.fromIntegral streamLen**(1/2::P.Double)) -- double nested loop
-    streamLen16 = round (P.fromIntegral streamLen**(1/16::P.Double)) -- triple nested loop
 
-o_n_space :: Int -> Benchmark
-o_n_space streamLen =
-    bgroup (o_n_space_prefix moduleName)
-      [ bgroup "elimination"
-        [ benchFold "toList" toList   (unfoldrM streamLen)
-        ]
-      , o_n_space_concat streamLen
-      ]
+benchmarks :: Int -> Int -> Int -> [(SpaceComplexity, Benchmark)]
+benchmarks streamLen iterStreamLen maxIters =
+    -- O(1) space
+    [ (SpaceO_1, o_1_space_generation streamLen)
+    , (SpaceO_1, o_1_space_elimination streamLen)
+    , (SpaceO_1, o_1_space_ap streamLen)
+    , (SpaceO_1, o_1_space_monad streamLen)
+    , (SpaceO_1, o_1_space_bind streamLen)
+    , (SpaceO_1, o_1_space_transformation streamLen)
+    , (SpaceO_1, o_1_space_transformationX4 streamLen)
+    , (SpaceO_1, o_1_space_concat streamLen)
+    , (SpaceO_1, o_1_space_filtering streamLen)
+    , (SpaceO_1, o_1_space_filteringX4 streamLen)
+    , (SpaceO_1, o_1_space_joining streamLen)
+    , (SpaceO_1, o_1_space_mixed streamLen)
+    , (SpaceO_1, o_1_space_mixedX2 streamLen)
+    , (SpaceO_1, o_1_space_mixedX4 streamLen)
+    , (SpaceO_1, o_1_space_list streamLen)
+    -- O(n) heap
+    , (HeapO_n, o_n_heap_transformation streamLen)
+    , (HeapO_n, o_n_heap_concat streamLen)
+    , (HeapO_n, o_n_heap_sorting streamLen)
+    -- O(n) stack
+    , (StackO_n, bgroup "elimination"
+        [ benchFold "tail"     tail     (unfoldrM streamLen)
+        , benchFold "nullTail" nullTail (unfoldrM streamLen)
+        , benchFold "headTail" headTail (unfoldrM streamLen)
+        ])
+    , (StackO_n, o_n_stack_transformation streamLen)
+    , (StackO_n, o_n_stack_transformationX4 streamLen)
+    , (StackO_n, o_n_stack_iterated streamLen iterStreamLen maxIters)
+    -- O(n) space
+    , (SpaceO_n, bgroup "elimination"
+        [ benchFold "toList" toList (unfoldrM streamLen)
+        ])
+    , (SpaceO_n, o_n_space_concat streamLen)
+    ]
 
 main :: IO ()
 main = do
@@ -1242,8 +1247,15 @@ main = do
     allBenchmarks streamLen =
         let !iterStreamLen = 10
             !maxIters = streamLen `div` iterStreamLen
-         in [ o_1_space streamLen
-            , o_n_stack streamLen iterStreamLen maxIters
-            , o_n_heap streamLen
-            , o_n_space streamLen
-            ]
+            allBenches = benchmarks streamLen iterStreamLen maxIters
+            get x = P.map snd $ filter ((==) x . fst) allBenches
+            o1 = get SpaceO_1
+            o_n_heap = get HeapO_n
+            o_n_stack = get StackO_n
+            o_n_space = get SpaceO_n
+        in
+        [ bgroup (o_1_space_prefix moduleName) o1
+        , bgroup (o_n_stack_prefix moduleName) o_n_stack
+        , bgroup (o_n_heap_prefix moduleName) o_n_heap
+        , bgroup (o_n_space_prefix moduleName) o_n_space
+        ]

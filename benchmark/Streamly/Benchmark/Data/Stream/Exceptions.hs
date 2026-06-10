@@ -219,11 +219,10 @@ o_1_space_copy_exceptions_toChunks env =
         ]
     ]
 
-benchmarks :: String -> BenchEnv -> Int -> [Benchmark]
-benchmarks moduleName _env _size =
-        [ bgroup (o_1_space_prefix moduleName) $ concat
-            [ o_1_space_copy_exceptions_readChunks _env
-            , o_1_space_copy_exceptions_toChunks _env
-            , o_1_space_copy_stream_exceptions _env
-            ]
+benchmarks :: BenchEnv -> Int -> [(SpaceComplexity, Benchmark)]
+benchmarks _env _size =
+    map (SpaceO_1,) $ concat
+        [ o_1_space_copy_exceptions_readChunks _env
+        , o_1_space_copy_exceptions_toChunks _env
+        , o_1_space_copy_stream_exceptions _env
         ]

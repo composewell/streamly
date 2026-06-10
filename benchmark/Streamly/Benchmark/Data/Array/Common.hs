@@ -172,14 +172,12 @@ common_o_1_space_transformationX4 value =
         ]
       ]
 
-commonBenchmarks :: Int -> [Benchmark]
+commonBenchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 commonBenchmarks size =
-        [ bgroup (o_1_space_prefix moduleName) $ concat
+       fmap (SpaceO_1,) (concat
             [ common_o_1_space_generation size
             , common_o_1_space_elimination size
             , common_o_1_space_transformation size
             , common_o_1_space_transformationX4 size
-            ]
-        , bgroup (o_n_space_prefix moduleName) $
-             common_o_n_heap_serial size
-        ]
+            ])
+    ++ fmap (HeapO_n,) (common_o_n_heap_serial size)

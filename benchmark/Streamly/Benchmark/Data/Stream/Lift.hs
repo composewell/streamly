@@ -123,7 +123,6 @@ o_1_space_hoisting value =
 -- In addition to gauge options, the number of elements in the stream can be
 -- passed using the --stream-size option.
 --
-benchmarks :: String -> Int -> [Benchmark]
-benchmarks moduleName size =
-        [ bgroup (o_1_space_prefix moduleName) (o_1_space_hoisting size)
-        ]
+benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
+benchmarks size =
+    map (SpaceO_1,) (o_1_space_hoisting size)

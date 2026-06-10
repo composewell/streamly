@@ -420,7 +420,10 @@ benchmark Data.Serialize
 benchmark Data.SmallArray
   import: bench-options
   type: exitcode-stdio-1.0
+  hs-source-dirs: ., Streamly/Benchmark/Data
   main-is: Streamly/Benchmark/Data/Array/SmallArray.hs
+  other-modules:
+      Stream.Common
   if flag(dev) && !flag(use-streamly-core)
     buildable: True
   else

@@ -109,9 +109,9 @@ instance NFData a => NFData (Stream Identity a) where
     {-# INLINE rnf #-}
     rnf xs = runIdentity $ Stream.fold (Fold.foldl' (\_ x -> rnf x) ()) xs
 
-o_n_heap_serial :: Int -> [Benchmark]
+o_n_heap_serial :: Int -> [(SpaceComplexity, Benchmark)]
 o_n_heap_serial value =
-    [ bgroup "key-value"
+    [ (HeapO_n, bgroup "key-value"
             [
               benchIOSink value "demuxToHashMap (64 buckets) [sum, length]"
                 $ demuxToHashMap (getKey 64) (getFold . getKey 64)
@@ -125,7 +125,7 @@ o_n_heap_serial value =
                 $ toHashMapIO (getKey 64)
             , benchIOSink value "toHashMapIO (max buckets) sum"
                 $ toHashMapIO (getKey value)
-            ]
+            ])
     ]
 
     where
@@ -151,7 +151,11 @@ main = do
     where
 
     allBenchmarks _env value =
-        [ bgroup (o_n_heap_prefix moduleName) (o_n_heap_serial value)
+        let allBenches = o_n_heap_serial value
+            get x = map snd $ filter ((==) x . fst) allBenches
+            o_n_heap = get HeapO_n
+        in
+        [ bgroup (o_n_heap_prefix moduleName) o_n_heap
         ]
 #else
     -- Enable FUSION_CHECK macro at the beginning of the file

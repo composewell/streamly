@@ -425,8 +425,7 @@ o_n_heap_generation value =
 -- In addition to gauge options, the number of elements in the stream can be
 -- passed using the --stream-size option.
 --
-benchmarks :: String -> Int -> [Benchmark]
-benchmarks moduleName size =
-        [ bgroup (o_1_space_prefix moduleName) (o_1_space_generation size)
-        , bgroup (o_n_heap_prefix moduleName) (o_n_heap_generation size)
-        ]
+benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
+benchmarks size =
+    map (SpaceO_1,) (o_1_space_generation size)
+    ++ map (HeapO_n,) (o_n_heap_generation size)

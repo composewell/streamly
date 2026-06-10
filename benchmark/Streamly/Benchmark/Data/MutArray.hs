@@ -30,6 +30,7 @@ import Prelude
     ( IO
     , Int
     , Integral(..)
+    , Eq(..)
     , Maybe(..)
     , Monad(..)
     , Num(..)
@@ -38,10 +39,14 @@ import Prelude
     , ($)
     , (.)
     , (||)
+    , (++)
     , concat
     , const
+    , filter
     , fmap
+    , fst
     , id
+    , snd
     , undefined
     )
 import Streamly.Internal.Data.MutArray (MutArray)
@@ -282,6 +287,19 @@ o_1_space_serial_marray value ~(array, indices) =
 moduleName :: String
 moduleName = "Data.MutArray"
 
+benchmarks ::
+    (MutArray Int, Array.Array Int) -> Int -> [(SpaceComplexity, Benchmark)]
+benchmarks array value =
+       fmap (SpaceO_1,)
+            (concat
+                [ o_1_space_serial_marray value array
+                , o_1_space_generation value
+                , o_1_space_elimination value
+                , o_1_space_transformation value
+                , o_1_space_transformationX4 value
+                ])
+    ++ fmap (HeapO_n,) (o_n_heap_serial value)
+
 main :: IO ()
 main = do
     runWithCLIOptsEnv defaultStreamSize alloc allBenchmarks
@@ -294,13 +312,13 @@ main = do
         return (marr, indices)
 
     allBenchmarks array value =
-        [ bgroup (o_1_space_prefix moduleName)
-              $ concat
-                    [ o_1_space_serial_marray value array
-                    , o_1_space_generation value
-                    , o_1_space_elimination value
-                    , o_1_space_transformation value
-                    , o_1_space_transformationX4 value
-                    ]
-        , bgroup (o_n_heap_prefix moduleName) (o_n_heap_serial value)
+        let allBenches = benchmarks array value
+            get x = fmap snd $ filter ((==) x . fst) allBenches
+            o_1_space = get SpaceO_1
+            o_n_heap = get HeapO_n
+            o_n_space = get SpaceO_n
+        in
+        [ bgroup (o_1_space_prefix moduleName) o_1_space
+        , bgroup (o_n_heap_prefix moduleName) o_n_heap
+        , bgroup (o_n_space_prefix moduleName) o_n_space
         ]

@@ -16,6 +16,7 @@
 
 module Main (main) where
 
+import Test.Tasty.Bench (bgroup)
 import Streamly.Benchmark.Common.Handle (mkHandleBenchEnv)
 
 import qualified Stream.Eliminate as Elimination
@@ -57,16 +58,24 @@ main = do
 
     where
 
-    allBenchmarks env size = Prelude.concat
-        [ Generation.benchmarks moduleName size
-        , Elimination.benchmarks moduleName size
-        , Exceptions.benchmarks moduleName env size
-        , Split.benchmarks moduleName env
-        , SplitChunks.benchmarks moduleName env
-        , Transformation.benchmarks moduleName size
-        , NestedFold.benchmarks moduleName size
-        , Lift.benchmarks moduleName size
-        , NestedStream.benchmarks moduleName size
+    allBenchmarks env size =
+        let allBenches = concat
+                [ Generation.benchmarks size
+                , Elimination.benchmarks size
+                , Exceptions.benchmarks env size
+                , Split.benchmarks env
+                , SplitChunks.benchmarks env
+                , Transformation.benchmarks size
+                , NestedFold.benchmarks size
+                , Lift.benchmarks size
+                , NestedStream.benchmarks size
+                ]
+            get x = map snd $ filter ((==) x . fst) allBenches
+        in
+        [ bgroup (o_1_space_prefix moduleName) (get SpaceO_1)
+        , bgroup (o_n_heap_prefix moduleName) (get HeapO_n)
+        , bgroup (o_n_stack_prefix moduleName) (get StackO_n)
+        , bgroup (o_n_space_prefix moduleName) (get SpaceO_n)
         ]
 #else
     -- Enable FUSION_CHECK macro at the beginning of the file

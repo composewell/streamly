@@ -50,11 +50,11 @@ parDistributeScanM len seed = do
 -- Groups
 --------------------------------------------------------------------------------
 
-o_1_space_scans :: Int -> [Benchmark]
+o_1_space_scans :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_scans numElements =
-    [ bgroup "scan"
+    [ (SpaceO_1, bgroup "scan"
         [ mkBench "parDistributeScanM" (parDistributeScanM numElements)
-        ]
+        ])
     ]
 
 --------------------------------------------------------------------------------
@@ -70,7 +70,9 @@ main = runWithCLIOpts defaultStreamSize allBenchmarks
     where
 
     allBenchmarks value =
-        [ bgroup (o_1_space_prefix moduleName)
-            ( o_1_space_scans value
-            )
+        let allBenches = o_1_space_scans value
+            get x = map snd $ filter ((==) x . fst) allBenches
+            o_1_space = get SpaceO_1
+        in
+        [ bgroup (o_1_space_prefix moduleName) o_1_space
         ]

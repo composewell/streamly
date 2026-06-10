@@ -376,15 +376,15 @@ instance NFData ParseError where
     {-# INLINE rnf #-}
     rnf (ParseError x) = rnf x
 
-o_1_space_serial :: Int -> [Benchmark]
+o_1_space_serial :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_serial value =
-    [ benchIOSink value "drain" (Stream.fold Fold.drain . StreamK.toStream)
-    , benchIOSink value "takeWhile" $ takeWhileK value
-    , benchIOSink value "splitAp2" $ splitAp2 value
-    , benchIOSink value "splitAp8" $ splitAp8 value
-    , benchIOSink value "alt2" $ alt2 value
-    , benchIOSink value "monad2" $ monad2 value
-    , benchIOSink value "monad4" $ monad4 value
+    [ (SpaceO_1, benchIOSink value "drain" (Stream.fold Fold.drain . StreamK.toStream))
+    , (SpaceO_1, benchIOSink value "takeWhile" $ takeWhileK value)
+    , (SpaceO_1, benchIOSink value "splitAp2" $ splitAp2 value)
+    , (SpaceO_1, benchIOSink value "splitAp8" $ splitAp8 value)
+    , (SpaceO_1, benchIOSink value "alt2" $ alt2 value)
+    , (SpaceO_1, benchIOSink value "monad2" $ monad2 value)
+    , (SpaceO_1, benchIOSink value "monad4" $ monad4 value)
     ]
 
 {-# INLINE sepBy1 #-}
@@ -400,31 +400,31 @@ sepBy1 xs = do
         fmap (x :) $ AP.many (sep >> p)
 
 -- O(n) heap beacuse of accumulation of the list in strict IO monad?
-o_n_heap_serial :: Int -> [Benchmark]
+o_n_heap_serial :: Int -> [(SpaceComplexity, Benchmark)]
 o_n_heap_serial value =
     [
     -- accumulates the results in a list
     -- XXX why should this take O(n) heap, it discards the results?
-      benchIOSink value "sequence_" $ sequence_ value
-    , benchIOSink value "sequenceA_" $ sequenceA_ value
-    , benchIOSink value "sequence" $ sequence value
-    , benchIOSink value "sequenceA" $ sequenceA value
-    , benchIOSink value "manyAlt" manyAlt
-    , benchIOSink value "sepBy1" sepBy1
-    , benchIOSink value "someAlt" someAlt
-    , benchIOSink value "choice" $ choice value
+      (HeapO_n, benchIOSink value "sequence_" $ sequence_ value)
+    , (HeapO_n, benchIOSink value "sequenceA_" $ sequenceA_ value)
+    , (HeapO_n, benchIOSink value "sequence" $ sequence value)
+    , (HeapO_n, benchIOSink value "sequenceA" $ sequenceA value)
+    , (HeapO_n, benchIOSink value "manyAlt" manyAlt)
+    , (HeapO_n, benchIOSink value "sepBy1" sepBy1)
+    , (HeapO_n, benchIOSink value "someAlt" someAlt)
+    , (HeapO_n, benchIOSink value "choice" $ choice value)
 
     -- XXX these take too much memory with --long, need to investigate
-    , benchIOSink value "alt8" $ alt8 value
-    , benchIOSink value "alt16" $ alt16 value
-    , benchIOSink value "monad8" $ monad8 value
-    , benchIOSink value "monad16" $ monad16 value
+    , (HeapO_n, benchIOSink value "alt8" $ alt8 value)
+    , (HeapO_n, benchIOSink value "alt16" $ alt16 value)
+    , (HeapO_n, benchIOSink value "monad8" $ monad8 value)
+    , (HeapO_n, benchIOSink value "monad16" $ monad16 value)
     ]
 
 -- O(n) heap beacuse of accumulation of the list in strict IO monad?
-o_1_space_recursive :: Int -> [Benchmark]
+o_1_space_recursive :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_recursive value =
-    [ benchIOSink value "one (recursive)" $ one value
+    [ (SpaceO_1, benchIOSink value "one (recursive)" $ one value)
     ]
 
 -------------------------------------------------------------------------------
@@ -437,7 +437,13 @@ main = runWithCLIOpts defaultStreamSize allBenchmarks
     where
 
     allBenchmarks value =
-        [ bgroup (o_1_space_prefix moduleName) (o_1_space_serial value)
-        , bgroup (o_1_space_prefix moduleName) (o_1_space_recursive value)
-        , bgroup (o_n_heap_prefix moduleName) (o_n_heap_serial value)
+        let allBenches = o_1_space_serial value
+                      ++ o_n_heap_serial value
+                      ++ o_1_space_recursive value
+            get x = map snd $ filter ((==) x . fst) allBenches
+            o_1_space = get SpaceO_1
+            o_n_heap = get HeapO_n
+        in
+        [ bgroup (o_1_space_prefix moduleName) o_1_space
+        , bgroup (o_n_heap_prefix moduleName) o_n_heap
         ]

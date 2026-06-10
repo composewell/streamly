@@ -300,11 +300,18 @@ main = do
             big <- Stream.toList $ Array.chunksOf value $ sourceUnfoldrM value 0
             return (small, big)
 
-    allBenchmarks env arrays value =
+    benchmarks env arrays value =
         let (arraysSmall, arraysBig) = arrays
-        in [ bgroup (o_1_space_prefix moduleName) $ Prelude.concat
+        in map (SpaceO_1,) $ Prelude.concat
           [ o_1_space_read_chunked env
           , o_1_space_serial_array value arraysSmall arraysBig
           , o_1_space_copy_toChunks_group_ungroup env
           ]
+
+    allBenchmarks env arrays value =
+        let allBenches = benchmarks env arrays value
+            get x = map snd $ filter ((==) x . fst) allBenches
+            o_1_space = get SpaceO_1
+        in
+        [ bgroup (o_1_space_prefix moduleName) o_1_space
         ]

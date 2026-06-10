@@ -1138,22 +1138,21 @@ o_1_space_scansX4 value =
 -- In addition to gauge options, the number of elements in the stream can be
 -- passed using the --stream-size option.
 --
-benchmarks :: String -> Int -> [Benchmark]
-benchmarks moduleName size =
-        [ bgroup (o_1_space_prefix moduleName) $ Prelude.concat
-            [ o_1_space_grouping size
-            , o_1_space_transformations_mixed size
-            , o_1_space_transformations_mixedX2 size
-            , o_1_space_transformations_mixedX4 size
+benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
+benchmarks size =
+    map (SpaceO_1,) (Prelude.concat
+        [ o_1_space_grouping size
+        , o_1_space_transformations_mixed size
+        , o_1_space_transformations_mixedX2 size
+        , o_1_space_transformations_mixedX4 size
 
-            -- pipes
-            , o_1_space_pipes size
-            , o_1_space_pipesX4 size
+        -- pipes
+        , o_1_space_pipes size
+        , o_1_space_pipesX4 size
 
-            -- scans
-            , o_1_space_scans size
-            , o_1_space_scansX4 size
-            ]
-        , bgroup (o_n_stack_prefix moduleName) (o_n_stack_iterated size)
-        , bgroup (o_n_heap_prefix moduleName) (o_n_heap_buffering size)
-        ]
+        -- scans
+        , o_1_space_scans size
+        , o_1_space_scansX4 size
+        ])
+    ++ map (StackO_n,) (o_n_stack_iterated size)
+    ++ map (HeapO_n,) (o_n_heap_buffering size)

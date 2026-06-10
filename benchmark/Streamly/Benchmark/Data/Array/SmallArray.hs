@@ -85,11 +85,23 @@ moduleName = "Data.SmallArray"
 defStreamSize :: Int
 defStreamSize = 128
 
+benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
+benchmarks size =
+    fmap (SpaceO_1,) (o_1_space_generation size) ++ commonBenchmarks size
+
 main :: IO ()
 main = runWithCLIOpts defStreamSize allBenchmarks
 
     where
 
     allBenchmarks size =
-        bgroup (o_1_space_prefix moduleName) (o_1_space_generation size)
-            : commonBenchmarks size
+        let allBenches = benchmarks size
+            get x = fmap snd $ filter ((==) x . fst) allBenches
+            o_1_space = get SpaceO_1
+            o_n_heap = get HeapO_n
+            o_n_space = get SpaceO_n
+        in
+        [ bgroup (o_1_space_prefix moduleName) o_1_space
+        , bgroup (o_n_heap_prefix moduleName) o_n_heap
+        , bgroup (o_n_space_prefix moduleName) o_n_space
+        ]

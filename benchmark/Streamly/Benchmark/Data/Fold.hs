@@ -633,9 +633,10 @@ splitWithSuffixSeq str inh =
         $ Stream.foldMany (Fold.takeEndBySeq (toarr str) Fold.drain)
         $ Handle.read inh -- >>= print
 
-o_1_space_reduce_read_split :: BenchEnv -> [Benchmark]
+o_1_space_reduce_read_split :: BenchEnv -> [(SpaceComplexity, Benchmark)]
 o_1_space_reduce_read_split env =
     -- NOTE: keep the benchmark names consistent with Data.Stream.split*
+    fmap (SpaceO_1,)
     [ bgroup "FileSplitElem"
         -- Splitting on single element
         [
@@ -704,8 +705,9 @@ splitOnSeqUtf8 str inh =
         $ Unicode.decodeUtf8Chunks
         $ Handle.readChunks inh -- >>= print
 
-o_1_space_reduce_toChunks_split :: BenchEnv -> [Benchmark]
+o_1_space_reduce_toChunks_split :: BenchEnv -> [(SpaceComplexity, Benchmark)]
 o_1_space_reduce_toChunks_split env =
+    fmap (SpaceO_1,)
     [ bgroup "FileSplitSeqUtf8"
         [ mkBenchSmall "takeEndBySeq_ infix abcdefgh"
             env $ \inh _ -> splitOnSeqUtf8 "abcdefgh" inh
@@ -1061,8 +1063,9 @@ instance NFData a => NFData (Stream Identity a) where
     {-# INLINE rnf #-}
     rnf xs = runIdentity $ Stream.fold (FL.foldl' (\_ x -> rnf x) ()) xs
 
-o_1_space_serial_elimination :: Int -> [Benchmark]
+o_1_space_serial_elimination :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_serial_elimination value =
+    fmap (SpaceO_1,)
     [ bgroup "elimination"
         [ benchIO "drain" $ drain value
         , benchIO "drainBy" $ drainBy value
@@ -1108,8 +1111,9 @@ o_1_space_serial_elimination value =
         ]
     ]
 
-o_1_space_serial_transformation :: Int -> [Benchmark]
+o_1_space_serial_transformation :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_serial_transformation value =
+    fmap (SpaceO_1,)
     [ bgroup "transformation"
         [ benchIO "map" $ map value
         , benchIO "mapMaybe" $ mapMaybe value
@@ -1125,8 +1129,9 @@ o_1_space_serial_transformation value =
         ]
     ]
 
-o_1_space_serial_composition :: Int -> [Benchmark]
+o_1_space_serial_composition :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_serial_composition value =
+    fmap (SpaceO_1,)
       [ bgroup
             "composition"
             [ benchIO "filter even" $ filter value
@@ -1153,13 +1158,14 @@ o_1_space_serial_composition value =
             ]
       ]
 
-o_n_space_serial :: Int -> [Benchmark]
+o_n_space_serial :: Int -> [(SpaceComplexity, Benchmark)]
 o_n_space_serial value =
-    [ benchIO "sequence_/100" $ sequenceFolds (value `div` 100)
+    [ (SpaceO_n, benchIO "sequence_/100" $ sequenceFolds (value `div` 100))
     ]
 
-o_n_heap_serial :: Int -> [Benchmark]
+o_n_heap_serial :: Int -> [(SpaceComplexity, Benchmark)]
 o_n_heap_serial value =
+    fmap (HeapO_n,)
     [ bgroup "elimination"
       -- Left folds for building a structure are inherently non-streaming
       -- as the structure cannot be lazily consumed until fully built.
@@ -1199,15 +1205,22 @@ main = do
     where
 
     allBenchmarks env value =
-        [ bgroup (o_1_space_prefix moduleName) $ concat
-            [ o_1_space_serial_elimination value
-            , o_1_space_serial_transformation value
-            , o_1_space_serial_composition value
-            , o_1_space_reduce_read_split env
-            , o_1_space_reduce_toChunks_split env
-            ]
-        , bgroup (o_n_space_prefix moduleName) (o_n_space_serial value)
-        , bgroup (o_n_heap_prefix moduleName) (o_n_heap_serial value)
+        let allBenches =
+                   o_1_space_serial_elimination value
+                ++ o_1_space_serial_transformation value
+                ++ o_1_space_serial_composition value
+                ++ o_1_space_reduce_read_split env
+                ++ o_1_space_reduce_toChunks_split env
+                ++ o_n_space_serial value
+                ++ o_n_heap_serial value
+            get x = [b | (c, b) <- allBenches, c == x]
+            o_1_space = get SpaceO_1
+            o_n_heap = get HeapO_n
+            o_n_space = get SpaceO_n
+        in
+        [ bgroup (o_1_space_prefix moduleName) o_1_space
+        , bgroup (o_n_space_prefix moduleName) o_n_space
+        , bgroup (o_n_heap_prefix moduleName) o_n_heap
         ]
 #else
     -- Enable FUSION_CHECK macro at the beginning of the file

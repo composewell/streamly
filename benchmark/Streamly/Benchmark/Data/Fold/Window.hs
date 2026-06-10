@@ -66,9 +66,9 @@ benchScanWith src len name f =
 benchWithPostscan :: Int -> String -> Fold IO Double a -> Benchmark
 benchWithPostscan = benchScanWith source
 
-o_1_space_folds :: Int -> [Benchmark]
+o_1_space_folds :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_folds numElements =
-    [ bgroup "fold"
+    [ (SpaceO_1, bgroup "fold"
         [ benchWithFold numElements "minimum (window size 100)"
             (Window.windowMinimum 100)
         , benchWithFold numElements "minimum (window size 1000)"
@@ -120,12 +120,12 @@ o_1_space_folds numElements =
         , benchWithFold numElements "powerSum 2 (entire stream)"
             (Window.cumulative (Window.windowPowerSum 2))
 
-        ]
+        ])
     ]
 
-o_1_space_scans :: Int -> [Benchmark]
+o_1_space_scans :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_scans numElements =
-    [ bgroup "scan"
+    [ (SpaceO_1, bgroup "scan"
         [ benchWithPostscan numElements "minimum (window size 10)"
             (Window.windowMinimum 10)
         -- Below window size 30 the linear search based impl performs better
@@ -172,7 +172,7 @@ o_1_space_scans numElements =
             (RingArray.slidingWindow 100 (Window.windowPowerSum 2))
         , benchWithPostscan numElements "powerSum 2 (window size 1000)"
             (RingArray.slidingWindow 1000 (Window.windowPowerSum 2))
-        ]
+        ])
     ]
 
 moduleName :: String
@@ -184,8 +184,11 @@ main = runWithCLIOpts defaultStreamSize allBenchmarks
     where
 
     allBenchmarks value =
-        [ bgroup (o_1_space_prefix moduleName) $ concat
-            [ o_1_space_folds value
-            , o_1_space_scans value
-            ]
+        let allBenches =
+                   o_1_space_folds value
+                ++ o_1_space_scans value
+            get x = map snd $ filter ((==) x . fst) allBenches
+            o_1_space = get SpaceO_1
+        in
+        [ bgroup (o_1_space_prefix moduleName) o_1_space
         ]

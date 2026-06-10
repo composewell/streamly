@@ -1511,9 +1511,9 @@ inspect $ 'foldManySepBy `hasNoType` ''SPEC
 moduleName :: String
 moduleName = "Data.Unfold"
 
-o_1_space_transformation_input :: Int -> [Benchmark]
+o_1_space_transformation_input :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_transformation_input size =
-    [ bgroup
+    [ (SpaceO_1, bgroup
           "transformation/input"
           [ benchIO "lmap" $ lmap size
           , benchIO "lmapM" $ lmapM size
@@ -1525,12 +1525,12 @@ o_1_space_transformation_input size =
           , benchIO "consInput" $ consInput size
           , benchIO "consInputWith" $ consInputWith size
           , benchIO "swap" $ swap size
-          ]
+          ])
     ]
 
-o_1_space_generation :: Int -> [Benchmark]
+o_1_space_generation :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_generation size =
-    [ bgroup
+    [ (SpaceO_1, bgroup
           "generation"
           [ benchIO "fromStream" $ fromStream size
           , benchIO "fromStreamK" $ fromStreamK size
@@ -1560,12 +1560,12 @@ o_1_space_generation size =
           , benchIO "enumerateFromStepNum" $ enumerateFromStepNum size
           , benchIO "enumerateFromNum" $ enumerateFromNum size
           , benchIO "enumerateFromToFractional" $ enumerateFromToFractional size
-          ]
+          ])
     ]
 
-o_1_space_transformation :: Int -> [Benchmark]
+o_1_space_transformation :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_transformation size =
-    [ bgroup
+    [ (SpaceO_1, bgroup
           "transformation"
           [ benchIO "map" $ map size
           , benchIO "mapM" $ mapM size
@@ -1573,12 +1573,12 @@ o_1_space_transformation size =
           , benchIO "postscan" $ postscan size
           , benchIO "scanl" $ scanl size
           , benchIO "scanlMany" $ scanlMany size
-          ]
+          ])
     ]
 
-o_1_space_filtering :: Int -> [Benchmark]
+o_1_space_filtering :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_filtering size =
-    [ bgroup
+    [ (SpaceO_1, bgroup
           "filtering"
           [ benchIO "takeWhileM" $ takeWhileM size
           , benchIO "takeWhile" $ takeWhile size
@@ -1595,12 +1595,12 @@ o_1_space_filtering size =
           , benchIO "mapMaybe" $ mapMaybe size
           , benchIO "mapMaybeM" $ mapMaybeM size
           , benchIO "catMaybes" $ catMaybes size
-          ]
+          ])
     ]
 
-o_1_space_zip :: Int -> [Benchmark]
+o_1_space_zip :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_zip size =
-    [ bgroup
+    [ (SpaceO_1, bgroup
           "zip"
           [ benchIO "zipWithM" $ zipWithM size
           , benchIO "zipWith" $ zipWith size
@@ -1610,12 +1610,12 @@ o_1_space_zip size =
           , benchIO "zipArrowWithM" $ zipArrowWithM size
           , benchIO "zipArrowWith" $ zipArrowWith size
           , benchIO "zipRepeat" $ zipRepeat size
-          ]
+          ])
     ]
 
-o_1_space_nested :: BenchEnv -> Int -> [Benchmark]
+o_1_space_nested :: BenchEnv -> Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_nested env size =
-    [ bgroup
+    [ (SpaceO_1, bgroup
           "nested"
           [ benchIO "crossApply outer=inner=(sqrt Max)" $ toNullAp size
           , benchIO "crossApplyFst outer=inner=(sqrt Max)" $ crossApplyFst size
@@ -1640,16 +1640,16 @@ o_1_space_nested env size =
             $ unfoldEachInterleave size 1
           , mkBench "foldMany (Fold.takeEndBy_ (== lf) Fold.drain)" env
             $ \inh _ -> foldManySepBy inh
-          ]
+          ])
     ]
 
     where
 
     sqrtVal = round $ sqrt (fromIntegral size :: Double)
 
-o_1_space_concat :: Int -> [Benchmark]
+o_1_space_concat :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_concat size =
-    [ bgroup
+    [ (SpaceO_1, bgroup
           "concat"
           [ benchIO "concatMapM outer=inner=(sqrt Max)" $ concatMapM sqrtVal sqrtVal
           , benchIO "concatMapPure outer=inner=(sqrt Max)" $ concatMapPure sqrtVal sqrtVal
@@ -1661,32 +1661,32 @@ o_1_space_concat size =
           , benchIO "filterAllOut2" $ filterAllOut size
           , benchIO "filterAllIn2" $ filterAllIn size
           , benchIO "filterSome2" $ filterSome size
-          ]
+          ])
     ]
 
     where
 
     sqrtVal = round $ sqrt (fromIntegral size :: Double)
 
-o_n_space_concat :: Int -> [Benchmark]
+o_n_space_concat :: Int -> [(SpaceComplexity, Benchmark)]
 o_n_space_concat size =
-    [ bgroup
+    [ (SpaceO_n, bgroup
           "concat"
           [ benchIO "toList2" $ toList size
           , benchIO "toListSome2" $ toListSome size
-          ]
+          ])
     ]
 
-o_1_space_resource_management :: Int -> [Benchmark]
+o_1_space_resource_management :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_resource_management size =
-    [ bgroup
+    [ (SpaceO_1, bgroup
           "resource-management"
           [ benchIO "before" $ before size
           , benchIO "after_" $ after_ size
           , benchIO "afterIO" $ afterIO size
           , benchIO "finallyIO" $ finallyIO size
           , benchIO "bracketIO" $ bracketIO size
-          ]
+          ])
     ]
 
 -------------------------------------------------------------------------------
@@ -1746,9 +1746,9 @@ inspect $ hasNoTypeClasses 'readWriteBracket_Unfold
 -- inspect $ 'readWriteBracket_Unfold `hasNoType` ''S.Step
 #endif
 
-o_1_space_copy_read_exceptions :: BenchEnv -> [Benchmark]
+o_1_space_copy_read_exceptions :: BenchEnv -> [(SpaceComplexity, Benchmark)]
 o_1_space_copy_read_exceptions env =
-    [ bgroup "exceptions"
+    [ (SpaceO_1, bgroup "exceptions"
        [ mkBenchSmall "UF.onException" env $ \inh _ ->
            readWriteOnExceptionUnfold inh (nullH env)
        , mkBenchSmall "UF.handle" env $ \inh _ ->
@@ -1757,7 +1757,7 @@ o_1_space_copy_read_exceptions env =
            readWriteFinally_Unfold inh (nullH env)
        , mkBenchSmall "UF.bracket_" env $ \inh _ ->
            readWriteBracket_Unfold inh (nullH env)
-        ]
+        ])
     ]
 
 
@@ -1774,8 +1774,7 @@ main = do
     where
 
     allBenchmarks env size =
-        [ bgroup (o_1_space_prefix moduleName)
-            $ Prelude.concat
+        let allBenches = Prelude.concat
                   [ o_1_space_transformation_input size
                   , o_1_space_generation size
                   , o_1_space_transformation size
@@ -1785,9 +1784,14 @@ main = do
                   , o_1_space_concat size
                   , o_1_space_resource_management size
                   , o_1_space_copy_read_exceptions env
+                  , o_n_space_concat size
                   ]
-        , bgroup (o_n_space_prefix moduleName)
-            $ Prelude.concat [o_n_space_concat size]
+            get x = Prelude.map snd $ Prelude.filter ((==) x . fst) allBenches
+            o_1_space = get SpaceO_1
+            o_n_space = get SpaceO_n
+        in
+        [ bgroup (o_1_space_prefix moduleName) o_1_space
+        , bgroup (o_n_space_prefix moduleName) o_n_space
         ]
 #else
     -- Enable FUSION_CHECK macro at the beginning of the file

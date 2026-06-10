@@ -81,8 +81,6 @@ o_1_space_reduce_toChunks_split env =
         ]
     ]
 
-benchmarks :: String -> BenchEnv -> [Benchmark]
-benchmarks moduleName env =
-        [ bgroup (o_1_space_prefix moduleName) $
-            o_1_space_reduce_toChunks_split env
-        ]
+benchmarks :: BenchEnv -> [(SpaceComplexity, Benchmark)]
+benchmarks env =
+    map (SpaceO_1,) (o_1_space_reduce_toChunks_split env)

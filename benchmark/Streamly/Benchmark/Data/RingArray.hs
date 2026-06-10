@@ -33,10 +33,14 @@ eqArray (arr, ring) = RingArray.eqArray ring arr
 -- Benchmark groups
 -------------------------------------------------------------------------------
 
-o_1_space_serial :: Int -> Array.Array Int -> RingArray.RingArray Int -> [Benchmark]
+o_1_space_serial ::
+       Int
+    -> Array.Array Int
+    -> RingArray.RingArray Int
+    -> [(SpaceComplexity, Benchmark)]
 o_1_space_serial value arr ring =
-    [ bench "eqArrayN" $ nfIO $ eqArrayN (value, arr, ring)
-    , bench "eqArray" $ nfIO $ eqArray (arr, ring)
+    [ (SpaceO_1, bench "eqArrayN" $ nfIO $ eqArrayN (value, arr, ring))
+    , (SpaceO_1, bench "eqArray" $ nfIO $ eqArray (arr, ring))
     ]
 
 -------------------------------------------------------------------------------
@@ -45,6 +49,13 @@ o_1_space_serial value arr ring =
 
 moduleName :: String
 moduleName = "Data.RingArray"
+
+benchmarks ::
+       Int
+    -> Array.Array Int
+    -> RingArray.RingArray Int
+    -> [(SpaceComplexity, Benchmark)]
+benchmarks = o_1_space_serial
 
 main :: IO ()
 main = do
@@ -61,7 +72,9 @@ main = do
         return (arr, ring)
 
     allBenchmarks (arr, ring) value =
-        [ bgroup
-              (o_1_space_prefix moduleName)
-              (o_1_space_serial value arr ring)
+        let allBenches = benchmarks value arr ring
+            get x = map snd $ filter ((==) x . fst) allBenches
+            o_1_space = get SpaceO_1
+        in
+        [ bgroup (o_1_space_prefix moduleName) o_1_space
         ]

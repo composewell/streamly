@@ -1181,20 +1181,18 @@ o_1_space_elimination_multi_stream value =
 -- In addition to gauge options, the number of elements in the stream can be
 -- passed using the --stream-size option.
 --
-benchmarks :: String -> Int -> [Benchmark]
-benchmarks moduleName size =
-        [ bgroup (o_1_space_prefix moduleName) $ concat
-            [ o_1_space_elimination_foldable size
-            , o_1_space_elimination_folds size
-            , o_1_space_elimination_multi_stream_pure size
-            , o_1_space_elimination_multi_stream size
-            ]
-
-        , bgroup (o_n_heap_prefix moduleName) $
-               o_n_heap_elimination_buffered size
-            ++ o_n_heap_elimination_foldl size
-            ++ o_n_heap_elimination_toList size
-        , bgroup (o_n_space_prefix moduleName) $
-            o_n_space_elimination_foldr size
-            ++ o_n_space_elimination_toList size
-        ]
+benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
+benchmarks size =
+    map (SpaceO_1,) (concat
+        [ o_1_space_elimination_foldable size
+        , o_1_space_elimination_folds size
+        , o_1_space_elimination_multi_stream_pure size
+        , o_1_space_elimination_multi_stream size
+        ])
+    ++ map (HeapO_n,) (
+           o_n_heap_elimination_buffered size
+        ++ o_n_heap_elimination_foldl size
+        ++ o_n_heap_elimination_toList size)
+    ++ map (SpaceO_n,) (
+        o_n_space_elimination_foldr size
+        ++ o_n_space_elimination_toList size)

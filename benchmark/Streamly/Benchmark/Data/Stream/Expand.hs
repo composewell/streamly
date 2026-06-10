@@ -1132,27 +1132,26 @@ o_n_heap_buffering value =
 -- passed using the --stream-size option.
 --
 {-# ANN benchmarks "HLint: ignore" #-}
-benchmarks :: String -> Int -> [Benchmark]
-benchmarks moduleName size =
-        [ bgroup (o_1_space_prefix moduleName) $ Prelude.concat
-            [
-            -- multi-stream
-              o_1_space_joining size
-            , o_1_space_concat size
-            , o_1_space_applicative size
-            , o_1_space_monad size
-            , o_1_space_bind size
-            , o_1_space_equations size
-            ]
-        , bgroup (o_n_space_prefix moduleName) $ Prelude.concat
-            [
-            -- multi-stream
-              o_n_space_monad size
-            ]
-       , bgroup (o_n_heap_prefix moduleName) $
-       {-
-            -- multi-stream
-            o_n_heap_buffering size
-       -}
-            (o_n_heap_concat size)
-        ]
+benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
+benchmarks size =
+    map (SpaceO_1,) (Prelude.concat
+        [
+        -- multi-stream
+          o_1_space_joining size
+        , o_1_space_concat size
+        , o_1_space_applicative size
+        , o_1_space_monad size
+        , o_1_space_bind size
+        , o_1_space_equations size
+        ])
+    ++ map (SpaceO_n,) (Prelude.concat
+        [
+        -- multi-stream
+          o_n_space_monad size
+        ])
+    ++ map (HeapO_n,)
+    {-
+        -- multi-stream
+        (o_n_heap_buffering size)
+    -}
+        (o_n_heap_concat size)

@@ -46,9 +46,9 @@ benchScanWith src len name f =
 benchWithPostscan :: Int -> String -> Scanl IO Double a -> Benchmark
 benchWithPostscan = benchScanWith source
 
-o_1_space_scans :: Int -> [Benchmark]
+o_1_space_scans :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_scans numElements =
-    [ bgroup "scan"
+    [ (SpaceO_1, bgroup "scan"
         [ benchWithPostscan numElements "minimum (window size 10)"
             (Scanl.windowMinimum 10)
         -- Below window size 30 the linear search based impl performs better
@@ -95,7 +95,7 @@ o_1_space_scans numElements =
             (Scanl.incrScan 100 (Scanl.incrPowerSum 2))
         , benchWithPostscan numElements "powerSum 2 (window size 1000)"
             (Scanl.incrScan 1000 (Scanl.incrPowerSum 2))
-        ]
+        ])
     ]
 
 moduleName :: String
@@ -107,7 +107,9 @@ main = runWithCLIOpts defaultStreamSize allBenchmarks
     where
 
     allBenchmarks value =
-        [ bgroup (o_1_space_prefix moduleName)
-            ( o_1_space_scans value
-            )
+        let allBenches = o_1_space_scans value
+            get x = map snd $ filter ((==) x . fst) allBenches
+            o_1_space = get SpaceO_1
+        in
+        [ bgroup (o_1_space_prefix moduleName) o_1_space
         ]
