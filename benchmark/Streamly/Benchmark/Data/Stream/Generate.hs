@@ -97,6 +97,10 @@ inspect $ 'sourceFromTuple `hasNoType` ''Fold.Step
 inspect $ 'sourceFromTuple `hasNoType` ''SPEC
 #endif
 
+{-# INLINE fromListM #-}
+fromListM :: Monad m => [m a] -> Stream m a
+fromListM = Stream.sequence . Stream.fromList
+
 {-# INLINE sourceFromListM #-}
 sourceFromListM :: Int -> IO ()
 sourceFromListM value = withDrain $ \n -> fromListM (fmap return [n..n+value])

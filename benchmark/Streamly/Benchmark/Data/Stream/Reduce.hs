@@ -38,8 +38,11 @@ import System.Random (randomRIO)
 
 import qualified Stream.Common as Common
 import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Pipe as Pipe
 import qualified Streamly.Internal.Data.Refold.Type as Refold
+import qualified Streamly.Internal.Data.Scan as Scan
 import qualified Streamly.Internal.Data.Stream as S
+import qualified Streamly.Internal.Data.Stream as Stream
 
 import Test.Tasty.Bench
 import Streamly.Benchmark.Common
@@ -894,6 +897,46 @@ o_n_stack_iterated value =
 -------------------------------------------------------------------------------
 -- Pipes
 -------------------------------------------------------------------------------
+
+{-# INLINE transformMapM #-}
+transformMapM :: Monad m => Int -> Stream m Int -> m ()
+transformMapM n = composeN n $ Stream.pipe (Pipe.mapM return)
+
+{-# INLINE transformComposeMapM #-}
+transformComposeMapM :: Monad m => Int -> Stream m Int -> m ()
+transformComposeMapM n =
+    composeN n $
+    Stream.pipe
+        (Pipe.mapM (\x -> return (x + 1)) `Pipe.compose`
+         Pipe.mapM (\x -> return (x + 2)))
+
+{-# INLINE transformTeeMapM #-}
+transformTeeMapM :: Monad m => Int -> Stream m Int -> m ()
+transformTeeMapM n =
+    composeN n $
+    Stream.pipe
+        (Pipe.mapM (\x -> return (x + 1)) `Pipe.teeMerge`
+         Pipe.mapM (\x -> return (x + 2)))
+
+{-# INLINE scanMapM #-}
+scanMapM :: Monad m => Int -> Stream m Int -> m ()
+scanMapM n = composeN n $ Stream.scanr (Scan.functionM return)
+
+{-# INLINE scanComposeMapM #-}
+scanComposeMapM :: Monad m => Int -> Stream m Int -> m ()
+scanComposeMapM n =
+    composeN n $
+    Stream.scanr
+        (Scan.functionM (\x -> return (x + 1)) `Scan.compose`
+         Scan.functionM (\x -> return (x + 2)))
+
+{-# INLINE scanTeeMapM #-}
+scanTeeMapM :: Monad m => Int -> Stream m Int -> m ()
+scanTeeMapM n =
+    composeN n $
+    Stream.scanr
+        (Scan.teeWith (+) (Scan.functionM (\x -> return (x + 1)))
+         (Scan.functionM (\x -> return (x + 2))))
 
 {-# INLINE pipeMapM #-}
 pipeMapM :: Int -> IO ()

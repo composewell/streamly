@@ -13,12 +13,9 @@ module Stream.Common
     ( MonadAsync
 
     -- Generation
-    , fromListM
-    , fromFoldableM
     , repeat
 
     , append
-    , append2
 
     -- Elimination
     , drain
@@ -29,22 +26,11 @@ module Stream.Common
     , sourceUnfoldr
     , sourceUnfoldrM
     , sourceUnfoldrAction
-    , sourceConcatMapSingletonStreams
-    , sourceConcatMapStreams
-    , sourceFromFoldable
-    , sourceFromFoldableM
 
     -- Benchmark stream elimination
     , benchIOSink
-    , benchIOSinkPureSrc
     , benchIOSrc
     , benchIO
-
-    , toNullApPure
-    , toNullMPure
-    , toNullM3Pure
-    , filterAllOutMPure
-    , filterAllInMPure
 
     -- Benchmarking functions
     , apDiscardFst
@@ -61,15 +47,6 @@ module Stream.Common
     , toListM
     , toListSome
     , composeN
-    , mapN
-    , mapM
-    , transformMapM
-    , transformComposeMapM
-    , transformTeeMapM
-    -- , transformZipMapM
-    , scanMapM
-    , scanComposeMapM
-    , scanTeeMapM
     )
 where
 
@@ -83,9 +60,7 @@ import System.Random (randomRIO)
 import Streamly.Internal.Data.Stream (Stream)
 
 import qualified Streamly.Internal.Data.Fold as Fold
-import qualified Streamly.Internal.Data.Pipe as Pipe
 import qualified Streamly.Internal.Data.Scanl as Scanl
-import qualified Streamly.Internal.Data.Scan as Scan
 import qualified Streamly.Internal.Data.Stream as Stream
 
 import Test.Tasty.Bench
@@ -103,10 +78,6 @@ unCross = Stream.unNested
 append :: Monad m => Stream m a -> Stream m a -> Stream m a
 append = Stream.append
 
-{-# INLINE append2 #-}
-append2 :: Monad m => Stream m a -> Stream m a -> Stream m a
-append2 = Stream.append
-
 {-# INLINE drain #-}
 drain :: Monad m => Stream m a -> m ()
 drain = Stream.drain
@@ -118,14 +89,6 @@ toList = Stream.toList
 {-# INLINE repeat #-}
 repeat :: Monad m => Int -> Int -> Stream m Int
 repeat count = Stream.take count . Stream.repeat
-
-{-# INLINE fromListM #-}
-fromListM :: MonadAsync m => [m a] -> Stream m a
-fromListM = Stream.sequence . Stream.fromList
-
-{-# INLINE fromFoldableM #-}
-fromFoldableM :: MonadAsync m => [m a] -> Stream m a
-fromFoldableM = Stream.sequence . Stream.fromFoldable
 
 {-# INLINE sourceUnfoldrM #-}
 sourceUnfoldrM :: Monad m => Int -> Int -> Stream m Int
@@ -160,27 +123,12 @@ sourceUnfoldrAction value n = Stream.unfoldr step n
         then Nothing
         else Just (return cnt, cnt + 1)
 
-{-# INLINE sourceFromFoldable #-}
-sourceFromFoldable :: Monad m => Int -> Int -> Stream m Int
-sourceFromFoldable value n = Stream.fromFoldable [n..n+value]
-
-{-# INLINE sourceFromFoldableM #-}
-sourceFromFoldableM :: Monad m => Int -> Int -> Stream m Int
-sourceFromFoldableM value n = Stream.fromFoldableM (fmap return [n..n+value])
-
 {-# INLINE benchIOSink #-}
 benchIOSink
     :: (NFData b)
     => Int -> String -> (Stream IO Int -> IO b) -> Benchmark
 benchIOSink value name f =
     bench name $ nfIO $ randomRIO (1,1) >>= f . sourceUnfoldrM value
-
-{-# INLINE benchIOSinkPureSrc #-}
-benchIOSinkPureSrc
-    :: (NFData b)
-    => Int -> String -> (Stream IO Int -> IO b) -> Benchmark
-benchIOSinkPureSrc value name f =
-    bench name $ nfIO $ randomRIO (1,1) >>= f . sourceUnfoldr value
 
 -- | Takes a source, and uses it with a default drain/fold method.
 {-# INLINE benchIOSrc #-}
@@ -194,18 +142,6 @@ benchIOSrc name f =
 {-# NOINLINE benchIO #-}
 benchIO :: (NFData b) => String -> (Int -> IO b) -> Benchmark
 benchIO name f = bench name $ nfIO $ randomRIO (1,1) >>= f
-
-{-# INLINE sourceConcatMapSingletonStreams #-}
-sourceConcatMapSingletonStreams :: (Monad m)
-    => Int -> Int -> Stream m (Stream m Int)
-sourceConcatMapSingletonStreams count start =
-    fmap Stream.fromPure $ sourceUnfoldr count start
-
-{-# INLINE sourceConcatMapStreams #-}
-sourceConcatMapStreams :: (Monad m)
-    => Int -> Int -> Int -> Stream m (Stream m Int)
-sourceConcatMapStreams outer inner start =
-    fmap (sourceUnfoldr inner) $ sourceUnfoldr outer start
 
 {-# INLINE apDiscardFst #-}
 apDiscardFst :: MonadAsync m =>
@@ -248,16 +184,6 @@ toNullAp linearCount start = drain $ unCross $
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
-{-# INLINE toNullApPure #-}
-toNullApPure :: MonadAsync m => Int -> Int -> m ()
-toNullApPure linearCount start = drain $ unCross $
-    (+) <$> mkCross (sourceUnfoldr nestedCount2 start)
-        <*> mkCross (sourceUnfoldr nestedCount2 start)
-
-    where
-
-    nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
-
 {-# INLINE monadThen #-}
 monadThen :: MonadAsync m => Int -> Int -> m ()
 monadThen linearCount start = drain $ unCross $ do
@@ -279,33 +205,12 @@ toNullM linearCount start = drain $ unCross $ do
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
-{-# INLINE toNullMPure #-}
-toNullMPure :: MonadAsync m => Int -> Int -> m ()
-toNullMPure linearCount start = drain $ unCross $ do
-    x <- mkCross (sourceUnfoldr nestedCount2 start)
-    y <- mkCross (sourceUnfoldr nestedCount2 start)
-    return $ x + y
-
-    where
-
-    nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
-
 {-# INLINE toNullM3 #-}
 toNullM3 :: MonadAsync m => Int -> Int -> m ()
 toNullM3 linearCount start = drain $ unCross $ do
     x <- mkCross (sourceUnfoldrM nestedCount3 start)
     y <- mkCross (sourceUnfoldrM nestedCount3 start)
     z <- mkCross (sourceUnfoldrM nestedCount3 start)
-    return $ x + y + z
-  where
-    nestedCount3 = round (fromIntegral linearCount**(1/3::Double))
-
-{-# INLINE toNullM3Pure #-}
-toNullM3Pure :: MonadAsync m => Int -> Int -> m ()
-toNullM3Pure linearCount start = drain $ unCross $ do
-    x <- mkCross (sourceUnfoldr nestedCount3 start)
-    y <- mkCross (sourceUnfoldr nestedCount3 start)
-    z <- mkCross (sourceUnfoldr nestedCount3 start)
     return $ x + y + z
   where
     nestedCount3 = round (fromIntegral linearCount**(1/3::Double))
@@ -327,30 +232,6 @@ filterAllInM :: MonadAsync m => Int -> Int -> m ()
 filterAllInM linearCount start = drain $ unCross $ do
     x <- mkCross (sourceUnfoldrM nestedCount2 start)
     y <- mkCross (sourceUnfoldrM nestedCount2 start)
-    let s = x + y
-    if s > 0
-    then return s
-    else mkCross Stream.nil
-  where
-    nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
-
-{-# INLINE filterAllOutMPure #-}
-filterAllOutMPure :: MonadAsync m => Int -> Int -> m ()
-filterAllOutMPure linearCount start = drain $ unCross $ do
-    x <- mkCross (sourceUnfoldr nestedCount2 start)
-    y <- mkCross (sourceUnfoldr nestedCount2 start)
-    let s = x + y
-    if s < 0
-    then return s
-    else mkCross Stream.nil
-  where
-    nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
-
-{-# INLINE filterAllInMPure #-}
-filterAllInMPure :: MonadAsync m => Int -> Int -> m ()
-filterAllInMPure linearCount start = drain $ unCross $ do
-    x <- mkCross (sourceUnfoldr nestedCount2 start)
-    y <- mkCross (sourceUnfoldr nestedCount2 start)
     let s = x + y
     if s > 0
     then return s
@@ -420,22 +301,6 @@ composeN n f =
         4 -> drain . f . f . f . f
         _ -> undefined
 
-{-# INLINE mapN #-}
-mapN ::
-       Monad m
-    => Int
-    -> Stream m Int
-    -> m ()
-mapN n = composeN n $ fmap (+ 1)
-
-{-# INLINE mapM #-}
-mapM ::
-       MonadAsync m
-    => Int
-    -> Stream m Int
-    -> m ()
-mapM n = composeN n $ Stream.mapM return
-
 {-# INLINE foldl' #-}
 foldl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> m b
 foldl' f z = Stream.fold (Fold.foldl' f z)
@@ -443,70 +308,6 @@ foldl' f z = Stream.fold (Fold.foldl' f z)
 {-# INLINE scanl' #-}
 scanl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> Stream m b
 scanl' f z = Stream.scanl (Scanl.scanl' f z)
-
-{-# INLINE transformMapM #-}
-transformMapM ::
-       (Monad m)
-    => Int
-    -> Stream m Int
-    -> m ()
-transformMapM n = composeN n $ Stream.pipe (Pipe.mapM return)
-
-{-# INLINE scanMapM #-}
-scanMapM ::
-       (Monad m)
-    => Int
-    -> Stream m Int
-    -> m ()
-scanMapM n = composeN n $ Stream.scanr (Scan.functionM return)
-
-{-# INLINE transformComposeMapM #-}
-transformComposeMapM ::
-       (Monad m)
-    => Int
-    -> Stream m Int
-    -> m ()
-transformComposeMapM n =
-    composeN n $
-    Stream.pipe
-        (Pipe.mapM (\x -> return (x + 1)) `Pipe.compose`
-         Pipe.mapM (\x -> return (x + 2)))
-
-{-# INLINE scanComposeMapM #-}
-scanComposeMapM ::
-       (Monad m)
-    => Int
-    -> Stream m Int
-    -> m ()
-scanComposeMapM n =
-    composeN n $
-    Stream.scanr
-        (Scan.functionM (\x -> return (x + 1)) `Scan.compose`
-         Scan.functionM (\x -> return (x + 2)))
-
-{-# INLINE transformTeeMapM #-}
-transformTeeMapM ::
-       (Monad m)
-    => Int
-    -> Stream m Int
-    -> m ()
-transformTeeMapM n =
-    composeN n $
-    Stream.pipe
-        (Pipe.mapM (\x -> return (x + 1)) `Pipe.teeMerge`
-         Pipe.mapM (\x -> return (x + 2)))
-
-{-# INLINE scanTeeMapM #-}
-scanTeeMapM ::
-       (Monad m)
-    => Int
-    -> Stream m Int
-    -> m ()
-scanTeeMapM n =
-    composeN n $
-    Stream.scanr
-        (Scan.teeWith (+) (Scan.functionM (\x -> return (x + 1)))
-         (Scan.functionM (\x -> return (x + 2))))
 
 {-
 {-# INLINE transformZipMapM #-}

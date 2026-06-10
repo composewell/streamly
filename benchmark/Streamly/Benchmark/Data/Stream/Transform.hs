@@ -73,6 +73,14 @@ withStream value f = withRandomIntIO (f . sourceUnfoldrM value)
 -- maps and scans
 -------------------------------------------------------------------------------
 
+{-# INLINE mapN #-}
+mapN :: Monad m => Int -> Stream m Int -> m ()
+mapN n = composeN n $ fmap (+ 1)
+
+{-# INLINE mapM #-}
+mapM :: MonadAsync m => Int -> Stream m Int -> m ()
+mapM n = composeN n $ Stream.mapM return
+
 {-# INLINE map1 #-}
 map1 :: Int -> IO ()
 map1 value = withStream value (mapN 1)
