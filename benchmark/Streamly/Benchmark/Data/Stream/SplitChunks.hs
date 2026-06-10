@@ -35,11 +35,6 @@ import Streamly.Benchmark.Common
 import Streamly.Benchmark.Common.Handle
 
 #ifdef INSPECTION
-import Streamly.Internal.Data.Stream (Step(..))
-
-import qualified Streamly.Internal.Data.MutArray as MutArray
-import qualified Streamly.Internal.Data.Unfold as Unfold
-
 import GHC.Types (SPEC(..))
 import Test.Inspection
 #endif

@@ -28,6 +28,7 @@ import qualified Stream.Reduce as NestedFold
 import qualified Stream.Split as Split
 import qualified Stream.SplitChunks as SplitChunks
 import qualified Stream.Transform as Transformation
+import qualified Stream.Type as Type
 
 import Streamly.Benchmark.Common
 
@@ -69,6 +70,7 @@ main = do
                 , NestedFold.benchmarks size
                 , Lift.benchmarks size
                 , NestedStream.benchmarks size
+                , Type.benchmarks size
                 ]
             get x = map snd $ filter ((==) x . fst) allBenches
         in

@@ -23,7 +23,7 @@
 
 module Stream.Eliminate (benchmarks) where
 
-import Control.Monad (when, (>=>))
+import Control.Monad ((>=>))
 import Data.Functor ((<&>))
 import Control.DeepSeq (NFData(..))
 import Data.Functor.Identity (Identity(..), runIdentity)
@@ -400,25 +400,6 @@ o_1_space_elimination_foldable value =
 -- Reductions
 -------------------------------------------------------------------------------
 
-{-# INLINE uncons #-}
-uncons :: Int -> IO ()
-uncons value = withStream value go
-
-    where
-
-    go s = do
-        r <- S.uncons s
-        case r of
-            Nothing -> return ()
-            Just (_, t) -> go t
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'uncons
--- inspect $ 'uncons `hasNoType` ''S.Step
-inspect $ 'uncons `hasNoType` ''Fold.Step
-inspect $ 'uncons `hasNoType` ''SPEC
-#endif
-
 {-# INLINE toNull #-}
 toNull :: Int -> IO ()
 toNull value = withStream value S.drain
@@ -452,87 +433,6 @@ inspect $ 'mapM_ `hasNoType` ''Fold.Step
 inspect $ 'mapM_ `hasNoType` ''SPEC
 #endif
 
-{-# INLINE foldBreak #-}
-foldBreak :: Int -> IO ()
-foldBreak value = withStream value go
-
-    where
-
-    go s = do
-        (r, s1) <- S.foldBreak (Fold.take 1 Fold.length) s
-        when (r /= 0) $ go s1
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'foldBreak
--- inspect $ 'foldBreak `hasNoType` ''S.Step
-inspect $ 'foldBreak `hasNoType` ''Fold.Step
-inspect $ 'foldBreak `hasNoType` ''SPEC
-#endif
-
-{-# INLINE foldrMElem #-}
-foldrMElem :: Int -> IO Bool
-foldrMElem value =
-    withStream value
-        (S.foldrM
-             (\x xs -> if x == value then return True else xs)
-             (return False))
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'foldrMElem
-inspect $ 'foldrMElem `hasNoType` ''S.Step
-inspect $ 'foldrMElem `hasNoType` ''Fold.Step
-inspect $ 'foldrMElem `hasNoType` ''SPEC
-#endif
-
-{-# INLINE foldrMElemIdentity #-}
-foldrMElemIdentity :: Int -> IO Bool
-foldrMElemIdentity value =
-    withPureStream value $
-        runIdentity . S.foldrM
-            (\x xs -> if x == value then return True else xs)
-            (return False)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'foldrMElemIdentity
-inspect $ 'foldrMElemIdentity `hasNoType` ''S.Step
-inspect $ 'foldrMElemIdentity `hasNoType` ''Fold.Step
-inspect $ 'foldrMElemIdentity `hasNoType` ''SPEC
-#endif
-
--- {-# INLINE foldrToStream #-}
--- foldrToStream :: Monad m => Stream m Int -> m (Stream Identity Int)
--- foldrToStream = S.foldr S.cons S.nil
-
-{-# INLINE foldrMToList #-}
-foldrMToList :: Int -> IO [Int]
-foldrMToList value =
-    withStream value $ S.foldrM (\x xs -> (x :) <$> xs) (return [])
-
-{-# INLINE foldrMToListIdentity #-}
-foldrMToListIdentity :: Int -> IO [Int]
-foldrMToListIdentity value =
-    withPureStream value
-        (runIdentity . S.foldrM (\x xs -> (x :) <$> xs) (return []))
-
-{-# INLINE foldl'Reduce #-}
-foldl'Reduce :: Int -> IO Int
-foldl'Reduce value = withStream value (S.foldl' (+) 0)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'foldl'Reduce
-inspect $ 'foldl'Reduce `hasNoType` ''S.Step
-#endif
-
-{-# INLINE foldl'ReduceIdentity #-}
-foldl'ReduceIdentity :: Int -> IO Int
-foldl'ReduceIdentity value =
-    withPureStream value $ runIdentity . S.foldl' (+) 0
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'foldl'ReduceIdentity
-inspect $ 'foldl'ReduceIdentity `hasNoType` ''S.Step
-#endif
-
 {-# INLINE streamLast #-}
 streamLast :: Int -> IO (Maybe Int)
 streamLast value = withStream value S.last
@@ -561,27 +461,6 @@ foldl1'ReduceIdentity value =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'foldl1'ReduceIdentity
 inspect $ 'foldl1'ReduceIdentity `hasNoType` ''S.Step
-#endif
-
-{-# INLINE foldlM'Reduce #-}
-foldlM'Reduce :: Int -> IO Int
-foldlM'Reduce value =
-    withStream value (S.foldlM' (\xs a -> return $ a + xs) (return 0))
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'foldlM'Reduce
-inspect $ 'foldlM'Reduce `hasNoType` ''S.Step
-#endif
-
-{-# INLINE foldlM'ReduceIdentity #-}
-foldlM'ReduceIdentity :: Int -> IO Int
-foldlM'ReduceIdentity value =
-    withPureStream value $
-        runIdentity . S.foldlM' (\xs a -> return $ a + xs) (return 0)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'foldlM'ReduceIdentity
-inspect $ 'foldlM'ReduceIdentity `hasNoType` ''S.Step
 #endif
 
 {-# INLINE _head #-}
@@ -845,35 +724,20 @@ o_1_space_elimination_folds value =
             bgroup "reduce"
             [ bgroup
                   "IO"
-                  [ benchIO "foldl'" $ foldl'Reduce value
-                  , benchIO "foldl1'" $ foldl1'Reduce value
-                  , benchIO "foldlM'" $ foldlM'Reduce value
+                  [ benchIO "foldl1'" $ foldl1'Reduce value
                   ]
 
             , bgroup
                   "Identity"
-                  [ benchIO "foldl'" $ foldl'ReduceIdentity value
-                  , benchIO "foldl1'" $ foldl1'ReduceIdentity value
-                  , benchIO "foldlM'" $ foldlM'ReduceIdentity value
-                  ]
-            ] ,
-         bgroup "build"
-            [ bgroup "IO"
-                  [ benchIO "foldrMElem" $ foldrMElem value
-                  ]
-            , bgroup "Identity"
-                  [ benchIO "foldrMElem" $ foldrMElemIdentity value
-                  , benchIO "foldrMToList" $ foldrMToListIdentity value
+                  [ benchIO "foldl1'" $ foldl1'ReduceIdentity value
                   ]
             ]
 
         -- deconstruction
-        , benchIO "uncons" $ uncons value
         , benchIO "mapM_" $ mapM_ value
         , benchIO "last" $ streamLast value
         , benchIO "length . generalizeInner" $ generalizeInner value
         , benchIO "toNull" $ toNull value
-        , benchIO "foldBreak" $ foldBreak value
         , benchIO "init" $ streamInit value
 
         -- draining
@@ -913,42 +777,6 @@ o_1_space_elimination_folds value =
         ]
     ]
 
--------------------------------------------------------------------------------
--- Buffered Transformations by fold
--------------------------------------------------------------------------------
-
-{-# INLINE foldl'Build #-}
-foldl'Build :: Int -> IO [Int]
-foldl'Build value = withStream value (S.foldl' (flip (:)) [])
-
-{-# INLINE foldl'BuildIdentity #-}
-foldl'BuildIdentity :: Int -> IO [Int]
-foldl'BuildIdentity value =
-    withPureStream value (runIdentity . S.foldl' (flip (:)) [])
-
-{-# INLINE foldlM'Build #-}
-foldlM'Build :: Int -> IO [Int]
-foldlM'Build value =
-    withStream value (S.foldlM' (\xs x -> return $ x : xs) (return []))
-
-{-# INLINE foldlM'BuildIdentity #-}
-foldlM'BuildIdentity :: Int -> IO [Int]
-foldlM'BuildIdentity value =
-    withPureStream value
-        (runIdentity . S.foldlM' (\xs x -> return $ x : xs) (return []))
-
-o_n_heap_elimination_foldl :: Int -> [Benchmark]
-o_n_heap_elimination_foldl value =
-    [ bgroup "foldl"
-        -- Left folds for building a structure are inherently non-streaming
-        -- as the structure cannot be lazily consumed until fully built.
-        [ benchIO "foldl'/build/IO" $ foldl'Build value
-        , benchIO "foldl'/build/Identity" $ foldl'BuildIdentity value
-        , benchIO "foldlM'/build/IO" $ foldlM'Build value
-        , benchIO "foldlM'/build/Identity" $ foldlM'BuildIdentity value
-        ]
-    ]
-
 -- For comparisons
 {-# INLINE showInstanceList #-}
 showInstanceList :: [Int] -> String
@@ -963,34 +791,6 @@ o_n_heap_elimination_buffered value =
         [ bench "showsPrec Haskell lists" $ nf showInstanceList (mkList value)
         -- XXX This is not o-1-space for GHC-8.10
         , benchIO "showsPrec pure streams" $ showInstance value
-        ]
-    ]
-
-{-# INLINE foldrMToSum #-}
-foldrMToSum :: Int -> IO Int
-foldrMToSum value =
-    withStream value (S.foldrM (\x xs -> (x +) <$> xs) (return 0))
-
-{-# INLINE foldrMToSumIdentity #-}
-foldrMToSumIdentity :: Int -> IO Int
-foldrMToSumIdentity value =
-    withPureStream value
-        (runIdentity . S.foldrM (\x xs -> (x +) <$> xs) (return 0))
-
-o_n_space_elimination_foldr :: Int -> [Benchmark]
-o_n_space_elimination_foldr value =
-    -- Head recursive strict right folds.
-    [ bgroup "foldr"
-        -- accumulation due to strictness of IO monad
-        [ benchIO "foldrM/build/IO (toList)" $ foldrMToList value
-        -- Right folds for reducing are inherently non-streaming as the
-        -- expression needs to be fully built before it can be reduced.
-        , benchIO "foldrM/reduce/Identity (sum)" $ foldrMToSumIdentity value
-        , benchIO "foldrM/reduce/IO (sum)" $ foldrMToSum value
-
-        -- This is horribly slow, never finishes
-        -- let foldlS = composeN n $ S.foldlS (flip S.cons) S.nil
-        --  in benchFold "foldlS"  (foldlS    1) sourceUnfoldrM
         ]
     ]
 
@@ -1012,10 +812,6 @@ o_n_heap_elimination_toList value =
         ]
     ]
 
-{-# INLINE toList' #-}
-toList' :: Int -> IO [Int]
-toList' value = withStream value S.toList
-
 -- NOTE: this is a Fold benchmark, used here only for comparison with ToList
 {-# INLINE toStream #-}
 toStream :: Int -> IO (Stream Identity Int)
@@ -1025,8 +821,7 @@ o_n_space_elimination_toList :: Int -> [Benchmark]
 o_n_space_elimination_toList value =
     [ bgroup "toList"
         -- Converting the stream to a list or pure stream in a strict monad
-        [ benchIO "toList" $ toList' value
-        , benchIO "toStream" $ toStream value
+        [ benchIO "toStream" $ toStream value
         ]
     ]
 
@@ -1037,18 +832,6 @@ o_n_space_elimination_toList value =
 -------------------------------------------------------------------------------
 -- Multi-stream pure
 -------------------------------------------------------------------------------
-
-{-# INLINE eqByPure #-}
-eqByPure :: Int -> IO Bool
-eqByPure value =
-    withPureStream value $ \src -> runIdentity $ S.eqBy (==) src src
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'eqByPure
-inspect $ 'eqByPure `hasNoType` ''SPEC
-inspect $ 'eqByPure `hasNoType` ''S.Step
-inspect $ 'eqByPure `hasNoType` ''Fold.Step
-#endif
 
 {-# INLINE eqInstance #-}
 eqInstance :: Int -> IO Bool
@@ -1072,18 +855,6 @@ inspect $ 'eqInstanceNotEq `hasNoType` ''Fold.Step
 inspect $ 'eqInstanceNotEq `hasNoType` ''SPEC
 #endif
 
-{-# INLINE cmpByPure #-}
-cmpByPure :: Int -> IO Ordering
-cmpByPure value =
-    withPureStream value $ \src -> runIdentity $ S.cmpBy compare src src
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'cmpByPure
-inspect $ 'cmpByPure `hasNoType` ''SPEC
-inspect $ 'cmpByPure `hasNoType` ''S.Step
-inspect $ 'cmpByPure `hasNoType` ''Fold.Step
-#endif
-
 {-# INLINE ordInstance #-}
 ordInstance :: Int -> IO Bool
 ordInstance value = withPureStream value $ \src -> src < src
@@ -1098,10 +869,8 @@ inspect $ 'ordInstance `hasNoType` ''SPEC
 o_1_space_elimination_multi_stream_pure :: Int -> [Benchmark]
 o_1_space_elimination_multi_stream_pure value =
     [ bgroup "multi-stream-pure"
-        [ benchIO "eqBy" $ eqByPure value
-        , benchIO "==" $ eqInstance value
+        [ benchIO "==" $ eqInstance value
         , benchIO "/=" $ eqInstanceNotEq value
-        , benchIO "cmpBy" $ cmpByPure value
         , benchIO "<" $ ordInstance value
         ]
     ]
@@ -1141,34 +910,10 @@ inspect $ 'stripPrefix `hasNoType` ''Fold.Step
 inspect $ 'stripPrefix `hasNoType` ''SPEC
 #endif
 
-{-# INLINE eqBy #-}
-eqBy :: Int -> IO Bool
-eqBy value = withStream value $ \src -> S.eqBy (==) src src
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'eqBy
-inspect $ 'eqBy `hasNoType` ''SPEC
-inspect $ 'eqBy `hasNoType` ''S.Step
-inspect $ 'eqBy `hasNoType` ''Fold.Step
-#endif
-
-{-# INLINE cmpBy #-}
-cmpBy :: Int -> IO Ordering
-cmpBy value = withStream value $ \src -> S.cmpBy compare src src
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'cmpBy
-inspect $ 'cmpBy `hasNoType` ''SPEC
-inspect $ 'cmpBy `hasNoType` ''S.Step
-inspect $ 'cmpBy `hasNoType` ''Fold.Step
-#endif
-
 o_1_space_elimination_multi_stream :: Int -> [Benchmark]
 o_1_space_elimination_multi_stream value =
     [ bgroup "multi-stream"
-        [ benchIO "eqBy" $ eqBy value
-        , benchIO "cmpBy" $ cmpBy value
-        , benchIO "isPrefixOf" $ isPrefixOf value
+        [ benchIO "isPrefixOf" $ isPrefixOf value
         , benchIO "isSubsequenceOf" $ isSubsequenceOf value
         , benchIO "stripPrefix" $ stripPrefix value
         ]
@@ -1191,8 +936,6 @@ benchmarks size =
         ])
     ++ map (HeapO_n,) (
            o_n_heap_elimination_buffered size
-        ++ o_n_heap_elimination_foldl size
         ++ o_n_heap_elimination_toList size)
     ++ map (SpaceO_n,) (
-        o_n_space_elimination_foldr size
-        ++ o_n_space_elimination_toList size)
+        o_n_space_elimination_toList size)

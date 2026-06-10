@@ -39,7 +39,6 @@ import System.Random (randomRIO)
 import qualified Stream.Common as Common
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Pipe as Pipe
-import qualified Streamly.Internal.Data.Refold.Type as Refold
 import qualified Streamly.Internal.Data.Scan as Scan
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream as Stream
@@ -138,57 +137,6 @@ inspect $ 'groupsByRollingEq `hasNoType` ''FL.Step
 inspect $ 'groupsByRollingEq `hasNoType` ''SPEC
 #endif
 
-{-# INLINE foldMany #-}
-foldMany :: Int -> IO ()
-foldMany value =
-    withStream value $
-          Common.drain
-        . fmap getSum
-        . S.foldMany (FL.take 2 FL.mconcat)
-        . fmap Sum
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'foldMany
-inspect $ 'foldMany `hasNoType` ''S.Step
-inspect $ 'foldMany `hasNoType` ''S.FoldMany
-inspect $ 'foldMany `hasNoType` ''FL.Step
-inspect $ 'foldMany `hasNoType` ''SPEC
-#endif
-
-{-# INLINE foldMany1 #-}
-foldMany1 :: Int -> IO ()
-foldMany1 value =
-    withStream value $
-          Common.drain
-        . fmap getSum
-        . S.foldManyPost (FL.take 2 FL.mconcat)
-        . fmap Sum
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'foldMany1
-inspect $ 'foldMany1 `hasNoType` ''S.Step
-inspect $ 'foldMany1 `hasNoType` ''S.FoldManyPost
-inspect $ 'foldMany1 `hasNoType` ''FL.Step
-inspect $ 'foldMany1 `hasNoType` ''SPEC
-#endif
-
-{-# INLINE refoldMany #-}
-refoldMany :: Int -> IO ()
-refoldMany value =
-    withStream value $
-          Common.drain
-        . fmap getSum
-        . S.refoldMany (Refold.take 2 Refold.sconcat) (return mempty)
-        . fmap Sum
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'refoldMany
-inspect $ 'refoldMany `hasNoType` ''S.Step
-inspect $ 'refoldMany `hasNoType` ''S.FoldMany
-inspect $ 'refoldMany `hasNoType` ''FL.Step
-inspect $ 'refoldMany `hasNoType` ''SPEC
-#endif
-
 {-# INLINE foldIterateM #-}
 foldIterateM :: Int -> IO ()
 foldIterateM value =
@@ -207,24 +155,6 @@ inspect $ 'foldIterateM `hasNoType` ''FL.Step
 inspect $ 'foldIterateM `hasNoType` ''SPEC
 #endif
 
-{-# INLINE refoldIterateM #-}
-refoldIterateM :: Int -> IO ()
-refoldIterateM value =
-    withStream value $
-        Common.drain
-            . fmap getSum
-            . S.refoldIterateM
-                (Refold.take 2 Refold.sconcat) (return (Sum 0))
-            . fmap Sum
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'refoldIterateM
-inspect $ 'refoldIterateM `hasNoType` ''S.Step
-inspect $ 'refoldIterateM `hasNoType` ''S.CIterState
-inspect $ 'refoldIterateM `hasNoType` ''FL.Step
-inspect $ 'refoldIterateM `hasNoType` ''SPEC
-#endif
-
 o_1_space_grouping :: Int -> [Benchmark]
 o_1_space_grouping value =
     -- Buffering operations using heap proportional to group/window sizes.
@@ -239,11 +169,7 @@ o_1_space_grouping value =
         -- XXX parseMany/parseIterate benchmarks are in the Parser/ParserD
         -- modules we can bring those here. chunksOf benchmarks are in
         -- Parser/ParserD/Array.Stream/FileSystem.Handle.
-        , benchIO "foldMany" $ foldMany value
-        , benchIO "foldMany1" $ foldMany1 value
-        , benchIO "refoldMany" $ refoldMany value
         , benchIO "foldIterateM" $ foldIterateM value
-        , benchIO "refoldIterateM" $ refoldIterateM value
         ]
     ]
 

@@ -446,6 +446,7 @@ benchmark Data.Stream
       -- XXX uses lot of memory
       Stream.SplitChunks
       Stream.Transform
+      Stream.Type
   if flag(limit-build-mem)
     if flag(dev)
       ghc-options: +RTS -M1000M -RTS

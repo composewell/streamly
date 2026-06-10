@@ -73,58 +73,6 @@ withStream value f = withRandomIntIO (f . sourceUnfoldrM value)
 -- maps and scans
 -------------------------------------------------------------------------------
 
-{-# INLINE mapN #-}
-mapN :: Monad m => Int -> Stream m Int -> m ()
-mapN n = composeN n $ fmap (+ 1)
-
-{-# INLINE mapM #-}
-mapM :: MonadAsync m => Int -> Stream m Int -> m ()
-mapM n = composeN n $ Stream.mapM return
-
-{-# INLINE map1 #-}
-map1 :: Int -> IO ()
-map1 value = withStream value (mapN 1)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'map1
-inspect $ 'map1 `hasNoType` ''Stream.Step
-inspect $ 'map1 `hasNoType` ''FL.Step
-inspect $ 'map1 `hasNoType` ''SPEC
-#endif
-
-{-# INLINE mapM1 #-}
-mapM1 :: Int -> IO ()
-mapM1 value = withStream value (mapM 1)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'mapM1
-inspect $ 'mapM1 `hasNoType` ''Stream.Step
-inspect $ 'mapM1 `hasNoType` ''FL.Step
-inspect $ 'mapM1 `hasNoType` ''SPEC
-#endif
-
-{-# INLINE mapN4 #-}
-mapN4 :: Int -> IO ()
-mapN4 value = withStream value (mapN 4)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'mapN4
-inspect $ 'mapN4 `hasNoType` ''Stream.Step
-inspect $ 'mapN4 `hasNoType` ''FL.Step
-inspect $ 'mapN4 `hasNoType` ''SPEC
-#endif
-
-{-# INLINE mapM4 #-}
-mapM4 :: Int -> IO ()
-mapM4 value = withStream value (mapM 4)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'mapM4
-inspect $ 'mapM4 `hasNoType` ''Stream.Step
-inspect $ 'mapM4 `hasNoType` ''FL.Step
-inspect $ 'mapM4 `hasNoType` ''SPEC
-#endif
-
 {-# INLINE scanl' #-}
 scanl' :: MonadIO m => Int -> Stream m Int -> m ()
 scanl' n = composeN n $ Stream.scanl' (+) 0
@@ -383,9 +331,7 @@ o_1_space_mapping value =
         -- , benchIOSink value "foldrTMap" (foldrTMap 1)
 
         -- Mapping
-          benchIO "map" $ map1 value
-        , benchIO "sequence" $ sequence1 value
-        , benchIO "mapM" $ mapM1 value
+          benchIO "sequence" $ sequence1 value
         , benchIO "tap" $ tap1 value
         -- XXX tasty-bench hangs benchmarking this
         -- , benchIOSink value "timestamped" _timestamped
@@ -404,9 +350,7 @@ o_1_space_mapping value =
 o_1_space_mappingX4 :: Int -> [Benchmark]
 o_1_space_mappingX4 value =
     [ bgroup "mappingX4"
-        [ benchIO "map" $ mapN4 value
-        , benchIO "mapM" $ mapM4 value
-        , benchIO "trace" $ trace4 value
+        [ benchIO "trace" $ trace4 value
 
         , benchIO "scanl'" $ scanl'4 value
         , benchIO "scanl1'" $ scanl1'4 value
@@ -440,18 +384,6 @@ o_n_space_mapping :: Int -> [Benchmark]
 o_n_space_mapping value =
     [ bgroup "mapping"
         [ benchIO "naive prime sieve" $ naivePrimeSieve value
-        ]
-    ]
-
--------------------------------------------------------------------------------
--- Functor
--------------------------------------------------------------------------------
-
-o_1_space_functor :: Int -> [Benchmark]
-o_1_space_functor value =
-    [ bgroup "Functor"
-        [ benchIO "fmap" $ map1 value
-        , benchIO "fmap x 4" $ mapN4 value
         ]
     ]
 
@@ -680,77 +612,6 @@ inspect $ hasNoTypeClasses 'filterMAllIn4
 inspect $ 'filterMAllIn4 `hasNoType` ''Stream.Step
 inspect $ 'filterMAllIn4 `hasNoType` ''FL.Step
 inspect $ 'filterMAllIn4 `hasNoType` ''SPEC
-#endif
-
-{-# INLINE _takeOne #-}
-_takeOne :: MonadIO m => Int -> Stream m Int -> m ()
-_takeOne n = composeN n $ Stream.take 1
-
-{-# INLINE takeAll #-}
-takeAll :: MonadIO m => Int -> Int -> Stream m Int -> m ()
-takeAll value n = composeN n $ Stream.take (value + 1)
-
-{-# INLINE takeAll1 #-}
-takeAll1 :: Int -> IO ()
-takeAll1 value = withStream value (takeAll value 1)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'takeAll1
-inspect $ 'takeAll1 `hasNoType` ''Stream.Step
-inspect $ 'takeAll1 `hasNoType` ''FL.Step
-inspect $ 'takeAll1 `hasNoType` ''SPEC
-#endif
-
-{-# INLINE takeAll4 #-}
-takeAll4 :: Int -> IO ()
-takeAll4 value = withStream value (takeAll value 4)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'takeAll4
-inspect $ 'takeAll4 `hasNoType` ''Stream.Step
-inspect $ 'takeAll4 `hasNoType` ''FL.Step
-inspect $ 'takeAll4 `hasNoType` ''SPEC
-#endif
-
-{-# INLINE takeWhileTrue #-}
-takeWhileTrue :: MonadIO m => Int -> Int -> Stream m Int -> m ()
-takeWhileTrue value n = composeN n $ Stream.takeWhile (<= (value + 1))
-
-{-# INLINE takeWhileTrue1 #-}
-takeWhileTrue1 :: Int -> IO ()
-takeWhileTrue1 value = withStream value (takeWhileTrue value 1)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'takeWhileTrue1
-inspect $ 'takeWhileTrue1 `hasNoType` ''Stream.Step
-inspect $ 'takeWhileTrue1 `hasNoType` ''FL.Step
-inspect $ 'takeWhileTrue1 `hasNoType` ''SPEC
-#endif
-
-{-# INLINE takeWhileTrue4 #-}
-takeWhileTrue4 :: Int -> IO ()
-takeWhileTrue4 value = withStream value (takeWhileTrue value 4)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'takeWhileTrue4
-inspect $ 'takeWhileTrue4 `hasNoType` ''Stream.Step
-inspect $ 'takeWhileTrue4 `hasNoType` ''FL.Step
-inspect $ 'takeWhileTrue4 `hasNoType` ''SPEC
-#endif
-
-{-# INLINE takeWhileMTrue #-}
-takeWhileMTrue :: MonadIO m => Int -> Int -> Stream m Int -> m ()
-takeWhileMTrue value n = composeN n $ Stream.takeWhileM (return . (<= (value + 1)))
-
-{-# INLINE takeWhileMTrue4 #-}
-takeWhileMTrue4 :: Int -> IO ()
-takeWhileMTrue4 value = withStream value (takeWhileMTrue value 4)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'takeWhileMTrue4
-inspect $ 'takeWhileMTrue4 `hasNoType` ''Stream.Step
-inspect $ 'takeWhileMTrue4 `hasNoType` ''FL.Step
-inspect $ 'takeWhileMTrue4 `hasNoType` ''SPEC
 #endif
 
 {-# INLINE dropOne #-}
@@ -1057,10 +918,6 @@ o_1_space_filtering value =
         , benchIO "filterM-all-out" $ filterMAllOut1 value
         , benchIO "filterM-all-in" $ filterMAllIn1 value
 
-        -- Trimming
-        , benchIO "take-all" $ takeAll1 value
-        , benchIO "takeWhile-true" $ takeWhileTrue1 value
-     -- , benchIO "takeWhileM-true" ...
         , benchIO "drop-one" $ dropOne1 value
         , benchIO "drop-all" $ dropAll1 value
         , benchIO "dropWhile-true" $ dropWhileTrue1 value
@@ -1091,10 +948,6 @@ o_1_space_filteringX4 value =
         , benchIO "filterM-all-out" $ filterMAllOut4 value
         , benchIO "filterM-all-in" $ filterMAllIn4 value
 
-        -- trimming
-        , benchIO "take-all" $ takeAll4 value
-        , benchIO "takeWhile-true" $ takeWhileTrue4 value
-        , benchIO "takeWhileM-true" $ takeWhileMTrue4 value
         , benchIO "drop-one" $ dropOne4 value
         , benchIO "drop-all" $ dropAll4 value
         , benchIO "dropWhile-true" $ dropWhileTrue4 value
@@ -1327,8 +1180,7 @@ o_1_space_indexingX4 value =
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
     map (SpaceO_1,) (Prelude.concat
-        [ o_1_space_functor size
-        , o_1_space_mapping size
+        [ o_1_space_mapping size
         , o_1_space_mappingX4 size
         , o_1_space_filtering size
         , o_1_space_filteringX4 size

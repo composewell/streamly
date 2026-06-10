@@ -25,6 +25,7 @@ module Streamly.Internal.Data.Refold.Type
     (
     -- * Types
       Refold (..)
+    , Tuple'Fused (..)
 
     -- * Constructors
     , foldl'

@@ -26,7 +26,6 @@ module Stream.Generate (benchmarks) where
 #ifdef INSPECTION
 import GHC.Types (SPEC(..))
 import Test.Inspection
-import qualified Streamly.Internal.Data.Producer as Producer
 #endif
 
 import Control.DeepSeq (NFData(..))
@@ -63,39 +62,6 @@ withDrain f = withRandomIntIO $ \n -> drain (f n)
 {-# INLINE withDrainPure #-}
 withDrainPure :: (Int -> Stream Identity a) -> IO ()
 withDrainPure f = withRandomIntIO $ \n -> return $! runIdentity $ drain (f n)
-
--------------------------------------------------------------------------------
--- fromList
--------------------------------------------------------------------------------
-
-{-# INLINE sourceFromList #-}
-sourceFromList :: Int -> IO ()
-sourceFromList value = withDrain $ \n -> Stream.fromList [n..n+value]
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'sourceFromList
-inspect $ 'sourceFromList `hasNoType` ''Stream.Step
-inspect $ 'sourceFromList `hasNoType` ''Fold.Step
-inspect $ 'sourceFromList `hasNoType` ''SPEC
-#endif
-
--- | 'fromTuple' yields two elements per tuple. To emit and drain ~value
--- elements we generate value/2 tuples and reduce each tuple's 'fromTuple'
--- stream with a light 'sum' fold (avoiding a heavy, non-fusible 'concatMap'
--- that would mask the cost of 'fromTuple').
-{-# INLINE sourceFromTuple #-}
-sourceFromTuple :: Int -> IO ()
-sourceFromTuple value = withDrain $ \n ->
-    Stream.mapM (Stream.fold Fold.sum . Stream.fromTuple)
-        $ Stream.fromList (fmap (\i -> (i, i)) [n .. n + value `div` 2])
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'sourceFromTuple
-inspect $ 'sourceFromTuple `hasNoType` ''Stream.Step
-inspect $ 'sourceFromTuple `hasNoType` ''Producer.TupleState
-inspect $ 'sourceFromTuple `hasNoType` ''Fold.Step
-inspect $ 'sourceFromTuple `hasNoType` ''SPEC
-#endif
 
 {-# INLINE fromListM #-}
 fromListM :: Monad m => [m a] -> Stream m a
@@ -376,8 +342,6 @@ o_1_space_generation value =
         , benchIO "integerFromStep" $ sourceIntegerFromStep value
         , benchIO "fracFromThenTo" $ sourceFracFromThenTo value
         , benchIO "fracFromTo" $ sourceFracFromTo value
-        , benchIO "fromList" $ sourceFromList value
-        , benchIO "fromTuple" $ sourceFromTuple value
         , benchIO "fromListM" $ sourceFromListM value
         , benchIO "IsList.fromList" $ sourceIsList value
         , benchIO "IsString.fromString" $ sourceIsString value
