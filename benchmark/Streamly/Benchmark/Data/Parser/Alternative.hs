@@ -66,44 +66,44 @@ withStream value f = randomRIO (1,1) >>= f . streamUnfoldrM value
 -- Parsers
 -------------------------------------------------------------------------------
 
-{-# INLINE manyWordByEven #-}
-manyWordByEven :: Int -> IO (Either ParseError ())
-manyWordByEven value =
-    withStream value $ Stream.parse (PR.many (PR.wordBy even Fold.drain) Fold.drain)
+{-# INLINE splitManyWordByEven #-}
+splitManyWordByEven :: Int -> IO (Either ParseError ())
+splitManyWordByEven value =
+    withStream value $ Stream.parse (PR.splitMany (PR.wordBy even Fold.drain) Fold.drain)
 
 #ifdef INSPECTION
-inspect $ 'manyWordByEven `hasNoType` ''S.Step
-inspect $ 'manyWordByEven `hasNoType` ''PR.Step
-inspect $ 'manyWordByEven `hasNoType` ''PR.Initial
-inspect $ 'manyWordByEven `hasNoType` ''FL.Step
-inspect $ 'manyWordByEven `hasNoType` ''SPEC
-inspect $ 'manyWordByEven `hasNoType` ''PR.Fused3
+inspect $ 'splitManyWordByEven `hasNoType` ''S.Step
+inspect $ 'splitManyWordByEven `hasNoType` ''PR.Step
+inspect $ 'splitManyWordByEven `hasNoType` ''PR.Initial
+inspect $ 'splitManyWordByEven `hasNoType` ''FL.Step
+inspect $ 'splitManyWordByEven `hasNoType` ''SPEC
+inspect $ 'splitManyWordByEven `hasNoType` ''PR.Fused3
 #endif
 
-{-# INLINE many #-}
-many :: Int -> IO (Either ParseError Int)
-many value = withStream value $ Stream.parse (PR.many (PR.satisfy (> 0)) Fold.length)
+{-# INLINE splitMany #-}
+splitMany :: Int -> IO (Either ParseError Int)
+splitMany value = withStream value $ Stream.parse (PR.splitMany (PR.satisfy (> 0)) Fold.length)
 
 #ifdef INSPECTION
-inspect $ 'many `hasNoType` ''S.Step
-inspect $ 'many `hasNoType` ''PR.Step
-inspect $ 'many `hasNoType` ''PR.Initial
-inspect $ 'many `hasNoType` ''FL.Step
-inspect $ 'many `hasNoType` ''SPEC
-inspect $ 'many `hasNoType` ''PR.Fused3
+inspect $ 'splitMany `hasNoType` ''S.Step
+inspect $ 'splitMany `hasNoType` ''PR.Step
+inspect $ 'splitMany `hasNoType` ''PR.Initial
+inspect $ 'splitMany `hasNoType` ''FL.Step
+inspect $ 'splitMany `hasNoType` ''SPEC
+inspect $ 'splitMany `hasNoType` ''PR.Fused3
 #endif
 
-{-# INLINE some #-}
-some :: Int -> IO (Either ParseError Int)
-some value = withStream value $ Stream.parse (PR.some (PR.satisfy (> 0)) Fold.length)
+{-# INLINE splitSome #-}
+splitSome :: Int -> IO (Either ParseError Int)
+splitSome value = withStream value $ Stream.parse (PR.splitSome (PR.satisfy (> 0)) Fold.length)
 
 #ifdef INSPECTION
-inspect $ 'some `hasNoType` ''S.Step
-inspect $ 'some `hasNoType` ''PR.Step
-inspect $ 'some `hasNoType` ''PR.Initial
-inspect $ 'some `hasNoType` ''FL.Step
-inspect $ 'some `hasNoType` ''SPEC
-inspect $ 'some `hasNoType` ''PR.Fused3
+inspect $ 'splitSome `hasNoType` ''S.Step
+inspect $ 'splitSome `hasNoType` ''PR.Step
+inspect $ 'splitSome `hasNoType` ''PR.Initial
+inspect $ 'splitSome `hasNoType` ''FL.Step
+inspect $ 'splitSome `hasNoType` ''SPEC
+inspect $ 'splitSome `hasNoType` ''PR.Fused3
 #endif
 
 {-# INLINE manyAlt #-}
@@ -315,9 +315,9 @@ benchmarks value =
 
     -- Sequential Repetition
     -- XXX requires @-fspec-constr-recursive=12@.
-    , (SpaceO_1, benchIO "many" $ many value)
-    , (SpaceO_1, benchIO "many (wordBy even)" $ manyWordByEven value)
-    , (SpaceO_1, benchIO "some" $ some value)
+    , (SpaceO_1, benchIO "splitMany" $ splitMany value)
+    , (SpaceO_1, benchIO "splitMany (wordBy even)" $ splitManyWordByEven value)
+    , (SpaceO_1, benchIO "splitSome" $ splitSome value)
 
     {-
     , benchIO "tee" $ teeAllAny value
