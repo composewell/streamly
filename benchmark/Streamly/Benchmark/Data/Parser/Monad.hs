@@ -30,7 +30,6 @@ module Streamly.Benchmark.Data.Parser.Monad
   ) where
 
 import Control.DeepSeq (NFData(..))
-import Data.Monoid (Sum(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.Stream (Stream)
 import System.Random (randomRIO)
@@ -121,18 +120,6 @@ monad16 value =
             PR.dropWhile (<= (value * 15 `div` 16))
             PR.dropWhile (<= value)
 
-{-# INLINE parseIterate #-}
-parseIterate :: Int -> Int -> IO ()
-parseIterate n value =
-    withStream value $
-          Stream.fold Fold.drain
-        . fmap getSum
-        . Stream.catRights
-        . Stream.parseIterate
-            (PR.fromFold . Fold.take n . Fold.sconcat)
-            (Sum 0)
-        . fmap Sum
-
 -------------------------------------------------------------------------------
 -- Benchmarks
 -------------------------------------------------------------------------------
@@ -150,8 +137,4 @@ benchmarks value =
     , (SpaceO_1, benchIO "monad8" $ monad8 value)
     -- XXX Takes lot of space when run on a long stream, why?
     , (HeapO_n, benchIO "monad16" $ monad16 value)
-
-    -- parseIterate
-    , (SpaceO_1, benchIO "parseIterate (take 1)" $ parseIterate 1 value)
-    , (SpaceO_1, benchIO "parseIterate (take all)" $ parseIterate value value)
     ]

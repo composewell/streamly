@@ -47,7 +47,7 @@ import Streamly.Internal.Data.Stream (Stream)
 import qualified Streamly.FileSystem.Handle as Handle
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as PR
-import qualified Streamly.Data.Stream as Stream
+import qualified Streamly.Internal.Data.Stream as Stream
 
 import Test.Tasty.Bench hiding (env)
 import Streamly.Benchmark.Common
@@ -150,6 +150,23 @@ parseManyGroupsRollingEitherAlt cmp value =
         -- Make the input unsorted.
         . fmap (\x -> if even x then x + 2 else x)
 
+{-# INLINE concatSequence #-}
+concatSequence :: Int -> IO (Either ParseError ())
+concatSequence value =
+    withStream value $ Stream.parse (PR.sequence (Stream.repeat PR.one) Fold.drain)
+
+{-# INLINE parseIterate #-}
+parseIterate :: Int -> Int -> IO ()
+parseIterate n value =
+    withStream value $
+          Stream.fold Fold.drain
+        . fmap getSum
+        . Stream.catRights
+        . Stream.parseIterate
+            (PR.fromFold . Fold.take n . Fold.sconcat)
+            (Sum 0)
+        . fmap Sum
+
 -------------------------------------------------------------------------------
 -- Benchmarks
 -------------------------------------------------------------------------------
@@ -180,6 +197,11 @@ benchmarks value =
     -- requires -fspec-constr-recursive=10
     , (SpaceO_1, benchIO "parseMany groupRollingByEither (Alternating)"
         parseManyGroupsRollingEitherAlt1)
+    , (SpaceO_1, benchIO "concatSequence" $ concatSequence value)
+
+    -- parseIterate
+    , (SpaceO_1, benchIO "parseIterate (take 1)" $ parseIterate 1 value)
+    , (SpaceO_1, benchIO "parseIterate (take all)" $ parseIterate value value)
     ]
 
     where

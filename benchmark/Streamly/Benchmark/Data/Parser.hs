@@ -46,13 +46,16 @@ benchmarkList ::
     -> [Array.Array Int]
     -> [(SpaceComplexity, Benchmark)]
 benchmarkList value env _arrays =
-    Alternative.benchmarks value
-        ++ Applicative.benchmarks value
-        ++ Monad.benchmarks value
-        ++ Sequence.benchmarks value
-        ++ Sequence.benchmarksFileIO env
-        ++ Groups.benchmarks value
-        ++ Interleave.benchmarks value
+    -- Benchmarks for lower level Parser/Type.hs source module
+       Alternative.benchmarks value
+    ++ Applicative.benchmarks value
+    ++ Monad.benchmarks value
+
+    -- Benchmarks for Higher level Parser.hs source module.
+    ++ Sequence.benchmarks value
+    ++ Sequence.benchmarksFileIO env
+    ++ Groups.benchmarks value
+    ++ Interleave.benchmarks value
 
 -------------------------------------------------------------------------------
 -- Driver

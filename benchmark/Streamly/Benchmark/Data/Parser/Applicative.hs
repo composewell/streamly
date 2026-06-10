@@ -221,11 +221,6 @@ sequence_ value =
     {-# INLINE f #-}
     f m k = m >> k
 
-{-# INLINE concatSequence #-}
-concatSequence :: Int -> IO (Either ParseError ())
-concatSequence value =
-    withStream value $ Stream.parse (PR.sequence (Stream.repeat PR.one) Fold.drain)
-
 -------------------------------------------------------------------------------
 -- Benchmarks
 -------------------------------------------------------------------------------
@@ -253,5 +248,4 @@ benchmarks value =
     , (SpaceO_n, benchIO "sequenceA_/100" $ sequenceA_ (value `div` 100))
     , (SpaceO_n, benchIO "sequence/100" $ sequence (value `div` 100))
     , (SpaceO_n, benchIO "sequence_/100" $ sequence_ (value `div` 100))
-    , (SpaceO_1, benchIO "concatSequence" $ concatSequence value)
     ]
