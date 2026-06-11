@@ -6,11 +6,8 @@
 
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
-
-{-# OPTIONS_GHC -Wno-orphans #-}
 
 #ifdef __HADDOCK_VERSION__
 #undef INSPECTION
@@ -30,19 +27,15 @@ import Test.Inspection
 
 import Control.DeepSeq (NFData(..))
 import Control.Monad.IO.Class (MonadIO)
-import Data.Functor.Identity (Identity(..))
 import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Time.Units (AbsTime)
 import System.Random (randomRIO)
 
-import qualified GHC.Exts as GHC
-import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream as Stream
 
 import Test.Tasty.Bench
 import Stream.Common hiding (benchIO)
 import Streamly.Benchmark.Common
-import qualified Prelude
 
 import Prelude hiding (repeat, replicate, iterate)
 
@@ -59,10 +52,6 @@ withDrain :: (Int -> Stream IO a) -> IO ()
 withDrain f = withRandomIntIO $ \n -> drain (f n)
 
 -- XXX should we use rnf to evaluate the result?
-{-# INLINE withDrainPure #-}
-withDrainPure :: (Int -> Stream Identity a) -> IO ()
-withDrainPure f = withRandomIntIO $ \n -> return $! runIdentity $ drain (f n)
-
 {-# INLINE fromListM #-}
 fromListM :: Monad m => [m a] -> Stream m a
 fromListM = Stream.sequence . Stream.fromList
@@ -77,46 +66,6 @@ inspect $ 'sourceFromListM `hasNoType` ''Stream.Step
 inspect $ 'sourceFromListM `hasNoType` ''Fold.Step
 inspect $ 'sourceFromListM `hasNoType` ''SPEC
 #endif
-
-{-# INLINE sourceIsList #-}
-sourceIsList :: Int -> IO ()
-sourceIsList value = withDrainPure $ \n -> GHC.fromList [n..n+value]
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'sourceIsList
-inspect $ 'sourceIsList `hasNoType` ''Stream.Step
-inspect $ 'sourceIsList `hasNoType` ''Fold.Step
-inspect $ 'sourceIsList `hasNoType` ''SPEC
-#endif
-
-{-# INLINE sourceIsString #-}
-sourceIsString :: Int -> IO ()
-sourceIsString value = withDrainPure $ \n ->
-    GHC.fromString (Prelude.replicate (n + value) 'a')
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'sourceIsString
-inspect $ 'sourceIsString `hasNoType` ''Stream.Step
-inspect $ 'sourceIsString `hasNoType` ''Fold.Step
-inspect $ 'sourceIsString `hasNoType` ''SPEC
-#endif
-
-{-# INLINE readInstance #-}
-readInstance :: String -> Stream Identity Int
-readInstance str =
-    let r = reads str
-    in case r of
-        [(x,"")] -> x
-        _ -> error "readInstance: no parse"
-
--- For comparisons
-{-# INLINE readInstanceList #-}
-readInstanceList :: String -> [Int]
-readInstanceList str =
-    let r = reads str
-    in case r of
-        [(x,"")] -> x
-        _ -> error "readInstance: no parse"
 
 {-# INLINE replicate #-}
 replicate :: Int -> IO ()
@@ -343,8 +292,6 @@ o_1_space_generation value =
         , benchIO "fracFromThenTo" $ sourceFracFromThenTo value
         , benchIO "fracFromTo" $ sourceFracFromTo value
         , benchIO "fromListM" $ sourceFromListM value
-        , benchIO "IsList.fromList" $ sourceIsList value
-        , benchIO "IsString.fromString" $ sourceIsString value
         , benchIO "enumerateFrom" $ enumerateFrom value
         , benchIO "enumerateFromTo" $ enumerateFromTo value
         , benchIO "enumerateFromThen" $ enumerateFromThen value
@@ -365,23 +312,6 @@ o_1_space_generation value =
         ]
     ]
 
-instance NFData a => NFData (Stream Identity a) where
-    {-# INLINE rnf #-}
-    rnf xs = runIdentity $ Stream.fold (Fold.foldl' (\_ x -> rnf x) ()) xs
-
-o_n_heap_generation :: Int -> [Benchmark]
-o_n_heap_generation value =
-    [ bgroup "buffered"
-    -- Buffers the output of show/read.
-    -- XXX can the outputs be streaming? Can we have special read/show
-    -- style type classes, readM/showM supporting streaming effects?
-        [ bench "readsPrec pure streams" $
-          nf (readInstance . mkString) value
-        , bench "readsPrec Haskell lists" $
-          nf (readInstanceList . mkListString) value
-        ]
-    ]
-
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -392,4 +322,3 @@ o_n_heap_generation value =
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
     map (SpaceO_1,) (o_1_space_generation size)
-    ++ map (HeapO_n,) (o_n_heap_generation size)
