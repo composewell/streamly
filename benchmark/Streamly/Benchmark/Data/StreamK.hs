@@ -24,6 +24,7 @@ module Main (main) where
 #if !MIN_VERSION_base(4,18,0)
 import Control.Applicative (liftA2)
 #endif
+import Control.DeepSeq (NFData)
 import Control.Monad (when)
 import Data.Maybe (isJust)
 import Streamly.Internal.Data.Stream (Stream)
@@ -50,133 +51,167 @@ import Test.Inspection
 -- Stream generation and elimination
 -------------------------------------------------------------------------------
 
-{-# INLINE unfoldr #-}
-unfoldr :: Int -> Int -> StreamK m Int
-unfoldr streamLen n = StreamK.unfoldr step n
+{-# INLINE withRandomIntIO #-}
+withRandomIntIO :: (Int -> IO b) -> IO b
+withRandomIntIO f = randomRIO (1, 1 :: Int) >>= f
+
+{-# INLINE withDrain #-}
+withDrain :: (Int -> StreamK IO a) -> IO ()
+withDrain f = withRandomIntIO $ \n -> StreamK.drain (f n)
+
+{-# INLINE sourceUnfoldr #-}
+sourceUnfoldr :: Int -> Int -> StreamK m Int
+sourceUnfoldr streamLen n = StreamK.unfoldr step n
     where
     step cnt =
         if cnt > n + streamLen
         then Nothing
         else Just (cnt, cnt + 1)
 
-{-# INLINE unfoldrM #-}
-unfoldrM :: Monad m => Int -> Int -> StreamK m Int
-unfoldrM streamLen n = StreamK.unfoldrMWith StreamK.consM step n
+{-# INLINE unfoldr #-}
+unfoldr :: Int -> IO ()
+unfoldr streamLen = withDrain (sourceUnfoldr streamLen)
+
+{-# INLINE sourceUnfoldrM #-}
+sourceUnfoldrM :: Monad m => Int -> Int -> StreamK m Int
+sourceUnfoldrM streamLen n = StreamK.unfoldrMWith StreamK.consM step n
     where
     step cnt =
         if cnt > n + streamLen
         then return Nothing
         else return (Just (cnt, cnt + 1))
 
+{-# INLINE unfoldrM #-}
+unfoldrM :: Int -> IO ()
+unfoldrM streamLen = withDrain (sourceUnfoldrM streamLen)
+
+{-# INLINE withStream #-}
+withStream :: Int -> (StreamK IO Int -> IO b) -> IO b
+withStream value f = randomRIO (1,1) >>= f . sourceUnfoldrM value
+
 {-# INLINE repeat #-}
-repeat :: Int -> Int -> StreamK m Int
-repeat streamLen = StreamK.take streamLen . StreamK.repeat
+repeat :: Int -> IO ()
+repeat streamLen = withDrain $ StreamK.take streamLen . StreamK.repeat
 
 {-# INLINE repeatM #-}
-repeatM :: Monad m => Int -> Int -> StreamK m Int
-repeatM streamLen = StreamK.take streamLen . StreamK.repeatM . return
+repeatM :: Int -> IO ()
+repeatM streamLen = withDrain $ StreamK.take streamLen . StreamK.repeatM . return
 
 {-# INLINE replicate #-}
-replicate :: Int -> Int -> StreamK m Int
-replicate = StreamK.replicate
+replicate :: Int -> IO ()
+replicate streamLen = withDrain (StreamK.replicate streamLen)
 
 {-# INLINE replicateM #-}
-replicateM :: Monad m => Int -> Int -> StreamK m Int
-replicateM streamLen = StreamK.replicateMWith StreamK.consM streamLen . return
+replicateM :: Int -> IO ()
+replicateM streamLen =
+    withDrain $ StreamK.replicateMWith StreamK.consM streamLen . return
 
 {-# INLINE iterate #-}
-iterate :: Int -> Int -> StreamK m Int
-iterate streamLen = StreamK.take streamLen . StreamK.iterate (+1)
+iterate :: Int -> IO ()
+iterate streamLen = withDrain $ StreamK.take streamLen . StreamK.iterate (+1)
 
 {-# INLINE iterateM #-}
-iterateM :: Monad m => Int -> Int -> StreamK m Int
-iterateM streamLen = StreamK.take streamLen . StreamK.iterateM (return . (+1)) . return
+iterateM :: Int -> IO ()
+iterateM streamLen =
+    withDrain $ StreamK.take streamLen . StreamK.iterateM (return . (+1)) . return
 
 {-# INLINE fromFoldable #-}
-fromFoldable :: Int -> Int -> StreamK m Int
-fromFoldable streamLen n = StreamK.fromFoldable [n..n+streamLen]
+fromFoldable :: Int -> IO ()
+fromFoldable streamLen =
+    withDrain $ \n -> StreamK.fromFoldable [n..n+streamLen]
 
 {- HLINT ignore "Fuse foldr/fmap" -}
 {-# INLINE fromFoldableM #-}
-fromFoldableM :: Monad m => Int -> Int -> StreamK m Int
-fromFoldableM streamLen n =
+fromFoldableM :: Int -> IO ()
+fromFoldableM streamLen =
+    withDrain $ \n ->
     List.foldr StreamK.consM StreamK.nil (Prelude.fmap return [n..n+streamLen])
-
-{-# INLINABLE concatMapFoldableWith #-}
-concatMapFoldableWith :: P.Foldable f
-    => (StreamK m b -> StreamK m b -> StreamK m b)
-    -> (a -> StreamK m b)
-    -> f a
-    -> StreamK m b
-concatMapFoldableWith f g = P.foldr (f . g) StreamK.nil
 
 {-# INLINE concatMapFoldableSerial #-}
 concatMapFoldableSerial :: Int -> Int -> StreamK m Int
 concatMapFoldableSerial streamLen n =
-    concatMapFoldableWith StreamK.append StreamK.fromPure [n..n+streamLen]
+    P.foldr (StreamK.append . StreamK.fromPure) StreamK.nil [n..n+streamLen]
 
 {-# INLINE concatMapFoldableSerialM #-}
 concatMapFoldableSerialM :: Monad m => Int -> Int -> StreamK m Int
 concatMapFoldableSerialM streamLen n =
-    concatMapFoldableWith StreamK.append (StreamK.fromEffect . return) [n..n+streamLen]
+    P.foldr (StreamK.append . StreamK.fromEffect . return) StreamK.nil [n..n+streamLen]
+
+{-# INLINE concatMapFoldableWith #-}
+concatMapFoldableWith :: Int -> IO ()
+concatMapFoldableWith streamLen = withDrain (concatMapFoldableSerial streamLen)
+
+{-# INLINE concatMapFoldableWithM #-}
+concatMapFoldableWithM :: Int -> IO ()
+concatMapFoldableWithM streamLen = withDrain (concatMapFoldableSerialM streamLen)
 
 -------------------------------------------------------------------------------
 -- Elimination
 -------------------------------------------------------------------------------
 
-{-# INLINE drain #-}
-drain :: Monad m => StreamK m a -> m ()
-drain = StreamK.drain
+{-# INLINE toNull #-}
+toNull :: Int -> IO ()
+toNull streamLen = withDrain (sourceUnfoldrM streamLen)
 
 {-# INLINE mapM_ #-}
-mapM_ :: Monad m => StreamK m a -> m ()
-mapM_ = StreamK.mapM_ (\_ -> return ())
+mapM_ :: Int -> IO ()
+mapM_ streamLen = withStream streamLen (StreamK.mapM_ (\_ -> return ()))
 
 {-# INLINE uncons #-}
-uncons :: Monad m => StreamK m Int -> m ()
-uncons s = do
-    r <- StreamK.uncons s
-    case r of
-        Nothing -> return ()
-        Just (_, t) -> uncons t
+uncons :: Int -> IO ()
+uncons streamLen = withStream streamLen go
+    where
+    go s = do
+        r <- StreamK.uncons s
+        case r of
+            Nothing -> return ()
+            Just (_, t) -> go t
 
 {-# INLINE init #-}
-init :: Monad m => StreamK m a -> m ()
-init s = do
-    t <- StreamK.init s
-    P.mapM_ StreamK.drain t
+init :: Int -> IO ()
+init streamLen = withStream streamLen go
+    where
+    go s = do
+        t <- StreamK.init s
+        P.mapM_ StreamK.drain t
 
 {-# INLINE tail #-}
-tail :: Monad m => StreamK m a -> m ()
-tail s = StreamK.tail s >>= P.mapM_ tail
+tail :: Int -> IO ()
+tail streamLen = withStream streamLen go
+    where go s = StreamK.tail s >>= P.mapM_ go
 
 {-# INLINE nullTail #-}
-nullTail :: Monad m => StreamK m Int -> m ()
-nullTail s = do
-    r <- StreamK.null s
-    when (not r) $ StreamK.tail s >>= P.mapM_ nullTail
+nullTail :: Int -> IO ()
+nullTail streamLen = withStream streamLen go
+    where
+    go s = do
+        r <- StreamK.null s
+        when (not r) $ StreamK.tail s >>= P.mapM_ go
 
 {-# INLINE headTail #-}
-headTail :: Monad m => StreamK m Int -> m ()
-headTail s = do
-    h <- StreamK.head s
-    when (isJust h) $ StreamK.tail s >>= P.mapM_ headTail
+headTail :: Int -> IO ()
+headTail streamLen = withStream streamLen go
+    where
+    go s = do
+        h <- StreamK.head s
+        when (isJust h) $ StreamK.tail s >>= P.mapM_ go
 
 {-# INLINE toList #-}
-toList :: Monad m => StreamK m Int -> m [Int]
-toList = StreamK.toList
+toList :: Int -> IO [Int]
+toList streamLen = withStream streamLen StreamK.toList
 
 {-# INLINE foldl' #-}
-foldl' :: Monad m => StreamK m Int -> m Int
-foldl' = StreamK.foldl' (+) 0
+foldl' :: Int -> IO Int
+foldl' streamLen = withStream streamLen (StreamK.foldl' (+) 0)
 
 {-# INLINE foldlM' #-}
-foldlM' :: Monad m => StreamK m Int -> m Int
-foldlM' = StreamK.foldlM' (\b a -> return (b + a)) (return 0)
+foldlM' :: Int -> IO Int
+foldlM' streamLen =
+    withStream streamLen (StreamK.foldlM' (\b a -> return (b + a)) (return 0))
 
 {-# INLINE last #-}
-last :: Monad m => StreamK m Int -> m (Maybe Int)
-last = StreamK.last
+last :: Int -> IO (Maybe Int)
+last streamLen = withStream streamLen StreamK.last
 
 -------------------------------------------------------------------------------
 -- Transformation
@@ -188,83 +223,87 @@ composeN
     => Int -> (StreamK m Int -> StreamK m Int) -> StreamK m Int -> m ()
 composeN n f =
     case n of
-        1 -> drain . f
-        2 -> drain . f . f
-        3 -> drain . f . f . f
-        4 -> drain . f . f . f . f
+        1 -> StreamK.drain . f
+        2 -> StreamK.drain . f . f
+        3 -> StreamK.drain . f . f . f
+        4 -> StreamK.drain . f . f . f . f
         _ -> undefined
 
 {-# INLINE scanl' #-}
-scanl' :: Monad m => Int -> StreamK m Int -> m ()
-scanl' n = composeN n $ StreamK.scanl' (+) 0
+scanl' :: Int -> Int -> IO ()
+scanl' n streamLen = withStream streamLen (composeN n (StreamK.scanl' (+) 0))
 
 {-# INLINE map #-}
-map :: Monad m => Int -> StreamK m Int -> m ()
-map n = composeN n $ StreamK.map (+ 1)
+map :: Int -> Int -> IO ()
+map n streamLen = withStream streamLen (composeN n (StreamK.map (+ 1)))
 
 {-# INLINE fmapK #-}
-fmapK :: Monad m => Int -> StreamK m Int -> m ()
-fmapK n = composeN n $ P.fmap (+ 1)
+fmapK :: Int -> Int -> IO ()
+fmapK n streamLen = withStream streamLen (composeN n (P.fmap (+ 1)))
 
 {-# INLINE mapM #-}
-mapM :: Monad m => Int -> StreamK m Int -> m ()
-mapM n = composeN n $ StreamK.mapMWith StreamK.consM return
+mapM :: Int -> Int -> IO ()
+mapM n streamLen = withStream streamLen (composeN n (StreamK.mapMWith StreamK.consM return))
 
 {-# INLINE mapMSerial #-}
-mapMSerial :: Monad m => Int -> StreamK m Int -> m ()
-mapMSerial n = composeN n $ StreamK.mapMSerial return
+mapMSerial :: Int -> Int -> IO ()
+mapMSerial n streamLen = withStream streamLen (composeN n (StreamK.mapMSerial return))
 
 {-# INLINE filterEven #-}
-filterEven :: Monad m => Int -> StreamK m Int -> m ()
-filterEven n = composeN n $ StreamK.filter even
+filterEven :: Int -> Int -> IO ()
+filterEven n streamLen = withStream streamLen (composeN n (StreamK.filter even))
 
 {-# INLINE filterAllOut #-}
-filterAllOut :: Monad m => Int -> Int -> StreamK m Int -> m ()
-filterAllOut streamLen n = composeN n $ StreamK.filter (> streamLen)
+filterAllOut :: Int -> Int -> IO ()
+filterAllOut n streamLen = withStream streamLen (composeN n (StreamK.filter (> streamLen)))
 
 {-# INLINE filterAllIn #-}
-filterAllIn :: Monad m => Int -> Int -> StreamK m Int -> m ()
-filterAllIn streamLen n = composeN n $ StreamK.filter (<= streamLen)
+filterAllIn :: Int -> Int -> IO ()
+filterAllIn n streamLen = withStream streamLen (composeN n (StreamK.filter (<= streamLen)))
 
 {-# INLINE _takeOne #-}
 _takeOne :: Monad m => Int -> StreamK m Int -> m ()
 _takeOne n = composeN n $ StreamK.take 1
 
 {-# INLINE takeAll #-}
-takeAll :: Monad m => Int -> Int -> StreamK m Int -> m ()
-takeAll streamLen n = composeN n $ StreamK.take streamLen
+takeAll :: Int -> Int -> IO ()
+takeAll n streamLen = withStream streamLen (composeN n (StreamK.take streamLen))
 
 {-# INLINE takeWhileTrue #-}
-takeWhileTrue :: Monad m => Int -> Int -> StreamK m Int -> m ()
-takeWhileTrue streamLen n = composeN n $ StreamK.takeWhile (<= streamLen)
+takeWhileTrue :: Int -> Int -> IO ()
+takeWhileTrue n streamLen = withStream streamLen (composeN n (StreamK.takeWhile (<= streamLen)))
 
 {-# INLINE dropOne #-}
-dropOne :: Monad m => Int -> StreamK m Int -> m ()
-dropOne n = composeN n $ StreamK.drop 1
+dropOne :: Int -> Int -> IO ()
+dropOne n streamLen = withStream streamLen (composeN n (StreamK.drop 1))
 
 {-# INLINE dropAll #-}
-dropAll :: Monad m => Int -> Int -> StreamK m Int -> m ()
-dropAll streamLen n = composeN n $ StreamK.drop streamLen
+dropAll :: Int -> Int -> IO ()
+dropAll n streamLen = withStream streamLen (composeN n (StreamK.drop streamLen))
 
 {-# INLINE dropWhileTrue #-}
-dropWhileTrue :: Monad m => Int -> Int -> StreamK m Int -> m ()
-dropWhileTrue streamLen n = composeN n $ StreamK.dropWhile (<= streamLen)
+dropWhileTrue :: Int -> Int -> IO ()
+dropWhileTrue n streamLen = withStream streamLen (composeN n (StreamK.dropWhile (<= streamLen)))
 
 {-# INLINE dropWhileFalse #-}
-dropWhileFalse :: Monad m => Int -> StreamK m Int -> m ()
-dropWhileFalse n = composeN n $ StreamK.dropWhile (<= 1)
+dropWhileFalse :: Int -> Int -> IO ()
+dropWhileFalse n streamLen = withStream streamLen (composeN n (StreamK.dropWhile (<= 1)))
 
 {-# INLINE foldrS #-}
-foldrS :: Monad m => Int -> StreamK m Int -> m ()
-foldrS n = composeN n $ StreamK.foldrS StreamK.cons StreamK.nil
+foldrS :: Int -> Int -> IO ()
+foldrS n streamLen = withStream streamLen (composeN n (StreamK.foldrS StreamK.cons StreamK.nil))
 
 {-# INLINE foldlS #-}
-foldlS :: Monad m => Int -> StreamK m Int -> m ()
-foldlS n = composeN n $ StreamK.foldlS (flip StreamK.cons) StreamK.nil
+foldlS :: Int -> Int -> IO ()
+foldlS n streamLen = withStream streamLen (composeN n (StreamK.foldlS (flip StreamK.cons) StreamK.nil))
 
 {-# INLINE intersperse #-}
-intersperse :: Monad m => Int -> Int -> StreamK m Int -> m ()
-intersperse streamLen n = composeN n $ StreamK.intersperse streamLen
+intersperse :: Int -> Int -> Int -> IO ()
+intersperse bound n streamLen = withStream streamLen (composeN n (StreamK.intersperse bound))
+
+{-# INLINE interspersePure #-}
+interspersePure :: Int -> Int -> Int -> IO ()
+interspersePure bound n streamLen = withRandomIntIO $ composeN n (StreamK.intersperse bound) . sourceUnfoldr streamLen
 
 -------------------------------------------------------------------------------
 -- Iteration
@@ -273,58 +312,63 @@ intersperse streamLen n = composeN n $ StreamK.intersperse streamLen
 {-# INLINE iterateSource #-}
 iterateSource
     :: Monad m => Int -> (StreamK m Int -> StreamK m Int) -> Int -> Int -> StreamK m Int
-iterateSource iterStreamLen g i n = f i (unfoldrM iterStreamLen n)
+iterateSource iterStreamLen g i n = f i (sourceUnfoldrM iterStreamLen n)
     where
         f (0 :: Int) m = g m
         f x m = g (f (x P.- 1) m)
 
 -- this is quadratic
 {-# INLINE iterateScan #-}
-iterateScan :: Monad m => Int -> Int -> Int -> StreamK m Int
+iterateScan :: Int -> Int -> IO ()
 iterateScan iterStreamLen maxIters =
-    iterateSource iterStreamLen (StreamK.scanl' (+) 0) (maxIters `div` 10)
+    withDrain $ iterateSource iterStreamLen (StreamK.scanl' (+) 0) (maxIters `div` 10)
 
 -- this is quadratic
 {-# INLINE iterateDropWhileFalse #-}
-iterateDropWhileFalse :: Monad m => Int -> Int -> Int -> Int -> StreamK m Int
+iterateDropWhileFalse :: Int -> Int -> Int -> IO ()
 iterateDropWhileFalse streamLen iterStreamLen maxIters =
-    iterateSource iterStreamLen (StreamK.dropWhile (> streamLen)) (maxIters `div` 10)
+    withDrain $ iterateSource iterStreamLen (StreamK.dropWhile (> streamLen)) (maxIters `div` 10)
 
 {-# INLINE iterateMapM #-}
-iterateMapM :: Monad m => Int -> Int -> Int -> StreamK m Int
-iterateMapM iterStreamLen =
-    iterateSource iterStreamLen (StreamK.mapMWith StreamK.consM return)
+iterateMapM :: Int -> Int -> IO ()
+iterateMapM iterStreamLen maxIters =
+    withDrain $ iterateSource iterStreamLen (StreamK.mapMWith StreamK.consM return) maxIters
 
 {-# INLINE iterateFilterEven #-}
-iterateFilterEven :: Monad m => Int -> Int -> Int -> StreamK m Int
-iterateFilterEven iterStreamLen = iterateSource iterStreamLen (StreamK.filter even)
+iterateFilterEven :: Int -> Int -> IO ()
+iterateFilterEven iterStreamLen maxIters =
+    withDrain $ iterateSource iterStreamLen (StreamK.filter even) maxIters
 
 {-# INLINE iterateTakeAll #-}
-iterateTakeAll :: Monad m => Int -> Int -> Int -> Int -> StreamK m Int
-iterateTakeAll streamLen iterStreamLen =
-    iterateSource iterStreamLen (StreamK.take streamLen)
+iterateTakeAll :: Int -> Int -> Int -> IO ()
+iterateTakeAll streamLen iterStreamLen maxIters =
+    withDrain $ iterateSource iterStreamLen (StreamK.take streamLen) maxIters
 
 {-# INLINE iterateDropOne #-}
-iterateDropOne :: Monad m => Int -> Int -> Int -> StreamK m Int
-iterateDropOne iterStreamLen = iterateSource iterStreamLen (StreamK.drop 1)
+iterateDropOne :: Int -> Int -> IO ()
+iterateDropOne iterStreamLen maxIters =
+    withDrain $ iterateSource iterStreamLen (StreamK.drop 1) maxIters
 
 {-# INLINE iterateDropWhileTrue #-}
-iterateDropWhileTrue ::
-    Monad m => Int -> Int -> Int -> Int -> StreamK m Int
-iterateDropWhileTrue streamLen iterStreamLen =
-    iterateSource iterStreamLen (StreamK.dropWhile (<= streamLen))
+iterateDropWhileTrue :: Int -> Int -> Int -> IO ()
+iterateDropWhileTrue streamLen iterStreamLen maxIters =
+    withDrain $ iterateSource iterStreamLen (StreamK.dropWhile (<= streamLen)) maxIters
 
 -------------------------------------------------------------------------------
 -- Zipping
 -------------------------------------------------------------------------------
 
 {-# INLINE zipWith #-}
-zipWith :: Monad m => StreamK m Int -> m ()
-zipWith src = drain $ StreamK.zipWith (,) src src
+zipWith :: Int -> IO ()
+zipWith streamLen = withDrain $ \n ->
+    let src = sourceUnfoldrM streamLen n
+    in StreamK.zipWith (,) src src
 
 {-# INLINE zipWithM #-}
-zipWithM :: Monad m => StreamK m Int -> m ()
-zipWithM src = drain $ StreamK.zipWithM (curry return) src src
+zipWithM :: Int -> IO ()
+zipWithM streamLen = withDrain $ \n ->
+    let src = sourceUnfoldrM streamLen n
+    in StreamK.zipWithM (curry return) src src
 
 -------------------------------------------------------------------------------
 -- Sorting
@@ -335,43 +379,49 @@ sortByK :: (Int -> Int -> Ordering) -> StreamK m Int -> StreamK m Int
 sortByK f = StreamK.mergeMapWith (StreamK.mergeBy f) StreamK.fromPure
 
 {-# INLINE sortBy #-}
-sortBy :: Monad m => (Int -> Int -> Ordering) -> StreamK m Int -> m ()
-sortBy f = drain . sortByK f
+sortBy :: (Int -> Int -> Ordering) -> Int -> IO ()
+sortBy cmp streamLen = withDrain $ sortByK cmp . sourceUnfoldrM streamLen
+
+{-# INLINE sortByCompareRandomized #-}
+sortByCompareRandomized :: Int -> IO ()
+sortByCompareRandomized streamLen =
+    withDrain $ sortByK compare . StreamK.map (\x -> if even x then x + 2 else x) . sourceUnfoldrM streamLen
 
 -------------------------------------------------------------------------------
 -- Joining
 -------------------------------------------------------------------------------
 
 {-# INLINE interleave2 #-}
-interleave2 :: Int -> Int -> IO ()
-interleave2 value n =
-    StreamK.drain $ StreamK.interleave
-        (unfoldrM (value `div` 2) n)
-        (unfoldrM (value `div` 2) (n + 1))
+interleave2 :: Int -> IO ()
+interleave2 value =
+    withDrain $ \n ->
+    StreamK.interleave
+        (sourceUnfoldrM (value `div` 2) n)
+        (sourceUnfoldrM (value `div` 2) (n + 1))
 
 {-# INLINE concatMapWith #-}
 concatMapWith
     :: (StreamK IO Int -> StreamK IO Int -> StreamK IO Int)
     -> Int
     -> Int
-    -> Int
     -> IO ()
-concatMapWith op outer inner n =
-    StreamK.drain $ StreamK.concatMapWith op
-        (unfoldrM inner)
-        (unfoldrM outer n)
+concatMapWith op outer inner =
+    withDrain $ \n ->
+    StreamK.concatMapWith op
+        (sourceUnfoldrM inner)
+        (sourceUnfoldrM outer n)
 
 {-# INLINE concatMapWithD #-}
 concatMapWithD
     :: (Stream IO Int -> Stream IO Int -> Stream IO Int)
     -> Int
     -> Int
-    -> Int
     -> IO ()
-concatMapWithD op outer inner n =
-    StreamK.drain $ StreamK.concatMapWith op1
-        (unfoldrM inner)
-        (unfoldrM outer n)
+concatMapWithD op outer inner =
+    withDrain $ \n ->
+    StreamK.concatMapWith op1
+        (sourceUnfoldrM inner)
+        (sourceUnfoldrM outer n)
 
     where
 
@@ -382,24 +432,24 @@ mergeMapWith
     :: (StreamK IO Int -> StreamK IO Int -> StreamK IO Int)
     -> Int
     -> Int
-    -> Int
     -> IO ()
-mergeMapWith op outer inner n =
-    StreamK.drain $ StreamK.mergeMapWith op
-        (unfoldrM inner)
-        (unfoldrM outer n)
+mergeMapWith op outer inner =
+    withDrain $ \n ->
+    StreamK.mergeMapWith op
+        (sourceUnfoldrM inner)
+        (sourceUnfoldrM outer n)
 
 {-# INLINE mergeMapWithD #-}
 mergeMapWithD
     :: (Stream IO Int -> Stream IO Int -> Stream IO Int)
     -> Int
     -> Int
-    -> Int
     -> IO ()
-mergeMapWithD op outer inner n =
-    StreamK.drain $ StreamK.mergeMapWith op1
-        (unfoldrM inner)
-        (unfoldrM outer n)
+mergeMapWithD op outer inner =
+    withDrain $ \n ->
+    StreamK.mergeMapWith op1
+        (sourceUnfoldrM inner)
+        (sourceUnfoldrM outer n)
 
     where
 
@@ -417,13 +467,12 @@ mergeWith ::
     -> StreamK IO Int
     )
     -> (Int -> Int -> Ordering)
-    -> Int -> Int -> IO ()
-mergeWith g cmp count n =
-    StreamK.drain
-        $ g
-            cmp
-            (unfoldrM count n)
-            (unfoldrM count (n + 1))
+    -> Int -> IO ()
+mergeWith g cmp count =
+    withDrain $ \n ->
+    g cmp
+        (sourceUnfoldrM count n)
+        (sourceUnfoldrM count (n + 1))
 
 {-# INLINE mergeWithM #-}
 mergeWithM ::
@@ -433,20 +482,19 @@ mergeWithM ::
     -> StreamK IO Int
     )
     -> (Int -> Int -> Ordering)
-    -> Int -> Int -> IO ()
-mergeWithM g cmp count n =
-    StreamK.drain
-        $ g
-            (\a b -> return $ cmp a b)
-            (unfoldrM count n)
-            (unfoldrM count (n + 1))
+    -> Int -> IO ()
+mergeWithM g cmp count =
+    withDrain $ \n ->
+    g (\a b -> return $ cmp a b)
+        (sourceUnfoldrM count n)
+        (sourceUnfoldrM count (n + 1))
 
 {-# INLINE mergeBy #-}
-mergeBy :: (Int -> Int -> Ordering) -> Int -> Int -> IO ()
+mergeBy :: (Int -> Int -> Ordering) -> Int -> IO ()
 mergeBy = mergeWith StreamK.mergeBy
 
 {-# INLINE mergeByM #-}
-mergeByM :: (Int -> Int -> Ordering) -> Int -> Int -> IO ()
+mergeByM :: (Int -> Int -> Ordering) -> Int -> IO ()
 mergeByM = mergeWithM StreamK.mergeByM
 
 #ifdef INSPECTION
@@ -462,44 +510,44 @@ inspect $ 'mergeByM `hasNoType` ''SPEC
 -------------------------------------------------------------------------------
 
 {-# INLINE scanMap #-}
-scanMap :: Monad m => Int -> StreamK m Int -> m ()
-scanMap n = composeN n $ StreamK.map (subtract 1) . StreamK.scanl' (+) 0
+scanMap :: Int -> Int -> IO ()
+scanMap n streamLen = withStream streamLen (composeN n (StreamK.map (subtract 1) . StreamK.scanl' (+) 0))
 
 {-# INLINE dropMap #-}
-dropMap :: Monad m => Int -> StreamK m Int -> m ()
-dropMap n = composeN n $ StreamK.map (subtract 1) . StreamK.drop 1
+dropMap :: Int -> Int -> IO ()
+dropMap n streamLen = withStream streamLen (composeN n (StreamK.map (subtract 1) . StreamK.drop 1))
 
 {-# INLINE dropScan #-}
-dropScan :: Monad m => Int -> StreamK m Int -> m ()
-dropScan n = composeN n $ StreamK.scanl' (+) 0 . StreamK.drop 1
+dropScan :: Int -> Int -> IO ()
+dropScan n streamLen = withStream streamLen (composeN n (StreamK.scanl' (+) 0 . StreamK.drop 1))
 
 {-# INLINE takeDrop #-}
-takeDrop :: Monad m => Int -> Int -> StreamK m Int -> m ()
-takeDrop streamLen n = composeN n $ StreamK.drop 1 . StreamK.take streamLen
+takeDrop :: Int -> Int -> IO ()
+takeDrop n streamLen = withStream streamLen (composeN n (StreamK.drop 1 . StreamK.take streamLen))
 
 {-# INLINE takeScan #-}
-takeScan :: Monad m => Int -> Int -> StreamK m Int -> m ()
-takeScan streamLen n = composeN n $ StreamK.scanl' (+) 0 . StreamK.take streamLen
+takeScan :: Int -> Int -> IO ()
+takeScan n streamLen = withStream streamLen (composeN n (StreamK.scanl' (+) 0 . StreamK.take streamLen))
 
 {-# INLINE takeMap #-}
-takeMap :: Monad m => Int -> Int -> StreamK m Int -> m ()
-takeMap streamLen n = composeN n $ StreamK.map (subtract 1) . StreamK.take streamLen
+takeMap :: Int -> Int -> IO ()
+takeMap n streamLen = withStream streamLen (composeN n (StreamK.map (subtract 1) . StreamK.take streamLen))
 
 {-# INLINE filterDrop #-}
-filterDrop :: Monad m => Int -> Int -> StreamK m Int -> m ()
-filterDrop streamLen n = composeN n $ StreamK.drop 1 . StreamK.filter (<= streamLen)
+filterDrop :: Int -> Int -> IO ()
+filterDrop n streamLen = withStream streamLen (composeN n (StreamK.drop 1 . StreamK.filter (<= streamLen)))
 
 {-# INLINE filterTake #-}
-filterTake :: Monad m => Int -> Int -> StreamK m Int -> m ()
-filterTake streamLen n = composeN n $ StreamK.take streamLen . StreamK.filter (<= streamLen)
+filterTake :: Int -> Int -> IO ()
+filterTake n streamLen = withStream streamLen (composeN n (StreamK.take streamLen . StreamK.filter (<= streamLen)))
 
 {-# INLINE filterScan #-}
-filterScan :: Monad m => Int -> StreamK m Int -> m ()
-filterScan n = composeN n $ StreamK.scanl' (+) 0 . StreamK.filter (<= maxBound)
+filterScan :: Int -> Int -> IO ()
+filterScan n streamLen = withStream streamLen (composeN n (StreamK.scanl' (+) 0 . StreamK.filter (<= maxBound)))
 
 {-# INLINE filterMap #-}
-filterMap :: Monad m => Int -> Int -> StreamK m Int -> m ()
-filterMap streamLen n = composeN n $ StreamK.map (subtract 1) . StreamK.filter (<= streamLen)
+filterMap :: Int -> Int -> IO ()
+filterMap n streamLen = withStream streamLen (composeN n (StreamK.map (subtract 1) . StreamK.filter (<= streamLen)))
 
 -------------------------------------------------------------------------------
 -- ConcatMap
@@ -508,11 +556,12 @@ filterMap streamLen n = composeN n $ StreamK.map (subtract 1) . StreamK.filter (
 -- concatMap unfoldrM/unfoldrM
 
 {-# INLINE concatMap #-}
-concatMap :: Int -> Int -> Int -> IO ()
-concatMap outer inner n =
-    StreamK.drain $ StreamK.concatMap
-        (\_ -> unfoldrM inner n)
-        (unfoldrM outer n)
+concatMap :: Int -> Int -> IO ()
+concatMap outer inner =
+    withDrain $ \n ->
+    StreamK.concatMap
+        (\_ -> sourceUnfoldrM inner n)
+        (sourceUnfoldrM outer n)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'concatMap
@@ -520,23 +569,25 @@ inspect $ hasNoTypeClasses 'concatMap
 
 -- concatMap unfoldr/unfoldr
 
-{-# INLINE concatMapPure #-}
-concatMapPure :: Int -> Int -> Int -> IO ()
-concatMapPure outer inner n =
-    StreamK.drain $ StreamK.concatMap
-        (\_ -> unfoldr inner n)
-        (unfoldr outer n)
+{-# INLINE concatMapUnfoldr #-}
+concatMapUnfoldr :: Int -> Int -> IO ()
+concatMapUnfoldr outer inner =
+    withDrain $ \n ->
+    StreamK.concatMap
+        (\_ -> sourceUnfoldr inner n)
+        (sourceUnfoldr outer n)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'concatMapPure
+inspect $ hasNoTypeClasses 'concatMapUnfoldr
 #endif
 
 -- concatMap replicate/unfoldrM
 
 {-# INLINE concatMapRepl #-}
-concatMapRepl :: Int -> Int -> Int -> IO ()
-concatMapRepl outer inner n =
-    StreamK.drain $ StreamK.concatMap (StreamK.replicate inner) (unfoldrM outer n)
+concatMapRepl :: Int -> Int -> IO ()
+concatMapRepl outer inner =
+    withDrain $ \n ->
+    StreamK.concatMap (StreamK.replicate inner) (sourceUnfoldrM outer n)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'concatMapRepl
@@ -549,6 +600,11 @@ sourceConcatMapId :: Monad m
     => Int -> Int -> StreamK m (StreamK m Int)
 sourceConcatMapId val n =
     StreamK.fromFoldable $ fmap (StreamK.fromEffect . return) [n..n+val]
+
+{-# INLINE concatMapWithId #-}
+concatMapWithId :: Int -> IO ()
+concatMapWithId streamLen =
+    withDrain $ StreamK.concatMapWith StreamK.append id . sourceConcatMapId streamLen
 
 -------------------------------------------------------------------------------
 -- Nested Composition
@@ -581,74 +637,96 @@ instance Monad m => Monad (StreamK.StreamK m) where
     (>>=) = flip StreamK.concatMap
 
 {-# INLINE drainApplicative #-}
-drainApplicative :: Monad m => StreamK m Int -> m ()
-drainApplicative s = drain $ do
-    (+) <$> s <*> s
+drainApplicative :: Int -> IO ()
+drainApplicative streamLen = withDrain $ \n ->
+    let s = sourceUnfoldrM streamLen n
+    in (+) <$> s <*> s
+
+{-# INLINE drainApplicativeUnfoldr #-}
+drainApplicativeUnfoldr :: Int -> IO ()
+drainApplicativeUnfoldr streamLen = withDrain $ \n ->
+    let s = sourceUnfoldr streamLen n
+    in (+) <$> s <*> s
 
 {-# INLINE drainMonad #-}
-drainMonad :: Monad m => StreamK m Int -> m ()
-drainMonad s = drain $ do
-    x <- s
-    y <- s
-    return $ x + y
+drainMonad :: Int -> IO ()
+drainMonad streamLen = withDrain $ \n ->
+    let s = sourceUnfoldrM streamLen n
+    in do { x <- s; y <- s; return $ x + y }
+
+{-# INLINE drainMonadUnfoldr #-}
+drainMonadUnfoldr :: Int -> IO ()
+drainMonadUnfoldr streamLen = withDrain $ \n ->
+    let s = sourceUnfoldr streamLen n
+    in do { x <- s; y <- s; return $ x + y }
 
 {-# INLINE drainConcatFor1 #-}
-drainConcatFor1 :: Monad m => StreamK m Int -> m ()
-drainConcatFor1 s = drain $ do
-    StreamK.concatFor s $ \x ->
-            StreamK.fromPure $ x + 1
+drainConcatFor1 :: Int -> IO ()
+drainConcatFor1 streamLen = withDrain $ \n ->
+    let s = sourceUnfoldrM streamLen n
+    in StreamK.concatFor s $ \x -> StreamK.fromPure $ x + 1
 
 {-# INLINE drainConcatFor #-}
-drainConcatFor :: Monad m => StreamK m Int -> m ()
-drainConcatFor s = drain $ do
-    StreamK.concatFor s $ \x ->
+drainConcatFor :: Int -> IO ()
+drainConcatFor streamLen = withDrain $ \n ->
+    let s = sourceUnfoldrM streamLen n
+    in StreamK.concatFor s $ \x ->
         StreamK.concatFor s $ \y ->
             StreamK.fromPure $ x + y
 
 {-# INLINE drainConcatForM #-}
-drainConcatForM :: Monad m => StreamK m Int -> m ()
-drainConcatForM s = drain $ do
-    StreamK.concatForM s $ \x ->
+drainConcatForM :: Int -> IO ()
+drainConcatForM streamLen = withDrain $ \n ->
+    let s = sourceUnfoldrM streamLen n
+    in StreamK.concatForM s $ \x ->
         pure $ StreamK.concatForM s $ \y ->
             pure $ StreamK.fromPure $ x + y
 
 {-# INLINE drainMonad3 #-}
-drainMonad3 :: Monad m => StreamK m Int -> m ()
-drainMonad3 s = drain $ do
-    x <- s
-    y <- s
-    z <- s
-    return $ x + y + z
+drainMonad3 :: Int -> IO ()
+drainMonad3 streamLen = withDrain $ \n ->
+    let s = sourceUnfoldrM streamLen n
+    in do { x <- s; y <- s; z <- s; return $ x + y + z }
+
+{-# INLINE drainMonad3Unfoldr #-}
+drainMonad3Unfoldr :: Int -> IO ()
+drainMonad3Unfoldr streamLen = withDrain $ \n ->
+    let s = sourceUnfoldr streamLen n
+    in do { x <- s; y <- s; z <- s; return $ x + y + z }
 
 {-# INLINE drainConcatFor3 #-}
-drainConcatFor3 :: Monad m => StreamK m Int -> m ()
-drainConcatFor3 s = drain $ do
-    StreamK.concatFor s $ \x ->
+drainConcatFor3 :: Int -> IO ()
+drainConcatFor3 streamLen = withDrain $ \n ->
+    let s = sourceUnfoldrM streamLen n
+    in StreamK.concatFor s $ \x ->
         StreamK.concatFor s $ \y ->
             StreamK.concatFor s $ \z ->
                 StreamK.fromPure $ x + y + z
 
 {-# INLINE drainConcatFor3M #-}
-drainConcatFor3M :: Monad m => StreamK m Int -> m ()
-drainConcatFor3M s = drain $ do
-    StreamK.concatForM s $ \x ->
+drainConcatFor3M :: Int -> IO ()
+drainConcatFor3M streamLen = withDrain $ \n ->
+    let s = sourceUnfoldrM streamLen n
+    in StreamK.concatForM s $ \x ->
         pure $ StreamK.concatForM s $ \y ->
             pure $ StreamK.concatForM s $ \z ->
                 pure $ StreamK.fromPure $ x + y + z
 
 {-# INLINE drainConcatFor4 #-}
-drainConcatFor4 :: Monad m => StreamK m Int -> m ()
-drainConcatFor4 s = drain $ do
-    StreamK.concatFor s $ \x ->
+drainConcatFor4 :: Int -> IO ()
+drainConcatFor4 streamLen = withDrain $ \n ->
+    let s = sourceUnfoldrM streamLen n
+    in StreamK.concatFor s $ \x ->
         StreamK.concatFor s $ \y ->
             StreamK.concatFor s $ \z ->
                 StreamK.concatFor s $ \w ->
                     StreamK.fromPure $ x + y + z + w
 
 {-# INLINE drainConcatFor5 #-}
-drainConcatFor5 :: Monad m => StreamK m Int -> m ()
-drainConcatFor5 s = drain $ do
-    StreamK.concatFor s $ \x ->
+drainConcatFor5 :: Int -> IO ()
+drainConcatFor5 streamLen = withDrain $ \n ->
+    let s = sourceUnfoldrM streamLen n
+    in StreamK.concatFor s $ \x ->
         StreamK.concatFor s $ \y ->
             StreamK.concatFor s $ \z ->
                 StreamK.concatFor s $ \w ->
@@ -656,52 +734,62 @@ drainConcatFor5 s = drain $ do
                         StreamK.fromPure $ x + y + z + w + u
 
 {-# INLINE filterAllOutMonad #-}
-filterAllOutMonad
-    :: Monad m
-    => StreamK m Int -> m ()
-filterAllOutMonad str = drain $ do
-    x <- str
-    y <- str
-    let s = x + y
-    if s < 0
-    then return s
-    else StreamK.nil
+filterAllOutMonad :: Int -> IO ()
+filterAllOutMonad streamLen = withDrain $ \n ->
+    let str = sourceUnfoldrM streamLen n
+    in do
+        x <- str
+        y <- str
+        let s = x + y
+        if s < 0 then return s else StreamK.nil
+
+{-# INLINE filterAllOutMonadUnfoldr #-}
+filterAllOutMonadUnfoldr :: Int -> IO ()
+filterAllOutMonadUnfoldr streamLen = withDrain $ \n ->
+    let str = sourceUnfoldr streamLen n
+    in do
+        x <- str
+        y <- str
+        let s = x + y
+        if s < 0 then return s else StreamK.nil
 
 {-# INLINE filterAllOutConcatFor #-}
-filterAllOutConcatFor
-    :: Monad m
-    => StreamK m Int -> m ()
-filterAllOutConcatFor s = drain $ do
-    StreamK.concatFor s $ \x ->
+filterAllOutConcatFor :: Int -> IO ()
+filterAllOutConcatFor streamLen = withDrain $ \n ->
+    let s = sourceUnfoldrM streamLen n
+    in StreamK.concatFor s $ \x ->
         StreamK.concatFor s $ \y ->
             let s1 = x + y
-             in if s1 < 0
-                then StreamK.fromPure s1
-                else StreamK.nil
+             in if s1 < 0 then StreamK.fromPure s1 else StreamK.nil
 
 {-# INLINE filterAllInMonad #-}
-filterAllInMonad
-    :: Monad m
-    => StreamK m Int -> m ()
-filterAllInMonad str = drain $ do
-    x <- str
-    y <- str
-    let s = x + y
-    if s > 0
-    then return s
-    else StreamK.nil
+filterAllInMonad :: Int -> IO ()
+filterAllInMonad streamLen = withDrain $ \n ->
+    let str = sourceUnfoldrM streamLen n
+    in do
+        x <- str
+        y <- str
+        let s = x + y
+        if s > 0 then return s else StreamK.nil
+
+{-# INLINE filterAllInMonadUnfoldr #-}
+filterAllInMonadUnfoldr :: Int -> IO ()
+filterAllInMonadUnfoldr streamLen = withDrain $ \n ->
+    let str = sourceUnfoldr streamLen n
+    in do
+        x <- str
+        y <- str
+        let s = x + y
+        if s > 0 then return s else StreamK.nil
 
 {-# INLINE filterAllInConcatFor #-}
-filterAllInConcatFor
-    :: Monad m
-    => StreamK m Int -> m ()
-filterAllInConcatFor s = drain $ do
-    StreamK.concatFor s $ \x ->
+filterAllInConcatFor :: Int -> IO ()
+filterAllInConcatFor streamLen = withDrain $ \n ->
+    let s = sourceUnfoldrM streamLen n
+    in StreamK.concatFor s $ \x ->
         StreamK.concatFor s $ \y ->
             let s1 = x + y
-             in if s1 > 0
-                then StreamK.fromPure s1
-                else StreamK.nil
+             in if s1 > 0 then StreamK.fromPure s1 else StreamK.nil
 
 -------------------------------------------------------------------------------
 -- Nested Composition Pure lists
@@ -721,44 +809,49 @@ unfoldrList maxval n = List.unfoldr step n
         then Nothing
         else Just (cnt, cnt + 1)
 
-{-# INLINE toNullApNestedList #-}
-toNullApNestedList :: [Int] -> [Int]
-toNullApNestedList s = (+) <$> s <*> s
 
-{-# INLINE toNullNestedList #-}
-toNullNestedList :: [Int] -> [Int]
-toNullNestedList s = do
+{-# INLINE withList #-}
+withList :: Int -> ([Int] -> IO b) -> IO b
+withList value f = randomRIO (1,1) >>= f . unfoldrList value
+
+{-# INLINE lastList #-}
+lastList :: Int -> IO [Int]
+lastList streamLen = withList streamLen (return . (\xs -> [List.last xs]))
+
+{-# INLINE listApDrain2 #-}
+listApDrain2 :: Int -> IO [Int]
+listApDrain2 streamLen = withList streamLen $ \s -> return $ (+) <$> s <*> s
+
+{-# INLINE listMonadDrain2 #-}
+listMonadDrain2 :: Int -> IO [Int]
+listMonadDrain2 streamLen = withList streamLen $ \s -> return $ do
     x <- s
     y <- s
     return $ x + y
 
-{-# INLINE toNullNestedList3 #-}
-toNullNestedList3 :: [Int] -> [Int]
-toNullNestedList3 s = do
+{-# INLINE listMonadDrain3 #-}
+listMonadDrain3 :: Int -> IO [Int]
+listMonadDrain3 streamLen = withList streamLen $ \s -> return $ do
     x <- s
     y <- s
     z <- s
     return $ x + y + z
 
-{-# INLINE filterAllOutNestedList #-}
-filterAllOutNestedList :: [Int] -> [Int]
-filterAllOutNestedList str = do
-    x <- str
-    y <- str
-    let s = x + y
-    if s < 0
-    then return s
-    else []
+{-# INLINE listMonadFilterAllIn2 #-}
+listMonadFilterAllIn2 :: Int -> IO [Int]
+listMonadFilterAllIn2 streamLen = withList streamLen $ \s -> return $ do
+    x <- s
+    y <- s
+    let t = x + y
+    if t > 0 then return t else []
 
-{-# INLINE filterAllInNestedList #-}
-filterAllInNestedList :: [Int] -> [Int]
-filterAllInNestedList str = do
-    x <- str
-    y <- str
-    let s = x + y
-    if s > 0
-    then return s
-    else []
+{-# INLINE listMonadFilterAllOut2 #-}
+listMonadFilterAllOut2 :: Int -> IO [Int]
+listMonadFilterAllOut2 streamLen = withList streamLen $ \s -> return $ do
+    x <- s
+    y <- s
+    let t = x + y
+    if t < 0 then return t else []
 
 -------------------------------------------------------------------------------
 -- Benchmarks
@@ -767,43 +860,47 @@ filterAllInNestedList str = do
 moduleName :: String
 moduleName = "Data.StreamK"
 
+{-# INLINE benchIO #-}
+benchIO :: NFData b => String -> IO b -> Benchmark
+benchIO name = bench name . nfIO
+
 o_1_space_generation :: Int -> Benchmark
 o_1_space_generation streamLen =
     bgroup "generation"
-        [ benchFold "unfoldr" drain (unfoldr streamLen)
-        , benchFold "unfoldrM" drain (unfoldrM streamLen)
-        , benchFold "repeat" drain (repeat streamLen)
-        , benchFold "repeatM" drain (repeatM streamLen)
-        , benchFold "replicate" drain (replicate streamLen)
-        , benchFold "replicateM" drain (replicateM streamLen)
-        , benchFold "iterate" drain (iterate streamLen)
-        , benchFold "iterateM" drain (iterateM streamLen)
+        [ benchIO "unfoldr"               $ unfoldr streamLen
+        , benchIO "unfoldrM"              $ unfoldrM streamLen
+        , benchIO "repeat"                $ repeat streamLen
+        , benchIO "repeatM"               $ repeatM streamLen
+        , benchIO "replicate"             $ replicate streamLen
+        , benchIO "replicateM"            $ replicateM streamLen
+        , benchIO "iterate"               $ iterate streamLen
+        , benchIO "iterateM"              $ iterateM streamLen
 
-        , benchFold "fromFoldable"  drain (fromFoldable streamLen)
-        , benchFold "fromFoldableM" drain (fromFoldableM streamLen)
+        , benchIO "fromFoldable"          $ fromFoldable streamLen
+        , benchIO "fromFoldableM"         $ fromFoldableM streamLen
 
         -- appends
-        , benchFold "concatMapFoldableWith"  drain (concatMapFoldableSerial streamLen)
-        , benchFold "concatMapFoldableWithM" drain (concatMapFoldableSerialM streamLen)
+        , benchIO "concatMapFoldableWith"  $ concatMapFoldableWith streamLen
+        , benchIO "concatMapFoldableWithM" $ concatMapFoldableWithM streamLen
         ]
 
 o_1_space_elimination :: Int -> Benchmark
 o_1_space_elimination streamLen =
     bgroup "elimination"
-        [ benchFold "toNull"   drain   (unfoldrM streamLen)
-        , benchFold "mapM_"    mapM_    (unfoldrM streamLen)
-        , benchFold "uncons"   uncons   (unfoldrM streamLen)
-        , benchFold "init"   init     (unfoldrM streamLen)
-        , benchFold "foldl'" foldl'    (unfoldrM streamLen)
-        , benchFold "foldlM'" foldlM' (unfoldrM streamLen)
-        , benchFold "last"   last     (unfoldrM streamLen)
+        [ benchIO "toNull"   $ toNull streamLen
+        , benchIO "mapM_"    $ mapM_ streamLen
+        , benchIO "uncons"   $ uncons streamLen
+        , benchIO "init"     $ init streamLen
+        , benchIO "foldl'"   $ foldl' streamLen
+        , benchIO "foldlM'"  $ foldlM' streamLen
+        , benchIO "last"     $ last streamLen
         ]
 
 o_1_space_ap :: Int -> Benchmark
 o_1_space_ap streamLen =
     bgroup "Applicative"
-        [ benchFold "drain2" drainApplicative (unfoldrM streamLen2)
-        , benchFold "pureDrain2" drainApplicative (unfoldr streamLen2)
+        [ benchIO "drain2"     $ drainApplicative streamLen2
+        , benchIO "pureDrain2" $ drainApplicativeUnfoldr streamLen2
         ]
     where
     streamLen2 = round (P.fromIntegral streamLen**(1/2::P.Double)) -- double nested loop
@@ -811,14 +908,14 @@ o_1_space_ap streamLen =
 o_1_space_monad :: Int -> Benchmark
 o_1_space_monad streamLen =
     bgroup "Monad"
-        [ benchFold "drain2"   drainMonad   (unfoldrM streamLen2)
-        , benchFold "drain3"  drainMonad3  (unfoldrM streamLen3)
-        , benchFold "filterAllIn2"  filterAllInMonad  (unfoldrM streamLen2)
-        , benchFold "filterAllOut2" filterAllOutMonad (unfoldrM streamLen2)
-        , benchFold "pureDrain2"   drainMonad   (unfoldr streamLen2)
-        , benchFold "pureDrain3"  drainMonad3  (unfoldr streamLen3)
-        , benchFold "pureFilterAllIn2"  filterAllInMonad  (unfoldr streamLen2)
-        , benchFold "pureFilterAllOut2" filterAllOutMonad (unfoldr streamLen2)
+        [ benchIO "drain2"            $ drainMonad streamLen2
+        , benchIO "drain3"            $ drainMonad3 streamLen3
+        , benchIO "filterAllIn2"      $ filterAllInMonad streamLen2
+        , benchIO "filterAllOut2"     $ filterAllOutMonad streamLen2
+        , benchIO "pureDrain2"        $ drainMonadUnfoldr streamLen2
+        , benchIO "pureDrain3"        $ drainMonad3Unfoldr streamLen3
+        , benchIO "pureFilterAllIn2"  $ filterAllInMonadUnfoldr streamLen2
+        , benchIO "pureFilterAllOut2" $ filterAllOutMonadUnfoldr streamLen2
         ]
     where
     streamLen2 = round (P.fromIntegral streamLen**(1/2::P.Double)) -- double nested loop
@@ -827,15 +924,15 @@ o_1_space_monad streamLen =
 o_1_space_bind :: Int -> Benchmark
 o_1_space_bind streamLen =
     bgroup "concatFor"
-        [ benchFold "drain1"   drainConcatFor1   (unfoldrM streamLen)
-        , benchFold "drain2"   drainConcatFor   (unfoldrM streamLen2)
-        , benchFold "drainM2"   drainConcatForM   (unfoldrM streamLen2)
-        , benchFold "drain3"   drainConcatFor3   (unfoldrM streamLen3)
-        , benchFold "drain4"   drainConcatFor4   (unfoldrM streamLen4)
-        , benchFold "drain5"   drainConcatFor5   (unfoldrM streamLen5)
-        , benchFold "drainM3"   drainConcatFor3M   (unfoldrM streamLen3)
-        , benchFold "filterAllIn2"  filterAllInConcatFor  (unfoldrM streamLen2)
-        , benchFold "filterAllOut2" filterAllOutConcatFor (unfoldrM streamLen2)
+        [ benchIO "drain1"         $ drainConcatFor1 streamLen
+        , benchIO "drain2"         $ drainConcatFor streamLen2
+        , benchIO "drainM2"        $ drainConcatForM streamLen2
+        , benchIO "drain3"         $ drainConcatFor3 streamLen3
+        , benchIO "drain4"         $ drainConcatFor4 streamLen4
+        , benchIO "drain5"         $ drainConcatFor5 streamLen5
+        , benchIO "drainM3"        $ drainConcatFor3M streamLen3
+        , benchIO "filterAllIn2"   $ filterAllInConcatFor streamLen2
+        , benchIO "filterAllOut2"  $ filterAllOutConcatFor streamLen2
         ]
     where
     streamLen2 = round (P.fromIntegral streamLen**(1/2::P.Double)) -- double nested loop
@@ -846,126 +943,110 @@ o_1_space_bind streamLen =
 o_1_space_transformation :: Int -> Benchmark
 o_1_space_transformation streamLen =
     bgroup "transformation"
-        [ benchFold "foldrS" (foldrS 1) (unfoldrM streamLen)
-        , benchFold "scanl'"   (scanl' 1) (unfoldrM streamLen)
-        , benchFold "map"    (map  1) (unfoldrM streamLen)
-        , benchFold "fmap"   (fmapK 1) (unfoldrM streamLen)
-        , benchFold "mapM"   (mapM 1) (unfoldrM streamLen)
-        , benchFold "mapMSerial"  (mapMSerial 1) (unfoldrM streamLen)
+        [ benchIO "foldrS"     $ foldrS 1 streamLen
+        , benchIO "scanl'"     $ scanl' 1 streamLen
+        , benchIO "map"        $ map 1 streamLen
+        , benchIO "fmap"       $ fmapK 1 streamLen
+        , benchIO "mapM"       $ mapM 1 streamLen
+        , benchIO "mapMSerial" $ mapMSerial 1 streamLen
         ]
 
 o_1_space_transformationX4 :: Int -> Benchmark
 o_1_space_transformationX4 streamLen =
     bgroup "transformationX4"
-        [ benchFold "scanl'"   (scanl' 4) (unfoldrM streamLen)
-        , benchFold "map"    (map  4) (unfoldrM streamLen)
-        , benchFold "fmap"   (fmapK 4) (unfoldrM streamLen)
-        , benchFold "mapM"   (mapM 4) (unfoldrM streamLen)
-        , benchFold "mapMSerial" (mapMSerial 4) (unfoldrM streamLen)
+        [ benchIO "scanl'"     $ scanl' 4 streamLen
+        , benchIO "map"        $ map 4 streamLen
+        , benchIO "fmap"       $ fmapK 4 streamLen
+        , benchIO "mapM"       $ mapM 4 streamLen
+        , benchIO "mapMSerial" $ mapMSerial 4 streamLen
         -- XXX this is horribly slow
-        -- , benchFold "concatMap" (concatMap 4) (unfoldrM streamLen16)
+        -- , benchIO "concatMap" $ concatMap 4 streamLen16
         ]
 
 o_1_space_joining :: Int -> Benchmark
 o_1_space_joining streamLen =
     bgroup "joining (2 of n/2)"
-        [ benchIOSrc1 "interleave" (interleave2 streamLen)
+        [ benchIO "interleave" $ interleave2 streamLen
 
-        , benchIOSrc1
-            "mergeBy compare"
-            (mergeBy compare (streamLen `div` 2))
-        , benchIOSrc1
-            "mergeByM compare"
-            (mergeByM compare (streamLen `div` 2))
-        , benchIOSrc1
-            "mergeBy (flip compare)"
-            (mergeBy (flip compare) (streamLen `div` 2))
-        , benchIOSrc1
-            "mergeByM (flip compare)"
-            (mergeByM (flip compare) (streamLen `div` 2))
+        , benchIO "mergeBy compare"
+            $ mergeBy compare (streamLen `div` 2)
+        , benchIO "mergeByM compare"
+            $ mergeByM compare (streamLen `div` 2)
+        , benchIO "mergeBy (flip compare)"
+            $ mergeBy (flip compare) (streamLen `div` 2)
+        , benchIO "mergeByM (flip compare)"
+            $ mergeByM (flip compare) (streamLen `div` 2)
 
-        , benchFold "zipWith" zipWith (unfoldrM streamLen)
-        , benchFold "zipWithM" zipWithM (unfoldrM streamLen)
+        , benchIO "zipWith"  $ zipWith streamLen
+        , benchIO "zipWithM" $ zipWithM streamLen
 
         -- join 2 streams using concatMapWith
-        , benchIOSrc1
-              "concatMapWith interleave"
-              (concatMapWith StreamK.interleave 2 (streamLen `div` 2))
-        , benchIOSrc1
-              "concatMapWith D.interleave"
-              (concatMapWithD Stream.interleave 2 (streamLen `div` 2))
-        , benchIOSrc1
-              "concatMapWith D.roundRobin"
-              (concatMapWithD Stream.roundRobin 2 (streamLen `div` 2))
+        , benchIO "concatMapWith interleave"
+              $ concatMapWith StreamK.interleave 2 (streamLen `div` 2)
+        , benchIO "concatMapWith D.interleave"
+              $ concatMapWithD Stream.interleave 2 (streamLen `div` 2)
+        , benchIO "concatMapWith D.roundRobin"
+              $ concatMapWithD Stream.roundRobin 2 (streamLen `div` 2)
 
         -- join 2 streams using mergeMapWith
-        , benchIOSrc1
-            "mergeMapWith interleave"
-            (mergeMapWith StreamK.interleave 2 (streamLen `div` 2))
-        , benchIOSrc1
-            "mergeMapWith D.interleave"
-            (mergeMapWithD Stream.interleave 2 (streamLen `div` 2))
-        , benchIOSrc1
-            "mergeMapWith D.roundRobin"
-            (mergeMapWithD Stream.roundRobin 2 (streamLen `div` 2))
+        , benchIO "mergeMapWith interleave"
+            $ mergeMapWith StreamK.interleave 2 (streamLen `div` 2)
+        , benchIO "mergeMapWith D.interleave"
+            $ mergeMapWithD Stream.interleave 2 (streamLen `div` 2)
+        , benchIO "mergeMapWith D.roundRobin"
+            $ mergeMapWithD Stream.roundRobin 2 (streamLen `div` 2)
 
-        , benchIOSrc1
-            "mergeMapWith (mergeBy compare)"
-            (mergeMapWith (StreamK.mergeBy compare) 2 (streamLen `div` 2))
-        , benchIOSrc1
-            "mergeMapWith (mergeBy (flip compare))"
-            (mergeMapWith (StreamK.mergeBy (flip compare)) 2 (streamLen `div` 2))
-        , benchIOSrc1
-            "mergeMapWithD (D.mergeBy compare)"
-            (mergeMapWithD (Stream.mergeBy compare) 2 (streamLen `div` 2))
-        , benchIOSrc1
-            "mergeMapWithD (D.mergeBy (flip compare))"
-            (mergeMapWithD (Stream.mergeBy (flip compare)) 2 (streamLen `div` 2))
+        , benchIO "mergeMapWith (mergeBy compare)"
+            $ mergeMapWith (StreamK.mergeBy compare) 2 (streamLen `div` 2)
+        , benchIO "mergeMapWith (mergeBy (flip compare))"
+            $ mergeMapWith (StreamK.mergeBy (flip compare)) 2 (streamLen `div` 2)
+        , benchIO "mergeMapWithD (D.mergeBy compare)"
+            $ mergeMapWithD (Stream.mergeBy compare) 2 (streamLen `div` 2)
+        , benchIO "mergeMapWithD (D.mergeBy (flip compare))"
+            $ mergeMapWithD (Stream.mergeBy (flip compare)) 2 (streamLen `div` 2)
 
-        , benchIOSrc1 "mergeMapWith (zipWith (+))"
-            (mergeMapWith (StreamK.zipWith (+)) 2 (streamLen `div` 2))
+        , benchIO "mergeMapWith (zipWith (+))"
+            $ mergeMapWith (StreamK.zipWith (+)) 2 (streamLen `div` 2)
         ]
 
 o_1_space_concat :: Int -> Benchmark
 o_1_space_concat streamLen =
     bgroup "concat"
-        [ benchIOSrc1 "concatMapPure outer=Max inner=1"
-            (concatMapPure streamLen 1)
-        , benchIOSrc1 "concatMapPure outer=inner=(sqrt Max)"
-            (concatMapPure streamLen2 streamLen2)
-        , benchIOSrc1 "concatMapPure outer=1 inner=Max"
-            (concatMapPure 1 streamLen)
+        [ benchIO "concatMapUnfoldr outer=Max inner=1"
+            $ concatMapUnfoldr streamLen 1
+        , benchIO "concatMapUnfoldr outer=inner=(sqrt Max)"
+            $ concatMapUnfoldr streamLen2 streamLen2
+        , benchIO "concatMapUnfoldr outer=1 inner=Max"
+            $ concatMapUnfoldr 1 streamLen
 
-        , benchIOSrc1 "concatMap outer=Max inner=1"
-            (concatMap streamLen 1)
-        , benchIOSrc1 "concatMap outer=inner=(sqrt Max)"
-            (concatMap streamLen2 streamLen2)
-        , benchIOSrc1 "concatMap outer=1 inner=Max"
-            (concatMap 1 streamLen)
+        , benchIO "concatMap outer=Max inner=1"
+            $ concatMap streamLen 1
+        , benchIO "concatMap outer=inner=(sqrt Max)"
+            $ concatMap streamLen2 streamLen2
+        , benchIO "concatMap outer=1 inner=Max"
+            $ concatMap 1 streamLen
 
-        , benchIOSrc1 "concatMapRepl outer=inner=(sqrt Max)"
-            (concatMapRepl streamLen2 streamLen2)
+        , benchIO "concatMapRepl outer=inner=(sqrt Max)"
+            $ concatMapRepl streamLen2 streamLen2
 
         -- This is for comparison with concatMapFoldableWith
-        , benchIOSrc1 "concatMapWithId outer=Max inner=1 (fromFoldable)"
-            (StreamK.drain
-                . StreamK.concatMapWith StreamK.append id
-                . sourceConcatMapId streamLen)
+        , benchIO "concatMapWithId outer=Max inner=1 (fromFoldable)"
+            $ concatMapWithId streamLen
 
-        , benchIOSrc1 "concatMapWith append outer=Max inner=1"
-            (concatMapWith StreamK.append streamLen 1)
-        , benchIOSrc1 "concatMapWith append outer=inner=(sqrt Max)"
-            (concatMapWith StreamK.append streamLen2 streamLen2)
-        , benchIOSrc1 "concatMapWith append outer=1 inner=Max"
-            (concatMapWith StreamK.append 1 streamLen)
+        , benchIO "concatMapWith append outer=Max inner=1"
+            $ concatMapWith StreamK.append streamLen 1
+        , benchIO "concatMapWith append outer=inner=(sqrt Max)"
+            $ concatMapWith StreamK.append streamLen2 streamLen2
+        , benchIO "concatMapWith append outer=1 inner=Max"
+            $ concatMapWith StreamK.append 1 streamLen
 
         -- interleave with concatMapWith is O(1)
-        , benchIOSrc1 "concatMapWith interleave outer=Max inner=1"
-            (concatMapWith StreamK.interleave streamLen 1)
-        , benchIOSrc1 "concatMapWith interleave outer=inner=(sqrt Max)"
-            (concatMapWith StreamK.interleave streamLen2 streamLen2)
-        , benchIOSrc1 "concatMapWith interleave outer=1 inner=Max"
-            (concatMapWith StreamK.interleave 1 streamLen)
+        , benchIO "concatMapWith interleave outer=Max inner=1"
+            $ concatMapWith StreamK.interleave streamLen 1
+        , benchIO "concatMapWith interleave outer=inner=(sqrt Max)"
+            $ concatMapWith StreamK.interleave streamLen2 streamLen2
+        , benchIO "concatMapWith interleave outer=1 inner=Max"
+            $ concatMapWith StreamK.interleave 1 streamLen
         ]
 
     where
@@ -978,10 +1059,10 @@ o_n_space_concat streamLen =
         [
         -- concatMapWith using StreamD versions of interleave operations are
         -- all quadratic, we just measure the sqrtVal benchmark for comparison.
-          benchIOSrc1 "concatMapWithD D.interleave outer=inner=(sqrt Max)"
-            (concatMapWithD Stream.interleave streamLen2 streamLen2)
-        , benchIOSrc1 "concatMapWithD D.roundRobin outer=inner=(sqrt Max)"
-            (concatMapWithD Stream.roundRobin streamLen2 streamLen2)
+          benchIO "concatMapWithD D.interleave outer=inner=(sqrt Max)"
+            $ concatMapWithD Stream.interleave streamLen2 streamLen2
+        , benchIO "concatMapWithD D.roundRobin outer=inner=(sqrt Max)"
+            $ concatMapWithD Stream.roundRobin streamLen2 streamLen2
         ]
 
     where
@@ -992,43 +1073,43 @@ o_n_heap_concat :: Int -> Benchmark
 o_n_heap_concat streamLen =
     bgroup "concat"
         [
-          benchIOSrc1 "mergeMapWith interleave outer=Max inner=1"
-            (mergeMapWith StreamK.interleave streamLen 1)
-        , benchIOSrc1 "mergeMapWith interleave outer=inner=(sqrt Max)"
-            (mergeMapWith StreamK.interleave streamLen2 streamLen2)
-        , benchIOSrc1 "mergeMapWith interleave outer=1 inner=Max"
-            (mergeMapWith StreamK.interleave 1 streamLen)
+          benchIO "mergeMapWith interleave outer=Max inner=1"
+            $ mergeMapWith StreamK.interleave streamLen 1
+        , benchIO "mergeMapWith interleave outer=inner=(sqrt Max)"
+            $ mergeMapWith StreamK.interleave streamLen2 streamLen2
+        , benchIO "mergeMapWith interleave outer=1 inner=Max"
+            $ mergeMapWith StreamK.interleave 1 streamLen
 
-        , benchIOSrc1 "mergeMapWithD D.interleave outer=inner=(sqrt Max)"
-            (mergeMapWithD Stream.interleave streamLen2 streamLen2)
-        , benchIOSrc1 "mergeMapWithD D.roundRobin outer=inner=(sqrt Max)"
-            (mergeMapWithD Stream.roundRobin streamLen2 streamLen2)
+        , benchIO "mergeMapWithD D.interleave outer=inner=(sqrt Max)"
+            $ mergeMapWithD Stream.interleave streamLen2 streamLen2
+        , benchIO "mergeMapWithD D.roundRobin outer=inner=(sqrt Max)"
+            $ mergeMapWithD Stream.roundRobin streamLen2 streamLen2
 
-        , benchIOSrc1 "mergeMapWith (mergeBy compare) outer=Max inner=1"
-            (mergeMapWith (StreamK.mergeBy compare) streamLen 1)
-        , benchIOSrc1 "mergeMapWith (mergeBy compare) outer=inner=(sqrt Max)"
-            (mergeMapWith (StreamK.mergeBy compare) streamLen2 streamLen2)
-        , benchIOSrc1 "mergeMapWith (mergeBy compare) outer=1 inner=Max"
-            (mergeMapWith (StreamK.mergeBy compare) 1 streamLen)
+        , benchIO "mergeMapWith (mergeBy compare) outer=Max inner=1"
+            $ mergeMapWith (StreamK.mergeBy compare) streamLen 1
+        , benchIO "mergeMapWith (mergeBy compare) outer=inner=(sqrt Max)"
+            $ mergeMapWith (StreamK.mergeBy compare) streamLen2 streamLen2
+        , benchIO "mergeMapWith (mergeBy compare) outer=1 inner=Max"
+            $ mergeMapWith (StreamK.mergeBy compare) 1 streamLen
 
-        , benchIOSrc1 "mergeMapWith (mergeBy (flip compare)) outer=Max inner=1"
-            (mergeMapWith (StreamK.mergeBy (flip compare)) streamLen 1)
-        , benchIOSrc1 "mergeMapWith (mergeBy (flip compare)) outer=inner=(sqrt Max)"
-            (mergeMapWith (StreamK.mergeBy (flip compare)) streamLen2 streamLen2)
-        , benchIOSrc1 "mergeMapWith (mergeBy (flip compare)) outer=1 inner=Max"
-            (mergeMapWith (StreamK.mergeBy (flip compare)) 1 streamLen)
+        , benchIO "mergeMapWith (mergeBy (flip compare)) outer=Max inner=1"
+            $ mergeMapWith (StreamK.mergeBy (flip compare)) streamLen 1
+        , benchIO "mergeMapWith (mergeBy (flip compare)) outer=inner=(sqrt Max)"
+            $ mergeMapWith (StreamK.mergeBy (flip compare)) streamLen2 streamLen2
+        , benchIO "mergeMapWith (mergeBy (flip compare)) outer=1 inner=Max"
+            $ mergeMapWith (StreamK.mergeBy (flip compare)) 1 streamLen
 
           {- -- This fails with stack overflow.
-            benchIOSrc1 "concatMapWithZip (n of 1)"
+            benchIO "concatMapWithZip (n of 1)"
             (concatMapWithZip value 1)
         -- Not correct because of nil stream at end issue.
-        , benchIOSrc1 "concatMapWithZip (sqrtVal of sqrtVal)"
+        , benchIO "concatMapWithZip (sqrtVal of sqrtVal)"
             (concatMapWithZip sqrtVal sqrtVal)
         -}
-        , benchIOSrc1 "mergeMapWith (zipWith (+)) outer=Max inner=1"
-            (mergeMapWith (StreamK.zipWith (+)) streamLen 1)
-        , benchIOSrc1 "mergeMapWith (zipWith (+)) outer=inner=(sqrt Max)"
-            (mergeMapWith (StreamK.zipWith (+)) streamLen2 streamLen2)
+        , benchIO "mergeMapWith (zipWith (+)) outer=Max inner=1"
+            $ mergeMapWith (StreamK.zipWith (+)) streamLen 1
+        , benchIO "mergeMapWith (zipWith (+)) outer=inner=(sqrt Max)"
+            $ mergeMapWith (StreamK.zipWith (+)) streamLen2 streamLen2
         ]
 
     where
@@ -1039,15 +1120,9 @@ o_n_heap_concat streamLen =
 o_n_heap_sorting :: Int -> Benchmark
 o_n_heap_sorting streamLen =
     bgroup "sorting"
-        [ benchFold "sortBy compare"
-            (sortBy compare)
-            (unfoldrM streamLen)
-        , benchFold "sortBy (flip compare)"
-            (sortBy (flip compare))
-            (unfoldrM streamLen)
-        , benchFold "sortBy compare randomized"
-            (sortBy compare . fmap (\x -> if even x then x + 2 else x))
-            (unfoldrM streamLen)
+        [ benchIO "sortBy compare"           $ sortBy compare streamLen
+        , benchIO "sortBy (flip compare)"    $ sortBy (flip compare) streamLen
+        , benchIO "sortBy compare randomized" $ sortByCompareRandomized streamLen
         , bench "List.sortBy compare"
             $ nf (\x -> List.sortBy compare [1..x]) streamLen
         , bench "List.sortBy (flip compare)"
@@ -1062,95 +1137,90 @@ o_n_heap_sorting streamLen =
 o_1_space_filtering :: Int -> Benchmark
 o_1_space_filtering streamLen =
     bgroup "filtering"
-        [ benchFold "filter-even"     (filterEven     1) (unfoldrM streamLen)
-        , benchFold "filter-all-out"  (filterAllOut streamLen   1) (unfoldrM streamLen)
-        , benchFold "filter-all-in"   (filterAllIn streamLen    1) (unfoldrM streamLen)
-        , benchFold "take-all"        (takeAll streamLen        1) (unfoldrM streamLen)
-        , benchFold "takeWhile-true"  (takeWhileTrue streamLen  1) (unfoldrM streamLen)
-        , benchFold "drop-one"        (dropOne        1) (unfoldrM streamLen)
-        , benchFold "drop-all"        (dropAll streamLen        1) (unfoldrM streamLen)
-        , benchFold "dropWhile-true"  (dropWhileTrue streamLen  1) (unfoldrM streamLen)
-        , benchFold "dropWhile-false" (dropWhileFalse 1) (unfoldrM streamLen)
+        [ benchIO "filter-even"     $ filterEven 1 streamLen
+        , benchIO "filter-all-out"  $ filterAllOut 1 streamLen
+        , benchIO "filter-all-in"   $ filterAllIn 1 streamLen
+        , benchIO "take-all"        $ takeAll 1 streamLen
+        , benchIO "takeWhile-true"  $ takeWhileTrue 1 streamLen
+        , benchIO "drop-one"        $ dropOne 1 streamLen
+        , benchIO "drop-all"        $ dropAll 1 streamLen
+        , benchIO "dropWhile-true"  $ dropWhileTrue 1 streamLen
+        , benchIO "dropWhile-false" $ dropWhileFalse 1 streamLen
         ]
 
 o_1_space_filteringX4 :: Int -> Benchmark
 o_1_space_filteringX4 streamLen =
     bgroup "filteringX4"
-        [ benchFold "filter-even"     (filterEven     4) (unfoldrM streamLen)
-        , benchFold "filter-all-out"  (filterAllOut streamLen   4) (unfoldrM streamLen)
-        , benchFold "filter-all-in"   (filterAllIn streamLen    4) (unfoldrM streamLen)
-        , benchFold "take-all"        (takeAll streamLen        4) (unfoldrM streamLen)
-        , benchFold "takeWhile-true"  (takeWhileTrue streamLen  4) (unfoldrM streamLen)
-        , benchFold "drop-one"        (dropOne        4) (unfoldrM streamLen)
-        , benchFold "drop-all"        (dropAll streamLen        4) (unfoldrM streamLen)
-        , benchFold "dropWhile-true"  (dropWhileTrue streamLen  4) (unfoldrM streamLen)
-        , benchFold "dropWhile-false" (dropWhileFalse 4) (unfoldrM streamLen)
+        [ benchIO "filter-even"     $ filterEven 4 streamLen
+        , benchIO "filter-all-out"  $ filterAllOut 4 streamLen
+        , benchIO "filter-all-in"   $ filterAllIn 4 streamLen
+        , benchIO "take-all"        $ takeAll 4 streamLen
+        , benchIO "takeWhile-true"  $ takeWhileTrue 4 streamLen
+        , benchIO "drop-one"        $ dropOne 4 streamLen
+        , benchIO "drop-all"        $ dropAll 4 streamLen
+        , benchIO "dropWhile-true"  $ dropWhileTrue 4 streamLen
+        , benchIO "dropWhile-false" $ dropWhileFalse 4 streamLen
         ]
 
 o_1_space_mixed :: Int -> Benchmark
 o_1_space_mixed streamLen =
     bgroup "mixed"
-        [ benchFold "scan-map"    (scanMap    1) (unfoldrM streamLen)
-        , benchFold "drop-map"    (dropMap    1) (unfoldrM streamLen)
-        , benchFold "drop-scan"   (dropScan   1) (unfoldrM streamLen)
-        , benchFold "take-drop"   (takeDrop streamLen   1) (unfoldrM streamLen)
-        , benchFold "take-scan"   (takeScan streamLen   1) (unfoldrM streamLen)
-        , benchFold "take-map"    (takeMap streamLen   1) (unfoldrM streamLen)
-        , benchFold "filter-drop" (filterDrop streamLen 1) (unfoldrM streamLen)
-        , benchFold "filter-take" (filterTake streamLen 1) (unfoldrM streamLen)
-        , benchFold "filter-scan" (filterScan 1) (unfoldrM streamLen)
-        , benchFold "filter-map"  (filterMap streamLen 1) (unfoldrM streamLen)
+        [ benchIO "scan-map"    $ scanMap 1 streamLen
+        , benchIO "drop-map"    $ dropMap 1 streamLen
+        , benchIO "drop-scan"   $ dropScan 1 streamLen
+        , benchIO "take-drop"   $ takeDrop 1 streamLen
+        , benchIO "take-scan"   $ takeScan 1 streamLen
+        , benchIO "take-map"    $ takeMap 1 streamLen
+        , benchIO "filter-drop" $ filterDrop 1 streamLen
+        , benchIO "filter-take" $ filterTake 1 streamLen
+        , benchIO "filter-scan" $ filterScan 1 streamLen
+        , benchIO "filter-map"  $ filterMap 1 streamLen
         ]
 
 o_1_space_mixedX2 :: Int -> Benchmark
 o_1_space_mixedX2 streamLen =
     bgroup "mixedX2"
-        [ benchFold "scan-map"    (scanMap    2) (unfoldrM streamLen)
-        , benchFold "drop-map"    (dropMap    2) (unfoldrM streamLen)
-        , benchFold "drop-scan"   (dropScan   2) (unfoldrM streamLen)
-        , benchFold "take-drop"   (takeDrop streamLen   2) (unfoldrM streamLen)
-        , benchFold "take-scan"   (takeScan streamLen   2) (unfoldrM streamLen)
-        , benchFold "take-map"    (takeMap streamLen   2) (unfoldrM streamLen)
-        , benchFold "filter-drop" (filterDrop streamLen 2) (unfoldrM streamLen)
-        , benchFold "filter-take" (filterTake streamLen 2) (unfoldrM streamLen)
-        , benchFold "filter-scan" (filterScan 2) (unfoldrM streamLen)
-        , benchFold "filter-map"  (filterMap streamLen 2) (unfoldrM streamLen)
+        [ benchIO "scan-map"    $ scanMap 2 streamLen
+        , benchIO "drop-map"    $ dropMap 2 streamLen
+        , benchIO "drop-scan"   $ dropScan 2 streamLen
+        , benchIO "take-drop"   $ takeDrop 2 streamLen
+        , benchIO "take-scan"   $ takeScan 2 streamLen
+        , benchIO "take-map"    $ takeMap 2 streamLen
+        , benchIO "filter-drop" $ filterDrop 2 streamLen
+        , benchIO "filter-take" $ filterTake 2 streamLen
+        , benchIO "filter-scan" $ filterScan 2 streamLen
+        , benchIO "filter-map"  $ filterMap 2 streamLen
         ]
 
 o_1_space_mixedX4 :: Int -> Benchmark
 o_1_space_mixedX4 streamLen =
     bgroup "mixedX4"
-        [ benchFold "scan-map"    (scanMap    4) (unfoldrM streamLen)
-        , benchFold "drop-map"    (dropMap    4) (unfoldrM streamLen)
-        , benchFold "drop-scan"   (dropScan   4) (unfoldrM streamLen)
-        , benchFold "take-drop"   (takeDrop streamLen   4) (unfoldrM streamLen)
-        , benchFold "take-scan"   (takeScan streamLen   4) (unfoldrM streamLen)
-        , benchFold "take-map"    (takeMap streamLen   4) (unfoldrM streamLen)
-        , benchFold "filter-drop" (filterDrop streamLen 4) (unfoldrM streamLen)
-        , benchFold "filter-take" (filterTake streamLen 4) (unfoldrM streamLen)
-        , benchFold "filter-scan" (filterScan 4) (unfoldrM streamLen)
-        , benchFold "filter-map"  (filterMap streamLen 4) (unfoldrM streamLen)
+        [ benchIO "scan-map"    $ scanMap 4 streamLen
+        , benchIO "drop-map"    $ dropMap 4 streamLen
+        , benchIO "drop-scan"   $ dropScan 4 streamLen
+        , benchIO "take-drop"   $ takeDrop 4 streamLen
+        , benchIO "take-scan"   $ takeScan 4 streamLen
+        , benchIO "take-map"    $ takeMap 4 streamLen
+        , benchIO "filter-drop" $ filterDrop 4 streamLen
+        , benchIO "filter-take" $ filterTake 4 streamLen
+        , benchIO "filter-scan" $ filterScan 4 streamLen
+        , benchIO "filter-map"  $ filterMap 4 streamLen
         ]
-
-{- HLINT ignore "Use <&>" -}
-{-# INLINE benchList #-}
-benchList :: P.String -> ([Int] -> [Int]) -> (Int -> [Int]) -> Benchmark
-benchList name run f = bench name $ nfIO $ randomRIO (1,1) >>= return . run . f
 
 o_1_space_list :: Int -> Benchmark
 o_1_space_list streamLen =
     bgroup "list"
       [ bgroup "elimination"
-        [ benchList "last" (\xs -> [List.last xs]) (unfoldrList streamLen)
+        [ benchIO "last" $ lastList streamLen
         ]
       , bgroup "Applicative"
-        [ benchList "drain2" toNullApNestedList (unfoldrList streamLen2)
+        [ benchIO "drain2" $ listApDrain2 streamLen2
         ]
       , bgroup "Monad"
-        [ benchList "drain2"   toNullNestedList (unfoldrList streamLen2)
-        , benchList "drain3"  toNullNestedList3 (unfoldrList streamLen3)
-        , benchList "filterAllIn2"  filterAllInNestedList (unfoldrList streamLen2)
-        , benchList "filterAllOut2"  filterAllOutNestedList (unfoldrList streamLen2)
+        [ benchIO "drain2"        $ listMonadDrain2 streamLen2
+        , benchIO "drain3"        $ listMonadDrain3 streamLen3
+        , benchIO "filterAllIn2"  $ listMonadFilterAllIn2 streamLen2
+        , benchIO "filterAllOut2" $ listMonadFilterAllOut2 streamLen2
         ]
       ]
     where
@@ -1161,7 +1231,7 @@ o_1_space_list streamLen =
 o_n_heap_transformation :: Int -> Benchmark
 o_n_heap_transformation streamLen =
     bgroup "transformation"
-        [ benchFold "foldlS" (foldlS 1) (unfoldrM streamLen)
+        [ benchIO "foldlS" $ foldlS 1 streamLen
         ]
 
 o_n_stack_transformation :: Int -> Benchmark
@@ -1169,8 +1239,8 @@ o_n_stack_transformation streamLen =
     bgroup "transformation"
         [
           -- XXX why do these need so much stack
-          benchFold "intersperse" (intersperse streamLen 1) (unfoldrM streamLen2)
-        , benchFold "interspersePure" (intersperse streamLen 1) (unfoldr streamLen2)
+          benchIO "intersperse"     $ intersperse streamLen 1 streamLen2
+        , benchIO "interspersePure" $ interspersePure streamLen 1 streamLen2
         ]
     where
     streamLen2 = round (P.fromIntegral streamLen**(1/2::P.Double))
@@ -1179,25 +1249,21 @@ o_n_stack_transformationX4 :: Int -> Benchmark
 o_n_stack_transformationX4 streamLen =
     bgroup "transformationX4"
         [
-          benchFold "intersperse" (intersperse streamLen 4) (unfoldrM streamLen16)
+          benchIO "intersperse" $ intersperse streamLen 4 streamLen16
         ]
     where
     streamLen16 = round (P.fromIntegral streamLen**(1/16::P.Double))
 
-{-# INLINE benchK #-}
-benchK :: P.String -> (Int -> StreamK P.IO Int) -> Benchmark
-benchK name f = bench name $ nfIO $ randomRIO (1,1) >>= drain . f
-
 o_n_stack_iterated :: Int -> Int -> Int -> Benchmark
 o_n_stack_iterated streamLen iterStreamLen maxIters =
     bgroup "iterated"
-        [ benchK "mapM"                 (iterateMapM iterStreamLen maxIters)
-        , benchK "scan(1/10)"           (iterateScan iterStreamLen maxIters)
-        , benchK "filterEven"           (iterateFilterEven iterStreamLen maxIters)
-        , benchK "takeAll"              (iterateTakeAll streamLen iterStreamLen maxIters)
-        , benchK "dropOne"              (iterateDropOne iterStreamLen maxIters)
-        , benchK "dropWhileFalse(1/10)" (iterateDropWhileFalse streamLen iterStreamLen maxIters)
-        , benchK "dropWhileTrue"        (iterateDropWhileTrue streamLen iterStreamLen maxIters)
+        [ benchIO "mapM"                 $ iterateMapM iterStreamLen maxIters
+        , benchIO "scan(1/10)"           $ iterateScan iterStreamLen maxIters
+        , benchIO "filterEven"           $ iterateFilterEven iterStreamLen maxIters
+        , benchIO "takeAll"              $ iterateTakeAll streamLen iterStreamLen maxIters
+        , benchIO "dropOne"              $ iterateDropOne iterStreamLen maxIters
+        , benchIO "dropWhileFalse(1/10)" $ iterateDropWhileFalse streamLen iterStreamLen maxIters
+        , benchIO "dropWhileTrue"        $ iterateDropWhileTrue streamLen iterStreamLen maxIters
         ]
 
 benchmarks :: Int -> Int -> Int -> [(SpaceComplexity, Benchmark)]
@@ -1224,16 +1290,16 @@ benchmarks streamLen iterStreamLen maxIters =
     , (HeapO_n, o_n_heap_sorting streamLen)
     -- O(n) stack
     , (StackO_n, bgroup "elimination"
-        [ benchFold "tail"     tail     (unfoldrM streamLen)
-        , benchFold "nullTail" nullTail (unfoldrM streamLen)
-        , benchFold "headTail" headTail (unfoldrM streamLen)
+        [ benchIO "tail"     $ tail streamLen
+        , benchIO "nullTail" $ nullTail streamLen
+        , benchIO "headTail" $ headTail streamLen
         ])
     , (StackO_n, o_n_stack_transformation streamLen)
     , (StackO_n, o_n_stack_transformationX4 streamLen)
     , (StackO_n, o_n_stack_iterated streamLen iterStreamLen maxIters)
     -- O(n) space
     , (SpaceO_n, bgroup "elimination"
-        [ benchFold "toList" toList (unfoldrM streamLen)
+        [ benchIO "toList" $ toList streamLen
         ])
     , (SpaceO_n, o_n_space_concat streamLen)
     ]
