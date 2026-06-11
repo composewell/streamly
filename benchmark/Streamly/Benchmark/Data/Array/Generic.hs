@@ -4,12 +4,10 @@
 
 #include "Streamly/Benchmark/Data/Array/CommonImports.hs"
 
-import Control.DeepSeq (deepseq)
-
 import qualified Streamly.Internal.Data.Array.Generic as IA
 import qualified Streamly.Internal.Data.Array.Generic as A
 
-type Stream = A.Array
+type Arr = A.Array
 
 #include "Streamly/Benchmark/Data/Array/Common.hs"
 
@@ -18,46 +16,56 @@ instance NFData a => NFData (A.Array a) where
     rnf = A.foldl' (\_ x -> rnf x) ()
 
 -------------------------------------------------------------------------------
--- Benchmark helpers
--------------------------------------------------------------------------------
-
--- Drain a source that generates an array in the IO monad
-{-# INLINE benchIOSrc #-}
-benchIOSrc :: NFData a => String -> (Int -> IO (Stream a)) -> Benchmark
-benchIOSrc name src = benchIO name src id
-
--------------------------------------------------------------------------------
 -- Bench Ops
 -------------------------------------------------------------------------------
 
 {-# INLINE sourceIntFromToFromList #-}
-sourceIntFromToFromList :: MonadIO m => Int -> Int -> m (Stream Int)
-sourceIntFromToFromList value n = P.return $ A.fromListN value [n..n + value]
+sourceIntFromToFromList :: Int -> IO (Arr Int)
+sourceIntFromToFromList value = withRandomIntIO $ \n ->
+    P.return $ A.fromListN value [n..n + value]
 
-{-# INLINE readInstance #-}
-readInstance :: P.String -> Stream Int
-readInstance str =
+{-# INLINE parseInstance #-}
+parseInstance :: P.String -> Arr Int
+parseInstance str =
     let r = P.reads str
     in case r of
         [(x,"")] -> x
-        _ -> P.error "readInstance: no parse"
+        _ -> P.error "parseInstance: no parse"
+
+{-# INLINE readInstance #-}
+readInstance :: Int -> IO (Arr Int)
+readInstance value = withRandomIntIO $ \n ->
+    let testStr = "fromList " ++ show [n..n+value]
+    in return $! parseInstance testStr
 
 #ifdef DEVBUILD
 {-
 {-# INLINE foldableFoldl' #-}
-foldableFoldl' :: Stream Int -> Int
+foldableFoldl' :: Arr Int -> Int
 foldableFoldl' = F.foldl' (+) 0
 
 {-# INLINE foldableSum #-}
-foldableSum :: Stream Int -> Int
+foldableSum :: Arr Int -> Int
 foldableSum = P.sum
 -}
 #endif
 
 {-# INLINE sourceIntFromToFromStream #-}
-sourceIntFromToFromStream :: MonadIO m => Int -> Int -> m (Stream Int)
-sourceIntFromToFromStream value n =
+sourceIntFromToFromStream :: Int -> IO (Arr Int)
+sourceIntFromToFromStream value = withRandomIntIO $ \n ->
     S.fold A.create $ S.enumerateFromTo n (n + value)
+
+{-# INLINE createOfLast1 #-}
+createOfLast1 :: Int -> IO (Arr Int)
+createOfLast1 value = withStream value (S.fold (IA.createOfLast 1))
+
+{-# INLINE createOfLast10 #-}
+createOfLast10 :: Int -> IO (Arr Int)
+createOfLast10 value = withStream value (S.fold (IA.createOfLast 10))
+
+{-# INLINE createOfLastMax #-}
+createOfLastMax :: Int -> IO (Arr Int)
+createOfLastMax value = withStream value (S.fold (IA.createOfLast (value + 1)))
 
 -------------------------------------------------------------------------------
 -- Bench groups
@@ -67,36 +75,24 @@ o_1_space_generation :: Int -> [Benchmark]
 o_1_space_generation value =
     [ bgroup
         "generation"
-        [ benchIOSrc "write . intFromTo" (sourceIntFromToFromStream value)
-        , let testStr = "fromList " ++ mkListString value
-           in testStr `deepseq` bench "read" (nf readInstance testStr)
+        [ benchIO "write . intFromTo" $ sourceIntFromToFromStream value
+        , benchIO "read" $ readInstance value
         ]
     ]
 
 o_1_space_elimination :: Int -> [Benchmark]
 o_1_space_elimination value =
     [ bgroup "elimination"
-        [ benchFold "createOfLast.1"
-            (S.fold (IA.createOfLast 1)) (P.sourceUnfoldrM value)
-        , benchFold "createOfLast.10"
-            (S.fold (IA.createOfLast 10)) (P.sourceUnfoldrM value)
-#ifdef DEVBUILD
-{-
-          benchPureSink value "foldable/foldl'" foldableFoldl'
-        , benchPureSink value "foldable/sum" foldableSum
--}
-#endif
+        [ benchIO "createOfLast.1" $ createOfLast1 value
+        , benchIO "createOfLast.10" $ createOfLast10 value
         ]
       ]
 
 o_n_heap_serial :: Int -> [Benchmark]
 o_n_heap_serial value =
     [ bgroup "elimination"
-        [
-        -- Converting the stream to an array
-            benchFold "createOfLast.Max" (S.fold (IA.createOfLast (value + 1)))
-                (P.sourceUnfoldrM value)
-         ]
+        [ benchIO "createOfLast.Max" $ createOfLastMax value
+        ]
     ]
 
 moduleName :: String

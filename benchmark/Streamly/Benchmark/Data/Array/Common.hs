@@ -2,44 +2,49 @@
 -- Benchmark helpers
 -------------------------------------------------------------------------------
 
+{-# INLINE withRandomIntIO #-}
+withRandomIntIO :: (Int -> IO b) -> IO b
+withRandomIntIO f = randomRIO (1, 1 :: Int) >>= f
+
 {-# INLINE benchIO #-}
-benchIO :: NFData b => String -> (Int -> IO a) -> (a -> b) -> Benchmark
-benchIO name src f = bench name $ nfIO $
-    (randomRIO (1,1) >>= src) <&> f
+benchIO :: NFData b => String -> IO b -> Benchmark
+benchIO name = bench name . nfIO
 
-{-# INLINE benchPureSink #-}
-benchPureSink :: NFData b => Int -> String -> (Stream Int -> b) -> Benchmark
-benchPureSink value name = benchIO name (sourceIntFromTo value)
+{-# INLINE withArray #-}
+withArray :: Int -> (Arr Int -> IO b) -> IO b
+withArray value f = sourceIntFromTo value >>= f
 
-{-# INLINE benchIO' #-}
-benchIO' :: NFData b => String -> (Int -> IO a) -> (a -> IO b) -> Benchmark
-benchIO' name src f = bench name $ nfIO $
-    randomRIO (1,1) >>= src >>= f
-
-{-# INLINE benchIOSink #-}
-benchIOSink :: NFData b => Int -> String -> (Stream Int -> IO b) -> Benchmark
-benchIOSink value name = benchIO' name (sourceIntFromTo value)
+{-# INLINE withStream #-}
+withStream :: Int -> (S.Stream IO Int -> IO b) -> IO b
+withStream value f = withRandomIntIO $ \n -> f $ P.sourceUnfoldrM value n
 
 -------------------------------------------------------------------------------
 -- Bench Ops
 -------------------------------------------------------------------------------
 
-{-# INLINE sourceUnfoldr #-}
-sourceUnfoldr :: MonadIO m => Int -> Int -> m (Stream Int)
-sourceUnfoldr value n = S.fold (A.createOf value) $ S.unfoldr step n
-    where
-    step cnt =
-        if cnt > n + value
-        then Nothing
-        else Just (cnt, cnt + 1)
-
 {-# INLINE sourceIntFromTo #-}
-sourceIntFromTo :: MonadIO m => Int -> Int -> m (Stream Int)
-sourceIntFromTo value n = S.fold (A.createOf value) $ S.enumerateFromTo n (n + value)
+sourceIntFromTo :: Int -> IO (Arr Int)
+sourceIntFromTo value = withRandomIntIO $ \n ->
+    S.fold (A.createOf value) $ S.enumerateFromTo n (n + value)
+
+{-# INLINE sourceUnfoldr #-}
+sourceUnfoldr :: Int -> IO (Arr Int)
+sourceUnfoldr value = withRandomIntIO $ \n ->
+    let step cnt =
+            if cnt > n + value
+            then Nothing
+            else Just (cnt, cnt + 1)
+    in S.fold (A.createOf value) $ S.unfoldr step n
 
 {-# INLINE sourceFromList #-}
-sourceFromList :: MonadIO m => Int -> Int -> m (Stream Int)
-sourceFromList value n = S.fold (A.createOf value) $ S.fromList [n..n+value]
+sourceFromList :: Int -> IO (Arr Int)
+sourceFromList value = withRandomIntIO $ \n ->
+    S.fold (A.createOf value) $ S.fromList [n..n+value]
+
+
+{-# INLINE showStream #-}
+showStream :: Int -> IO P.String
+showStream value = withArray value (return . showInstance)
 
 -------------------------------------------------------------------------------
 -- Transformation
@@ -47,7 +52,7 @@ sourceFromList value n = S.fold (A.createOf value) $ S.fromList [n..n+value]
 
 {-# INLINE composeN #-}
 composeN :: P.Monad m
-    => Int -> (Stream Int -> m (Stream Int)) -> Stream Int -> m (Stream Int)
+    => Int -> (Arr Int -> m (Arr Int)) -> Arr Int -> m (Arr Int)
 composeN n f x =
     case n of
         1 -> f x
@@ -56,61 +61,80 @@ composeN n f x =
         4 -> f x P.>>= f P.>>= f P.>>= f
         _ -> undefined
 
-{-# INLINE scanl' #-}
-{-# INLINE scanl1' #-}
-{-# INLINE map #-}
-
-scanl' , scanl1', map
-    :: MonadIO m => Int -> Int -> Stream Int -> m (Stream Int)
-
-
 {-# INLINE onArray #-}
 onArray
     :: MonadIO m => Int -> (Stream.Stream m Int -> Stream.Stream m Int)
-    -> Stream Int
-    -> m (Stream Int)
+    -> Arr Int
+    -> m (Arr Int)
 onArray value f arr = S.fold (A.createOf value) $ f $ S.unfold A.reader arr
 
-scanl'  value n = composeN n $ onArray value $ S.scanl (Scanl.scanl' (+) 0)
-scanl1' value n = composeN n $ onArray value $ Stream.scanl1' (+)
-map     value n = composeN n $ onArray value $ fmap (+1)
--- map           n = composeN n $ A.map (+1)
+{-# INLINE scanl' #-}
+scanl' :: Int -> IO (Arr Int)
+scanl' value = withArray value $ composeN 1 $ onArray value $ S.scanl (Scanl.scanl' (+) 0)
+
+{-# INLINE scanl'X4 #-}
+scanl'X4 :: Int -> IO (Arr Int)
+scanl'X4 value = withArray value $ composeN 4 $ onArray value $ S.scanl (Scanl.scanl' (+) 0)
+
+{-# INLINE scanl1' #-}
+scanl1' :: Int -> IO (Arr Int)
+scanl1' value = withArray value $ composeN 1 $ onArray value $ Stream.scanl1' (+)
+
+{-# INLINE scanl1'X4 #-}
+scanl1'X4 :: Int -> IO (Arr Int)
+scanl1'X4 value = withArray value $ composeN 4 $ onArray value $ Stream.scanl1' (+)
+
+{-# INLINE map #-}
+map :: Int -> IO (Arr Int)
+map value = withArray value $ composeN 1 $ onArray value $ fmap (+1)
+
+{-# INLINE mapX4 #-}
+mapX4 :: Int -> IO (Arr Int)
+mapX4 value = withArray value $ composeN 4 $ onArray value $ fmap (+1)
+
+{-# INLINE idArr #-}
+idArr :: Int -> IO (Arr Int)
+idArr value = withArray value return
 
 {-# INLINE eqInstance #-}
-eqInstance :: Stream Int -> Bool
-eqInstance src = src == src
+eqInstance :: Int -> IO Bool
+eqInstance value = withArray value $ \src -> return (src == src)
 
 {-# INLINE eqInstanceNotEq #-}
-eqInstanceNotEq :: Stream Int -> Bool
-eqInstanceNotEq src = src P./= src
+eqInstanceNotEq :: Int -> IO Bool
+eqInstanceNotEq value = withArray value $ \src -> return (src P./= src)
 
 {-# INLINE ordInstance #-}
-ordInstance :: Stream Int -> Bool
-ordInstance src = src P.< src
+ordInstance :: Int -> IO Bool
+ordInstance value = withArray value $ \src -> return (src P.< src)
 
 {-# INLINE ordInstanceMin #-}
-ordInstanceMin :: Stream Int -> Stream Int
-ordInstanceMin src = P.min src src
+ordInstanceMin :: Int -> IO (Arr Int)
+ordInstanceMin value = withArray value $ \src -> return (P.min src src)
 
 {-# INLINE showInstance #-}
-showInstance :: Stream Int -> P.String
+showInstance :: Arr Int -> P.String
 showInstance = P.show
 
 {-# INLINE pureFoldl' #-}
-pureFoldl' :: MonadIO m => Stream Int -> m Int
-pureFoldl' = S.fold (Fold.foldl' (+) 0) . S.unfold A.reader
+pureFoldl' :: Int -> IO Int
+pureFoldl' value = withArray value $ S.fold (Fold.foldl' (+) 0) . S.unfold A.reader
 
 -------------------------------------------------------------------------------
 -- Elimination
 -------------------------------------------------------------------------------
 
 {-# INLINE unfoldReadDrain #-}
-unfoldReadDrain :: MonadIO m => Stream Int -> m ()
-unfoldReadDrain = S.fold Fold.drain . S.unfold A.reader
+unfoldReadDrain :: Int -> IO ()
+unfoldReadDrain value = withArray value $ S.fold Fold.drain . S.unfold A.reader
 
 {-# INLINE toStreamRevDrain #-}
-toStreamRevDrain :: MonadIO m => Stream Int -> m ()
-toStreamRevDrain = S.fold Fold.drain . A.readRev
+toStreamRevDrain :: Int -> IO ()
+toStreamRevDrain value = withArray value $ S.fold Fold.drain . A.readRev
+
+{-# INLINE writeN #-}
+writeN :: Int -> IO (Arr Int)
+writeN value = withStream value (S.fold (A.createOf value))
 
 -------------------------------------------------------------------------------
 -- Bench groups
@@ -120,55 +144,50 @@ common_o_1_space_generation :: Int -> [Benchmark]
 common_o_1_space_generation value =
     [ bgroup
         "generation"
-        [ benchIOSrc "writeN . intFromTo" (sourceIntFromTo value)
-        , benchIOSrc
-              "fromList . intFromTo"
-              (sourceIntFromToFromList value)
-        , benchIOSrc "writeN . unfoldr" (sourceUnfoldr value)
-        , benchIOSrc "writeN . fromList" (sourceFromList value)
-        , benchPureSink value "show" showInstance
+        [ benchIO "writeN . intFromTo" $ sourceIntFromTo value
+        , benchIO "fromList . intFromTo" $ sourceIntFromToFromList value
+        , benchIO "writeN . unfoldr" $ sourceUnfoldr value
+        , benchIO "writeN . fromList" $ sourceFromList value
+        , benchIO "show" $ showStream value
         ]
     ]
 
 common_o_1_space_elimination :: Int -> [Benchmark]
 common_o_1_space_elimination value =
     [ bgroup "elimination"
-        [ benchPureSink value "id" id
-        , benchPureSink value "==" eqInstance
-        , benchPureSink value "/=" eqInstanceNotEq
-        , benchPureSink value "<" ordInstance
-        , benchPureSink value "min" ordInstanceMin
-        , benchIOSink value "foldl'" pureFoldl'
-        , benchIOSink value "read" unfoldReadDrain
-        , benchIOSink value "toStreamRev" toStreamRevDrain
+        [ benchIO "id" $ idArr value
+        , benchIO "==" $ eqInstance value
+        , benchIO "/=" $ eqInstanceNotEq value
+        , benchIO "<" $ ordInstance value
+        , benchIO "min" $ ordInstanceMin value
+        , benchIO "foldl'" $ pureFoldl' value
+        , benchIO "read" $ unfoldReadDrain value
+        , benchIO "toStreamRev" $ toStreamRevDrain value
         ]
       ]
 
 common_o_n_heap_serial :: Int -> [Benchmark]
 common_o_n_heap_serial value =
     [ bgroup "elimination"
-        [
-        -- Converting the stream to an array
-            benchFold "writeN" (S.fold (A.createOf value))
-                (P.sourceUnfoldrM value)
-         ]
+        [ benchIO "writeN" $ writeN value
+        ]
     ]
 
 common_o_1_space_transformation :: Int -> [Benchmark]
 common_o_1_space_transformation value =
    [ bgroup "transformation"
-        [ benchIOSink value "scanl'" (scanl' value 1)
-        , benchIOSink value "scanl1'" (scanl1' value 1)
-        , benchIOSink value "map" (map value 1)
+        [ benchIO "scanl'" $ scanl' value
+        , benchIO "scanl1'" $ scanl1' value
+        , benchIO "map" $ map value
         ]
    ]
 
 common_o_1_space_transformationX4 :: Int -> [Benchmark]
 common_o_1_space_transformationX4 value =
     [ bgroup "transformationX4"
-        [ benchIOSink value "scanl'" (scanl' value 4)
-        , benchIOSink value "scanl1'" (scanl1' value 4)
-        , benchIOSink value "map" (map value 4)
+        [ benchIO "scanl'" $ scanl'X4 value
+        , benchIO "scanl1'" $ scanl1'X4 value
+        , benchIO "map" $ mapX4 value
         ]
       ]
 

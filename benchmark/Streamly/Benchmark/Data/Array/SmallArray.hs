@@ -4,46 +4,43 @@
 
 #include "Streamly/Benchmark/Data/Array/CommonImports.hs"
 
-import Control.DeepSeq (deepseq)
-
 import qualified Streamly.Internal.Data.SmallArray as A
-type Stream = A.SmallArray
+type Arr = A.SmallArray
 
 #include "Streamly/Benchmark/Data/Array/Common.hs"
-
--------------------------------------------------------------------------------
--- Benchmark helpers
--------------------------------------------------------------------------------
-
--- Drain a source that generates an array in the IO monad
-{-# INLINE benchIOSrc #-}
-benchIOSrc :: NFData a => String -> (Int -> IO (Stream a)) -> Benchmark
-benchIOSrc name src = benchIO name src id
 
 -------------------------------------------------------------------------------
 -- Bench Ops
 -------------------------------------------------------------------------------
 
 {-# INLINE sourceIntFromToFromList #-}
-sourceIntFromToFromList :: MonadIO m => Int -> Int -> m (Stream Int)
-sourceIntFromToFromList value n = P.return $ A.fromListN value [n..n + value]
+sourceIntFromToFromList :: Int -> IO (Arr Int)
+sourceIntFromToFromList value = withRandomIntIO $ \n ->
+    P.return $ A.fromListN value [n..n + value]
 
-{-# INLINE readInstance #-}
-readInstance :: P.String -> Stream Int
-readInstance str =
+{-# INLINE parseInstance #-}
+parseInstance :: P.String -> Arr Int
+parseInstance str =
     let r = P.reads str
     in case r of
         [(x,"")] -> x
-        _ -> P.error "readInstance: no parse"
+        _ -> P.error "parseInstance: no parse"
+
+{-# INLINE readInstance #-}
+readInstance :: Int -> IO (Arr Int)
+readInstance value =
+    let testStr = "fromListN " ++ show (value + 1)
+                    ++ "[1" ++ concat (replicate value ",1") ++ "]"
+    in return $! parseInstance testStr
 
 #ifdef DEVBUILD
 {-
 {-# INLINE foldableFoldl' #-}
-foldableFoldl' :: Stream Int -> Int
+foldableFoldl' :: Arr Int -> Int
 foldableFoldl' = F.foldl' (+) 0
 
 {-# INLINE foldableSum #-}
-foldableSum :: Stream Int -> Int
+foldableSum :: Arr Int -> Int
 foldableSum = P.sum
 -}
 #endif
@@ -56,11 +53,7 @@ o_1_space_generation :: Int -> [Benchmark]
 o_1_space_generation value =
     [ bgroup
         "generation"
-        [ let testStr =
-                  "fromListN " ++
-                  show (value + 1) ++
-                  "[1" ++ concat (replicate value ",1") ++ "]"
-           in testStr `deepseq` bench "read" (nf readInstance testStr)
+        [ benchIO "read" $ readInstance value
         ]
     ]
 

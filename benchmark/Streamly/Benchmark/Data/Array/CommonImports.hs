@@ -2,7 +2,6 @@
 
 import Control.DeepSeq (NFData(..))
 import Control.Monad.IO.Class (MonadIO)
-import Data.Functor ((<&>))
 import System.Random (randomRIO)
 
 import qualified Streamly.Data.Fold as Fold
