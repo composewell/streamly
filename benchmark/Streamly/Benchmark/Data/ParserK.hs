@@ -110,31 +110,34 @@ sourceUnfoldrM value n = Stream.unfoldrM step n
         then return Nothing
         else return (Just (cnt, cnt + 1))
 
--- | Takes a fold method, and uses it with a default source.
-{-# INLINE benchIOSink #-}
-benchIOSink
-    :: NFData b
-    => Int -> String -> (StreamK IO PARSE_ELEM -> IO b) -> Benchmark
-benchIOSink value name f =
-    bench name $ nfIO $ randomRIO (1,1)
-        >>= f
-            . StreamK.fromStream
+{-# INLINE benchIO #-}
+benchIO :: NFData b => String -> IO b -> Benchmark
+benchIO name = bench name . nfIO
+
+{-# INLINE withStreamK #-}
+withStreamK :: Int -> (StreamK IO PARSE_ELEM -> IO b) -> IO b
+withStreamK value f =
+    randomRIO (1,1) >>=
+        f . StreamK.fromStream
 #ifdef BENCH_CHUNKED
-            . Array.chunksOf 4000
+          . Array.chunksOf 4000
 #endif
 #ifdef BENCH_CHUNKED_GENERIC
-            . GenArr.chunksOf 4000
+          . GenArr.chunksOf 4000
 #endif
-            . sourceUnfoldrM value
+          . sourceUnfoldrM value
 
 -------------------------------------------------------------------------------
 -- Parsers
 -------------------------------------------------------------------------------
 
+{-# INLINE drain #-}
+drain :: Int -> IO ()
+drain value = withStreamK value $ Stream.fold Fold.drain . StreamK.toStream
+
 {-# INLINE one #-}
-one :: MonadIO m =>
-    Int -> StreamK m PARSE_ELEM -> m (Either ParseError (Maybe Int))
-one value = PARSE_OP p
+one :: Int -> IO (Either ParseError (Maybe Int))
+one value = withStreamK value $ PARSE_OP p
 
     where
 
@@ -153,25 +156,22 @@ takeWhile :: CONSTRAINT_IO => (a -> Bool) -> PR.ParserK INPUT m ()
 takeWhile p = FROM_PARSER $ PRD.takeWhile p FL.drain
 
 {-# INLINE takeWhileK #-}
-takeWhileK :: MonadIO m =>
-    Int -> StreamK m PARSE_ELEM -> m (Either ParseError ())
-takeWhileK value = PARSE_OP (takeWhile (<= value))
+takeWhileK :: Int -> IO (Either ParseError ())
+takeWhileK value = withStreamK value $ PARSE_OP (takeWhile (<= value))
 
 {-# INLINE splitAp2 #-}
-splitAp2 :: MonadIO m
-    => Int -> StreamK m PARSE_ELEM -> m (Either ParseError ((), ()))
+splitAp2 :: Int -> IO (Either ParseError ((), ()))
 splitAp2 value =
-    PARSE_OP
+    withStreamK value $ PARSE_OP
         ((,)
             <$> takeWhile (<= (value `div` 2))
             <*> takeWhile (<= value)
         )
 
 {-# INLINE splitAp8 #-}
-splitAp8 :: MonadIO m
-    => Int -> StreamK m PARSE_ELEM -> m (Either ParseError ())
+splitAp8 :: Int -> IO (Either ParseError ())
 splitAp8 value =
-    PARSE_OP
+    withStreamK value $ PARSE_OP
         (      (\() () () () () () () () -> ())
             <$> takeWhile (<= ( value      `div` 8))
             <*> takeWhile (<= ((value * 2) `div` 8))
@@ -184,36 +184,35 @@ splitAp8 value =
         )
 
 {-# INLINE sequenceA #-}
-sequenceA :: MonadIO m => Int -> StreamK m PARSE_ELEM -> m Int
-sequenceA value xs = do
+sequenceA :: Int -> IO Int
+sequenceA value = withStreamK value $ \xs -> do
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
     x <- PARSE_OP (TR.sequenceA list) xs
     return $ Prelude.length x
 
 {-# INLINE sequenceA_ #-}
-sequenceA_ :: MonadIO m =>
-    Int -> StreamK m PARSE_ELEM -> m (Either ParseError ())
-sequenceA_ value xs = do
+sequenceA_ :: Int -> IO (Either ParseError ())
+sequenceA_ value = withStreamK value $ \xs -> do
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
     PARSE_OP (F.sequenceA_ list) xs
 
 {-# INLINE sequence #-}
-sequence :: MonadIO m => Int -> StreamK m PARSE_ELEM -> m Int
-sequence value xs = do
+sequence :: Int -> IO Int
+sequence value = withStreamK value $ \xs -> do
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
     x <- PARSE_OP (TR.sequence list) xs
     return $ Prelude.length x
 
 {-# INLINE sequence_ #-}
-sequence_ :: MonadIO m =>
-    Int -> StreamK m PARSE_ELEM -> m (Either ParseError ())
+sequence_ :: Int -> IO (Either ParseError ())
 sequence_ value =
-    let parser = satisfy (> 0)
-        list = Prelude.replicate value parser
-     in PARSE_OP (F.sequence_ list)
+    withStreamK value $
+        let parser = satisfy (> 0)
+            list = Prelude.replicate value parser
+         in PARSE_OP (F.sequence_ list)
 
 {-# INLINE takeWhileFailD #-}
 takeWhileFailD :: Monad m => (a -> Bool) -> Fold m a b -> Parser a m b
@@ -246,19 +245,17 @@ takeWhileFail :: CONSTRAINT =>
 takeWhileFail p f = FROM_PARSER (takeWhileFailD p f)
 
 {-# INLINE alt2 #-}
-alt2 :: MonadIO m
-    => Int -> StreamK m PARSE_ELEM -> m (Either ParseError ())
+alt2 :: Int -> IO (Either ParseError ())
 alt2 value =
-    PARSE_OP
+    withStreamK value $ PARSE_OP
         (   takeWhileFail (<= (value `div` 2)) Fold.drain
         <|> takeWhile (<= value)
         )
 
 {-# INLINE alt8 #-}
-alt8 :: MonadIO m
-    => Int -> StreamK m PARSE_ELEM -> m (Either ParseError ())
+alt8 :: Int -> IO (Either ParseError ())
 alt8 value =
-    PARSE_OP
+    withStreamK value $ PARSE_OP
         (   takeWhileFail (<= ( value      `div` 8)) Fold.drain
         <|> takeWhileFail (<= ((value * 2) `div` 8)) Fold.drain
         <|> takeWhileFail (<= ((value * 3) `div` 8)) Fold.drain
@@ -270,10 +267,9 @@ alt8 value =
         )
 
 {-# INLINE alt16 #-}
-alt16 :: MonadIO m
-    => Int -> StreamK m PARSE_ELEM -> m (Either ParseError ())
+alt16 :: Int -> IO (Either ParseError ())
 alt16 value =
-    PARSE_OP
+    withStreamK value $ PARSE_OP
         (   takeWhileFail (<= ( value      `div` 16)) Fold.drain
         <|> takeWhileFail (<= ((value * 2) `div` 16)) Fold.drain
         <|> takeWhileFail (<= ((value * 3) `div` 16)) Fold.drain
@@ -293,47 +289,43 @@ alt16 value =
         )
 
 {-# INLINE manyAlt #-}
-manyAlt :: MonadIO m => StreamK m PARSE_ELEM -> m Int
-manyAlt xs = do
+manyAlt :: Int -> IO Int
+manyAlt value = withStreamK value $ \xs -> do
     x <- PARSE_OP (AP.many (satisfy (> 0))) xs
     return $ Prelude.length x
 
 {-# INLINE someAlt #-}
-someAlt :: MonadIO m => StreamK m PARSE_ELEM -> m Int
-someAlt xs = do
+someAlt :: Int -> IO Int
+someAlt value = withStreamK value $ \xs -> do
     x <- PARSE_OP (AP.some (satisfy (> 0))) xs
     return $ Prelude.length x
 
 {-# INLINE choice #-}
-choice :: MonadIO m =>
-    Int -> StreamK m PARSE_ELEM -> m (Either ParseError Int)
+choice :: Int -> IO (Either ParseError Int)
 choice value =
-    PARSE_OP (asum (replicate value (satisfy (< 0)))
+    withStreamK value $ PARSE_OP (asum (replicate value (satisfy (< 0)))
         AP.<|> satisfy (> 0))
 
 {-# INLINE monad2 #-}
-monad2 :: MonadIO m
-    => Int -> StreamK m PARSE_ELEM -> m (Either ParseError ())
+monad2 :: Int -> IO (Either ParseError ())
 monad2 value =
-    PARSE_OP $ do
+    withStreamK value $ PARSE_OP $ do
         takeWhile (<= (value `div` 2))
         takeWhile (<= value)
 
 {-# INLINE monad4 #-}
-monad4 :: MonadIO m
-    => Int -> StreamK m PARSE_ELEM -> m (Either ParseError ())
+monad4 :: Int -> IO (Either ParseError ())
 monad4 value =
-    PARSE_OP $ do
+    withStreamK value $ PARSE_OP $ do
         takeWhile (<= ( value      `div` 4))
         takeWhile (<= ((value * 2) `div` 4))
         takeWhile (<= ((value * 3) `div` 4))
         takeWhile (<= value)
 
 {-# INLINE monad8 #-}
-monad8 :: MonadIO m
-    => Int -> StreamK m PARSE_ELEM -> m (Either ParseError ())
+monad8 :: Int -> IO (Either ParseError ())
 monad8 value =
-    PARSE_OP $ do
+    withStreamK value $ PARSE_OP $ do
         takeWhile (<= ( value      `div` 8))
         takeWhile (<= ((value * 2) `div` 8))
         takeWhile (<= ((value * 3) `div` 8))
@@ -344,10 +336,9 @@ monad8 value =
         takeWhile (<= value)
 
 {-# INLINE monad16 #-}
-monad16 :: MonadIO m
-    => Int -> StreamK m PARSE_ELEM -> m (Either ParseError ())
+monad16 :: Int -> IO (Either ParseError ())
 monad16 value =
-    PARSE_OP $ do
+    withStreamK value $ PARSE_OP $ do
         takeWhile (<= ( value      `div` 16))
         takeWhile (<= ((value * 2) `div` 16))
         takeWhile (<= ((value * 3) `div` 16))
@@ -378,18 +369,18 @@ instance NFData ParseError where
 
 o_1_space_serial :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_serial value =
-    [ (SpaceO_1, benchIOSink value "drain" (Stream.fold Fold.drain . StreamK.toStream))
-    , (SpaceO_1, benchIOSink value "takeWhile" $ takeWhileK value)
-    , (SpaceO_1, benchIOSink value "splitAp2" $ splitAp2 value)
-    , (SpaceO_1, benchIOSink value "splitAp8" $ splitAp8 value)
-    , (SpaceO_1, benchIOSink value "alt2" $ alt2 value)
-    , (SpaceO_1, benchIOSink value "monad2" $ monad2 value)
-    , (SpaceO_1, benchIOSink value "monad4" $ monad4 value)
+    [ (SpaceO_1, benchIO "drain" $ drain value)
+    , (SpaceO_1, benchIO "takeWhile" $ takeWhileK value)
+    , (SpaceO_1, benchIO "splitAp2" $ splitAp2 value)
+    , (SpaceO_1, benchIO "splitAp8" $ splitAp8 value)
+    , (SpaceO_1, benchIO "alt2" $ alt2 value)
+    , (SpaceO_1, benchIO "monad2" $ monad2 value)
+    , (SpaceO_1, benchIO "monad4" $ monad4 value)
     ]
 
 {-# INLINE sepBy1 #-}
-sepBy1 :: MonadIO m => StreamK m PARSE_ELEM -> m Int
-sepBy1 xs = do
+sepBy1 :: Int -> IO Int
+sepBy1 value = withStreamK value $ \xs -> do
     x <- PARSE_OP (parser (satisfy odd) (satisfy even)) xs
     return $ Prelude.length x
 
@@ -405,26 +396,26 @@ o_n_heap_serial value =
     [
     -- accumulates the results in a list
     -- XXX why should this take O(n) heap, it discards the results?
-      (HeapO_n, benchIOSink value "sequence_" $ sequence_ value)
-    , (HeapO_n, benchIOSink value "sequenceA_" $ sequenceA_ value)
-    , (HeapO_n, benchIOSink value "sequence" $ sequence value)
-    , (HeapO_n, benchIOSink value "sequenceA" $ sequenceA value)
-    , (HeapO_n, benchIOSink value "manyAlt" manyAlt)
-    , (HeapO_n, benchIOSink value "sepBy1" sepBy1)
-    , (HeapO_n, benchIOSink value "someAlt" someAlt)
-    , (HeapO_n, benchIOSink value "choice" $ choice value)
+      (HeapO_n, benchIO "sequence_" $ sequence_ value)
+    , (HeapO_n, benchIO "sequenceA_" $ sequenceA_ value)
+    , (HeapO_n, benchIO "sequence" $ sequence value)
+    , (HeapO_n, benchIO "sequenceA" $ sequenceA value)
+    , (HeapO_n, benchIO "manyAlt" $ manyAlt value)
+    , (HeapO_n, benchIO "sepBy1" $ sepBy1 value)
+    , (HeapO_n, benchIO "someAlt" $ someAlt value)
+    , (HeapO_n, benchIO "choice" $ choice value)
 
     -- XXX these take too much memory with --long, need to investigate
-    , (HeapO_n, benchIOSink value "alt8" $ alt8 value)
-    , (HeapO_n, benchIOSink value "alt16" $ alt16 value)
-    , (HeapO_n, benchIOSink value "monad8" $ monad8 value)
-    , (HeapO_n, benchIOSink value "monad16" $ monad16 value)
+    , (HeapO_n, benchIO "alt8" $ alt8 value)
+    , (HeapO_n, benchIO "alt16" $ alt16 value)
+    , (HeapO_n, benchIO "monad8" $ monad8 value)
+    , (HeapO_n, benchIO "monad16" $ monad16 value)
     ]
 
 -- O(n) heap beacuse of accumulation of the list in strict IO monad?
 o_1_space_recursive :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_recursive value =
-    [ (SpaceO_1, benchIOSink value "one (recursive)" $ one value)
+    [ (SpaceO_1, benchIO "one (recursive)" $ one value)
     ]
 
 -------------------------------------------------------------------------------
