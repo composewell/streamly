@@ -14,10 +14,15 @@ import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.MutArray as MutArray
 import qualified Streamly.Internal.Data.RingArray as RingArray
 
+import Control.DeepSeq (NFData)
 import Test.Tasty.Bench
 import Streamly.Benchmark.Common
 
 import Prelude as P
+
+{-# INLINE benchIO #-}
+benchIO :: NFData b => String -> IO b -> Benchmark
+benchIO name = bench name . nfIO
 
 -------------------------------------------------------------------------------
 -- Benchmark ops
@@ -39,8 +44,8 @@ o_1_space_serial ::
     -> RingArray.RingArray Int
     -> [(SpaceComplexity, Benchmark)]
 o_1_space_serial value arr ring =
-    [ (SpaceO_1, bench "eqArrayN" $ nfIO $ eqArrayN (value, arr, ring))
-    , (SpaceO_1, bench "eqArray" $ nfIO $ eqArray (arr, ring))
+    [ (SpaceO_1, benchIO "eqArrayN" $ eqArrayN (value, arr, ring))
+    , (SpaceO_1, benchIO "eqArray" $ eqArray (arr, ring))
     ]
 
 -------------------------------------------------------------------------------
