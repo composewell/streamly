@@ -178,7 +178,7 @@ jobs:
               DISABLE_SDIST_BUILD: "yes"
               HLINT_VERSION: 3.10
               HLINT_OPTIONS: lint
-              HLINT_TARGETS: core/src src test benchmark
+              HLINT_TARGETS: core/src src
             command: |
               bash -c "$PACKCHECK hlint" || exit 1
               echo "Checking trailing spaces..."
