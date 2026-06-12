@@ -612,74 +612,6 @@ inspect $ 'foldManySepBy `hasNoType` ''SPEC
 moduleName :: String
 moduleName = "Data.Unfold"
 
-o_1_space_transformation_input :: Int -> [(SpaceComplexity, Benchmark)]
-o_1_space_transformation_input size =
-    [ (SpaceO_1, benchIO "discardFirst" $ discardFirst size)
-    , (SpaceO_1, benchIO "discardSecond" $ discardSecond size)
-    ]
-
-o_1_space_generation :: Int -> [(SpaceComplexity, Benchmark)]
-o_1_space_generation size =
-    [ (SpaceO_1, benchIO "fromStream" $ fromStream size)
-    , (SpaceO_1, benchIO "fromStreamK" $ fromStreamK size)
-    , (SpaceO_1, benchIO "fromStreamD" $ fromStreamD size)
-    , (SpaceO_1, benchIO "nilM" $ nilM size)
-    , (SpaceO_1, benchIO "nil" $ nil size)
-    , (SpaceO_1, benchIO "consM" $ consM size)
-    , (SpaceO_1, benchIO "fromListM" $ fromListM size)
-    , (SpaceO_1, benchIO "replicateM" $ replicateM size)
-    , (SpaceO_1, benchIO "repeatM" $ repeatM size)
-    , (SpaceO_1, benchIO "repeat" $ repeat size)
-    , (SpaceO_1, benchIO "iterateM" $ iterateM size)
-    , (SpaceO_1, benchIO "fromIndicesM" $ fromIndicesM size)
-    ]
-
-o_1_space_transformation :: Int -> [(SpaceComplexity, Benchmark)]
-o_1_space_transformation size =
-    [ (SpaceO_1, benchIO "postscan" $ postscan size)
-    , (SpaceO_1, benchIO "scanl" $ scanl size)
-    , (SpaceO_1, benchIO "scanlMany" $ scanlMany size)
-    ]
-
-o_1_space_filtering :: Int -> [(SpaceComplexity, Benchmark)]
-o_1_space_filtering size =
-    [ (SpaceO_1, benchIO "take" $ take size)
-    , (SpaceO_1, benchIO "filter" $ filter size)
-    , (SpaceO_1, benchIO "filterM" $ filterM size)
-    , (SpaceO_1, benchIO "dropOne" $ dropOne size)
-    , (SpaceO_1, benchIO "dropAll" $ dropAll size)
-    , (SpaceO_1, benchIO "dropWhileTrue" $ dropWhileTrue size)
-    , (SpaceO_1, benchIO "dropWhileFalse" $ dropWhileFalse size)
-    , (SpaceO_1, benchIO "dropWhileMTrue" $ dropWhileMTrue size)
-    , (SpaceO_1, benchIO "dropWhileMFalse" $ dropWhileMFalse size)
-    , (SpaceO_1, benchIO "dropWhile" $ dropWhile size)
-    , (SpaceO_1, benchIO "mapMaybe" $ mapMaybe size)
-    , (SpaceO_1, benchIO "mapMaybeM" $ mapMaybeM size)
-    , (SpaceO_1, benchIO "catMaybes" $ catMaybes size)
-    ]
-
-o_1_space_zip :: Int -> [(SpaceComplexity, Benchmark)]
-o_1_space_zip size =
-    [ (SpaceO_1, benchIO "eitherLeft" $ eitherLeft size)
-    , (SpaceO_1, benchIO "zipRepeat" $ zipRepeat size)
-    ]
-
-o_1_space_nested :: BenchEnv -> Int -> [(SpaceComplexity, Benchmark)]
-o_1_space_nested env size =
-    [ (SpaceO_1, benchIO "innerJoin outer=inner=(sqrt Max)" $ innerJoin size)
-    , (SpaceO_1, mkBench "foldMany (Fold.takeEndBy_ (== lf) Fold.drain)" env
-        $ \inh _ -> foldManySepBy inh)
-    ]
-
-o_1_space_resource_management :: Int -> [(SpaceComplexity, Benchmark)]
-o_1_space_resource_management size =
-    [ (SpaceO_1, benchIO "before" $ before size)
-    , (SpaceO_1, benchIO "after_" $ after_ size)
-    , (SpaceO_1, benchIO "afterIO" $ afterIO size)
-    , (SpaceO_1, benchIO "finallyIO" $ finallyIO size)
-    , (SpaceO_1, benchIO "bracketIO" $ bracketIO size)
-    ]
-
 -------------------------------------------------------------------------------
 -- Unfold Exception Benchmarks
 -------------------------------------------------------------------------------
@@ -737,9 +669,49 @@ inspect $ hasNoTypeClasses 'readWriteBracket_Unfold
 -- inspect $ 'readWriteBracket_Unfold `hasNoType` ''S.Step
 #endif
 
-o_1_space_copy_read_exceptions :: BenchEnv -> [(SpaceComplexity, Benchmark)]
-o_1_space_copy_read_exceptions env =
-    [ (SpaceO_1, mkBenchSmall "UF.onException" env $ \inh _ ->
+benchmarks :: BenchEnv -> Int -> [(SpaceComplexity, Benchmark)]
+benchmarks env size =
+    [ (SpaceO_1, benchIO "discardFirst" $ discardFirst size)
+    , (SpaceO_1, benchIO "discardSecond" $ discardSecond size)
+    , (SpaceO_1, benchIO "fromStream" $ fromStream size)
+    , (SpaceO_1, benchIO "fromStreamK" $ fromStreamK size)
+    , (SpaceO_1, benchIO "fromStreamD" $ fromStreamD size)
+    , (SpaceO_1, benchIO "nilM" $ nilM size)
+    , (SpaceO_1, benchIO "nil" $ nil size)
+    , (SpaceO_1, benchIO "consM" $ consM size)
+    , (SpaceO_1, benchIO "fromListM" $ fromListM size)
+    , (SpaceO_1, benchIO "replicateM" $ replicateM size)
+    , (SpaceO_1, benchIO "repeatM" $ repeatM size)
+    , (SpaceO_1, benchIO "repeat" $ repeat size)
+    , (SpaceO_1, benchIO "iterateM" $ iterateM size)
+    , (SpaceO_1, benchIO "fromIndicesM" $ fromIndicesM size)
+    , (SpaceO_1, benchIO "postscan" $ postscan size)
+    , (SpaceO_1, benchIO "scanl" $ scanl size)
+    , (SpaceO_1, benchIO "scanlMany" $ scanlMany size)
+    , (SpaceO_1, benchIO "take" $ take size)
+    , (SpaceO_1, benchIO "filter" $ filter size)
+    , (SpaceO_1, benchIO "filterM" $ filterM size)
+    , (SpaceO_1, benchIO "dropOne" $ dropOne size)
+    , (SpaceO_1, benchIO "dropAll" $ dropAll size)
+    , (SpaceO_1, benchIO "dropWhileTrue" $ dropWhileTrue size)
+    , (SpaceO_1, benchIO "dropWhileFalse" $ dropWhileFalse size)
+    , (SpaceO_1, benchIO "dropWhileMTrue" $ dropWhileMTrue size)
+    , (SpaceO_1, benchIO "dropWhileMFalse" $ dropWhileMFalse size)
+    , (SpaceO_1, benchIO "dropWhile" $ dropWhile size)
+    , (SpaceO_1, benchIO "mapMaybe" $ mapMaybe size)
+    , (SpaceO_1, benchIO "mapMaybeM" $ mapMaybeM size)
+    , (SpaceO_1, benchIO "catMaybes" $ catMaybes size)
+    , (SpaceO_1, benchIO "eitherLeft" $ eitherLeft size)
+    , (SpaceO_1, benchIO "zipRepeat" $ zipRepeat size)
+    , (SpaceO_1, benchIO "innerJoin outer=inner=(sqrt Max)" $ innerJoin size)
+    , (SpaceO_1, mkBench "foldMany (Fold.takeEndBy_ (== lf) Fold.drain)" env
+        $ \inh _ -> foldManySepBy inh)
+    , (SpaceO_1, benchIO "before" $ before size)
+    , (SpaceO_1, benchIO "after_" $ after_ size)
+    , (SpaceO_1, benchIO "afterIO" $ afterIO size)
+    , (SpaceO_1, benchIO "finallyIO" $ finallyIO size)
+    , (SpaceO_1, benchIO "bracketIO" $ bracketIO size)
+    , (SpaceO_1, mkBenchSmall "UF.onException" env $ \inh _ ->
         readWriteOnExceptionUnfold inh (nullH env))
     , (SpaceO_1, mkBenchSmall "UF.handle" env $ \inh _ ->
         readWriteHandleExceptionUnfold inh (nullH env))
@@ -748,7 +720,6 @@ o_1_space_copy_read_exceptions env =
     , (SpaceO_1, mkBenchSmall "UF.bracket_" env $ \inh _ ->
         readWriteBracket_Unfold inh (nullH env))
     ]
-
 
 -------------------------------------------------------------------------------
 -- Driver
@@ -763,18 +734,10 @@ main = do
     where
 
     allBenchmarks env size =
-        let allBenches = Prelude.concat
-                  [ Type.benchmarks size
-                  , Enumeration.benchmarks size
-                  , o_1_space_transformation_input size
-                  , o_1_space_generation size
-                  , o_1_space_transformation size
-                  , o_1_space_filtering size
-                  , o_1_space_zip size
-                  , o_1_space_nested env size
-                  , o_1_space_resource_management size
-                  , o_1_space_copy_read_exceptions env
-                  ]
+        let allBenches =
+                  Type.benchmarks size
+                  ++ Enumeration.benchmarks size
+                  ++ benchmarks env size
             get x = Prelude.map snd $ Prelude.filter ((==) x . fst) allBenches
             o_1_space = get SpaceO_1
             o_n_space = get SpaceO_n

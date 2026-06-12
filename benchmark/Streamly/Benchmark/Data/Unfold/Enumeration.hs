@@ -133,8 +133,8 @@ inspect $ 'enumerateFromToFractional `hasNoType` ''SPEC
 -- Benchmarks
 -------------------------------------------------------------------------------
 
-o_1_space_generation :: Int -> [(SpaceComplexity, Benchmark)]
-o_1_space_generation size =
+benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
+benchmarks size =
     [ (SpaceO_1, benchIO "enumerateFromThenIntegral" $ enumerateFromThenIntegral size)
     , (SpaceO_1, benchIO "enumerateFromToIntegral" $ enumerateFromToIntegral size)
     , (SpaceO_1, benchIO "enumerateFromIntegral" $ enumerateFromIntegral size)
@@ -142,10 +142,3 @@ o_1_space_generation size =
     , (SpaceO_1, benchIO "enumerateFromNum" $ enumerateFromNum size)
     , (SpaceO_1, benchIO "enumerateFromToFractional" $ enumerateFromToFractional size)
     ]
-
--------------------------------------------------------------------------------
--- Driver
--------------------------------------------------------------------------------
-
-benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
-benchmarks size = o_1_space_generation size
