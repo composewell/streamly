@@ -75,7 +75,7 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
             `isPrefixOf` benchName = "-K512K"
 
         -- GHC-9.6 requires 64M, earlier it was 32M
-        | "Data.Stream/o-n-heap.buffered.showPrec Haskell lists"
+        | "Data.Stream/o-n-heap.buffered.showsPrec Haskell lists"
             == benchName = "-M64M"
         -- GHC-9.6 requires 64M, earlier it was 32M
         | "Data.Stream/o-n-heap.buffered.readsPrec pure streams"
