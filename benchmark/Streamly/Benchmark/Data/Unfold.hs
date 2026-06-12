@@ -614,91 +614,70 @@ moduleName = "Data.Unfold"
 
 o_1_space_transformation_input :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_transformation_input size =
-    [ (SpaceO_1, bgroup
-          "transformation/input"
-          [ benchIO "discardFirst" $ discardFirst size
-          , benchIO "discardSecond" $ discardSecond size
-          ])
+    [ (SpaceO_1, benchIO "discardFirst" $ discardFirst size)
+    , (SpaceO_1, benchIO "discardSecond" $ discardSecond size)
     ]
 
 o_1_space_generation :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_generation size =
-    [ (SpaceO_1, bgroup
-          "generation"
-          [ benchIO "fromStream" $ fromStream size
-          , benchIO "fromStreamK" $ fromStreamK size
-          , benchIO "fromStreamD" $ fromStreamD size
-          , benchIO "nilM" $ nilM size
-          , benchIO "nil" $ nil size
-          , benchIO "consM" $ consM size
-          , benchIO "fromListM" $ fromListM size
-          , benchIO "replicateM" $ replicateM size
-          , benchIO "repeatM" $ repeatM size
-          , benchIO "repeat" $ repeat size
-          , benchIO "iterateM" $ iterateM size
-          , benchIO "fromIndicesM" $ fromIndicesM size
-          ])
+    [ (SpaceO_1, benchIO "fromStream" $ fromStream size)
+    , (SpaceO_1, benchIO "fromStreamK" $ fromStreamK size)
+    , (SpaceO_1, benchIO "fromStreamD" $ fromStreamD size)
+    , (SpaceO_1, benchIO "nilM" $ nilM size)
+    , (SpaceO_1, benchIO "nil" $ nil size)
+    , (SpaceO_1, benchIO "consM" $ consM size)
+    , (SpaceO_1, benchIO "fromListM" $ fromListM size)
+    , (SpaceO_1, benchIO "replicateM" $ replicateM size)
+    , (SpaceO_1, benchIO "repeatM" $ repeatM size)
+    , (SpaceO_1, benchIO "repeat" $ repeat size)
+    , (SpaceO_1, benchIO "iterateM" $ iterateM size)
+    , (SpaceO_1, benchIO "fromIndicesM" $ fromIndicesM size)
     ]
 
 o_1_space_transformation :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_transformation size =
-    [ (SpaceO_1, bgroup
-          "transformation"
-          [ benchIO "postscan" $ postscan size
-          , benchIO "scanl" $ scanl size
-          , benchIO "scanlMany" $ scanlMany size
-          ])
+    [ (SpaceO_1, benchIO "postscan" $ postscan size)
+    , (SpaceO_1, benchIO "scanl" $ scanl size)
+    , (SpaceO_1, benchIO "scanlMany" $ scanlMany size)
     ]
 
 o_1_space_filtering :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_filtering size =
-    [ (SpaceO_1, bgroup
-          "filtering"
-          [ benchIO "take" $ take size
-          , benchIO "filter" $ filter size
-          , benchIO "filterM" $ filterM size
-          , benchIO "dropOne" $ dropOne size
-          , benchIO "dropAll" $ dropAll size
-          , benchIO "dropWhileTrue" $ dropWhileTrue size
-          , benchIO "dropWhileFalse" $ dropWhileFalse size
-          , benchIO "dropWhileMTrue" $ dropWhileMTrue size
-          , benchIO "dropWhileMFalse" $ dropWhileMFalse size
-          , benchIO "dropWhile" $ dropWhile size
-          , benchIO "mapMaybe" $ mapMaybe size
-          , benchIO "mapMaybeM" $ mapMaybeM size
-          , benchIO "catMaybes" $ catMaybes size
-          ])
+    [ (SpaceO_1, benchIO "take" $ take size)
+    , (SpaceO_1, benchIO "filter" $ filter size)
+    , (SpaceO_1, benchIO "filterM" $ filterM size)
+    , (SpaceO_1, benchIO "dropOne" $ dropOne size)
+    , (SpaceO_1, benchIO "dropAll" $ dropAll size)
+    , (SpaceO_1, benchIO "dropWhileTrue" $ dropWhileTrue size)
+    , (SpaceO_1, benchIO "dropWhileFalse" $ dropWhileFalse size)
+    , (SpaceO_1, benchIO "dropWhileMTrue" $ dropWhileMTrue size)
+    , (SpaceO_1, benchIO "dropWhileMFalse" $ dropWhileMFalse size)
+    , (SpaceO_1, benchIO "dropWhile" $ dropWhile size)
+    , (SpaceO_1, benchIO "mapMaybe" $ mapMaybe size)
+    , (SpaceO_1, benchIO "mapMaybeM" $ mapMaybeM size)
+    , (SpaceO_1, benchIO "catMaybes" $ catMaybes size)
     ]
 
 o_1_space_zip :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_zip size =
-    [ (SpaceO_1, bgroup
-          "zip"
-          [ benchIO "eitherLeft" $ eitherLeft size
-          , benchIO "zipRepeat" $ zipRepeat size
-          ])
+    [ (SpaceO_1, benchIO "eitherLeft" $ eitherLeft size)
+    , (SpaceO_1, benchIO "zipRepeat" $ zipRepeat size)
     ]
 
 o_1_space_nested :: BenchEnv -> Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_nested env size =
-    [ (SpaceO_1, bgroup
-          "nested"
-          [ benchIO "innerJoin outer=inner=(sqrt Max)" $ innerJoin size
-          , mkBench "foldMany (Fold.takeEndBy_ (== lf) Fold.drain)" env
-            $ \inh _ -> foldManySepBy inh
-          ])
+    [ (SpaceO_1, benchIO "innerJoin outer=inner=(sqrt Max)" $ innerJoin size)
+    , (SpaceO_1, mkBench "foldMany (Fold.takeEndBy_ (== lf) Fold.drain)" env
+        $ \inh _ -> foldManySepBy inh)
     ]
 
 o_1_space_resource_management :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_resource_management size =
-    [ (SpaceO_1, bgroup
-          "resource-management"
-          [ benchIO "before" $ before size
-          , benchIO "after_" $ after_ size
-          , benchIO "afterIO" $ afterIO size
-          , benchIO "finallyIO" $ finallyIO size
-          , benchIO "bracketIO" $ bracketIO size
-          ])
+    [ (SpaceO_1, benchIO "before" $ before size)
+    , (SpaceO_1, benchIO "after_" $ after_ size)
+    , (SpaceO_1, benchIO "afterIO" $ afterIO size)
+    , (SpaceO_1, benchIO "finallyIO" $ finallyIO size)
+    , (SpaceO_1, benchIO "bracketIO" $ bracketIO size)
     ]
 
 -------------------------------------------------------------------------------
@@ -760,16 +739,14 @@ inspect $ hasNoTypeClasses 'readWriteBracket_Unfold
 
 o_1_space_copy_read_exceptions :: BenchEnv -> [(SpaceComplexity, Benchmark)]
 o_1_space_copy_read_exceptions env =
-    [ (SpaceO_1, bgroup "exceptions"
-       [ mkBenchSmall "UF.onException" env $ \inh _ ->
-           readWriteOnExceptionUnfold inh (nullH env)
-       , mkBenchSmall "UF.handle" env $ \inh _ ->
-           readWriteHandleExceptionUnfold inh (nullH env)
-       , mkBenchSmall "UF.finally_" env $ \inh _ ->
-           readWriteFinally_Unfold inh (nullH env)
-       , mkBenchSmall "UF.bracket_" env $ \inh _ ->
-           readWriteBracket_Unfold inh (nullH env)
-        ])
+    [ (SpaceO_1, mkBenchSmall "UF.onException" env $ \inh _ ->
+        readWriteOnExceptionUnfold inh (nullH env))
+    , (SpaceO_1, mkBenchSmall "UF.handle" env $ \inh _ ->
+        readWriteHandleExceptionUnfold inh (nullH env))
+    , (SpaceO_1, mkBenchSmall "UF.finally_" env $ \inh _ ->
+        readWriteFinally_Unfold inh (nullH env))
+    , (SpaceO_1, mkBenchSmall "UF.bracket_" env $ \inh _ ->
+        readWriteBracket_Unfold inh (nullH env))
     ]
 
 

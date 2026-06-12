@@ -936,93 +936,74 @@ inspect $ 'concatMapPure `hasNoType` ''SPEC
 
 o_1_space_transformation_input :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_transformation_input size =
-    [ (SpaceO_1, bgroup
-          "transformation/input"
-          [ benchIO "lmap" $ lmap size
-          , benchIO "lmapM" $ lmapM size
-          , benchIO "both" $ both size
-          , benchIO "first" $ first size
-          , benchIO "second" $ second size
-          , benchIO "consInput" $ consInput size
-          , benchIO "consInputWith" $ consInputWith size
-          , benchIO "swap" $ swap size
-          ])
+    [ (SpaceO_1, benchIO "lmap" $ lmap size)
+    , (SpaceO_1, benchIO "lmapM" $ lmapM size)
+    , (SpaceO_1, benchIO "both" $ both size)
+    , (SpaceO_1, benchIO "first" $ first size)
+    , (SpaceO_1, benchIO "second" $ second size)
+    , (SpaceO_1, benchIO "consInput" $ consInput size)
+    , (SpaceO_1, benchIO "consInputWith" $ consInputWith size)
+    , (SpaceO_1, benchIO "swap" $ swap size)
     ]
 
 o_1_space_generation :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_generation size =
-    [ (SpaceO_1, bgroup
-          "generation"
-          [ benchIO "functionM" $ functionM size
-          , benchIO "function" $ function size
-          , benchIO "identity" $ identity size
-          , benchIO "fromEffect" $ fromEffect size
-          , benchIO "fromPure" $ fromPure size
-          , benchIO "functionMaybeM" $ functionMaybeM size
-          , benchIO "fromTuple" $ fromTuple size
-          , benchIO "unfoldrM" $ unfoldrM size
-          , benchIO "unfoldr" $ unfoldr size
-          , benchIO "fromList" $ fromList size
-          ])
+    [ (SpaceO_1, benchIO "functionM" $ functionM size)
+    , (SpaceO_1, benchIO "function" $ function size)
+    , (SpaceO_1, benchIO "identity" $ identity size)
+    , (SpaceO_1, benchIO "fromEffect" $ fromEffect size)
+    , (SpaceO_1, benchIO "fromPure" $ fromPure size)
+    , (SpaceO_1, benchIO "functionMaybeM" $ functionMaybeM size)
+    , (SpaceO_1, benchIO "fromTuple" $ fromTuple size)
+    , (SpaceO_1, benchIO "unfoldrM" $ unfoldrM size)
+    , (SpaceO_1, benchIO "unfoldr" $ unfoldr size)
+    , (SpaceO_1, benchIO "fromList" $ fromList size)
     ]
 
 o_1_space_transformation :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_transformation size =
-    [ (SpaceO_1, bgroup
-          "transformation"
-          [ benchIO "map" $ map size
-          , benchIO "mapM" $ mapM size
-          , benchIO "mapM2" $ mapM2 size
-          ])
+    [ (SpaceO_1, benchIO "map" $ map size)
+    , (SpaceO_1, benchIO "mapM" $ mapM size)
+    , (SpaceO_1, benchIO "mapM2" $ mapM2 size)
     ]
 
 o_1_space_filtering :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_filtering size =
-    [ (SpaceO_1, bgroup
-          "filtering"
-          [ benchIO "takeWhileM" $ takeWhileM size
-          , benchIO "takeWhile" $ takeWhile size
-          ])
+    [ (SpaceO_1, benchIO "takeWhileM" $ takeWhileM size)
+    , (SpaceO_1, benchIO "takeWhile" $ takeWhile size)
     ]
 
 o_1_space_zip :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_zip size =
-    [ (SpaceO_1, bgroup
-          "zip"
-          [ benchIO "zipWithM" $ zipWithM size
-          , benchIO "zipWith" $ zipWith size
-          , benchIO "teeZipWith" $ teeZipWith size
-          , benchIO "interleave" $ interleave size
-          , benchIO "zipArrowWithM" $ zipArrowWithM size
-          , benchIO "zipArrowWith" $ zipArrowWith size
-          ])
+    [ (SpaceO_1, benchIO "zipWithM" $ zipWithM size)
+    , (SpaceO_1, benchIO "zipWith" $ zipWith size)
+    , (SpaceO_1, benchIO "teeZipWith" $ teeZipWith size)
+    , (SpaceO_1, benchIO "interleave" $ interleave size)
+    , (SpaceO_1, benchIO "zipArrowWithM" $ zipArrowWithM size)
+    , (SpaceO_1, benchIO "zipArrowWith" $ zipArrowWith size)
     ]
 
 o_1_space_nested :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_nested size =
-    [ (SpaceO_1, bgroup
-          "nested"
-          [ benchIO "crossApply outer=inner=(sqrt Max)" $ toNullAp size
-          , benchIO "crossApplyFst outer=inner=(sqrt Max)" $ crossApplyFst size
-          , benchIO "crossApplySnd outer=inner=(sqrt Max)" $ crossApplySnd size
-          , benchIO "cross outer=inner=(sqrt Max)" $ cross size
-          , benchIO "fairCross outer=inner=(sqrt Max)" $ fairCross size
-          , benchIO "crossApply2 outer=inner=(sqrt Max)" $ crossApply size
-          , benchIO "crossWithM outer=inner=(sqrt Max)" $ crossWithM size
-          , benchIO "crossWith outer=inner=(sqrt Max)" $ crossWith size
-          , benchIO "fairCrossWithM outer=inner=(sqrt Max)" $ fairCrossWithM size
-          , benchIO "fairCrossWith outer=inner=(sqrt Max)" $ fairCrossWith size
-
-          , benchIO "unfoldEach inner=outer=(sqrt Max)" $ unfoldEach sqrtVal sqrtVal
-          , benchIO "unfoldEach inner=1 outer=Max" $ unfoldEach 1 size
-          , benchIO "unfoldEach inner=Max outer=1" $ unfoldEach size 1
-          , benchIO "unfoldEachInterleave inner=outer=(sqrt Max)"
-            $ unfoldEachInterleave sqrtVal sqrtVal
-          , benchIO "unfoldEachInterleave inner=1 outer=Max"
-            $ unfoldEachInterleave 1 size
-          , benchIO "unfoldEachInterleave inner=Max outer=1"
-            $ unfoldEachInterleave size 1
-          ])
+    [ (SpaceO_1, benchIO "crossApply outer=inner=(sqrt Max)" $ toNullAp size)
+    , (SpaceO_1, benchIO "crossApplyFst outer=inner=(sqrt Max)" $ crossApplyFst size)
+    , (SpaceO_1, benchIO "crossApplySnd outer=inner=(sqrt Max)" $ crossApplySnd size)
+    , (SpaceO_1, benchIO "cross outer=inner=(sqrt Max)" $ cross size)
+    , (SpaceO_1, benchIO "fairCross outer=inner=(sqrt Max)" $ fairCross size)
+    , (SpaceO_1, benchIO "crossApply2 outer=inner=(sqrt Max)" $ crossApply size)
+    , (SpaceO_1, benchIO "crossWithM outer=inner=(sqrt Max)" $ crossWithM size)
+    , (SpaceO_1, benchIO "crossWith outer=inner=(sqrt Max)" $ crossWith size)
+    , (SpaceO_1, benchIO "fairCrossWithM outer=inner=(sqrt Max)" $ fairCrossWithM size)
+    , (SpaceO_1, benchIO "fairCrossWith outer=inner=(sqrt Max)" $ fairCrossWith size)
+    , (SpaceO_1, benchIO "unfoldEach inner=outer=(sqrt Max)" $ unfoldEach sqrtVal sqrtVal)
+    , (SpaceO_1, benchIO "unfoldEach inner=1 outer=Max" $ unfoldEach 1 size)
+    , (SpaceO_1, benchIO "unfoldEach inner=Max outer=1" $ unfoldEach size 1)
+    , (SpaceO_1, benchIO "unfoldEachInterleave inner=outer=(sqrt Max)"
+        $ unfoldEachInterleave sqrtVal sqrtVal)
+    , (SpaceO_1, benchIO "unfoldEachInterleave inner=1 outer=Max"
+        $ unfoldEachInterleave 1 size)
+    , (SpaceO_1, benchIO "unfoldEachInterleave inner=Max outer=1"
+        $ unfoldEachInterleave size 1)
     ]
 
     where
@@ -1031,19 +1012,16 @@ o_1_space_nested size =
 
 o_1_space_concat :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_concat size =
-    [ (SpaceO_1, bgroup
-          "concat"
-          [ benchIO "concatMapM outer=inner=(sqrt Max)" $ concatMapM sqrtVal sqrtVal
-          , benchIO "concatMapPure outer=inner=(sqrt Max)" $ concatMapPure sqrtVal sqrtVal
-          , benchIO "bind2" $ toNull size
-          , benchIO "bind3" $ toNull3 size
-          , benchIO "concatMap2" $ toNullConcatMap size
-          , benchIO "concatMap3" $ toNull3ConcatMap size
-          , benchIO "breakAfterSome2" $ breakAfterSome size
-          , benchIO "filterAllOut2" $ filterAllOut size
-          , benchIO "filterAllIn2" $ filterAllIn size
-          , benchIO "filterSome2" $ filterSome size
-          ])
+    [ (SpaceO_1, benchIO "concatMapM outer=inner=(sqrt Max)" $ concatMapM sqrtVal sqrtVal)
+    , (SpaceO_1, benchIO "concatMapPure outer=inner=(sqrt Max)" $ concatMapPure sqrtVal sqrtVal)
+    , (SpaceO_1, benchIO "bind2" $ toNull size)
+    , (SpaceO_1, benchIO "bind3" $ toNull3 size)
+    , (SpaceO_1, benchIO "concatMap2" $ toNullConcatMap size)
+    , (SpaceO_1, benchIO "concatMap3" $ toNull3ConcatMap size)
+    , (SpaceO_1, benchIO "breakAfterSome2" $ breakAfterSome size)
+    , (SpaceO_1, benchIO "filterAllOut2" $ filterAllOut size)
+    , (SpaceO_1, benchIO "filterAllIn2" $ filterAllIn size)
+    , (SpaceO_1, benchIO "filterSome2" $ filterSome size)
     ]
 
     where
@@ -1052,11 +1030,8 @@ o_1_space_concat size =
 
 o_n_space_concat :: Int -> [(SpaceComplexity, Benchmark)]
 o_n_space_concat size =
-    [ (SpaceO_n, bgroup
-          "concat"
-          [ benchIO "toList2" $ toList size
-          , benchIO "toListSome2" $ toListSome size
-          ])
+    [ (SpaceO_n, benchIO "toList2" $ toList size)
+    , (SpaceO_n, benchIO "toListSome2" $ toListSome size)
     ]
 
 -------------------------------------------------------------------------------
