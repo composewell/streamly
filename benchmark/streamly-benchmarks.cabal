@@ -605,8 +605,6 @@ benchmark Data.Unfold
     buildable: False
   else
     buildable: True
-  if flag(limit-build-mem)
-    ghc-options: +RTS -M1000M -RTS
 
 benchmark Data.Unfold.Prelude
   import: bench-options

@@ -898,7 +898,8 @@ inspect $ 'unfoldEach `hasNoType` ''SPEC
 inspect $ 'unfoldEach `hasNoType` ''Producer.ConcatState
 #endif
 
-{-# INLINE unfoldEachInterleave #-}
+-- NOTE: Inlining this blows up the heap requirement to 1 GB.
+-- {-# INLINE unfoldEachInterleave #-}
 unfoldEachInterleave :: Int -> Int -> Int -> IO ()
 unfoldEachInterleave inner outer start = do
     UF.fold
@@ -998,6 +999,7 @@ benchmarks size =
     , (SpaceO_1, benchIO "filterSome2" $ filterSome size)
     , (SpaceO_n, benchIO "toList2" $ toList size)
     , (SpaceO_n, benchIO "toListSome2" $ toListSome size)
+    -- zipWith
     , (SpaceO_1, benchIO "zipArrowWithM" $ zipArrowWithM size)
     , (SpaceO_1, benchIO "zipArrowWith" $ zipArrowWith size)
     , (SpaceO_1, benchIO "zipWithM" $ zipWithM size)
