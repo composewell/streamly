@@ -48,7 +48,7 @@ benchIO name f = bench name $ nfIO $ randomRIO (1,1) >>= f
 
 {-# INLINE drainGeneration #-}
 drainGeneration :: Monad m => Unfold m a b -> a -> m ()
-drainGeneration unf seed = UF.fold FL.drain unf seed
+drainGeneration = UF.fold FL.drain
 
 -------------------------------------------------------------------------------
 -- Stream generation
@@ -82,8 +82,8 @@ inspect $ 'enumerateFromToIntegral `hasNoType` ''SPEC
 
 {-# INLINE enumerateFromIntegral #-}
 enumerateFromIntegral :: Int -> Int -> IO ()
-enumerateFromIntegral size start =
-    drainGeneration (UF.take size UF.enumerateFromIntegral) start
+enumerateFromIntegral size =
+    drainGeneration (UF.take size UF.enumerateFromIntegral)
 
 #ifdef INSPECTION
 inspect $ 'enumerateFromIntegral `hasNoType` ''S.Step
@@ -94,7 +94,7 @@ inspect $ 'enumerateFromIntegral `hasNoType` ''SPEC
 {-# INLINE enumerateFromStepNum #-}
 enumerateFromStepNum :: Int -> Int -> IO ()
 enumerateFromStepNum size start =
-    drainGeneration (UF.take size (UF.enumerateFromThenNum)) (start, 1)
+    drainGeneration (UF.take size UF.enumerateFromThenNum) (start, 1)
 
 #ifdef INSPECTION
 inspect $ 'enumerateFromStepNum `hasNoType` ''S.Step
@@ -104,7 +104,7 @@ inspect $ 'enumerateFromStepNum `hasNoType` ''SPEC
 
 {-# INLINE enumerateFromNum #-}
 enumerateFromNum :: Int -> Int -> IO ()
-enumerateFromNum size start = drainGeneration (UF.take size UF.enumerateFromNum) start
+enumerateFromNum size = drainGeneration (UF.take size UF.enumerateFromNum)
 
 #ifdef INSPECTION
 inspect $ 'enumerateFromNum `hasNoType` ''S.Step
@@ -115,7 +115,7 @@ inspect $ 'enumerateFromNum `hasNoType` ''SPEC
 {-# INLINE enumerateFromToFractional #-}
 enumerateFromToFractional :: Int -> Int -> IO ()
 enumerateFromToFractional size start =
-    let intToDouble x = (fromInteger (fromIntegral x)) :: Double
+    let intToDouble x = fromInteger (fromIntegral x) :: Double
      in drainGeneration
             ( UF.supplySecond
               (intToDouble $ start + size)

@@ -64,12 +64,12 @@ source n = UF.supplySecond n UF.enumerateFromToIntegral
 
 {-# INLINE drainGeneration #-}
 drainGeneration :: Monad m => Unfold m a b -> a -> m ()
-drainGeneration unf seed = UF.fold FL.drain unf seed
+drainGeneration = UF.fold FL.drain
 
 {-# INLINE drainTransformation #-}
 drainTransformation ::
        Monad m => Unfold m a b -> (Unfold m a b -> Unfold m c d) -> c -> m ()
-drainTransformation unf f seed = drainGeneration (f unf) seed
+drainTransformation unf f = drainGeneration (f unf)
 
 {-# INLINE drainTransformationDefault #-}
 drainTransformationDefault ::
@@ -85,7 +85,7 @@ drainProduct ::
     -> (Unfold m a b -> Unfold m c d -> Unfold m e f)
     -> e
     -> m ()
-drainProduct unf1 unf2 f seed = drainGeneration (f unf1 unf2) seed
+drainProduct unf1 unf2 f = drainGeneration (f unf1 unf2)
 
 {-# INLINE drainProductDefault #-}
 drainProductDefault ::
@@ -153,11 +153,10 @@ inspect $ 'first `hasNoType` ''SPEC
 
 {-# INLINE second #-}
 second :: Int -> Int -> IO ()
-second size start =
+second size =
     drainTransformation
         (UF.take size UF.enumerateFromThenIntegral)
         (UF.supplySecond 1)
-        start
 
 #ifdef INSPECTION
 inspect $ 'second `hasNoType` ''S.Step
@@ -377,11 +376,10 @@ inspect $ 'mapM `hasNoType` ''SPEC
 
 {-# INLINE mapM2 #-}
 mapM2 :: Int -> Int -> IO ()
-mapM2 size start =
+mapM2 size =
     drainTransformationDefault
         size
         (UF.mapM (\(a, b) -> return $ a + b) . UF.carryInput)
-        start
 
 #ifdef INSPECTION
 inspect $ 'mapM2 `hasNoType` ''S.Step
