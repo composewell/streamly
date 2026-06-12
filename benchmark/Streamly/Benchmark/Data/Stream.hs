@@ -25,9 +25,6 @@ import qualified Stream.Nesting as NestedStream
 import qualified Stream.Generate as Generation
 import qualified Stream.Lift as Lift
 import qualified Stream.Parse as Parse
-import qualified Stream.Transform2 as NestedFold
-import qualified Stream.ParseSplit as Split
-import qualified Stream.ParseSplitChunks as SplitChunks
 import qualified Stream.Transform as Transformation
 import qualified Stream.Type as Type
 
@@ -65,11 +62,8 @@ main = do
                 [ Generation.benchmarks size
                 , Elimination.benchmarks size
                 , Exceptions.benchmarks env size
-                , Parse.benchmarks size
-                , Split.benchmarks env
-                , SplitChunks.benchmarks env
+                , Parse.benchmarks size env
                 , Transformation.benchmarks size
-                , NestedFold.benchmarks size
                 , Lift.benchmarks size
                 , NestedStream.benchmarks size
                 , Type.benchmarks size

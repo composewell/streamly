@@ -19,7 +19,7 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
-module Stream.ParseSplitChunks (benchmarks) where
+module Stream.Parse.SplitChunks (benchmarks) where
 
 import System.IO (Handle)
 

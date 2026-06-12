@@ -20,7 +20,7 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
-module Stream.Transform2 (benchmarks) where
+module Stream.Transform.Composed (benchmarks) where
 
 #ifdef INSPECTION
 import GHC.Types (SPEC(..))
@@ -34,7 +34,9 @@ import Streamly.Internal.Data.Stream (Stream)
 import System.Random (randomRIO)
 
 import qualified Stream.Common as Common
+#ifdef INSPECTION
 import qualified Streamly.Internal.Data.Fold as FL
+#endif
 import qualified Streamly.Internal.Data.Pipe as Pipe
 import qualified Streamly.Internal.Data.Scan as Scan
 import qualified Streamly.Internal.Data.Stream as S

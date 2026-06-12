@@ -442,11 +442,13 @@ benchmark Data.Stream
       Stream.Generate
       Stream.Lift
       Stream.Parse
-      Stream.Transform2
-      Stream.ParseSplit
+      Stream.Parse.Group
+      Stream.Parse.Split
       -- XXX uses lot of memory
-      Stream.ParseSplitChunks
+      Stream.Parse.SplitChunks
       Stream.Transform
+      Stream.Transform.Basic
+      Stream.Transform.Composed
       Stream.Type
   if flag(limit-build-mem)
     if flag(dev)
