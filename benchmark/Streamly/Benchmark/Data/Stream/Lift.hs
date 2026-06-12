@@ -20,12 +20,10 @@
 
 module Stream.Lift (benchmarks) where
 
-import Control.DeepSeq (NFData(..))
 import Control.Monad.State.Strict (StateT, get, put)
 import Data.Functor.Identity (Identity(..), runIdentity)
 import Stream.Common (sourceUnfoldr, sourceUnfoldrM)
-import Stream.Type (withPureStream)
-import System.Random (randomRIO)
+import Stream.Type (benchIO, withPureStream, withRandomIntIO)
 import Streamly.Internal.Data.Stream (Stream)
 
 import qualified Stream.Common as Common
@@ -42,14 +40,6 @@ import Streamly.Internal.Data.Stream (Step(..))
 import GHC.Types (SPEC(..))
 import Test.Inspection
 #endif
-
-{-# INLINE benchIO #-}
-benchIO :: NFData b => String -> IO b -> Benchmark
-benchIO name = bench name . nfIO
-
-{-# INLINE withRandomIntIO #-}
-withRandomIntIO :: (Int -> IO b) -> IO b
-withRandomIntIO f = randomRIO (1, 1 :: Int) >>= f
 
 -------------------------------------------------------------------------------
 -- Monad transformation (hoisting etc.)

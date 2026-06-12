@@ -31,7 +31,6 @@ import Control.DeepSeq (NFData(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import GHC.Generics (Generic)
 import Streamly.Internal.Data.Stream (Stream)
-import System.Random (randomRIO)
 
 import qualified Stream.Common as Common
 import qualified Streamly.Internal.Data.Fold as FL
@@ -44,6 +43,7 @@ import qualified Streamly.Internal.Data.Stream as Stream
 import Test.Tasty.Bench
 import Streamly.Benchmark.Common
 import Stream.Common hiding (benchIO)
+import Stream.Type (benchIO, withRandomIntIO, withStream)
 import Prelude hiding (tail)
 
 -- Apply transformation g count times on a stream of length len
@@ -61,18 +61,6 @@ iterateSource g count len n = f count (sourceUnfoldrM len n)
 
     f (0 :: Int) stream = stream
     f i stream = f (i - 1) (g stream)
-
-{-# INLINE withRandomIntIO #-}
-withRandomIntIO :: (Int -> IO b) -> IO b
-withRandomIntIO f = randomRIO (1, 1 :: Int) >>= f
-
-{-# INLINE withStream #-}
-withStream :: Int -> (Stream IO Int -> IO b) -> IO b
-withStream value f = withRandomIntIO (f . sourceUnfoldrM value)
-
-{-# INLINE benchIO #-}
-benchIO :: NFData b => String -> IO b -> Benchmark
-benchIO name = bench name . nfIO
 
 -------------------------------------------------------------------------------
 -- Mixed Transformation

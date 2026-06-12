@@ -36,22 +36,12 @@ import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.StreamK as StreamK
 
-import Control.DeepSeq (NFData(..))
-import System.Random (randomRIO)
-
 import Test.Tasty.Bench
 import Stream.Common hiding (benchIO)
+import Stream.Type (benchIO, withRandomIntIO)
 import Streamly.Benchmark.Common
 import qualified Stream.Type as Type
 import Prelude hiding (concatMap, zipWith)
-
-{-# INLINE benchIO #-}
-benchIO :: NFData b => String -> IO b -> Benchmark
-benchIO name = bench name . nfIO
-
-{-# INLINE withRandomIntIO #-}
-withRandomIntIO :: (Int -> IO b) -> IO b
-withRandomIntIO f = randomRIO (1, 1 :: Int) >>= f
 
 -------------------------------------------------------------------------------
 -- Multi-Stream

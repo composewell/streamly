@@ -26,31 +26,18 @@ import Test.Inspection
 import qualified Streamly.Internal.Data.Fold as Fold
 #endif
 
-import Control.DeepSeq (NFData(..))
 import Control.Monad.IO.Class (MonadIO)
 import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Time.Units (AbsTime)
-import System.Random (randomRIO)
 
 import qualified Streamly.Internal.Data.Stream as Stream
 
 import Test.Tasty.Bench
 import Stream.Common hiding (benchIO)
+import Stream.Type (benchIO, withDrain)
 import Streamly.Benchmark.Common
 
 import Prelude hiding (repeat, replicate, iterate)
-
-{-# INLINE benchIO #-}
-benchIO :: NFData b => String -> IO b -> Benchmark
-benchIO name = bench name . nfIO
-
-{-# INLINE withRandomIntIO #-}
-withRandomIntIO :: (Int -> IO b) -> IO b
-withRandomIntIO f = randomRIO (1, 1 :: Int) >>= f
-
-{-# INLINE withDrain #-}
-withDrain :: (Int -> Stream IO a) -> IO ()
-withDrain f = withRandomIntIO $ \n -> drain (f n)
 
 -- XXX should we use rnf to evaluate the result?
 {-# INLINE fromListM #-}

@@ -29,10 +29,8 @@ import Test.Inspection
 import qualified Streamly.Internal.Data.Producer as Producer
 #endif
 
-import Control.DeepSeq (NFData(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Streamly.Internal.Data.Stream (Stream)
-import System.Random (randomRIO)
 
 import qualified Stream.Common as Common
 import qualified Streamly.Internal.Data.Fold as FL
@@ -42,24 +40,9 @@ import qualified Streamly.Internal.Data.Unfold as Unfold
 
 import Test.Tasty.Bench
 import Stream.Common hiding (scanl', benchIO)
+import Stream.Type (benchIO, withRandomIntIO, withStream)
 import Streamly.Benchmark.Common
 import Prelude hiding (sequence, mapM, reverse)
-
--------------------------------------------------------------------------------
--- Helpers
--------------------------------------------------------------------------------
-
-{-# INLINE benchIO #-}
-benchIO :: NFData b => String -> IO b -> Benchmark
-benchIO name = bench name . nfIO
-
-{-# INLINE withRandomIntIO #-}
-withRandomIntIO :: (Int -> IO b) -> IO b
-withRandomIntIO f = randomRIO (1, 1 :: Int) >>= f
-
-{-# INLINE withStream #-}
-withStream :: Int -> (Stream IO Int -> IO b) -> IO b
-withStream value f = withRandomIntIO (f . sourceUnfoldrM value)
 
 -------------------------------------------------------------------------------
 -- Pipelines (stream-to-stream transformations)

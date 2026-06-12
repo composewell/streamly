@@ -24,10 +24,7 @@ import GHC.Types (SPEC(..))
 import Test.Inspection
 #endif
 
-import Control.DeepSeq (NFData(..))
 import Data.Monoid (Sum(..))
-import Streamly.Internal.Data.Stream (Stream)
-import System.Random (randomRIO)
 
 import qualified Stream.Common as Common
 import qualified Streamly.Internal.Data.Fold as FL
@@ -35,23 +32,7 @@ import qualified Streamly.Internal.Data.Stream as S
 
 import Test.Tasty.Bench
 import Streamly.Benchmark.Common
-import Stream.Common hiding (benchIO)
-
--------------------------------------------------------------------------------
--- Helpers
--------------------------------------------------------------------------------
-
-{-# INLINE benchIO #-}
-benchIO :: NFData b => String -> IO b -> Benchmark
-benchIO name = bench name . nfIO
-
-{-# INLINE withRandomIntIO #-}
-withRandomIntIO :: (Int -> IO b) -> IO b
-withRandomIntIO f = randomRIO (1, 1 :: Int) >>= f
-
-{-# INLINE withStream #-}
-withStream :: Int -> (Stream IO Int -> IO b) -> IO b
-withStream value f = withRandomIntIO (f . sourceUnfoldrM value)
+import Stream.Type (benchIO, withStream)
 
 -------------------------------------------------------------------------------
 -- Grouping transformations
