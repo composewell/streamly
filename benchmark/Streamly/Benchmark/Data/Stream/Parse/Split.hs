@@ -59,9 +59,9 @@ toarr = Array.fromList . map (fromIntegral . ord)
 -- | Split on line feed.
 splitOn :: Handle -> IO Int
 splitOn inh =
-    (Stream.fold Fold.length
+    Stream.fold Fold.length
         $ Stream.splitSepBy_ (== lf) Fold.drain
-        $ Handle.read inh) -- >>= print
+        $ Handle.read inh -- >>= print
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'splitOn
@@ -92,8 +92,8 @@ inspect $ 'wordsBy `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 -- | Split on a word8 sequence.
 splitOnSeq :: String -> Handle -> IO Int
 splitOnSeq str inh =
-    (Stream.fold Fold.length $ Stream.splitSepBySeq_ (toarr str) Fold.drain
-        $ Handle.read inh) -- >>= print
+    Stream.fold Fold.length $ Stream.splitSepBySeq_ (toarr str) Fold.drain
+        $ Handle.read inh -- >>= print
 
 #ifdef INSPECTION
 -- splitOnSeq/splitOnSeq100k: sequence-matching state machine; Step constructors survive.
@@ -105,10 +105,10 @@ inspect $ 'splitOnSeq `hasNoType` ''SPEC
 
 takeEndBy :: Word8 -> Handle -> IO Int
 takeEndBy c inh =
-    (Stream.fold Fold.length
+    Stream.fold Fold.length
         $ Stream.takeEndBy (== c)
         $ Stream.filter (/= fromIntegral (ord 'a'))
-        $ Handle.read inh) -- >>= print
+        $ Handle.read inh -- >>= print
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'takeEndBy
@@ -121,10 +121,10 @@ inspect $ 'takeEndBy `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 
 takeEndBy_ :: Word8 -> Handle -> IO Int
 takeEndBy_ c inh =
-    (Stream.fold Fold.length
+    Stream.fold Fold.length
         $ Stream.takeEndBy_ (== c)
         $ Stream.filter (/= fromIntegral (ord 'a'))
-        $ Handle.read inh) -- >>= print
+        $ Handle.read inh -- >>= print
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'takeEndBy_
@@ -137,10 +137,10 @@ inspect $ 'takeEndBy_ `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 
 takeEndBySeq :: String -> Handle -> IO Int
 takeEndBySeq str inh =
-    (Stream.fold Fold.length
+    Stream.fold Fold.length
         $ Stream.takeEndBySeq (toarr str)
         $ Stream.filter (/= fromIntegral (ord 'a'))
-        $ Handle.read inh) -- >>= print
+        $ Handle.read inh -- >>= print
 
 #ifdef INSPECTION
 -- takeEndBySeq/takeEndBySeq_: KR state machine; Step constructors survive
@@ -153,10 +153,10 @@ inspect $ 'takeEndBySeq `hasNoType` ''SPEC
 
 takeEndBySeq_ :: String -> Handle -> IO Int
 takeEndBySeq_ str inh =
-    (Stream.fold Fold.length
+    Stream.fold Fold.length
         $ Stream.takeEndBySeq_ (toarr str)
         $ Stream.filter (/= fromIntegral (ord 'a'))
-        $ Handle.read inh) -- >>= print
+        $ Handle.read inh -- >>= print
 
 #ifdef INSPECTION
 -- inspect $ hasNoTypeClasses 'takeEndBySeq_
@@ -168,10 +168,10 @@ inspect $ 'takeEndBySeq_ `hasNoType` ''SPEC
 takeEndBySeq100k :: Handle -> IO Int
 takeEndBySeq100k inh = do
     arr <- Stream.fold Array.create $ Stream.replicate 100000 123
-    (Stream.fold Fold.length
+    Stream.fold Fold.length
         $ Stream.takeEndBySeq arr
         $ Stream.filter (/= fromIntegral (ord 'a'))
-        $ Handle.read inh) -- >>= print
+        $ Handle.read inh -- >>= print
 
 #ifdef INSPECTION
 -- inspect $ hasNoTypeClasses 'takeEndBySeq100k
@@ -183,10 +183,10 @@ inspect $ 'takeEndBySeq100k `hasNoType` ''SPEC
 takeEndBySeq_100k :: Handle -> IO Int
 takeEndBySeq_100k inh = do
     arr <- Stream.fold Array.create $ Stream.replicate 100000 123
-    (Stream.fold Fold.length
+    Stream.fold Fold.length
         $ Stream.takeEndBySeq_ arr
         $ Stream.filter (/= fromIntegral (ord 'a'))
-        $ Handle.read inh) -- >>= print
+        $ Handle.read inh -- >>= print
 
 #ifdef INSPECTION
 -- inspect $ hasNoTypeClasses 'takeEndBySeq_100k
@@ -199,9 +199,9 @@ inspect $ 'takeEndBySeq_100k `hasNoType` ''SPEC
 splitOnSeq100k :: Handle -> IO Int
 splitOnSeq100k inh = do
     arr <- Stream.fold Array.create $ Stream.replicate 100000 123
-    (Stream.fold Fold.length
+    Stream.fold Fold.length
         $ Stream.splitSepBySeq_ arr Fold.drain
-        $ Handle.read inh) -- >>= print
+        $ Handle.read inh -- >>= print
 
 #ifdef INSPECTION
 -- inspect $ hasNoTypeClasses 'splitOnSeq100k
@@ -213,9 +213,9 @@ inspect $ 'splitOnSeq100k `hasNoType` ''SPEC
 -- | Split on suffix sequence.
 splitOnSuffixSeq :: String -> Handle -> IO Int
 splitOnSuffixSeq str inh =
-    (Stream.fold Fold.length
+    Stream.fold Fold.length
         $ Stream.splitOnSuffixSeq False (toarr str) Fold.drain
-        $ Handle.read inh) -- >>= print
+        $ Handle.read inh -- >>= print
 
 #ifdef INSPECTION
 -- splitOnSuffixSeq/splitWithSuffixSeq: sequence-matching state machine; Step constructors survive.
