@@ -671,54 +671,66 @@ inspect $ hasNoTypeClasses 'readWriteBracket_Unfold
 
 benchmarks :: BenchEnv -> Int -> [(SpaceComplexity, Benchmark)]
 benchmarks env size =
-    [ (SpaceO_1, benchIO "discardFirst" $ discardFirst size)
-    , (SpaceO_1, benchIO "discardSecond" $ discardSecond size)
-    , (SpaceO_1, benchIO "fromStream" $ fromStream size)
-    , (SpaceO_1, benchIO "fromStreamK" $ fromStreamK size)
-    , (SpaceO_1, benchIO "fromStreamD" $ fromStreamD size)
-    , (SpaceO_1, benchIO "nilM" $ nilM size)
+    -- Basic Constructors
+    [ (SpaceO_1, benchIO "nilM" $ nilM size)
     , (SpaceO_1, benchIO "nil" $ nil size)
     , (SpaceO_1, benchIO "consM" $ consM size)
-    , (SpaceO_1, benchIO "fromListM" $ fromListM size)
-    , (SpaceO_1, benchIO "replicateM" $ replicateM size)
+    -- Generators
     , (SpaceO_1, benchIO "repeatM" $ repeatM size)
     , (SpaceO_1, benchIO "repeat" $ repeat size)
-    , (SpaceO_1, benchIO "iterateM" $ iterateM size)
+    , (SpaceO_1, benchIO "replicateM" $ replicateM size)
     , (SpaceO_1, benchIO "fromIndicesM" $ fromIndicesM size)
+    , (SpaceO_1, benchIO "iterateM" $ iterateM size)
+    -- From Containers
+    , (SpaceO_1, benchIO "fromListM" $ fromListM size)
+    -- From Stream
+    , (SpaceO_1, benchIO "fromStreamK" $ fromStreamK size)
+    , (SpaceO_1, benchIO "fromStreamD" $ fromStreamD size)
+    , (SpaceO_1, benchIO "fromStream" $ fromStream size)
+    -- Mapping on Input
+    , (SpaceO_1, benchIO "discardFirst" $ discardFirst size)
+    , (SpaceO_1, benchIO "discardSecond" $ discardSecond size)
+    -- Mapping on Output
     , (SpaceO_1, benchIO "postscan" $ postscan size)
     , (SpaceO_1, benchIO "scanl" $ scanl size)
     , (SpaceO_1, benchIO "scanlMany" $ scanlMany size)
+    , (SpaceO_1, mkBench "foldMany (Fold.takeEndBy_ (== lf) Fold.drain)" env
+        $ \inh _ -> foldManySepBy inh)
+    -- Either Wrapped Input
+    , (SpaceO_1, benchIO "eitherLeft" $ eitherLeft size)
+    -- Filtering
     , (SpaceO_1, benchIO "take" $ take size)
     , (SpaceO_1, benchIO "filter" $ filter size)
     , (SpaceO_1, benchIO "filterM" $ filterM size)
     , (SpaceO_1, benchIO "dropOne" $ dropOne size)
     , (SpaceO_1, benchIO "dropAll" $ dropAll size)
+    , (SpaceO_1, benchIO "dropWhile" $ dropWhile size)
     , (SpaceO_1, benchIO "dropWhileTrue" $ dropWhileTrue size)
     , (SpaceO_1, benchIO "dropWhileFalse" $ dropWhileFalse size)
     , (SpaceO_1, benchIO "dropWhileMTrue" $ dropWhileMTrue size)
     , (SpaceO_1, benchIO "dropWhileMFalse" $ dropWhileMFalse size)
-    , (SpaceO_1, benchIO "dropWhile" $ dropWhile size)
     , (SpaceO_1, benchIO "mapMaybe" $ mapMaybe size)
     , (SpaceO_1, benchIO "mapMaybeM" $ mapMaybeM size)
     , (SpaceO_1, benchIO "catMaybes" $ catMaybes size)
-    , (SpaceO_1, benchIO "eitherLeft" $ eitherLeft size)
-    , (SpaceO_1, benchIO "zipRepeat" $ zipRepeat size)
+    -- Cross product
     , (SpaceO_1, benchIO "innerJoin outer=inner=(sqrt Max)" $ innerJoin size)
-    , (SpaceO_1, mkBench "foldMany (Fold.takeEndBy_ (== lf) Fold.drain)" env
-        $ \inh _ -> foldManySepBy inh)
+    -- Zip
+    , (SpaceO_1, benchIO "zipRepeat" $ zipRepeat size)
+    -- Resource Management
     , (SpaceO_1, benchIO "before" $ before size)
-    , (SpaceO_1, benchIO "after_" $ after_ size)
     , (SpaceO_1, benchIO "afterIO" $ afterIO size)
+    , (SpaceO_1, benchIO "after_" $ after_ size)
     , (SpaceO_1, benchIO "finallyIO" $ finallyIO size)
+    , (SpaceO_1, mkBenchSmall "UF.finally_" env $ \inh _ ->
+        readWriteFinally_Unfold inh (nullH env))
     , (SpaceO_1, benchIO "bracketIO" $ bracketIO size)
+    , (SpaceO_1, mkBenchSmall "UF.bracket_" env $ \inh _ ->
+        readWriteBracket_Unfold inh (nullH env))
+    -- Exceptions
     , (SpaceO_1, mkBenchSmall "UF.onException" env $ \inh _ ->
         readWriteOnExceptionUnfold inh (nullH env))
     , (SpaceO_1, mkBenchSmall "UF.handle" env $ \inh _ ->
         readWriteHandleExceptionUnfold inh (nullH env))
-    , (SpaceO_1, mkBenchSmall "UF.finally_" env $ \inh _ ->
-        readWriteFinally_Unfold inh (nullH env))
-    , (SpaceO_1, mkBenchSmall "UF.bracket_" env $ \inh _ ->
-        readWriteBracket_Unfold inh (nullH env))
     ]
 
 -------------------------------------------------------------------------------
