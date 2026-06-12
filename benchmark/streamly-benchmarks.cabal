@@ -596,8 +596,11 @@ benchmark Data.Unbox.Derive.TH
 benchmark Data.Unfold
   import: bench-options
   type: exitcode-stdio-1.0
-  hs-source-dirs: .
-  main-is: Streamly/Benchmark/Data/Unfold.hs
+  hs-source-dirs: Streamly/Benchmark/Data
+  main-is: Unfold.hs
+  other-modules:
+      Unfold.Type
+      Unfold.Enumeration
   if impl(ghcjs)
     buildable: False
   else
