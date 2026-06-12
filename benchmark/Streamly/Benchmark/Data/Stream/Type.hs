@@ -29,6 +29,13 @@ module Stream.Type
     , checkStream
     , checkPair
     , result
+    , withPureStream
+    , withStream
+    , withDrain
+    , withDrainPure
+    , withRandomInt
+    , withRandomIntIO
+    , benchIO
     ) where
 
 #ifdef INSPECTION
@@ -47,6 +54,7 @@ import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Data.Unfold (Unfold)
 import System.Random (randomRIO)
 
+import qualified Data.Foldable as F
 import qualified GHC.Exts as GHC
 
 import qualified Streamly.Internal.Data.Fold as FL
@@ -78,6 +86,10 @@ withDrain f = withRandomIntIO $ \n -> drain (f n)
 {-# INLINE withDrainPure #-}
 withDrainPure :: (Int -> Stream Identity a) -> IO ()
 withDrainPure f = withRandomIntIO $ \n -> return $! runIdentity $ drain (f n)
+
+{-# INLINE withRandomInt #-}
+withRandomInt :: (Int -> b) -> IO b
+withRandomInt f = randomRIO (1, 1 :: Int) <&> f
 
 {-# INLINE withStream #-}
 withStream :: Int -> (Stream IO Int -> IO b) -> IO b
@@ -169,6 +181,374 @@ readInstanceList str =
 instance NFData a => NFData (Stream Identity a) where
     {-# INLINE rnf #-}
     rnf xs = runIdentity $ Stream.fold (Fold.foldl' (\_ x -> rnf x) ()) xs
+
+-------------------------------------------------------------------------------
+-- Foldable Instance
+-------------------------------------------------------------------------------
+
+{-# INLINE foldableFoldl' #-}
+foldableFoldl' :: Int -> Int -> Int
+foldableFoldl' value n =
+    F.foldl' (+) 0 (sourceUnfoldr value n :: Stream Identity Int)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'foldableFoldl'
+inspect $ 'foldableFoldl' `hasNoType` ''Stream.Step
+#endif
+
+{-# INLINE foldableFoldrElem #-}
+foldableFoldrElem :: Int -> Int -> Bool
+foldableFoldrElem value n =
+    F.foldr (\x xs -> x == value || xs)
+            False
+            (sourceUnfoldr value n :: Stream Identity Int)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'foldableFoldrElem
+inspect $ 'foldableFoldrElem `hasNoType` ''Stream.Step
+inspect $ 'foldableFoldrElem `hasNoType` ''Fold.Step
+inspect $ 'foldableFoldrElem `hasNoType` ''SPEC
+#endif
+
+{-# INLINE foldableSum #-}
+foldableSum :: Int -> Int -> Int
+foldableSum value n =
+    Prelude.sum (sourceUnfoldr value n :: Stream Identity Int)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'foldableSum
+inspect $ 'foldableSum `hasNoType` ''Stream.Step
+inspect $ 'foldableSum `hasNoType` ''Fold.Step
+inspect $ 'foldableSum `hasNoType` ''SPEC
+#endif
+
+{-# INLINE foldableProduct #-}
+foldableProduct :: Int -> Int -> Int
+foldableProduct value n =
+    Prelude.product (sourceUnfoldr value n :: Stream Identity Int)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'foldableProduct
+inspect $ 'foldableProduct `hasNoType` ''Stream.Step
+inspect $ 'foldableProduct `hasNoType` ''Fold.Step
+inspect $ 'foldableProduct `hasNoType` ''SPEC
+#endif
+
+{-# INLINE _foldableNull #-}
+_foldableNull :: Int -> Int -> Bool
+_foldableNull value n =
+    Prelude.null (sourceUnfoldr value n :: Stream Identity Int)
+
+{-# INLINE foldableElem #-}
+foldableElem :: Int -> Int -> Bool
+foldableElem value n =
+    value `Prelude.elem` (sourceUnfoldr value n :: Stream Identity Int)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'foldableElem
+inspect $ 'foldableElem `hasNoType` ''Stream.Step
+inspect $ 'foldableElem `hasNoType` ''Fold.Step
+inspect $ 'foldableElem `hasNoType` ''SPEC
+#endif
+
+{-# INLINE foldableNotElem #-}
+foldableNotElem :: Int -> Int -> Bool
+foldableNotElem value n =
+    value `Prelude.notElem` (sourceUnfoldr value n :: Stream Identity Int)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'foldableNotElem
+inspect $ 'foldableNotElem `hasNoType` ''Stream.Step
+inspect $ 'foldableNotElem `hasNoType` ''Fold.Step
+inspect $ 'foldableNotElem `hasNoType` ''SPEC
+#endif
+
+{-# INLINE foldableFind #-}
+foldableFind :: Int -> Int -> Maybe Int
+foldableFind value n =
+    F.find (== (value + 1)) (sourceUnfoldr value n :: Stream Identity Int)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'foldableFind
+inspect $ 'foldableFind `hasNoType` ''Stream.Step
+inspect $ 'foldableFind `hasNoType` ''Fold.Step
+inspect $ 'foldableFind `hasNoType` ''SPEC
+#endif
+
+{-# INLINE foldableAll #-}
+foldableAll :: Int -> Int -> Bool
+foldableAll value n =
+    Prelude.all (<= (value + 1)) (sourceUnfoldr value n :: Stream Identity Int)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'foldableAll
+inspect $ 'foldableAll `hasNoType` ''Stream.Step
+inspect $ 'foldableAll `hasNoType` ''Fold.Step
+inspect $ 'foldableAll `hasNoType` ''SPEC
+#endif
+
+{- HLINT ignore "Use any"-}
+{-# INLINE foldableAny #-}
+foldableAny :: Int -> Int -> Bool
+foldableAny value n =
+    Prelude.any (> (value + 1)) (sourceUnfoldr value n :: Stream Identity Int)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'foldableAny
+inspect $ 'foldableAny `hasNoType` ''Stream.Step
+inspect $ 'foldableAny `hasNoType` ''Fold.Step
+inspect $ 'foldableAny `hasNoType` ''SPEC
+#endif
+
+{- HLINT ignore "Use all"-}
+{-# INLINE foldableAnd #-}
+foldableAnd :: Int -> Int -> Bool
+foldableAnd value n =
+    Prelude.and $ fmap
+        (<= (value + 1)) (sourceUnfoldr value n :: Stream Identity Int)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'foldableAnd
+inspect $ 'foldableAnd `hasNoType` ''Stream.Step
+inspect $ 'foldableAnd `hasNoType` ''Fold.Step
+inspect $ 'foldableAnd `hasNoType` ''SPEC
+#endif
+
+{- HLINT ignore "Use any"-}
+{-# INLINE foldableOr #-}
+foldableOr :: Int -> Int -> Bool
+foldableOr value n =
+    Prelude.or $ fmap
+        (> (value + 1)) (sourceUnfoldr value n :: Stream Identity Int)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'foldableOr
+inspect $ 'foldableOr `hasNoType` ''Stream.Step
+inspect $ 'foldableOr `hasNoType` ''Fold.Step
+inspect $ 'foldableOr `hasNoType` ''SPEC
+#endif
+
+{-# INLINE foldableLength #-}
+foldableLength :: Int -> Int -> Int
+foldableLength value n =
+    Prelude.length (sourceUnfoldr value n :: Stream Identity Int)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'foldableLength
+inspect $ 'foldableLength `hasNoType` ''Stream.Step
+inspect $ 'foldableLength `hasNoType` ''Fold.Step
+inspect $ 'foldableLength `hasNoType` ''SPEC
+#endif
+
+{-# INLINE foldableMin #-}
+foldableMin :: Int -> Int -> Int
+foldableMin value n =
+    Prelude.minimum (sourceUnfoldr value n :: Stream Identity Int)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'foldableMin
+inspect $ 'foldableMin `hasNoType` ''Stream.Step
+inspect $ 'foldableMin `hasNoType` ''Fold.Step
+inspect $ 'foldableMin `hasNoType` ''SPEC
+#endif
+
+{-# INLINE ordInstanceMin #-}
+ordInstanceMin :: Int -> Int -> ()
+ordInstanceMin value n =
+    let src = sourceUnfoldr value n
+     in runIdentity $ drain $ min src src
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'ordInstanceMin
+inspect $ 'ordInstanceMin `hasNoType` ''Stream.Step
+inspect $ 'ordInstanceMin `hasNoType` ''Fold.Step
+inspect $ 'ordInstanceMin `hasNoType` ''SPEC
+#endif
+
+{-# INLINE foldableMax #-}
+foldableMax :: Int -> Int -> Int
+foldableMax value n =
+    Prelude.maximum (sourceUnfoldr value n :: Stream Identity Int)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'foldableMax
+inspect $ 'foldableMax `hasNoType` ''Stream.Step
+inspect $ 'foldableMax `hasNoType` ''Fold.Step
+inspect $ 'foldableMax `hasNoType` ''SPEC
+#endif
+
+{-# INLINE foldableMinBy #-}
+foldableMinBy :: Int -> Int -> Int
+foldableMinBy value n =
+    F.minimumBy compare (sourceUnfoldr value n :: Stream Identity Int)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'foldableMinBy
+inspect $ 'foldableMinBy `hasNoType` ''Stream.Step
+inspect $ 'foldableMinBy `hasNoType` ''Fold.Step
+inspect $ 'foldableMinBy `hasNoType` ''SPEC
+#endif
+
+{-# INLINE foldableListMinBy #-}
+foldableListMinBy :: Int -> Int -> Int
+foldableListMinBy value n = F.minimumBy compare [1..value+n]
+
+{-# INLINE foldableMaxBy #-}
+foldableMaxBy :: Int -> Int -> Int
+foldableMaxBy value n =
+    F.maximumBy compare (sourceUnfoldr value n :: Stream Identity Int)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'foldableMaxBy
+inspect $ 'foldableMaxBy `hasNoType` ''Stream.Step
+inspect $ 'foldableMaxBy `hasNoType` ''Fold.Step
+inspect $ 'foldableMaxBy `hasNoType` ''SPEC
+#endif
+
+{-# INLINE foldableToList #-}
+foldableToList :: Int -> Int -> [Int]
+foldableToList value n =
+    F.toList (sourceUnfoldr value n :: Stream Identity Int)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'foldableToList
+inspect $ 'foldableToList `hasNoType` ''Stream.Step
+inspect $ 'foldableToList `hasNoType` ''Fold.Step
+inspect $ 'foldableToList `hasNoType` ''SPEC
+#endif
+
+{-# INLINE foldableMapM_ #-}
+foldableMapM_ :: Int -> Int -> IO ()
+foldableMapM_ value n =
+    F.mapM_ (\_ -> return ()) (sourceUnfoldr value n :: Stream Identity Int)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'foldableMapM_
+inspect $ 'foldableMapM_ `hasNoType` ''Stream.Step
+inspect $ 'foldableMapM_ `hasNoType` ''Fold.Step
+inspect $ 'foldableMapM_ `hasNoType` ''SPEC
+#endif
+
+{-# INLINE foldableSequence_ #-}
+foldableSequence_ :: Int -> Int -> IO ()
+foldableSequence_ value n =
+    F.sequence_ (sourceUnfoldrAction value n :: Stream Identity (IO Int))
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'foldableSequence_
+inspect $ 'foldableSequence_ `hasNoType` ''Stream.Step
+inspect $ 'foldableSequence_ `hasNoType` ''Fold.Step
+inspect $ 'foldableSequence_ `hasNoType` ''SPEC
+#endif
+
+{-# INLINE _foldableMsum #-}
+_foldableMsum :: Int -> Int -> IO Int
+_foldableMsum value n =
+    F.msum (sourceUnfoldrAction value n :: Stream Identity (IO Int))
+
+o_1_space_elimination_foldable :: Int -> [Benchmark]
+o_1_space_elimination_foldable value =
+    [ bgroup "foldable"
+          -- Foldable instance
+        [ benchIO "foldl'" $ withRandomInt (foldableFoldl' value)
+        , benchIO "foldrElem" $ withRandomInt (foldableFoldrElem value)
+     -- , benchIO "null" $ withRandomInt (_foldableNull value)
+        , benchIO "elem" $ withRandomInt (foldableElem value)
+        , benchIO "length" $ withRandomInt (foldableLength value)
+        , benchIO "sum" $ withRandomInt (foldableSum value)
+        , benchIO "product" $ withRandomInt (foldableProduct value)
+        , benchIO "minimum" $ withRandomInt (foldableMin value)
+        , benchIO "min (ord)" $ withRandomInt (ordInstanceMin value)
+        , benchIO "maximum" $ withRandomInt (foldableMax value)
+        , benchIO "minimumBy" $ withRandomInt (foldableMinBy value)
+        , benchIO "maximumBy" $ withRandomInt (foldableMaxBy value)
+        , benchIO "minimumByList" $ withRandomInt (foldableListMinBy value)
+        , benchIO "length . toList" $
+              withRandomInt (Prelude.length . foldableToList value)
+        , benchIO "notElem" $ withRandomInt (foldableNotElem value)
+        , benchIO "find" $ withRandomInt (foldableFind value)
+        , benchIO "all" $ withRandomInt (foldableAll value)
+        , benchIO "any" $ withRandomInt (foldableAny value)
+        , benchIO "and" $ withRandomInt (foldableAnd value)
+        , benchIO "or" $ withRandomInt (foldableOr value)
+
+        -- Applicative and Traversable operations
+        -- TBD: traverse_
+        , benchIO "mapM_" $ withRandomIntIO (foldableMapM_ value)
+        -- TBD: for_
+        -- TBD: forM_
+        , benchIO "sequence_" $ withRandomIntIO (foldableSequence_ value)
+        -- TBD: sequenceA_
+        -- TBD: asum
+        -- XXX needs to be fixed, results are in ns
+        -- , benchIOSink1 "msum" (foldableMsum value)
+        ]
+    ]
+
+-------------------------------------------------------------------------------
+-- Show instance
+-------------------------------------------------------------------------------
+
+{-# INLINE showInstance #-}
+showInstance :: Int -> IO String
+showInstance value = withPureStream value show
+
+{-# INLINE showInstanceList #-}
+showInstanceList :: [Int] -> String
+showInstanceList = show
+
+o_n_heap_elimination_show :: Int -> [Benchmark]
+o_n_heap_elimination_show value =
+    [ bgroup "buffered"
+        -- Buffers the output of show/read.
+        -- XXX can the outputs be streaming? Can we have special read/show
+        -- style type classes, readM/showM supporting streaming effects?
+        [ bench "showsPrec Haskell lists" $ nf showInstanceList (mkList value)
+        -- XXX This is not o-1-space for GHC-8.10
+        , benchIO "showsPrec pure streams" $ showInstance value
+        ]
+    ]
+
+-------------------------------------------------------------------------------
+-- Eq and Ord instances
+-------------------------------------------------------------------------------
+
+{-# INLINE eqInstance #-}
+eqInstance :: Int -> IO Bool
+eqInstance value = withPureStream value $ \src -> src == src
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'eqInstance
+inspect $ 'eqInstance `hasNoType` ''Stream.Step
+inspect $ 'eqInstance `hasNoType` ''Fold.Step
+inspect $ 'eqInstance `hasNoType` ''SPEC
+#endif
+
+{-# INLINE eqInstanceNotEq #-}
+eqInstanceNotEq :: Int -> IO Bool
+eqInstanceNotEq value = withPureStream value $ \src -> src /= src
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'eqInstanceNotEq
+inspect $ 'eqInstanceNotEq `hasNoType` ''Stream.Step
+inspect $ 'eqInstanceNotEq `hasNoType` ''Fold.Step
+inspect $ 'eqInstanceNotEq `hasNoType` ''SPEC
+#endif
+
+{-# INLINE ordInstance #-}
+ordInstance :: Int -> IO Bool
+ordInstance value = withPureStream value $ \src -> src < src
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'ordInstance
+inspect $ 'ordInstance `hasNoType` ''Stream.Step
+inspect $ 'ordInstance `hasNoType` ''Fold.Step
+inspect $ 'ordInstance `hasNoType` ''SPEC
+#endif
+
+-------------------------------------------------------------------------------
+-- Generation
+-------------------------------------------------------------------------------
 
 o_1_space_generation :: Int -> [Benchmark]
 o_1_space_generation value =
@@ -314,6 +694,32 @@ inspect $ hasNoTypeClasses 'foldlM'ReduceIdentity
 inspect $ 'foldlM'ReduceIdentity `hasNoType` ''S.Step
 #endif
 
+{-# INLINE toNull #-}
+toNull :: Int -> IO ()
+toNull value = withStream value S.drain
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'toNull
+inspect $ 'toNull `hasNoType` ''Stream.Step
+inspect $ 'toNull `hasNoType` ''Fold.Step
+inspect $ 'toNull `hasNoType` ''SPEC
+#endif
+
+{-# INLINE drainPure #-}
+drainPure :: Int -> IO ()
+drainPure value = withPureStream value $ runIdentity . drain
+
+{-# INLINE drainN #-}
+drainN :: Int -> IO ()
+drainN value = withStream value (S.fold (Fold.drainN value))
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'drainN
+inspect $ 'drainN `hasNoType` ''S.Step
+inspect $ 'drainN `hasNoType` ''Fold.Step
+inspect $ 'drainN `hasNoType` ''SPEC
+#endif
+
 o_1_space_elimination_folds :: Int -> [Benchmark]
 o_1_space_elimination_folds value =
     [ bgroup "elimination"
@@ -341,9 +747,21 @@ o_1_space_elimination_folds value =
                   ]
             ]
 
+        -- this is too fast, causes all benchmarks reported in ns
+    -- , benchIO "null" $ ...
+
         -- deconstruction
         , benchIO "uncons" $ uncons value
         , benchIO "foldBreak" $ foldBreak value
+
+        -- draining
+        , benchIO "toNull" $ toNull value
+        , benchIO "drainN" $ drainN value
+        , benchIO "drain (pure)" $ drainPure value
+
+        -- length is used to check for foldr/build fusion
+        , benchIO "length . IsList.toList" $
+              withPureStream value (Prelude.length . GHC.toList)
         ]
     ]
 
@@ -442,7 +860,10 @@ inspect $ 'cmpByPure `hasNoType` ''Fold.Step
 o_1_space_elimination_multi_stream_pure :: Int -> [Benchmark]
 o_1_space_elimination_multi_stream_pure value =
     [ bgroup "multi-stream-pure"
-        [ benchIO "eqBy" $ eqByPure value
+        [ benchIO "==" $ eqInstance value
+        , benchIO "/=" $ eqInstanceNotEq value
+        , benchIO "<" $ ordInstance value
+        , benchIO "eqBy" $ eqByPure value
         , benchIO "cmpBy" $ cmpByPure value
         ]
     ]
@@ -1431,8 +1852,10 @@ benchmarks size =
     map (SpaceO_1,) (o_1_space_generation size)
     ++ map (HeapO_n,) (o_n_heap_generation size)
     -- Elimination
+    ++ map (SpaceO_1,) (o_1_space_elimination_foldable size)
     ++ map (SpaceO_1,) (o_1_space_elimination_folds size)
     ++ map (HeapO_n,) (o_n_heap_elimination_foldl size)
+    ++ map (HeapO_n,) (o_n_heap_elimination_show size)
     ++ map (SpaceO_n,) (o_n_space_elimination_foldr size)
     ++ map (SpaceO_n,) (o_n_space_elimination_toList size)
     ++ map (SpaceO_1,) (o_1_space_elimination_multi_stream_pure size)

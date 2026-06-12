@@ -22,7 +22,9 @@ module Stream.Lift (benchmarks) where
 
 import Control.DeepSeq (NFData(..))
 import Control.Monad.State.Strict (StateT, get, put)
+import Data.Functor.Identity (Identity(..), runIdentity)
 import Stream.Common (sourceUnfoldr, sourceUnfoldrM)
+import Stream.Type (withPureStream)
 import System.Random (randomRIO)
 import Streamly.Internal.Data.Stream (Stream)
 
@@ -101,6 +103,19 @@ inspect $ 'withStateIO `hasNoType` ''Fold.Step
 inspect $ 'withStateIO `hasNoType` ''SPEC
 #endif
 
+{-# INLINE generalizeInner #-}
+generalizeInner :: Int -> IO Int
+generalizeInner value =
+    withPureStream value $
+        runIdentity . Stream.fold Fold.length . Stream.generalizeInner
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'generalizeInner
+inspect $ 'generalizeInner `hasNoType` ''Step
+inspect $ 'generalizeInner `hasNoType` ''Fold.Step
+inspect $ 'generalizeInner `hasNoType` ''SPEC
+#endif
+
 {-# INLINE generalizeInnerIO #-}
 generalizeInnerIO :: Int -> IO Int
 generalizeInnerIO value = withRandomIntIO $ \n ->
@@ -112,6 +127,7 @@ o_1_space_hoisting value =
     [ bgroup "hoisting"
         [ benchIO "evalState" $ evalStateTIO value
         , benchIO "withState" $ withStateIO value
+        , benchIO "length . generalizeInner" $ generalizeInner value
         , benchIO "generalizeInner" $ generalizeInnerIO value
         ]
     ]

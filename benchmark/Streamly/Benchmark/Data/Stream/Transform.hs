@@ -790,6 +790,28 @@ inspect $ 'elemIndices4 `hasNoType` ''FL.Step
 inspect $ 'elemIndices4 `hasNoType` ''SPEC
 #endif
 
+{-# INLINE findIndex #-}
+findIndex :: Int -> IO (Maybe Int)
+findIndex value = withStream value (Stream.head . Stream.findIndices (== (value + 1)))
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'findIndex
+inspect $ 'findIndex `hasNoType` ''Stream.Step
+inspect $ 'findIndex `hasNoType` ''FL.Step
+inspect $ 'findIndex `hasNoType` ''SPEC
+#endif
+
+{-# INLINE elemIndex #-}
+elemIndex :: Int -> IO (Maybe Int)
+elemIndex value = withStream value (Stream.head . Stream.elemIndices (value + 1))
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'elemIndex
+inspect $ 'elemIndex `hasNoType` ''Stream.Step
+inspect $ 'elemIndex `hasNoType` ''FL.Step
+inspect $ 'elemIndex `hasNoType` ''SPEC
+#endif
+
 {-# INLINE deleteBy #-}
 deleteBy :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 deleteBy value n = composeN n $ Stream.deleteBy (>=) (value + 1)
@@ -934,6 +956,8 @@ o_1_space_filtering value =
         -- Searching (stateful map and filter)
         , benchIO "findIndices" $ findIndices1 value
         , benchIO "elemIndices" $ elemIndices1 value
+        , benchIO "findIndex" $ findIndex value
+        , benchIO "elemIndex" $ elemIndex value
         ]
     ]
 

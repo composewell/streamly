@@ -23,6 +23,7 @@ module Stream.Generate (benchmarks) where
 #ifdef INSPECTION
 import GHC.Types (SPEC(..))
 import Test.Inspection
+import qualified Streamly.Internal.Data.Fold as Fold
 #endif
 
 import Control.DeepSeq (NFData(..))
