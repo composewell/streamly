@@ -20,7 +20,7 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
-module Stream.Reduce (benchmarks) where
+module Stream.Transform2 (benchmarks) where
 
 #ifdef INSPECTION
 import GHC.Types (SPEC(..))

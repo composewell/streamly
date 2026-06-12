@@ -18,7 +18,7 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
-module Stream.Expand (benchmarks) where
+module Stream.Nesting (benchmarks) where
 
 #ifdef INSPECTION
 import GHC.Types (SPEC(..))

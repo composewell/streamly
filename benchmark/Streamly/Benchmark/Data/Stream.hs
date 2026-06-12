@@ -21,12 +21,12 @@ import Streamly.Benchmark.Common.Handle (mkHandleBenchEnv)
 
 import qualified Stream.Eliminate as Elimination
 import qualified Stream.Exceptions as Exceptions
-import qualified Stream.Expand as NestedStream
+import qualified Stream.Nesting as NestedStream
 import qualified Stream.Generate as Generation
 import qualified Stream.Lift as Lift
-import qualified Stream.Reduce as NestedFold
-import qualified Stream.Split as Split
-import qualified Stream.SplitChunks as SplitChunks
+import qualified Stream.Transform2 as NestedFold
+import qualified Stream.ParseSplit as Split
+import qualified Stream.ParseSplitChunks as SplitChunks
 import qualified Stream.Transform as Transformation
 import qualified Stream.Type as Type
 

@@ -19,7 +19,7 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
-module Stream.Split (benchmarks) where
+module Stream.ParseSplit (benchmarks) where
 
 import Data.Char (ord)
 import Data.Word (Word8)
