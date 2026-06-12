@@ -19,8 +19,9 @@
 
 module Stream.Eliminate (benchmarks) where
 
-import Control.Monad ((>=>))
+import Control.Monad ((>=>), when)
 import Data.Functor.Identity (Identity(..), runIdentity)
+import Data.Maybe (isJust)
 import System.Random (randomRIO)
 
 import qualified Streamly.Internal.Data.Fold as Fold
@@ -38,7 +39,7 @@ import qualified Streamly.Internal.Data.Stream as S
 import Test.Tasty.Bench
 import Streamly.Benchmark.Common
 import Prelude hiding (length, sum, or, and, any, all, notElem, elem, (!!),
-    lookup, repeat, minimum, maximum, product, last, mapM_, init)
+    lookup, repeat, minimum, maximum, product, last, mapM_, init, tail)
 import qualified Prelude
 
 -------------------------------------------------------------------------------
@@ -427,6 +428,49 @@ o_1_space_elimination_multi_stream value =
     ]
 
 -------------------------------------------------------------------------------
+-- Iterating using tail
+-------------------------------------------------------------------------------
+
+{-# INLINE tail #-}
+tail :: Int -> IO ()
+tail value = withStream value go
+    where go s = S.tail s >>= Prelude.mapM_ go
+
+{-# INLINE nullHeadTail #-}
+nullHeadTail :: Int -> IO ()
+nullHeadTail value = withStream value go
+    where
+    go s = do
+        r <- S.null s
+        when (not r) $ do
+            _ <- S.head s
+            S.tail s >>= Prelude.mapM_ go
+
+nullTail :: Int -> IO ()
+nullTail value = withStream value go
+    where
+    go s = do
+        r <- S.null s
+        when (not r) $ S.tail s >>= Prelude.mapM_ go
+
+headTail :: Int -> IO ()
+headTail value = withStream value go
+    where
+    go s = do
+        h <- S.head s
+        when (isJust h) $ S.tail s >>= Prelude.mapM_ go
+
+o_n_stack_iterated :: Int -> [Benchmark]
+o_n_stack_iterated value =
+    [ bgroup "iterated"
+        [ benchIO "tail" $ tail value
+        , benchIO "nullTail" $ nullTail value
+        , benchIO "headTail" $ headTail value
+        , benchIO "nullHeadTail" $ nullHeadTail value
+        ]
+    ]
+
+-------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
 
@@ -441,3 +485,4 @@ benchmarks size =
         ])
     ++ map (HeapO_n,) (o_n_heap_elimination_toList size)
     ++ map (SpaceO_n,) (o_n_space_elimination_toList size)
+    ++ map (StackO_n,) (o_n_stack_iterated size)

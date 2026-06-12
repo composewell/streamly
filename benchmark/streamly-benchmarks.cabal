@@ -441,6 +441,7 @@ benchmark Data.Stream
       Stream.Nesting
       Stream.Generate
       Stream.Lift
+      Stream.Parse
       Stream.Transform2
       Stream.ParseSplit
       -- XXX uses lot of memory

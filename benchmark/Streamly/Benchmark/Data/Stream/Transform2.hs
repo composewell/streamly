@@ -28,10 +28,7 @@ import Test.Inspection
 #endif
 
 import Control.DeepSeq (NFData(..))
-import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
-import Data.Maybe (isJust)
-import Data.Monoid (Sum(..))
 import GHC.Generics (Generic)
 import Streamly.Internal.Data.Stream (Stream)
 import System.Random (randomRIO)
@@ -75,103 +72,6 @@ withStream value f = withRandomIntIO (f . sourceUnfoldrM value)
 {-# INLINE benchIO #-}
 benchIO :: NFData b => String -> IO b -> Benchmark
 benchIO name = bench name . nfIO
-
--------------------------------------------------------------------------------
--- Grouping transformations
--------------------------------------------------------------------------------
-
-{-# INLINE groups #-}
-groups :: Int -> IO ()
-groups value = withStream value $ Common.drain . S.groupsWhile (==) FL.drain
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'groups
--- inspect $ 'groups `hasNoType` ''S.Step
-inspect $ 'groups `hasNoType` ''FL.Step
-inspect $ 'groups `hasNoType` ''SPEC
-#endif
-
-{-# INLINE groupsWhileLT #-}
-groupsWhileLT :: Int -> IO ()
-groupsWhileLT value = withStream value $ Common.drain . S.groupsWhile (<) FL.drain
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'groupsWhileLT
--- inspect $ 'groupsWhileLT `hasNoType` ''S.Step
-inspect $ 'groupsWhileLT `hasNoType` ''FL.Step
-inspect $ 'groupsWhileLT `hasNoType` ''SPEC
-#endif
-
-{-# INLINE groupsWhileEq #-}
-groupsWhileEq :: Int -> IO ()
-groupsWhileEq value = withStream value $ Common.drain . S.groupsWhile (==) FL.drain
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'groupsWhileEq
--- inspect $ 'groupsWhileEq `hasNoType` ''S.Step
-inspect $ 'groupsWhileEq `hasNoType` ''FL.Step
-inspect $ 'groupsWhileEq `hasNoType` ''SPEC
-#endif
-
-{-# INLINE groupsByRollingLT #-}
-groupsByRollingLT :: Int -> IO ()
-groupsByRollingLT value = withStream value $ Common.drain . S.groupsRollingBy (<) FL.drain
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'groupsByRollingLT
-inspect $ 'groupsByRollingLT `hasNoType` ''S.Step
--- inspect $ 'groupsByRollingLT `hasNoType` ''S.GroupByState
-inspect $ 'groupsByRollingLT `hasNoType` ''FL.Step
-inspect $ 'groupsByRollingLT `hasNoType` ''SPEC
-#endif
-
-{-# INLINE groupsByRollingEq #-}
-groupsByRollingEq :: Int -> IO ()
-groupsByRollingEq value = withStream value $ Common.drain . S.groupsRollingBy (==) FL.drain
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'groupsByRollingEq
-inspect $ 'groupsByRollingEq `hasNoType` ''S.Step
--- inspect $ 'groupsByRollingEq `hasNoType` ''S.GroupByState
-inspect $ 'groupsByRollingEq `hasNoType` ''FL.Step
-inspect $ 'groupsByRollingEq `hasNoType` ''SPEC
-#endif
-
-{-# INLINE foldIterateM #-}
-foldIterateM :: Int -> IO ()
-foldIterateM value =
-    withStream value $
-        Common.drain
-            . fmap getSum
-            . S.foldIterateM
-                (return . FL.take 2 . FL.sconcat) (return (Sum 0))
-            . fmap Sum
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'foldIterateM
-inspect $ 'foldIterateM `hasNoType` ''S.Step
-inspect $ 'foldIterateM `hasNoType` ''S.FIterState
-inspect $ 'foldIterateM `hasNoType` ''FL.Step
-inspect $ 'foldIterateM `hasNoType` ''SPEC
-#endif
-
-o_1_space_grouping :: Int -> [Benchmark]
-o_1_space_grouping value =
-    -- Buffering operations using heap proportional to group/window sizes.
-    [ bgroup "grouping"
-        [
-          benchIO "groups" $ groups value
-        , benchIO "groupsWhileLT" $ groupsWhileLT value
-        , benchIO "groupsWhileEq" $ groupsWhileEq value
-        , benchIO "groupsByRollingLT" $ groupsByRollingLT value
-        , benchIO "groupsByRollingEq" $ groupsByRollingEq value
-
-        -- XXX parseMany/parseIterate benchmarks are in the Parser/ParserD
-        -- modules we can bring those here. chunksOf benchmarks are in
-        -- Parser/ParserD/Array.Stream/FileSystem.Handle.
-        , benchIO "foldIterateM" $ foldIterateM value
-        ]
-    ]
 
 -------------------------------------------------------------------------------
 -- Size conserving transformations (reordering, buffering, etc.)
@@ -773,35 +673,6 @@ iterateDropWhileFalse value iterCount =
     withRandomIntIO
         $ Common.drain . iterateSource (S.dropWhile (> (value + 1))) (value `div` iterCount) iterCount
 
-{-# INLINE tail #-}
-tail :: Int -> IO ()
-tail value = withStream value go
-    where go s = S.tail s >>= mapM_ go
-
-{-# INLINE nullHeadTail #-}
-nullHeadTail :: Int -> IO ()
-nullHeadTail value = withStream value go
-    where
-    go s = do
-        r <- S.null s
-        when (not r) $ do
-            _ <- S.head s
-            S.tail s >>= mapM_ go
-
-nullTail :: Int -> IO ()
-nullTail value = withStream value go
-    where
-    go s = do
-        r <- S.null s
-        when (not r) $ S.tail s >>= mapM_ go
-
-headTail :: Int -> IO ()
-headTail value = withStream value go
-    where
-    go s = do
-        h <- S.head s
-        when (isJust h) $ S.tail s >>= mapM_ go
-
 o_n_stack_iterated :: Int -> [Benchmark]
 o_n_stack_iterated value =
     [ bgroup "iterated"
@@ -813,10 +684,6 @@ o_n_stack_iterated value =
         , benchIO "dropOne (n/10 x 10)" $ iterateDropOne value 10
         , benchIO "dropWhileTrue (n/10 x 10)" $ iterateDropWhileTrue value 10
         , benchIO "dropWhileFalse (n/10 x 10)" $ iterateDropWhileFalse value 10
-        , benchIO "tail" $ tail value
-        , benchIO "nullTail" $ nullTail value
-        , benchIO "headTail" $ headTail value
-        , benchIO "nullHeadTail" $ nullHeadTail value
         ]
     ]
 
@@ -1067,8 +934,7 @@ o_1_space_scansX4 value =
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
     map (SpaceO_1,) (Prelude.concat
-        [ o_1_space_grouping size
-        , o_1_space_transformations_mixed size
+        [ o_1_space_transformations_mixed size
         , o_1_space_transformations_mixedX2 size
         , o_1_space_transformations_mixedX4 size
 
