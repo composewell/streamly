@@ -94,7 +94,6 @@ readWriteAfter_Stream inh devNull =
 
 o_1_space_copy_stream_exceptions :: BenchEnv -> [Benchmark]
 o_1_space_copy_stream_exceptions env =
-    [ bgroup "exceptions"
        [ mkBenchSmall "Stream.onException" env $ \inh _ ->
            readWriteOnExceptionStream inh (nullH env)
        , mkBenchSmall "Stream.handle" env $ \inh _ ->
@@ -103,12 +102,9 @@ o_1_space_copy_stream_exceptions env =
            readWriteFinally_Stream inh (nullH env)
        , mkBenchSmall "Stream.after_" env $ \inh _ ->
            readWriteAfter_Stream inh (nullH env)
-       ]
-    , bgroup "exceptions/fromToBytes"
-       [ mkBenchSmall "Stream.bracket_" env $ \inh _ ->
+       , mkBenchSmall "Stream.bracket_ (fromToBytes)" env $ \inh _ ->
            fromToBytesBracket_Stream inh (nullH env)
-        ]
-    ]
+       ]
 
  -------------------------------------------------------------------------------
 -- Exceptions readChunks
@@ -128,13 +124,11 @@ readChunksBracket_ inh devNull =
 
 o_1_space_copy_exceptions_readChunks :: BenchEnv -> [Benchmark]
 o_1_space_copy_exceptions_readChunks env =
-    [ bgroup "exceptions/readChunks"
         [ mkBench "UF.onException" env $ \inH _ ->
             readChunksOnException inH (nullH env)
         , mkBench "UF.bracket_" env $ \inH _ ->
             readChunksBracket_ inH (nullH env)
         ]
-    ]
 
 -------------------------------------------------------------------------------
 -- Exceptions toChunks
@@ -213,11 +207,9 @@ inspect $ 'toChunksBracket_ `hasNoType` ''SPEC
 
 o_1_space_copy_exceptions_toChunks :: BenchEnv -> [Benchmark]
 o_1_space_copy_exceptions_toChunks env =
-    [ bgroup "exceptions/toChunks"
-        [ mkBench "Stream.bracket_" env $ \inH _ ->
+        [ mkBench "Stream.bracket_ (toChunks)" env $ \inH _ ->
             toChunksBracket_ inH (nullH env)
         ]
-    ]
 
 benchmarks :: BenchEnv -> Int -> [(SpaceComplexity, Benchmark)]
 benchmarks _env _size =

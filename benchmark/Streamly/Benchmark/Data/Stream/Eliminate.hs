@@ -303,20 +303,9 @@ inspect $ 'lookupNever `hasNoType` ''SPEC
 
 o_1_space_elimination_folds :: Int -> [Benchmark]
 o_1_space_elimination_folds value =
-    [ bgroup "elimination"
         -- Basic folds
-        [
-            bgroup "reduce"
-            [ bgroup
-                  "IO"
-                  [ benchIO "foldl1'" $ foldl1'Reduce value
-                  ]
-
-            , bgroup
-                  "Identity"
-                  [ benchIO "foldl1'" $ foldl1'ReduceIdentity value
-                  ]
-            ]
+        [ benchIO "foldl1'/IO" $ foldl1'Reduce value
+        , benchIO "foldl1'/Identity" $ foldl1'ReduceIdentity value
 
         -- deconstruction
         , benchIO "mapM_" $ mapM_ value
@@ -346,7 +335,6 @@ o_1_space_elimination_folds value =
         , benchIO "and" $ and value
         , benchIO "or" $ or value
         ]
-    ]
 
 {-# INLINE toListRev #-}
 toListRev :: Int -> IO [Int]
@@ -359,12 +347,10 @@ toStreamRev value = withStream value (S.fold Fold.toStreamRev)
 
 o_n_heap_elimination_toList :: Int -> [Benchmark]
 o_n_heap_elimination_toList value =
-    [ bgroup "toList"
         -- Converting the stream to a list or pure stream in a strict monad
         [ benchIO "toListRev" $ toListRev value
         , benchIO "toStreamRev" $ toStreamRev value
         ]
-    ]
 
 -- NOTE: this is a Fold benchmark, used here only for comparison with ToList
 {-# INLINE toStream #-}
@@ -373,11 +359,9 @@ toStream value = withStream value (S.fold Fold.toStream)
 
 o_n_space_elimination_toList :: Int -> [Benchmark]
 o_n_space_elimination_toList value =
-    [ bgroup "toList"
         -- Converting the stream to a list or pure stream in a strict monad
         [ benchIO "toStream" $ toStream value
         ]
-    ]
 
 -------------------------------------------------------------------------------
 -- Multi-stream folds
@@ -420,12 +404,10 @@ inspect $ 'stripPrefix `hasNoType` ''SPEC
 
 o_1_space_elimination_multi_stream :: Int -> [Benchmark]
 o_1_space_elimination_multi_stream value =
-    [ bgroup "multi-stream"
         [ benchIO "isPrefixOf" $ isPrefixOf value
         , benchIO "isSubsequenceOf" $ isSubsequenceOf value
         , benchIO "stripPrefix" $ stripPrefix value
         ]
-    ]
 
 -------------------------------------------------------------------------------
 -- Iterating using tail
@@ -462,13 +444,11 @@ headTail value = withStream value go
 
 o_n_stack_iterated :: Int -> [Benchmark]
 o_n_stack_iterated value =
-    [ bgroup "iterated"
-        [ benchIO "tail" $ tail value
-        , benchIO "nullTail" $ nullTail value
-        , benchIO "headTail" $ headTail value
-        , benchIO "nullHeadTail" $ nullHeadTail value
+        [ benchIO "iterated/tail" $ tail value
+        , benchIO "iterated/nullTail" $ nullTail value
+        , benchIO "iterated/headTail" $ headTail value
+        , benchIO "iterated/nullHeadTail" $ nullHeadTail value
         ]
-    ]
 
 -------------------------------------------------------------------------------
 -- Main

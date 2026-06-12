@@ -116,7 +116,6 @@ inspect $ 'foldIterateM `hasNoType` ''SPEC
 o_1_space_grouping :: Int -> [Benchmark]
 o_1_space_grouping value =
     -- Buffering operations using heap proportional to group/window sizes.
-    [ bgroup "grouping"
         [
           benchIO "groups" $ groups value
         , benchIO "groupsWhileLT" $ groupsWhileLT value
@@ -129,7 +128,6 @@ o_1_space_grouping value =
         -- Parser/ParserD/Array.Stream/FileSystem.Handle.
         , benchIO "foldIterateM" $ foldIterateM value
         ]
-    ]
 
 -------------------------------------------------------------------------------
 -- Main

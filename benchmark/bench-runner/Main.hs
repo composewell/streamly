@@ -71,23 +71,21 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
 
         -----------------------------------------------------------------------
 
-        | "Data.Stream/o-1-space.grouping.classifySessionsOf"
+        | "Data.Stream/o-1-space.classifySessionsOf"
             `isPrefixOf` benchName = "-K512K"
 
         -- GHC-9.6 requires 64M, earlier it was 32M
-        | "Data.Stream/o-n-heap.buffered.showsPrec Haskell lists"
+        | "Data.Stream/o-n-heap.showsPrec Haskell lists"
             == benchName = "-M64M"
         -- GHC-9.6 requires 64M, earlier it was 32M
-        | "Data.Stream/o-n-heap.buffered.readsPrec pure streams"
+        | "Data.Stream/o-n-heap.readsPrec pure streams"
             == benchName = "-M64M"
 
-        | "Data.Stream/o-n-space.foldr.foldrM/"
+        | "Data.Stream/o-n-space.foldrM/"
             `isPrefixOf` benchName = "-K4M"
-        | "Data.Stream/o-n-space.iterated."
+        | "Data.Stream/o-n-space.iterated/"
             `isPrefixOf` benchName = "-K4M"
-        | "Data.Stream/o-n-space.toList.toList"
-            `isPrefixOf` benchName = "-K2M"
-        | "Data.Stream/o-n-space.Monad.toList"
+        | "Data.Stream/o-n-space.toList"
             `isPrefixOf` benchName = "-K2M"
 
         -----------------------------------------------------------------------

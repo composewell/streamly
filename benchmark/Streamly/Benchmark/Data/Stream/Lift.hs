@@ -114,13 +114,11 @@ generalizeInnerIO value = withRandomIntIO $ \n ->
 
 o_1_space_hoisting :: Int -> [Benchmark]
 o_1_space_hoisting value =
-    [ bgroup "hoisting"
         [ benchIO "evalState" $ evalStateTIO value
         , benchIO "withState" $ withStateIO value
         , benchIO "length . generalizeInner" $ generalizeInner value
         , benchIO "generalizeInner" $ generalizeInnerIO value
         ]
-    ]
 
 -------------------------------------------------------------------------------
 -- Main

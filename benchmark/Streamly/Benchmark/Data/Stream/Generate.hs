@@ -266,7 +266,6 @@ _absTimes value _ = Stream.take value Stream.absTimes
 
 o_1_space_generation :: Int -> [Benchmark]
 o_1_space_generation value =
-    [ bgroup "generation"
         -- 'sourceUnfoldr', 'sourceUnfoldrM', and 'repeat' are from Stream.Common.
         [ benchIO "unfoldr" $ withDrain (sourceUnfoldr value)
         , benchIO "unfoldrM" $ withDrain (sourceUnfoldrM value)
@@ -298,7 +297,6 @@ o_1_space_generation value =
         --  XXX tasty-bench hangs benchmarking this
         -- , benchIO "absTimes" $ _absTimes value
         ]
-    ]
 
 -------------------------------------------------------------------------------
 -- Main

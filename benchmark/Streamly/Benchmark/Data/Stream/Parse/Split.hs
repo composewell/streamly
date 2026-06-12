@@ -242,14 +242,11 @@ inspect $ 'splitWithSuffixSeq `hasNoType` ''SPEC
 o_1_space_reduce_read_split :: BenchEnv -> [Benchmark]
 o_1_space_reduce_read_split env =
     -- NOTE: keep the benchmark names consistent with Data.Fold.takeEndBy*
-    [ bgroup "FileSplitElem"
         [ mkBench "splitOn infix lf" env $ \inh _ ->
             splitOn inh
-        ]
-    -- splitting on a sequence
-    , bgroup "FileSplitSeq"
-        [
-          mkBench "wordsBy infix isSpace" env $ \inh _ ->
+
+        -- splitting on a sequence
+        , mkBench "wordsBy infix isSpace" env $ \inh _ ->
             wordsBy inh
 
         -- Infix
@@ -295,10 +292,7 @@ o_1_space_reduce_read_split env =
             splitWithSuffixSeq "abcdefghi" inh
         , mkBenchSmall "splitWithSuffixSeq KR suffix abcdefghijklmnopqrstuvwxyz"
             env $ \inh _ -> splitWithSuffixSeq "abcdefghijklmnopqrstuvwxyz" inh
-        ]
 
-    , bgroup "FileTakeSeq"
-        [
         {-
           mkBench "takeEndBySeq empty" env $ \inh _ ->
                 takeEndBySeq "" inh
@@ -306,7 +300,7 @@ o_1_space_reduce_read_split env =
         -- IMPORTANT: the pattern must contain a, because we filter a's out
         -- from the stream so that we do not terminate too early and
         -- unpredictably.
-          mkBench "takeEndBy" env $ \inh _ ->
+        , mkBench "takeEndBy" env $ \inh _ ->
             takeEndBy (fromIntegral $ ord 'a') inh
         , mkBench "takeEndBy_" env $ \inh _ ->
             takeEndBy_ (fromIntegral $ ord 'a') inh
@@ -350,7 +344,6 @@ o_1_space_reduce_read_split env =
         , mkBench "takeEndBySeq_ KR 100k long pattern"
             env $ \inh _ -> takeEndBySeq_100k inh
         ]
-    ]
 
 benchmarks :: BenchEnv -> [(SpaceComplexity, Benchmark)]
 benchmarks env =

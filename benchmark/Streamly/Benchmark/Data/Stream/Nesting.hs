@@ -185,7 +185,6 @@ inspect $ 'unfoldSched `hasNoType` ''SPEC
 
 o_1_space_joining :: Int -> [Benchmark]
 o_1_space_joining value =
-    [ bgroup "joining (2 of n/2)"
         [ benchIO "interleave" $ interleave2 (value `div` 2)
         , benchIO "roundRobin" $ roundRobin2 (value `div` 2)
         , benchIO "mergeBy compare" $ mergeBy compare (value `div` 2)
@@ -198,11 +197,9 @@ o_1_space_joining value =
         , benchIO "altBfsUnfoldEach" $ altBfsUnfoldEach 2 (value `div` 2)
         , benchIO "unfoldSched" $ unfoldSched 2 (value `div` 2)
         ]
-    ]
 
 o_n_heap_concat :: Int -> [Benchmark]
 o_n_heap_concat value = sqrtVal `seq`
-    [ bgroup "concat"
         [ benchIO "bfsUnfoldEach (n of 1)" $ bfsUnfoldEach value 1
         , benchIO "bfsUnfoldEach (sqrtVal of sqrtVal)" $ bfsUnfoldEach sqrtVal sqrtVal
         , benchIO "altBfsUnfoldEach (n of 1)" $ altBfsUnfoldEach value 1
@@ -210,7 +207,6 @@ o_n_heap_concat value = sqrtVal `seq`
         , benchIO "unfoldSched (n of 1)" $ unfoldSched value 1
         , benchIO "unfoldSched (sqrtVal of sqrtVal)" $ unfoldSched sqrtVal sqrtVal
         ]
-    ]
 
     where
 
@@ -369,22 +365,20 @@ fairUnfoldSchedInfinite maxVal = withRandomIntIO $ \n ->
 -- Solve simultaneous equations by exploring all possibilities
 o_1_space_equations :: Int -> [Benchmark]
 o_1_space_equations value =
-    [ bgroup "equations"
-        [ benchIO "fairConcatFor (bounded)" $ fairConcatForBounded sqrtVal
-        , benchIO "fairConcatForK (bounded)" $ fairConcatForKBounded sqrtVal
-        , benchIO "fairConcatFor (infinite)" $ fairConcatForInfinite sqrtVal
-        , benchIO "fairSchedFor (bounded)" $ fairSchedForBounded sqrtVal
-        , benchIO "fairSchedFor (infinite)" $ fairSchedForInfinite sqrtVal
-        , benchIO "unfoldCross (bounded)" $ unfoldCrossBounded sqrtVal
-        , benchIO "fairUnfoldCross (bounded)" $ fairUnfoldCrossBounded sqrtVal
-        , benchIO "fairUnfoldCross (infinite)" $ fairUnfoldCrossInfinite sqrtVal
-        , benchIO "fairUnfoldEach (bounded)" $ fairUnfoldEachBounded sqrtVal
-        , benchIO "fairUnfoldEach (infinite)" $ fairUnfoldEachInfinite sqrtVal
-        , benchIO "unfoldSched (bounded)" $ unfoldSchedBounded sqrtVal
-        , benchIO "fairUnfoldSched (bounded)" $ fairUnfoldSchedBounded sqrtVal
-        , benchIO "fairUnfoldSched (infinite)" $ fairUnfoldSchedInfinite sqrtVal
+        [ benchIO "equations/fairConcatFor (bounded)" $ fairConcatForBounded sqrtVal
+        , benchIO "equations/fairConcatForK (bounded)" $ fairConcatForKBounded sqrtVal
+        , benchIO "equations/fairConcatFor (infinite)" $ fairConcatForInfinite sqrtVal
+        , benchIO "equations/fairSchedFor (bounded)" $ fairSchedForBounded sqrtVal
+        , benchIO "equations/fairSchedFor (infinite)" $ fairSchedForInfinite sqrtVal
+        , benchIO "equations/unfoldCross (bounded)" $ unfoldCrossBounded sqrtVal
+        , benchIO "equations/fairUnfoldCross (bounded)" $ fairUnfoldCrossBounded sqrtVal
+        , benchIO "equations/fairUnfoldCross (infinite)" $ fairUnfoldCrossInfinite sqrtVal
+        , benchIO "equations/fairUnfoldEach (bounded)" $ fairUnfoldEachBounded sqrtVal
+        , benchIO "equations/fairUnfoldEach (infinite)" $ fairUnfoldEachInfinite sqrtVal
+        , benchIO "equations/unfoldSched (bounded)" $ unfoldSchedBounded sqrtVal
+        , benchIO "equations/fairUnfoldSched (bounded)" $ fairUnfoldSchedBounded sqrtVal
+        , benchIO "equations/fairUnfoldSched (infinite)" $ fairUnfoldSchedInfinite sqrtVal
         ]
-    ]
 
     where
 

@@ -68,13 +68,11 @@ inspect $ 'splitOnSeqUtf8 `hasNoType` ''SPEC
 
 o_1_space_reduce_toChunks_split :: BenchEnv -> [Benchmark]
 o_1_space_reduce_toChunks_split env =
-    [ bgroup "FileSplitSeqUtf8"
         [ mkBenchSmall "splitOnSeqUtf8 word abcdefgh"
             env $ \inh _ -> splitOnSeqUtf8 "abcdefgh" inh
         , mkBenchSmall "splitOnSeqUtf8 KR abcdefghijklmnopqrstuvwxyz"
             env $ \inh _ -> splitOnSeqUtf8 "abcdefghijklmnopqrstuvwxyz" inh
         ]
-    ]
 
 benchmarks :: BenchEnv -> [(SpaceComplexity, Benchmark)]
 benchmarks env =

@@ -528,55 +528,49 @@ o_1_space_transformations_mixed value =
     -- scanl-map and foldl-map are equivalent to the scan and fold in the foldl
     -- library. If scan/fold followed by a map is efficient enough we may not
     -- need monolithic implementations of these.
-    [ bgroup "mixed"
-        [ benchIO "scanl-map" $ scanMap1 value
-        , benchIO "drop-map" $ dropMap1 value
-        , benchIO "drop-scan" $ dropScan1 value
-        , benchIO "take-drop" $ takeDrop1 value
-        , benchIO "take-scan" $ takeScan1 value
-        , benchIO "take-map" $ takeMap1 value
-        , benchIO "filter-drop" $ filterDrop1 value
-        , benchIO "filter-take" $ filterTake1 value
-        , benchIO "filter-scan" $ filterScan1 value
-        , benchIO "filter-map" $ filterMap1 value
-        , benchIO "foldl-map" $ foldl'ReduceMap value
-        , benchIO "sum-product-fold" $ sumProductFold value
-        , benchIO "sum-product-scan" $ sumProductScan value
-        ]
+    [ benchIO "scanl-map" $ scanMap1 value
+    , benchIO "drop-map" $ dropMap1 value
+    , benchIO "drop-scan" $ dropScan1 value
+    , benchIO "take-drop" $ takeDrop1 value
+    , benchIO "take-scan" $ takeScan1 value
+    , benchIO "take-map" $ takeMap1 value
+    , benchIO "filter-drop" $ filterDrop1 value
+    , benchIO "filter-take" $ filterTake1 value
+    , benchIO "filter-scan" $ filterScan1 value
+    , benchIO "filter-map" $ filterMap1 value
+    , benchIO "foldl-map" $ foldl'ReduceMap value
+    , benchIO "sum-product-fold" $ sumProductFold value
+    , benchIO "sum-product-scan" $ sumProductScan value
     ]
 
 o_1_space_transformations_mixedX2 :: Int -> [Benchmark]
 o_1_space_transformations_mixedX2 value =
-    [ bgroup "mixedX2"
-        [ benchIO "scan-map" $ scanMap2 value
-        , benchIO "drop-map" $ dropMap2 value
-        , benchIO "drop-scan" $ dropScan2 value
-        , benchIO "take-drop" $ takeDrop2 value
-        , benchIO "take-scan" $ takeScan2 value
-        , benchIO "take-map" $ takeMap2 value
-        , benchIO "filter-drop" $ filterDrop2 value
-        , benchIO "filter-take" $ filterTake2 value
-        , benchIO "filter-scan" $ filterScan2 value
-        , benchIO "filter-scanl1" $ filterScanl12 value
-        , benchIO "filter-map" $ filterMap2 value
-        ]
+    [ benchIO "scan-map x 2" $ scanMap2 value
+    , benchIO "drop-map x 2" $ dropMap2 value
+    , benchIO "drop-scan x 2" $ dropScan2 value
+    , benchIO "take-drop x 2" $ takeDrop2 value
+    , benchIO "take-scan x 2" $ takeScan2 value
+    , benchIO "take-map x 2" $ takeMap2 value
+    , benchIO "filter-drop x 2" $ filterDrop2 value
+    , benchIO "filter-take x 2" $ filterTake2 value
+    , benchIO "filter-scan x 2" $ filterScan2 value
+    , benchIO "filter-scanl1 x 2" $ filterScanl12 value
+    , benchIO "filter-map x 2" $ filterMap2 value
     ]
 
 o_1_space_transformations_mixedX4 :: Int -> [Benchmark]
 o_1_space_transformations_mixedX4 value =
-    [ bgroup "mixedX4"
-        [ benchIO "scan-map" $ scanMap4 value
-        , benchIO "drop-map" $ dropMap4 value
-        , benchIO "drop-scan" $ dropScan4 value
-        , benchIO "take-drop" $ takeDrop4 value
-        , benchIO "take-scan" $ takeScan4 value
-        , benchIO "take-map" $ takeMap4 value
-        , benchIO "filter-drop" $ filterDrop4 value
-        , benchIO "filter-take" $ filterTake4 value
-        , benchIO "filter-scan" $ filterScan4 value
-        , benchIO "filter-scanl1" $ filterScanl14 value
-        , benchIO "filter-map" $ filterMap4 value
-        ]
+    [ benchIO "scan-map x 4" $ scanMap4 value
+    , benchIO "drop-map x 4" $ dropMap4 value
+    , benchIO "drop-scan x 4" $ dropScan4 value
+    , benchIO "take-drop x 4" $ takeDrop4 value
+    , benchIO "take-scan x 4" $ takeScan4 value
+    , benchIO "take-map x 4" $ takeMap4 value
+    , benchIO "filter-drop x 4" $ filterDrop4 value
+    , benchIO "filter-take x 4" $ filterTake4 value
+    , benchIO "filter-scan x 4" $ filterScan4 value
+    , benchIO "filter-scanl1 x 4" $ filterScanl14 value
+    , benchIO "filter-map x 4" $ filterMap4 value
     ]
 
 -------------------------------------------------------------------------------
@@ -630,16 +624,14 @@ iterateDropWhileFalse value iterCount =
 
 o_n_stack_iterated :: Int -> [Benchmark]
 o_n_stack_iterated value =
-    [ bgroup "iterated"
-        [ benchIO "mapM (n/10 x 10)" $ iterateMapM value 10
-        , benchIO "scanl' (quadratic) (n/100 x 100)" $ iterateScan value 100
-        , benchIO "scanl1' (n/10 x 10)" $ iterateScanl1 value 10
-        , benchIO "filterEven (n/10 x 10)" $ iterateFilterEven value 10
-        , benchIO "takeAll (n/10 x 10)" $ iterateTakeAll value 10
-        , benchIO "dropOne (n/10 x 10)" $ iterateDropOne value 10
-        , benchIO "dropWhileTrue (n/10 x 10)" $ iterateDropWhileTrue value 10
-        , benchIO "dropWhileFalse (n/10 x 10)" $ iterateDropWhileFalse value 10
-        ]
+    [ benchIO "iterated/mapM (n/10 x 10)" $ iterateMapM value 10
+    , benchIO "iterated/scanl' (quadratic) (n/100 x 100)" $ iterateScan value 100
+    , benchIO "iterated/scanl1' (n/10 x 10)" $ iterateScanl1 value 10
+    , benchIO "iterated/filterEven (n/10 x 10)" $ iterateFilterEven value 10
+    , benchIO "iterated/takeAll (n/10 x 10)" $ iterateTakeAll value 10
+    , benchIO "iterated/dropOne (n/10 x 10)" $ iterateDropOne value 10
+    , benchIO "iterated/dropWhileTrue (n/10 x 10)" $ iterateDropWhileTrue value 10
+    , benchIO "iterated/dropWhileFalse (n/10 x 10)" $ iterateDropWhileFalse value 10
     ]
 
 -------------------------------------------------------------------------------
@@ -758,31 +750,24 @@ inspect $ 'pipeTeeX4 `hasNoType` ''FL.Step
 inspect $ 'pipeTeeX4 `hasNoType` ''SPEC
 #endif
 
+-- XXX these should move to Data.Pipe benchmarks
 o_1_space_pipes :: Int -> [Benchmark]
 o_1_space_pipes value =
-    [ bgroup "pipes"
-        [ benchIO "mapM" $ pipeMapM value
-        , benchIO "compose" $ pipeCompose value
-        , benchIO "tee" $ pipeTee value
-#ifdef DEVBUILD
-        -- XXX this take 1 GB memory to compile
-        -- , benchIO "zip" $ pipeZip value
-#endif
-        ]
+    [ benchIO "pipe/mapM" $ pipeMapM value
+    , benchIO "pipe/compose" $ pipeCompose value
+    , benchIO "pipe/tee" $ pipeTee value
+    -- XXX this take 1 GB memory to compile
+    -- , benchIO "zip" $ pipeZip value
     ]
 
 o_1_space_pipesX4 :: Int -> [Benchmark]
 o_1_space_pipesX4 value =
-    [ bgroup "pipesX4"
-        [ benchIO "mapM" $ pipeMapMX4 value
-        , benchIO "compose" $ pipeComposeX4 value
-        -- XXX requires @-fspec-constr-recursive=16@.
-        , benchIO "tee" $ pipeTeeX4 value
-#ifdef DEVBUILD
-        -- XXX this take 1 GB memory to compile
-        -- , benchIO "zip" $ pipeZipX4 value
-#endif
-        ]
+    [ benchIO "pipe/mapM x 4" $ pipeMapMX4 value
+    , benchIO "pipe/compose x 4" $ pipeComposeX4 value
+    -- XXX requires @-fspec-constr-recursive=16@.
+    , benchIO "pipe/tee x 4" $ pipeTeeX4 value
+    -- XXX this take 1 GB memory to compile
+    -- , benchIO "zip x 4" $ pipeZipX4 value
     ]
 
 -------------------------------------------------------------------------------
@@ -861,22 +846,19 @@ inspect $ 'scansTeeX4 `hasNoType` ''FL.Step
 inspect $ 'scansTeeX4 `hasNoType` ''SPEC
 #endif
 
+-- XXX These should move to the Data.Scan module
 o_1_space_scans :: Int -> [Benchmark]
 o_1_space_scans value =
-    [ bgroup "scans"
-        [ benchIO "mapM" $ scansMapM value
-        , benchIO "compose" $ scansCompose value
-        , benchIO "tee" $ scansTee value
-        ]
+    [ benchIO "scan/mapM" $ scansMapM value
+    , benchIO "scan/compose" $ scansCompose value
+    , benchIO "scan/tee" $ scansTee value
     ]
 
 o_1_space_scansX4 :: Int -> [Benchmark]
 o_1_space_scansX4 value =
-    [ bgroup "scansX4"
-        [ benchIO "mapM" $ scansMapMX4 value
-        , benchIO "compose" $ scansComposeX4 value
-        , benchIO "tee" $ scansTeeX4 value
-        ]
+    [ benchIO "scan/mapM x 4" $ scansMapMX4 value
+    , benchIO "scan/compose x 4" $ scansComposeX4 value
+    , benchIO "scan/tee x 4" $ scansTeeX4 value
     ]
 
 -------------------------------------------------------------------------------
@@ -902,9 +884,7 @@ naivePrimeSieve value =
 
 o_n_space_mapping :: Int -> [Benchmark]
 o_n_space_mapping value =
-    [ bgroup "mapping"
-        [ benchIO "naive prime sieve" $ naivePrimeSieve value
-        ]
+    [ benchIO "naive prime sieve" $ naivePrimeSieve value
     ]
 
 -------------------------------------------------------------------------------
