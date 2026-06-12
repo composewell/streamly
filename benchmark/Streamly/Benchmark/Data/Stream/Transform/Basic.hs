@@ -43,7 +43,7 @@ import qualified Streamly.Internal.Data.Unfold as Unfold
 import Test.Tasty.Bench
 import Stream.Common hiding (scanl', benchIO)
 import Streamly.Benchmark.Common
-import Prelude hiding (sequence, mapM)
+import Prelude hiding (sequence, mapM, reverse)
 
 -------------------------------------------------------------------------------
 -- Helpers
@@ -360,30 +360,6 @@ o_1_space_mappingX4 value =
         , benchIO "postscanlM'" $ postscanlM'4 value
         , benchIO "scan" $ scan4 value
         , benchIO "postscan" $ postscan4 value
-        ]
-    ]
-
-{-# INLINE sieveScan #-}
-sieveScan :: Monad m => Stream m Int -> Stream m Int
-sieveScan =
-      Stream.mapMaybe snd
-    . Stream.scanl (Scanl.scanlM' (\(primes, _) n -> do
-            return $
-                let ps = takeWhile (\p -> p * p <= n) primes
-                 in if all (\p -> n `mod` p /= 0) ps
-                    then (primes ++ [n], Just n)
-                    else (primes, Nothing)) (return ([2], Just 2)))
-
-{-# INLINE naivePrimeSieve #-}
-naivePrimeSieve :: Int -> IO Int
-naivePrimeSieve value =
-    withRandomIntIO $ \n ->
-        Stream.fold FL.sum $ sieveScan $ Stream.enumerateFromTo 2 (value + n)
-
-o_n_space_mapping :: Int -> [Benchmark]
-o_n_space_mapping value =
-    [ bgroup "mapping"
-        [ benchIO "naive prime sieve" $ naivePrimeSieve value
         ]
     ]
 
@@ -1195,6 +1171,40 @@ o_1_space_indexingX4 value =
     ]
 
 -------------------------------------------------------------------------------
+-- Size conserving transformations (reordering, buffering, etc.)
+-------------------------------------------------------------------------------
+
+{-# INLINE reverse #-}
+reverse :: Int -> IO ()
+reverse value = withStream value (composeN 1 Stream.reverse)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'reverse
+inspect $ 'reverse `hasNoType` ''Stream.Step
+inspect $ 'reverse `hasNoType` ''FL.Step
+-- inspect $ 'reverse `hasNoType` ''SPEC
+#endif
+
+{-# INLINE reverse' #-}
+reverse' :: Int -> IO ()
+reverse' value = withStream value (composeN 1 Stream.reverseUnbox)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'reverse'
+-- inspect $ 'reverse' `hasNoType` ''Stream.Step
+#endif
+
+o_n_heap_buffering :: Int -> [Benchmark]
+o_n_heap_buffering value =
+    [ bgroup "buffered"
+        [
+        -- Reversing a stream
+          benchIO "reverse" $ reverse value
+        , benchIO "reverse'" $ reverse' value
+        ]
+    ]
+
+-------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
 
@@ -1213,8 +1223,5 @@ benchmarks size =
         , o_1_space_indexing size
         , o_1_space_indexingX4 size
         ])
-    ++ map (SpaceO_n,) (Prelude.concat
-        [
-          o_n_space_mapping size
-        , o_n_space_iterated size
-        ])
+    ++ map (SpaceO_n,) (o_n_space_iterated size)
+    ++ map (HeapO_n,) (o_n_heap_buffering size)

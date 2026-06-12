@@ -34,10 +34,9 @@ import Streamly.Internal.Data.Stream (Stream)
 import System.Random (randomRIO)
 
 import qualified Stream.Common as Common
-#ifdef INSPECTION
 import qualified Streamly.Internal.Data.Fold as FL
-#endif
 import qualified Streamly.Internal.Data.Pipe as Pipe
+import qualified Streamly.Internal.Data.Scanl as Scanl
 import qualified Streamly.Internal.Data.Scan as Scan
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream as Stream
@@ -45,7 +44,7 @@ import qualified Streamly.Internal.Data.Stream as Stream
 import Test.Tasty.Bench
 import Streamly.Benchmark.Common
 import Stream.Common hiding (benchIO)
-import Prelude hiding (reverse, tail)
+import Prelude hiding (tail)
 
 -- Apply transformation g count times on a stream of length len
 {-# INLINE iterateSource #-}
@@ -74,40 +73,6 @@ withStream value f = withRandomIntIO (f . sourceUnfoldrM value)
 {-# INLINE benchIO #-}
 benchIO :: NFData b => String -> IO b -> Benchmark
 benchIO name = bench name . nfIO
-
--------------------------------------------------------------------------------
--- Size conserving transformations (reordering, buffering, etc.)
--------------------------------------------------------------------------------
-
-{-# INLINE reverse #-}
-reverse :: Int -> IO ()
-reverse value = withStream value (composeN 1 S.reverse)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'reverse
-inspect $ 'reverse `hasNoType` ''S.Step
-inspect $ 'reverse `hasNoType` ''FL.Step
--- inspect $ 'reverse `hasNoType` ''SPEC
-#endif
-
-{-# INLINE reverse' #-}
-reverse' :: Int -> IO ()
-reverse' value = withStream value (composeN 1 S.reverseUnbox)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'reverse'
--- inspect $ 'reverse' `hasNoType` ''S.Step
-#endif
-
-o_n_heap_buffering :: Int -> [Benchmark]
-o_n_heap_buffering value =
-    [ bgroup "buffered"
-        [
-        -- Reversing a stream
-          benchIO "reverse" $ reverse value
-        , benchIO "reverse'" $ reverse' value
-        ]
-    ]
 
 -------------------------------------------------------------------------------
 -- Mixed Transformation
@@ -927,6 +892,34 @@ o_1_space_scansX4 value =
     ]
 
 -------------------------------------------------------------------------------
+-- Composed transformations (scan + mapMaybe)
+-------------------------------------------------------------------------------
+
+{-# INLINE sieveScan #-}
+sieveScan :: Monad m => Stream m Int -> Stream m Int
+sieveScan =
+      Stream.mapMaybe snd
+    . Stream.scanl (Scanl.scanlM' (\(primes, _) n -> do
+            return $
+                let ps = takeWhile (\p -> p * p <= n) primes
+                 in if all (\p -> n `mod` p /= 0) ps
+                    then (primes ++ [n], Just n)
+                    else (primes, Nothing)) (return ([2], Just 2)))
+
+{-# INLINE naivePrimeSieve #-}
+naivePrimeSieve :: Int -> IO Int
+naivePrimeSieve value =
+    withRandomIntIO $ \n ->
+        Stream.fold FL.sum $ sieveScan $ Stream.enumerateFromTo 2 (value + n)
+
+o_n_space_mapping :: Int -> [Benchmark]
+o_n_space_mapping value =
+    [ bgroup "mapping"
+        [ benchIO "naive prime sieve" $ naivePrimeSieve value
+        ]
+    ]
+
+-------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
 
@@ -949,4 +942,4 @@ benchmarks size =
         , o_1_space_scansX4 size
         ])
     ++ map (StackO_n,) (o_n_stack_iterated size)
-    ++ map (HeapO_n,) (o_n_heap_buffering size)
+    ++ map (SpaceO_n,) (o_n_space_mapping size)
