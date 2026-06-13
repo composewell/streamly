@@ -120,7 +120,6 @@ extra-source-files:
     src/inline.hs
     test/Streamly/Test/Control/Exception.hs
     test/Streamly/Test/Data/*.hs
-    test/Streamly/Test/Data/Array/CommonImports.hs
     test/Streamly/Test/Data/Array/Common.hs
     test/Streamly/Test/Data/Array/Generic.hs
     test/Streamly/Test/Data/Array.hs

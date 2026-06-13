@@ -17,14 +17,21 @@ import Foreign.ForeignPtr (newForeignPtr_, withForeignPtr)
 import GHC.Ptr (plusPtr, Ptr(..))
 import Streamly.Internal.Data.MutByteArray (Unbox, sizeOf)
 import Streamly.Internal.Data.MutArray (MutArray)
-import Test.QuickCheck (chooseInt, listOf)
 import System.Mem (performMajorGC)
-import Streamly.Test.Common (performGCSweep)
+import Test.Hspec as H
+import Test.Hspec.QuickCheck
+import Test.QuickCheck (Property, forAll, Gen, vectorOf, arbitrary, choose, chooseInt, listOf)
+import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
+import Streamly.Data.Fold (Fold)
+import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Internal.System.IO (defaultChunkSize)
+import Streamly.Test.Common (listEquals, performGCSweep)
+
+import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.MutArray as MA
-
-#include "Streamly/Test/Data/Array/CommonImports.hs"
+import qualified Streamly.Internal.Data.Stream as S
 
 type Array = A.Array
 
