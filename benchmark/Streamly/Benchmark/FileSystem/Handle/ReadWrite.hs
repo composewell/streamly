@@ -62,12 +62,10 @@ inspect $ 'copyChunks `hasNoType` ''Step
 
 o_1_space_copy_chunked :: BenchEnv -> [Benchmark]
 o_1_space_copy_chunked env =
-    [ bgroup "copy/getChunks"
-        [ mkBench "toNull" env $ \inH _ ->
-            copyChunks inH (nullH env)
-        , mkBench "raw" env $ \inH outH ->
-            copyChunks inH outH
-        ]
+    [ mkBench "toNull" env $ \inH _ ->
+        copyChunks inH (nullH env)
+    , mkBench "raw" env $ \inH outH ->
+        copyChunks inH outH
     ]
 
 -------------------------------------------------------------------------------
@@ -89,12 +87,10 @@ inspect $ 'copyStream `hasNoType` ''Strict.Tuple3' -- FH.write/chunksOf
 
 o_1_space_copy_read :: BenchEnv -> [Benchmark]
 o_1_space_copy_read env =
-    [ bgroup "copy/read"
-        [ mkBench "rawToNull" env $ \inh _ ->
-            copyStream inh (nullH env)
-        , mkBench "rawToFile" env $ \inh outh ->
-            copyStream inh outh
-        ]
+    [ mkBench "rawToNull" env $ \inh _ ->
+        copyStream inh (nullH env)
+    , mkBench "rawToFile" env $ \inh outh ->
+        copyStream inh outh
     ]
 
 -------------------------------------------------------------------------------
@@ -149,12 +145,10 @@ _readChunksWith inh devNull = IUF.fold fld unf (defaultChunkSize, inh)
 
 o_1_space_copy_fromBytes :: BenchEnv -> [Benchmark]
 o_1_space_copy_fromBytes env =
-    [ bgroup "copy/putBytes"
-        [ mkBench "rawToNull" env $ \inh _ ->
-            readFromBytesNull inh (nullH env)
-        , mkBench "FH.readWith" env $ \inh _ ->
-            readWithFromBytesNull inh (nullH env)
-        ]
+    [ mkBench "putBytes rawToNull" env $ \inh _ ->
+        readFromBytesNull inh (nullH env)
+    , mkBench "FH.readWith" env $ \inh _ ->
+        readWithFromBytesNull inh (nullH env)
     ]
 
 -- | Send the file contents ('defaultChunkSize') to /dev/null
@@ -193,12 +187,10 @@ inspect $ 'writeRead `hasNoType` ''MutArray.ArrayUnsafe -- FH.write/writeNUnsafe
 
 o_1_space_copy :: BenchEnv -> [Benchmark]
 o_1_space_copy env =
-    [ bgroup "copy"
-        [ mkBench "FH.write . FH.read" env $ \inh _ ->
-            writeRead inh (nullH env)
-        , mkBench "FH.writeWith . FH.readWith" env $ \inh _ ->
-            writeReadWith inh (nullH env)
-        ]
+    [ mkBench "FH.write . FH.read" env $ \inh _ ->
+        writeRead inh (nullH env)
+    , mkBench "FH.writeWith . FH.readWith" env $ \inh _ ->
+        writeReadWith inh (nullH env)
     ]
 
 -------------------------------------------------------------------------------

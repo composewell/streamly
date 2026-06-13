@@ -73,26 +73,19 @@ createOfLastMax value = withStream value (S.fold (IA.createOfLast (value + 1)))
 
 o_1_space_generation :: Int -> [Benchmark]
 o_1_space_generation value =
-    [ bgroup
-        "generation"
-        [ benchIO "write . intFromTo" $ sourceIntFromToFromStream value
-        , benchIO "read" $ readInstance value
-        ]
+    [ benchIO "write . intFromTo" $ sourceIntFromToFromStream value
+    , benchIO "read" $ readInstance value
     ]
 
 o_1_space_elimination :: Int -> [Benchmark]
 o_1_space_elimination value =
-    [ bgroup "elimination"
-        [ benchIO "createOfLast.1" $ createOfLast1 value
-        , benchIO "createOfLast.10" $ createOfLast10 value
-        ]
-      ]
+    [ benchIO "createOfLast.1" $ createOfLast1 value
+    , benchIO "createOfLast.10" $ createOfLast10 value
+    ]
 
 o_n_heap_serial :: Int -> [Benchmark]
 o_n_heap_serial value =
-    [ bgroup "elimination"
-        [ benchIO "createOfLast.Max" $ createOfLastMax value
-        ]
+    [ benchIO "createOfLast.Max" $ createOfLastMax value
     ]
 
 moduleName :: String

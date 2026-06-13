@@ -637,62 +637,56 @@ o_1_space_reduce_read_split :: BenchEnv -> [(SpaceComplexity, Benchmark)]
 o_1_space_reduce_read_split env =
     -- NOTE: keep the benchmark names consistent with Data.Stream.split*
     fmap (SpaceO_1,)
-    [ bgroup "FileSplitElem"
-        -- Splitting on single element
-        [
-          mkBench "takeEndBy_ infix (splitOn)" env $ \inh _ ->
-            fileInfixTakeEndBy_ inh
-        , mkBench "takeEndBy_ suffix (splitOnSuffix)" env $ \inh _ ->
-            fileSuffixTakeEndBy_ inh
-        , mkBench "takeEndBy_ suffix parseMany (splitOnSuffix)" env
-            $ \inh _ -> parseFileSuffixTakeEndBy_ inh
-        , mkBench "takeEndBy suffix (splitWithSuffix)" env $ \inh _ ->
-            fileSuffixTakeEndBy inh
-        ]
+    -- Splitting on single element
+    [ mkBench "takeEndBy_ infix (splitOn)" env $ \inh _ ->
+        fileInfixTakeEndBy_ inh
+    , mkBench "takeEndBy_ suffix (splitOnSuffix)" env $ \inh _ ->
+        fileSuffixTakeEndBy_ inh
+    , mkBench "takeEndBy_ suffix parseMany (splitOnSuffix)" env
+        $ \inh _ -> parseFileSuffixTakeEndBy_ inh
+    , mkBench "takeEndBy suffix (splitWithSuffix)" env $ \inh _ ->
+        fileSuffixTakeEndBy inh
 
     -- Splitting on sequence
-    , bgroup "FileSplitSeq"
-        [
-          -- Infix takeEndBySeq_
-          mkBench "takeEndBySeq_ infix empty pattern" env $ \inh _ ->
-            splitOnSeq "" inh
-        , mkBench "takeEndBySeq_ infix lf" env $ \inh _ ->
-            splitOnSeq "\n" inh
-        , mkBench "takeEndBySeq_ infix a" env $ \inh _ ->
-            splitOnSeq "a" inh
-        , mkBench "takeEndBySeq_ infix crlf" env $ \inh _ ->
-            splitOnSeq "\r\n" inh
-        , mkBench "takeEndBySeq_ infix aa" env $ \inh _ ->
-            splitOnSeq "aa" inh
-        , mkBench "takeEndBySeq_ infix aaaa" env $ \inh _ ->
-            splitOnSeq "aaaa" inh
-        , mkBench "takeEndBySeq_ infix abcdefgh" env $ \inh _ ->
-            splitOnSeq "abcdefgh" inh
-        , mkBench "takeEndBySeq_ infix abcdefghi" env $ \inh _ ->
-            splitOnSeq "abcdefghi" inh
-        , mkBench "takeEndBySeq_ infix catcatcatcatcat" env $ \inh _ ->
-            splitOnSeq "catcatcatcatcat" inh
-        , mkBench "takeEndBySeq_ infix abcdefghijklmnopqrstuvwxyz"
-            env $ \inh _ -> splitOnSeq "abcdefghijklmnopqrstuvwxyz" inh
-        , mkBench "takeEndBySeq_ infix 100k long pattern"
-            env $ \inh _ -> splitOnSeq100k inh
+    -- Infix takeEndBySeq_
+    , mkBench "takeEndBySeq_ infix empty pattern" env $ \inh _ ->
+        splitOnSeq "" inh
+    , mkBench "takeEndBySeq_ infix lf" env $ \inh _ ->
+        splitOnSeq "\n" inh
+    , mkBench "takeEndBySeq_ infix a" env $ \inh _ ->
+        splitOnSeq "a" inh
+    , mkBench "takeEndBySeq_ infix crlf" env $ \inh _ ->
+        splitOnSeq "\r\n" inh
+    , mkBench "takeEndBySeq_ infix aa" env $ \inh _ ->
+        splitOnSeq "aa" inh
+    , mkBench "takeEndBySeq_ infix aaaa" env $ \inh _ ->
+        splitOnSeq "aaaa" inh
+    , mkBench "takeEndBySeq_ infix abcdefgh" env $ \inh _ ->
+        splitOnSeq "abcdefgh" inh
+    , mkBench "takeEndBySeq_ infix abcdefghi" env $ \inh _ ->
+        splitOnSeq "abcdefghi" inh
+    , mkBench "takeEndBySeq_ infix catcatcatcatcat" env $ \inh _ ->
+        splitOnSeq "catcatcatcatcat" inh
+    , mkBench "takeEndBySeq_ infix abcdefghijklmnopqrstuvwxyz"
+        env $ \inh _ -> splitOnSeq "abcdefghijklmnopqrstuvwxyz" inh
+    , mkBench "takeEndBySeq_ infix 100k long pattern"
+        env $ \inh _ -> splitOnSeq100k inh
 
-          -- Suffix takeEndBySeq_
-        , mkBench "takeEndBySeq_ suffix empty pattern" env $ \inh _ ->
-            splitOnSuffixSeq "" inh
-        , mkBench "takeEndBySeq_ suffix lf" env $ \inh _ ->
-            splitOnSuffixSeq "\n" inh
-        , mkBench "takeEndBySeq_ suffix crlf" env $ \inh _ ->
-            splitOnSuffixSeq "\r\n" inh
-        , mkBenchSmall "takeEndBySeq_ suffix abcdefghijklmnopqrstuvwxyz"
-            env $ \inh _ -> splitOnSuffixSeq "abcdefghijklmnopqrstuvwxyz" inh
+    -- Suffix takeEndBySeq_
+    , mkBench "takeEndBySeq_ suffix empty pattern" env $ \inh _ ->
+        splitOnSuffixSeq "" inh
+    , mkBench "takeEndBySeq_ suffix lf" env $ \inh _ ->
+        splitOnSuffixSeq "\n" inh
+    , mkBench "takeEndBySeq_ suffix crlf" env $ \inh _ ->
+        splitOnSuffixSeq "\r\n" inh
+    , mkBenchSmall "takeEndBySeq_ suffix abcdefghijklmnopqrstuvwxyz"
+        env $ \inh _ -> splitOnSuffixSeq "abcdefghijklmnopqrstuvwxyz" inh
 
-          -- Suffix takeEndBySeq
-        , mkBench "takeEndBySeq suffix crlf" env $ \inh _ ->
-            splitWithSuffixSeq "\r\n" inh
-        , mkBenchSmall "takeEndBySeq suffix abcdefghijklmnopqrstuvwxyz"
-            env $ \inh _ -> splitWithSuffixSeq "abcdefghijklmnopqrstuvwxyz" inh
-        ]
+    -- Suffix takeEndBySeq
+    , mkBench "takeEndBySeq suffix crlf" env $ \inh _ ->
+        splitWithSuffixSeq "\r\n" inh
+    , mkBenchSmall "takeEndBySeq suffix abcdefghijklmnopqrstuvwxyz"
+        env $ \inh _ -> splitWithSuffixSeq "abcdefghijklmnopqrstuvwxyz" inh
     ]
 
 -- | Infix split on a character sequence.
@@ -708,12 +702,10 @@ splitOnSeqUtf8 str inh =
 o_1_space_reduce_toChunks_split :: BenchEnv -> [(SpaceComplexity, Benchmark)]
 o_1_space_reduce_toChunks_split env =
     fmap (SpaceO_1,)
-    [ bgroup "FileSplitSeqUtf8"
-        [ mkBenchSmall "takeEndBySeq_ infix abcdefgh"
-            env $ \inh _ -> splitOnSeqUtf8 "abcdefgh" inh
-        , mkBenchSmall "takeEndBySeq_ infix abcdefghijklmnopqrstuvwxyz"
-            env $ \inh _ -> splitOnSeqUtf8 "abcdefghijklmnopqrstuvwxyz" inh
-        ]
+    [ mkBenchSmall "takeEndBySeq_ infix abcdefgh (Utf8)"
+        env $ \inh _ -> splitOnSeqUtf8 "abcdefgh" inh
+    , mkBenchSmall "takeEndBySeq_ infix abcdefghijklmnopqrstuvwxyz (Utf8)"
+        env $ \inh _ -> splitOnSeqUtf8 "abcdefghijklmnopqrstuvwxyz" inh
     ]
 
 -------------------------------------------------------------------------------
@@ -1066,97 +1058,90 @@ instance NFData a => NFData (Stream Identity a) where
 o_1_space_serial_elimination :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_serial_elimination value =
     fmap (SpaceO_1,)
-    [ bgroup "elimination"
-        [ benchIO "drain" $ drain value
-        , benchIO "drainBy" $ drainBy value
-        , benchIO "drainN" $ drainN value
-        , benchIO "last" $ last value
-        , benchIO "length" $ length value
-        , benchIO "top" $ top value
-        , benchIO "bottom" $ bottom value
-        , benchIO "sum" $ sum value
-        , benchIO "sum (foldMap)" $ foldMapSum value
-        , benchIO "product" $ product value
-        , benchIO "maximumBy" $ maximumBy value
-        , benchIO "maximum" $ maximum value
-        , benchIO "minimumBy" $ minimumBy value
-        , benchIO "minimum" $ minimum value
-        , benchIO "mean" $ mean value
+    [ benchIO "drain" $ drain value
+    , benchIO "drainBy" $ drainBy value
+    , benchIO "drainN" $ drainN value
+    , benchIO "last" $ last value
+    , benchIO "length" $ length value
+    , benchIO "top" $ top value
+    , benchIO "bottom" $ bottom value
+    , benchIO "sum" $ sum value
+    , benchIO "sum (foldMap)" $ foldMapSum value
+    , benchIO "product" $ product value
+    , benchIO "maximumBy" $ maximumBy value
+    , benchIO "maximum" $ maximum value
+    , benchIO "minimumBy" $ minimumBy value
+    , benchIO "minimum" $ minimum value
+    , benchIO "mean" $ mean value
 {-
-        -- These are already benchmarked in streamly-statistics package. If we
-        -- still want to keep these tests here, perhaps we should move them to a
-        -- different module so we can remove -fno-warn-warnings-deprecations.
+    -- These are already benchmarked in streamly-statistics package. If we
+    -- still want to keep these tests here, perhaps we should move them to a
+    -- different module so we can remove -fno-warn-warnings-deprecations.
 
-        , benchIO "variance" $ variance value
-        , benchIO "stdDev" $ stdDev value
+    , benchIO "variance" $ variance value
+    , benchIO "stdDev" $ stdDev value
 -}
-        , benchIO "mconcat" $ mconcat value
-        , benchIO "foldMap" $ foldMap value
-        , benchIO "foldMapM" $ foldMapM value
-        , benchIO "index" $ index value
-        -- , benchIO "head" $ head value
-        , benchIO "find" $ find value
-        , benchIO "lookup" $ lookup value
-        , benchIO "findIndex" $ findIndex value
-        , benchIO "elemIndex" $ elemIndex value
-        -- , benchIO "null" $ null value
-        , benchIO "elem" $ elem value
-        , benchIO "notElem" $ notElem value
-        , benchIO "all" $ all value
-        , benchIO "any" $ any value
-        , benchIO "take" $ take value
-        , benchIO "takeEndBy_" $ takeEndBy_ value
-        , benchIO "and" $ and value
-        , benchIO "or" $ or value
-        ]
+    , benchIO "mconcat" $ mconcat value
+    , benchIO "foldMap" $ foldMap value
+    , benchIO "foldMapM" $ foldMapM value
+    , benchIO "index" $ index value
+    -- , benchIO "head" $ head value
+    , benchIO "find" $ find value
+    , benchIO "lookup" $ lookup value
+    , benchIO "findIndex" $ findIndex value
+    , benchIO "elemIndex" $ elemIndex value
+    -- , benchIO "null" $ null value
+    , benchIO "elem" $ elem value
+    , benchIO "notElem" $ notElem value
+    , benchIO "all" $ all value
+    , benchIO "any" $ any value
+    , benchIO "take" $ take value
+    , benchIO "takeEndBy_" $ takeEndBy_ value
+    , benchIO "and" $ and value
+    , benchIO "or" $ or value
     ]
 
 o_1_space_serial_transformation :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_serial_transformation value =
     fmap (SpaceO_1,)
-    [ bgroup "transformation"
-        [ benchIO "map" $ map value
-        , benchIO "mapMaybe" $ mapMaybe value
-        , benchIO "rsequence" $ rsequence value
-        , benchIO "rmapM" $ rmapM value
-        , benchIO "pipe-mapM" $ pipeMapM value
+    [ benchIO "map" $ map value
+    , benchIO "mapMaybe" $ mapMaybe value
+    , benchIO "rsequence" $ rsequence value
+    , benchIO "rmapM" $ rmapM value
+    , benchIO "pipe-mapM" $ pipeMapM value
 {-
-        , benchIO "fold-runScan" $ foldRunScan value
+    , benchIO "fold-runScan" $ foldRunScan value
 -}
-        , benchIO "fold-scan" $ foldScanl value
-        , benchIO "fold-scanMany" $ foldScanlMany value
-        , benchIO "fold-postscan" $ foldPostscanl value
-        ]
+    , benchIO "fold-scan" $ foldScanl value
+    , benchIO "fold-scanMany" $ foldScanlMany value
+    , benchIO "fold-postscan" $ foldPostscanl value
     ]
 
 o_1_space_serial_composition :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_serial_composition value =
     fmap (SpaceO_1,)
-      [ bgroup
-            "composition"
-            [ benchIO "filter even" $ filter value
-            , benchIO "scanMaybe even" $ scanMaybe value
-            , benchIO "scanMaybe even, odd" $ scanMaybe2 value
-            , benchIO "foldBreak (recursive)" $ foldBreak value
-            , benchIO "splitWith (all, any)" $ splitAllAny value
-            , benchIO "split_ (all, any)" $ split_ value
-            , benchIO "tee (all, any)" $ teeAllAny value
-            , benchIO "many drain (take 1)" $ many value
-            , benchIO "unfoldMany" $ unfoldMany value
-            , benchIO "shortest (sum, length)" $ shortest value
-            , benchIO "longest (sum, length)" $ longest value
-            , benchIO "tee (sum, length)" $ teeSumLength value
-            , benchIO "teeWithFst (sum, length)" $ teeWithFst value
-            , benchIO "teeWithMin (sum, length)" $ teeWithMin value
-            , benchIO "distribute [sum, length]" $ distribute value
-            , benchIO "partition (sum, length)" $ partition value
-            , benchIO "partitionByFstM (sum, length)" $ partitionByFstM value
-            , benchIO "partitionByMinM (sum, length)" $ partitionByMinM value
-            , benchIO "unzip (sum, length)" $ unzip value
-            , benchIO "unzipWithFstM (sum, length)" $ unzipWithFstM value
-            , benchIO "unzipWithMinM (sum, length)" $ unzipWithMinM value
-            ]
-      ]
+    [ benchIO "filter even" $ filter value
+    , benchIO "scanMaybe even" $ scanMaybe value
+    , benchIO "scanMaybe even, odd" $ scanMaybe2 value
+    , benchIO "foldBreak (recursive)" $ foldBreak value
+    , benchIO "splitWith (all, any)" $ splitAllAny value
+    , benchIO "split_ (all, any)" $ split_ value
+    , benchIO "tee (all, any)" $ teeAllAny value
+    , benchIO "many drain (take 1)" $ many value
+    , benchIO "unfoldMany" $ unfoldMany value
+    , benchIO "shortest (sum, length)" $ shortest value
+    , benchIO "longest (sum, length)" $ longest value
+    , benchIO "tee (sum, length)" $ teeSumLength value
+    , benchIO "teeWithFst (sum, length)" $ teeWithFst value
+    , benchIO "teeWithMin (sum, length)" $ teeWithMin value
+    , benchIO "distribute [sum, length]" $ distribute value
+    , benchIO "partition (sum, length)" $ partition value
+    , benchIO "partitionByFstM (sum, length)" $ partitionByFstM value
+    , benchIO "partitionByMinM (sum, length)" $ partitionByMinM value
+    , benchIO "unzip (sum, length)" $ unzip value
+    , benchIO "unzipWithFstM (sum, length)" $ unzipWithFstM value
+    , benchIO "unzipWithMinM (sum, length)" $ unzipWithMinM value
+    ]
 
 o_n_space_serial :: Int -> [(SpaceComplexity, Benchmark)]
 o_n_space_serial value =
@@ -1166,30 +1151,24 @@ o_n_space_serial value =
 o_n_heap_serial :: Int -> [(SpaceComplexity, Benchmark)]
 o_n_heap_serial value =
     fmap (HeapO_n,)
-    [ bgroup "elimination"
-      -- Left folds for building a structure are inherently non-streaming
-      -- as the structure cannot be lazily consumed until fully built.
-            [ benchIO "toList" $ toList value
-            , benchIO "toListRev" $ toListRev value
-            , benchIO "toStream" $ toStream value
-            , benchIO "toStreamRev" $ toStreamRev value
-            , benchIO "nub" $ nub value
-            ]
-    , bgroup "key-value"
-            [ benchIO "demuxToMap (64 buckets) [sum, length]" $ demuxToMap64 value
-            , benchIO "demuxToIntMap (64 buckets) [sum, length]" $ demuxToIntMap64 value
-            , benchIO "demuxToMapIO (64 buckets) [sum, length]" $ demuxToMapIO64 value
-
-            -- classify: immutable
-            , benchIO "toMap (64 buckets) sum" $ toMap64 value
-            , benchIO "toIntMap (64 buckets) sum" $ toIntMap64 value
-
-            -- classify: mutable cells
-            , benchIO "toMapIO (single bucket) sum" $ toMapIO1 value
-            , benchIO "toMapIO (64 buckets) sum" $ toMapIO64 value
-            , benchIO "toMapIO (max buckets) sum" $ toMapIOMax value
-            , benchIO "toIntMapIO (64 buckets) sum" $ toIntMapIO64 value
-            ]
+    -- Left folds for building a structure are inherently non-streaming
+    -- as the structure cannot be lazily consumed until fully built.
+    [ benchIO "toList" $ toList value
+    , benchIO "toListRev" $ toListRev value
+    , benchIO "toStream" $ toStream value
+    , benchIO "toStreamRev" $ toStreamRev value
+    , benchIO "nub" $ nub value
+    , benchIO "demuxToMap (64 buckets) [sum, length]" $ demuxToMap64 value
+    , benchIO "demuxToIntMap (64 buckets) [sum, length]" $ demuxToIntMap64 value
+    , benchIO "demuxToMapIO (64 buckets) [sum, length]" $ demuxToMapIO64 value
+    -- classify: immutable
+    , benchIO "toMap (64 buckets) sum" $ toMap64 value
+    , benchIO "toIntMap (64 buckets) sum" $ toIntMap64 value
+    -- classify: mutable cells
+    , benchIO "toMapIO (single bucket) sum" $ toMapIO1 value
+    , benchIO "toMapIO (64 buckets) sum" $ toMapIO64 value
+    , benchIO "toMapIO (max buckets) sum" $ toMapIOMax value
+    , benchIO "toIntMapIO (64 buckets) sum" $ toIntMapIO64 value
     ]
 
 -------------------------------------------------------------------------------

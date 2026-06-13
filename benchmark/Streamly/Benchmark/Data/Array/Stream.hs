@@ -160,23 +160,21 @@ inspect $ 'toChunksSplitOn `hasNoType` ''Step
 o_1_space_read_chunked :: BenchEnv -> [Benchmark]
 o_1_space_read_chunked env =
     -- read using toChunks instead of read
-    [ bgroup "reduce/toChunks"
-        [ mkBench "Stream.last" env $ \inH _ ->
-            toChunksLast inH
-        -- Note: this cannot be fairly compared with GNU wc -c or wc -m as
-        -- wc uses lseek to just determine the file size rather than reading
-        -- and counting characters.
-        , mkBench "Stream.sum . Stream.map Array.length" env $ \inH _ ->
-            toChunksSumLengths inH
-        , mkBench "splitOnSuffix" env $ \inH _ ->
-            toChunksSplitOnSuffix inH
-        , mkBench "splitOn" env $ \inH _ ->
-            toChunksSplitOn inH
-        , mkBench "countBytes" env $ \inH _ ->
-            toChunksCountBytes inH
-        , mkBenchSmall "decodeUtf8Arrays" env $ \inH _ ->
-            toChunksDecodeUtf8Arrays inH
-        ]
+    [ mkBench "Stream.last" env $ \inH _ ->
+        toChunksLast inH
+    -- Note: this cannot be fairly compared with GNU wc -c or wc -m as
+    -- wc uses lseek to just determine the file size rather than reading
+    -- and counting characters.
+    , mkBench "Stream.sum . Stream.map Array.length" env $ \inH _ ->
+        toChunksSumLengths inH
+    , mkBench "splitOnSuffix" env $ \inH _ ->
+        toChunksSplitOnSuffix inH
+    , mkBench "splitOn" env $ \inH _ ->
+        toChunksSplitOn inH
+    , mkBench "countBytes" env $ \inH _ ->
+        toChunksCountBytes inH
+    , mkBenchSmall "decodeUtf8Arrays" env $ \inH _ ->
+        toChunksDecodeUtf8Arrays inH
     ]
 
 -------------------------------------------------------------------------------
@@ -213,12 +211,10 @@ inspect $ 'copyChunksSplitInterpose `hasNoType` ''Step
 
 o_1_space_copy_toChunks_group_ungroup :: BenchEnv -> [Benchmark]
 o_1_space_copy_toChunks_group_ungroup env =
-    [ bgroup "copy/toChunks/group-ungroup"
-        [ mkBench "interposeSuffix . splitOnSuffix" env $ \inh outh ->
-            copyChunksSplitInterposeSuffix inh outh
-        , mkBenchSmall "interpose . splitOn" env $ \inh outh ->
-            copyChunksSplitInterpose inh outh
-        ]
+    [ mkBench "interposeSuffix . splitOnSuffix" env $ \inh outh ->
+        copyChunksSplitInterposeSuffix inh outh
+    , mkBenchSmall "interpose . splitOn" env $ \inh outh ->
+        copyChunksSplitInterpose inh outh
     ]
 
 -------------------------------------------------------------------------------

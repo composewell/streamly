@@ -30,12 +30,10 @@ readWriteBracketUnfold inh devNull =
 
 o_1_space_copy_read_exceptions :: BenchEnv -> [Benchmark]
 o_1_space_copy_read_exceptions env =
-    [ bgroup "exceptions"
-       [ mkBenchSmall "UF.finally" env $ \inh _ ->
-           readWriteFinallyUnfold inh (nullH env)
-       , mkBenchSmall "UF.bracket" env $ \inh _ ->
-           readWriteBracketUnfold inh (nullH env)
-        ]
+    [ mkBenchSmall "UF.finally" env $ \inh _ ->
+        readWriteFinallyUnfold inh (nullH env)
+    , mkBenchSmall "UF.bracket" env $ \inh _ ->
+        readWriteBracketUnfold inh (nullH env)
     ]
 
 moduleName :: String

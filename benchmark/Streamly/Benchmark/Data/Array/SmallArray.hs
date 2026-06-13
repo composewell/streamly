@@ -51,10 +51,7 @@ foldableSum = P.sum
 
 o_1_space_generation :: Int -> [Benchmark]
 o_1_space_generation value =
-    [ bgroup
-        "generation"
-        [ benchIO "read" $ readInstance value
-        ]
+    [ benchIO "read" $ readInstance value
     ]
 
 {-

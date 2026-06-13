@@ -216,52 +216,41 @@ writeN value = withStream value (Stream.fold (MArray.createOf value))
 
 o_1_space_generation :: Int -> [Benchmark]
 o_1_space_generation value =
-    [ bgroup
-        "generation"
-        [ benchIO "createOf . intFromTo" $ sourceIntFromTo value
-        , benchIO "fromList . intFromTo" $ sourceIntFromToFromList value
-        , benchIO "createOf . unfoldr" $ sourceUnfoldr value
-        , benchIO "createOf . fromList" $ sourceFromList value
-        , benchIO "write . intFromTo" $ sourceIntFromToFromStream value
-        ]
+    [ benchIO "createOf . intFromTo" $ sourceIntFromTo value
+    , benchIO "fromList . intFromTo" $ sourceIntFromToFromList value
+    , benchIO "createOf . unfoldr" $ sourceUnfoldr value
+    , benchIO "createOf . fromList" $ sourceFromList value
+    , benchIO "write . intFromTo" $ sourceIntFromToFromStream value
     ]
 
 o_1_space_elimination :: Int -> [Benchmark]
 o_1_space_elimination value =
-    [ bgroup "elimination"
-        [ benchIO "id" $ idArr value
-        , benchIO "foldl'" $ unfoldFold value
-        , benchIO "read" $ unfoldReadDrain value
-        , benchIO "readRev" $ unfoldReadRevDrain value
-        , benchIO "toStream" $ toStreamDDrain value
-        , benchIO "toStreamRev" $ toStreamDRevDrain value
-        ]
-      ]
+    [ benchIO "id" $ idArr value
+    , benchIO "foldl'" $ unfoldFold value
+    , benchIO "read" $ unfoldReadDrain value
+    , benchIO "readRev" $ unfoldReadRevDrain value
+    , benchIO "toStream" $ toStreamDDrain value
+    , benchIO "toStreamRev" $ toStreamDRevDrain value
+    ]
 
 o_n_heap_serial :: Int -> [Benchmark]
 o_n_heap_serial value =
-    [ bgroup "elimination"
-        [ benchIO "createOf" $ writeN value
-        ]
+    [ benchIO "createOf" $ writeN value
     ]
 
 o_1_space_transformation :: Int -> [Benchmark]
 o_1_space_transformation value =
-   [ bgroup "transformation"
-        [ benchIO "scanl'" $ scanl' value
-        , benchIO "scanl1'" $ scanl1' value
-        , benchIO "map" $ map value
-        ]
-   ]
+    [ benchIO "scanl'" $ scanl' value
+    , benchIO "scanl1'" $ scanl1' value
+    , benchIO "map" $ map value
+    ]
 
 o_1_space_transformationX4 :: Int -> [Benchmark]
 o_1_space_transformationX4 value =
-    [ bgroup "transformationX4"
-        [ benchIO "scanl'" $ scanl'X4 value
-        , benchIO "scanl1'" $ scanl1'X4 value
-        , benchIO "map" $ mapX4 value
-        ]
-      ]
+    [ benchIO "scanl'X4" $ scanl'X4 value
+    , benchIO "scanl1'X4" $ scanl1'X4 value
+    , benchIO "mapX4" $ mapX4 value
+    ]
 
 o_1_space_serial_marray ::
     Int -> (MutArray Int, Array.Array Int) -> [Benchmark]

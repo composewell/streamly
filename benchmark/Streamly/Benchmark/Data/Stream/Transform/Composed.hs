@@ -806,6 +806,7 @@ benchmarks size =
     , (StackO_n, benchIO "iterated/takeAll (n/10 x 10)" $ iterateTakeAll size 10)
     , (StackO_n, benchIO "iterated/dropOne (n/10 x 10)" $ iterateDropOne size 10)
     , (StackO_n, benchIO "iterated/dropWhileTrue (n/10 x 10)" $ iterateDropWhileTrue size 10)
-    , (StackO_n, benchIO "iterated/dropWhileFalse (n/10 x 10)" $ iterateDropWhileFalse size 10)
+    -- XXX tasty-bench hangs on this sometimes
+    -- , (StackO_n, benchIO "iterated/dropWhileFalse (n/10 x 10)" $ iterateDropWhileFalse size 10)
     , (SpaceO_n, benchIO "naive prime sieve" $ naivePrimeSieve size)
     ]

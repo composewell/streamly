@@ -111,21 +111,17 @@ instance NFData a => NFData (Stream Identity a) where
 
 o_n_heap_serial :: Int -> [(SpaceComplexity, Benchmark)]
 o_n_heap_serial value =
-    [ (HeapO_n, bgroup "key-value"
-            [
-              benchIOSink value "demuxToHashMap (64 buckets) [sum, length]"
-                $ demuxToHashMap (getKey 64) (getFold . getKey 64)
-            , benchIOSink value "demuxToHashMapIO (64 buckets) [sum, length]"
-                $ demuxToHashMapIO (getKey 64) (getFold . getKey 64)
-
-            -- classify: mutable cells
-            , benchIOSink value "toHashMapIO (single bucket) sum"
-                $ toHashMapIO (getKey 1)
-            , benchIOSink value "toHashMapIO (64 buckets) sum"
-                $ toHashMapIO (getKey 64)
-            , benchIOSink value "toHashMapIO (max buckets) sum"
-                $ toHashMapIO (getKey value)
-            ])
+    [ (HeapO_n, benchIOSink value "demuxToHashMap (64 buckets) [sum, length]"
+        $ demuxToHashMap (getKey 64) (getFold . getKey 64))
+    , (HeapO_n, benchIOSink value "demuxToHashMapIO (64 buckets) [sum, length]"
+        $ demuxToHashMapIO (getKey 64) (getFold . getKey 64))
+    -- classify: mutable cells
+    , (HeapO_n, benchIOSink value "toHashMapIO (single bucket) sum"
+        $ toHashMapIO (getKey 1))
+    , (HeapO_n, benchIOSink value "toHashMapIO (64 buckets) sum"
+        $ toHashMapIO (getKey 64))
+    , (HeapO_n, benchIOSink value "toHashMapIO (max buckets) sum"
+        $ toHashMapIO (getKey value))
     ]
 
     where
