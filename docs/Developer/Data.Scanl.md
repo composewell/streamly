@@ -2,7 +2,7 @@
 
 See the state machines doc.
 
-# Transition Functions
+# Transducer Functions
 
 The simplest transducer is a Mealy style scan without a terminal state
 emission or we can say Moore without an initial state emission:
@@ -12,24 +12,45 @@ transduce :: (s -> a -> m (s, b)) -> m s -> Stream m a -> Stream m b
 
 With termination and output filtering support:
 ```
-data Outcome s b = Yield b s | Skip s | Stop
-data Transition s a m b = Transition (s -> a -> m (Outcome s b))
--- instance MonadTrans (Transition s a)
+-- There are overall 5 outcomes,
+-- [Skip input, ask input] x [Skip output, yield output] and Stop.
+-- We can either use flat constructors or nested -- which is better for fusion?
+-- Flat is better if the code does not fuse, one less indirection.
+-- data Outcome s b = SkipInput (Maybe b) s | AskInput (Maybe b) s | Stop
+data Outcome s b = Both b s | Out b s| In s | None s | Stop
+-- Both => YieldAndAsk, out => Yield, In => Ask, None => Skip
+data Transducer s a m b =
+    Transducer
+        (s -> a -> m (Outcome s b)) -- AskInput continuation
+        (s -> m (Outcome s b)) -- SkipInput continuation
+-- instance MonadTrans (Transducer s a)
 ```
 
-We should have both SkipInput and SkipOutout. Alternatively it can be supported
-by Maybe type input and output. The catMaybes can be used to strip the Maybe to
-get a normal type on the surface.
+By removing input skip we can have a 3 constructor type and similarly by
+removing output skip. We can possibly use these simpler types and lift them to
+the more complex type using an adaptor. Similar we can have an even simpler
+type by removing both input and output skip -- this is our current Fold/Scanl
+type. Simpler types can be automatically converted to more complex types, but
+vice-versa cannot be done as that will lose information. Thus we need to use
+the more complex type only if required.
+
+We can make the type simpler by using a "Maybe b" output type and a "Maybe a"
+input type always. But that means all streams will have a Maybe output and all
+consumers will have a Maybe input which is not very ergonomic. The abstraction
+is supposed to hide this complexity.
 
 Should we name the result on the function e.g. TransitionResult, ProducerResult
-etc?
+etc for distinct outcome types?
+
+Since we have Producer and Consumer as special cases of this, the name
+Transducer makes better sense than Transition.
 
 ## OpenScan (Simplest Transducer)
 
 Reification of the above transduce function as a data type with termination
 support and open injectable state.
 ```
-data OpenScan m c a b = forall s. OpenScan (Transition s a m b) (c -> m s)
+data OpenScan m c a b = forall s. OpenScan (Transducer s a m b) (c -> m s)
 ```
 
 Equivalently instead of using the Skip constructor we can use a `Maybe b` type
@@ -43,7 +64,7 @@ Injection is monadic to keep lmapM fusible. See Stream docs for details.
 
 Scan is a OpenScan with a closed state:
 ```
-data Scan m a b = forall s. Scan (Transition s a m b) s
+data Scan m a b = forall s. Scan (Transducer s a m b) s
 newtype ScanT a m b = ScanT (Scan m a b)
 ```
 
