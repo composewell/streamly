@@ -109,7 +109,6 @@ unCross = Stream.unNested
 -- fromList
 -------------------------------------------------------------------------------
 
-{-# INLINE sourceFromList #-}
 sourceFromList :: Int -> IO ()
 sourceFromList value = withDrain $ \n -> Stream.fromList [n..n+value]
 
@@ -124,7 +123,6 @@ inspect $ 'sourceFromList `hasNoType` ''SPEC
 -- elements we generate value/2 tuples and reduce each tuple's 'fromTuple'
 -- stream with a light 'sum' fold (avoiding a heavy, non-fusible 'concatMap'
 -- that would mask the cost of 'fromTuple').
-{-# INLINE sourceFromTuple #-}
 sourceFromTuple :: Int -> IO ()
 sourceFromTuple value = withDrain $ \n ->
     Stream.mapM (Stream.fold Fold.sum . Stream.fromTuple)
@@ -138,7 +136,6 @@ inspect $ 'sourceFromTuple `hasNoType` ''Fold.Step
 inspect $ 'sourceFromTuple `hasNoType` ''SPEC
 #endif
 
-{-# INLINE sourceIsList #-}
 sourceIsList :: Int -> IO ()
 sourceIsList value = withDrainPure $ \n -> GHC.fromList [n..n+value]
 
@@ -149,7 +146,6 @@ inspect $ 'sourceIsList `hasNoType` ''Fold.Step
 inspect $ 'sourceIsList `hasNoType` ''SPEC
 #endif
 
-{-# INLINE sourceIsString #-}
 sourceIsString :: Int -> IO ()
 sourceIsString value = withDrainPure $ \n ->
     GHC.fromString (Prelude.replicate (n + value) 'a')
@@ -450,7 +446,6 @@ _foldableMsum value n =
 -- Show instance
 -------------------------------------------------------------------------------
 
-{-# INLINE showInstance #-}
 showInstance :: Int -> IO String
 showInstance value = withPureStream value show
 
@@ -462,7 +457,6 @@ showInstanceList = show
 -- Eq and Ord instances
 -------------------------------------------------------------------------------
 
-{-# INLINE eqInstance #-}
 eqInstance :: Int -> IO Bool
 eqInstance value = withPureStream value $ \src -> src == src
 
@@ -473,7 +467,6 @@ inspect $ 'eqInstance `hasNoType` ''Fold.Step
 inspect $ 'eqInstance `hasNoType` ''SPEC
 #endif
 
-{-# INLINE eqInstanceNotEq #-}
 eqInstanceNotEq :: Int -> IO Bool
 eqInstanceNotEq value = withPureStream value $ \src -> src /= src
 
@@ -484,7 +477,6 @@ inspect $ 'eqInstanceNotEq `hasNoType` ''Fold.Step
 inspect $ 'eqInstanceNotEq `hasNoType` ''SPEC
 #endif
 
-{-# INLINE ordInstance #-}
 ordInstance :: Int -> IO Bool
 ordInstance value = withPureStream value $ \src -> src < src
 
@@ -499,7 +491,6 @@ inspect $ 'ordInstance `hasNoType` ''SPEC
 -- Reductions
 -------------------------------------------------------------------------------
 
-{-# INLINE uncons #-}
 uncons :: Int -> IO ()
 uncons value = withStream value go
 
@@ -518,7 +509,6 @@ inspect $ 'uncons `hasNoType` ''Fold.Step
 inspect $ 'uncons `hasNoType` ''SPEC
 #endif
 
-{-# INLINE foldBreak #-}
 foldBreak :: Int -> IO ()
 foldBreak value = withStream value go
 
@@ -535,7 +525,6 @@ inspect $ 'foldBreak `hasNoType` ''Fold.Step
 inspect $ 'foldBreak `hasNoType` ''SPEC
 #endif
 
-{-# INLINE foldrMElem #-}
 foldrMElem :: Int -> IO Bool
 foldrMElem value =
     withStream value
@@ -550,7 +539,6 @@ inspect $ 'foldrMElem `hasNoType` ''Fold.Step
 inspect $ 'foldrMElem `hasNoType` ''SPEC
 #endif
 
-{-# INLINE foldrMElemIdentity #-}
 foldrMElemIdentity :: Int -> IO Bool
 foldrMElemIdentity value =
     withPureStream value $
@@ -565,18 +553,15 @@ inspect $ 'foldrMElemIdentity `hasNoType` ''Fold.Step
 inspect $ 'foldrMElemIdentity `hasNoType` ''SPEC
 #endif
 
-{-# INLINE foldrMToList #-}
 foldrMToList :: Int -> IO [Int]
 foldrMToList value =
     withStream value $ S.foldrM (\x xs -> (x :) <$> xs) (return [])
 
-{-# INLINE foldrMToListIdentity #-}
 foldrMToListIdentity :: Int -> IO [Int]
 foldrMToListIdentity value =
     withPureStream value
         (runIdentity . S.foldrM (\x xs -> (x :) <$> xs) (return []))
 
-{-# INLINE foldl'Reduce #-}
 foldl'Reduce :: Int -> IO Int
 foldl'Reduce value = withStream value (S.foldl' (+) 0)
 
@@ -585,7 +570,6 @@ inspect $ hasNoTypeClasses 'foldl'Reduce
 inspect $ 'foldl'Reduce `hasNoType` ''S.Step
 #endif
 
-{-# INLINE foldl'ReduceIdentity #-}
 foldl'ReduceIdentity :: Int -> IO Int
 foldl'ReduceIdentity value =
     withPureStream value $ runIdentity . S.foldl' (+) 0
@@ -595,7 +579,6 @@ inspect $ hasNoTypeClasses 'foldl'ReduceIdentity
 inspect $ 'foldl'ReduceIdentity `hasNoType` ''S.Step
 #endif
 
-{-# INLINE foldlM'Reduce #-}
 foldlM'Reduce :: Int -> IO Int
 foldlM'Reduce value =
     withStream value (S.foldlM' (\xs a -> return $ a + xs) (return 0))
@@ -605,7 +588,6 @@ inspect $ hasNoTypeClasses 'foldlM'Reduce
 inspect $ 'foldlM'Reduce `hasNoType` ''S.Step
 #endif
 
-{-# INLINE foldlM'ReduceIdentity #-}
 foldlM'ReduceIdentity :: Int -> IO Int
 foldlM'ReduceIdentity value =
     withPureStream value $
@@ -616,7 +598,6 @@ inspect $ hasNoTypeClasses 'foldlM'ReduceIdentity
 inspect $ 'foldlM'ReduceIdentity `hasNoType` ''S.Step
 #endif
 
-{-# INLINE toNull #-}
 toNull :: Int -> IO ()
 toNull value = withStream value S.drain
 
@@ -627,11 +608,9 @@ inspect $ 'toNull `hasNoType` ''Fold.Step
 inspect $ 'toNull `hasNoType` ''SPEC
 #endif
 
-{-# INLINE drainPure #-}
 drainPure :: Int -> IO ()
 drainPure value = withPureStream value $ runIdentity . drain
 
-{-# INLINE drainN #-}
 drainN :: Int -> IO ()
 drainN value = withStream value (S.fold (Fold.drainN value))
 
@@ -642,42 +621,34 @@ inspect $ 'drainN `hasNoType` ''Fold.Step
 inspect $ 'drainN `hasNoType` ''SPEC
 #endif
 
-{-# INLINE foldl'Build #-}
 foldl'Build :: Int -> IO [Int]
 foldl'Build value = withStream value (S.foldl' (flip (:)) [])
 
-{-# INLINE foldl'BuildIdentity #-}
 foldl'BuildIdentity :: Int -> IO [Int]
 foldl'BuildIdentity value =
     withPureStream value (runIdentity . S.foldl' (flip (:)) [])
 
-{-# INLINE foldlM'Build #-}
 foldlM'Build :: Int -> IO [Int]
 foldlM'Build value =
     withStream value (S.foldlM' (\xs x -> return $ x : xs) (return []))
 
-{-# INLINE foldlM'BuildIdentity #-}
 foldlM'BuildIdentity :: Int -> IO [Int]
 foldlM'BuildIdentity value =
     withPureStream value
         (runIdentity . S.foldlM' (\xs x -> return $ x : xs) (return []))
 
-{-# INLINE foldrMToSum #-}
 foldrMToSum :: Int -> IO Int
 foldrMToSum value =
     withStream value (S.foldrM (\x xs -> (x +) <$> xs) (return 0))
 
-{-# INLINE foldrMToSumIdentity #-}
 foldrMToSumIdentity :: Int -> IO Int
 foldrMToSumIdentity value =
     withPureStream value
         (runIdentity . S.foldrM (\x xs -> (x +) <$> xs) (return 0))
 
-{-# INLINE toList' #-}
 toList' :: Int -> IO [Int]
 toList' value = withStream value S.toList
 
-{-# INLINE eqByPure #-}
 eqByPure :: Int -> IO Bool
 eqByPure value =
     withPureStream value $ \src -> runIdentity $ S.eqBy (==) src src
@@ -689,7 +660,6 @@ inspect $ 'eqByPure `hasNoType` ''S.Step
 inspect $ 'eqByPure `hasNoType` ''Fold.Step
 #endif
 
-{-# INLINE cmpByPure #-}
 cmpByPure :: Int -> IO Ordering
 cmpByPure value =
     withPureStream value $ \src -> runIdentity $ S.cmpBy compare src src
@@ -701,7 +671,6 @@ inspect $ 'cmpByPure `hasNoType` ''S.Step
 inspect $ 'cmpByPure `hasNoType` ''Fold.Step
 #endif
 
-{-# INLINE eqBy #-}
 eqBy :: Int -> IO Bool
 eqBy value = withStream value $ \src -> S.eqBy (==) src src
 
@@ -712,7 +681,6 @@ inspect $ 'eqBy `hasNoType` ''S.Step
 inspect $ 'eqBy `hasNoType` ''Fold.Step
 #endif
 
-{-# INLINE cmpBy #-}
 cmpBy :: Int -> IO Ordering
 cmpBy value = withStream value $ \src -> S.cmpBy compare src src
 
@@ -735,7 +703,6 @@ mapN n = composeN n $ fmap (+ 1)
 mapM :: MonadAsync m => Int -> Stream m Int -> m ()
 mapM n = composeN n $ Stream.mapM return
 
-{-# INLINE map1 #-}
 map1 :: Int -> IO ()
 map1 value = withStream value (mapN 1)
 
@@ -746,7 +713,6 @@ inspect $ 'map1 `hasNoType` ''FL.Step
 inspect $ 'map1 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE mapM1 #-}
 mapM1 :: Int -> IO ()
 mapM1 value = withStream value (mapM 1)
 
@@ -757,7 +723,6 @@ inspect $ 'mapM1 `hasNoType` ''FL.Step
 inspect $ 'mapM1 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE mapN4 #-}
 mapN4 :: Int -> IO ()
 mapN4 value = withStream value (mapN 4)
 
@@ -768,7 +733,6 @@ inspect $ 'mapN4 `hasNoType` ''FL.Step
 inspect $ 'mapN4 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE mapM4 #-}
 mapM4 :: Int -> IO ()
 mapM4 value = withStream value (mapM 4)
 
@@ -791,7 +755,6 @@ _takeOne n = composeN n $ Stream.take 1
 takeAll :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 takeAll value n = composeN n $ Stream.take (value + 1)
 
-{-# INLINE takeAll1 #-}
 takeAll1 :: Int -> IO ()
 takeAll1 value = withStream value (takeAll value 1)
 
@@ -802,7 +765,6 @@ inspect $ 'takeAll1 `hasNoType` ''FL.Step
 inspect $ 'takeAll1 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE takeAll4 #-}
 takeAll4 :: Int -> IO ()
 takeAll4 value = withStream value (takeAll value 4)
 
@@ -817,7 +779,6 @@ inspect $ 'takeAll4 `hasNoType` ''SPEC
 takeWhileTrue :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 takeWhileTrue value n = composeN n $ Stream.takeWhile (<= (value + 1))
 
-{-# INLINE takeWhileTrue1 #-}
 takeWhileTrue1 :: Int -> IO ()
 takeWhileTrue1 value = withStream value (takeWhileTrue value 1)
 
@@ -828,7 +789,6 @@ inspect $ 'takeWhileTrue1 `hasNoType` ''FL.Step
 inspect $ 'takeWhileTrue1 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE takeWhileTrue4 #-}
 takeWhileTrue4 :: Int -> IO ()
 takeWhileTrue4 value = withStream value (takeWhileTrue value 4)
 
@@ -843,7 +803,6 @@ inspect $ 'takeWhileTrue4 `hasNoType` ''SPEC
 takeWhileMTrue :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 takeWhileMTrue value n = composeN n $ Stream.takeWhileM (return . (<= (value + 1)))
 
-{-# INLINE takeWhileMTrue4 #-}
 takeWhileMTrue4 :: Int -> IO ()
 takeWhileMTrue4 value = withStream value (takeWhileMTrue value 4)
 
@@ -862,7 +821,6 @@ inspect $ 'takeWhileMTrue4 `hasNoType` ''SPEC
 -- Appending
 -------------------------------------------------------------------------------
 
-{-# INLINE serial2 #-}
 serial2 :: Int -> IO ()
 serial2 count = withRandomIntIO $ \n ->
     drain $
@@ -878,7 +836,6 @@ inspect $ 'serial2 `hasNoType` ''S.Step
 inspect $ 'serial2 `hasNoType` ''Fold.Step
 #endif
 
-{-# INLINE serial4 #-}
 serial4 :: Int -> IO ()
 serial4 count = withRandomIntIO $ \n ->
     drain $
@@ -902,7 +859,6 @@ inspect $ 'serial4 `hasNoType` ''Fold.Step
 -- Zipping
 -------------------------------------------------------------------------------
 
-{-# INLINE zipWith #-}
 zipWith :: Int -> IO ()
 zipWith value = withRandomIntIO $ \n ->
     let src = sourceUnfoldrM value n
@@ -914,7 +870,6 @@ inspect $ 'zipWith `hasNoType` ''SPEC
 inspect $ 'zipWith `hasNoType` ''Fold.Step
 #endif
 
-{-# INLINE zipWithM #-}
 zipWithM :: Int -> IO ()
 zipWithM value = withRandomIntIO $ \n ->
     let src = sourceUnfoldrM value n
@@ -940,7 +895,6 @@ sourceConcatMapStreams :: Monad m => Int -> Int -> Int -> Stream m (Stream m Int
 sourceConcatMapStreams outer inner start =
     fmap (sourceUnfoldr inner) $ sourceUnfoldr outer start
 
-{-# INLINE concatMap #-}
 concatMap :: Int -> Int -> IO ()
 concatMap outer inner = withRandomIntIO $ \n ->
     drain $ S.concatMap
@@ -954,7 +908,6 @@ inspect $ 'concatMap `hasNoType` ''SPEC
 inspect $ 'concatMap `hasNoType` ''Fold.Step
 #endif
 
-{-# INLINE concatMapM2 #-}
 concatMapM2 :: Int -> IO ()
 concatMapM2 value = withStream value $ \s ->
     drain $ do
@@ -962,7 +915,6 @@ concatMapM2 value = withStream value $ \s ->
             pure $ Stream.concatMapM (\y ->
                 pure $ Stream.fromPure $ x + y) s) s
 
-{-# INLINE concatMapM3 #-}
 concatMapM3 :: Int -> IO ()
 concatMapM3 value = withStream value $ \s ->
     drain $ do
@@ -971,7 +923,6 @@ concatMapM3 value = withStream value $ \s ->
                 pure $ Stream.concatMapM (\z ->
                     pure $ Stream.fromPure $ x + y + z) s) s) s
 
-{-# INLINE concatMapViaUnfoldEach #-}
 concatMapViaUnfoldEach :: Int -> Int -> IO ()
 concatMapViaUnfoldEach outer inner = withRandomIntIO $ \n ->
     drain $ cmap
@@ -982,7 +933,6 @@ concatMapViaUnfoldEach outer inner = withRandomIntIO $ \n ->
 
     cmap f = Stream.unfoldEach (UF.lmap f UF.fromStream)
 
-{-# INLINE concatMapM #-}
 concatMapM :: Int -> Int -> IO ()
 concatMapM outer inner = withRandomIntIO $ \n ->
     drain $ S.concatMapM
@@ -991,19 +941,16 @@ concatMapM outer inner = withRandomIntIO $ \n ->
 
 -- concatMap Streams
 
-{-# INLINE concatMapSingletonStreams #-}
 concatMapSingletonStreams :: Int -> IO ()
 concatMapSingletonStreams value =
     withRandomIntIO (drain . S.concatMap id . sourceConcatMapSingletonStreams value)
 
-{-# INLINE concatMapStreams #-}
 concatMapStreams :: Int -> Int -> IO ()
 concatMapStreams outer inner =
     withRandomIntIO (S.drain . S.concatMap id . sourceConcatMapStreams outer inner)
 
 -- concatMap unfoldr/unfoldr
 
-{-# INLINE concatMapPure #-}
 concatMapPure :: Int -> Int -> IO ()
 concatMapPure outer inner = withRandomIntIO $ \n ->
     drain $ S.concatMap
@@ -1033,7 +980,6 @@ sourceUnfoldrMUnfold size start = UF.unfoldrM step
               then Just (i, i + 1)
               else Nothing
 
-{-# INLINE unfoldEach #-}
 unfoldEach :: Int -> Int -> IO ()
 unfoldEach outer inner = withRandomIntIO $ \start -> drain $
      S.unfoldEach (sourceUnfoldrMUnfold inner start)
@@ -1047,7 +993,6 @@ inspect $ 'unfoldEach `hasNoType` ''S.Step
 inspect $ 'unfoldEach `hasNoType` ''Fold.Step
 #endif
 
-{-# INLINE unfoldEach2 #-}
 unfoldEach2 :: Int -> Int -> IO ()
 unfoldEach2 outer inner = withRandomIntIO $ \start -> drain $
      S.unfoldEach (UF.carryInput (sourceUnfoldrMUnfold inner start))
@@ -1061,7 +1006,6 @@ inspect $ 'unfoldEach2 `hasNoType` ''Fold.Step
 inspect $ 'unfoldEach2 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE unfoldEach3 #-}
 unfoldEach3 :: Int -> IO ()
 unfoldEach3 linearCount = withRandomIntIO $ \start -> drain $ do
     S.unfoldEach (UF.carryInput (UF.lmap snd (sourceUnfoldrMUnfold nestedCount3 start)))
@@ -1079,7 +1023,6 @@ inspect $ 'unfoldEach3 `hasNoType` ''Fold.Step
 inspect $ 'unfoldEach3 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE unfoldCross #-}
 unfoldCross :: Int -> Int -> IO ()
 unfoldCross outer inner = withRandomIntIO $ \start -> drain $
     Stream.unfoldCross
@@ -1161,7 +1104,6 @@ filterAllInMPure linearCount start = drain $ unCross $ do
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
-{-# INLINE cross2 #-}
 cross2 :: Int -> IO ()
 cross2 linearCount = withRandomIntIO $ \start -> drain $
     Stream.crossWith (+)
@@ -1172,7 +1114,6 @@ cross2 linearCount = withRandomIntIO $ \start -> drain $
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
-{-# INLINE crossApply #-}
 crossApply :: Int -> IO ()
 crossApply linearCount = withRandomIntIO $ \start -> drain $
     Stream.crossApply
@@ -1183,7 +1124,6 @@ crossApply linearCount = withRandomIntIO $ \start -> drain $
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
-{-# INLINE crossApplyFst #-}
 crossApplyFst :: Int -> IO ()
 crossApplyFst linearCount = withRandomIntIO $ \start -> drain $
     Stream.crossApplyFst
@@ -1194,7 +1134,6 @@ crossApplyFst linearCount = withRandomIntIO $ \start -> drain $
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
-{-# INLINE crossApplySnd #-}
 crossApplySnd :: Int -> IO ()
 crossApplySnd linearCount = withRandomIntIO $ \start -> drain $
     Stream.crossApplySnd
@@ -1209,13 +1148,11 @@ crossApplySnd linearCount = withRandomIntIO $ \start -> drain $
 -- Monad
 -------------------------------------------------------------------------------
 
-{-# INLINE drainConcatFor1 #-}
 drainConcatFor1 :: Int -> IO ()
 drainConcatFor1 count = withStream count $ \s ->
     drain $ Stream.concatFor s $ \x ->
         Stream.fromPure $ x + 1
 
-{-# INLINE drainConcatFor #-}
 drainConcatFor :: Int -> IO ()
 drainConcatFor count = withStream count $ \s ->
     drain $ do
@@ -1223,7 +1160,6 @@ drainConcatFor count = withStream count $ \s ->
             Stream.concatFor s $ \y ->
                 Stream.fromPure $ x + y
 
-{-# INLINE drainConcatForM #-}
 drainConcatForM :: Int -> IO ()
 drainConcatForM count = withStream count $ \s ->
     drain $ do
@@ -1231,7 +1167,6 @@ drainConcatForM count = withStream count $ \s ->
             pure $ Stream.concatForM s $ \y ->
                 pure $ Stream.fromPure $ x + y
 
-{-# INLINE drainConcatFor3 #-}
 drainConcatFor3 :: Int -> IO ()
 drainConcatFor3 count = withStream count $ \s ->
     drain $ do
@@ -1240,7 +1175,6 @@ drainConcatFor3 count = withStream count $ \s ->
                 Stream.concatFor s $ \z ->
                     Stream.fromPure $ x + y + z
 
-{-# INLINE drainConcatFor4 #-}
 drainConcatFor4 :: Int -> IO ()
 drainConcatFor4 count = withStream count $ \s ->
     drain $ do
@@ -1250,7 +1184,6 @@ drainConcatFor4 count = withStream count $ \s ->
                     Stream.concatFor s $ \w ->
                         Stream.fromPure $ x + y + z + w
 
-{-# INLINE drainConcatFor5 #-}
 drainConcatFor5 :: Int -> IO ()
 drainConcatFor5 count = withStream count $ \s ->
     drain $ do
@@ -1261,7 +1194,6 @@ drainConcatFor5 count = withStream count $ \s ->
                         Stream.concatFor s $ \u ->
                             Stream.fromPure $ x + y + z + w + u
 
-{-# INLINE drainConcatFor3M #-}
 drainConcatFor3M :: Int -> IO ()
 drainConcatFor3M count = withStream count $ \s ->
     drain $ do
@@ -1270,7 +1202,6 @@ drainConcatFor3M count = withStream count $ \s ->
                 pure $ Stream.concatForM s $ \z ->
                     pure $ Stream.fromPure $ x + y + z
 
-{-# INLINE filterAllInConcatFor #-}
 filterAllInConcatFor :: Int -> IO ()
 filterAllInConcatFor count = withStream count $ \s ->
     drain $ do
@@ -1281,7 +1212,6 @@ filterAllInConcatFor count = withStream count $ \s ->
                     then Stream.fromPure s1
                     else Stream.nil
 
-{-# INLINE filterAllOutConcatFor #-}
 filterAllOutConcatFor :: Int -> IO ()
 filterAllOutConcatFor count = withStream count $ \s ->
     drain $ do
@@ -1396,7 +1326,6 @@ unfoldEachBounded maxVal = withRandomIntIO $ \n ->
 -- Fold Many
 -------------------------------------------------------------------------------
 
-{-# INLINE foldMany #-}
 foldMany :: Int -> IO ()
 foldMany value =
     withStream value $
@@ -1413,7 +1342,6 @@ inspect $ 'foldMany `hasNoType` ''FL.Step
 inspect $ 'foldMany `hasNoType` ''SPEC
 #endif
 
-{-# INLINE foldMany1 #-}
 foldMany1 :: Int -> IO ()
 foldMany1 value =
     withStream value $
@@ -1430,7 +1358,6 @@ inspect $ 'foldMany1 `hasNoType` ''FL.Step
 inspect $ 'foldMany1 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE refoldMany #-}
 refoldMany :: Int -> IO ()
 refoldMany value =
     withStream value $

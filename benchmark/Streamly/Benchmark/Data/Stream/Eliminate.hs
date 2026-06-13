@@ -50,7 +50,6 @@ import qualified Prelude
 -- Reductions
 -------------------------------------------------------------------------------
 
-{-# INLINE streamInit #-}
 streamInit :: Int -> IO ()
 streamInit value = withStream value (S.init >=> Prelude.mapM_ S.drain)
 
@@ -61,7 +60,6 @@ inspect $ 'streamInit `hasNoType` ''Fold.Step
 inspect $ 'streamInit `hasNoType` ''SPEC
 #endif
 
-{-# INLINE mapM_ #-}
 mapM_ :: Int -> IO ()
 mapM_ value = withStream value (S.mapM_ (\_ -> return ()))
 
@@ -72,7 +70,6 @@ inspect $ 'mapM_ `hasNoType` ''Fold.Step
 inspect $ 'mapM_ `hasNoType` ''SPEC
 #endif
 
-{-# INLINE streamLast #-}
 streamLast :: Int -> IO (Maybe Int)
 streamLast value = withStream value S.last
 
@@ -83,7 +80,6 @@ inspect $ 'streamLast `hasNoType` ''Fold.Step
 inspect $ 'streamLast `hasNoType` ''SPEC
 #endif
 
-{-# INLINE foldl1'Reduce #-}
 foldl1'Reduce :: Int -> IO (Maybe Int)
 foldl1'Reduce value = withStream value (S.fold (Fold.foldl1' (+)))
 
@@ -92,7 +88,6 @@ inspect $ hasNoTypeClasses 'foldl1'Reduce
 inspect $ 'foldl1'Reduce `hasNoType` ''S.Step
 #endif
 
-{-# INLINE foldl1'ReduceIdentity #-}
 foldl1'ReduceIdentity :: Int -> IO (Maybe Int)
 foldl1'ReduceIdentity value =
     withPureStream value (runIdentity . S.fold (Fold.foldl1' (+)))
@@ -102,7 +97,6 @@ inspect $ hasNoTypeClasses 'foldl1'ReduceIdentity
 inspect $ 'foldl1'ReduceIdentity `hasNoType` ''S.Step
 #endif
 
-{-# INLINE elem #-}
 elem :: Int -> IO Bool
 elem value = withStream value (S.elem (value + 1))
 
@@ -113,7 +107,6 @@ inspect $ 'elem `hasNoType` ''Fold.Step
 inspect $ 'elem `hasNoType` ''SPEC
 #endif
 
-{-# INLINE notElem #-}
 notElem :: Int -> IO Bool
 notElem value = withStream value (S.notElem (value + 1))
 
@@ -124,7 +117,6 @@ inspect $ 'notElem `hasNoType` ''Fold.Step
 inspect $ 'notElem `hasNoType` ''SPEC
 #endif
 
-{-# INLINE length #-}
 length :: Int -> IO Int
 length value = withStream value (S.fold Fold.length)
 
@@ -135,7 +127,6 @@ inspect $ 'length `hasNoType` ''Fold.Step
 inspect $ 'length `hasNoType` ''SPEC
 #endif
 
-{-# INLINE all #-}
 all :: Int -> IO Bool
 all value = withStream value (S.all (<= (value + 1)))
 
@@ -146,7 +137,6 @@ inspect $ 'all `hasNoType` ''Fold.Step
 inspect $ 'all `hasNoType` ''SPEC
 #endif
 
-{-# INLINE any #-}
 any :: Int -> IO Bool
 any value = withStream value (S.any (> (value + 1)))
 
@@ -157,7 +147,6 @@ inspect $ 'any `hasNoType` ''Fold.Step
 inspect $ 'any `hasNoType` ''SPEC
 #endif
 
-{-# INLINE and #-}
 and :: Int -> IO Bool
 and value = withStream value (S.fold Fold.and . S.map (<= (value + 1)))
 
@@ -168,7 +157,6 @@ inspect $ 'and `hasNoType` ''Fold.Step
 inspect $ 'and `hasNoType` ''SPEC
 #endif
 
-{-# INLINE or #-}
 or :: Int -> IO Bool
 or value = withStream value (S.fold Fold.or . S.map (> (value + 1)))
 
@@ -179,7 +167,6 @@ inspect $ 'or `hasNoType` ''Fold.Step
 inspect $ 'or `hasNoType` ''SPEC
 #endif
 
-{-# INLINE find #-}
 find :: Int -> IO (Maybe Int)
 find value = withStream value (S.find (== (value + 1)))
 
@@ -190,7 +177,6 @@ inspect $ 'find `hasNoType` ''Fold.Step
 inspect $ 'find `hasNoType` ''SPEC
 #endif
 
-{-# INLINE findM #-}
 findM :: Int -> IO (Maybe Int)
 findM value = withStream value (S.findM (\z -> return $ z == (value + 1)))
 
@@ -201,7 +187,6 @@ inspect $ 'findM `hasNoType` ''Fold.Step
 inspect $ 'findM `hasNoType` ''SPEC
 #endif
 
-{-# INLINE maximum #-}
 maximum :: Int -> IO (Maybe Int)
 maximum value = withStream value S.maximum
 
@@ -212,7 +197,6 @@ inspect $ 'maximum `hasNoType` ''Fold.Step
 inspect $ 'maximum `hasNoType` ''SPEC
 #endif
 
-{-# INLINE minimum #-}
 minimum :: Int -> IO (Maybe Int)
 minimum value = withStream value S.minimum
 
@@ -223,7 +207,6 @@ inspect $ 'minimum `hasNoType` ''Fold.Step
 inspect $ 'minimum `hasNoType` ''SPEC
 #endif
 
-{-# INLINE sum #-}
 sum :: Int -> IO Int
 sum value = withStream value (S.fold Fold.sum)
 
@@ -234,7 +217,6 @@ inspect $ 'sum `hasNoType` ''Fold.Step
 inspect $ 'sum `hasNoType` ''SPEC
 #endif
 
-{-# INLINE product #-}
 product :: Int -> IO Int
 product value = withStream value (S.fold Fold.product)
 
@@ -245,7 +227,6 @@ inspect $ 'product `hasNoType` ''Fold.Step
 inspect $ 'product `hasNoType` ''SPEC
 #endif
 
-{-# INLINE minimumBy #-}
 minimumBy :: Int -> IO (Maybe Int)
 minimumBy value = withStream value (S.minimumBy compare)
 
@@ -256,7 +237,6 @@ inspect $ 'minimumBy `hasNoType` ''Fold.Step
 inspect $ 'minimumBy `hasNoType` ''SPEC
 #endif
 
-{-# INLINE maximumBy #-}
 maximumBy :: Int -> IO (Maybe Int)
 maximumBy value = withStream value (S.maximumBy compare)
 
@@ -267,7 +247,6 @@ inspect $ 'maximumBy `hasNoType` ''Fold.Step
 inspect $ 'maximumBy `hasNoType` ''SPEC
 #endif
 
-{-# INLINE the #-}
 the :: Int -> IO (Maybe Int)
 the value = randomRIO (1, 1) >>= S.the . repeat value
 
@@ -278,7 +257,6 @@ inspect $ 'the `hasNoType` ''Fold.Step
 inspect $ 'the `hasNoType` ''SPEC
 #endif
 
-{-# INLINE indexOp #-}
 indexOp :: Int -> IO (Maybe Int)
 indexOp value = withStream value (S.!! value)
 
@@ -289,7 +267,6 @@ inspect $ 'indexOp `hasNoType` ''Fold.Step
 inspect $ 'indexOp `hasNoType` ''SPEC
 #endif
 
-{-# INLINE lookupNever #-}
 lookupNever :: Int -> IO (Maybe Int)
 lookupNever value =
     withStream value (S.lookup (value + 1) . S.map (\x -> (x, x)))
@@ -301,17 +278,14 @@ inspect $ 'lookupNever `hasNoType` ''Fold.Step
 inspect $ 'lookupNever `hasNoType` ''SPEC
 #endif
 
-{-# INLINE toListRev #-}
 toListRev :: Int -> IO [Int]
 toListRev value = withStream value S.toListRev
 
 -- NOTE: this is a Fold benchmark, used here only for comparison with toListRev
-{-# INLINE toStreamRev #-}
 toStreamRev :: Int -> IO (Stream Identity Int)
 toStreamRev value = withStream value (S.fold Fold.toStreamRev)
 
 -- NOTE: this is a Fold benchmark, used here only for comparison with ToList
-{-# INLINE toStream #-}
 toStream :: Int -> IO (Stream Identity Int)
 toStream value = withStream value (S.fold Fold.toStream)
 
@@ -319,7 +293,6 @@ toStream value = withStream value (S.fold Fold.toStream)
 -- Multi-stream folds
 -------------------------------------------------------------------------------
 
-{-# INLINE isPrefixOf #-}
 isPrefixOf :: Int -> IO Bool
 isPrefixOf value = withStream value (\src -> S.isPrefixOf src src)
 
@@ -330,7 +303,6 @@ inspect $ 'isPrefixOf `hasNoType` ''Fold.Step
 inspect $ 'isPrefixOf `hasNoType` ''SPEC
 #endif
 
-{-# INLINE isSubsequenceOf #-}
 isSubsequenceOf :: Int -> IO Bool
 isSubsequenceOf value = withStream value (\src -> S.isSubsequenceOf src src)
 
@@ -341,7 +313,6 @@ inspect $ 'isSubsequenceOf `hasNoType` ''Fold.Step
 inspect $ 'isSubsequenceOf `hasNoType` ''SPEC
 #endif
 
-{-# INLINE stripPrefix #-}
 stripPrefix :: Int -> IO ()
 stripPrefix value = withStream value (\src -> do
     _ <- S.stripPrefix src src
@@ -358,12 +329,10 @@ inspect $ 'stripPrefix `hasNoType` ''SPEC
 -- Iterating using tail
 -------------------------------------------------------------------------------
 
-{-# INLINE tail #-}
 tail :: Int -> IO ()
 tail value = withStream value go
     where go s = S.tail s >>= Prelude.mapM_ go
 
-{-# INLINE nullHeadTail #-}
 nullHeadTail :: Int -> IO ()
 nullHeadTail value = withStream value go
     where

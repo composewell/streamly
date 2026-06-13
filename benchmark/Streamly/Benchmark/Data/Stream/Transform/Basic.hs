@@ -60,7 +60,6 @@ import Prelude hiding (sequence, mapM, reverse)
 scanl' :: MonadIO m => Int -> Stream m Int -> m ()
 scanl' n = composeN n $ Stream.scanl' (+) 0
 
-{-# INLINE scanl'1 #-}
 scanl'1 :: Int -> IO ()
 scanl'1 value = withStream value (scanl' 1)
 
@@ -69,7 +68,6 @@ inspect $ hasNoTypeClasses 'scanl'1
 inspect $ 'scanl'1 `hasNoType` ''Stream.Step
 #endif
 
-{-# INLINE scanl'4 #-}
 scanl'4 :: Int -> IO ()
 scanl'4 value = withStream value (scanl' 4)
 
@@ -82,7 +80,6 @@ inspect $ 'scanl'4 `hasNoType` ''Stream.Step
 scanlM' :: MonadIO m => Int -> Stream m Int -> m ()
 scanlM' n = composeN n $ Stream.scanlM' (\b a -> return $ b + a) (return 0)
 
-{-# INLINE scanlM'1 #-}
 scanlM'1 :: Int -> IO ()
 scanlM'1 value = withStream value (scanlM' 1)
 
@@ -91,7 +88,6 @@ inspect $ hasNoTypeClasses 'scanlM'1
 inspect $ 'scanlM'1 `hasNoType` ''Stream.Step
 #endif
 
-{-# INLINE scanlM'4 #-}
 scanlM'4 :: Int -> IO ()
 scanlM'4 value = withStream value (scanlM' 4)
 
@@ -104,7 +100,6 @@ inspect $ 'scanlM'4 `hasNoType` ''Stream.Step
 scanl1' :: MonadIO m => Int -> Stream m Int -> m ()
 scanl1' n = composeN n $ Stream.scanl1' (+)
 
-{-# INLINE scanl1'1 #-}
 scanl1'1 :: Int -> IO ()
 scanl1'1 value = withStream value (scanl1' 1)
 
@@ -113,7 +108,6 @@ inspect $ hasNoTypeClasses 'scanl1'1
 inspect $ 'scanl1'1 `hasNoType` ''Stream.Step
 #endif
 
-{-# INLINE scanl1'4 #-}
 scanl1'4 :: Int -> IO ()
 scanl1'4 value = withStream value (scanl1' 4)
 
@@ -126,7 +120,6 @@ inspect $ 'scanl1'4 `hasNoType` ''Stream.Step
 scanl1M' :: MonadIO m => Int -> Stream m Int -> m ()
 scanl1M' n = composeN n $ Stream.scanl1M' (\b a -> return $ b + a)
 
-{-# INLINE scanl1M'1 #-}
 scanl1M'1 :: Int -> IO ()
 scanl1M'1 value = withStream value (scanl1M' 1)
 
@@ -135,7 +128,6 @@ inspect $ hasNoTypeClasses 'scanl1M'1
 inspect $ 'scanl1M'1 `hasNoType` ''Stream.Step
 #endif
 
-{-# INLINE scanl1M'4 #-}
 scanl1M'4 :: Int -> IO ()
 scanl1M'4 value = withStream value (scanl1M' 4)
 
@@ -148,7 +140,6 @@ inspect $ 'scanl1M'4 `hasNoType` ''Stream.Step
 scan :: MonadIO m => Int -> Stream m Int -> m ()
 scan n = composeN n $ Stream.scanl Scanl.sum
 
-{-# INLINE scan1 #-}
 scan1 :: Int -> IO ()
 scan1 value = withStream value (scan 1)
 
@@ -160,7 +151,6 @@ inspect $ 'scan1 `hasNoType` ''FL.Step
 inspect $ 'scan1 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE scan4 #-}
 scan4 :: Int -> IO ()
 scan4 value = withStream value (scan 4)
 
@@ -176,7 +166,6 @@ inspect $ 'scan4 `hasNoType` ''SPEC
 postscan :: MonadIO m => Int -> Stream m Int -> m ()
 postscan n = composeN n $ Stream.postscanl Scanl.sum
 
-{-# INLINE postscan1 #-}
 postscan1 :: Int -> IO ()
 postscan1 value = withStream value (postscan 1)
 
@@ -188,7 +177,6 @@ inspect $ 'postscan1 `hasNoType` ''FL.Step
 inspect $ 'postscan1 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE postscan4 #-}
 postscan4 :: Int -> IO ()
 postscan4 value = withStream value (postscan 4)
 
@@ -204,7 +192,6 @@ inspect $ 'postscan4 `hasNoType` ''SPEC
 postscanl' :: MonadIO m => Int -> Stream m Int -> m ()
 postscanl' n = composeN n $ Stream.postscanl' (+) 0
 
-{-# INLINE postscanl'1 #-}
 postscanl'1 :: Int -> IO ()
 postscanl'1 value = withStream value (postscanl' 1)
 
@@ -213,7 +200,6 @@ inspect $ hasNoTypeClasses 'postscanl'1
 inspect $ 'postscanl'1 `hasNoType` ''Stream.Step
 #endif
 
-{-# INLINE postscanl'4 #-}
 postscanl'4 :: Int -> IO ()
 postscanl'4 value = withStream value (postscanl' 4)
 
@@ -226,7 +212,6 @@ inspect $ hasNoTypeClasses 'postscanl'4
 postscanlM' :: MonadIO m => Int -> Stream m Int -> m ()
 postscanlM' n = composeN n $ Stream.postscanlM' (\b a -> return $ b + a) (return 0)
 
-{-# INLINE postscanlM'1 #-}
 postscanlM'1 :: Int -> IO ()
 postscanlM'1 value = withStream value (postscanlM' 1)
 
@@ -235,7 +220,6 @@ inspect $ hasNoTypeClasses 'postscanlM'1
 inspect $ 'postscanlM'1 `hasNoType` ''Stream.Step
 #endif
 
-{-# INLINE postscanlM'4 #-}
 postscanlM'4 :: Int -> IO ()
 postscanlM'4 value = withStream value (postscanlM' 4)
 
@@ -248,7 +232,6 @@ inspect $ 'postscanlM'4 `hasNoType` ''Stream.Step
 sequence :: MonadAsync m => Stream m (m Int) -> m ()
 sequence = Common.drain . Stream.sequence
 
-{-# INLINE sequence1 #-}
 sequence1 :: Int -> IO ()
 sequence1 value = withRandomIntIO $ sequence . sourceUnfoldrAction value
 
@@ -263,7 +246,6 @@ inspect $ 'sequence1 `hasNoType` ''SPEC
 tap :: MonadIO m => Int -> Stream m Int -> m ()
 tap n = composeN n $ Stream.tap FL.sum
 
-{-# INLINE tap1 #-}
 tap1 :: Int -> IO ()
 tap1 value = withStream value (tap 1)
 
@@ -294,7 +276,6 @@ foldrTMap n = composeN n $ Stream.foldrT (\x xs -> x + 1 `Stream.cons` xs) Strea
 trace :: MonadAsync m => Int -> Stream m Int -> m ()
 trace n = composeN n $ Stream.trace return
 
-{-# INLINE trace4 #-}
 trace4 :: Int -> IO ()
 trace4 value = withStream value (trace 4)
 
@@ -343,17 +324,14 @@ _iterateSingleton ::
 _iterateSingleton g value n = S.foldrM g (return n) $ sourceIntFromTo value n
 -}
 
-{-# INLINE iteratePlusBaseline #-}
 iteratePlusBaseline :: Int -> IO Int
 iteratePlusBaseline value =
     withRandomIntIO $ \i0 ->
         iterateN (\i acc -> acc >>= \n -> return $ i + n) (return i0) value
 
-{-# INLINE iterateSubMap #-}
 iterateSubMap :: Int -> IO ()
 iterateSubMap value = withRandomIntIO $ drain . iterateSingleton (<$) value
 
-{-# INLINE iterateFmap #-}
 iterateFmap :: Int -> IO ()
 iterateFmap value = withRandomIntIO $ drain . iterateSingleton (fmap . (+)) value
 
@@ -365,7 +343,6 @@ iterateFmap value = withRandomIntIO $ drain . iterateSingleton (fmap . (+)) valu
 filterEven :: MonadIO m => Int -> Stream m Int -> m ()
 filterEven n = composeN n $ Stream.filter even
 
-{-# INLINE filterEven1 #-}
 filterEven1 :: Int -> IO ()
 filterEven1 value = withStream value (filterEven 1)
 
@@ -376,7 +353,6 @@ inspect $ 'filterEven1 `hasNoType` ''FL.Step
 inspect $ 'filterEven1 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE filterEven4 #-}
 filterEven4 :: Int -> IO ()
 filterEven4 value = withStream value (filterEven 4)
 
@@ -391,7 +367,6 @@ inspect $ 'filterEven4 `hasNoType` ''SPEC
 filterAllOut :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 filterAllOut value n = composeN n $ Stream.filter (> (value + 1))
 
-{-# INLINE filterAllOut1 #-}
 filterAllOut1 :: Int -> IO ()
 filterAllOut1 value = withStream value (filterAllOut value 1)
 
@@ -402,7 +377,6 @@ inspect $ 'filterAllOut1 `hasNoType` ''FL.Step
 inspect $ 'filterAllOut1 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE filterAllOut4 #-}
 filterAllOut4 :: Int -> IO ()
 filterAllOut4 value = withStream value (filterAllOut value 4)
 
@@ -417,7 +391,6 @@ inspect $ 'filterAllOut4 `hasNoType` ''SPEC
 filterAllIn :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 filterAllIn value n = composeN n $ Stream.filter (<= (value + 1))
 
-{-# INLINE filterAllIn1 #-}
 filterAllIn1 :: Int -> IO ()
 filterAllIn1 value = withStream value (filterAllIn value 1)
 
@@ -428,7 +401,6 @@ inspect $ 'filterAllIn1 `hasNoType` ''FL.Step
 inspect $ 'filterAllIn1 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE filterAllIn4 #-}
 filterAllIn4 :: Int -> IO ()
 filterAllIn4 value = withStream value (filterAllIn value 4)
 
@@ -443,7 +415,6 @@ inspect $ 'filterAllIn4 `hasNoType` ''SPEC
 filterMEven :: MonadIO m => Int -> Stream m Int -> m ()
 filterMEven n = composeN n $ Stream.filterM (return . even)
 
-{-# INLINE filterMEven1 #-}
 filterMEven1 :: Int -> IO ()
 filterMEven1 value = withStream value (filterMEven 1)
 
@@ -454,7 +425,6 @@ inspect $ 'filterMEven1 `hasNoType` ''FL.Step
 inspect $ 'filterMEven1 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE filterMEven4 #-}
 filterMEven4 :: Int -> IO ()
 filterMEven4 value = withStream value (filterMEven 4)
 
@@ -469,7 +439,6 @@ inspect $ 'filterMEven4 `hasNoType` ''SPEC
 filterMAllOut :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 filterMAllOut value n = composeN n $ Stream.filterM (\x -> return $ x > (value + 1))
 
-{-# INLINE filterMAllOut1 #-}
 filterMAllOut1 :: Int -> IO ()
 filterMAllOut1 value = withStream value (filterMAllOut value 1)
 
@@ -480,7 +449,6 @@ inspect $ 'filterMAllOut1 `hasNoType` ''FL.Step
 inspect $ 'filterMAllOut1 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE filterMAllOut4 #-}
 filterMAllOut4 :: Int -> IO ()
 filterMAllOut4 value = withStream value (filterMAllOut value 4)
 
@@ -495,7 +463,6 @@ inspect $ 'filterMAllOut4 `hasNoType` ''SPEC
 filterMAllIn :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 filterMAllIn value n = composeN n $ Stream.filterM (\x -> return $ x <= (value + 1))
 
-{-# INLINE filterMAllIn1 #-}
 filterMAllIn1 :: Int -> IO ()
 filterMAllIn1 value = withStream value (filterMAllIn value 1)
 
@@ -506,7 +473,6 @@ inspect $ 'filterMAllIn1 `hasNoType` ''FL.Step
 inspect $ 'filterMAllIn1 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE filterMAllIn4 #-}
 filterMAllIn4 :: Int -> IO ()
 filterMAllIn4 value = withStream value (filterMAllIn value 4)
 
@@ -521,7 +487,6 @@ inspect $ 'filterMAllIn4 `hasNoType` ''SPEC
 dropOne :: MonadIO m => Int -> Stream m Int -> m ()
 dropOne n = composeN n $ Stream.drop 1
 
-{-# INLINE dropOne1 #-}
 dropOne1 :: Int -> IO ()
 dropOne1 value = withStream value (dropOne 1)
 
@@ -532,7 +497,6 @@ inspect $ 'dropOne1 `hasNoType` ''FL.Step
 inspect $ 'dropOne1 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE dropOne4 #-}
 dropOne4 :: Int -> IO ()
 dropOne4 value = withStream value (dropOne 4)
 
@@ -547,7 +511,6 @@ inspect $ 'dropOne4 `hasNoType` ''SPEC
 dropAll :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 dropAll value n = composeN n $ Stream.drop (value + 1)
 
-{-# INLINE dropAll1 #-}
 dropAll1 :: Int -> IO ()
 dropAll1 value = withStream value (dropAll value 1)
 
@@ -558,7 +521,6 @@ inspect $ 'dropAll1 `hasNoType` ''FL.Step
 inspect $ 'dropAll1 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE dropAll4 #-}
 dropAll4 :: Int -> IO ()
 dropAll4 value = withStream value (dropAll value 4)
 
@@ -573,7 +535,6 @@ inspect $ 'dropAll4 `hasNoType` ''SPEC
 dropWhileTrue :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 dropWhileTrue value n = composeN n $ Stream.dropWhile (<= (value + 1))
 
-{-# INLINE dropWhileTrue1 #-}
 dropWhileTrue1 :: Int -> IO ()
 dropWhileTrue1 value = withStream value (dropWhileTrue value 1)
 
@@ -585,7 +546,6 @@ inspect $ 'dropWhileTrue1 `hasNoType` ''FL.Step
 inspect $ 'dropWhileTrue1 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE dropWhileTrue4 #-}
 dropWhileTrue4 :: Int -> IO ()
 dropWhileTrue4 value = withStream value (dropWhileTrue value 4)
 
@@ -601,7 +561,6 @@ inspect $ 'dropWhileTrue4 `hasNoType` ''SPEC
 dropWhileMTrue :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 dropWhileMTrue value n = composeN n $ Stream.dropWhileM (return . (<= (value + 1)))
 
-{-# INLINE dropWhileMTrue4 #-}
 dropWhileMTrue4 :: Int -> IO ()
 dropWhileMTrue4 value = withStream value (dropWhileMTrue value 4)
 
@@ -617,7 +576,6 @@ inspect $ 'dropWhileMTrue4 `hasNoType` ''SPEC
 dropWhileFalse :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 dropWhileFalse value n = composeN n $ Stream.dropWhile (> (value + 1))
 
-{-# INLINE dropWhileFalse1 #-}
 dropWhileFalse1 :: Int -> IO ()
 dropWhileFalse1 value = withStream value (dropWhileFalse value 1)
 
@@ -629,7 +587,6 @@ inspect $ 'dropWhileFalse1 `hasNoType` ''FL.Step
 inspect $ 'dropWhileFalse1 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE dropWhileFalse4 #-}
 dropWhileFalse4 :: Int -> IO ()
 dropWhileFalse4 value = withStream value (dropWhileFalse value 4)
 
@@ -645,7 +602,6 @@ inspect $ 'dropWhileFalse4 `hasNoType` ''SPEC
 findIndices :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 findIndices value n = composeN n $ Stream.findIndices (== (value + 1))
 
-{-# INLINE findIndices1 #-}
 findIndices1 :: Int -> IO ()
 findIndices1 value = withStream value (findIndices value 1)
 
@@ -656,7 +612,6 @@ inspect $ 'findIndices1 `hasNoType` ''FL.Step
 inspect $ 'findIndices1 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE findIndices4 #-}
 findIndices4 :: Int -> IO ()
 findIndices4 value = withStream value (findIndices value 4)
 
@@ -671,7 +626,6 @@ inspect $ 'findIndices4 `hasNoType` ''SPEC
 elemIndices :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 elemIndices value n = composeN n $ Stream.elemIndices (value + 1)
 
-{-# INLINE elemIndices1 #-}
 elemIndices1 :: Int -> IO ()
 elemIndices1 value = withStream value (elemIndices value 1)
 
@@ -682,7 +636,6 @@ inspect $ 'elemIndices1 `hasNoType` ''FL.Step
 inspect $ 'elemIndices1 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE elemIndices4 #-}
 elemIndices4 :: Int -> IO ()
 elemIndices4 value = withStream value (elemIndices value 4)
 
@@ -693,7 +646,6 @@ inspect $ 'elemIndices4 `hasNoType` ''FL.Step
 inspect $ 'elemIndices4 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE findIndex #-}
 findIndex :: Int -> IO (Maybe Int)
 findIndex value = withStream value (Stream.head . Stream.findIndices (== (value + 1)))
 
@@ -704,7 +656,6 @@ inspect $ 'findIndex `hasNoType` ''FL.Step
 inspect $ 'findIndex `hasNoType` ''SPEC
 #endif
 
-{-# INLINE elemIndex #-}
 elemIndex :: Int -> IO (Maybe Int)
 elemIndex value = withStream value (Stream.head . Stream.elemIndices (value + 1))
 
@@ -719,7 +670,6 @@ inspect $ 'elemIndex `hasNoType` ''SPEC
 deleteBy :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 deleteBy value n = composeN n $ Stream.deleteBy (>=) (value + 1)
 
-{-# INLINE deleteBy1 #-}
 deleteBy1 :: Int -> IO ()
 deleteBy1 value = withStream value (deleteBy value 1)
 
@@ -730,7 +680,6 @@ inspect $ 'deleteBy1 `hasNoType` ''FL.Step
 inspect $ 'deleteBy1 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE deleteBy4 #-}
 deleteBy4 :: Int -> IO ()
 deleteBy4 value = withStream value (deleteBy value 4)
 
@@ -746,7 +695,6 @@ inspect $ 'deleteBy4 `hasNoType` ''SPEC
 uniq :: MonadIO m => Int -> Stream m Int -> m ()
 uniq n = composeN n Stream.uniq
 
-{-# INLINE uniq1 #-}
 uniq1 :: Int -> IO ()
 uniq1 value = withStream value (uniq 1)
 
@@ -757,7 +705,6 @@ inspect $ 'uniq1 `hasNoType` ''FL.Step
 inspect $ 'uniq1 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE uniq4 #-}
 uniq4 :: Int -> IO ()
 uniq4 value = withStream value (uniq 4)
 
@@ -778,7 +725,6 @@ mapMaybe n =
              then Nothing
              else Just x)
 
-{-# INLINE mapMaybe1 #-}
 mapMaybe1 :: Int -> IO ()
 mapMaybe1 value = withStream value (mapMaybe 1)
 
@@ -789,7 +735,6 @@ inspect $ 'mapMaybe1 `hasNoType` ''FL.Step
 inspect $ 'mapMaybe1 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE mapMaybe4 #-}
 mapMaybe4 :: Int -> IO ()
 mapMaybe4 value = withStream value (mapMaybe 4)
 
@@ -810,7 +755,6 @@ mapMaybeM n =
              then return Nothing
              else return $ Just x)
 
-{-# INLINE mapMaybeM1 #-}
 mapMaybeM1 :: Int -> IO ()
 mapMaybeM1 value = withStream value (mapMaybeM 1)
 
@@ -821,7 +765,6 @@ inspect $ 'mapMaybeM1 `hasNoType` ''FL.Step
 inspect $ 'mapMaybeM1 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE mapMaybeM4 #-}
 mapMaybeM4 :: Int -> IO ()
 mapMaybeM4 value = withStream value (mapMaybeM 4)
 
@@ -840,7 +783,6 @@ inspect $ 'mapMaybeM4 `hasNoType` ''SPEC
 intersperse :: MonadAsync m => Int -> Int -> Stream m Int -> m ()
 intersperse value n = composeN n $ Stream.intersperse (value + 1)
 
-{-# INLINE intersperse1 #-}
 intersperse1 :: Int -> IO ()
 intersperse1 value = withStream value (intersperse value 1)
 
@@ -852,7 +794,6 @@ inspect $ 'intersperse1 `hasNoType` ''FL.Step
 inspect $ 'intersperse1 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE intersperse4 #-}
 intersperse4 :: Int -> IO ()
 intersperse4 value = withStream value (intersperse value 4)
 
@@ -868,7 +809,6 @@ inspect $ 'intersperse4 `hasNoType` ''FL.Step
 intersperseM :: MonadAsync m => Int -> Int -> Stream m Int -> m ()
 intersperseM value n = composeN n $ Stream.intersperseM (return $ value + 1)
 
-{-# INLINE intersperseM1 #-}
 intersperseM1 :: Int -> IO ()
 intersperseM1 value = withStream value (intersperseM value 1)
 
@@ -884,7 +824,6 @@ inspect $ 'intersperseM1 `hasNoType` ''SPEC
 insertBy :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 insertBy value n = composeN n $ Stream.insertBy compare (value + 1)
 
-{-# INLINE insertBy1 #-}
 insertBy1 :: Int -> IO ()
 insertBy1 value = withStream value (insertBy value 1)
 
@@ -895,7 +834,6 @@ inspect $ 'insertBy1 `hasNoType` ''FL.Step
 inspect $ 'insertBy1 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE insertBy4 #-}
 insertBy4 :: Int -> IO ()
 insertBy4 value = withStream value (insertBy value 4)
 
@@ -911,7 +849,6 @@ interposeSuffix :: Monad m => Int -> Int -> Stream m Int -> m ()
 interposeSuffix value n =
     composeN n $ Stream.unfoldEachSepBy (value + 1) Unfold.identity
 
-{-# INLINE interposeSuffix1 #-}
 interposeSuffix1 :: Int -> IO ()
 interposeSuffix1 value = withStream value (interposeSuffix value 1)
 
@@ -928,7 +865,6 @@ intercalateSuffix :: Monad m => Int -> Int -> Stream m Int -> m ()
 intercalateSuffix value n =
     composeN n $ Stream.unfoldEachSepBySeq (value + 1) Unfold.identity
 
-{-# INLINE intercalateSuffix1 #-}
 intercalateSuffix1 :: Int -> IO ()
 intercalateSuffix1 value = withStream value (intercalateSuffix value 1)
 
@@ -949,7 +885,6 @@ inspect $ 'intercalateSuffix1 `hasNoType` ''SPEC
 indexed :: MonadIO m => Int -> Stream m Int -> m ()
 indexed n = composeN n (fmap snd . Stream.indexed)
 
-{-# INLINE indexed1 #-}
 indexed1 :: Int -> IO ()
 indexed1 value = withStream value (indexed 1)
 
@@ -960,7 +895,6 @@ inspect $ 'indexed1 `hasNoType` ''FL.Step
 inspect $ 'indexed1 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE indexed4 #-}
 indexed4 :: Int -> IO ()
 indexed4 value = withStream value (indexed 4)
 
@@ -975,7 +909,6 @@ inspect $ 'indexed4 `hasNoType` ''SPEC
 indexedR :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 indexedR value n = composeN n (fmap snd . Stream.indexedR value)
 
-{-# INLINE indexedR1 #-}
 indexedR1 :: Int -> IO ()
 indexedR1 value = withStream value (indexedR value 1)
 
@@ -986,7 +919,6 @@ inspect $ 'indexedR1 `hasNoType` ''FL.Step
 inspect $ 'indexedR1 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE indexedR4 #-}
 indexedR4 :: Int -> IO ()
 indexedR4 value = withStream value (indexedR value 4)
 
@@ -1001,7 +933,6 @@ inspect $ 'indexedR4 `hasNoType` ''SPEC
 -- Size conserving transformations (reordering, buffering, etc.)
 -------------------------------------------------------------------------------
 
-{-# INLINE reverse #-}
 reverse :: Int -> IO ()
 reverse value = withStream value (composeN 1 Stream.reverse)
 
@@ -1012,7 +943,6 @@ inspect $ 'reverse `hasNoType` ''FL.Step
 -- inspect $ 'reverse `hasNoType` ''SPEC
 #endif
 
-{-# INLINE reverse' #-}
 reverse' :: Int -> IO ()
 reverse' value = withStream value (composeN 1 Stream.reverseUnbox)
 

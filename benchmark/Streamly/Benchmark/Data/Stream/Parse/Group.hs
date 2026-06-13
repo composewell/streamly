@@ -38,7 +38,6 @@ import Stream.Type (benchIO, withStream)
 -- Grouping transformations
 -------------------------------------------------------------------------------
 
-{-# INLINE groups #-}
 groups :: Int -> IO ()
 groups value = withStream value $ Common.drain . S.groupsWhile (==) FL.drain
 
@@ -49,7 +48,6 @@ inspect $ 'groups `hasNoType` ''FL.Step
 inspect $ 'groups `hasNoType` ''SPEC
 #endif
 
-{-# INLINE groupsWhileLT #-}
 groupsWhileLT :: Int -> IO ()
 groupsWhileLT value = withStream value $ Common.drain . S.groupsWhile (<) FL.drain
 
@@ -60,7 +58,6 @@ inspect $ 'groupsWhileLT `hasNoType` ''FL.Step
 inspect $ 'groupsWhileLT `hasNoType` ''SPEC
 #endif
 
-{-# INLINE groupsWhileEq #-}
 groupsWhileEq :: Int -> IO ()
 groupsWhileEq value = withStream value $ Common.drain . S.groupsWhile (==) FL.drain
 
@@ -71,7 +68,6 @@ inspect $ 'groupsWhileEq `hasNoType` ''FL.Step
 inspect $ 'groupsWhileEq `hasNoType` ''SPEC
 #endif
 
-{-# INLINE groupsByRollingLT #-}
 groupsByRollingLT :: Int -> IO ()
 groupsByRollingLT value = withStream value $ Common.drain . S.groupsRollingBy (<) FL.drain
 
@@ -83,7 +79,6 @@ inspect $ 'groupsByRollingLT `hasNoType` ''FL.Step
 inspect $ 'groupsByRollingLT `hasNoType` ''SPEC
 #endif
 
-{-# INLINE groupsByRollingEq #-}
 groupsByRollingEq :: Int -> IO ()
 groupsByRollingEq value = withStream value $ Common.drain . S.groupsRollingBy (==) FL.drain
 
@@ -95,7 +90,6 @@ inspect $ 'groupsByRollingEq `hasNoType` ''FL.Step
 inspect $ 'groupsByRollingEq `hasNoType` ''SPEC
 #endif
 
-{-# INLINE foldIterateM #-}
 foldIterateM :: Int -> IO ()
 foldIterateM value =
     withStream value $

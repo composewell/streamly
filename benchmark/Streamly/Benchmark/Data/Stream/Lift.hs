@@ -69,7 +69,6 @@ withState value n =
     Stream.evalStateT
         (return (0 :: Int)) (Stream.liftInner (sourceUnfoldrM value n))
 
-{-# INLINE evalStateTIO #-}
 evalStateTIO :: Int -> IO ()
 evalStateTIO value = withRandomIntIO $ \n ->
     Stream.fold Fold.drain (evalStateT value n :: Stream IO Int)
@@ -81,7 +80,6 @@ inspect $ 'evalStateTIO `hasNoType` ''Fold.Step
 inspect $ 'evalStateTIO `hasNoType` ''SPEC
 #endif
 
-{-# INLINE withStateIO #-}
 withStateIO :: Int -> IO ()
 withStateIO value = withRandomIntIO $ \n ->
     Stream.fold Fold.drain (withState value n :: Stream IO Int)
@@ -93,7 +91,6 @@ inspect $ 'withStateIO `hasNoType` ''Fold.Step
 inspect $ 'withStateIO `hasNoType` ''SPEC
 #endif
 
-{-# INLINE generalizeInner #-}
 generalizeInner :: Int -> IO Int
 generalizeInner value =
     withPureStream value $
@@ -106,7 +103,6 @@ inspect $ 'generalizeInner `hasNoType` ''Fold.Step
 inspect $ 'generalizeInner `hasNoType` ''SPEC
 #endif
 
-{-# INLINE generalizeInnerIO #-}
 generalizeInnerIO :: Int -> IO Int
 generalizeInnerIO value = withRandomIntIO $ \n ->
     Stream.fold Fold.length

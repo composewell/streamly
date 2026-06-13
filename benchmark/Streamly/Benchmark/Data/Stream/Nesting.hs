@@ -51,7 +51,6 @@ import Prelude hiding (concatMap, zipWith)
 -- Appending
 -------------------------------------------------------------------------------
 
-{-# INLINE interleave2 #-}
 interleave2 :: Int -> IO ()
 interleave2 count = withRandomIntIO $ \n ->
     drain $
@@ -67,7 +66,6 @@ inspect $ 'interleave2 `hasNoType` ''S.Step
 inspect $ 'interleave2 `hasNoType` ''Fold.Step
 #endif
 
-{-# INLINE roundRobin2 #-}
 roundRobin2 :: Int -> IO ()
 roundRobin2 count = withRandomIntIO $ \n ->
     S.drain $
@@ -87,12 +85,11 @@ inspect $ 'roundRobin2 `hasNoType` ''Fold.Step
 -- Merging
 -------------------------------------------------------------------------------
 
-{-# INLINE mergeBy #-}
-mergeBy :: (Int -> Int -> Ordering) -> Int -> IO ()
-mergeBy cmp count = withRandomIntIO $ \n ->
+mergeBy :: Int -> IO ()
+mergeBy count = withRandomIntIO $ \n ->
     Stream.drain
         $ Stream.mergeBy
-            cmp
+            compare
             (sourceUnfoldrM count n)
             (sourceUnfoldrM count (n + 1))
 
@@ -103,12 +100,11 @@ inspect $ 'mergeBy `hasNoType` ''SPEC
 inspect $ 'mergeBy `hasNoType` ''Fold.Step
 #endif
 
-{-# INLINE mergeByM #-}
-mergeByM :: (Int -> Int -> Ordering) -> Int -> IO ()
-mergeByM cmp count = withRandomIntIO $ \n ->
+mergeByM :: Int -> IO ()
+mergeByM count = withRandomIntIO $ \n ->
     Stream.drain
         $ Stream.mergeByM
-            (\a b -> return $ cmp a b)
+            (\a b -> return $ compare a b)
             (sourceUnfoldrM count n)
             (sourceUnfoldrM count (n + 1))
 
@@ -138,7 +134,6 @@ sourceUnfoldrMUF count = UF.unfoldrM step
             then Nothing
             else Just (cnt, (cnt + 1, start))
 
-{-# INLINE bfsUnfoldEach #-}
 bfsUnfoldEach :: Int -> Int -> IO ()
 bfsUnfoldEach outer inner = withRandomIntIO $ \n ->
     S.drain $ S.bfsUnfoldEach
@@ -153,7 +148,6 @@ inspect $ 'bfsUnfoldEach `hasNoType` ''Fold.Step
 inspect $ 'bfsUnfoldEach `hasNoType` ''SPEC
 #endif
 
-{-# INLINE altBfsUnfoldEach #-}
 altBfsUnfoldEach :: Int -> Int -> IO ()
 altBfsUnfoldEach outer inner = withRandomIntIO $ \n ->
     S.drain $ S.altBfsUnfoldEach
@@ -168,7 +162,6 @@ inspect $ 'altBfsUnfoldEach `hasNoType` ''Fold.Step
 -- inspect $ 'altBfsUnfoldEach `hasNoType` ''SPEC
 #endif
 
-{-# INLINE unfoldSched #-}
 unfoldSched :: Int -> Int -> IO ()
 unfoldSched outer inner = withRandomIntIO $ \n ->
     S.drain $ S.unfoldSched
@@ -401,23 +394,19 @@ o_n_heap_buffering value =
 
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
-    -- NOTE: List concatenation reduce build time memory requirement
     -- multi-stream
       [ (SpaceO_1, benchIO "interleave" $ interleave2 (size `div` 2))
       , (SpaceO_1, benchIO "roundRobin" $ roundRobin2 (size `div` 2))
-      , (SpaceO_1, benchIO "mergeBy compare" $ mergeBy compare (size `div` 2))
-      , (SpaceO_1, benchIO "mergeByM compare" $ mergeByM compare (size `div` 2))
-      , (SpaceO_1, benchIO "mergeBy (flip compare)" $ mergeBy (flip compare) (size `div` 2))
-      , (SpaceO_1, benchIO "mergeByM (flip compare)" $ mergeByM (flip compare) (size `div` 2))
+      , (SpaceO_1, benchIO "mergeBy compare" $ mergeBy (size `div` 2))
+      , (SpaceO_1, benchIO "mergeByM compare" $ mergeByM (size `div` 2))
 
       -- join 2 streams using n-ary ops
       , (SpaceO_1, benchIO "bfsUnfoldEach" $ bfsUnfoldEach 2 (size `div` 2))
       , (SpaceO_1, benchIO "altBfsUnfoldEach" $ altBfsUnfoldEach 2 (size `div` 2))
       , (SpaceO_1, benchIO "unfoldSched" $ unfoldSched 2 (size `div` 2))
-      ] ++
 
       -- Solve simultaneous equations by exploring all possibilities
-      [ (SpaceO_1, benchIO "equations/fairConcatFor (bounded)" $ fairConcatForBounded sqrtVal)
+      , (SpaceO_1, benchIO "equations/fairConcatFor (bounded)" $ fairConcatForBounded sqrtVal)
       , (SpaceO_1, benchIO "equations/fairConcatForK (bounded)" $ fairConcatForKBounded sqrtVal)
       , (SpaceO_1, benchIO "equations/fairConcatFor (infinite)" $ fairConcatForInfinite sqrtVal)
       , (SpaceO_1, benchIO "equations/fairSchedFor (bounded)" $ fairSchedForBounded sqrtVal)
@@ -430,9 +419,7 @@ benchmarks size =
       , (SpaceO_1, benchIO "equations/unfoldSched (bounded)" $ unfoldSchedBounded sqrtVal)
       , (SpaceO_1, benchIO "equations/fairUnfoldSched (bounded)" $ fairUnfoldSchedBounded sqrtVal)
       , (SpaceO_1, benchIO "equations/fairUnfoldSched (infinite)" $ fairUnfoldSchedInfinite sqrtVal)
-      ] ++
-      [
-        (HeapO_n, benchIO "bfsUnfoldEach (n of 1)" $ bfsUnfoldEach size 1)
+      , (HeapO_n, benchIO "bfsUnfoldEach (n of 1)" $ bfsUnfoldEach size 1)
       , (HeapO_n, benchIO "bfsUnfoldEach (sqrtVal of sqrtVal)" $ bfsUnfoldEach sqrtVal sqrtVal)
       , (HeapO_n, benchIO "altBfsUnfoldEach (n of 1)" $ altBfsUnfoldEach size 1)
       , (HeapO_n, benchIO "altBfsUnfoldEach (sqrtVal of sqrtVal)" $ altBfsUnfoldEach sqrtVal sqrtVal)
