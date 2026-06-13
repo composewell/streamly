@@ -86,3 +86,54 @@ foldManyWith f =
                     $ S.fromList list
                 assert (xs == list)
 
+testWrite :: [Char] -> IO ()
+testWrite inp = do
+    arr <- S.fold A.create (S.fromList inp)
+    A.toList arr `shouldBe` inp
+
+testFromToList :: [Char] -> IO ()
+testFromToList inp = A.toList (A.fromList inp) `shouldBe` inp
+
+testFoldUnfold :: Property
+testFoldUnfold =
+    genericTestFromTo (const (S.fold A.create)) (S.unfold A.reader) (==)
+
+testFromList :: Property
+testFromList =
+    forAll (choose (0, maxArrLen)) $ \len ->
+            forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
+                monadicIO $ do
+                    let arr = A.fromList list
+                    xs <- run $ S.fold Fold.toList $ S.unfold A.reader arr
+                    assert (xs == list)
+
+testLengthFromStream :: Property
+testLengthFromStream = genericTestFrom (const A.fromStream)
+
+testFromStreamToStream :: Property
+testFromStreamToStream = genericTestFromTo (const A.fromStream) A.read (==)
+
+commonMain :: SpecWith ()
+commonMain = do
+    describe "createOf" $ do
+        prop "length . createOf n === n" testLength
+        prop "reader . createOf === id" testFoldNUnfold
+        prop "read . createOf === id" testFoldNToStream
+        prop "readRev . createOf === reverse" testFoldNToStreamRev
+        prop "foldMany concats to original" (foldManyWith A.createOf)
+    describe "create" $ do
+        prop "reader . create === id" testFoldUnfold
+        it "abc" (testWrite "abc")
+        it "\\22407" (testWrite "\22407")
+    describe "fromStreamN" $ do
+        prop "length . fromStreamN n === n" testLengthFromStreamN
+        prop "reader . fromStreamN === id" testFromStreamNUnfold
+        prop "read . fromStreamN === id" testFromStreamNToStream
+    describe "fromStream" $ do
+        prop "length . fromStream === n" testLengthFromStream
+        prop "read . fromStream === id" testFromStreamToStream
+    prop "fromListN" testFromListN
+    describe "fromList" $ do
+        prop "reader . fromList === id" testFromList
+        it "abc" (testFromToList "abc")
+        it "\\22407" (testFromToList "\22407")

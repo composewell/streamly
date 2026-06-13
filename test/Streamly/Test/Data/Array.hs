@@ -48,25 +48,6 @@ moduleName = "Data.Array"
 
 #include "Streamly/Test/Data/Array/Common.hs"
 
-testFromStreamToStream :: Property
-testFromStreamToStream = genericTestFromTo (const A.fromStream) A.read (==)
-
-testFoldUnfold :: Property
-testFoldUnfold =
-    genericTestFromTo (const (S.fold A.create)) (S.unfold A.reader) (==)
-
-testFromList :: Property
-testFromList =
-    forAll (choose (0, maxArrLen)) $ \len ->
-            forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
-                monadicIO $ do
-                    let arr = A.fromList list
-                    xs <- run $ S.fold Fold.toList $ S.unfold A.reader arr
-                    assert (xs == list)
-
-testLengthFromStream :: Property
-testLengthFromStream = genericTestFrom (const A.fromStream)
-
 lastN :: Int -> [a] -> [a]
 lastN n l = drop (length l - n) l
 
@@ -100,14 +81,6 @@ testBreakOn inp sep bef aft = do
     (bef_, aft_) <- A.breakEndByWord8_ sep (A.fromList inp)
     bef_ `shouldBe` A.fromList bef
     aft_ `shouldBe` fmap A.fromList aft
-
-testWrite :: [Char] -> IO ()
-testWrite inp = do
-    arr <- S.fold A.create (S.fromList inp)
-    A.toList arr `shouldBe` inp
-
-testFromToList :: [Char] -> IO ()
-testFromToList inp = A.toList (A.fromList inp) `shouldBe` inp
 
 testUnsafeIndxedFromList :: [Char] -> IO ()
 testUnsafeIndxedFromList inp =
@@ -252,31 +225,8 @@ main =
             it "[1,0,2] sep=0" (testBreakOn [1, 0, 2] 0 [1] (Just [2]))
             it "[1,0] sep=0" (testBreakOn [1, 0] 0 [1] (Just []))
             it "[1] sep=0" (testBreakOn [1] 0 [1] Nothing)
-        -- Random Access / Stream Folds (Array.Type)
-        describe "createOf" $ do
-            prop "length . createOf n === n" testLength
-            prop "reader . createOf === id" testFoldNUnfold
-            prop "read . createOf === id" testFoldNToStream
-            prop "readRev . createOf === reverse" testFoldNToStreamRev
-            prop "foldMany concats to original" (foldManyWith A.createOf)
+        commonMain
         prop "unsafeCreateOf" (foldManyWith (\n -> Fold.take n (A.unsafeCreateOf n)))
-        describe "create" $ do
-            prop "reader . create === id" testFoldUnfold
-            it "abc" (testWrite "abc")
-            it "\\22407" (testWrite "\22407")
-        -- Random Access / From containers (Array.Type)
-        prop "fromListN" testFromListN
-        describe "fromList" $ do
-            prop "reader . fromList === id" testFromList
-            it "abc" (testFromToList "abc")
-            it "\\22407" (testFromToList "\22407")
-        describe "fromStreamN" $ do
-            prop "length . fromStreamN n === n" testLengthFromStreamN
-            prop "reader . fromStreamN === id" testFromStreamNUnfold
-            prop "read . fromStreamN === id" testFromStreamNToStream
-        describe "fromStream" $ do
-            prop "length . fromStream === n" testLengthFromStream
-            prop "read . fromStream === id" testFromStreamToStream
         it "fromCString#" testFromCString#
         it "fromW16CString#" testFromW16CString#
         it "unsafeFromForeignPtr" testUnsafeFromForeignPtr
