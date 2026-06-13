@@ -113,6 +113,14 @@ testLengthFromStream = genericTestFrom (const A.fromStream)
 testFromStreamToStream :: Property
 testFromStreamToStream = genericTestFromTo (const A.fromStream) A.read (==)
 
+testReadShowInstance :: Property
+testReadShowInstance =
+    forAll (choose (0, maxArrLen)) $ \len ->
+            forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
+                monadicIO $ do
+                    let arr = A.fromList list
+                    assert (A.toList (read (show arr)) == list)
+
 commonMain :: SpecWith ()
 commonMain = do
     describe "createOf" $ do
@@ -137,3 +145,4 @@ commonMain = do
         prop "reader . fromList === id" testFromList
         it "abc" (testFromToList "abc")
         it "\\22407" (testFromToList "\22407")
+    prop "show/read roundtrip" testReadShowInstance
