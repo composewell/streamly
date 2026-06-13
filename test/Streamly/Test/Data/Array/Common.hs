@@ -113,6 +113,39 @@ testLengthFromStream = genericTestFrom (const A.fromStream)
 testFromStreamToStream :: Property
 testFromStreamToStream = genericTestFromTo (const A.fromStream) A.read (==)
 
+unsafeSlice :: Int -> Int -> [Int] -> Bool
+unsafeSlice i n list =
+    let lst = take n $ drop i list
+        arr = A.toList $ A.unsafeSliceOffLen i n $ A.fromList list
+     in arr == lst
+
+lastN :: Int -> [a] -> [a]
+lastN n l = drop (length l - n) l
+
+testLastN :: Property
+testLastN =
+    forAll (choose (0, maxArrLen)) $ \len ->
+        forAll (choose (0, len)) $ \n ->
+            forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
+                monadicIO $ do
+                    xs <- run
+                        $ fmap A.toList
+                        $ S.fold (A.createOfLast n)
+                        $ S.fromList list
+                    assert (xs == lastN n list)
+
+testLastN_LN :: Int -> Int -> IO Bool
+testLastN_LN len n = do
+    let list = [1..len]
+    l1 <- fmap A.toList $ S.fold (A.createOfLast n) $ S.fromList list
+    let l2 = lastN n list
+    return $ l1 == l2
+
+testUnsafeGetIndex :: [Char] -> IO ()
+testUnsafeGetIndex inp =
+    let arr = A.fromList inp
+     in fmap (`A.unsafeGetIndex` arr) [0 .. (length inp - 1)] `shouldBe` inp
+
 testReadShowInstance :: Property
 testReadShowInstance =
     forAll (choose (0, maxArrLen)) $ \len ->
@@ -133,6 +166,12 @@ commonMain = do
         prop "reader . create === id" testFoldUnfold
         it "abc" (testWrite "abc")
         it "\\22407" (testWrite "\22407")
+    describe "createOfLast" $ do
+        prop "0 <= n <= len" testLastN
+        it "-1" (testLastN_LN 10 (-1) `shouldReturn` True)
+        it "0" (testLastN_LN 10 0 `shouldReturn` True)
+        it "length" (testLastN_LN 10 10 `shouldReturn` True)
+        it "length + 1" (testLastN_LN 10 11 `shouldReturn` True)
     describe "fromStreamN" $ do
         prop "length . fromStreamN n === n" testLengthFromStreamN
         prop "reader . fromStreamN === id" testFromStreamNUnfold
@@ -146,3 +185,11 @@ commonMain = do
         it "abc" (testFromToList "abc")
         it "\\22407" (testFromToList "\22407")
     prop "show/read roundtrip" testReadShowInstance
+    -- Random Access
+    describe "unsafeGetIndex" $ do
+        it "abc" (testUnsafeGetIndex "abc")
+        it "\\22407" (testUnsafeGetIndex "\22407")
+    describe "unsafeSliceOffLen" $ do
+        it "partial" $ unsafeSlice 2 4 [1..10]
+        it "none" $ unsafeSlice 10 0 [1..10]
+        it "full" $ unsafeSlice 0 10 [1..10]
