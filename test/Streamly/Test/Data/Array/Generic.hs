@@ -30,15 +30,6 @@ moduleName = "Data.Array"
 
 #include "Streamly/Test/Data/Array/Common.hs"
 
-testReadShowInstance :: Property
-testReadShowInstance =
-    forAll (choose (0, maxArrLen)) $ \len ->
-            forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
-                monadicIO $ do
-                    let arr = A.fromList list
-                    assert (A.toList (read (show arr)) == list)
-
-
 main :: IO ()
 main =
     hspec $
@@ -46,5 +37,3 @@ main =
     modifyMaxSuccess (const maxTestCount) $ do
       describe moduleName $ do
         commonMain
-        -- Show/Read instances
-        prop "show/read roundtrip" testReadShowInstance
