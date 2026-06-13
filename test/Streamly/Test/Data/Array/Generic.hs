@@ -37,3 +37,7 @@ main =
     modifyMaxSuccess (const maxTestCount) $ do
       describe moduleName $ do
         commonMain
+        -- IMPORTANT NOTE: Before adding any test here first consider if it can
+        -- be added to the Array/Common test module. Only those tests which are
+        -- specific to the Generic Array module and do not apply to the Unboxed
+        -- Array module should be added here.
