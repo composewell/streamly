@@ -31,7 +31,18 @@ import Streamly.Test.Common (listEquals, performGCSweep)
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.MutArray as MA
+import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.Stream as S
+
+#if MIN_VERSION_QuickCheck(2,14,0)
+import Test.QuickCheck (chooseAny)
+#else
+import System.Random (Random(random))
+import Test.QuickCheck.Gen (Gen(MkGen))
+
+chooseAny :: Random a => Gen a
+chooseAny = MkGen (\r _ -> let (x, _) = random r in x)
+#endif
 
 type Array = A.Array
 
@@ -279,6 +290,50 @@ reallocMA =
                lst1 <- MA.toList arr1
                lst `shouldBe` lst1
 
+-------------------------------------------------------------------------------
+-- Array.Stream tests
+-------------------------------------------------------------------------------
+
+chunksOf :: Monad m => Int -> Fold.Fold m a b -> S.Stream m a -> S.Stream m b
+chunksOf n f = S.foldMany (Fold.take n f)
+
+testParseBreak :: Property
+testParseBreak = do
+    let len = 200
+    forAll
+        ((,,)
+            <$> vectorOf len (chooseAny :: Gen Int)
+            <*> chooseInt (1, len)
+            <*> chooseInt (0, len))
+        $ \(ls, clen, tlen) ->
+            monadicIO $ do
+                (ls1, str) <-
+                    let input =
+                            S.toStreamK
+                                $ chunksOf clen (A.createOf clen) (S.fromList ls)
+                        parser = Parser.fromFold (Fold.take tlen Fold.toList)
+                     in run $ A.parseBreak (A.toParserK parser) input
+                ls2 <- run $ S.fold Fold.toList (A.concat $ S.fromStreamK str)
+                case ls1 of
+                    Right x -> listEquals (==) (x ++ ls2) ls
+                    Left _ -> assert False
+
+testSplitOnSuffix :: Word8 -> [Word8] -> [[Word8]] -> IO ()
+testSplitOnSuffix sep inp out = do
+    res <-
+        S.fold Fold.toList
+            $ A.compactEndByByte_ sep
+            $ chunksOf 2 (A.createOf 2) $ S.fromList inp
+    fmap A.toList res `shouldBe` out
+
+testConcatArrayW8 :: Property
+testConcatArrayW8 =
+    forAll (vectorOf 10000 (arbitrary :: Gen Word8))
+        $ \w8List -> do
+              let w8ArrList = A.fromList . (: []) <$> w8List
+              f2 <- S.fold Fold.toList $ A.concat $ S.fromList w8ArrList
+              w8List `shouldBe` f2
+
 main :: IO ()
 main =
     hspec $
@@ -348,3 +403,17 @@ main =
         describe "write" $ do
             it "testWrite abc" (testWrite "abc")
             it "testWrite \\22407" (testWrite "\22407")
+        describe "Array.Stream" $ do
+            describe "Stream parsing" $ do
+                prop "parseBreak" testParseBreak
+                prop "concatArrayW8" testConcatArrayW8
+            describe "splitOnSuffix" $ do
+                it "splitOnSuffix 0 [1, 2, 0, 4, 0, 5, 6]"
+                       $ testSplitOnSuffix 0 [1, 2, 0, 4, 0, 5, 6]
+                                            [[1, 2], [4], [5, 6]]
+                it "splitOnSuffix 0 [1, 2, 0, 4, 0, 5, 6, 0]"
+                       $ testSplitOnSuffix 0 [1, 2, 0, 4, 0, 5, 6, 0]
+                                            [[1, 2], [4], [5, 6]]
+                it "splitOnSuffix 0 [0, 1, 2, 0, 4, 0, 5, 6]"
+                       $ testSplitOnSuffix 0 [0, 1, 2, 0, 4, 0, 5, 6]
+                                            [[], [1, 2], [4], [5, 6]]
