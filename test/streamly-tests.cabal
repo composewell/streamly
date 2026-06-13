@@ -257,13 +257,6 @@ test-suite Data.Array.Generic
   if flag(use-streamly-core)
     buildable: False
 
-test-suite Data.Array.Stream
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Array/Stream.hs
-  if flag(use-streamly-core)
-    buildable: False
-
 test-suite Data.Binary
   import: test-options
   type: exitcode-stdio-1.0
