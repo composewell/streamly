@@ -86,16 +86,3 @@ foldManyWith f =
                     $ S.fromList list
                 assert (xs == list)
 
-commonMain :: SpecWith ()
-commonMain = do
-    describe "Construction" $ do
-        prop "length . writeN n === n" testLength
-        prop "length . fromStreamN n === n" testLengthFromStreamN
-        prop "read . writeN === id " testFoldNUnfold
-        prop "toStream . writeN === id" testFoldNToStream
-        prop "toStreamRev . writeN === reverse" testFoldNToStreamRev
-        prop "read . fromStreamN === id" testFromStreamNUnfold
-        prop "toStream . fromStreamN === id" testFromStreamNToStream
-        prop "fromListN" testFromListN
-        prop "foldMany with writeN concats to original"
-            (foldManyWith A.createOf)
