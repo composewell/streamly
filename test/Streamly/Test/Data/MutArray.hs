@@ -1,28 +1,34 @@
 module Streamly.Test.Data.MutArray (main) where
 
-import Test.QuickCheck (listOf)
-
 import Control.Monad (void)
+import Data.Char (isLower)
 import Data.Complex (Complex)
 import Data.Functor.Const (Const)
 import Data.Functor.Identity (Identity)
+import Data.List (sort)
+import Data.Proxy (Proxy(..))
 import Foreign.Ptr (IntPtr, WordPtr)
+import Foreign.Storable (peek)
 import GHC.Exts
 import GHC.Fingerprint.Type (Fingerprint(..))
 import GHC.Int (Int16(..), Int32(..), Int64(..), Int8(..))
+import GHC.Ptr (plusPtr)
 import GHC.Real (Ratio(..))
 import GHC.Stable (StablePtr(..))
 import GHC.Word (Word16(..), Word32(..), Word64(..), Word8(..))
-import Streamly.Internal.Data.MutByteArray (Unbox)
+import Streamly.Internal.Data.MutArray (MutArray)
+import Streamly.Internal.Data.MutByteArray (Unbox, sizeOf)
 import Streamly.Test.Common (chooseInt)
-import Test.Hspec (hspec, describe, it)
+import System.Mem (performMajorGC)
+import Test.Hspec (hspec, describe, it, shouldBe, shouldReturn)
 import Test.Hspec.QuickCheck
-import Test.QuickCheck (forAll, Property)
+import Test.QuickCheck (forAll, listOf, Property, vectorOf, Gen, arbitrary)
 import Test.QuickCheck.Monadic (monadicIO, assert)
 #if MIN_VERSION_base(4,15,0)
 import GHC.IO.SubSystem (IoSubSystem (..))
 #endif
 
+import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.Data.MutArray as MArray
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Test.Hspec as Hspec
@@ -142,12 +148,153 @@ testUnboxInstanceExistance = do
     testIE :: Unbox a => [a] -> IO ()
     testIE lst = void $ MArray.fromList lst
 
+getIntList :: Ptr Int -> Int -> IO [Int]
+getIntList ptr byteLen = do
+    performMajorGC
+    getList ptr (ptr `plusPtr` byteLen)
+
+    where
+
+    sizeOfInt = sizeOf (Proxy :: Proxy Int)
+
+    -- We need to be careful here. We assume Unboxed and Storable are compatible
+    -- with each other. For Int, they are compatible.
+    getList p limitP
+        | p >= limitP = return []
+    getList p limitP = do
+        val <- peek p
+        rest <- getList (p `plusPtr` sizeOfInt) limitP
+        return $ val : rest
+
+testUnsafeAsPtr :: IO ()
+testUnsafeAsPtr = do
+    arr <- MArray.fromList ([0 .. 99] :: [Int])
+    arr1 <- MArray.pin arr
+    MArray.unsafeAsPtr arr1 getIntList `shouldReturn` [0 .. 99]
+
+unsafeWriteIndex :: [Int] -> Int -> Int -> IO Bool
+unsafeWriteIndex xs i x = do
+    arr <- MArray.fromList xs
+    MArray.unsafePutIndex i arr x
+    x1 <- MArray.unsafeGetIndex i arr
+    return $ x1 == x
+
+testByteLength :: forall a. Unbox a => a -> IO ()
+testByteLength _ = do
+    arrA <- MArray.emptyOf' 100 :: IO (MutArray a)
+    let arrW8 = MArray.unsafeCast arrA :: MutArray Word8
+    MArray.byteLength arrA `shouldBe` MArray.length arrW8
+
+testDropAround :: IO Bool
+testDropAround = do
+    dt <- MArray.fromList "abcDEFgeh"
+    dt' <- MArray.dropAround isLower dt
+    x <- MArray.toList dt'
+    return $ x == "DEF"
+
+testDropAroundLeft :: IO Bool
+testDropAroundLeft = do
+    dt <- MArray.fromList "abcDEF"
+    dt' <- MArray.dropAround isLower dt
+    x <- MArray.toList dt'
+    return $ x == "DEF"
+
+testDropAroundRight :: IO Bool
+testDropAroundRight = do
+    dt <- MArray.fromList "DEFgeh"
+    dt' <- MArray.dropAround isLower dt
+    x <- MArray.toList dt'
+    return $ x == "DEF"
+
+testDropAroundNone :: IO Bool
+testDropAroundNone = do
+    dt <- MArray.fromList "DEF"
+    dt' <- MArray.dropAround isLower dt
+    x <- MArray.toList dt'
+    return $ x == "DEF"
+
+testDropAroundAll :: IO Bool
+testDropAroundAll = do
+    dt <- MArray.fromList "abc"
+    dt' <- MArray.dropAround isLower dt
+    x <- MArray.toList dt'
+    return $ x == ""
+
+testDropAroundEmpty :: IO Bool
+testDropAroundEmpty = do
+    dt <- MArray.fromList ""
+    dt' <- MArray.dropAround isLower dt
+    x <- MArray.toList dt'
+    return $ x == ""
+
+testBubbleWith :: Bool -> Property
+testBubbleWith asc =
+    forAll (listOf (chooseInt (-50, 100))) $ \ls0 ->
+        monadicIO $ action ls0
+
+        where
+
+        action ls = do
+            x <- Stream.fold (fldm ls) $ Stream.fromList ls
+            lst <- MArray.toList x
+            if asc
+            then assert (sort ls == lst)
+            else assert (sort ls == reverse lst)
+
+        fldm ls =
+            Fold.foldlM'
+                (\b a -> do
+                    arr <- MArray.snoc b a
+                    if asc
+                    then MArray.bubble compare arr
+                    else MArray.bubble (flip compare) arr
+                    return arr
+                )
+                (MArray.emptyOf' $ length ls)
+
+testBubbleAsc :: Property
+testBubbleAsc = testBubbleWith True
+
+testBubbleDesc :: Property
+testBubbleDesc = testBubbleWith False
+
+testReallocBytes :: Property
+testReallocBytes =
+    let len = 10000
+        bSize = len * sizeOf (Proxy :: Proxy Char)
+    in forAll (vectorOf len (arbitrary :: Gen Char)) $ \vec ->
+           forAll (chooseInt (bSize - 2000, bSize + 2000)) $ \newBLen -> do
+               arr <- MArray.fromList vec
+               arr1 <- MArray.reallocBytes newBLen arr
+               lst <- MArray.toList arr
+               lst1 <- MArray.toList arr1
+               lst `shouldBe` lst1
+
 main :: IO ()
 main =
     hspec $
     Hspec.parallel $
     modifyMaxSuccess (const maxTestCount) $ do
         describe moduleName $ do
+            it "unsafeAsPtr" testUnsafeAsPtr
+            describe "unsafePutIndex" $ do
+                it "first" (unsafeWriteIndex [1..10] 0 0 `shouldReturn` True)
+                it "middle" (unsafeWriteIndex [1..10] 5 0 `shouldReturn` True)
+                it "last" (unsafeWriteIndex [1..10] 9 0 `shouldReturn` True)
+            describe "byteLength" $ do
+                it "Int" (testByteLength (undefined :: Int))
+                it "Char" (testByteLength (undefined :: Char))
+            describe "dropAround" $ do
+                it "both sides" (testDropAround `shouldReturn` True)
+                it "left only" (testDropAroundLeft `shouldReturn` True)
+                it "right only" (testDropAroundRight `shouldReturn` True)
+                it "no match" (testDropAroundNone `shouldReturn` True)
+                it "all match" (testDropAroundAll `shouldReturn` True)
+                it "empty" (testDropAroundEmpty `shouldReturn` True)
+            describe "bubble" $ do
+                prop "ascending" testBubbleAsc
+                prop "descending" testBubbleDesc
+            prop "reallocBytes" testReallocBytes
             describe "Stream Append" $ do
-                prop "testAppend" testAppend
+                prop "append2" testAppend
             testUnboxInstanceExistance

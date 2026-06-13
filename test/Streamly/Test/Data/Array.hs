@@ -8,19 +8,16 @@
 
 module Streamly.Test.Data.Array (main) where
 
-import Data.Char (isLower)
-import Data.List (sort)
 import Data.Proxy (Proxy(..))
 import Data.Word(Word8, Word16)
 import Foreign.Storable (peek)
 import Foreign.ForeignPtr (newForeignPtr_, withForeignPtr)
 import GHC.Ptr (plusPtr, Ptr(..))
-import Streamly.Internal.Data.MutByteArray (Unbox, sizeOf)
-import Streamly.Internal.Data.MutArray (MutArray)
+import Streamly.Internal.Data.MutByteArray (sizeOf)
 import System.Mem (performMajorGC)
 import Test.Hspec as H
 import Test.Hspec.QuickCheck
-import Test.QuickCheck (Property, forAll, Gen, vectorOf, arbitrary, choose, chooseInt, listOf)
+import Test.QuickCheck (Property, forAll, Gen, vectorOf, arbitrary, choose, chooseInt)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
 import Streamly.Data.Fold (Fold)
@@ -70,13 +67,6 @@ testFromList =
 testLengthFromStream :: Property
 testLengthFromStream = genericTestFrom (const A.fromStream)
 
-unsafeWriteIndex :: [Int] -> Int -> Int -> IO Bool
-unsafeWriteIndex xs i x = do
-    arr <- MA.fromList xs
-    MA.unsafePutIndex i arr x
-    x1 <- MA.unsafeGetIndex i arr
-    return $ x1 == x
-
 lastN :: Int -> [a] -> [a]
 lastN n l = drop (length l - n) l
 
@@ -99,90 +89,11 @@ testLastN_LN len n = do
     let l2 = lastN n list
     return $ l1 == l2
 
-testStrip :: IO Bool
-testStrip = do
-    dt <- MA.fromList "abcDEFgeh"
-    dt' <- MA.dropAround isLower dt
-    x <- MA.toList dt'
-    return $ x == "DEF"
-
-testStripLeft :: IO Bool
-testStripLeft = do
-    dt <- MA.fromList "abcDEF"
-    dt' <- MA.dropAround isLower dt
-    x <- MA.toList dt'
-    return $ x == "DEF"
-
-testStripRight :: IO Bool
-testStripRight = do
-    dt <- MA.fromList "DEFgeh"
-    dt' <- MA.dropAround isLower dt
-    x <- MA.toList dt'
-    return $ x == "DEF"
-
-testStripZero :: IO Bool
-testStripZero = do
-    dt <- MA.fromList "DEF"
-    dt' <- MA.dropAround isLower dt
-    x <- MA.toList dt'
-    return $ x == "DEF"
-
-testStripEmpty :: IO Bool
-testStripEmpty = do
-    dt <- MA.fromList "abc"
-    dt' <- MA.dropAround isLower dt
-    x <- MA.toList dt'
-    return $ x == ""
-
-testStripNull :: IO Bool
-testStripNull = do
-    dt <- MA.fromList ""
-    dt' <- MA.dropAround isLower dt
-    x <- MA.toList dt'
-    return $ x == ""
-
 unsafeSlice :: Int -> Int -> [Int] -> Bool
 unsafeSlice i n list =
     let lst = take n $ drop i list
         arr = A.toList $ A.unsafeSliceOffLen i n $ A.fromList list
      in arr == lst
-
-testBubbleWith :: Bool -> Property
-testBubbleWith asc =
-   forAll (listOf (chooseInt (-50, 100))) $ \ls0 ->
-        monadicIO $ action ls0
-
-        where
-
-        action ls = do
-            x <- S.fold (fldm ls) $ S.fromList ls
-            lst <- MA.toList x
-            if asc
-            then assert (sort ls == lst)
-            else assert (sort ls == reverse lst)
-
-        fldm ls =
-            Fold.foldlM'
-                (\b a -> do
-                    arr <- MA.snoc b a
-                    if asc
-                    then MA.bubble compare arr
-                    else MA.bubble (flip compare) arr
-                    return arr
-                )
-                (MA.emptyOf' $ length ls)
-
-testBubbleAsc ::  Property
-testBubbleAsc = testBubbleWith True
-
-testBubbleDesc ::  Property
-testBubbleDesc = testBubbleWith False
-
-testByteLengthWithMA :: forall a. Unbox a => a -> IO ()
-testByteLengthWithMA _ = do
-     arrA <- MA.emptyOf' 100 :: IO (MutArray a)
-     let arrW8 = MA.unsafeCast arrA :: MutArray Word8
-     MA.byteLength arrA `shouldBe` MA.length arrW8
 
 testBreakOn :: [Word8] -> Word8 -> [Word8] -> Maybe [Word8] -> IO ()
 testBreakOn inp sep bef aft = do
@@ -220,12 +131,6 @@ getIntList ptr byteLen = do
         val <- peek p
         rest <- getList (p `plusPtr` sizeOfInt) limitP
         return $ val : rest
-
-testAsPtrUnsafeMA :: IO ()
-testAsPtrUnsafeMA = do
-    arr <- MA.fromList ([0 .. 99] :: [Int])
-    arr1 <- MA.pin arr
-    MA.unsafeAsPtr arr1 getIntList `shouldReturn` [0 .. 99]
 
 testUnsafePinnedAsPtr :: IO ()
 testUnsafePinnedAsPtr = do
@@ -278,18 +183,6 @@ testFromW16CString# = do
         performGCSweep 4 100000
         arr1 `shouldBe` arr
 
-reallocMA :: Property
-reallocMA =
-    let len = 10000
-        bSize = len * sizeOf (Proxy :: Proxy Char)
-    in forAll (vectorOf len (arbitrary :: Gen Char)) $ \vec ->
-           forAll (chooseInt (bSize - 2000, bSize + 2000)) $ \newBLen -> do
-               arr <- MA.fromList vec
-               arr1 <- MA.reallocBytes newBLen arr
-               lst <- MA.toList arr
-               lst1 <- MA.toList arr1
-               lst `shouldBe` lst1
-
 -------------------------------------------------------------------------------
 -- Array.Stream tests
 -------------------------------------------------------------------------------
@@ -340,6 +233,10 @@ main =
     H.parallel $
     modifyMaxSuccess (const maxTestCount) $ do
       describe moduleName $ do
+        -----------------------------------------------------------------------
+        -- Array.Type module
+        -----------------------------------------------------------------------
+
         -- Conversion/Casting (Array.Type)
         it "unsafePinnedAsPtr" testUnsafePinnedAsPtr
         describe "unsafeAsForeignPtr" $ do
@@ -389,6 +286,11 @@ main =
             it "\\22407" (testUnsafeIndxedFromList "\22407")
         -- Streams of arrays / Concat (Array.Type)
         prop "concat" testConcatArrayW8
+
+        -----------------------------------------------------------------------
+        -- Array module
+        -----------------------------------------------------------------------
+
         -- Construction (Streamly.Internal.Data.Array)
         describe "createOfLast" $ do
             prop "0 <= n <= len" testLastN
@@ -409,25 +311,3 @@ main =
                                         [[], [1, 2], [4], [5, 6]]
         -- Parsing Stream of Arrays (Streamly.Internal.Data.Array)
         prop "parseBreak" testParseBreak
-        -- MutArray
-        it "MA.unsafeAsPtr" testAsPtrUnsafeMA
-        describe "MA.unsafePutIndex" $ do
-            it "first" (unsafeWriteIndex [1..10] 0 0 `shouldReturn` True)
-            it "middle" (unsafeWriteIndex [1..10] 5 0 `shouldReturn` True)
-            it "last" (unsafeWriteIndex [1..10] 9 0 `shouldReturn` True)
-        describe "MA.byteLength" $ do
-            it "Int" (testByteLengthWithMA (undefined :: Int))
-            it "Char" (testByteLengthWithMA (undefined :: Char))
-        describe "MA.dropAround" $ do
-            it "both sides" (testStrip `shouldReturn` True)
-            it "left only" (testStripLeft `shouldReturn` True)
-            it "right only" (testStripRight `shouldReturn` True)
-            it "no match" (testStripZero `shouldReturn` True)
-            it "all match" (testStripEmpty `shouldReturn` True)
-            it "empty" (testStripNull `shouldReturn` True)
-        -- XXX There is an issue https://github.com/composewell/streamly/issues/1577
-        --prop "MA.bubble" testAppend
-        describe "MA.bubble" $ do
-            prop "ascending" testBubbleAsc
-            prop "descending" testBubbleDesc
-        prop "MA.reallocBytes" reallocMA
