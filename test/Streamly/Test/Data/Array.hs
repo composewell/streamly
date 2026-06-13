@@ -340,80 +340,94 @@ main =
     H.parallel $
     modifyMaxSuccess (const maxTestCount) $ do
       describe moduleName $ do
-        commonMain
-        describe "Construction" $ do
-            -- XXX There is an issue https://github.com/composewell/streamly/issues/1577
-            --prop "testAppend" testAppend
-            prop "testBubbleAsc" testBubbleAsc
-            prop "testBubbleDesc" testBubbleDesc
-            prop "length . fromStream === n" testLengthFromStream
-            prop "toStream . fromStream === id" testFromStreamToStream
-            prop "read . write === id" testFoldUnfold
-            prop "fromList" testFromList
-            prop "foldMany with writeNUnsafe concats to original"
-                (foldManyWith (\n -> Fold.take n (A.unsafeCreateOf n)))
-        describe "AsPtr" $ do
-            it "testUnsafePinnedAsPtr" testUnsafePinnedAsPtr
-            it "testUnsafeAsForeignPtr" testUnsafeAsForeignPtr
-            it "testForeignPtrConversionId" testForeignPtrConversionId
-            it "testUnsafeFromForeignPtr" testUnsafeFromForeignPtr
-            it "testFromCString#" testFromCString#
-            it "testFromW16CString#" testFromW16CString#
-        describe "unsafeSlice" $ do
+        -- Conversion/Casting (Array.Type)
+        it "unsafePinnedAsPtr" testUnsafePinnedAsPtr
+        describe "unsafeAsForeignPtr" $ do
+            it "read via Ptr" testUnsafeAsForeignPtr
+            it "roundtrip with unsafeFromForeignPtr" testForeignPtrConversionId
+        -- Subarrays (Array.Type)
+        describe "unsafeSliceOffLen" $ do
             it "partial" $ unsafeSlice 2 4 [1..10]
             it "none" $ unsafeSlice 10 0 [1..10]
             it "full" $ unsafeSlice 0 10 [1..10]
-        describe "Mut.unsafeWriteIndex" $ do
+        -- Random Access / Slicing (Array.Type)
+        describe "breakEndByWord8_" $ do
+            it "[1,0,2] sep=0" (testBreakOn [1, 0, 2] 0 [1] (Just [2]))
+            it "[1,0] sep=0" (testBreakOn [1, 0] 0 [1] (Just []))
+            it "[1] sep=0" (testBreakOn [1] 0 [1] Nothing)
+        -- Random Access / Stream Folds (Array.Type)
+        describe "createOf" $ do
+            prop "length . createOf n === n" testLength
+            prop "reader . createOf === id" testFoldNUnfold
+            prop "read . createOf === id" testFoldNToStream
+            prop "readRev . createOf === reverse" testFoldNToStreamRev
+            prop "foldMany concats to original" (foldManyWith A.createOf)
+        prop "unsafeCreateOf" (foldManyWith (\n -> Fold.take n (A.unsafeCreateOf n)))
+        describe "create" $ do
+            prop "reader . create === id" testFoldUnfold
+            it "abc" (testWrite "abc")
+            it "\\22407" (testWrite "\22407")
+        -- Random Access / From containers (Array.Type)
+        prop "fromListN" testFromListN
+        describe "fromList" $ do
+            prop "reader . fromList === id" testFromList
+            it "abc" (testFromToList "abc")
+            it "\\22407" (testFromToList "\22407")
+        describe "fromStreamN" $ do
+            prop "length . fromStreamN n === n" testLengthFromStreamN
+            prop "reader . fromStreamN === id" testFromStreamNUnfold
+            prop "read . fromStreamN === id" testFromStreamNToStream
+        describe "fromStream" $ do
+            prop "length . fromStream === n" testLengthFromStream
+            prop "read . fromStream === id" testFromStreamToStream
+        it "fromCString#" testFromCString#
+        it "fromW16CString#" testFromW16CString#
+        it "unsafeFromForeignPtr" testUnsafeFromForeignPtr
+        -- Reading / Indexing (Array.Type)
+        describe "unsafeGetIndex" $ do
+            it "abc" (testUnsafeIndxedFromList "abc")
+            it "\\22407" (testUnsafeIndxedFromList "\22407")
+        -- Streams of arrays / Concat (Array.Type)
+        prop "concat" testConcatArrayW8
+        -- Construction (Streamly.Internal.Data.Array)
+        describe "createOfLast" $ do
+            prop "0 <= n <= len" testLastN
+            it "-1" (testLastN_LN 10 (-1) `shouldReturn` True)
+            it "0" (testLastN_LN 10 0 `shouldReturn` True)
+            it "length" (testLastN_LN 10 10 `shouldReturn` True)
+            it "length + 1" (testLastN_LN 10 11 `shouldReturn` True)
+        -- Stream of Arrays (Streamly.Internal.Data.Array)
+        describe "compactEndByByte_" $ do
+            it "0 [1,2,0,4,0,5,6]"
+                   $ testSplitOnSuffix 0 [1, 2, 0, 4, 0, 5, 6]
+                                        [[1, 2], [4], [5, 6]]
+            it "0 [1,2,0,4,0,5,6,0]"
+                   $ testSplitOnSuffix 0 [1, 2, 0, 4, 0, 5, 6, 0]
+                                        [[1, 2], [4], [5, 6]]
+            it "0 [0,1,2,0,4,0,5,6]"
+                   $ testSplitOnSuffix 0 [0, 1, 2, 0, 4, 0, 5, 6]
+                                        [[], [1, 2], [4], [5, 6]]
+        -- Parsing Stream of Arrays (Streamly.Internal.Data.Array)
+        prop "parseBreak" testParseBreak
+        -- MutArray
+        it "MA.unsafeAsPtr" testAsPtrUnsafeMA
+        describe "MA.unsafePutIndex" $ do
             it "first" (unsafeWriteIndex [1..10] 0 0 `shouldReturn` True)
             it "middle" (unsafeWriteIndex [1..10] 5 0 `shouldReturn` True)
             it "last" (unsafeWriteIndex [1..10] 9 0 `shouldReturn` True)
-        describe "Fold" $ do
-            prop "createOfLast : 0 <= n <= len" testLastN
-            describe "createOfLast boundary conditions" $ do
-                it "createOfLast -1" (testLastN_LN 10 (-1) `shouldReturn` True)
-                it "createOfLast 0" (testLastN_LN 10 0 `shouldReturn` True)
-                it "createOfLast length" (testLastN_LN 10 10 `shouldReturn` True)
-                it "createOfLast (length + 1)" (testLastN_LN 10 11 `shouldReturn` True)
-        describe "Strip" $ do
-            it "strip" (testStrip `shouldReturn` True)
-            it "stripLeft" (testStripLeft `shouldReturn` True)
-            it "stripRight" (testStripRight `shouldReturn` True)
-            it "stripZero" (testStripZero `shouldReturn` True)
-            it "stripEmpty" (testStripEmpty `shouldReturn` True)
-            it "stripNull" (testStripNull `shouldReturn` True)
-        describe "Mut" $ do
-            it "testByteLengthWithMA Int"
-                   (testByteLengthWithMA (undefined :: Int))
-            it "testByteLengthWithMA Char"
-                   (testByteLengthWithMA (undefined :: Char))
-            it "testAsPtrUnsafeMA" testAsPtrUnsafeMA
-            it "reallocMA" reallocMA
-        describe "breakOn" $ do
-            it "testBreakOn [1, 0, 2] 0"
-                   (testBreakOn [1, 0, 2] 0 [1] (Just [2]))
-            it "testBreakOn [1, 0] 0" (testBreakOn [1, 0] 0 [1] (Just []))
-            it "testBreakOn [1] 0" (testBreakOn [1] 0 [1] Nothing)
-        describe "toList . fromList" $ do
-            it "testFromToList abc" (testFromToList "abc")
-            it "testFromToList \\22407" (testFromToList "\22407")
-        describe "unsafeGetIndex . fromList" $ do
-            it "testUnsafeIndxedFromList abc" (testUnsafeIndxedFromList "abc")
-            it "testUnsafeIndxedFromList \\22407"
-                   (testUnsafeIndxedFromList "\22407")
-        describe "write" $ do
-            it "testWrite abc" (testWrite "abc")
-            it "testWrite \\22407" (testWrite "\22407")
-        describe "Array.Stream" $ do
-            describe "Stream parsing" $ do
-                prop "parseBreak" testParseBreak
-                prop "concatArrayW8" testConcatArrayW8
-            describe "splitOnSuffix" $ do
-                it "splitOnSuffix 0 [1, 2, 0, 4, 0, 5, 6]"
-                       $ testSplitOnSuffix 0 [1, 2, 0, 4, 0, 5, 6]
-                                            [[1, 2], [4], [5, 6]]
-                it "splitOnSuffix 0 [1, 2, 0, 4, 0, 5, 6, 0]"
-                       $ testSplitOnSuffix 0 [1, 2, 0, 4, 0, 5, 6, 0]
-                                            [[1, 2], [4], [5, 6]]
-                it "splitOnSuffix 0 [0, 1, 2, 0, 4, 0, 5, 6]"
-                       $ testSplitOnSuffix 0 [0, 1, 2, 0, 4, 0, 5, 6]
-                                            [[], [1, 2], [4], [5, 6]]
+        describe "MA.byteLength" $ do
+            it "Int" (testByteLengthWithMA (undefined :: Int))
+            it "Char" (testByteLengthWithMA (undefined :: Char))
+        describe "MA.dropAround" $ do
+            it "both sides" (testStrip `shouldReturn` True)
+            it "left only" (testStripLeft `shouldReturn` True)
+            it "right only" (testStripRight `shouldReturn` True)
+            it "no match" (testStripZero `shouldReturn` True)
+            it "all match" (testStripEmpty `shouldReturn` True)
+            it "empty" (testStripNull `shouldReturn` True)
+        -- XXX There is an issue https://github.com/composewell/streamly/issues/1577
+        --prop "MA.bubble" testAppend
+        describe "MA.bubble" $ do
+            prop "ascending" testBubbleAsc
+            prop "descending" testBubbleDesc
+        prop "MA.reallocBytes" reallocMA

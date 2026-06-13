@@ -30,6 +30,19 @@ moduleName = "Data.Array"
 
 #include "Streamly/Test/Data/Array/Common.hs"
 
+commonMain :: SpecWith ()
+commonMain = do
+    describe "Construction" $ do
+        prop "length . createOf n === n" testLength
+        prop "length . fromStreamN n === n" testLengthFromStreamN
+        prop "reader . createOf === id" testFoldNUnfold
+        prop "read . createOf === id" testFoldNToStream
+        prop "readRev . createOf === reverse" testFoldNToStreamRev
+        prop "reader . fromStreamN === id" testFromStreamNUnfold
+        prop "read . fromStreamN === id" testFromStreamNToStream
+        prop "fromListN" testFromListN
+        prop "foldMany concats to original" (foldManyWith A.createOf)
+
 testFromStreamToStream :: Property
 testFromStreamToStream =
     genericTestFromTo (const A.fromStream) A.read (==)
