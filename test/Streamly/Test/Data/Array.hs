@@ -48,44 +48,11 @@ moduleName = "Data.Array"
 
 #include "Streamly/Test/Data/Array/Common.hs"
 
-lastN :: Int -> [a] -> [a]
-lastN n l = drop (length l - n) l
-
-testLastN :: Property
-testLastN =
-    forAll (choose (0, maxArrLen)) $ \len ->
-        forAll (choose (0, len)) $ \n ->
-            forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
-                monadicIO $ do
-                    xs <- run
-                        $ fmap A.toList
-                        $ S.fold (A.createOfLast n)
-                        $ S.fromList list
-                    assert (xs == lastN n list)
-
-testLastN_LN :: Int -> Int -> IO Bool
-testLastN_LN len n = do
-    let list = [1..len]
-    l1 <- fmap A.toList $ S.fold (A.createOfLast n) $ S.fromList list
-    let l2 = lastN n list
-    return $ l1 == l2
-
-unsafeSlice :: Int -> Int -> [Int] -> Bool
-unsafeSlice i n list =
-    let lst = take n $ drop i list
-        arr = A.toList $ A.unsafeSliceOffLen i n $ A.fromList list
-     in arr == lst
-
 testBreakOn :: [Word8] -> Word8 -> [Word8] -> Maybe [Word8] -> IO ()
 testBreakOn inp sep bef aft = do
     (bef_, aft_) <- A.breakEndByWord8_ sep (A.fromList inp)
     bef_ `shouldBe` A.fromList bef
     aft_ `shouldBe` fmap A.fromList aft
-
-testUnsafeIndxedFromList :: [Char] -> IO ()
-testUnsafeIndxedFromList inp =
-    let arr = A.fromList inp
-     in fmap (`A.unsafeGetIndex` arr) [0 .. (length inp - 1)] `shouldBe` inp
 
 getIntList :: Ptr Int -> Int -> IO [Int]
 getIntList ptr byteLen = do
@@ -215,11 +182,6 @@ main =
         describe "unsafeAsForeignPtr" $ do
             it "read via Ptr" testUnsafeAsForeignPtr
             it "roundtrip with unsafeFromForeignPtr" testForeignPtrConversionId
-        -- Subarrays (Array.Type)
-        describe "unsafeSliceOffLen" $ do
-            it "partial" $ unsafeSlice 2 4 [1..10]
-            it "none" $ unsafeSlice 10 0 [1..10]
-            it "full" $ unsafeSlice 0 10 [1..10]
         -- Random Access / Slicing (Array.Type)
         describe "breakEndByWord8_" $ do
             it "[1,0,2] sep=0" (testBreakOn [1, 0, 2] 0 [1] (Just [2]))
@@ -230,10 +192,6 @@ main =
         it "fromCString#" testFromCString#
         it "fromW16CString#" testFromW16CString#
         it "unsafeFromForeignPtr" testUnsafeFromForeignPtr
-        -- Reading / Indexing (Array.Type)
-        describe "unsafeGetIndex" $ do
-            it "abc" (testUnsafeIndxedFromList "abc")
-            it "\\22407" (testUnsafeIndxedFromList "\22407")
         -- Streams of arrays / Concat (Array.Type)
         prop "concat" testConcatArrayW8
 
@@ -241,13 +199,6 @@ main =
         -- Array module
         -----------------------------------------------------------------------
 
-        -- Construction (Streamly.Internal.Data.Array)
-        describe "createOfLast" $ do
-            prop "0 <= n <= len" testLastN
-            it "-1" (testLastN_LN 10 (-1) `shouldReturn` True)
-            it "0" (testLastN_LN 10 0 `shouldReturn` True)
-            it "length" (testLastN_LN 10 10 `shouldReturn` True)
-            it "length + 1" (testLastN_LN 10 11 `shouldReturn` True)
         -- Stream of Arrays (Streamly.Internal.Data.Array)
         describe "compactEndByByte_" $ do
             it "0 [1,2,0,4,0,5,6]"
