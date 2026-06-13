@@ -174,6 +174,17 @@ main =
     modifyMaxSuccess (const maxTestCount) $ do
       describe moduleName $ do
         -----------------------------------------------------------------------
+        -- Tests common between Array and Array.Generic modules
+        -----------------------------------------------------------------------
+
+        commonMain
+
+        -- IMPORTANT NOTE: Before adding any test here first consider if it can
+        -- be added to the Array/Common test module. Only those tests which are
+        -- specific to the Unboxed Array module and do not apply to the Generic
+        -- Array module should be added here.
+
+        -----------------------------------------------------------------------
         -- Array.Type module
         -----------------------------------------------------------------------
 
@@ -187,16 +198,20 @@ main =
             it "[1,0,2] sep=0" (testBreakOn [1, 0, 2] 0 [1] (Just [2]))
             it "[1,0] sep=0" (testBreakOn [1, 0] 0 [1] (Just []))
             it "[1] sep=0" (testBreakOn [1] 0 [1] Nothing)
-        commonMain
         prop "unsafeCreateOf" (foldManyWith (\n -> Fold.take n (A.unsafeCreateOf n)))
         it "fromCString#" testFromCString#
         it "fromW16CString#" testFromW16CString#
         it "unsafeFromForeignPtr" testUnsafeFromForeignPtr
+
+        -----------------------------------------------------------------------
+        -- Stream of Arrays: Array.Type module
+        -----------------------------------------------------------------------
+
         -- Streams of arrays / Concat (Array.Type)
         prop "concat" testConcatArrayW8
 
         -----------------------------------------------------------------------
-        -- Array module
+        -- Stream of Arrays: Array module
         -----------------------------------------------------------------------
 
         -- Stream of Arrays (Streamly.Internal.Data.Array)
