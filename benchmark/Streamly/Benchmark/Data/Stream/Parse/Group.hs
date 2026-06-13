@@ -113,26 +113,21 @@ inspect $ 'foldIterateM `hasNoType` ''FL.Step
 inspect $ 'foldIterateM `hasNoType` ''SPEC
 #endif
 
-o_1_space_grouping :: Int -> [Benchmark]
-o_1_space_grouping value =
-    -- Buffering operations using heap proportional to group/window sizes.
-        [
-          benchIO "groups" $ groups value
-        , benchIO "groupsWhileLT" $ groupsWhileLT value
-        , benchIO "groupsWhileEq" $ groupsWhileEq value
-        , benchIO "groupsByRollingLT" $ groupsByRollingLT value
-        , benchIO "groupsByRollingEq" $ groupsByRollingEq value
-
-        -- XXX parseMany/parseIterate benchmarks are in the Parser/ParserD
-        -- modules we can bring those here. chunksOf benchmarks are in
-        -- Parser/ParserD/Array.Stream/FileSystem.Handle.
-        , benchIO "foldIterateM" $ foldIterateM value
-        ]
-
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
 
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
-    map (SpaceO_1,) (o_1_space_grouping size)
+    -- Buffering operations using heap proportional to group/window sizes.
+      [ (SpaceO_1, benchIO "groups" $ groups size)
+      , (SpaceO_1, benchIO "groupsWhileLT" $ groupsWhileLT size)
+      , (SpaceO_1, benchIO "groupsWhileEq" $ groupsWhileEq size)
+      , (SpaceO_1, benchIO "groupsByRollingLT" $ groupsByRollingLT size)
+      , (SpaceO_1, benchIO "groupsByRollingEq" $ groupsByRollingEq size)
+
+      -- XXX parseMany/parseIterate benchmarks are in the Parser/ParserD
+      -- modules we can bring those here. chunksOf benchmarks are in
+      -- Parser/ParserD/Array.Stream/FileSystem.Handle.
+      , (SpaceO_1, benchIO "foldIterateM" $ foldIterateM size)
+      ]

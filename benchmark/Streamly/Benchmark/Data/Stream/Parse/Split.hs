@@ -239,112 +239,108 @@ inspect $ 'splitWithSuffixSeq `hasNoType` ''Fold.Step
 inspect $ 'splitWithSuffixSeq `hasNoType` ''SPEC
 #endif
 
-o_1_space_reduce_read_split :: BenchEnv -> [Benchmark]
-o_1_space_reduce_read_split env =
-    -- NOTE: keep the benchmark names consistent with Data.Fold.takeEndBy*
-        [ mkBench "splitOn infix lf" env $ \inh _ ->
-            splitOn inh
-
-        -- splitting on a sequence
-        , mkBench "wordsBy infix isSpace" env $ \inh _ ->
-            wordsBy inh
-
-        -- Infix
-        , mkBench "splitOnSeq empty infix" env $ \inh _ ->
-            splitOnSeq "" inh
-        , mkBench "splitOnSeq single infix lf" env $ \inh _ ->
-            splitOnSeq "\n" inh
-        , mkBench "splitOnSeq single infix a" env $ \inh _ ->
-            splitOnSeq "a" inh
-        , mkBench "splitOnSeq word infix crlf" env $ \inh _ ->
-            splitOnSeq "\r\n" inh
-        , mkBench "splitOnSeq word infix aa" env $ \inh _ ->
-            splitOnSeq "aa" inh
-        , mkBench "splitOnSeq word infix aaaa" env $ \inh _ ->
-            splitOnSeq "aaaa" inh
-        , mkBench "splitOnSeq word infix abcdefgh" env $ \inh _ ->
-            splitOnSeq "abcdefgh" inh
-        , mkBench "splitOnSeq KR infix abcdefghi" env $ \inh _ ->
-            splitOnSeq "abcdefghi" inh
-        , mkBench "splitOnSeq KR infix catcatcatcatcat" env $ \inh _ ->
-            splitOnSeq "catcatcatcatcat" inh
-        , mkBench "splitOnSeq KR infix abcdefghijklmnopqrstuvwxyz"
-            env $ \inh _ -> splitOnSeq "abcdefghijklmnopqrstuvwxyz" inh
-        , mkBench "splitOnSeq KR infix 100k long pattern"
-            env $ \inh _ -> splitOnSeq100k inh
-
-        -- Suffix
-        , mkBench "splitOnSuffixSeq empty suffix" env $ \inh _ ->
-            splitOnSuffixSeq "" inh
-        , mkBench "splitOnSuffixSeq single suffix lf" env $ \inh _ ->
-            splitOnSuffixSeq "\n" inh
-        , mkBench "splitOnSuffixSeq word suffix crlf" env $ \inh _ ->
-            splitOnSuffixSeq "\r\n" inh
-        , mkBenchSmall "splitOnSuffixSeq KR suffix abcdefghijklmnopqrstuvwxyz"
-            env $ \inh _ -> splitOnSuffixSeq "abcdefghijklmnopqrstuvwxyz" inh
-
-        -- Suffix with separator
-        , mkBench "splitWithSuffixSeq single suffix lf" env $ \inh _ ->
-            splitWithSuffixSeq "\n" inh
-        , mkBench "splitWithSuffixSeq word suffix crlf" env $ \inh _ ->
-            splitWithSuffixSeq "\r\n" inh
-        , mkBench "splitWithSuffixSeq KR suffix abcdefghi" env $ \inh _ ->
-            splitWithSuffixSeq "abcdefghi" inh
-        , mkBenchSmall "splitWithSuffixSeq KR suffix abcdefghijklmnopqrstuvwxyz"
-            env $ \inh _ -> splitWithSuffixSeq "abcdefghijklmnopqrstuvwxyz" inh
-
-        {-
-          mkBench "takeEndBySeq empty" env $ \inh _ ->
-                takeEndBySeq "" inh
-        -}
-        -- IMPORTANT: the pattern must contain a, because we filter a's out
-        -- from the stream so that we do not terminate too early and
-        -- unpredictably.
-        , mkBench "takeEndBy" env $ \inh _ ->
-            takeEndBy (fromIntegral $ ord 'a') inh
-        , mkBench "takeEndBy_" env $ \inh _ ->
-            takeEndBy_ (fromIntegral $ ord 'a') inh
-        , mkBench "takeEndBySeq single a" env $ \inh _ ->
-            takeEndBySeq "a" inh
-        , mkBench "takeEndBySeq word aa" env $ \inh _ ->
-            takeEndBySeq "aa" inh
-        , mkBench "takeEndBySeq word aaaa" env $ \inh _ ->
-            takeEndBySeq "aaaa" inh
-        , mkBench "takeEndBySeq word abcdefgh" env $ \inh _ ->
-            takeEndBySeq "abcdefgh" inh
-
-        -- XXX takeEndBySeq KR requires @-fspec-constr-recursive=12@.
-        , mkBench "takeEndBySeq KR abcdefghi" env $ \inh _ ->
-            takeEndBySeq "abcdefghi" inh
-        , mkBench "takeEndBySeq KR catcatcatcatcat" env $ \inh _ ->
-            takeEndBySeq "catcatcatcatcat" inh
-        , mkBench "takeEndBySeq KR abcdefghijklmnopqrstuvwxyz"
-            env $ \inh _ -> takeEndBySeq "abcdefghijklmnopqrstuvwxyz" inh
-        , mkBench "takeEndBySeq KR 100k long pattern"
-            env $ \inh _ -> takeEndBySeq100k inh
-
-        {-
-        , mkBench "takeEndBySeq_ empty" env $ \inh _ ->
-            takeEndBySeq_ "" inh
-        -}
-        , mkBench "takeEndBySeq_ single a" env $ \inh _ ->
-            takeEndBySeq_ "a" inh
-        , mkBench "takeEndBySeq_ word aa" env $ \inh _ ->
-            takeEndBySeq_ "aa" inh
-        , mkBench "takeEndBySeq_ word aaaa" env $ \inh _ ->
-            takeEndBySeq_ "aaaa" inh
-        , mkBench "takeEndBySeq_ word abcdefgh" env $ \inh _ ->
-            takeEndBySeq_ "abcdefgh" inh
-        , mkBench "takeEndBySeq_ KR abcdefghi" env $ \inh _ ->
-            takeEndBySeq_ "abcdefghi" inh
-        , mkBench "takeEndBySeq_ KR catcatcatcatcat" env $ \inh _ ->
-            takeEndBySeq_ "catcatcatcatcat" inh
-        , mkBench "takeEndBySeq_ KR abcdefghijklmnopqrstuvwxyz"
-            env $ \inh _ -> takeEndBySeq_ "abcdefghijklmnopqrstuvwxyz" inh
-        , mkBench "takeEndBySeq_ KR 100k long pattern"
-            env $ \inh _ -> takeEndBySeq_100k inh
-        ]
-
 benchmarks :: BenchEnv -> [(SpaceComplexity, Benchmark)]
 benchmarks env =
-    map (SpaceO_1,) (o_1_space_reduce_read_split env)
+    -- NOTE: keep the benchmark names consistent with Data.Fold.takeEndBy*
+      [ (SpaceO_1, mkBench "splitOn infix lf" env $ \inh _ ->
+            splitOn inh)
+
+      -- splitting on a sequence
+      , (SpaceO_1, mkBench "wordsBy infix isSpace" env $ \inh _ ->
+            wordsBy inh)
+
+      -- Infix
+      , (SpaceO_1, mkBench "splitOnSeq empty infix" env $ \inh _ ->
+            splitOnSeq "" inh)
+      , (SpaceO_1, mkBench "splitOnSeq single infix lf" env $ \inh _ ->
+            splitOnSeq "\n" inh)
+      , (SpaceO_1, mkBench "splitOnSeq single infix a" env $ \inh _ ->
+            splitOnSeq "a" inh)
+      , (SpaceO_1, mkBench "splitOnSeq word infix crlf" env $ \inh _ ->
+            splitOnSeq "\r\n" inh)
+      , (SpaceO_1, mkBench "splitOnSeq word infix aa" env $ \inh _ ->
+            splitOnSeq "aa" inh)
+      , (SpaceO_1, mkBench "splitOnSeq word infix aaaa" env $ \inh _ ->
+            splitOnSeq "aaaa" inh)
+      , (SpaceO_1, mkBench "splitOnSeq word infix abcdefgh" env $ \inh _ ->
+            splitOnSeq "abcdefgh" inh)
+      , (SpaceO_1, mkBench "splitOnSeq KR infix abcdefghi" env $ \inh _ ->
+            splitOnSeq "abcdefghi" inh)
+      , (SpaceO_1, mkBench "splitOnSeq KR infix catcatcatcatcat" env $ \inh _ ->
+            splitOnSeq "catcatcatcatcat" inh)
+      , (SpaceO_1, mkBench "splitOnSeq KR infix abcdefghijklmnopqrstuvwxyz"
+            env $ \inh _ -> splitOnSeq "abcdefghijklmnopqrstuvwxyz" inh)
+      , (SpaceO_1, mkBench "splitOnSeq KR infix 100k long pattern"
+            env $ \inh _ -> splitOnSeq100k inh)
+
+      -- Suffix
+      , (SpaceO_1, mkBench "splitOnSuffixSeq empty suffix" env $ \inh _ ->
+            splitOnSuffixSeq "" inh)
+      , (SpaceO_1, mkBench "splitOnSuffixSeq single suffix lf" env $ \inh _ ->
+            splitOnSuffixSeq "\n" inh)
+      , (SpaceO_1, mkBench "splitOnSuffixSeq word suffix crlf" env $ \inh _ ->
+            splitOnSuffixSeq "\r\n" inh)
+      , (SpaceO_1, mkBenchSmall "splitOnSuffixSeq KR suffix abcdefghijklmnopqrstuvwxyz"
+            env $ \inh _ -> splitOnSuffixSeq "abcdefghijklmnopqrstuvwxyz" inh)
+
+      -- Suffix with separator
+      , (SpaceO_1, mkBench "splitWithSuffixSeq single suffix lf" env $ \inh _ ->
+            splitWithSuffixSeq "\n" inh)
+      , (SpaceO_1, mkBench "splitWithSuffixSeq word suffix crlf" env $ \inh _ ->
+            splitWithSuffixSeq "\r\n" inh)
+      , (SpaceO_1, mkBench "splitWithSuffixSeq KR suffix abcdefghi" env $ \inh _ ->
+            splitWithSuffixSeq "abcdefghi" inh)
+      , (SpaceO_1, mkBenchSmall "splitWithSuffixSeq KR suffix abcdefghijklmnopqrstuvwxyz"
+            env $ \inh _ -> splitWithSuffixSeq "abcdefghijklmnopqrstuvwxyz" inh)
+
+      {-
+        mkBench "takeEndBySeq empty" env $ \inh _ ->
+              takeEndBySeq "" inh
+      -}
+      -- IMPORTANT: the pattern must contain a, because we filter a's out
+      -- from the stream so that we do not terminate too early and
+      -- unpredictably.
+      , (SpaceO_1, mkBench "takeEndBy" env $ \inh _ ->
+            takeEndBy (fromIntegral $ ord 'a') inh)
+      , (SpaceO_1, mkBench "takeEndBy_" env $ \inh _ ->
+            takeEndBy_ (fromIntegral $ ord 'a') inh)
+      , (SpaceO_1, mkBench "takeEndBySeq single a" env $ \inh _ ->
+            takeEndBySeq "a" inh)
+      , (SpaceO_1, mkBench "takeEndBySeq word aa" env $ \inh _ ->
+            takeEndBySeq "aa" inh)
+      , (SpaceO_1, mkBench "takeEndBySeq word aaaa" env $ \inh _ ->
+            takeEndBySeq "aaaa" inh)
+      , (SpaceO_1, mkBench "takeEndBySeq word abcdefgh" env $ \inh _ ->
+            takeEndBySeq "abcdefgh" inh)
+
+      -- XXX takeEndBySeq KR requires @-fspec-constr-recursive=12@.
+      , (SpaceO_1, mkBench "takeEndBySeq KR abcdefghi" env $ \inh _ ->
+            takeEndBySeq "abcdefghi" inh)
+      , (SpaceO_1, mkBench "takeEndBySeq KR catcatcatcatcat" env $ \inh _ ->
+            takeEndBySeq "catcatcatcatcat" inh)
+      , (SpaceO_1, mkBench "takeEndBySeq KR abcdefghijklmnopqrstuvwxyz"
+            env $ \inh _ -> takeEndBySeq "abcdefghijklmnopqrstuvwxyz" inh)
+      , (SpaceO_1, mkBench "takeEndBySeq KR 100k long pattern"
+            env $ \inh _ -> takeEndBySeq100k inh)
+
+      {-
+      , mkBench "takeEndBySeq_ empty" env $ \inh _ ->
+          takeEndBySeq_ "" inh
+      -}
+      , (SpaceO_1, mkBench "takeEndBySeq_ single a" env $ \inh _ ->
+            takeEndBySeq_ "a" inh)
+      , (SpaceO_1, mkBench "takeEndBySeq_ word aa" env $ \inh _ ->
+            takeEndBySeq_ "aa" inh)
+      , (SpaceO_1, mkBench "takeEndBySeq_ word aaaa" env $ \inh _ ->
+            takeEndBySeq_ "aaaa" inh)
+      , (SpaceO_1, mkBench "takeEndBySeq_ word abcdefgh" env $ \inh _ ->
+            takeEndBySeq_ "abcdefgh" inh)
+      , (SpaceO_1, mkBench "takeEndBySeq_ KR abcdefghi" env $ \inh _ ->
+            takeEndBySeq_ "abcdefghi" inh)
+      , (SpaceO_1, mkBench "takeEndBySeq_ KR catcatcatcatcat" env $ \inh _ ->
+            takeEndBySeq_ "catcatcatcatcat" inh)
+      , (SpaceO_1, mkBench "takeEndBySeq_ KR abcdefghijklmnopqrstuvwxyz"
+            env $ \inh _ -> takeEndBySeq_ "abcdefghijklmnopqrstuvwxyz" inh)
+      , (SpaceO_1, mkBench "takeEndBySeq_ KR 100k long pattern"
+            env $ \inh _ -> takeEndBySeq_100k inh)
+      ]

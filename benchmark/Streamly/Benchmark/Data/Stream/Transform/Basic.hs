@@ -305,42 +305,6 @@ inspect $ 'trace4 `hasNoType` ''FL.Step
 inspect $ 'trace4 `hasNoType` ''SPEC
 #endif
 
-o_1_space_mapping :: Int -> [Benchmark]
-o_1_space_mapping value =
-    [
-    -- , benchIOSink value "foldrT" (foldrT 1)
-    -- , benchIOSink value "foldrTMap" (foldrTMap 1)
-
-    -- Mapping
-      benchIO "sequence" $ sequence1 value
-    , benchIO "tap" $ tap1 value
-    -- XXX tasty-bench hangs benchmarking this
-    -- , benchIOSink value "timestamped" _timestamped
-    -- Scanning
-    , benchIO "scanl'" $ scanl'1 value
-    , benchIO "scanl1'" $ scanl1'1 value
-    , benchIO "scanlM'" $ scanlM'1 value
-    , benchIO "scanl1M'" $ scanl1M'1 value
-    , benchIO "postscanl'" $ postscanl'1 value
-    , benchIO "postscanlM'" $ postscanlM'1 value
-    , benchIO "scan" $ scan1 value
-    , benchIO "postscan" $ postscan1 value
-    ]
-
-o_1_space_mappingX4 :: Int -> [Benchmark]
-o_1_space_mappingX4 value =
-    [ benchIO "trace x 4" $ trace4 value
-
-    , benchIO "scanl' x 4" $ scanl'4 value
-    , benchIO "scanl1' x 4" $ scanl1'4 value
-    , benchIO "scanlM' x 4" $ scanlM'4 value
-    , benchIO "scanl1M' x 4" $ scanl1M'4 value
-    , benchIO "postscanl' x 4" $ postscanl'4 value
-    , benchIO "postscanlM' x 4" $ postscanlM'4 value
-    , benchIO "scan x 4" $ scan4 value
-    , benchIO "postscan x 4" $ postscan4 value
-    ]
-
 -------------------------------------------------------------------------------
 -- Iteration/looping utilities
 -------------------------------------------------------------------------------
@@ -392,19 +356,6 @@ iterateSubMap value = withRandomIntIO $ drain . iterateSingleton (<$) value
 {-# INLINE iterateFmap #-}
 iterateFmap :: Int -> IO ()
 iterateFmap value = withRandomIntIO $ drain . iterateSingleton (fmap . (+)) value
-
-o_n_space_iterated :: Int -> [Benchmark]
-o_n_space_iterated value =
-    [ benchIO "iterated/(+) (n times) (baseline)" $ iteratePlusBaseline value
-    , benchIO "iterated/(<$) (n times)" $ iterateSubMap value
-    , benchIO "iterated/fmap (n times)" $ iterateFmap value
-    {-
-    , benchIOSrc fromSerial "_(<$) (n times)" $
-        _iterateSingleton (<$) value
-    , benchIOSrc fromSerial "_fmap (n times)" $
-        _iterateSingleton (fmap . (+)) value
-    -}
-    ]
 
 -------------------------------------------------------------------------------
 -- Size reducing transformations (filtering)
@@ -881,65 +832,6 @@ inspect $ 'mapMaybeM4 `hasNoType` ''FL.Step
 inspect $ 'mapMaybeM4 `hasNoType` ''SPEC
 #endif
 
-o_1_space_filtering :: Int -> [Benchmark]
-o_1_space_filtering value =
-    [ benchIO "filter-even" $ filterEven1 value
-    , benchIO "filter-all-out" $ filterAllOut1 value
-    , benchIO "filter-all-in" $ filterAllIn1 value
-
-    , benchIO "filterM-even" $ filterMEven1 value
-    , benchIO "filterM-all-out" $ filterMAllOut1 value
-    , benchIO "filterM-all-in" $ filterMAllIn1 value
-
-    , benchIO "drop-one" $ dropOne1 value
-    , benchIO "drop-all" $ dropAll1 value
-    , benchIO "dropWhile-true" $ dropWhileTrue1 value
- -- , benchIO "dropWhileM-true" ...
-    , benchIO "dropWhile-false" $ dropWhileFalse1 value
-    , benchIO "deleteBy" $ deleteBy1 value
-
-    , benchIO "uniq" $ uniq1 value
-
-    -- Map and filter
-    , benchIO "mapMaybe" $ mapMaybe1 value
-    , benchIO "mapMaybeM" $ mapMaybeM1 value
-
-    -- Searching (stateful map and filter)
-    , benchIO "findIndices" $ findIndices1 value
-    , benchIO "elemIndices" $ elemIndices1 value
-    , benchIO "findIndex" $ findIndex value
-    , benchIO "elemIndex" $ elemIndex value
-    ]
-
-o_1_space_filteringX4 :: Int -> [Benchmark]
-o_1_space_filteringX4 value =
-    [ benchIO "filter-even x 4" $ filterEven4 value
-    , benchIO "filter-all-out x 4" $ filterAllOut4 value
-    , benchIO "filter-all-in x 4" $ filterAllIn4 value
-
-    , benchIO "filterM-even x 4" $ filterMEven4 value
-    , benchIO "filterM-all-out x 4" $ filterMAllOut4 value
-    , benchIO "filterM-all-in x 4" $ filterMAllIn4 value
-
-    , benchIO "drop-one x 4" $ dropOne4 value
-    , benchIO "drop-all x 4" $ dropAll4 value
-    , benchIO "dropWhile-true x 4" $ dropWhileTrue4 value
-    , benchIO "dropWhileM-true x 4" $ dropWhileMTrue4 value
-    -- XXX requires @-fspec-constr-recursive=12@.
-    , benchIO "dropWhile-false x 4" $ dropWhileFalse4 value
-    , benchIO "deleteBy x 4" $ deleteBy4 value
-
-    , benchIO "uniq x 4" $ uniq4 value
-
-    -- map and filter
-    , benchIO "mapMaybe x 4" $ mapMaybe4 value
-    , benchIO "mapMaybeM x 4" $ mapMaybeM4 value
-
-    -- searching
-    , benchIO "findIndices x 4" $ findIndices4 value
-    , benchIO "elemIndices x 4" $ elemIndices4 value
-    ]
-
 -------------------------------------------------------------------------------
 -- Size increasing transformations (insertions)
 -------------------------------------------------------------------------------
@@ -1049,23 +941,6 @@ inspect $ 'intercalateSuffix1 `hasNoType` ''FL.Step
 inspect $ 'intercalateSuffix1 `hasNoType` ''SPEC
 #endif
 
-o_1_space_inserting :: Int -> [Benchmark]
-o_1_space_inserting value =
-    [ benchIO "intersperse" $ intersperse1 value
-    , benchIO "intersperseM" $ intersperseM1 value
-    , benchIO "insertBy" $ insertBy1 value
-    , benchIO "interposeSuffix" $ interposeSuffix1 value
-    , benchIO "intercalateSuffix" $ intercalateSuffix1 value
-    ]
-
-o_1_space_insertingX4 :: Int -> [Benchmark]
-o_1_space_insertingX4 value =
-    [
-      -- XXX requires @-fspec-constr-recursive=16@.
-      benchIO "intersperse x 4" $ intersperse4 value
-    , benchIO "insertBy x 4" $ insertBy4 value
-    ]
-
 -------------------------------------------------------------------------------
 -- Indexing
 -------------------------------------------------------------------------------
@@ -1122,18 +997,6 @@ inspect $ 'indexedR4 `hasNoType` ''FL.Step
 inspect $ 'indexedR4 `hasNoType` ''SPEC
 #endif
 
-o_1_space_indexing :: Int -> [Benchmark]
-o_1_space_indexing value =
-    [ benchIO "indexed" $ indexed1 value
-    , benchIO "indexedR" $ indexedR1 value
-    ]
-
-o_1_space_indexingX4 :: Int -> [Benchmark]
-o_1_space_indexingX4 value =
-    [ benchIO "indexed x 4" $ indexed4 value
-    , benchIO "indexedR x 4" $ indexedR4 value
-    ]
-
 -------------------------------------------------------------------------------
 -- Size conserving transformations (reordering, buffering, etc.)
 -------------------------------------------------------------------------------
@@ -1158,32 +1021,113 @@ inspect $ hasNoTypeClasses 'reverse'
 -- inspect $ 'reverse' `hasNoType` ''Stream.Step
 #endif
 
-o_n_heap_buffering :: Int -> [Benchmark]
-o_n_heap_buffering value =
-    [
-    -- Reversing a stream
-      benchIO "reverse" $ reverse value
-    , benchIO "reverse'" $ reverse' value
-    ]
-
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
 
--- In addition to gauge options, the number of elements in the stream can be
--- passed using the --stream-size option.
---
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
-    map (SpaceO_1,) (Prelude.concat
-        [ o_1_space_mapping size
-        , o_1_space_mappingX4 size
-        , o_1_space_filtering size
-        , o_1_space_filteringX4 size
-        , o_1_space_inserting size
-        , o_1_space_insertingX4 size
-        , o_1_space_indexing size
-        , o_1_space_indexingX4 size
-        ])
-    ++ map (SpaceO_n,) (o_n_space_iterated size)
-    ++ map (HeapO_n,) (o_n_heap_buffering size)
+    [
+    -- , benchIOSink value "foldrT" (foldrT 1)
+    -- , benchIOSink value "foldrTMap" (foldrTMap 1)
+
+    -- Mapping
+      (SpaceO_1, benchIO "sequence" $ sequence1 size)
+    , (SpaceO_1, benchIO "tap" $ tap1 size)
+    -- XXX tasty-bench hangs benchmarking this
+    -- , benchIOSink value "timestamped" _timestamped
+    -- Scanning
+    , (SpaceO_1, benchIO "scanl'" $ scanl'1 size)
+    , (SpaceO_1, benchIO "scanl1'" $ scanl1'1 size)
+    , (SpaceO_1, benchIO "scanlM'" $ scanlM'1 size)
+    , (SpaceO_1, benchIO "scanl1M'" $ scanl1M'1 size)
+    , (SpaceO_1, benchIO "postscanl'" $ postscanl'1 size)
+    , (SpaceO_1, benchIO "postscanlM'" $ postscanlM'1 size)
+    , (SpaceO_1, benchIO "scan" $ scan1 size)
+    , (SpaceO_1, benchIO "postscan" $ postscan1 size)
+    , (SpaceO_1, benchIO "trace x 4" $ trace4 size)
+
+    , (SpaceO_1, benchIO "scanl' x 4" $ scanl'4 size)
+    , (SpaceO_1, benchIO "scanl1' x 4" $ scanl1'4 size)
+    , (SpaceO_1, benchIO "scanlM' x 4" $ scanlM'4 size)
+    , (SpaceO_1, benchIO "scanl1M' x 4" $ scanl1M'4 size)
+    , (SpaceO_1, benchIO "postscanl' x 4" $ postscanl'4 size)
+    , (SpaceO_1, benchIO "postscanlM' x 4" $ postscanlM'4 size)
+    , (SpaceO_1, benchIO "scan x 4" $ scan4 size)
+    , (SpaceO_1, benchIO "postscan x 4" $ postscan4 size)
+    , (SpaceO_1, benchIO "filter-even" $ filterEven1 size)
+    , (SpaceO_1, benchIO "filter-all-out" $ filterAllOut1 size)
+    , (SpaceO_1, benchIO "filter-all-in" $ filterAllIn1 size)
+
+    , (SpaceO_1, benchIO "filterM-even" $ filterMEven1 size)
+    , (SpaceO_1, benchIO "filterM-all-out" $ filterMAllOut1 size)
+    , (SpaceO_1, benchIO "filterM-all-in" $ filterMAllIn1 size)
+
+    , (SpaceO_1, benchIO "drop-one" $ dropOne1 size)
+    , (SpaceO_1, benchIO "drop-all" $ dropAll1 size)
+    , (SpaceO_1, benchIO "dropWhile-true" $ dropWhileTrue1 size)
+ -- , (SpaceO_1, benchIO "dropWhileM-true" ...)
+    , (SpaceO_1, benchIO "dropWhile-false" $ dropWhileFalse1 size)
+    , (SpaceO_1, benchIO "deleteBy" $ deleteBy1 size)
+
+    , (SpaceO_1, benchIO "uniq" $ uniq1 size)
+
+    -- Map and filter
+    , (SpaceO_1, benchIO "mapMaybe" $ mapMaybe1 size)
+    , (SpaceO_1, benchIO "mapMaybeM" $ mapMaybeM1 size)
+
+    -- Searching (stateful map and filter)
+    , (SpaceO_1, benchIO "findIndices" $ findIndices1 size)
+    , (SpaceO_1, benchIO "elemIndices" $ elemIndices1 size)
+    , (SpaceO_1, benchIO "findIndex" $ findIndex size)
+    , (SpaceO_1, benchIO "elemIndex" $ elemIndex size)
+    , (SpaceO_1, benchIO "filter-even x 4" $ filterEven4 size)
+    , (SpaceO_1, benchIO "filter-all-out x 4" $ filterAllOut4 size)
+    , (SpaceO_1, benchIO "filter-all-in x 4" $ filterAllIn4 size)
+
+    , (SpaceO_1, benchIO "filterM-even x 4" $ filterMEven4 size)
+    , (SpaceO_1, benchIO "filterM-all-out x 4" $ filterMAllOut4 size)
+    , (SpaceO_1, benchIO "filterM-all-in x 4" $ filterMAllIn4 size)
+
+    , (SpaceO_1, benchIO "drop-one x 4" $ dropOne4 size)
+    , (SpaceO_1, benchIO "drop-all x 4" $ dropAll4 size)
+    , (SpaceO_1, benchIO "dropWhile-true x 4" $ dropWhileTrue4 size)
+    , (SpaceO_1, benchIO "dropWhileM-true x 4" $ dropWhileMTrue4 size)
+    -- XXX requires @-fspec-constr-recursive=12@.
+    , (SpaceO_1, benchIO "dropWhile-false x 4" $ dropWhileFalse4 size)
+    , (SpaceO_1, benchIO "deleteBy x 4" $ deleteBy4 size)
+
+    , (SpaceO_1, benchIO "uniq x 4" $ uniq4 size)
+
+    -- map and filter
+    , (SpaceO_1, benchIO "mapMaybe x 4" $ mapMaybe4 size)
+    , (SpaceO_1, benchIO "mapMaybeM x 4" $ mapMaybeM4 size)
+
+    -- searching
+    , (SpaceO_1, benchIO "findIndices x 4" $ findIndices4 size)
+    , (SpaceO_1, benchIO "elemIndices x 4" $ elemIndices4 size)
+    , (SpaceO_1, benchIO "intersperse" $ intersperse1 size)
+    , (SpaceO_1, benchIO "intersperseM" $ intersperseM1 size)
+    , (SpaceO_1, benchIO "insertBy" $ insertBy1 size)
+    , (SpaceO_1, benchIO "interposeSuffix" $ interposeSuffix1 size)
+    , (SpaceO_1, benchIO "intercalateSuffix" $ intercalateSuffix1 size)
+    -- XXX requires @-fspec-constr-recursive=16@.
+    , (SpaceO_1, benchIO "intersperse x 4" $ intersperse4 size)
+    , (SpaceO_1, benchIO "insertBy x 4" $ insertBy4 size)
+    , (SpaceO_1, benchIO "indexed" $ indexed1 size)
+    , (SpaceO_1, benchIO "indexedR" $ indexedR1 size)
+    , (SpaceO_1, benchIO "indexed x 4" $ indexed4 size)
+    , (SpaceO_1, benchIO "indexedR x 4" $ indexedR4 size)
+    , (SpaceO_n, benchIO "iterated/(+) (n times) (baseline)" $ iteratePlusBaseline size)
+    , (SpaceO_n, benchIO "iterated/(<$) (n times)" $ iterateSubMap size)
+    , (SpaceO_n, benchIO "iterated/fmap (n times)" $ iterateFmap size)
+    {-
+    , benchIOSrc fromSerial "_(<$) (n times)" $
+        _iterateSingleton (<$) value
+    , benchIOSrc fromSerial "_fmap (n times)" $
+        _iterateSingleton (fmap . (+)) value
+    -}
+    -- Reversing a stream
+    , (HeapO_n, benchIO "reverse" $ reverse size)
+    , (HeapO_n, benchIO "reverse'" $ reverse' size)
+    ]

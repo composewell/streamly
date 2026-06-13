@@ -66,14 +66,10 @@ inspect $ 'splitOnSeqUtf8 `hasNoType` ''SPEC
 -- inspect $ 'splitOnSeqUtf8 `hasNoType` ''Unfold.ConcatState    -- decodeUtf8Chunks
 #endif
 
-o_1_space_reduce_toChunks_split :: BenchEnv -> [Benchmark]
-o_1_space_reduce_toChunks_split env =
-        [ mkBenchSmall "splitOnSeqUtf8 word abcdefgh"
-            env $ \inh _ -> splitOnSeqUtf8 "abcdefgh" inh
-        , mkBenchSmall "splitOnSeqUtf8 KR abcdefghijklmnopqrstuvwxyz"
-            env $ \inh _ -> splitOnSeqUtf8 "abcdefghijklmnopqrstuvwxyz" inh
-        ]
-
 benchmarks :: BenchEnv -> [(SpaceComplexity, Benchmark)]
 benchmarks env =
-    map (SpaceO_1,) (o_1_space_reduce_toChunks_split env)
+      [ (SpaceO_1, mkBenchSmall "splitOnSeqUtf8 word abcdefgh"
+            env $ \inh _ -> splitOnSeqUtf8 "abcdefgh" inh)
+      , (SpaceO_1, mkBenchSmall "splitOnSeqUtf8 KR abcdefghijklmnopqrstuvwxyz"
+            env $ \inh _ -> splitOnSeqUtf8 "abcdefghijklmnopqrstuvwxyz" inh)
+      ]

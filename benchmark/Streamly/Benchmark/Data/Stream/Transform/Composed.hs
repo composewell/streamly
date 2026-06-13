@@ -523,56 +523,6 @@ inspect $ 'foldl'ReduceMap `hasNoType` ''FL.Step
 inspect $ 'foldl'ReduceMap `hasNoType` ''SPEC
 #endif
 
-o_1_space_transformations_mixed :: Int -> [Benchmark]
-o_1_space_transformations_mixed value =
-    -- scanl-map and foldl-map are equivalent to the scan and fold in the foldl
-    -- library. If scan/fold followed by a map is efficient enough we may not
-    -- need monolithic implementations of these.
-    [ benchIO "scanl-map" $ scanMap1 value
-    , benchIO "drop-map" $ dropMap1 value
-    , benchIO "drop-scan" $ dropScan1 value
-    , benchIO "take-drop" $ takeDrop1 value
-    , benchIO "take-scan" $ takeScan1 value
-    , benchIO "take-map" $ takeMap1 value
-    , benchIO "filter-drop" $ filterDrop1 value
-    , benchIO "filter-take" $ filterTake1 value
-    , benchIO "filter-scan" $ filterScan1 value
-    , benchIO "filter-map" $ filterMap1 value
-    , benchIO "foldl-map" $ foldl'ReduceMap value
-    , benchIO "sum-product-fold" $ sumProductFold value
-    , benchIO "sum-product-scan" $ sumProductScan value
-    ]
-
-o_1_space_transformations_mixedX2 :: Int -> [Benchmark]
-o_1_space_transformations_mixedX2 value =
-    [ benchIO "scan-map x 2" $ scanMap2 value
-    , benchIO "drop-map x 2" $ dropMap2 value
-    , benchIO "drop-scan x 2" $ dropScan2 value
-    , benchIO "take-drop x 2" $ takeDrop2 value
-    , benchIO "take-scan x 2" $ takeScan2 value
-    , benchIO "take-map x 2" $ takeMap2 value
-    , benchIO "filter-drop x 2" $ filterDrop2 value
-    , benchIO "filter-take x 2" $ filterTake2 value
-    , benchIO "filter-scan x 2" $ filterScan2 value
-    , benchIO "filter-scanl1 x 2" $ filterScanl12 value
-    , benchIO "filter-map x 2" $ filterMap2 value
-    ]
-
-o_1_space_transformations_mixedX4 :: Int -> [Benchmark]
-o_1_space_transformations_mixedX4 value =
-    [ benchIO "scan-map x 4" $ scanMap4 value
-    , benchIO "drop-map x 4" $ dropMap4 value
-    , benchIO "drop-scan x 4" $ dropScan4 value
-    , benchIO "take-drop x 4" $ takeDrop4 value
-    , benchIO "take-scan x 4" $ takeScan4 value
-    , benchIO "take-map x 4" $ takeMap4 value
-    , benchIO "filter-drop x 4" $ filterDrop4 value
-    , benchIO "filter-take x 4" $ filterTake4 value
-    , benchIO "filter-scan x 4" $ filterScan4 value
-    , benchIO "filter-scanl1 x 4" $ filterScanl14 value
-    , benchIO "filter-map x 4" $ filterMap4 value
-    ]
-
 -------------------------------------------------------------------------------
 -- Iterating a transformation over and over again
 -------------------------------------------------------------------------------
@@ -621,18 +571,6 @@ iterateDropWhileFalse :: Int -> Int -> IO ()
 iterateDropWhileFalse value iterCount =
     withRandomIntIO
         $ Common.drain . iterateSource (S.dropWhile (> (value + 1))) (value `div` iterCount) iterCount
-
-o_n_stack_iterated :: Int -> [Benchmark]
-o_n_stack_iterated value =
-    [ benchIO "iterated/mapM (n/10 x 10)" $ iterateMapM value 10
-    , benchIO "iterated/scanl' (quadratic) (n/100 x 100)" $ iterateScan value 100
-    , benchIO "iterated/scanl1' (n/10 x 10)" $ iterateScanl1 value 10
-    , benchIO "iterated/filterEven (n/10 x 10)" $ iterateFilterEven value 10
-    , benchIO "iterated/takeAll (n/10 x 10)" $ iterateTakeAll value 10
-    , benchIO "iterated/dropOne (n/10 x 10)" $ iterateDropOne value 10
-    , benchIO "iterated/dropWhileTrue (n/10 x 10)" $ iterateDropWhileTrue value 10
-    , benchIO "iterated/dropWhileFalse (n/10 x 10)" $ iterateDropWhileFalse value 10
-    ]
 
 -------------------------------------------------------------------------------
 -- Pipes
@@ -750,26 +688,6 @@ inspect $ 'pipeTeeX4 `hasNoType` ''FL.Step
 inspect $ 'pipeTeeX4 `hasNoType` ''SPEC
 #endif
 
--- XXX these should move to Data.Pipe benchmarks
-o_1_space_pipes :: Int -> [Benchmark]
-o_1_space_pipes value =
-    [ benchIO "pipe/mapM" $ pipeMapM value
-    , benchIO "pipe/compose" $ pipeCompose value
-    , benchIO "pipe/tee" $ pipeTee value
-    -- XXX this take 1 GB memory to compile
-    -- , benchIO "zip" $ pipeZip value
-    ]
-
-o_1_space_pipesX4 :: Int -> [Benchmark]
-o_1_space_pipesX4 value =
-    [ benchIO "pipe/mapM x 4" $ pipeMapMX4 value
-    , benchIO "pipe/compose x 4" $ pipeComposeX4 value
-    -- XXX requires @-fspec-constr-recursive=16@.
-    , benchIO "pipe/tee x 4" $ pipeTeeX4 value
-    -- XXX this take 1 GB memory to compile
-    -- , benchIO "zip x 4" $ pipeZipX4 value
-    ]
-
 -------------------------------------------------------------------------------
 -- Scans
 -------------------------------------------------------------------------------
@@ -846,21 +764,6 @@ inspect $ 'scansTeeX4 `hasNoType` ''FL.Step
 inspect $ 'scansTeeX4 `hasNoType` ''SPEC
 #endif
 
--- XXX These should move to the Data.Scan module
-o_1_space_scans :: Int -> [Benchmark]
-o_1_space_scans value =
-    [ benchIO "scan/mapM" $ scansMapM value
-    , benchIO "scan/compose" $ scansCompose value
-    , benchIO "scan/tee" $ scansTee value
-    ]
-
-o_1_space_scansX4 :: Int -> [Benchmark]
-o_1_space_scansX4 value =
-    [ benchIO "scan/mapM x 4" $ scansMapMX4 value
-    , benchIO "scan/compose x 4" $ scansComposeX4 value
-    , benchIO "scan/tee x 4" $ scansTeeX4 value
-    ]
-
 -------------------------------------------------------------------------------
 -- Composed transformations (scan + mapMaybe)
 -------------------------------------------------------------------------------
@@ -882,11 +785,6 @@ naivePrimeSieve value =
     withRandomIntIO $ \n ->
         Stream.fold FL.sum $ sieveScan $ Stream.enumerateFromTo 2 (value + n)
 
-o_n_space_mapping :: Int -> [Benchmark]
-o_n_space_mapping value =
-    [ benchIO "naive prime sieve" $ naivePrimeSieve value
-    ]
-
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -896,18 +794,74 @@ o_n_space_mapping value =
 --
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
-    map (SpaceO_1,) (Prelude.concat
-        [ o_1_space_transformations_mixed size
-        , o_1_space_transformations_mixedX2 size
-        , o_1_space_transformations_mixedX4 size
+    -- scanl-map and foldl-map are equivalent to the scan and fold in the foldl
+    -- library. If scan/fold followed by a map is efficient enough we may not
+    -- need monolithic implementations of these.
+    [ (SpaceO_1, benchIO "scanl-map" $ scanMap1 size)
+    , (SpaceO_1, benchIO "drop-map" $ dropMap1 size)
+    , (SpaceO_1, benchIO "drop-scan" $ dropScan1 size)
+    , (SpaceO_1, benchIO "take-drop" $ takeDrop1 size)
+    , (SpaceO_1, benchIO "take-scan" $ takeScan1 size)
+    , (SpaceO_1, benchIO "take-map" $ takeMap1 size)
+    , (SpaceO_1, benchIO "filter-drop" $ filterDrop1 size)
+    , (SpaceO_1, benchIO "filter-take" $ filterTake1 size)
+    , (SpaceO_1, benchIO "filter-scan" $ filterScan1 size)
+    , (SpaceO_1, benchIO "filter-map" $ filterMap1 size)
+    , (SpaceO_1, benchIO "foldl-map" $ foldl'ReduceMap size)
+    , (SpaceO_1, benchIO "sum-product-fold" $ sumProductFold size)
+    , (SpaceO_1, benchIO "sum-product-scan" $ sumProductScan size)
+    , (SpaceO_1, benchIO "scan-map x 2" $ scanMap2 size)
+    , (SpaceO_1, benchIO "drop-map x 2" $ dropMap2 size)
+    , (SpaceO_1, benchIO "drop-scan x 2" $ dropScan2 size)
+    , (SpaceO_1, benchIO "take-drop x 2" $ takeDrop2 size)
+    , (SpaceO_1, benchIO "take-scan x 2" $ takeScan2 size)
+    , (SpaceO_1, benchIO "take-map x 2" $ takeMap2 size)
+    , (SpaceO_1, benchIO "filter-drop x 2" $ filterDrop2 size)
+    , (SpaceO_1, benchIO "filter-take x 2" $ filterTake2 size)
+    , (SpaceO_1, benchIO "filter-scan x 2" $ filterScan2 size)
+    , (SpaceO_1, benchIO "filter-scanl1 x 2" $ filterScanl12 size)
+    , (SpaceO_1, benchIO "filter-map x 2" $ filterMap2 size)
+    , (SpaceO_1, benchIO "scan-map x 4" $ scanMap4 size)
+    , (SpaceO_1, benchIO "drop-map x 4" $ dropMap4 size)
+    , (SpaceO_1, benchIO "drop-scan x 4" $ dropScan4 size)
+    , (SpaceO_1, benchIO "take-drop x 4" $ takeDrop4 size)
+    , (SpaceO_1, benchIO "take-scan x 4" $ takeScan4 size)
+    , (SpaceO_1, benchIO "take-map x 4" $ takeMap4 size)
+    , (SpaceO_1, benchIO "filter-drop x 4" $ filterDrop4 size)
+    , (SpaceO_1, benchIO "filter-take x 4" $ filterTake4 size)
+    , (SpaceO_1, benchIO "filter-scan x 4" $ filterScan4 size)
+    , (SpaceO_1, benchIO "filter-scanl1 x 4" $ filterScanl14 size)
+    , (SpaceO_1, benchIO "filter-map x 4" $ filterMap4 size)
 
-        -- pipes
-        , o_1_space_pipes size
-        , o_1_space_pipesX4 size
+    -- pipes
+    -- XXX these should move to Data.Pipe benchmarks
+    , (SpaceO_1, benchIO "pipe/mapM" $ pipeMapM size)
+    , (SpaceO_1, benchIO "pipe/compose" $ pipeCompose size)
+    , (SpaceO_1, benchIO "pipe/tee" $ pipeTee size)
+    -- XXX this take 1 GB memory to compile
+    -- , (SpaceO_1, benchIO "zip" $ pipeZip size)
+    , (SpaceO_1, benchIO "pipe/mapM x 4" $ pipeMapMX4 size)
+    , (SpaceO_1, benchIO "pipe/compose x 4" $ pipeComposeX4 size)
+    -- XXX requires @-fspec-constr-recursive=16@.
+    , (SpaceO_1, benchIO "pipe/tee x 4" $ pipeTeeX4 size)
+    -- XXX this take 1 GB memory to compile
+    -- , (SpaceO_1, benchIO "zip x 4" $ pipeZipX4 size)
+    -- XXX These should move to the Data.Scan module
+    -- scans
+    , (SpaceO_1, benchIO "scan/mapM" $ scansMapM size)
+    , (SpaceO_1, benchIO "scan/compose" $ scansCompose size)
+    , (SpaceO_1, benchIO "scan/tee" $ scansTee size)
+    , (SpaceO_1, benchIO "scan/mapM x 4" $ scansMapMX4 size)
+    , (SpaceO_1, benchIO "scan/compose x 4" $ scansComposeX4 size)
+    , (SpaceO_1, benchIO "scan/tee x 4" $ scansTeeX4 size)
 
-        -- scans
-        , o_1_space_scans size
-        , o_1_space_scansX4 size
-        ])
-    ++ map (StackO_n,) (o_n_stack_iterated size)
-    ++ map (SpaceO_n,) (o_n_space_mapping size)
+    , (StackO_n, benchIO "iterated/mapM (n/10 x 10)" $ iterateMapM size 10)
+    , (StackO_n, benchIO "iterated/scanl' (quadratic) (n/100 x 100)" $ iterateScan size 100)
+    , (StackO_n, benchIO "iterated/scanl1' (n/10 x 10)" $ iterateScanl1 size 10)
+    , (StackO_n, benchIO "iterated/filterEven (n/10 x 10)" $ iterateFilterEven size 10)
+    , (StackO_n, benchIO "iterated/takeAll (n/10 x 10)" $ iterateTakeAll size 10)
+    , (StackO_n, benchIO "iterated/dropOne (n/10 x 10)" $ iterateDropOne size 10)
+    , (StackO_n, benchIO "iterated/dropWhileTrue (n/10 x 10)" $ iterateDropWhileTrue size 10)
+    , (StackO_n, benchIO "iterated/dropWhileFalse (n/10 x 10)" $ iterateDropWhileFalse size 10)
+    , (SpaceO_n, benchIO "naive prime sieve" $ naivePrimeSieve size)
+    ]

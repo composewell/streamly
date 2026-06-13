@@ -183,35 +183,6 @@ inspect $ 'unfoldSched `hasNoType` ''Fold.Step
 inspect $ 'unfoldSched `hasNoType` ''SPEC
 #endif
 
-o_1_space_joining :: Int -> [Benchmark]
-o_1_space_joining value =
-        [ benchIO "interleave" $ interleave2 (value `div` 2)
-        , benchIO "roundRobin" $ roundRobin2 (value `div` 2)
-        , benchIO "mergeBy compare" $ mergeBy compare (value `div` 2)
-        , benchIO "mergeByM compare" $ mergeByM compare (value `div` 2)
-        , benchIO "mergeBy (flip compare)" $ mergeBy (flip compare) (value `div` 2)
-        , benchIO "mergeByM (flip compare)" $ mergeByM (flip compare) (value `div` 2)
-
-        -- join 2 streams using n-ary ops
-        , benchIO "bfsUnfoldEach" $ bfsUnfoldEach 2 (value `div` 2)
-        , benchIO "altBfsUnfoldEach" $ altBfsUnfoldEach 2 (value `div` 2)
-        , benchIO "unfoldSched" $ unfoldSched 2 (value `div` 2)
-        ]
-
-o_n_heap_concat :: Int -> [Benchmark]
-o_n_heap_concat value = sqrtVal `seq`
-        [ benchIO "bfsUnfoldEach (n of 1)" $ bfsUnfoldEach value 1
-        , benchIO "bfsUnfoldEach (sqrtVal of sqrtVal)" $ bfsUnfoldEach sqrtVal sqrtVal
-        , benchIO "altBfsUnfoldEach (n of 1)" $ altBfsUnfoldEach value 1
-        , benchIO "altBfsUnfoldEach (sqrtVal of sqrtVal)" $ altBfsUnfoldEach sqrtVal sqrtVal
-        , benchIO "unfoldSched (n of 1)" $ unfoldSched value 1
-        , benchIO "unfoldSched (sqrtVal of sqrtVal)" $ unfoldSched sqrtVal sqrtVal
-        ]
-
-    where
-
-    sqrtVal = round $ sqrt (fromIntegral value :: Double)
-
 -------------------------------------------------------------------------------
 -- Monad
 -------------------------------------------------------------------------------
@@ -362,32 +333,11 @@ fairUnfoldSchedInfinite :: Int -> IO ()
 fairUnfoldSchedInfinite maxVal = withRandomIntIO $ \n ->
     fairUnfoldSchedEqn maxVal (infiniteIntsUnfold maxVal 0) (Type.infiniteInts maxVal n)
 
--- Solve simultaneous equations by exploring all possibilities
-o_1_space_equations :: Int -> [Benchmark]
-o_1_space_equations value =
-        [ benchIO "equations/fairConcatFor (bounded)" $ fairConcatForBounded sqrtVal
-        , benchIO "equations/fairConcatForK (bounded)" $ fairConcatForKBounded sqrtVal
-        , benchIO "equations/fairConcatFor (infinite)" $ fairConcatForInfinite sqrtVal
-        , benchIO "equations/fairSchedFor (bounded)" $ fairSchedForBounded sqrtVal
-        , benchIO "equations/fairSchedFor (infinite)" $ fairSchedForInfinite sqrtVal
-        , benchIO "equations/unfoldCross (bounded)" $ unfoldCrossBounded sqrtVal
-        , benchIO "equations/fairUnfoldCross (bounded)" $ fairUnfoldCrossBounded sqrtVal
-        , benchIO "equations/fairUnfoldCross (infinite)" $ fairUnfoldCrossInfinite sqrtVal
-        , benchIO "equations/fairUnfoldEach (bounded)" $ fairUnfoldEachBounded sqrtVal
-        , benchIO "equations/fairUnfoldEach (infinite)" $ fairUnfoldEachInfinite sqrtVal
-        , benchIO "equations/unfoldSched (bounded)" $ unfoldSchedBounded sqrtVal
-        , benchIO "equations/fairUnfoldSched (bounded)" $ fairUnfoldSchedBounded sqrtVal
-        , benchIO "equations/fairUnfoldSched (infinite)" $ fairUnfoldSchedInfinite sqrtVal
-        ]
-
-    where
-
-    sqrtVal = round $ sqrt (fromIntegral value :: Double)
-
 -------------------------------------------------------------------------------
 -- Joining
 -------------------------------------------------------------------------------
 
+-- XXX this should be moved to the Top module
 {-
 toKv :: Int -> (Int, Int)
 toKv p = (p, p)
@@ -449,21 +399,47 @@ o_n_heap_buffering value =
 -- Main
 -------------------------------------------------------------------------------
 
--- In addition to gauge options, the number of elements in the stream can be
--- passed using the --stream-size option.
---
-{-# ANN benchmarks "HLint: ignore" #-}
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
-    map (SpaceO_1,) (Prelude.concat
-        [
-        -- multi-stream
-          o_1_space_joining size
-        , o_1_space_equations size
-        ])
-    ++ map (HeapO_n,)
-    {-
-        -- multi-stream
-        (o_n_heap_buffering size)
-    -}
-        (o_n_heap_concat size)
+    -- NOTE: List concatenation reduce build time memory requirement
+    -- multi-stream
+      [ (SpaceO_1, benchIO "interleave" $ interleave2 (size `div` 2))
+      , (SpaceO_1, benchIO "roundRobin" $ roundRobin2 (size `div` 2))
+      , (SpaceO_1, benchIO "mergeBy compare" $ mergeBy compare (size `div` 2))
+      , (SpaceO_1, benchIO "mergeByM compare" $ mergeByM compare (size `div` 2))
+      , (SpaceO_1, benchIO "mergeBy (flip compare)" $ mergeBy (flip compare) (size `div` 2))
+      , (SpaceO_1, benchIO "mergeByM (flip compare)" $ mergeByM (flip compare) (size `div` 2))
+
+      -- join 2 streams using n-ary ops
+      , (SpaceO_1, benchIO "bfsUnfoldEach" $ bfsUnfoldEach 2 (size `div` 2))
+      , (SpaceO_1, benchIO "altBfsUnfoldEach" $ altBfsUnfoldEach 2 (size `div` 2))
+      , (SpaceO_1, benchIO "unfoldSched" $ unfoldSched 2 (size `div` 2))
+      ] ++
+
+      -- Solve simultaneous equations by exploring all possibilities
+      [ (SpaceO_1, benchIO "equations/fairConcatFor (bounded)" $ fairConcatForBounded sqrtVal)
+      , (SpaceO_1, benchIO "equations/fairConcatForK (bounded)" $ fairConcatForKBounded sqrtVal)
+      , (SpaceO_1, benchIO "equations/fairConcatFor (infinite)" $ fairConcatForInfinite sqrtVal)
+      , (SpaceO_1, benchIO "equations/fairSchedFor (bounded)" $ fairSchedForBounded sqrtVal)
+      , (SpaceO_1, benchIO "equations/fairSchedFor (infinite)" $ fairSchedForInfinite sqrtVal)
+      , (SpaceO_1, benchIO "equations/unfoldCross (bounded)" $ unfoldCrossBounded sqrtVal)
+      , (SpaceO_1, benchIO "equations/fairUnfoldCross (bounded)" $ fairUnfoldCrossBounded sqrtVal)
+      , (SpaceO_1, benchIO "equations/fairUnfoldCross (infinite)" $ fairUnfoldCrossInfinite sqrtVal)
+      , (SpaceO_1, benchIO "equations/fairUnfoldEach (bounded)" $ fairUnfoldEachBounded sqrtVal)
+      , (SpaceO_1, benchIO "equations/fairUnfoldEach (infinite)" $ fairUnfoldEachInfinite sqrtVal)
+      , (SpaceO_1, benchIO "equations/unfoldSched (bounded)" $ unfoldSchedBounded sqrtVal)
+      , (SpaceO_1, benchIO "equations/fairUnfoldSched (bounded)" $ fairUnfoldSchedBounded sqrtVal)
+      , (SpaceO_1, benchIO "equations/fairUnfoldSched (infinite)" $ fairUnfoldSchedInfinite sqrtVal)
+      ] ++
+      [
+        (HeapO_n, benchIO "bfsUnfoldEach (n of 1)" $ bfsUnfoldEach size 1)
+      , (HeapO_n, benchIO "bfsUnfoldEach (sqrtVal of sqrtVal)" $ bfsUnfoldEach sqrtVal sqrtVal)
+      , (HeapO_n, benchIO "altBfsUnfoldEach (n of 1)" $ altBfsUnfoldEach size 1)
+      , (HeapO_n, benchIO "altBfsUnfoldEach (sqrtVal of sqrtVal)" $ altBfsUnfoldEach sqrtVal sqrtVal)
+      , (HeapO_n, benchIO "unfoldSched (n of 1)" $ unfoldSched size 1)
+      , (HeapO_n, benchIO "unfoldSched (sqrtVal of sqrtVal)" $ unfoldSched sqrtVal sqrtVal)
+      ]
+
+    where
+
+    sqrtVal = round $ sqrt (fromIntegral size :: Double)

@@ -92,20 +92,6 @@ readWriteAfter_Stream inh devNull =
     let readEx = Stream.afterUnsafe (hClose inh) (Stream.unfold FH.reader inh)
      in Stream.fold (FH.write devNull) readEx
 
-o_1_space_copy_stream_exceptions :: BenchEnv -> [Benchmark]
-o_1_space_copy_stream_exceptions env =
-       [ mkBenchSmall "Stream.onException" env $ \inh _ ->
-           readWriteOnExceptionStream inh (nullH env)
-       , mkBenchSmall "Stream.handle" env $ \inh _ ->
-           readWriteHandleExceptionStream inh (nullH env)
-       , mkBenchSmall "Stream.finally_" env $ \inh _ ->
-           readWriteFinally_Stream inh (nullH env)
-       , mkBenchSmall "Stream.after_" env $ \inh _ ->
-           readWriteAfter_Stream inh (nullH env)
-       , mkBenchSmall "Stream.bracket_ (fromToBytes)" env $ \inh _ ->
-           fromToBytesBracket_Stream inh (nullH env)
-       ]
-
  -------------------------------------------------------------------------------
 -- Exceptions readChunks
 -------------------------------------------------------------------------------
@@ -121,14 +107,6 @@ readChunksBracket_ :: Handle -> Handle -> IO ()
 readChunksBracket_ inh devNull =
     let readEx = IUF.bracket_ return (\_ -> hClose inh) FH.chunkReader
     in IUF.fold (IFH.writeChunks devNull) readEx inh
-
-o_1_space_copy_exceptions_readChunks :: BenchEnv -> [Benchmark]
-o_1_space_copy_exceptions_readChunks env =
-        [ mkBench "UF.onException" env $ \inH _ ->
-            readChunksOnException inH (nullH env)
-        , mkBench "UF.bracket_" env $ \inH _ ->
-            readChunksBracket_ inH (nullH env)
-        ]
 
 -------------------------------------------------------------------------------
 -- Exceptions toChunks
@@ -205,16 +183,22 @@ inspect $ 'toChunksBracket_ `hasNoType` ''FL.Step
 inspect $ 'toChunksBracket_ `hasNoType` ''SPEC
 #endif
 
-o_1_space_copy_exceptions_toChunks :: BenchEnv -> [Benchmark]
-o_1_space_copy_exceptions_toChunks env =
-        [ mkBench "Stream.bracket_ (toChunks)" env $ \inH _ ->
-            toChunksBracket_ inH (nullH env)
-        ]
-
 benchmarks :: BenchEnv -> Int -> [(SpaceComplexity, Benchmark)]
 benchmarks _env _size =
-    map (SpaceO_1,) $ concat
-        [ o_1_space_copy_exceptions_readChunks _env
-        , o_1_space_copy_exceptions_toChunks _env
-        , o_1_space_copy_stream_exceptions _env
-        ]
+      [ (SpaceO_1, mkBench "UF.onException" _env $ \inH _ ->
+            readChunksOnException inH (nullH _env))
+      , (SpaceO_1, mkBench "UF.bracket_" _env $ \inH _ ->
+            readChunksBracket_ inH (nullH _env))
+      , (SpaceO_1, mkBench "Stream.bracket_ (toChunks)" _env $ \inH _ ->
+            toChunksBracket_ inH (nullH _env))
+      , (SpaceO_1, mkBenchSmall "Stream.onException" _env $ \inh _ ->
+            readWriteOnExceptionStream inh (nullH _env))
+      , (SpaceO_1, mkBenchSmall "Stream.handle" _env $ \inh _ ->
+            readWriteHandleExceptionStream inh (nullH _env))
+      , (SpaceO_1, mkBenchSmall "Stream.finally_" _env $ \inh _ ->
+            readWriteFinally_Stream inh (nullH _env))
+      , (SpaceO_1, mkBenchSmall "Stream.after_" _env $ \inh _ ->
+            readWriteAfter_Stream inh (nullH _env))
+      , (SpaceO_1, mkBenchSmall "Stream.bracket_ (fromToBytes)" _env $ \inh _ ->
+            fromToBytesBracket_Stream inh (nullH _env))
+      ]

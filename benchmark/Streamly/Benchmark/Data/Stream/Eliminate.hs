@@ -301,41 +301,6 @@ inspect $ 'lookupNever `hasNoType` ''Fold.Step
 inspect $ 'lookupNever `hasNoType` ''SPEC
 #endif
 
-o_1_space_elimination_folds :: Int -> [Benchmark]
-o_1_space_elimination_folds value =
-        -- Basic folds
-        [ benchIO "foldl1'/IO" $ foldl1'Reduce value
-        , benchIO "foldl1'/Identity" $ foldl1'ReduceIdentity value
-
-        -- deconstruction
-        , benchIO "mapM_" $ mapM_ value
-        , benchIO "last" $ streamLast value
-        , benchIO "init" $ streamInit value
-
-        -- this is too fast, causes all benchmarks reported in ns
-    -- , benchIO "head" $ ...
-        , benchIO "length" $ length value
-        , benchIO "sum" $ sum value
-        , benchIO "product" $ product value
-        , benchIO "maximumBy" $ maximumBy value
-        , benchIO "maximum" $ maximum value
-        , benchIO "minimumBy" $ minimumBy value
-        , benchIO "minimum" $ minimum value
-
-        , benchIO "the" $ the value
-        , benchIO "find" $ find value
-        , benchIO "findM" $ findM value
-        -- , benchIO "lookupFirst" $ ...
-        , benchIO "lookupNever" $ lookupNever value
-        , benchIO "(!!)" $ indexOp value
-        , benchIO "elem" $ elem value
-        , benchIO "notElem" $ notElem value
-        , benchIO "all" $ all value
-        , benchIO "any" $ any value
-        , benchIO "and" $ and value
-        , benchIO "or" $ or value
-        ]
-
 {-# INLINE toListRev #-}
 toListRev :: Int -> IO [Int]
 toListRev value = withStream value S.toListRev
@@ -345,23 +310,10 @@ toListRev value = withStream value S.toListRev
 toStreamRev :: Int -> IO (Stream Identity Int)
 toStreamRev value = withStream value (S.fold Fold.toStreamRev)
 
-o_n_heap_elimination_toList :: Int -> [Benchmark]
-o_n_heap_elimination_toList value =
-        -- Converting the stream to a list or pure stream in a strict monad
-        [ benchIO "toListRev" $ toListRev value
-        , benchIO "toStreamRev" $ toStreamRev value
-        ]
-
 -- NOTE: this is a Fold benchmark, used here only for comparison with ToList
 {-# INLINE toStream #-}
 toStream :: Int -> IO (Stream Identity Int)
 toStream value = withStream value (S.fold Fold.toStream)
-
-o_n_space_elimination_toList :: Int -> [Benchmark]
-o_n_space_elimination_toList value =
-        -- Converting the stream to a list or pure stream in a strict monad
-        [ benchIO "toStream" $ toStream value
-        ]
 
 -------------------------------------------------------------------------------
 -- Multi-stream folds
@@ -402,13 +354,6 @@ inspect $ 'stripPrefix `hasNoType` ''Fold.Step
 inspect $ 'stripPrefix `hasNoType` ''SPEC
 #endif
 
-o_1_space_elimination_multi_stream :: Int -> [Benchmark]
-o_1_space_elimination_multi_stream value =
-        [ benchIO "isPrefixOf" $ isPrefixOf value
-        , benchIO "isSubsequenceOf" $ isSubsequenceOf value
-        , benchIO "stripPrefix" $ stripPrefix value
-        ]
-
 -------------------------------------------------------------------------------
 -- Iterating using tail
 -------------------------------------------------------------------------------
@@ -442,14 +387,6 @@ headTail value = withStream value go
         h <- S.head s
         when (isJust h) $ S.tail s >>= Prelude.mapM_ go
 
-o_n_stack_iterated :: Int -> [Benchmark]
-o_n_stack_iterated value =
-        [ benchIO "iterated/tail" $ tail value
-        , benchIO "iterated/nullTail" $ nullTail value
-        , benchIO "iterated/headTail" $ headTail value
-        , benchIO "iterated/nullHeadTail" $ nullHeadTail value
-        ]
-
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -459,10 +396,51 @@ o_n_stack_iterated value =
 --
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
-    map (SpaceO_1,) (concat
-        [ o_1_space_elimination_folds size
-        , o_1_space_elimination_multi_stream size
-        ])
-    ++ map (HeapO_n,) (o_n_heap_elimination_toList size)
-    ++ map (SpaceO_n,) (o_n_space_elimination_toList size)
-    ++ map (StackO_n,) (o_n_stack_iterated size)
+    -- Basic folds
+      [ (SpaceO_1, benchIO "foldl1'/IO" $ foldl1'Reduce size)
+      , (SpaceO_1, benchIO "foldl1'/Identity" $ foldl1'ReduceIdentity size)
+
+      -- deconstruction
+      , (SpaceO_1, benchIO "mapM_" $ mapM_ size)
+      , (SpaceO_1, benchIO "last" $ streamLast size)
+      , (SpaceO_1, benchIO "init" $ streamInit size)
+
+      -- this is too fast, causes all benchmarks reported in ns
+    -- , benchIO "head" $ ...
+      , (SpaceO_1, benchIO "length" $ length size)
+      , (SpaceO_1, benchIO "sum" $ sum size)
+      , (SpaceO_1, benchIO "product" $ product size)
+      , (SpaceO_1, benchIO "maximumBy" $ maximumBy size)
+      , (SpaceO_1, benchIO "maximum" $ maximum size)
+      , (SpaceO_1, benchIO "minimumBy" $ minimumBy size)
+      , (SpaceO_1, benchIO "minimum" $ minimum size)
+
+      , (SpaceO_1, benchIO "the" $ the size)
+      , (SpaceO_1, benchIO "find" $ find size)
+      , (SpaceO_1, benchIO "findM" $ findM size)
+      -- , benchIO "lookupFirst" $ ...
+      , (SpaceO_1, benchIO "lookupNever" $ lookupNever size)
+      , (SpaceO_1, benchIO "(!!)" $ indexOp size)
+      , (SpaceO_1, benchIO "elem" $ elem size)
+      , (SpaceO_1, benchIO "notElem" $ notElem size)
+      , (SpaceO_1, benchIO "all" $ all size)
+      , (SpaceO_1, benchIO "any" $ any size)
+      , (SpaceO_1, benchIO "and" $ and size)
+      , (SpaceO_1, benchIO "or" $ or size)
+
+      , (SpaceO_1, benchIO "isPrefixOf" $ isPrefixOf size)
+      , (SpaceO_1, benchIO "isSubsequenceOf" $ isSubsequenceOf size)
+      , (SpaceO_1, benchIO "stripPrefix" $ stripPrefix size)
+
+      -- Converting the stream to a list or pure stream in a strict monad
+      , (HeapO_n, benchIO "toListRev" $ toListRev size)
+      , (HeapO_n, benchIO "toStreamRev" $ toStreamRev size)
+
+      -- Converting the stream to a list or pure stream in a strict monad
+      , (SpaceO_n, benchIO "toStream" $ toStream size)
+
+      , (StackO_n, benchIO "iterated/tail" $ tail size)
+      , (StackO_n, benchIO "iterated/nullTail" $ nullTail size)
+      , (StackO_n, benchIO "iterated/headTail" $ headTail size)
+      , (StackO_n, benchIO "iterated/nullHeadTail" $ nullHeadTail size)
+      ]

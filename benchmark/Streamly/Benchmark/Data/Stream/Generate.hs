@@ -264,47 +264,40 @@ inspect $ 'fromIndicesM `hasNoType` ''SPEC
 _absTimes :: MonadIO m => Int -> Int -> Stream m AbsTime
 _absTimes value _ = Stream.take value Stream.absTimes
 
-o_1_space_generation :: Int -> [Benchmark]
-o_1_space_generation value =
-        -- 'sourceUnfoldr', 'sourceUnfoldrM', and 'repeat' are from Stream.Common.
-        [ benchIO "unfoldr" $ withDrain (sourceUnfoldr value)
-        , benchIO "unfoldrM" $ withDrain (sourceUnfoldrM value)
-        , benchIO "repeat" $ withDrain (repeat value)
-        , benchIO "replicate" $ replicate value
-        , benchIO "iterate" $ iterate value
-        , benchIO "iterateM" $ iterateM value
-        , benchIO "intFromTo" $ sourceIntFromTo value
-        , benchIO "intFromThenTo" $ sourceIntFromThenTo value
-        , benchIO "integerFromStep" $ sourceIntegerFromStep value
-        , benchIO "fracFromThenTo" $ sourceFracFromThenTo value
-        , benchIO "fracFromTo" $ sourceFracFromTo value
-        , benchIO "fromListM" $ sourceFromListM value
-        , benchIO "enumerateFrom" $ enumerateFrom value
-        , benchIO "enumerateFromTo" $ enumerateFromTo value
-        , benchIO "enumerateFromThen" $ enumerateFromThen value
-        , benchIO "enumerateFromThenTo" $ enumerateFromThenTo value
-        , benchIO "enumerate" $ enumerate value
-        , benchIO "enumerateTo" $ enumerateTo value
-        , benchIO "repeatM" $ repeatM value
-        , benchIO "replicateM" $ replicateM value
-        , benchIO "fromIndices" $ fromIndices value
-        , benchIO "fromIndicesM" $ fromIndicesM value
-
-        -- fromFoldable essentially tests cons and consM which does not scale
-        -- for the Stream type.
-        -- , benchIO "fromFoldable 16" (sourceFromFoldable 16)
-        -- , benchIO "fromFoldableM 16" (sourceFromFoldableM 16)
-        --  XXX tasty-bench hangs benchmarking this
-        -- , benchIO "absTimes" $ _absTimes value
-        ]
-
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
 
--- In addition to gauge options, the number of elements in the stream can be
--- passed using the --stream-size option.
---
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
-    map (SpaceO_1,) (o_1_space_generation size)
+    -- 'sourceUnfoldr', 'sourceUnfoldrM', and 'repeat' are from Stream.Common.
+      [ (SpaceO_1, benchIO "unfoldr" $ withDrain (sourceUnfoldr size))
+      , (SpaceO_1, benchIO "unfoldrM" $ withDrain (sourceUnfoldrM size))
+      , (SpaceO_1, benchIO "repeat" $ withDrain (repeat size))
+      , (SpaceO_1, benchIO "replicate" $ replicate size)
+      , (SpaceO_1, benchIO "iterate" $ iterate size)
+      , (SpaceO_1, benchIO "iterateM" $ iterateM size)
+      , (SpaceO_1, benchIO "intFromTo" $ sourceIntFromTo size)
+      , (SpaceO_1, benchIO "intFromThenTo" $ sourceIntFromThenTo size)
+      , (SpaceO_1, benchIO "integerFromStep" $ sourceIntegerFromStep size)
+      , (SpaceO_1, benchIO "fracFromThenTo" $ sourceFracFromThenTo size)
+      , (SpaceO_1, benchIO "fracFromTo" $ sourceFracFromTo size)
+      , (SpaceO_1, benchIO "fromListM" $ sourceFromListM size)
+      , (SpaceO_1, benchIO "enumerateFrom" $ enumerateFrom size)
+      , (SpaceO_1, benchIO "enumerateFromTo" $ enumerateFromTo size)
+      , (SpaceO_1, benchIO "enumerateFromThen" $ enumerateFromThen size)
+      , (SpaceO_1, benchIO "enumerateFromThenTo" $ enumerateFromThenTo size)
+      , (SpaceO_1, benchIO "enumerate" $ enumerate size)
+      , (SpaceO_1, benchIO "enumerateTo" $ enumerateTo size)
+      , (SpaceO_1, benchIO "repeatM" $ repeatM size)
+      , (SpaceO_1, benchIO "replicateM" $ replicateM size)
+      , (SpaceO_1, benchIO "fromIndices" $ fromIndices size)
+      , (SpaceO_1, benchIO "fromIndicesM" $ fromIndicesM size)
+
+      -- fromFoldable essentially tests cons and consM which does not scale
+      -- for the Stream type.
+      -- , benchIO "fromFoldable 16" (sourceFromFoldable 16)
+      -- , benchIO "fromFoldableM 16" (sourceFromFoldableM 16)
+      --  XXX tasty-bench hangs benchmarking this
+      -- , benchIO "absTimes" $ _absTimes value
+      ]

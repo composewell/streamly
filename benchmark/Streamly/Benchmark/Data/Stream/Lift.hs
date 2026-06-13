@@ -112,21 +112,14 @@ generalizeInnerIO value = withRandomIntIO $ \n ->
     Stream.fold Fold.length
         (Stream.generalizeInner (sourceUnfoldr value n) :: Stream IO Int)
 
-o_1_space_hoisting :: Int -> [Benchmark]
-o_1_space_hoisting value =
-        [ benchIO "evalState" $ evalStateTIO value
-        , benchIO "withState" $ withStateIO value
-        , benchIO "length . generalizeInner" $ generalizeInner value
-        , benchIO "generalizeInner" $ generalizeInnerIO value
-        ]
-
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
 
--- In addition to gauge options, the number of elements in the stream can be
--- passed using the --stream-size option.
---
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
-    map (SpaceO_1,) (o_1_space_hoisting size)
+      [ (SpaceO_1, benchIO "evalState" $ evalStateTIO size)
+      , (SpaceO_1, benchIO "withState" $ withStateIO size)
+      , (SpaceO_1, benchIO "length . generalizeInner" $ generalizeInner size)
+      , (SpaceO_1, benchIO "generalizeInner" $ generalizeInnerIO size)
+      ]

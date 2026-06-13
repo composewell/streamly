@@ -446,43 +446,6 @@ _foldableMsum :: Int -> Int -> IO Int
 _foldableMsum value n =
     F.msum (sourceUnfoldrAction value n :: Stream Identity (IO Int))
 
-o_1_space_elimination_foldable :: Int -> [Benchmark]
-o_1_space_elimination_foldable value =
-    -- Foldable instance
-    [ benchIO "Foldable/foldl'" $ withRandomInt (foldableFoldl' value)
-    , benchIO "Foldable/foldrElem" $ withRandomInt (foldableFoldrElem value)
- -- , benchIO "Foldable/null" $ withRandomInt (_foldableNull value)
-    , benchIO "Foldable/elem" $ withRandomInt (foldableElem value)
-    , benchIO "Foldable/length" $ withRandomInt (foldableLength value)
-    , benchIO "Foldable/sum" $ withRandomInt (foldableSum value)
-    , benchIO "Foldable/product" $ withRandomInt (foldableProduct value)
-    , benchIO "Foldable/minimum" $ withRandomInt (foldableMin value)
-    , benchIO "Foldable/min (ord)" $ withRandomInt (ordInstanceMin value)
-    , benchIO "Foldable/maximum" $ withRandomInt (foldableMax value)
-    , benchIO "Foldable/minimumBy" $ withRandomInt (foldableMinBy value)
-    , benchIO "Foldable/maximumBy" $ withRandomInt (foldableMaxBy value)
-    , benchIO "Foldable/minimumByList" $ withRandomInt (foldableListMinBy value)
-    , benchIO "Foldable/length . toList" $
-          withRandomInt (Prelude.length . foldableToList value)
-    , benchIO "Foldable/notElem" $ withRandomInt (foldableNotElem value)
-    , benchIO "Foldable/find" $ withRandomInt (foldableFind value)
-    , benchIO "Foldable/all" $ withRandomInt (foldableAll value)
-    , benchIO "Foldable/any" $ withRandomInt (foldableAny value)
-    , benchIO "Foldable/and" $ withRandomInt (foldableAnd value)
-    , benchIO "Foldable/or" $ withRandomInt (foldableOr value)
-
-    -- Applicative and Traversable operations
-    -- TBD: traverse_
-    , benchIO "Foldable/mapM_" $ withRandomIntIO (foldableMapM_ value)
-    -- TBD: for_
-    -- TBD: forM_
-    , benchIO "Foldable/sequence_" $ withRandomIntIO (foldableSequence_ value)
-    -- TBD: sequenceA_
-    -- TBD: asum
-    -- XXX needs to be fixed, results are in ns
-    -- , benchIOSink1 "Foldable/msum" (foldableMsum value)
-    ]
-
 -------------------------------------------------------------------------------
 -- Show instance
 -------------------------------------------------------------------------------
@@ -494,16 +457,6 @@ showInstance value = withPureStream value show
 {-# INLINE showInstanceList #-}
 showInstanceList :: [Int] -> String
 showInstanceList = show
-
-o_n_heap_elimination_show :: Int -> [Benchmark]
-o_n_heap_elimination_show value =
-    -- Buffers the output of show/read.
-    -- XXX can the outputs be streaming? Can we have special read/show
-    -- style type classes, readM/showM supporting streaming effects?
-    [ bench "showsPrec Haskell lists" $ nf showInstanceList (mkList value)
-    -- XXX This is not o-1-space for GHC-8.10
-    , benchIO "showsPrec pure streams" $ showInstance value
-    ]
 
 -------------------------------------------------------------------------------
 -- Eq and Ord instances
@@ -541,29 +494,6 @@ inspect $ 'ordInstance `hasNoType` ''Stream.Step
 inspect $ 'ordInstance `hasNoType` ''Fold.Step
 inspect $ 'ordInstance `hasNoType` ''SPEC
 #endif
-
--------------------------------------------------------------------------------
--- Generation
--------------------------------------------------------------------------------
-
-o_1_space_generation :: Int -> [Benchmark]
-o_1_space_generation value =
-    [ benchIO "fromList" $ sourceFromList value
-    , benchIO "fromTuple" $ sourceFromTuple value
-    , benchIO "IsList.fromList" $ sourceIsList value
-    , benchIO "IsString.fromString" $ sourceIsString value
-    ]
-
-o_n_heap_generation :: Int -> [Benchmark]
-o_n_heap_generation value =
-    -- Buffers the output of show/read.
-    -- XXX can the outputs be streaming? Can we have special read/show
-    -- style type classes, readM/showM supporting streaming effects?
-    [ bench "readsPrec pure streams" $
-      nf (readInstance . mkString) value
-    , bench "readsPrec Haskell lists" $
-      nf (readInstanceList . mkListString) value
-    ]
 
 -------------------------------------------------------------------------------
 -- Reductions
@@ -712,36 +642,6 @@ inspect $ 'drainN `hasNoType` ''Fold.Step
 inspect $ 'drainN `hasNoType` ''SPEC
 #endif
 
-o_1_space_elimination_folds :: Int -> [Benchmark]
-o_1_space_elimination_folds value =
-    [ benchIO "foldl'/IO" $ foldl'Reduce value
-    , benchIO "foldlM'/IO" $ foldlM'Reduce value
-
-    , benchIO "foldl'/Identity" $ foldl'ReduceIdentity value
-    , benchIO "foldlM'/Identity" $ foldlM'ReduceIdentity value
-
-    , benchIO "foldrMElem/IO" $ foldrMElem value
-
-    , benchIO "foldrMElem/Identity" $ foldrMElemIdentity value
-    , benchIO "foldrMToList" $ foldrMToListIdentity value
-
-    -- this is too fast, causes all benchmarks reported in ns
-    -- , benchIO "null" $ ...
-
-    -- deconstruction
-    , benchIO "uncons" $ uncons value
-    , benchIO "foldBreak" $ foldBreak value
-
-    -- draining
-    , benchIO "toNull" $ toNull value
-    , benchIO "drainN" $ drainN value
-    , benchIO "drain (pure)" $ drainPure value
-
-    -- length is used to check for foldr/build fusion
-    , benchIO "length . IsList.toList" $
-          withPureStream value (Prelude.length . GHC.toList)
-    ]
-
 {-# INLINE foldl'Build #-}
 foldl'Build :: Int -> IO [Int]
 foldl'Build value = withStream value (S.foldl' (flip (:)) [])
@@ -762,16 +662,6 @@ foldlM'BuildIdentity value =
     withPureStream value
         (runIdentity . S.foldlM' (\xs x -> return $ x : xs) (return []))
 
-o_n_heap_elimination_foldl :: Int -> [Benchmark]
-o_n_heap_elimination_foldl value =
-    -- Left folds for building a structure are inherently non-streaming
-    -- as the structure cannot be lazily consumed until fully built.
-    [ benchIO "foldl'/build/IO" $ foldl'Build value
-    , benchIO "foldl'/build/Identity" $ foldl'BuildIdentity value
-    , benchIO "foldlM'/build/IO" $ foldlM'Build value
-    , benchIO "foldlM'/build/Identity" $ foldlM'BuildIdentity value
-    ]
-
 {-# INLINE foldrMToSum #-}
 foldrMToSum :: Int -> IO Int
 foldrMToSum value =
@@ -783,26 +673,9 @@ foldrMToSumIdentity value =
     withPureStream value
         (runIdentity . S.foldrM (\x xs -> (x +) <$> xs) (return 0))
 
-o_n_space_elimination_foldr :: Int -> [Benchmark]
-o_n_space_elimination_foldr value =
-    -- Head recursive strict right folds.
-    -- accumulation due to strictness of IO monad
-    [ benchIO "foldrM/build/IO (toList)" $ foldrMToList value
-    -- Right folds for reducing are inherently non-streaming as the
-    -- expression needs to be fully built before it can be reduced.
-    , benchIO "foldrM/reduce/Identity (sum)" $ foldrMToSumIdentity value
-    , benchIO "foldrM/reduce/IO (sum)" $ foldrMToSum value
-    ]
-
 {-# INLINE toList' #-}
 toList' :: Int -> IO [Int]
 toList' value = withStream value S.toList
-
-o_n_space_elimination_toList :: Int -> [Benchmark]
-o_n_space_elimination_toList value =
-    -- Converting the stream to a list or pure stream in a strict monad
-    [ benchIO "toList" $ toList' value
-    ]
 
 {-# INLINE eqByPure #-}
 eqByPure :: Int -> IO Bool
@@ -828,15 +701,6 @@ inspect $ 'cmpByPure `hasNoType` ''S.Step
 inspect $ 'cmpByPure `hasNoType` ''Fold.Step
 #endif
 
-o_1_space_elimination_multi_stream_pure :: Int -> [Benchmark]
-o_1_space_elimination_multi_stream_pure value =
-    [ benchIO "==" $ eqInstance value
-    , benchIO "/=" $ eqInstanceNotEq value
-    , benchIO "<" $ ordInstance value
-    , benchIO "eqBy (pure)" $ eqByPure value
-    , benchIO "cmpBy (pure)" $ cmpByPure value
-    ]
-
 {-# INLINE eqBy #-}
 eqBy :: Int -> IO Bool
 eqBy value = withStream value $ \src -> S.eqBy (==) src src
@@ -858,12 +722,6 @@ inspect $ 'cmpBy `hasNoType` ''SPEC
 inspect $ 'cmpBy `hasNoType` ''S.Step
 inspect $ 'cmpBy `hasNoType` ''Fold.Step
 #endif
-
-o_1_space_elimination_multi_stream :: Int -> [Benchmark]
-o_1_space_elimination_multi_stream value =
-    [ benchIO "eqBy" $ eqBy value
-    , benchIO "cmpBy" $ cmpBy value
-    ]
 
 -------------------------------------------------------------------------------
 -- Mapping
@@ -920,24 +778,6 @@ inspect $ 'mapM4 `hasNoType` ''Stream.Step
 inspect $ 'mapM4 `hasNoType` ''FL.Step
 inspect $ 'mapM4 `hasNoType` ''SPEC
 #endif
-
-o_1_space_functor :: Int -> [Benchmark]
-o_1_space_functor value =
-    [ benchIO "fmap" $ map1 value
-    , benchIO "fmap x 4" $ mapN4 value
-    ]
-
-o_1_space_mapping :: Int -> [Benchmark]
-o_1_space_mapping value =
-    [ benchIO "map" $ map1 value
-    , benchIO "mapM" $ mapM1 value
-    ]
-
-o_1_space_mappingX4 :: Int -> [Benchmark]
-o_1_space_mappingX4 value =
-    [ benchIO "map x 4" $ mapN4 value
-    , benchIO "mapM x 4" $ mapM4 value
-    ]
 
 -------------------------------------------------------------------------------
 -- Filtering
@@ -1014,22 +854,6 @@ inspect $ 'takeWhileMTrue4 `hasNoType` ''FL.Step
 inspect $ 'takeWhileMTrue4 `hasNoType` ''SPEC
 #endif
 
-o_1_space_filtering :: Int -> [Benchmark]
-o_1_space_filtering value =
-    [ -- Trimming
-      benchIO "take-all" $ takeAll1 value
-    , benchIO "takeWhile-true" $ takeWhileTrue1 value
- -- , benchIO "takeWhileM-true" ...
-    ]
-
-o_1_space_filteringX4 :: Int -> [Benchmark]
-o_1_space_filteringX4 value =
-    [ -- trimming
-      benchIO "take-all x 4" $ takeAll4 value
-    , benchIO "takeWhile-true x 4" $ takeWhileTrue4 value
-    , benchIO "takeWhileM-true x 4" $ takeWhileMTrue4 value
-    ]
-
 -------------------------------------------------------------------------------
 -- Multi-stream
 -------------------------------------------------------------------------------
@@ -1101,15 +925,6 @@ inspect $ 'zipWithM `hasNoType` ''SPEC
 -- inspect $ 'zipWithM `hasNoType` ''S.Step
 inspect $ 'zipWithM `hasNoType` ''Fold.Step
 #endif
-
-o_1_space_joining :: Int -> [Benchmark]
-o_1_space_joining value =
-    [ benchIO "serial" $ serial2 (value `div` 2)
-    , benchIO "serial (2,2,x/4)" $ serial4 (value `div` 4)
-    , benchIO "zipWith" $ zipWith value
-    , benchIO "zipWithM" $ zipWithM value
-    , benchIO "concatMap" $ concatMap 2 (value `div` 2)
-    ]
 
 -------------------------------------------------------------------------------
 -- Concat
@@ -1281,58 +1096,6 @@ inspect $ 'unfoldCross `hasNoType` ''Fold.Step
 inspect $ 'unfoldCross `hasNoType` ''SPEC
 #endif
 
-o_1_space_concat :: Int -> [Benchmark]
-o_1_space_concat value = sqrtVal `seq`
-    [ benchIO "concatMap unfoldr outer=Max inner=1" $ concatMapPure value 1
-    , benchIO "concatMap unfoldr outer=inner=(sqrt Max)" $ concatMapPure sqrtVal sqrtVal
-    , benchIO "concatMap unfoldr outer=1 inner=Max" $ concatMapPure 1 value
-
-    , benchIO "concatMap unfoldrM outer=max inner=1" $ concatMap value 1
-    , benchIO "concatMap unfoldrM outer=inner=(sqrt Max)" $ concatMap sqrtVal sqrtVal
-    , benchIO "concatMap unfoldrM outer=1 inner=Max" $ concatMap 1 value
-
-    -- Using boxed values/streams may have entirely different perf profile
-    , benchIO "concatMap Streams fromPure outer=max inner=1" $
-        concatMapSingletonStreams value
-    , benchIO "concatMap Streams unfoldr outer=max inner=1" $
-        concatMapStreams value 1
-    , benchIO "concatMap Streams unfoldr outer=inner=(sqrt Max)" $
-        concatMapStreams sqrtVal sqrtVal
-    , benchIO "concatMap Streams unfoldr outer=1 inner=Max" $
-        concatMapStreams 1 value
-
-    , benchIO "concatMapM unfoldrM outer=max inner=1" $ concatMapM value 1
-    , benchIO "concatMapM unfoldrM outer=inner=(sqrt Max)" $ concatMapM sqrtVal sqrtVal
-    , benchIO "concatMapM unfoldrM outer=1 inner=Max" $ concatMapM 1 value
-
-    , benchIO "concatMapM2 fromPure" $ concatMapM2 sqrtVal
-    , benchIO "concatMapM3 fromPure" $ concatMapM3 cubertVal
-
-    , benchIO "concatMapViaUnfoldEach outer=max inner=1" $ concatMapViaUnfoldEach value 1
-    , benchIO "concatMapViaUnfoldEach outer=inner=(sqrt Max)" $ concatMapViaUnfoldEach sqrtVal sqrtVal
-    , benchIO "concatMapViaUnfoldEach outer=1 inner=Max" $ concatMapViaUnfoldEach 1 value
-
-    , benchIO "unfoldCross outer=max inner=1" $ unfoldCross value 1
-    , benchIO "unfoldCross outer=inner=(sqrt Max)" $ unfoldCross sqrtVal sqrtVal
-    , benchIO "unfoldCross outer=1 inner=Max" $ unfoldCross 1 value
-
-    -- concatMap vs unfoldEach
-    , benchIO "unfoldEach outer=Max inner=1" $ unfoldEach value 1
-    , benchIO "unfoldEach outer=inner=(sqrt Max)" $ unfoldEach sqrtVal sqrtVal
-    , benchIO "unfoldEach outer=1 inner=Max" $ unfoldEach 1 value
-
-    , benchIO "unfoldEach2 outer=Max inner=1" $ unfoldEach2 value 1
-    , benchIO "unfoldEach2 outer=inner=(sqrt Max)" $ unfoldEach2 sqrtVal sqrtVal
-    , benchIO "unfoldEach2 outer=1 inner=Max" $ unfoldEach2 1 value
-
-    , benchIO "unfoldEach3 outer=inner=(cubert Max)" $ unfoldEach3 value
-    ]
-
-    where
-
-    sqrtVal = round $ sqrt (fromIntegral value :: Double)
-    cubertVal = round (fromIntegral value**(1/3::Double)) -- triple nested loop
-
 -------------------------------------------------------------------------------
 -- Applicative
 -------------------------------------------------------------------------------
@@ -1442,43 +1205,9 @@ crossApplySnd linearCount = withRandomIntIO $ \start -> drain $
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
-o_1_space_applicative :: Int -> [Benchmark]
-o_1_space_applicative value =
-    [ benchIO "(*>)" $ withRandomIntIO (apDiscardFst value)
-    , benchIO "(<*)" $ withRandomIntIO (apDiscardSnd value)
-    , benchIO "(<*>)" $ withRandomIntIO (toNullAp value)
-    , benchIO "liftA2" $ withRandomIntIO (apLiftA2 value)
-    , benchIO "crossApply" $ crossApply value
-    , benchIO "crossApplyFst" $ crossApplyFst value
-    , benchIO "crossApplySnd" $ crossApplySnd value
-    , benchIO "pureDrain2" $ withRandomIntIO (toNullApPure value)
-    , benchIO "pureCross2" $ cross2 value
-    ]
-
 -------------------------------------------------------------------------------
 -- Monad
 -------------------------------------------------------------------------------
-
-o_1_space_monad :: Int -> [Benchmark]
-o_1_space_monad value =
-    [ benchIO "then2M" $ withRandomIntIO (monadThen value)
-    , benchIO "drain2M" $ withRandomIntIO (toNullM value)
-    , benchIO "drain3M" $ withRandomIntIO (toNullM3 value)
-    , benchIO "filterAllOut2M" $ withRandomIntIO (filterAllOutM value)
-    , benchIO "filterAllIn2M" $ withRandomIntIO (filterAllInM value)
-    , benchIO "filterSome2M" $ withRandomIntIO (filterSome value)
-    , benchIO "breakAfterSome2M" $ withRandomIntIO (breakAfterSome value)
-    , benchIO "pureDrain2M" $ withRandomIntIO (toNullMPure value)
-    , benchIO "pureDrain3M" $ withRandomIntIO (toNullM3Pure value)
-    , benchIO "pureFilterAllIn2M" $ withRandomIntIO (filterAllInMPure value)
-    , benchIO "pureFilterAllOut2M" $ withRandomIntIO (filterAllOutMPure value)
-    ]
-
-o_n_space_monad :: Int -> [Benchmark]
-o_n_space_monad value =
-    [ benchIO "toList2M" $ withRandomIntIO (toListM value)
-    , benchIO "toListSome2M" $ withRandomIntIO (toListSome value)
-    ]
 
 {-# INLINE drainConcatFor1 #-}
 drainConcatFor1 :: Int -> IO ()
@@ -1562,26 +1291,6 @@ filterAllOutConcatFor count = withStream count $ \s ->
                  in if s1 < 0
                     then Stream.fromPure s1
                     else Stream.nil
-
-o_1_space_bind :: Int -> [Benchmark]
-o_1_space_bind streamLen =
-    [ benchIO "concatFor/drain1" $ drainConcatFor1 streamLen
-    , benchIO "concatFor/drain2" $ drainConcatFor streamLen2
-    , benchIO "concatFor/drain3" $ drainConcatFor3 streamLen3
-    , benchIO "concatFor/drain4" $ drainConcatFor4 streamLen4
-    , benchIO "concatFor/drain5" $ drainConcatFor5 streamLen5
-    , benchIO "concatFor/drainM2" $ drainConcatForM streamLen2
-    , benchIO "concatFor/drainM3" $ drainConcatFor3M streamLen3
-    , benchIO "concatFor/filterAllIn2" $ filterAllInConcatFor streamLen2
-    , benchIO "concatFor/filterAllOut2" $ filterAllOutConcatFor streamLen2
-    ]
-
-    where
-
-    streamLen2 = round (fromIntegral streamLen**(1/2::Double)) -- double nested loop
-    streamLen3 = round (fromIntegral streamLen**(1/3::Double)) -- triple nested loop
-    streamLen4 = round (fromIntegral streamLen**(1/4::Double)) -- 4 times nested loop
-    streamLen5 = round (fromIntegral streamLen**(1/5::Double)) -- 5 times nested loop
 
 -- search space |x| = 1000, |y| = 1000
 {-# INLINE boundedInts #-}
@@ -1683,20 +1392,6 @@ unfoldEachBounded :: Int -> IO ()
 unfoldEachBounded maxVal = withRandomIntIO $ \n ->
     unfoldEachEqn maxVal (boundedIntsUnfold maxVal 0) (boundedInts maxVal n)
 
--- Solve simultaneous equations by exploring all possibilities
-o_1_space_equations :: Int -> [Benchmark]
-o_1_space_equations value =
-    [ benchIO "equations/concatFor (bounded)" $ concatForBounded sqrtVal
-    , benchIO "equations/streamCross (bounded)" $ streamCrossBounded sqrtVal
-    , benchIO "equations/fairStreamCross (bounded)" $ fairStreamCrossBounded sqrtVal
-    , benchIO "equations/fairStreamCross (infinite)" $ fairStreamCrossInfinite sqrtVal
-    , benchIO "equations/unfoldEach (bounded)" $ unfoldEachBounded sqrtVal
-    ]
-
-    where
-
-    sqrtVal = round $ sqrt (fromIntegral value :: Double)
-
 -------------------------------------------------------------------------------
 -- Fold Many
 -------------------------------------------------------------------------------
@@ -1771,14 +1466,6 @@ inspect $ 'refoldIterateM `hasNoType` ''Refold.Tuple'Fused
 inspect $ 'refoldIterateM `hasNoType` ''SPEC
 #endif
 
-o_1_space_grouping :: Int -> [Benchmark]
-o_1_space_grouping value =
-    [ benchIO "foldMany" $ foldMany value
-    , benchIO "foldMany1" $ foldMany1 value
-    , benchIO "refoldMany" $ refoldMany value
-    , benchIO "refoldIterateM" $ refoldIterateM value
-    ]
-
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -1790,31 +1477,228 @@ o_1_space_grouping value =
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
     -- Construction
-    map (SpaceO_1,) (o_1_space_generation size)
-    ++ map (HeapO_n,) (o_n_heap_generation size)
+    [ (SpaceO_1, benchIO "fromList" $ sourceFromList size)
+    , (SpaceO_1, benchIO "fromTuple" $ sourceFromTuple size)
+    , (SpaceO_1, benchIO "IsList.fromList" $ sourceIsList size)
+    , (SpaceO_1, benchIO "IsString.fromString" $ sourceIsString size)
+    -- Buffers the output of show/read.
+    -- XXX can the outputs be streaming? Can we have special read/show
+    -- style type classes, readM/showM supporting streaming effects?
+    , (HeapO_n, bench "readsPrec pure streams" $
+          nf (readInstance . mkString) size)
+    , (HeapO_n, bench "readsPrec Haskell lists" $
+          nf (readInstanceList . mkListString) size)
     -- Elimination
-    ++ map (SpaceO_1,) (o_1_space_elimination_foldable size)
-    ++ map (SpaceO_1,) (o_1_space_elimination_folds size)
-    ++ map (HeapO_n,) (o_n_heap_elimination_foldl size)
-    ++ map (HeapO_n,) (o_n_heap_elimination_show size)
-    ++ map (SpaceO_n,) (o_n_space_elimination_foldr size)
-    ++ map (SpaceO_n,) (o_n_space_elimination_toList size)
-    ++ map (SpaceO_1,) (o_1_space_elimination_multi_stream_pure size)
-    ++ map (SpaceO_1,) (o_1_space_elimination_multi_stream size)
+    -- Foldable instance
+    , (SpaceO_1, benchIO "Foldable/foldl'" $ withRandomInt (foldableFoldl' size))
+    , (SpaceO_1, benchIO "Foldable/foldrElem" $ withRandomInt (foldableFoldrElem size))
+ -- , (SpaceO_1, benchIO "Foldable/null" $ withRandomInt (_foldableNull size))
+    , (SpaceO_1, benchIO "Foldable/elem" $ withRandomInt (foldableElem size))
+    , (SpaceO_1, benchIO "Foldable/length" $ withRandomInt (foldableLength size))
+    , (SpaceO_1, benchIO "Foldable/sum" $ withRandomInt (foldableSum size))
+    , (SpaceO_1, benchIO "Foldable/product" $ withRandomInt (foldableProduct size))
+    , (SpaceO_1, benchIO "Foldable/minimum" $ withRandomInt (foldableMin size))
+    , (SpaceO_1, benchIO "Foldable/min (ord)" $ withRandomInt (ordInstanceMin size))
+    , (SpaceO_1, benchIO "Foldable/maximum" $ withRandomInt (foldableMax size))
+    , (SpaceO_1, benchIO "Foldable/minimumBy" $ withRandomInt (foldableMinBy size))
+    , (SpaceO_1, benchIO "Foldable/maximumBy" $ withRandomInt (foldableMaxBy size))
+    , (SpaceO_1, benchIO "Foldable/minimumByList" $ withRandomInt (foldableListMinBy size))
+    , (SpaceO_1, benchIO "Foldable/length . toList" $
+          withRandomInt (Prelude.length . foldableToList size))
+    , (SpaceO_1, benchIO "Foldable/notElem" $ withRandomInt (foldableNotElem size))
+    , (SpaceO_1, benchIO "Foldable/find" $ withRandomInt (foldableFind size))
+    , (SpaceO_1, benchIO "Foldable/all" $ withRandomInt (foldableAll size))
+    , (SpaceO_1, benchIO "Foldable/any" $ withRandomInt (foldableAny size))
+    , (SpaceO_1, benchIO "Foldable/and" $ withRandomInt (foldableAnd size))
+    , (SpaceO_1, benchIO "Foldable/or" $ withRandomInt (foldableOr size))
+
+    -- Applicative and Traversable operations
+    -- TBD: traverse_
+    , (SpaceO_1, benchIO "Foldable/mapM_" $ withRandomIntIO (foldableMapM_ size))
+    -- TBD: for_
+    -- TBD: forM_
+    , (SpaceO_1, benchIO "Foldable/sequence_" $ withRandomIntIO (foldableSequence_ size))
+    -- TBD: sequenceA_
+    -- TBD: asum
+    -- XXX needs to be fixed, results are in ns
+    -- , (SpaceO_1, benchIOSink1 "Foldable/msum" (foldableMsum size))
+    , (SpaceO_1, benchIO "foldl'/IO" $ foldl'Reduce size)
+    , (SpaceO_1, benchIO "foldlM'/IO" $ foldlM'Reduce size)
+
+    , (SpaceO_1, benchIO "foldl'/Identity" $ foldl'ReduceIdentity size)
+    , (SpaceO_1, benchIO "foldlM'/Identity" $ foldlM'ReduceIdentity size)
+
+    , (SpaceO_1, benchIO "foldrMElem/IO" $ foldrMElem size)
+
+    , (SpaceO_1, benchIO "foldrMElem/Identity" $ foldrMElemIdentity size)
+    , (SpaceO_1, benchIO "foldrMToList" $ foldrMToListIdentity size)
+
+    -- this is too fast, causes all benchmarks reported in ns
+    -- , (SpaceO_1, benchIO "null" $ ...)
+
+    -- deconstruction
+    , (SpaceO_1, benchIO "uncons" $ uncons size)
+    , (SpaceO_1, benchIO "foldBreak" $ foldBreak size)
+
+    -- draining
+    , (SpaceO_1, benchIO "toNull" $ toNull size)
+    , (SpaceO_1, benchIO "drainN" $ drainN size)
+    , (SpaceO_1, benchIO "drain (pure)" $ drainPure size)
+
+    -- length is used to check for foldr/build fusion
+    , (SpaceO_1, benchIO "length . IsList.toList" $
+          withPureStream size (Prelude.length . GHC.toList))
+    -- Left folds for building a structure are inherently non-streaming
+    -- as the structure cannot be lazily consumed until fully built.
+    , (HeapO_n, benchIO "foldl'/build/IO" $ foldl'Build size)
+    , (HeapO_n, benchIO "foldl'/build/Identity" $ foldl'BuildIdentity size)
+    , (HeapO_n, benchIO "foldlM'/build/IO" $ foldlM'Build size)
+    , (HeapO_n, benchIO "foldlM'/build/Identity" $ foldlM'BuildIdentity size)
+    -- Buffers the output of show/read.
+    -- XXX can the outputs be streaming? Can we have special read/show
+    -- style type classes, readM/showM supporting streaming effects?
+    , (HeapO_n, bench "showsPrec Haskell lists" $ nf showInstanceList (mkList size))
+    -- XXX This is not o-1-space for GHC-8.10
+    , (HeapO_n, benchIO "showsPrec pure streams" $ showInstance size)
+    -- Head recursive strict right folds.
+    -- accumulation due to strictness of IO monad
+    , (SpaceO_n, benchIO "foldrM/build/IO (toList)" $ foldrMToList size)
+    -- Right folds for reducing are inherently non-streaming as the
+    -- expression needs to be fully built before it can be reduced.
+    , (SpaceO_n, benchIO "foldrM/reduce/Identity (sum)" $ foldrMToSumIdentity size)
+    , (SpaceO_n, benchIO "foldrM/reduce/IO (sum)" $ foldrMToSum size)
+    -- Converting the stream to a list or pure stream in a strict monad
+    , (SpaceO_n, benchIO "toList" $ toList' size)
+    , (SpaceO_1, benchIO "==" $ eqInstance size)
+    , (SpaceO_1, benchIO "/=" $ eqInstanceNotEq size)
+    , (SpaceO_1, benchIO "<" $ ordInstance size)
+    , (SpaceO_1, benchIO "eqBy (pure)" $ eqByPure size)
+    , (SpaceO_1, benchIO "cmpBy (pure)" $ cmpByPure size)
+    , (SpaceO_1, benchIO "eqBy" $ eqBy size)
+    , (SpaceO_1, benchIO "cmpBy" $ cmpBy size)
     -- Mapping
-    ++ map (SpaceO_1,) (o_1_space_functor size)
-    ++ map (SpaceO_1,) (o_1_space_mapping size)
-    ++ map (SpaceO_1,) (o_1_space_mappingX4 size)
+    , (SpaceO_1, benchIO "fmap" $ map1 size)
+    , (SpaceO_1, benchIO "fmap x 4" $ mapN4 size)
+    , (SpaceO_1, benchIO "map" $ map1 size)
+    , (SpaceO_1, benchIO "mapM" $ mapM1 size)
+    , (SpaceO_1, benchIO "map x 4" $ mapN4 size)
+    , (SpaceO_1, benchIO "mapM x 4" $ mapM4 size)
     -- Filtering
-    ++ map (SpaceO_1,) (o_1_space_filtering size)
-    ++ map (SpaceO_1,) (o_1_space_filteringX4 size)
+    -- Trimming
+    , (SpaceO_1, benchIO "take-all" $ takeAll1 size)
+    , (SpaceO_1, benchIO "takeWhile-true" $ takeWhileTrue1 size)
+ -- , (SpaceO_1, benchIO "takeWhileM-true" ...)
+    -- trimming
+    , (SpaceO_1, benchIO "take-all x 4" $ takeAll4 size)
+    , (SpaceO_1, benchIO "takeWhile-true x 4" $ takeWhileTrue4 size)
+    , (SpaceO_1, benchIO "takeWhileM-true x 4" $ takeWhileMTrue4 size)
     -- Multi-stream
-    ++ map (SpaceO_1,) (o_1_space_joining size)
-    ++ map (SpaceO_1,) (o_1_space_concat size)
-    ++ map (SpaceO_1,) (o_1_space_applicative size)
-    ++ map (SpaceO_1,) (o_1_space_monad size)
-    ++ map (SpaceO_n,) (o_n_space_monad size)
-    ++ map (SpaceO_1,) (o_1_space_bind size)
-    ++ map (SpaceO_1,) (o_1_space_equations size)
+    , (SpaceO_1, benchIO "serial" $ serial2 (size `div` 2))
+    , (SpaceO_1, benchIO "serial (2,2,x/4)" $ serial4 (size `div` 4))
+    , (SpaceO_1, benchIO "zipWith" $ zipWith size)
+    , (SpaceO_1, benchIO "zipWithM" $ zipWithM size)
+    , (SpaceO_1, benchIO "concatMap" $ concatMap 2 (size `div` 2))
+    , (SpaceO_1, benchIO "concatMap unfoldr outer=Max inner=1" $
+          concatMapPure size 1)
+    , (SpaceO_1, benchIO "concatMap unfoldr outer=inner=(sqrt Max)" $
+          concatMapPure sqrtVal sqrtVal)
+    , (SpaceO_1, benchIO "concatMap unfoldr outer=1 inner=Max" $
+          concatMapPure 1 size)
+    , (SpaceO_1, benchIO "concatMap unfoldrM outer=max inner=1" $
+          concatMap size 1)
+    , (SpaceO_1, benchIO "concatMap unfoldrM outer=inner=(sqrt Max)" $
+          concatMap sqrtVal sqrtVal)
+    , (SpaceO_1, benchIO "concatMap unfoldrM outer=1 inner=Max" $
+          concatMap 1 size)
+    -- Using boxed values/streams may have entirely different perf profile
+    , (SpaceO_1, benchIO "concatMap Streams fromPure outer=max inner=1" $
+          concatMapSingletonStreams size)
+    , (SpaceO_1, benchIO "concatMap Streams unfoldr outer=max inner=1" $
+          concatMapStreams size 1)
+    , (SpaceO_1, benchIO "concatMap Streams unfoldr outer=inner=(sqrt Max)" $
+          concatMapStreams sqrtVal sqrtVal)
+    , (SpaceO_1, benchIO "concatMap Streams unfoldr outer=1 inner=Max" $
+          concatMapStreams 1 size)
+    , (SpaceO_1, benchIO "concatMapM unfoldrM outer=max inner=1" $
+          concatMapM size 1)
+    , (SpaceO_1, benchIO "concatMapM unfoldrM outer=inner=(sqrt Max)" $
+          concatMapM sqrtVal sqrtVal)
+    , (SpaceO_1, benchIO "concatMapM unfoldrM outer=1 inner=Max" $
+          concatMapM 1 size)
+    , (SpaceO_1, benchIO "concatMapM2 fromPure" $ concatMapM2 sqrtVal)
+    , (SpaceO_1, benchIO "concatMapM3 fromPure" $ concatMapM3 cubertVal)
+    , (SpaceO_1, benchIO "concatMapViaUnfoldEach outer=max inner=1" $
+          concatMapViaUnfoldEach size 1)
+    , (SpaceO_1, benchIO "concatMapViaUnfoldEach outer=inner=(sqrt Max)" $
+          concatMapViaUnfoldEach sqrtVal sqrtVal)
+    , (SpaceO_1, benchIO "concatMapViaUnfoldEach outer=1 inner=Max" $
+          concatMapViaUnfoldEach 1 size)
+    , (SpaceO_1, benchIO "unfoldCross outer=max inner=1" $ unfoldCross size 1)
+    , (SpaceO_1, benchIO "unfoldCross outer=inner=(sqrt Max)" $
+          unfoldCross sqrtVal sqrtVal)
+    , (SpaceO_1, benchIO "unfoldCross outer=1 inner=Max" $ unfoldCross 1 size)
+    -- concatMap vs unfoldEach
+    , (SpaceO_1, benchIO "unfoldEach outer=Max inner=1" $ unfoldEach size 1)
+    , (SpaceO_1, benchIO "unfoldEach outer=inner=(sqrt Max)" $
+          unfoldEach sqrtVal sqrtVal)
+    , (SpaceO_1, benchIO "unfoldEach outer=1 inner=Max" $ unfoldEach 1 size)
+    , (SpaceO_1, benchIO "unfoldEach2 outer=Max inner=1" $ unfoldEach2 size 1)
+    , (SpaceO_1, benchIO "unfoldEach2 outer=inner=(sqrt Max)" $
+          unfoldEach2 sqrtVal sqrtVal)
+    , (SpaceO_1, benchIO "unfoldEach2 outer=1 inner=Max" $ unfoldEach2 1 size)
+    , (SpaceO_1, benchIO "unfoldEach3 outer=inner=(cubert Max)" $ unfoldEach3 size)
+    , (SpaceO_1, benchIO "(*>)" $ withRandomIntIO (apDiscardFst size))
+    , (SpaceO_1, benchIO "(<*)" $ withRandomIntIO (apDiscardSnd size))
+    , (SpaceO_1, benchIO "(<*>)" $ withRandomIntIO (toNullAp size))
+    , (SpaceO_1, benchIO "liftA2" $ withRandomIntIO (apLiftA2 size))
+    , (SpaceO_1, benchIO "crossApply" $ crossApply size)
+    , (SpaceO_1, benchIO "crossApplyFst" $ crossApplyFst size)
+    , (SpaceO_1, benchIO "crossApplySnd" $ crossApplySnd size)
+    , (SpaceO_1, benchIO "pureDrain2" $ withRandomIntIO (toNullApPure size))
+    , (SpaceO_1, benchIO "pureCross2" $ cross2 size)
+    , (SpaceO_1, benchIO "then2M" $ withRandomIntIO (monadThen size))
+    , (SpaceO_1, benchIO "drain2M" $ withRandomIntIO (toNullM size))
+    , (SpaceO_1, benchIO "drain3M" $ withRandomIntIO (toNullM3 size))
+    , (SpaceO_1, benchIO "filterAllOut2M" $ withRandomIntIO (filterAllOutM size))
+    , (SpaceO_1, benchIO "filterAllIn2M" $ withRandomIntIO (filterAllInM size))
+    , (SpaceO_1, benchIO "filterSome2M" $ withRandomIntIO (filterSome size))
+    , (SpaceO_1, benchIO "breakAfterSome2M" $ withRandomIntIO (breakAfterSome size))
+    , (SpaceO_1, benchIO "pureDrain2M" $ withRandomIntIO (toNullMPure size))
+    , (SpaceO_1, benchIO "pureDrain3M" $ withRandomIntIO (toNullM3Pure size))
+    , (SpaceO_1, benchIO "pureFilterAllIn2M" $ withRandomIntIO (filterAllInMPure size))
+    , (SpaceO_1, benchIO "pureFilterAllOut2M" $ withRandomIntIO (filterAllOutMPure size))
+    , (SpaceO_n, benchIO "toList2M" $ withRandomIntIO (toListM size))
+    , (SpaceO_n, benchIO "toListSome2M" $ withRandomIntIO (toListSome size))
+    , (SpaceO_1, benchIO "concatFor/drain1" $ drainConcatFor1 size)
+    , (SpaceO_1, benchIO "concatFor/drain2" $ drainConcatFor sqrtVal)
+    , (SpaceO_1, benchIO "concatFor/drain3" $ drainConcatFor3 cubertVal)
+    , (SpaceO_1, benchIO "concatFor/drain4" $ drainConcatFor4 size4)
+    , (SpaceO_1, benchIO "concatFor/drain5" $ drainConcatFor5 size5)
+    , (SpaceO_1, benchIO "concatFor/drainM2" $ drainConcatForM sqrtVal)
+    , (SpaceO_1, benchIO "concatFor/drainM3" $ drainConcatFor3M cubertVal)
+    , (SpaceO_1, benchIO "concatFor/filterAllIn2" $ filterAllInConcatFor sqrtVal)
+    , (SpaceO_1, benchIO "concatFor/filterAllOut2" $ filterAllOutConcatFor sqrtVal)
+    -- Solve simultaneous equations by exploring all possibilities
+    , (SpaceO_1, benchIO "equations/concatFor (bounded)" $
+          concatForBounded sqrtVal)
+    , (SpaceO_1, benchIO "equations/streamCross (bounded)" $
+          streamCrossBounded sqrtVal)
+    , (SpaceO_1, benchIO "equations/fairStreamCross (bounded)" $
+          fairStreamCrossBounded sqrtVal)
+    , (SpaceO_1, benchIO "equations/fairStreamCross (infinite)" $
+          fairStreamCrossInfinite sqrtVal)
+    , (SpaceO_1, benchIO "equations/unfoldEach (bounded)" $
+          unfoldEachBounded sqrtVal)
     -- Fold Many
-    ++ map (SpaceO_1,) (o_1_space_grouping size)
+    , (SpaceO_1, benchIO "foldMany" $ foldMany size)
+    , (SpaceO_1, benchIO "foldMany1" $ foldMany1 size)
+    , (SpaceO_1, benchIO "refoldMany" $ refoldMany size)
+    , (SpaceO_1, benchIO "refoldIterateM" $ refoldIterateM size)
+    ]
+
+    where
+
+    sqrtVal = round $ sqrt (fromIntegral size :: Double) -- double nested loop
+    cubertVal = round (fromIntegral size**(1/3::Double)) -- triple nested loop
+    size4 = round (fromIntegral size**(1/4::Double)) -- 4 times nested loop
+    size5 = round (fromIntegral size**(1/5::Double)) -- 5 times nested loop
