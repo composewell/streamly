@@ -271,6 +271,6 @@ targets =
     , ("Unicode.Char", ["testDevOnly"])
     , ("Unicode.Parser", ["streamly_core_grp"])
     , ("Unicode.Stream", [])
-    , ("Unicode.Utf8", ["noTest"])
+    -- , ("Unicode.Utf8", ["noTest"])
     , ("version-bounds", ["noBench"])
     ]

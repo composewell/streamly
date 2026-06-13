@@ -667,12 +667,13 @@ benchmark Unicode.Stream
   else
     buildable: True
 
-benchmark Unicode.Utf8
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Unicode
-  main-is: Utf8.hs
-  if flag(use-streamly-core)
-    buildable: False
-  else
-    buildable: True
+-- XXX this is broken
+-- benchmark Unicode.Utf8
+--   import: bench-options
+--   type: exitcode-stdio-1.0
+--   hs-source-dirs: Streamly/Benchmark/Unicode
+--   main-is: Utf8.hs
+--   if flag(use-streamly-core)
+--     buildable: False
+--   else
+--     buildable: True
