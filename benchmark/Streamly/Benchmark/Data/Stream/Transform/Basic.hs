@@ -287,55 +287,6 @@ inspect $ 'trace4 `hasNoType` ''SPEC
 #endif
 
 -------------------------------------------------------------------------------
--- Iteration/looping utilities
--------------------------------------------------------------------------------
-
-{-# INLINE iterateN #-}
-iterateN :: (Int -> a -> a) -> a -> Int -> a
-iterateN g initial count = f count initial
-
-    where
-
-    f (0 :: Int) x = x
-    f i x = f (i - 1) (g i x)
-
--- Iterate a transformation over a singleton stream
-{-# INLINE iterateSingleton #-}
-iterateSingleton :: Applicative m =>
-       (Int -> Stream m Int -> Stream m Int)
-    -> Int
-    -> Int
-    -> Stream m Int
-iterateSingleton g count n = iterateN g (Stream.fromPure n) count
-
-{-
--- XXX need to check why this is slower than the explicit recursion above, even
--- if the above code is written in a foldr like head recursive way. We also
--- need to try this with foldlM' once #150 is fixed.
--- However, it is perhaps best to keep the iteration benchmarks independent of
--- foldrM and any related fusion issues.
-{-# INLINE _iterateSingleton #-}
-_iterateSingleton ::
-       Monad m
-    => (Int -> Stream m Int -> Stream m Int)
-    -> Int
-    -> Int
-    -> Stream m Int
-_iterateSingleton g value n = S.foldrM g (return n) $ sourceIntFromTo value n
--}
-
-iteratePlusBaseline :: Int -> IO Int
-iteratePlusBaseline value =
-    withRandomIntIO $ \i0 ->
-        iterateN (\i acc -> acc >>= \n -> return $ i + n) (return i0) value
-
-iterateSubMap :: Int -> IO ()
-iterateSubMap value = withRandomIntIO $ drain . iterateSingleton (<$) value
-
-iterateFmap :: Int -> IO ()
-iterateFmap value = withRandomIntIO $ drain . iterateSingleton (fmap . (+)) value
-
--------------------------------------------------------------------------------
 -- Size reducing transformations (filtering)
 -------------------------------------------------------------------------------
 
@@ -1048,15 +999,6 @@ benchmarks size =
     , (SpaceO_1, benchIO "indexedR" $ indexedR1 size)
     , (SpaceO_1, benchIO "indexed x 4" $ indexed4 size)
     , (SpaceO_1, benchIO "indexedR x 4" $ indexedR4 size)
-    , (SpaceO_n, benchIO "iterated/(+) (n times) (baseline)" $ iteratePlusBaseline size)
-    , (SpaceO_n, benchIO "iterated/(<$) (n times)" $ iterateSubMap size)
-    , (SpaceO_n, benchIO "iterated/fmap (n times)" $ iterateFmap size)
-    {-
-    , benchIOSrc fromSerial "_(<$) (n times)" $
-        _iterateSingleton (<$) value
-    , benchIOSrc fromSerial "_fmap (n times)" $
-        _iterateSingleton (fmap . (+)) value
-    -}
     -- Reversing a stream
     , (HeapO_n, benchIO "reverse" $ reverse size)
     , (HeapO_n, benchIO "reverse'" $ reverse' size)
