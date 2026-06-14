@@ -11,10 +11,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Char (isSpace)
 import Data.Foldable (for_)
 import Data.Word (Word8, Word32, Word64)
-import Streamly.Internal.Data.Fold (Fold(..))
-import Streamly.Internal.Data.Parser (Parser(..), Step(..), Initial(..), Final(..))
 import Streamly.Test.Common (listEquals, checkListEqual, chooseInt)
-import Streamly.Internal.Data.Parser (ParseError(..))
 import Test.QuickCheck (forAll, Property, property, listOf, vectorOf, Gen)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
@@ -25,9 +22,7 @@ import qualified Streamly.Data.Stream as S
 import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as P
-import qualified Streamly.Internal.Data.ParserK as PK
 import qualified Streamly.Internal.Data.Stream as SI
-import qualified Streamly.Internal.Data.StreamK as K
 import qualified Test.Hspec as H
 
 import Test.Hspec
@@ -301,22 +296,6 @@ sanityParseBreak jumps = it (show jumps) $ do
     lst <- S.toList rest
     (val, lst) `shouldBe` (expectedResult jumps tape)
 
-sanityParseDBreak :: [Move] -> SpecWith ()
-sanityParseDBreak jumps = it (show jumps) $ do
-    (val, rest) <- K.parseBreakPos (PK.toParserK (jumpParser jumps)) $ K.fromList tape
-    lst <- K.toList rest
-    (val, lst) `shouldBe` (expectedResult jumps tape)
-
-{-
-sanityParseBreakChunksK :: [Move] -> SpecWith ()
-sanityParseBreakChunksK jumps = it (show jumps) $ do
-    (val, rest) <-
-        A.parseBreakChunksK (jumpParser jumps)
-            $ K.fromList $ Prelude.map A.fromList chunkedTape
-    lst <- Prelude.map A.toList <$> K.toList rest
-    (val, concat lst) `shouldBe` (expectedResult jumps tape)
--}
-
 sanityParseMany :: [Move] -> SpecWith ()
 sanityParseMany jumps = it (show jumps) $ do
     res <- S.toList $ SI.parseManyPos (jumpParser jumps) $ S.fromList tape
@@ -333,61 +312,13 @@ sanityParseIterate jumps = it (show jumps) $ do
 -- Instances
 -------------------------------------------------------------------------------
 
-{-# INLINE takeWhileFailD #-}
-takeWhileFailD :: Monad m => (a -> Bool) -> Fold m a b -> Parser a m b
-takeWhileFailD predicate (Fold fstep finitial _ ffinal) =
-    Parser step initial extract
-
-    where
-
-    initial = do
-        res <- finitial
-        return $ case res of
-            FL.Partial s -> IPartial s
-            FL.Done b -> IDone b
-
-    step s a =
-        if predicate a
-        then do
-            fres <- fstep s a
-            return
-                $ case fres of
-                      FL.Partial s1 -> SContinue 1 s1
-                      FL.Done b -> SDone 1 b
-        else return $ SError "fail"
-
-    extract s = fmap (FDone 0) (ffinal s)
-
-{-# INLINE takeWhileFail #-}
-takeWhileFail :: MonadIO m =>
-    (a -> Bool) -> Fold m a b -> PK.ParserK a m b
-takeWhileFail p f = PK.toParserK (takeWhileFailD p f)
-
-{-# INLINE takeWhileK #-}
-takeWhileK :: MonadIO m => (a -> Bool) -> PK.ParserK a m [a]
-takeWhileK p = PK.toParserK $ P.takeWhile p FL.toList
-
-{-# INLINE alt2 #-}
-alt2 :: MonadIO m => K.StreamK m Int -> m (Either ParseError [Int])
-alt2 =
-    K.parse
-        (   takeWhileFail (<= 5) FL.toList
-        <|> takeWhileK (<= 7)
-        )
-
-{-# INLINE altD #-}
-altD :: MonadIO m => S.Stream m Int -> m (Either P.ParseError [Int])
-altD =
+{-# INLINE alt #-}
+alt :: MonadIO m => S.Stream m Int -> m (Either P.ParseError [Int])
+alt =
     S.parse
-        (   takeWhileFailD (<= 5) FL.toList
+        (   Common.takeWhileFailD (<= 5) FL.toList
         <|> P.takeWhile (<= 7) FL.toList
         )
-
-altTests :: Spec
-altTests =
-    describe "alt" $ do
-        it "alt2 [1..20]" $ alt2 (K.fromList [1..20]) `shouldReturn` Right [1..7]
-        it "altD [1..20]" $ altD (S.fromList [1..20]) `shouldReturn` Right [1..7]
 
 -------------------------------------------------------------------------------
 -- Main
@@ -404,7 +335,6 @@ main = do
       describe moduleName $ do
         Common.mainCommon Common.TMParserStream
         parserSanityTests "Stream.parseBreak" sanityParseBreak
-        parserSanityTests "StreamK.parseDBreak" sanityParseDBreak
         -- parserSanityTests "A.sanityParseBreakChunksK" sanityParseBreakChunksK
         parserSanityTests "Stream.parseMany" sanityParseMany
         parserSanityTests "Stream.parseIterate" sanityParseIterate
@@ -427,5 +357,4 @@ main = do
                    "\"hello\\\"\\\\w\\'orld\""
                    ["hello\"\\w\\'orld"]
 
-
-        altTests
+        it "alt [1..20]" $ alt (S.fromList [1..20]) `shouldReturn` Right [1..7]
