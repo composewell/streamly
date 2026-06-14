@@ -27,7 +27,6 @@ import Control.Exception (SomeException)
 import System.IO (Handle, hClose)
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.FileSystem.Handle as IFH
-import qualified Streamly.Internal.Data.Unfold as IUF
 import qualified Streamly.Internal.Data.Stream as Stream
 
 import Test.Tasty.Bench hiding (env)
@@ -93,22 +92,6 @@ readWriteAfter_Stream inh devNull =
      in Stream.fold (FH.write devNull) readEx
 
  -------------------------------------------------------------------------------
--- Exceptions readChunks
--------------------------------------------------------------------------------
-
--- | Send the file contents to /dev/null with exception handling
-readChunksOnException :: Handle -> Handle -> IO ()
-readChunksOnException inh devNull =
-    let readEx = IUF.onException (\_ -> hClose inh) FH.chunkReader
-    in IUF.fold (IFH.writeChunks devNull) readEx inh
-
--- | Send the file contents to /dev/null with exception handling
-readChunksBracket_ :: Handle -> Handle -> IO ()
-readChunksBracket_ inh devNull =
-    let readEx = IUF.bracket_ return (\_ -> hClose inh) FH.chunkReader
-    in IUF.fold (IFH.writeChunks devNull) readEx inh
-
--------------------------------------------------------------------------------
 -- Exceptions toChunks
 -------------------------------------------------------------------------------
 
@@ -157,25 +140,6 @@ inspect $ 'readWriteAfter_Stream `hasNoType` ''Stream.Step
 inspect $ 'readWriteAfter_Stream `hasNoType` ''FL.Step
 inspect $ 'readWriteAfter_Stream `hasNoType` ''SPEC
 
--- readChunks (unfold-based; exception path keeps Step constructors)
-#if __GLASGOW_HASKELL__ >= 906
-inspect $ hasNoTypeClassesExcept 'readChunksOnException [''MonadCatch]
-#else
-inspect $ hasNoTypeClasses 'readChunksOnException
-#endif
--- inspect $ 'readChunksOnException `hasNoType` ''Stream.Step
-inspect $ 'readChunksOnException `hasNoType` ''FL.Step
-inspect $ 'readChunksOnException `hasNoType` ''SPEC
-
-#if __GLASGOW_HASKELL__ >= 906
-inspect $ hasNoTypeClassesExcept 'readChunksBracket_ [''MonadCatch]
-#else
-inspect $ hasNoTypeClasses 'readChunksBracket_
-#endif
--- inspect $ 'readChunksBracket_ `hasNoType` ''Stream.Step
-inspect $ 'readChunksBracket_ `hasNoType` ''FL.Step
-inspect $ 'readChunksBracket_ `hasNoType` ''SPEC
-
 -- toChunks (bracketUnsafe wraps readChunks; Step constructors survive)
 inspect $ hasNoTypeClasses 'toChunksBracket_
 -- inspect $ 'toChunksBracket_ `hasNoType` ''Stream.Step
@@ -185,11 +149,7 @@ inspect $ 'toChunksBracket_ `hasNoType` ''SPEC
 
 benchmarks :: BenchEnv -> Int -> [(SpaceComplexity, Benchmark)]
 benchmarks _env _size =
-      [ (SpaceO_1, mkBench "UF.onException" _env $ \inH _ ->
-            readChunksOnException inH (nullH _env))
-      , (SpaceO_1, mkBench "UF.bracket_" _env $ \inH _ ->
-            readChunksBracket_ inH (nullH _env))
-      , (SpaceO_1, mkBench "Stream.bracket_ (toChunks)" _env $ \inH _ ->
+      [ (SpaceO_1, mkBench "Stream.bracket_ (toChunks)" _env $ \inH _ ->
             toChunksBracket_ inH (nullH _env))
       , (SpaceO_1, mkBenchSmall "Stream.onException" _env $ \inh _ ->
             readWriteOnExceptionStream inh (nullH _env))

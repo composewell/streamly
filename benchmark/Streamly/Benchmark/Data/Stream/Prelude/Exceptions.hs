@@ -38,8 +38,6 @@ import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.Prelude as Stream
-import qualified Streamly.Internal.Data.Unfold as IUF
-import qualified Streamly.Internal.Data.Unfold.Prelude as IUF
 
 import Test.Tasty.Bench hiding (env)
 import Prelude hiding (last, length)
@@ -174,21 +172,6 @@ o_1_space_copy_stream_exceptions env =
         fromToBytesBracketStream inh (nullH env)
     ]
 
- -------------------------------------------------------------------------------
--- Exceptions readChunks
--------------------------------------------------------------------------------
-
-readChunksBracket :: Handle -> Handle -> IO ()
-readChunksBracket inh devNull =
-    let readEx = IUF.bracket return (\_ -> hClose inh) FH.chunkReader
-    in IUF.fold (IFH.writeChunks devNull) readEx inh
-
-o_1_space_copy_exceptions_readChunks :: BenchEnv -> [Benchmark]
-o_1_space_copy_exceptions_readChunks env =
-    [ mkBench "UF.bracket" env $ \inH _ ->
-        readChunksBracket inH (nullH env)
-    ]
-
 -------------------------------------------------------------------------------
 -- Exceptions toChunks
 -------------------------------------------------------------------------------
@@ -211,7 +194,6 @@ excBenchmarks :: BenchEnv -> Int -> [Benchmark]
 excBenchmarks env size =
     [ bgroup (o_1_space_prefix moduleName) $ concat
         [ o_1_space_serial_exceptions size
-        , o_1_space_copy_exceptions_readChunks env
         , o_1_space_copy_exceptions_toChunks env
         , o_1_space_copy_stream_exceptions env
         ]
