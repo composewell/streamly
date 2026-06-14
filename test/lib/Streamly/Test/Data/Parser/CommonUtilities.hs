@@ -1,4 +1,4 @@
-module Streamly.Test.Parser.Common
+module Streamly.Test.Data.Parser.CommonUtilities
     ( Move(..)
     , jumpParser
     , chunkedTape

@@ -122,7 +122,6 @@ extra-source-files:
     test/Streamly/Test/Data/*.hs
     test/Streamly/Test/Data/Array/*.hs
     test/Streamly/Test/Data/MutArray/*.hs
-    test/Streamly/Test/Data/Parser/*.hs
     test/Streamly/Test/Data/Stream/*.hs
     test/Streamly/Test/Data/Stream/Serial/Common.hs
     test/Streamly/Test/FileSystem/Event.hs
