@@ -1,5 +1,6 @@
 .circleci/config.yml
 .ghci
+.github/workflows/freebsd.yml
 .github/workflows/haskell.yml
 .github/workflows/regression-check.yml
 .github/workflows/packdiff.yml
@@ -8,7 +9,6 @@
 .hlint.ignore
 .hlint.yaml
 .packcheck.ignore
-.cirrus.yml
 appveyor.yml
 benchmark/bench-runner/cabal.project
 benchmark/bench-runner/flake.lock
