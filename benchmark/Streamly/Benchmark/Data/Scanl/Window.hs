@@ -46,6 +46,10 @@ benchScanWith src len name f =
 benchWithPostscan :: Int -> String -> Scanl IO Double a -> Benchmark
 benchWithPostscan = benchScanWith source
 
+{-# INLINE benchWithPostscanInt #-}
+benchWithPostscanInt :: Int -> String -> Scanl IO Int a -> Benchmark
+benchWithPostscanInt = benchScanWith source
+
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks numElements =
     [ (SpaceO_1, benchWithPostscan numElements "minimum (window size 10)"
@@ -84,14 +88,25 @@ benchmarks numElements =
         (Scanl.incrScan 100 Scanl.incrSum))
     , (SpaceO_1, benchWithPostscan numElements "sum (window size 1000)"
         (Scanl.incrScan 1000 Scanl.incrSum))
+    , (SpaceO_1, benchWithPostscan numElements "sum (entire stream)"
+        (Scanl.cumulativeScan Scanl.incrSum))
+
+    , (SpaceO_1, benchWithPostscanInt numElements "sumInt (window size 100)"
+        (Scanl.incrScan 100 Scanl.incrSumInt))
+    , (SpaceO_1, benchWithPostscanInt numElements "sumInt (window size 1000)"
+        (Scanl.incrScan 1000 Scanl.incrSumInt))
 
     , (SpaceO_1, benchWithPostscan numElements "mean (window size 100)"
         (Scanl.incrScan 100 Scanl.incrMean))
     , (SpaceO_1, benchWithPostscan numElements "mean (window size 1000)"
         (Scanl.incrScan 1000 Scanl.incrMean))
+    , (SpaceO_1, benchWithPostscan numElements "mean (entire stream)"
+        (Scanl.cumulativeScan Scanl.incrMean))
 
     , (SpaceO_1, benchWithPostscan numElements "powerSum 2 (window size 100)"
         (Scanl.incrScan 100 (Scanl.incrPowerSum 2)))
     , (SpaceO_1, benchWithPostscan numElements "powerSum 2 (window size 1000)"
         (Scanl.incrScan 1000 (Scanl.incrPowerSum 2)))
+    , (SpaceO_1, benchWithPostscan numElements "powerSum 2 (entire stream)"
+        (Scanl.cumulativeScan (Scanl.incrPowerSum 2)))
     ]

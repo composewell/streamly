@@ -633,61 +633,6 @@ splitWithSuffixSeq str inh =
         $ Stream.foldMany (Fold.takeEndBySeq (toarr str) Fold.drain)
         $ Handle.read inh -- >>= print
 
-o_1_space_reduce_read_split :: BenchEnv -> [(SpaceComplexity, Benchmark)]
-o_1_space_reduce_read_split env =
-    -- NOTE: keep the benchmark names consistent with Data.Stream.split*
-    fmap (SpaceO_1,)
-    -- Splitting on single element
-    [ mkBench "takeEndBy_ infix (splitOn)" env $ \inh _ ->
-        fileInfixTakeEndBy_ inh
-    , mkBench "takeEndBy_ suffix (splitOnSuffix)" env $ \inh _ ->
-        fileSuffixTakeEndBy_ inh
-    , mkBench "takeEndBy_ suffix parseMany (splitOnSuffix)" env
-        $ \inh _ -> parseFileSuffixTakeEndBy_ inh
-    , mkBench "takeEndBy suffix (splitWithSuffix)" env $ \inh _ ->
-        fileSuffixTakeEndBy inh
-
-    -- Splitting on sequence
-    -- Infix takeEndBySeq_
-    , mkBench "takeEndBySeq_ infix empty pattern" env $ \inh _ ->
-        splitOnSeq "" inh
-    , mkBench "takeEndBySeq_ infix lf" env $ \inh _ ->
-        splitOnSeq "\n" inh
-    , mkBench "takeEndBySeq_ infix a" env $ \inh _ ->
-        splitOnSeq "a" inh
-    , mkBench "takeEndBySeq_ infix crlf" env $ \inh _ ->
-        splitOnSeq "\r\n" inh
-    , mkBench "takeEndBySeq_ infix aa" env $ \inh _ ->
-        splitOnSeq "aa" inh
-    , mkBench "takeEndBySeq_ infix aaaa" env $ \inh _ ->
-        splitOnSeq "aaaa" inh
-    , mkBench "takeEndBySeq_ infix abcdefgh" env $ \inh _ ->
-        splitOnSeq "abcdefgh" inh
-    , mkBench "takeEndBySeq_ infix abcdefghi" env $ \inh _ ->
-        splitOnSeq "abcdefghi" inh
-    , mkBench "takeEndBySeq_ infix catcatcatcatcat" env $ \inh _ ->
-        splitOnSeq "catcatcatcatcat" inh
-    , mkBench "takeEndBySeq_ infix abcdefghijklmnopqrstuvwxyz"
-        env $ \inh _ -> splitOnSeq "abcdefghijklmnopqrstuvwxyz" inh
-    , mkBench "takeEndBySeq_ infix 100k long pattern"
-        env $ \inh _ -> splitOnSeq100k inh
-
-    -- Suffix takeEndBySeq_
-    , mkBench "takeEndBySeq_ suffix empty pattern" env $ \inh _ ->
-        splitOnSuffixSeq "" inh
-    , mkBench "takeEndBySeq_ suffix lf" env $ \inh _ ->
-        splitOnSuffixSeq "\n" inh
-    , mkBench "takeEndBySeq_ suffix crlf" env $ \inh _ ->
-        splitOnSuffixSeq "\r\n" inh
-    , mkBenchSmall "takeEndBySeq_ suffix abcdefghijklmnopqrstuvwxyz"
-        env $ \inh _ -> splitOnSuffixSeq "abcdefghijklmnopqrstuvwxyz" inh
-
-    -- Suffix takeEndBySeq
-    , mkBench "takeEndBySeq suffix crlf" env $ \inh _ ->
-        splitWithSuffixSeq "\r\n" inh
-    , mkBenchSmall "takeEndBySeq suffix abcdefghijklmnopqrstuvwxyz"
-        env $ \inh _ -> splitWithSuffixSeq "abcdefghijklmnopqrstuvwxyz" inh
-    ]
 
 -- | Infix split on a character sequence.
 splitOnSeqUtf8 :: String -> Handle -> IO Int
@@ -699,14 +644,6 @@ splitOnSeqUtf8 str inh =
         $ Unicode.decodeUtf8Chunks
         $ Handle.readChunks inh -- >>= print
 
-o_1_space_reduce_toChunks_split :: BenchEnv -> [(SpaceComplexity, Benchmark)]
-o_1_space_reduce_toChunks_split env =
-    fmap (SpaceO_1,)
-    [ mkBenchSmall "takeEndBySeq_ infix abcdefgh (Utf8)"
-        env $ \inh _ -> splitOnSeqUtf8 "abcdefgh" inh
-    , mkBenchSmall "takeEndBySeq_ infix abcdefghijklmnopqrstuvwxyz (Utf8)"
-        env $ \inh _ -> splitOnSeqUtf8 "abcdefghijklmnopqrstuvwxyz" inh
-    ]
 
 -------------------------------------------------------------------------------
 -- Distributing by parallel application
@@ -1055,10 +992,67 @@ instance NFData a => NFData (Stream Identity a) where
     {-# INLINE rnf #-}
     rnf xs = runIdentity $ Stream.fold (FL.foldl' (\_ x -> rnf x) ()) xs
 
-o_1_space_serial_elimination :: Int -> [(SpaceComplexity, Benchmark)]
-o_1_space_serial_elimination value =
+benchmarks :: BenchEnv -> Int -> [(SpaceComplexity, Benchmark)]
+benchmarks env value =
+    -- NOTE: keep the benchmark names consistent with Data.Stream.split*
+    -- Splitting on single element
     fmap (SpaceO_1,)
-    [ benchIO "drain" $ drain value
+    [ mkBench "takeEndBy_ infix (splitOn)" env $ \inh _ ->
+        fileInfixTakeEndBy_ inh
+    , mkBench "takeEndBy_ suffix (splitOnSuffix)" env $ \inh _ ->
+        fileSuffixTakeEndBy_ inh
+    , mkBench "takeEndBy_ suffix parseMany (splitOnSuffix)" env
+        $ \inh _ -> parseFileSuffixTakeEndBy_ inh
+    , mkBench "takeEndBy suffix (splitWithSuffix)" env $ \inh _ ->
+        fileSuffixTakeEndBy inh
+
+    -- Splitting on sequence
+    -- Infix takeEndBySeq_
+    , mkBench "takeEndBySeq_ infix empty pattern" env $ \inh _ ->
+        splitOnSeq "" inh
+    , mkBench "takeEndBySeq_ infix lf" env $ \inh _ ->
+        splitOnSeq "\n" inh
+    , mkBench "takeEndBySeq_ infix a" env $ \inh _ ->
+        splitOnSeq "a" inh
+    , mkBench "takeEndBySeq_ infix crlf" env $ \inh _ ->
+        splitOnSeq "\r\n" inh
+    , mkBench "takeEndBySeq_ infix aa" env $ \inh _ ->
+        splitOnSeq "aa" inh
+    , mkBench "takeEndBySeq_ infix aaaa" env $ \inh _ ->
+        splitOnSeq "aaaa" inh
+    , mkBench "takeEndBySeq_ infix abcdefgh" env $ \inh _ ->
+        splitOnSeq "abcdefgh" inh
+    , mkBench "takeEndBySeq_ infix abcdefghi" env $ \inh _ ->
+        splitOnSeq "abcdefghi" inh
+    , mkBench "takeEndBySeq_ infix catcatcatcatcat" env $ \inh _ ->
+        splitOnSeq "catcatcatcatcat" inh
+    , mkBench "takeEndBySeq_ infix abcdefghijklmnopqrstuvwxyz"
+        env $ \inh _ -> splitOnSeq "abcdefghijklmnopqrstuvwxyz" inh
+    , mkBench "takeEndBySeq_ infix 100k long pattern"
+        env $ \inh _ -> splitOnSeq100k inh
+
+    -- Suffix takeEndBySeq_
+    , mkBench "takeEndBySeq_ suffix empty pattern" env $ \inh _ ->
+        splitOnSuffixSeq "" inh
+    , mkBench "takeEndBySeq_ suffix lf" env $ \inh _ ->
+        splitOnSuffixSeq "\n" inh
+    , mkBench "takeEndBySeq_ suffix crlf" env $ \inh _ ->
+        splitOnSuffixSeq "\r\n" inh
+    , mkBenchSmall "takeEndBySeq_ suffix abcdefghijklmnopqrstuvwxyz"
+        env $ \inh _ -> splitOnSuffixSeq "abcdefghijklmnopqrstuvwxyz" inh
+
+    -- Suffix takeEndBySeq
+    , mkBench "takeEndBySeq suffix crlf" env $ \inh _ ->
+        splitWithSuffixSeq "\r\n" inh
+    , mkBenchSmall "takeEndBySeq suffix abcdefghijklmnopqrstuvwxyz"
+        env $ \inh _ -> splitWithSuffixSeq "abcdefghijklmnopqrstuvwxyz" inh
+
+    , mkBenchSmall "takeEndBySeq_ infix abcdefgh (Utf8)"
+        env $ \inh _ -> splitOnSeqUtf8 "abcdefgh" inh
+    , mkBenchSmall "takeEndBySeq_ infix abcdefghijklmnopqrstuvwxyz (Utf8)"
+        env $ \inh _ -> splitOnSeqUtf8 "abcdefghijklmnopqrstuvwxyz" inh
+
+    , benchIO "drain" $ drain value
     , benchIO "drainBy" $ drainBy value
     , benchIO "drainN" $ drainN value
     , benchIO "last" $ last value
@@ -1099,12 +1093,8 @@ o_1_space_serial_elimination value =
     , benchIO "takeEndBy_" $ takeEndBy_ value
     , benchIO "and" $ and value
     , benchIO "or" $ or value
-    ]
 
-o_1_space_serial_transformation :: Int -> [(SpaceComplexity, Benchmark)]
-o_1_space_serial_transformation value =
-    fmap (SpaceO_1,)
-    [ benchIO "map" $ map value
+    , benchIO "map" $ map value
     , benchIO "mapMaybe" $ mapMaybe value
     , benchIO "rsequence" $ rsequence value
     , benchIO "rmapM" $ rmapM value
@@ -1115,12 +1105,8 @@ o_1_space_serial_transformation value =
     , benchIO "fold-scan" $ foldScanl value
     , benchIO "fold-scanMany" $ foldScanlMany value
     , benchIO "fold-postscan" $ foldPostscanl value
-    ]
 
-o_1_space_serial_composition :: Int -> [(SpaceComplexity, Benchmark)]
-o_1_space_serial_composition value =
-    fmap (SpaceO_1,)
-    [ benchIO "filter even" $ filter value
+    , benchIO "filter even" $ filter value
     , benchIO "scanMaybe even" $ scanMaybe value
     , benchIO "scanMaybe even, odd" $ scanMaybe2 value
     , benchIO "foldBreak (recursive)" $ foldBreak value
@@ -1142,15 +1128,9 @@ o_1_space_serial_composition value =
     , benchIO "unzipWithFstM (sum, length)" $ unzipWithFstM value
     , benchIO "unzipWithMinM (sum, length)" $ unzipWithMinM value
     ]
-
-o_n_space_serial :: Int -> [(SpaceComplexity, Benchmark)]
-o_n_space_serial value =
-    [ (SpaceO_n, benchIO "sequence_/100" $ sequenceFolds (value `div` 100))
-    ]
-
-o_n_heap_serial :: Int -> [(SpaceComplexity, Benchmark)]
-o_n_heap_serial value =
-    fmap (HeapO_n,)
+    ++ [ (SpaceO_n, benchIO "sequence_/100" $ sequenceFolds (value `div` 100))
+       ]
+    ++ fmap (HeapO_n,)
     -- Left folds for building a structure are inherently non-streaming
     -- as the structure cannot be lazily consumed until fully built.
     [ benchIO "toList" $ toList value
@@ -1184,14 +1164,7 @@ main = do
     where
 
     allBenchmarks env value =
-        let allBenches =
-                   o_1_space_serial_elimination value
-                ++ o_1_space_serial_transformation value
-                ++ o_1_space_serial_composition value
-                ++ o_1_space_reduce_read_split env
-                ++ o_1_space_reduce_toChunks_split env
-                ++ o_n_space_serial value
-                ++ o_n_heap_serial value
+        let allBenches = benchmarks env value
             get x = [b | (c, b) <- allBenches, c == x]
             o_1_space = get SpaceO_1
             o_n_heap = get HeapO_n
