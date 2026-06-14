@@ -42,6 +42,18 @@ testCreate = do
     lst <- MArray.toList arr
     lst `shouldBe` [1..5]
 
+testUnsafeCreateOf :: IO ()
+testUnsafeCreateOf = do
+    arr <- Stream.fold (MArray.unsafeCreateOf 5) $ Stream.fromList ([1..5] :: [Int])
+    lst <- MArray.toList arr
+    lst `shouldBe` [1..5]
+
+testFromPureStream :: IO ()
+testFromPureStream = do
+    arr <- MArray.fromPureStream (Stream.fromList ([1..5] :: [Int]))
+    lst <- MArray.toList arr
+    lst `shouldBe` [1..5]
+
 -------------------------------------------------------------------------------
 -- Size
 -------------------------------------------------------------------------------
@@ -93,6 +105,13 @@ unsafeWriteIndex xs i x = do
     x1 <- MArray.unsafeGetIndex i arr
     return $ x1 == x
 
+testPutIndices :: IO ()
+testPutIndices = do
+    arr <- MArray.fromList ([1..10] :: [Int])
+    Stream.fold (MArray.putIndices arr) $ Stream.fromList [(0, 99), (5, 88)]
+    MArray.getIndex 0 arr `shouldReturn` Just 99
+    MArray.getIndex 5 arr `shouldReturn` Just 88
+
 -------------------------------------------------------------------------------
 -- Slicing
 -------------------------------------------------------------------------------
@@ -121,6 +140,22 @@ testSnoc = do
     lst <- MArray.toList arr2
     lst `shouldBe` [1, 2]
 
+testSnocWith :: IO ()
+testSnocWith = do
+    arr <- MArray.emptyOf 2
+    arr1 <- MArray.snocWith (+ 64) arr (1 :: Int)
+    arr2 <- MArray.snocWith (+ 64) arr1 2
+    lst <- MArray.toList arr2
+    lst `shouldBe` [1, 2]
+
+testUnsafeSnoc :: IO ()
+testUnsafeSnoc = do
+    arr <- MArray.emptyOf 2
+    arr1 <- MArray.unsafeSnoc arr (1 :: Int)
+    arr2 <- MArray.unsafeSnoc arr1 2
+    lst <- MArray.toList arr2
+    lst `shouldBe` [1, 2]
+
 -------------------------------------------------------------------------------
 -- Reading / Streaming
 -------------------------------------------------------------------------------
@@ -141,6 +176,18 @@ testReader :: IO ()
 testReader = do
     arr <- MArray.fromList ([1..5] :: [Int])
     lst <- Stream.fold Fold.toList $ Stream.unfold MArray.reader arr
+    lst `shouldBe` [1..5]
+
+testReaderWith :: IO ()
+testReaderWith = do
+    arr <- MArray.fromList ([1..5] :: [Int])
+    lst <- Stream.fold Fold.toList $ Stream.unfold (MArray.readerWith liftIO) arr
+    lst `shouldBe` [1..5]
+
+testToStreamK :: IO ()
+testToStreamK = do
+    arr <- MArray.fromList ([1..5] :: [Int])
+    lst <- Stream.fold Fold.toList $ Stream.fromStreamK (MArray.toStreamK arr)
     lst `shouldBe` [1..5]
 
 -------------------------------------------------------------------------------
@@ -210,6 +257,8 @@ typeMain = do
     describe "createOf" $ do
         it "takes n elements" testCreateOf
     it "create" testCreate
+    it "unsafeCreateOf" testUnsafeCreateOf
+    it "fromPureStream" testFromPureStream
     -- Size
     it "length" testLength
     -- Random access
@@ -227,15 +276,21 @@ typeMain = do
         it "first"  (unsafeWriteIndex [1..10] 0 0 `shouldReturn` True)
         it "middle" (unsafeWriteIndex [1..10] 5 0 `shouldReturn` True)
         it "last"   (unsafeWriteIndex [1..10] 9 0 `shouldReturn` True)
+    describe "putIndices" $ do
+        it "multiple writes" testPutIndices
     -- Slicing
     it "unsafeSliceOffLen" testUnsafeSliceOffLen
     it "sliceOffLen" testSliceOffLen
     -- Growing
     it "snoc" testSnoc
+    it "snocWith" testSnocWith
+    it "unsafeSnoc" testUnsafeSnoc
     -- Reading
     it "read" testRead
     it "readRev" testReadRev
     it "reader" testReader
+    it "readerWith" testReaderWith
+    it "toStreamK" testToStreamK
     -- Stream of arrays
     it "chunksOf" testChunksOf
     -- In-place mutation
