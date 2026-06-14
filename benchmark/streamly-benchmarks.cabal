@@ -466,11 +466,6 @@ benchmark Data.Stream
       Stream.Type.MultiStream
       Stream.Type.Nested
       Stream.Type.Logic
-  if flag(limit-build-mem)
-    if flag(dev)
-      ghc-options: +RTS -M1000M -RTS
-    else
-      ghc-options: +RTS -M1200M -RTS
 
 benchmark Data.Stream.Adaptive
   import: bench-options-threaded
