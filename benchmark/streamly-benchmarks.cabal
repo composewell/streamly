@@ -398,13 +398,9 @@ benchmark Data.Scanl
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data
+                , Streamly/Benchmark/Data/Scanl
   main-is: Scanl.hs
-
-benchmark Data.Scanl.Window
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data/Scanl
-  main-is: Window.hs
+  other-modules: Scanl.Window
 
 benchmark Data.Scanl.Concurrent
   import: bench-options

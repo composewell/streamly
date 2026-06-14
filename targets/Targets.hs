@@ -43,12 +43,7 @@ targets =
             , "streamly_core_grp"
             ]
       )
-    , ("Data.Fold.Window",
-            [ "infinite_grp"
-            , "fold_parser_grp"
-            , "streamly_core_grp"
-            ]
-      )
+
     , ("Data.List",
             [ "list_grp"
             , "noBench"
@@ -113,13 +108,7 @@ targets =
             , "noTest"
             ]
       )
-    , ("Data.Scanl.Window",
-            [ "infinite_grp"
-            , "fold_parser_grp"
-            , "streamly_core_grp"
-            , "noTest"
-            ]
-      )
+
     , ("Data.Serialize",
             [ "mut_bytearray_grp"
             , "streamly_core_grp"

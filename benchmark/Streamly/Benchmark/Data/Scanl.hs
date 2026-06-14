@@ -47,6 +47,8 @@ import Test.Tasty.Bench hiding (env)
 import Streamly.Benchmark.Common
 import Prelude hiding (last, length, all, any, take, unzip, sequence_)
 
+import qualified Scanl.Window as Window
+
 #ifdef INSPECTION
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Stream (Step(..))
@@ -184,6 +186,7 @@ main = runWithCLIOpts defaultStreamSize allBenchmarks
 
     allBenchmarks value =
         let allBenches = o_1_space_serial value
+                      ++ Window.benchmarks value
             get x = map snd $ filter ((==) x . fst) allBenches
             o_1_space = get SpaceO_1
         in
