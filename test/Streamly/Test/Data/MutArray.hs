@@ -20,7 +20,7 @@ import Streamly.Internal.Data.MutArray (MutArray)
 import Streamly.Internal.Data.MutByteArray (Unbox, sizeOf)
 import Streamly.Test.Common (chooseInt)
 import System.Mem (performMajorGC)
-import Test.Hspec (hspec, describe, it, shouldBe, shouldReturn)
+import Test.Hspec (hspec, describe, it, shouldBe, shouldReturn, SpecWith)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck (forAll, listOf, Property, vectorOf, Gen, arbitrary)
 import Test.QuickCheck.Monadic (monadicIO, assert)
@@ -33,11 +33,10 @@ import qualified Streamly.Internal.Data.MutArray as MArray
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Test.Hspec as Hspec
 
-maxTestCount :: Int
-maxTestCount = 100
-
 moduleName :: String
 moduleName = "Data.MutArray"
+
+#include "Streamly/Test/Data/MutArray/Common.hs"
 
 testAppend ::  Property
 testAppend =
@@ -172,60 +171,11 @@ testUnsafeAsPtr = do
     arr1 <- MArray.pin arr
     MArray.unsafeAsPtr arr1 getIntList `shouldReturn` [0 .. 99]
 
-unsafeWriteIndex :: [Int] -> Int -> Int -> IO Bool
-unsafeWriteIndex xs i x = do
-    arr <- MArray.fromList xs
-    MArray.unsafePutIndex i arr x
-    x1 <- MArray.unsafeGetIndex i arr
-    return $ x1 == x
-
 testByteLength :: forall a. Unbox a => a -> IO ()
 testByteLength _ = do
     arrA <- MArray.emptyOf' 100 :: IO (MutArray a)
     let arrW8 = MArray.unsafeCast arrA :: MutArray Word8
     MArray.byteLength arrA `shouldBe` MArray.length arrW8
-
-testDropAround :: IO Bool
-testDropAround = do
-    dt <- MArray.fromList "abcDEFgeh"
-    dt' <- MArray.dropAround isLower dt
-    x <- MArray.toList dt'
-    return $ x == "DEF"
-
-testDropAroundLeft :: IO Bool
-testDropAroundLeft = do
-    dt <- MArray.fromList "abcDEF"
-    dt' <- MArray.dropAround isLower dt
-    x <- MArray.toList dt'
-    return $ x == "DEF"
-
-testDropAroundRight :: IO Bool
-testDropAroundRight = do
-    dt <- MArray.fromList "DEFgeh"
-    dt' <- MArray.dropAround isLower dt
-    x <- MArray.toList dt'
-    return $ x == "DEF"
-
-testDropAroundNone :: IO Bool
-testDropAroundNone = do
-    dt <- MArray.fromList "DEF"
-    dt' <- MArray.dropAround isLower dt
-    x <- MArray.toList dt'
-    return $ x == "DEF"
-
-testDropAroundAll :: IO Bool
-testDropAroundAll = do
-    dt <- MArray.fromList "abc"
-    dt' <- MArray.dropAround isLower dt
-    x <- MArray.toList dt'
-    return $ x == ""
-
-testDropAroundEmpty :: IO Bool
-testDropAroundEmpty = do
-    dt <- MArray.fromList ""
-    dt' <- MArray.dropAround isLower dt
-    x <- MArray.toList dt'
-    return $ x == ""
 
 testBubbleWith :: Bool -> Property
 testBubbleWith asc =
@@ -276,21 +226,15 @@ main =
     Hspec.parallel $
     modifyMaxSuccess (const maxTestCount) $ do
         describe moduleName $ do
+            commonMain
+            -- IMPORTANT NOTE: Before adding any test here first consider if it
+            -- can be added to the MutArray/Common test module. Only those tests
+            -- which are specific to the Unboxed MutArray module and do not
+            -- apply to the Generic MutArray module should be added here.
             it "unsafeAsPtr" testUnsafeAsPtr
-            describe "unsafePutIndex" $ do
-                it "first" (unsafeWriteIndex [1..10] 0 0 `shouldReturn` True)
-                it "middle" (unsafeWriteIndex [1..10] 5 0 `shouldReturn` True)
-                it "last" (unsafeWriteIndex [1..10] 9 0 `shouldReturn` True)
             describe "byteLength" $ do
                 it "Int" (testByteLength (undefined :: Int))
                 it "Char" (testByteLength (undefined :: Char))
-            describe "dropAround" $ do
-                it "both sides" (testDropAround `shouldReturn` True)
-                it "left only" (testDropAroundLeft `shouldReturn` True)
-                it "right only" (testDropAroundRight `shouldReturn` True)
-                it "no match" (testDropAroundNone `shouldReturn` True)
-                it "all match" (testDropAroundAll `shouldReturn` True)
-                it "empty" (testDropAroundEmpty `shouldReturn` True)
             describe "bubble" $ do
                 prop "ascending" testBubbleAsc
                 prop "descending" testBubbleDesc
