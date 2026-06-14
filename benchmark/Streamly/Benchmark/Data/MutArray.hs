@@ -38,8 +38,6 @@ import Prelude
     , ($)
     , (.)
     , (||)
-    , (++)
-    , concat
     , filter
     , fmap
     , fst
@@ -214,61 +212,6 @@ writeN value = withStream value (Stream.fold (MArray.createOf value))
 -- Bench groups
 -------------------------------------------------------------------------------
 
-o_1_space_generation :: Int -> [Benchmark]
-o_1_space_generation value =
-    [ benchIO "createOf . intFromTo" $ sourceIntFromTo value
-    , benchIO "fromList . intFromTo" $ sourceIntFromToFromList value
-    , benchIO "createOf . unfoldr" $ sourceUnfoldr value
-    , benchIO "createOf . fromList" $ sourceFromList value
-    , benchIO "write . intFromTo" $ sourceIntFromToFromStream value
-    ]
-
-o_1_space_elimination :: Int -> [Benchmark]
-o_1_space_elimination value =
-    [ benchIO "id" $ idArr value
-    , benchIO "foldl'" $ unfoldFold value
-    , benchIO "read" $ unfoldReadDrain value
-    , benchIO "readRev" $ unfoldReadRevDrain value
-    , benchIO "toStream" $ toStreamDDrain value
-    , benchIO "toStreamRev" $ toStreamDRevDrain value
-    ]
-
-o_n_heap_serial :: Int -> [Benchmark]
-o_n_heap_serial value =
-    [ benchIO "createOf" $ writeN value
-    ]
-
-o_1_space_transformation :: Int -> [Benchmark]
-o_1_space_transformation value =
-    [ benchIO "scanl'" $ scanl' value
-    , benchIO "scanl1'" $ scanl1' value
-    , benchIO "map" $ map value
-    ]
-
-o_1_space_transformationX4 :: Int -> [Benchmark]
-o_1_space_transformationX4 value =
-    [ benchIO "scanl'X4" $ scanl'X4 value
-    , benchIO "scanl1'X4" $ scanl1'X4 value
-    , benchIO "mapX4" $ mapX4 value
-    ]
-
-o_1_space_serial_marray ::
-    Int -> (MutArray Int, Array.Array Int) -> [Benchmark]
-o_1_space_serial_marray value ~(array, indices) =
-    [ benchIO "partitionBy (< 0)" $ MArray.partitionBy (< 0) array
-    , benchIO "partitionBy (> 0)" $ MArray.partitionBy (> 0) array
-    , benchIO "partitionBy (< value/2)" $
-        MArray.partitionBy (< (value `div` 2)) array
-    , benchIO "partitionBy (> value/2)" $
-        MArray.partitionBy (> (value `div` 2)) array
-    , benchIO "strip (< value/2 || > value/2)" $
-        MArray.dropAround (\x -> x < value `div` 2 || x > value `div` 2) array
-    , benchIO "strip (> 0)" $ MArray.dropAround (> 0) array
-    , benchIO "modifyIndices (+ 1)" $
-        Stream.fold (MArray.modifyIndices array (\_idx val -> val + 1))
-        $ Stream.unfold Array.reader indices
-    ]
-
 -------------------------------------------------------------------------------
 -- Driver
 -------------------------------------------------------------------------------
@@ -278,16 +221,43 @@ moduleName = "Data.MutArray"
 
 benchmarks ::
     (MutArray Int, Array.Array Int) -> Int -> [(SpaceComplexity, Benchmark)]
-benchmarks array value =
-       fmap (SpaceO_1,)
-            (concat
-                [ o_1_space_serial_marray value array
-                , o_1_space_generation value
-                , o_1_space_elimination value
-                , o_1_space_transformation value
-                , o_1_space_transformationX4 value
-                ])
-    ++ fmap (HeapO_n,) (o_n_heap_serial value)
+benchmarks ~(array, indices) value =
+      [ (SpaceO_1, benchIO "partitionBy (< 0)" $ MArray.partitionBy (< 0) array)
+      , (SpaceO_1, benchIO "partitionBy (> 0)" $ MArray.partitionBy (> 0) array)
+      , (SpaceO_1, benchIO "partitionBy (< value/2)" $
+            MArray.partitionBy (< (value `div` 2)) array)
+      , (SpaceO_1, benchIO "partitionBy (> value/2)" $
+            MArray.partitionBy (> (value `div` 2)) array)
+      , (SpaceO_1, benchIO "strip (< value/2 || > value/2)" $
+            MArray.dropAround (\x -> x < value `div` 2 || x > value `div` 2) array)
+      , (SpaceO_1, benchIO "strip (> 0)" $ MArray.dropAround (> 0) array)
+      , (SpaceO_1, benchIO "modifyIndices (+ 1)" $
+            Stream.fold (MArray.modifyIndices array (\_idx val -> val + 1))
+            $ Stream.unfold Array.reader indices)
+
+      , (SpaceO_1, benchIO "createOf . intFromTo" $ sourceIntFromTo value)
+      , (SpaceO_1, benchIO "fromList . intFromTo" $ sourceIntFromToFromList value)
+      , (SpaceO_1, benchIO "createOf . unfoldr" $ sourceUnfoldr value)
+      , (SpaceO_1, benchIO "createOf . fromList" $ sourceFromList value)
+      , (SpaceO_1, benchIO "write . intFromTo" $ sourceIntFromToFromStream value)
+
+      , (SpaceO_1, benchIO "id" $ idArr value)
+      , (SpaceO_1, benchIO "foldl'" $ unfoldFold value)
+      , (SpaceO_1, benchIO "read" $ unfoldReadDrain value)
+      , (SpaceO_1, benchIO "readRev" $ unfoldReadRevDrain value)
+      , (SpaceO_1, benchIO "toStream" $ toStreamDDrain value)
+      , (SpaceO_1, benchIO "toStreamRev" $ toStreamDRevDrain value)
+
+      , (SpaceO_1, benchIO "scanl'" $ scanl' value)
+      , (SpaceO_1, benchIO "scanl1'" $ scanl1' value)
+      , (SpaceO_1, benchIO "map" $ map value)
+
+      , (SpaceO_1, benchIO "scanl'X4" $ scanl'X4 value)
+      , (SpaceO_1, benchIO "scanl1'X4" $ scanl1'X4 value)
+      , (SpaceO_1, benchIO "mapX4" $ mapX4 value)
+
+      , (HeapO_n, benchIO "createOf" $ writeN value)
+      ]
 
 main :: IO ()
 main = do
