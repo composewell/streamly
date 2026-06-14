@@ -278,6 +278,7 @@ benchmark Data.Fold
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data
+                , Streamly/Benchmark/Data/Fold
   main-is: Fold.hs
   if impl(ghcjs)
     buildable: False
@@ -285,6 +286,10 @@ benchmark Data.Fold
     buildable: True
   if flag(limit-build-mem) && !flag(fusion-plugin)
     ghc-options: +RTS -M600M -RTS
+  -- MonoLocalBinds increases the memory requirement from 400MB to 1000MB,
+  -- observed on macOS.
+  -- if flag(limit-build-mem)
+    -- ghc-options: +RTS -M1000M -RTS
 
 benchmark Data.Fold.Prelude
   import: bench-options
@@ -296,16 +301,6 @@ benchmark Data.Fold.Prelude
     buildable: False
   else
     buildable: True
-
-benchmark Data.Fold.Window
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data/Fold
-  main-is: Window.hs
-  -- MonoLocalBinds increases the memory requirement from 400MB to 1000MB,
-  -- observed on macOS.
-  -- if flag(limit-build-mem)
-    -- ghc-options: +RTS -M1000M -RTS
 
 benchmark Data.MutArray
   import: bench-options
