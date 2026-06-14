@@ -220,6 +220,180 @@ testReallocBytes =
                lst1 <- MArray.toList arr1
                lst `shouldBe` lst1
 
+-------------------------------------------------------------------------------
+-- MutArray/Type.hs (Unboxed-only functions)
+-------------------------------------------------------------------------------
+
+testPinUnpin :: IO ()
+testPinUnpin = do
+    arr <- MArray.fromList ([1..5] :: [Int])
+    pinned <- MArray.pin arr
+    MArray.isPinned pinned `shouldBe` True
+    unpinned <- MArray.unpin pinned
+    MArray.isPinned unpinned `shouldBe` False
+    lst <- MArray.toList unpinned
+    lst `shouldBe` [1..5]
+
+testBreakEndByWord8_ :: IO ()
+testBreakEndByWord8_ = do
+    arr <- MArray.fromList ([1,2,0,3,4] :: [Word8])
+    (before, mafter) <- MArray.breakEndByWord8_ 0 arr
+    MArray.toList before >>= (`shouldBe` [1,2])
+    case mafter of
+        Nothing -> fail "expected Just after"
+        Just after -> MArray.toList after >>= (`shouldBe` [3,4])
+
+testBreakEndByWord8_NotFound :: IO ()
+testBreakEndByWord8_NotFound = do
+    arr <- MArray.fromList ([1,2,3] :: [Word8])
+    (before, mafter) <- MArray.breakEndByWord8_ 0 arr
+    MArray.toList before >>= (`shouldBe` [1,2,3])
+    case mafter of
+        Just _ -> fail "expected Nothing"
+        Nothing -> return ()
+
+testReverse :: IO ()
+testReverse = do
+    arr <- MArray.fromList ([1..5] :: [Int])
+    MArray.reverse arr
+    lst <- MArray.toList arr
+    lst `shouldBe` [5,4,3,2,1]
+
+testFoldl' :: IO ()
+testFoldl' = do
+    arr <- MArray.fromList ([1..5] :: [Int])
+    result <- MArray.foldl' (+) 0 arr
+    result `shouldBe` 15
+
+testFoldr :: IO ()
+testFoldr = do
+    arr <- MArray.fromList ([1..5] :: [Int])
+    result <- MArray.foldr (:) [] arr
+    result `shouldBe` [1..5]
+
+testFold :: IO ()
+testFold = do
+    arr <- MArray.fromList ([1..5] :: [Int])
+    result <- MArray.fold Fold.sum arr
+    result `shouldBe` 15
+
+testSplice :: IO ()
+testSplice = do
+    arr1 <- MArray.fromList ([1..5] :: [Int])
+    arr2 <- MArray.fromList ([6..10] :: [Int])
+    arr3 <- MArray.splice arr1 arr2
+    lst <- MArray.toList arr3
+    lst `shouldBe` [1..10]
+
+testSplitEndBy_ :: IO ()
+testSplitEndBy_ = do
+    arr <- MArray.fromList ([1,2,0,3,4,0,5] :: [Word8])
+    chunks <- Stream.fold Fold.toList $ MArray.splitEndBy_ (== 0) arr
+    lsts <- mapM MArray.toList chunks
+    lsts `shouldBe` [[1,2],[3,4],[5]]
+
+testGetIndexRev :: IO ()
+testGetIndexRev = do
+    arr <- MArray.fromList ([1..5] :: [Int])
+    MArray.getIndexRev 0 arr `shouldReturn` 5
+    MArray.getIndexRev 4 arr `shouldReturn` 1
+
+-------------------------------------------------------------------------------
+-- MutArray module
+-------------------------------------------------------------------------------
+
+testIndexerFromLen :: IO ()
+testIndexerFromLen = do
+    arr <- MArray.fromList ([1..10] :: [Int])
+    pairs <- Stream.fold Fold.toList
+        $ Stream.unfold (MArray.indexerFromLen 0 3) arr
+    pairs `shouldBe` [(0,3),(3,3),(6,3),(9,1)]
+
+testSplitterFromLen :: IO ()
+testSplitterFromLen = do
+    arr <- MArray.fromList ([1..10] :: [Int])
+    slices <- Stream.fold Fold.toList
+        $ Stream.unfold (MArray.splitterFromLen 0 3) arr
+    lsts <- mapM MArray.toList slices
+    lsts `shouldBe` [[1,2,3],[4,5,6],[7,8,9],[10]]
+
+testCompactMax :: IO ()
+testCompactMax = do
+    arrs <- mapM MArray.fromList ([[1,2],[3,4],[5,6],[7,8]] :: [[Int]])
+    result <- Stream.fold Fold.toList
+        $ MArray.compactMax 4
+        $ Stream.fromList arrs
+    lsts <- mapM MArray.toList result
+    lsts `shouldBe` [[1,2,3,4],[5,6,7,8]]
+
+testCompactMax' :: IO ()
+testCompactMax' = do
+    arrs <- mapM MArray.fromList ([[1,2],[3,4]] :: [[Int]])
+    result <- Stream.fold Fold.toList
+        $ MArray.compactMax' 4
+        $ Stream.fromList arrs
+    lsts <- mapM MArray.toList result
+    lsts `shouldBe` [[1,2,3,4]]
+
+testCompactSepByByte_ :: IO ()
+testCompactSepByByte_ = do
+    arr1 <- MArray.fromList ([1,2,0,3] :: [Word8])
+    arr2 <- MArray.fromList ([4,0,5] :: [Word8])
+    result <- Stream.fold Fold.toList
+        $ MArray.compactSepByByte_ 0
+        $ Stream.fromList [arr1, arr2]
+    lsts <- mapM MArray.toList result
+    lsts `shouldBe` [[1,2],[3,4],[5]]
+
+testCompactEndByByte_ :: IO ()
+testCompactEndByByte_ = do
+    arr1 <- MArray.fromList ([1,2,0,3] :: [Word8])
+    arr2 <- MArray.fromList ([4,0,5] :: [Word8])
+    result <- Stream.fold Fold.toList
+        $ MArray.compactEndByByte_ 0
+        $ Stream.fromList [arr1, arr2]
+    lsts <- mapM MArray.toList result
+    lsts `shouldBe` [[1,2],[3,4],[5]]
+
+testCompactEndByLn_ :: IO ()
+testCompactEndByLn_ = do
+    arr1 <- MArray.fromList ([1,2,10,3] :: [Word8])
+    arr2 <- MArray.fromList ([4,10,5,6] :: [Word8])
+    result <- Stream.fold Fold.toList
+        $ MArray.compactEndByLn_
+        $ Stream.fromList [arr1, arr2]
+    lsts <- mapM MArray.toList result
+    lsts `shouldBe` [[1,2],[3,4],[5,6]]
+
+lastN :: Int -> [a] -> [a]
+lastN n xs = drop (max 0 (length xs - n)) xs
+
+testCreateOfLast :: Property
+testCreateOfLast =
+    forAll (chooseInt (0, 20)) $ \n ->
+        forAll (listOf (arbitrary :: Gen Int)) $ \ls -> do
+            arr <- Stream.fold (MArray.createOfLast n) (Stream.fromList ls)
+            lst <- MArray.toList arr
+            lst `shouldBe` lastN n ls
+
+testSerializeDeserialize :: IO ()
+testSerializeDeserialize = do
+    let val = 42 :: Int
+    arr <- MArray.serialize MArray.empty val
+    (result, _) <- MArray.deserialize arr :: IO (Int, MutArray Word8)
+    result `shouldBe` val
+
+testSerializeDeserializeMultiple :: IO ()
+testSerializeDeserializeMultiple = do
+    let x = 1 :: Int
+        y = 2 :: Int
+    arr <- MArray.serialize MArray.empty x
+    arr1 <- MArray.serialize arr y
+    (v1, arr2) <- MArray.deserialize arr1 :: IO (Int, MutArray Word8)
+    (v2, _) <- MArray.deserialize arr2 :: IO (Int, MutArray Word8)
+    v1 `shouldBe` x
+    v2 `shouldBe` y
+
 main :: IO ()
 main =
     hspec $
@@ -231,6 +405,22 @@ main =
             -- can be added to the MutArray/Common test module. Only those tests
             -- which are specific to the Unboxed MutArray module and do not
             -- apply to the Generic MutArray module should be added here.
+
+            -- MutArray/Type.hs module (Unboxed-only)
+            describe "pin/unpin/isPinned" $ do
+                it "roundtrip" testPinUnpin
+            describe "breakEndByWord8_" $ do
+                it "separator found"     testBreakEndByWord8_
+                it "separator not found" testBreakEndByWord8_NotFound
+            it "reverse" testReverse
+            it "foldl'" testFoldl'
+            it "foldr" testFoldr
+            it "fold" testFold
+            it "splice" testSplice
+            describe "splitEndBy_" $ do
+                it "basic" testSplitEndBy_
+            describe "getIndexRev" $ do
+                it "first and last" testGetIndexRev
             it "unsafeAsPtr" testUnsafeAsPtr
             describe "byteLength" $ do
                 it "Int" (testByteLength (undefined :: Int))
@@ -241,4 +431,25 @@ main =
             prop "reallocBytes" testReallocBytes
             describe "Stream Append" $ do
                 prop "append2" testAppend
+
+            -- MutArray module
+            describe "indexerFromLen" $ do
+                it "basic" testIndexerFromLen
+            describe "splitterFromLen" $ do
+                it "basic" testSplitterFromLen
+            describe "compactMax" $ do
+                it "coalesces small arrays" testCompactMax
+            describe "compactMax'" $ do
+                it "coalesces to pinned" testCompactMax'
+            describe "compactSepByByte_" $ do
+                it "splits on separator" testCompactSepByByte_
+            describe "compactEndByByte_" $ do
+                it "splits on suffix" testCompactEndByByte_
+            describe "compactEndByLn_" $ do
+                it "splits on newline" testCompactEndByLn_
+            describe "createOfLast" $ do
+                prop "last n elements" testCreateOfLast
+            describe "serialize/deserialize" $ do
+                it "roundtrip"       testSerializeDeserialize
+                it "multiple values" testSerializeDeserializeMultiple
             testUnboxInstanceExistance

@@ -12,7 +12,9 @@ import Data.Char (isLower)
 import Test.Hspec as H
 import Test.Hspec.QuickCheck
 
+import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.Data.MutArray.Generic as MArray
+import qualified Streamly.Internal.Data.Stream as Stream
 
 moduleName :: String
 moduleName = "Data.MutArray.Generic"
