@@ -303,16 +303,6 @@ testGetIndexRev = do
 -- Pinned variants
 -------------------------------------------------------------------------------
 
-testClone :: IO ()
-testClone = do
-    arr <- MArray.fromList ([1..5] :: [Int])
-    arr2 <- MArray.clone arr
-    MArray.putIndex 0 arr 99
-    MArray.getIndex 0 arr `shouldReturn` Just 99
-    MArray.getIndex 0 arr2 `shouldReturn` Just 1
-    lst <- MArray.toList arr2
-    lst `shouldBe` [1..5]
-
 testClone' :: IO ()
 testClone' = do
     arr <- MArray.fromList ([1..5] :: [Int])
@@ -616,8 +606,12 @@ testUnsafeGetIndexRev = do
     MArray.unsafeGetIndexRev 0 arr `shouldReturn` 5
     MArray.unsafeGetIndexRev 4 arr `shouldReturn` 1
 
--- indexReader uses 'undefined' for the strict arrBound field internally,
--- causing a runtime error. Skip until the upstream bug is fixed.
+testIndexReader :: IO ()
+testIndexReader = do
+    arr <- MArray.fromList ([10,20,30,40,50] :: [Int])
+    let indices = Stream.fromList [4,0,2]
+    lst <- Stream.fold Fold.toList $ Stream.unfold (MArray.indexReader indices) arr
+    lst `shouldBe` [50,10,30]
 
 testToStreamKRev :: IO ()
 testToStreamKRev = do
@@ -1070,9 +1064,6 @@ main =
             describe "Stream Append" $ do
                 prop "append2" testAppend
 
-            -- clone (Unboxed only — Generic clone has a bug with arrEnd not being updated)
-            it "clone" testClone
-
             -- Pinned variants
             it "clone'" testClone'
             it "fromList'" testFromList'
@@ -1136,6 +1127,7 @@ main =
 
             -- Reading
             describe "unsafeGetIndexRev" $ do it "from end" testUnsafeGetIndexRev
+            describe "indexReader" $ do it "reads at given indices" testIndexReader
             describe "toStreamKRev" $ do it "reversed" testToStreamKRev
 
             -- Unfolds

@@ -860,8 +860,9 @@ clone :: MonadIO m => MutArray a -> m (MutArray a)
 clone src = do
     let len = length src
     dst <- emptyOf len
-    unsafePutSlice src 0 dst 0 len
-    return dst
+    let dst1 = dst { arrEnd = arrStart dst + len }
+    unsafePutSlice src 0 dst1 0 len
+    return dst1
 
 -------------------------------------------------------------------------------
 -- Size

@@ -54,6 +54,16 @@ testFromPureStream = do
     lst <- MArray.toList arr
     lst `shouldBe` [1..5]
 
+testClone :: IO ()
+testClone = do
+    arr <- MArray.fromList ([1..5] :: [Int])
+    arr2 <- MArray.clone arr
+    MArray.putIndex 0 arr 99
+    MArray.getIndex 0 arr `shouldReturn` Just 99
+    MArray.getIndex 0 arr2 `shouldReturn` Just 1
+    lst <- MArray.toList arr2
+    lst `shouldBe` [1..5]
+
 -------------------------------------------------------------------------------
 -- Size
 -------------------------------------------------------------------------------
@@ -259,6 +269,7 @@ typeMain = do
     it "create" testCreate
     it "unsafeCreateOf" testUnsafeCreateOf
     it "fromPureStream" testFromPureStream
+    it "clone" testClone
     -- Size
     it "length" testLength
     -- Random access
