@@ -314,6 +314,3 @@ typeCommon = do
         it "no match"   (testDropAroundNone  `shouldReturn` True)
         it "all match"  (testDropAroundAll   `shouldReturn` True)
         it "empty"      (testDropAroundEmpty `shouldReturn` True)
-
-commonMain :: SpecWith ()
-commonMain = typeCommon

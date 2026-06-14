@@ -45,7 +45,7 @@ import qualified Test.Hspec as Hspec
 moduleName :: String
 moduleName = "Data.MutArray"
 
-#include "Streamly/Test/Data/MutArray/Common.hs"
+#include "Streamly/Test/Data/MutArray/TypeCommon.hs"
 
 testAppend ::  Property
 testAppend =
@@ -942,7 +942,6 @@ testRoundUpToPower2 = do
 -- Tests for exports of the Streamly.Internal.Data.MutArray.Type source module.
 typeMain :: SpecWith ()
 typeMain = do
-    commonMain
     -- IMPORTANT NOTE: Before adding any test here first consider if it
     -- can be added to the MutArray/Common test module. Only those tests
     -- which are specific to the Unboxed MutArray module and do not
@@ -1104,4 +1103,6 @@ main =
     hspec $
     Hspec.parallel $
     modifyMaxSuccess (const maxTestCount) $
-    describe moduleName typeMain
+    describe moduleName $ do
+        typeCommon
+        typeMain
