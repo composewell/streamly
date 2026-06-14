@@ -296,6 +296,14 @@ test-suite Data.MutArray
   main-is: Streamly/Test/Data/MutArray.hs
   ghc-options: -main-is Streamly.Test.Data.MutArray.main
 
+test-suite Data.MutArray.Generic
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/MutArray/Generic.hs
+  ghc-options: -main-is Streamly.Test.Data.MutArray.Generic.main
+  if flag(use-streamly-core)
+    buildable: False
+
 test-suite Data.Parser
   import: test-options
   type: exitcode-stdio-1.0

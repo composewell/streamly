@@ -1,0 +1,32 @@
+-- |
+-- Module      : Streamly.Test.Data.MutArray.Generic
+-- Copyright   : (c) 2019 Composewell Technologies
+-- License     : BSD-3-Clause
+-- Maintainer  : streamly@composewell.com
+-- Stability   : experimental
+-- Portability : GHC
+
+module Streamly.Test.Data.MutArray.Generic (main) where
+
+import Data.Char (isLower)
+import Test.Hspec as H
+import Test.Hspec.QuickCheck
+
+import qualified Streamly.Internal.Data.MutArray.Generic as MArray
+
+moduleName :: String
+moduleName = "Data.MutArray.Generic"
+
+#include "Streamly/Test/Data/MutArray/Common.hs"
+
+main :: IO ()
+main =
+    hspec $
+    H.parallel $
+    modifyMaxSuccess (const maxTestCount) $ do
+        describe moduleName $ do
+            commonMain
+            -- IMPORTANT NOTE: Before adding any test here first consider if it
+            -- can be added to the MutArray/Common test module. Only those tests
+            -- which are specific to the Generic MutArray module and do not
+            -- apply to the Unboxed MutArray module should be added here.
