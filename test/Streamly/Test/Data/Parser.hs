@@ -20,7 +20,7 @@ import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
 import Prelude hiding (sequence)
 
-import qualified Streamly.Test.Data.Parser.Common as Common
+import qualified Streamly.Test.Data.Parser.CommonTests as Common
 import qualified Streamly.Data.Stream as S
 import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Fold as FL
@@ -32,7 +32,7 @@ import qualified Test.Hspec as H
 
 import Test.Hspec
 import Test.Hspec.QuickCheck
-import Streamly.Test.Parser.Common
+import Streamly.Test.Data.Parser.CommonUtilities
 
 #if MIN_VERSION_QuickCheck(2,14,0)
 
@@ -402,6 +402,7 @@ main = do
       H.parallel $
       modifyMaxSuccess (const maxTestCount) $ do
       describe moduleName $ do
+        Common.mainCommon Common.TMParserStream
         parserSanityTests "Stream.parseBreak" sanityParseBreak
         parserSanityTests "StreamK.parseDBreak" sanityParseDBreak
         -- parserSanityTests "A.sanityParseBreakChunksK" sanityParseBreakChunksK
@@ -428,4 +429,3 @@ main = do
 
 
         altTests
-        Common.main
