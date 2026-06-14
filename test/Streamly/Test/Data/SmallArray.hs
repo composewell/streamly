@@ -29,7 +29,7 @@ type Array = A.SmallArray
 moduleName :: String
 moduleName = "Data.SmallArray"
 
-#include "Streamly/Test/Data/Array/Common.hs"
+#include "Streamly/Test/Data/Array/TypeCommon.hs"
 
 main :: IO ()
 main =
@@ -37,4 +37,4 @@ main =
     H.parallel $
     modifyMaxSuccess (const maxTestCount) $ do
       describe moduleName $ do
-        commonMain
+        typeCommon

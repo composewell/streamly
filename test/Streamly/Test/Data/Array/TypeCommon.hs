@@ -154,8 +154,8 @@ testReadShowInstance =
                     let arr = A.fromList list
                     assert (A.toList (read (show arr)) == list)
 
-commonMain :: SpecWith ()
-commonMain = do
+typeCommon :: SpecWith ()
+typeCommon = do
     describe "createOf" $ do
         prop "length . createOf n === n" testLength
         prop "reader . createOf === id" testFoldNUnfold
