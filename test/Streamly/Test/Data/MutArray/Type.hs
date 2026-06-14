@@ -6,7 +6,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Test.Data.MutArray.Type (main) where
+module Streamly.Test.Data.MutArray.Type (typeMain, main) where
 
 import Control.Monad (void)
 import Control.Monad.IO.Class (liftIO)
@@ -938,281 +938,170 @@ testRoundUpToPower2 = do
     MArray.roundUpToPower2 3 `shouldBe` 4
     MArray.roundUpToPower2 5 `shouldBe` 8
 
--------------------------------------------------------------------------------
--- MutArray module
--------------------------------------------------------------------------------
 
-testIndexerFromLen :: IO ()
-testIndexerFromLen = do
-    arr <- MArray.fromList ([1..10] :: [Int])
-    pairs <- Stream.fold Fold.toList
-        $ Stream.unfold (MArray.indexerFromLen 0 3) arr
-    pairs `shouldBe` [(0,3),(3,3),(6,3),(9,1)]
+-- Tests for exports of the Streamly.Internal.Data.MutArray.Type source module.
+typeMain :: SpecWith ()
+typeMain = do
+    commonMain
+    -- IMPORTANT NOTE: Before adding any test here first consider if it
+    -- can be added to the MutArray/Common test module. Only those tests
+    -- which are specific to the Unboxed MutArray module and do not
+    -- apply to the Generic MutArray module should be added here.
 
-testSplitterFromLen :: IO ()
-testSplitterFromLen = do
-    arr <- MArray.fromList ([1..10] :: [Int])
-    slices <- Stream.fold Fold.toList
-        $ Stream.unfold (MArray.splitterFromLen 0 3) arr
-    lsts <- mapM MArray.toList slices
-    lsts `shouldBe` [[1,2,3],[4,5,6],[7,8,9],[10]]
+    -- MutArray/Type.hs module (Unboxed-only)
+    describe "pin/unpin/isPinned" $ do
+        it "roundtrip" testPinUnpin
+    describe "breakEndByWord8_" $ do
+        it "separator found"     testBreakEndByWord8_
+        it "separator not found" testBreakEndByWord8_NotFound
+    it "reverse" testReverse
+    it "foldl'" testFoldl'
+    it "foldr" testFoldr
+    it "fold" testFold
+    it "splice" testSplice
+    describe "splitEndBy_" $ do
+        it "basic" testSplitEndBy_
+    describe "getIndexRev" $ do
+        it "first and last" testGetIndexRev
+    it "unsafeAsPtr" testUnsafeAsPtr
+    describe "byteLength" $ do
+        it "Int" (testByteLength (undefined :: Int))
+        it "Char" (testByteLength (undefined :: Char))
+    describe "bubble" $ do
+        prop "ascending" testBubbleAsc
+        prop "descending" testBubbleDesc
+    prop "reallocBytes" testReallocBytes
+    describe "Stream Append" $ do
+        prop "append2" testAppend
 
-testCompactMax :: IO ()
-testCompactMax = do
-    arrs <- mapM MArray.fromList ([[1,2],[3,4],[5,6],[7,8]] :: [[Int]])
-    result <- Stream.fold Fold.toList
-        $ MArray.compactMax 4
-        $ Stream.fromList arrs
-    lsts <- mapM MArray.toList result
-    lsts `shouldBe` [[1,2,3,4],[5,6,7,8]]
+    -- Pinned variants
+    it "clone'" testClone'
+    it "fromList'" testFromList'
+    it "fromListN'" testFromListN'
+    it "createOf'" testCreateOf'
+    it "create'" testCreate'
+    it "unsafeCreateOf'" testUnsafeCreateOf'
 
-testCompactMax' :: IO ()
-testCompactMax' = do
-    arrs <- mapM MArray.fromList ([[1,2],[3,4]] :: [[Int]])
-    result <- Stream.fold Fold.toList
-        $ MArray.compactMax' 4
-        $ Stream.fromList arrs
-    lsts <- mapM MArray.toList result
-    lsts `shouldBe` [[1,2,3,4]]
+    -- Reverse creation
+    it "revCreateOf" testRevCreateOf
+    it "fromListRev" testFromListRev
+    it "fromListRevN" testFromListRevN
 
-testCompactSepByByte_ :: IO ()
-testCompactSepByByte_ = do
-    arr1 <- MArray.fromList ([1,2,0,3] :: [Word8])
-    arr2 <- MArray.fromList ([4,0,5] :: [Word8])
-    result <- Stream.fold Fold.toList
-        $ MArray.compactSepByByte_ 0
-        $ Stream.fromList [arr1, arr2]
-    lsts <- mapM MArray.toList result
-    lsts `shouldBe` [[1,2],[3,4],[5]]
+    -- From pure/chunked streams
+    it "fromPureStreamN" testFromPureStreamN
+    it "fromPureStreamMin" testFromPureStreamMin
+    it "fromChunksRealloced" testFromChunksRealloced
+    it "fromChunksK" testFromChunksK
+    it "buildChunks" testBuildChunks
 
-testCompactEndByByte_ :: IO ()
-testCompactEndByByte_ = do
-    arr1 <- MArray.fromList ([1,2,0,3] :: [Word8])
-    arr2 <- MArray.fromList ([4,0,5] :: [Word8])
-    result <- Stream.fold Fold.toList
-        $ MArray.compactEndByByte_ 0
-        $ Stream.fromList [arr1, arr2]
-    lsts <- mapM MArray.toList result
-    lsts `shouldBe` [[1,2],[3,4],[5]]
+    -- Slicing
+    it "unsafeBreakAt" testUnsafeBreakAt
+    it "breakAt" testBreakAt
+    describe "breakEndBy" $ do
+        it "split on space" testBreakEndBy
+    describe "breakEndBy_" $ do
+        it "split on space, drop it" testBreakEndBy_
+    describe "dropWhile" $ do
+        it "drop leading spaces" testDropWhile
+    describe "revBreakEndBy" $ do
+        it "split from end" testRevBreakEndBy
+    describe "revBreakEndBy_" $ do
+        it "split from end, drop it" testRevBreakEndBy_
+    describe "revDropWhile" $ do
+        it "drop trailing spaces" testRevDropWhile
 
-testCompactEndByLn_ :: IO ()
-testCompactEndByLn_ = do
-    arr1 <- MArray.fromList ([1,2,10,3] :: [Word8])
-    arr2 <- MArray.fromList ([4,10,5,6] :: [Word8])
-    result <- Stream.fold Fold.toList
-        $ MArray.compactEndByLn_
-        $ Stream.fromList [arr1, arr2]
-    lsts <- mapM MArray.toList result
-    lsts `shouldBe` [[1,2],[3,4],[5,6]]
+    -- Casting
+    it "asBytes" testAsBytes
+    describe "cast" $ do
+        it "Word8 to Word16" testCast
 
-lastN :: Int -> [a] -> [a]
-lastN n xs = drop (max 0 (length xs - n)) xs
+    -- Size and Capacity
+    describe "capacity" $ do it "equals length for exact alloc" testCapacity
+    describe "free" $ do it "equals capacity for empty array" testFreeSpace
+    describe "byteCapacity" $ do it "equals byteLength for exact alloc" testByteCapacity
+    describe "bytesFree" $ do it "full capacity for empty" testBytesFree
+    describe "blockSize" $ do it "is a constant" testBlockSize
+    describe "arrayChunkBytes" $ do it "is positive" testArrayChunkBytes
+    describe "allocBytesToElemCount" $ do it "converts bytes to elem count" testAllocBytesToElemCount
+    describe "growTo" $ do it "capacity increases" testGrowTo
+    describe "growBy" $ do it "capacity grows by n" testGrowBy
+    describe "growExp" $ do it "capacity grows" testGrowExp
+    describe "rightSize" $ do it "capacity shrinks to length" testRightSize
+    describe "vacate" $ do it "resets length to 0" testVacate
 
-testCreateOfLast :: Property
-testCreateOfLast =
-    forAll (chooseInt (0, 20)) $ \n ->
-        forAll (listOf (arbitrary :: Gen Int)) $ \ls -> do
-            arr <- Stream.fold (MArray.createOfLast n) (Stream.fromList ls)
-            lst <- MArray.toList arr
-            lst `shouldBe` lastN n ls
+    -- Random writes
+    describe "modify" $ do it "all elements" testModify
+    describe "modifyIndices" $ do it "at specified indices" testModifyIndices
+    describe "swapIndices" $ do it "swaps two elements" testSwapIndices
+    describe "unsafeSwapIndices" $ do it "swaps two elements" testUnsafeSwapIndices
 
-testSerializeDeserialize :: IO ()
-testSerializeDeserialize = do
-    let val = 42 :: Int
-    arr <- MArray.serialize MArray.empty val
-    (result, _) <- MArray.deserialize arr :: IO (Int, MutArray Word8)
-    result `shouldBe` val
+    -- Reading
+    describe "unsafeGetIndexRev" $ do it "from end" testUnsafeGetIndexRev
+    describe "indexReader" $ do it "reads at given indices" testIndexReader
+    describe "toStreamKRev" $ do it "reversed" testToStreamKRev
 
-testSerializeDeserializeMultiple :: IO ()
-testSerializeDeserializeMultiple = do
-    let x = 1 :: Int
-        y = 2 :: Int
-    arr <- MArray.serialize MArray.empty x
-    arr1 <- MArray.serialize arr y
-    (v1, arr2) <- MArray.deserialize arr1 :: IO (Int, MutArray Word8)
-    (v2, _) <- MArray.deserialize arr2 :: IO (Int, MutArray Word8)
-    v1 `shouldBe` x
-    v2 `shouldBe` y
+    -- Unfolds
+    describe "readerRev" $ do it "reads in reverse" testReaderRev
+
+    -- Folding
+    describe "foldRev" $ do it "reverses order" testFoldRev
+    describe "byteCmp" $ do it "equal and less-than" testByteCmp
+    describe "byteEq" $ do it "equal and unequal" testByteEq
+
+    -- In-place
+    describe "partitionBy" $ do it "separates evens from odds" testPartitionBy
+
+    -- Snoc variants
+    describe "snocGrowBy" $ do it "appends with growth" testSnocGrowBy
+    describe "snocMay" $ do it "snoc if space, Nothing if full" testSnocMay
+
+    -- Append folds
+    describe "appendWith" $ do it "appends with growth function" testAppendWith
+    describe "unsafeAppendMax" $ do it "appends n elements" testUnsafeAppendMax
+    describe "appendMax" $ do it "appends at most n elements" testAppendMax
+    describe "appendGrowBy" $ do it "appends with grow by n" testAppendGrowBy
+
+    -- Append streams
+    describe "appendStream" $ do it "appends whole stream" testAppendStream
+    describe "appendStreamN" $ do it "appends n from stream" testAppendStreamN
+
+    -- Splicing
+    describe "spliceCopy" $ do it "copies and splices" testSpliceCopy
+    describe "spliceWith" $ do it "splices with growth fn" testSpliceWith
+    describe "spliceExp" $ do it "splices exponentially" testSpliceExp
+    describe "unsafeSplice" $ do it "unsafe splice" testUnsafeSplice
+
+    -- Poke/Peek (serialization)
+    describe "poke" $ do it "serializes to Word8 array" testPoke
+    describe "pokeMay" $ do it "Nothing when full" testPokeMay
+    describe "unsafePokeSkip" $ do it "advances end pointer" testUnsafePokeSkip
+    describe "unsafePeek" $ do it "deserializes from Word8 array" testUnsafePeek
+    describe "unsafePeekSkip" $ do it "advances start pointer" testUnsafePeekSkip
+
+    -- Chunks
+    describe "chunksOf'" $ do it "pinned chunksOf" testChunksOf'
+    describe "chunksEndBy" $ do it "ends chunk on predicate" testChunksEndBy
+    describe "chunksEndByLn" $ do it "ends chunk on newline" testChunksEndByLn
+
+    -- Concat
+    describe "concat" $ do it "concatenates arrays" testConcat
+    describe "concatRev" $ do it "concatenates reversed" testConcatRev
+
+    -- Compact
+    describe "createCompactMin" $ do it "fold compact min" testCreateCompactMin
+    describe "compactMin" $ do it "stream compact min" testCompactMin
+    describe "createCompactMax" $ do it "parser compact max" testCreateCompactMax
+    describe "scanCompactMin" $ do it "scan compact min" testScanCompactMin
+
+    -- Utilities
+    describe "isPower2" $ do it "identifies powers of 2" testIsPower2
+    describe "roundUpToPower2" $ do it "rounds up" testRoundUpToPower2
+
+    testUnboxInstanceExistance
 
 main :: IO ()
 main =
     hspec $
     Hspec.parallel $
-    modifyMaxSuccess (const maxTestCount) $ do
-        describe moduleName $ do
-            commonMain
-            -- IMPORTANT NOTE: Before adding any test here first consider if it
-            -- can be added to the MutArray/Common test module. Only those tests
-            -- which are specific to the Unboxed MutArray module and do not
-            -- apply to the Generic MutArray module should be added here.
-
-            -- MutArray/Type.hs module (Unboxed-only)
-            describe "pin/unpin/isPinned" $ do
-                it "roundtrip" testPinUnpin
-            describe "breakEndByWord8_" $ do
-                it "separator found"     testBreakEndByWord8_
-                it "separator not found" testBreakEndByWord8_NotFound
-            it "reverse" testReverse
-            it "foldl'" testFoldl'
-            it "foldr" testFoldr
-            it "fold" testFold
-            it "splice" testSplice
-            describe "splitEndBy_" $ do
-                it "basic" testSplitEndBy_
-            describe "getIndexRev" $ do
-                it "first and last" testGetIndexRev
-            it "unsafeAsPtr" testUnsafeAsPtr
-            describe "byteLength" $ do
-                it "Int" (testByteLength (undefined :: Int))
-                it "Char" (testByteLength (undefined :: Char))
-            describe "bubble" $ do
-                prop "ascending" testBubbleAsc
-                prop "descending" testBubbleDesc
-            prop "reallocBytes" testReallocBytes
-            describe "Stream Append" $ do
-                prop "append2" testAppend
-
-            -- Pinned variants
-            it "clone'" testClone'
-            it "fromList'" testFromList'
-            it "fromListN'" testFromListN'
-            it "createOf'" testCreateOf'
-            it "create'" testCreate'
-            it "unsafeCreateOf'" testUnsafeCreateOf'
-
-            -- Reverse creation
-            it "revCreateOf" testRevCreateOf
-            it "fromListRev" testFromListRev
-            it "fromListRevN" testFromListRevN
-
-            -- From pure/chunked streams
-            it "fromPureStreamN" testFromPureStreamN
-            it "fromPureStreamMin" testFromPureStreamMin
-            it "fromChunksRealloced" testFromChunksRealloced
-            it "fromChunksK" testFromChunksK
-            it "buildChunks" testBuildChunks
-
-            -- Slicing
-            it "unsafeBreakAt" testUnsafeBreakAt
-            it "breakAt" testBreakAt
-            describe "breakEndBy" $ do
-                it "split on space" testBreakEndBy
-            describe "breakEndBy_" $ do
-                it "split on space, drop it" testBreakEndBy_
-            describe "dropWhile" $ do
-                it "drop leading spaces" testDropWhile
-            describe "revBreakEndBy" $ do
-                it "split from end" testRevBreakEndBy
-            describe "revBreakEndBy_" $ do
-                it "split from end, drop it" testRevBreakEndBy_
-            describe "revDropWhile" $ do
-                it "drop trailing spaces" testRevDropWhile
-
-            -- Casting
-            it "asBytes" testAsBytes
-            describe "cast" $ do
-                it "Word8 to Word16" testCast
-
-            -- Size and Capacity
-            describe "capacity" $ do it "equals length for exact alloc" testCapacity
-            describe "free" $ do it "equals capacity for empty array" testFreeSpace
-            describe "byteCapacity" $ do it "equals byteLength for exact alloc" testByteCapacity
-            describe "bytesFree" $ do it "full capacity for empty" testBytesFree
-            describe "blockSize" $ do it "is a constant" testBlockSize
-            describe "arrayChunkBytes" $ do it "is positive" testArrayChunkBytes
-            describe "allocBytesToElemCount" $ do it "converts bytes to elem count" testAllocBytesToElemCount
-            describe "growTo" $ do it "capacity increases" testGrowTo
-            describe "growBy" $ do it "capacity grows by n" testGrowBy
-            describe "growExp" $ do it "capacity grows" testGrowExp
-            describe "rightSize" $ do it "capacity shrinks to length" testRightSize
-            describe "vacate" $ do it "resets length to 0" testVacate
-
-            -- Random writes
-            describe "modify" $ do it "all elements" testModify
-            describe "modifyIndices" $ do it "at specified indices" testModifyIndices
-            describe "swapIndices" $ do it "swaps two elements" testSwapIndices
-            describe "unsafeSwapIndices" $ do it "swaps two elements" testUnsafeSwapIndices
-
-            -- Reading
-            describe "unsafeGetIndexRev" $ do it "from end" testUnsafeGetIndexRev
-            describe "indexReader" $ do it "reads at given indices" testIndexReader
-            describe "toStreamKRev" $ do it "reversed" testToStreamKRev
-
-            -- Unfolds
-            describe "readerRev" $ do it "reads in reverse" testReaderRev
-
-            -- Folding
-            describe "foldRev" $ do it "reverses order" testFoldRev
-            describe "byteCmp" $ do it "equal and less-than" testByteCmp
-            describe "byteEq" $ do it "equal and unequal" testByteEq
-
-            -- In-place
-            describe "partitionBy" $ do it "separates evens from odds" testPartitionBy
-
-            -- Snoc variants
-            describe "snocGrowBy" $ do it "appends with growth" testSnocGrowBy
-            describe "snocMay" $ do it "snoc if space, Nothing if full" testSnocMay
-
-            -- Append folds
-            describe "appendWith" $ do it "appends with growth function" testAppendWith
-            describe "unsafeAppendMax" $ do it "appends n elements" testUnsafeAppendMax
-            describe "appendMax" $ do it "appends at most n elements" testAppendMax
-            describe "appendGrowBy" $ do it "appends with grow by n" testAppendGrowBy
-
-            -- Append streams
-            describe "appendStream" $ do it "appends whole stream" testAppendStream
-            describe "appendStreamN" $ do it "appends n from stream" testAppendStreamN
-
-            -- Splicing
-            describe "spliceCopy" $ do it "copies and splices" testSpliceCopy
-            describe "spliceWith" $ do it "splices with growth fn" testSpliceWith
-            describe "spliceExp" $ do it "splices exponentially" testSpliceExp
-            describe "unsafeSplice" $ do it "unsafe splice" testUnsafeSplice
-
-            -- Poke/Peek (serialization)
-            describe "poke" $ do it "serializes to Word8 array" testPoke
-            describe "pokeMay" $ do it "Nothing when full" testPokeMay
-            describe "unsafePokeSkip" $ do it "advances end pointer" testUnsafePokeSkip
-            describe "unsafePeek" $ do it "deserializes from Word8 array" testUnsafePeek
-            describe "unsafePeekSkip" $ do it "advances start pointer" testUnsafePeekSkip
-
-            -- Chunks
-            describe "chunksOf'" $ do it "pinned chunksOf" testChunksOf'
-            describe "chunksEndBy" $ do it "ends chunk on predicate" testChunksEndBy
-            describe "chunksEndByLn" $ do it "ends chunk on newline" testChunksEndByLn
-
-            -- Concat
-            describe "concat" $ do it "concatenates arrays" testConcat
-            describe "concatRev" $ do it "concatenates reversed" testConcatRev
-
-            -- Compact
-            describe "createCompactMin" $ do it "fold compact min" testCreateCompactMin
-            describe "compactMin" $ do it "stream compact min" testCompactMin
-            describe "createCompactMax" $ do it "parser compact max" testCreateCompactMax
-            describe "scanCompactMin" $ do it "scan compact min" testScanCompactMin
-
-            -- Utilities
-            describe "isPower2" $ do it "identifies powers of 2" testIsPower2
-            describe "roundUpToPower2" $ do it "rounds up" testRoundUpToPower2
-
-            -- MutArray module
-            describe "indexerFromLen" $ do
-                it "basic" testIndexerFromLen
-            describe "splitterFromLen" $ do
-                it "basic" testSplitterFromLen
-            describe "compactMax" $ do
-                it "coalesces small arrays" testCompactMax
-            describe "compactMax'" $ do
-                it "coalesces to pinned" testCompactMax'
-            describe "compactSepByByte_" $ do
-                it "splits on separator" testCompactSepByByte_
-            describe "compactEndByByte_" $ do
-                it "splits on suffix" testCompactEndByByte_
-            describe "compactEndByLn_" $ do
-                it "splits on newline" testCompactEndByLn_
-            describe "createOfLast" $ do
-                prop "last n elements" testCreateOfLast
-            describe "serialize/deserialize" $ do
-                it "roundtrip"       testSerializeDeserialize
-                it "multiple values" testSerializeDeserializeMultiple
-            testUnboxInstanceExistance
+    modifyMaxSuccess (const maxTestCount) $
+    describe moduleName typeMain
