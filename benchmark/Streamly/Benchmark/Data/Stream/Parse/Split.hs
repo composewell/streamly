@@ -9,6 +9,7 @@
 
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+-- {-# OPTIONS_GHC -fforce-recomp #-}
 
 #ifdef __HADDOCK_VERSION__
 #undef INSPECTION

@@ -11,6 +11,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RankNTypes #-}
 
+-- {-# OPTIONS_GHC -fforce-recomp #-}
+
 #ifdef __HADDOCK_VERSION__
 #undef INSPECTION
 #endif

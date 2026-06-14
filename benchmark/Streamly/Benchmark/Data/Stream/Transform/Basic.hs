@@ -11,6 +11,7 @@
 {-# LANGUAGE RankNTypes #-}
 
 {-# OPTIONS_GHC -Wno-orphans #-}
+-- {-# OPTIONS_GHC -fforce-recomp #-}
 
 #ifdef __HADDOCK_VERSION__
 #undef INSPECTION

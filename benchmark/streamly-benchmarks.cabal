@@ -451,12 +451,15 @@ benchmark Data.Stream
       Stream.Eliminate
       Stream.Exceptions
       Stream.Nesting
+      Stream.Nesting.Basic
+      Stream.Nesting.LogicConcat
+      Stream.Nesting.LogicUnfold
       Stream.Generate
       Stream.Lift
       Stream.Parse
       Stream.Parse.Group
       Stream.Parse.Split
-      -- XXX uses lot of memory
+      -- Note: uses around 400MB during build
       Stream.Parse.SplitChunks
       Stream.Transform
       Stream.Transform.Basic
@@ -466,6 +469,8 @@ benchmark Data.Stream
       Stream.Type.MultiStream
       Stream.Type.Nested
       Stream.Type.Logic
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M500M -RTS
 
 benchmark Data.Stream.Adaptive
   import: bench-options-threaded
