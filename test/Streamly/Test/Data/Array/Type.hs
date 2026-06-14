@@ -27,8 +27,10 @@ import Streamly.Test.Common (listEquals, performGCSweep)
 
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Array as A
+import qualified Streamly.Internal.Data.Array as Arr
 import qualified Streamly.Internal.Data.MutArray as MA
 import qualified Streamly.Internal.Data.Stream as S
+import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Test.Hspec as Hspec
 
 type Array = A.Array
@@ -36,6 +38,7 @@ type Array = A.Array
 moduleName :: String
 moduleName = "Data.Array"
 
+#include "Streamly/Test/Data/MutArray/Common.hs"
 #include "Streamly/Test/Data/Array/TypeCommon.hs"
 
 testBreakOn :: [Word8] -> Word8 -> [Word8] -> Maybe [Word8] -> IO ()
@@ -149,5 +152,6 @@ main =
     Hspec.parallel $
     modifyMaxSuccess (const maxTestCount) $
     describe moduleName $ do
+        arrayCommon
         typeCommon
         typeMain
