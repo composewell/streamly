@@ -28,7 +28,7 @@ type Array = A.Array
 moduleName :: String
 moduleName = "Data.Array"
 
-#include "Streamly/Test/Data/Array/Common.hs"
+#include "Streamly/Test/Data/Array/TypeCommon.hs"
 
 main :: IO ()
 main =
@@ -36,7 +36,7 @@ main =
     H.parallel $
     modifyMaxSuccess (const maxTestCount) $ do
       describe moduleName $ do
-        commonMain
+        typeCommon
         -- IMPORTANT NOTE: Before adding any test here first consider if it can
         -- be added to the Array/Common test module. Only those tests which are
         -- specific to the Generic Array module and do not apply to the Unboxed

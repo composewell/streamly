@@ -248,6 +248,7 @@ test-suite Data.Array
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Array.hs
   ghc-options: -main-is Streamly.Test.Data.Array.main
+  other-modules: Streamly.Test.Data.Array.Type
 
 test-suite Data.Array.Generic
   import: test-options
