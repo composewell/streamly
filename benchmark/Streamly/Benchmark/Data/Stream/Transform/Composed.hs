@@ -34,7 +34,6 @@ import Streamly.Internal.Data.Stream (Stream)
 
 import qualified Stream.Common as Common
 import qualified Streamly.Internal.Data.Fold as FL
-import qualified Streamly.Internal.Data.Pipe as Pipe
 import qualified Streamly.Internal.Data.Scanl as Scanl
 import qualified Streamly.Internal.Data.Scan as Scan
 import qualified Streamly.Internal.Data.Stream as S
@@ -529,30 +528,6 @@ iterateDropWhileFalse value iterCount =
     withRandomIntIO
         $ Common.drain . iterateSource (S.dropWhile (> (value + 1))) (value `div` iterCount) iterCount
 
--------------------------------------------------------------------------------
--- Pipes
--------------------------------------------------------------------------------
-
-{-# INLINE transformMapM #-}
-transformMapM :: Monad m => Int -> Stream m Int -> m ()
-transformMapM n = composeN n $ Stream.pipe (Pipe.mapM return)
-
-{-# INLINE transformComposeMapM #-}
-transformComposeMapM :: Monad m => Int -> Stream m Int -> m ()
-transformComposeMapM n =
-    composeN n $
-    Stream.pipe
-        (Pipe.mapM (\x -> return (x + 1)) `Pipe.compose`
-         Pipe.mapM (\x -> return (x + 2)))
-
-{-# INLINE transformTeeMapM #-}
-transformTeeMapM :: Monad m => Int -> Stream m Int -> m ()
-transformTeeMapM n =
-    composeN n $
-    Stream.pipe
-        (Pipe.mapM (\x -> return (x + 1)) `Pipe.teeMerge`
-         Pipe.mapM (\x -> return (x + 2)))
-
 {-# INLINE scanMapM #-}
 scanMapM :: Monad m => Int -> Stream m Int -> m ()
 scanMapM n = composeN n $ Stream.scanr (Scan.functionM return)
@@ -572,72 +547,6 @@ scanTeeMapM n =
     Stream.scanr
         (Scan.teeWith (+) (Scan.functionM (\x -> return (x + 1)))
          (Scan.functionM (\x -> return (x + 2))))
-
-pipeMapM :: Int -> IO ()
-pipeMapM value = withStream value (transformMapM 1)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'pipeMapM
-inspect $ 'pipeMapM `hasNoType` ''S.Step
-inspect $ 'pipeMapM `hasNoType` ''S.PipeState
-inspect $ 'pipeMapM `hasNoType` ''FL.Step
-inspect $ 'pipeMapM `hasNoType` ''SPEC
-#endif
-
-pipeCompose :: Int -> IO ()
-pipeCompose value = withStream value (transformComposeMapM 1)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'pipeCompose
-inspect $ 'pipeCompose `hasNoType` ''S.Step
-inspect $ 'pipeCompose `hasNoType` ''S.PipeState
-inspect $ 'pipeCompose `hasNoType` ''FL.Step
-inspect $ 'pipeCompose `hasNoType` ''SPEC
-#endif
-
-pipeTee :: Int -> IO ()
-pipeTee value = withStream value (transformTeeMapM 1)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'pipeTee
-inspect $ 'pipeTee `hasNoType` ''S.Step
-inspect $ 'pipeTee `hasNoType` ''S.PipeState
-inspect $ 'pipeTee `hasNoType` ''FL.Step
-inspect $ 'pipeTee `hasNoType` ''SPEC
-#endif
-
-pipeMapMX4 :: Int -> IO ()
-pipeMapMX4 value = withStream value (transformMapM 4)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'pipeMapMX4
-inspect $ 'pipeMapMX4 `hasNoType` ''S.Step
-inspect $ 'pipeMapMX4 `hasNoType` ''S.PipeState
-inspect $ 'pipeMapMX4 `hasNoType` ''FL.Step
-inspect $ 'pipeMapMX4 `hasNoType` ''SPEC
-#endif
-
-pipeComposeX4 :: Int -> IO ()
-pipeComposeX4 value = withStream value (transformComposeMapM 4)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'pipeComposeX4
-inspect $ 'pipeComposeX4 `hasNoType` ''S.Step
-inspect $ 'pipeComposeX4 `hasNoType` ''S.PipeState
-inspect $ 'pipeComposeX4 `hasNoType` ''FL.Step
-inspect $ 'pipeComposeX4 `hasNoType` ''SPEC
-#endif
-
-pipeTeeX4 :: Int -> IO ()
-pipeTeeX4 value = withStream value (transformTeeMapM 4)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'pipeTeeX4
-inspect $ 'pipeTeeX4 `hasNoType` ''S.Step
-inspect $ 'pipeTeeX4 `hasNoType` ''S.PipeState
-inspect $ 'pipeTeeX4 `hasNoType` ''FL.Step
-inspect $ 'pipeTeeX4 `hasNoType` ''SPEC
-#endif
 
 -------------------------------------------------------------------------------
 -- Scans
@@ -777,19 +686,6 @@ benchmarks size =
     , (SpaceO_1, benchIO "filter-scanl1 x 4" $ filterScanl14 size)
     , (SpaceO_1, benchIO "filter-map x 4" $ filterMap4 size)
 
-    -- pipes
-    -- XXX these should move to Data.Pipe benchmarks
-    , (SpaceO_1, benchIO "pipe/mapM" $ pipeMapM size)
-    , (SpaceO_1, benchIO "pipe/compose" $ pipeCompose size)
-    , (SpaceO_1, benchIO "pipe/tee" $ pipeTee size)
-    -- XXX this take 1 GB memory to compile
-    -- , (SpaceO_1, benchIO "zip" $ pipeZip size)
-    , (SpaceO_1, benchIO "pipe/mapM x 4" $ pipeMapMX4 size)
-    , (SpaceO_1, benchIO "pipe/compose x 4" $ pipeComposeX4 size)
-    -- XXX requires @-fspec-constr-recursive=16@.
-    , (SpaceO_1, benchIO "pipe/tee x 4" $ pipeTeeX4 size)
-    -- XXX this take 1 GB memory to compile
-    -- , (SpaceO_1, benchIO "zip x 4" $ pipeZipX4 size)
     -- XXX These should move to the Data.Scan module
     -- scans
     , (SpaceO_1, benchIO "scan/mapM" $ scansMapM size)

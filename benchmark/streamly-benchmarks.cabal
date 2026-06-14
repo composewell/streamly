@@ -377,6 +377,12 @@ benchmark Data.ParserK.Chunked.Generic
     buildable: True
     build-depends: exceptions >= 0.8   && < 0.11
 
+benchmark Data.Pipe
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data
+  main-is: Pipe.hs
+
 benchmark Data.RingArray
   import: bench-options
   type: exitcode-stdio-1.0
