@@ -193,7 +193,8 @@ library
     hs-source-dirs: lib
     exposed-modules:
         Streamly.Test.Common
-        Streamly.Test.Parser.Common
+        Streamly.Test.Data.Parser.CommonUtilities
+        Streamly.Test.Data.Parser.CommonTests
         Streamly.Test.Control.Exception.Common
     if !flag(use-streamly-core) && flag(dev)
       exposed-modules: Streamly.Test.Prelude.Common
@@ -248,19 +249,13 @@ test-suite Data.Array
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Array.hs
   ghc-options: -main-is Streamly.Test.Data.Array.main
+  other-modules: Streamly.Test.Data.Array.Type
 
 test-suite Data.Array.Generic
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Array/Generic.hs
   ghc-options: -main-is Streamly.Test.Data.Array.Generic.main
-  if flag(use-streamly-core)
-    buildable: False
-
-test-suite Data.Array.Stream
-  import: test-options
-  type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Array/Stream.hs
   if flag(use-streamly-core)
     buildable: False
 
@@ -302,22 +297,37 @@ test-suite Data.MutArray
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/MutArray.hs
   ghc-options: -main-is Streamly.Test.Data.MutArray.main
+  other-modules: Streamly.Test.Data.MutArray.Type
+
+test-suite Data.MutArray.Generic
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/MutArray/Generic.hs
+  ghc-options: -main-is Streamly.Test.Data.MutArray.Generic.main
+  if flag(use-streamly-core)
+    buildable: False
 
 test-suite Data.Parser
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Parser.hs
-  hs-source-dirs: .
-  other-modules: Streamly.Test.Data.Parser.Common
   if flag(limit-build-mem)
-    ghc-options: +RTS -M2000M -RTS
+    ghc-options: +RTS -M1000M -RTS
 
 test-suite Data.ParserK
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/ParserK.hs
-  if flag(limit-build-mem)
-    ghc-options: +RTS -M1500M -RTS
+
+test-suite Data.ParserK.Chunked
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/ParserK/Chunked.hs
+
+test-suite Data.ParserK.Chunked.Generic
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/ParserK/ChunkedGeneric.hs
 
 test-suite Data.RingArray
   import: test-options

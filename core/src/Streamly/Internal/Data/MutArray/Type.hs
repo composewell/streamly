@@ -1632,7 +1632,9 @@ indexReaderWith liftio (D.Stream stepi sti) = Unfold step inject
         r <- stepi defState st
         case r of
             D.Yield i s -> do
-                x <- liftio $ getIndex i (MutArray contents start end undefined)
+                -- We do not need arrBound but we cannot leave it undefined
+                -- because it is a strict field.
+                x <- liftio $ getIndex i (MutArray contents start end end)
                 case x of
                     Just v -> return $ D.Yield v (GetIndicesState contents start end s)
                     Nothing -> error "Invalid Index"

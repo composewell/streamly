@@ -5,12 +5,13 @@
 
 module Main (main) where
 
+import Control.Applicative ((<|>))
+import Control.Monad.IO.Class (MonadIO(..))
 import Data.Either (fromRight)
-import Test.Hspec (Spec, hspec, describe, it, expectationFailure, shouldBe)
+import Streamly.Internal.Data.Parser (ParseError(..))
+import Test.Hspec (Spec, hspec, describe, it, expectationFailure, shouldBe, shouldReturn)
 import Test.Hspec.QuickCheck
 
-import qualified Streamly.Internal.Data.Array as A
-import qualified Streamly.Internal.Data.Array.Generic as AG
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.ParserK as ParserK
@@ -18,7 +19,8 @@ import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.StreamK as StreamK
 import qualified Test.Hspec as H
 
-import Streamly.Test.Parser.Common
+import Streamly.Test.Data.Parser.CommonUtilities
+import qualified Streamly.Test.Data.Parser.CommonTests as Common
 
 import Prelude hiding (sequence)
 
@@ -110,21 +112,27 @@ sanityParseBreak jumps = it (show jumps) $ do
     lst <- StreamK.toList rest
     (val, lst) `shouldBe` (expectedResult jumps tape)
 
-sanityParseBreakChunks :: [Move] -> H.SpecWith ()
-sanityParseBreakChunks jumps = it (show jumps) $ do
-    (val, rest) <-
-        A.parseBreakPos (A.toParserK (jumpParser jumps))
-            $ StreamK.fromList $ Prelude.map A.fromList chunkedTape
-    lst <- Prelude.map A.toList <$> StreamK.toList rest
-    (val, concat lst) `shouldBe` (expectedResult jumps tape)
 
-sanityParseBreakChunksGeneric :: [Move] -> H.SpecWith ()
-sanityParseBreakChunksGeneric jumps = it (show jumps) $ do
-    (val, rest) <-
-        AG.parseBreakPos (AG.toParserK (jumpParser jumps))
-            $ StreamK.fromList $ Prelude.map AG.fromList chunkedTape
-    lst <- Prelude.map AG.toList <$> StreamK.toList rest
-    (val, concat lst) `shouldBe` (expectedResult jumps tape)
+-------------------------------------------------------------------------------
+-- Instances
+-------------------------------------------------------------------------------
+
+{-# INLINE takeWhileFail #-}
+takeWhileFail :: MonadIO m =>
+    (a -> Bool) -> FL.Fold m a b -> ParserK.ParserK a m b
+takeWhileFail p f = ParserK.toParserK (Common.takeWhileFailD p f)
+
+{-# INLINE takeWhileK #-}
+takeWhileK :: MonadIO m => (a -> Bool) -> ParserK.ParserK a m [a]
+takeWhileK p = ParserK.toParserK $ Parser.takeWhile p FL.toList
+
+{-# INLINE alt2 #-}
+alt2 :: MonadIO m => StreamK.StreamK m Int -> m (Either ParseError [Int])
+alt2 =
+    StreamK.parse
+        (   takeWhileFail (<= 5) FL.toList
+        <|> takeWhileK (<= 7)
+        )
 
 -------------------------------------------------------------------------------
 -- Main
@@ -133,14 +141,13 @@ sanityParseBreakChunksGeneric jumps = it (show jumps) $ do
 moduleName :: String
 moduleName = "Data.ParserK"
 
--- Many ParserK tests are tested in Test.Parser module
 main :: IO ()
 main =
   hspec $
   H.parallel $
   modifyMaxSuccess (const maxTestCount) $ do
   describe moduleName $ do
-    parserSanityTests "StreamK.parseBreak" sanityParseBreak
-    parserSanityTests "StreamK.parseBreakChunks" sanityParseBreakChunks
-    parserSanityTests "StreamK.parseBreakChunksGeneric" sanityParseBreakChunksGeneric
+    Common.mainCommon Common.TMParserKStreamK
     toParser
+    parserSanityTests "StreamK.parseBreak" sanityParseBreak
+    it "alt2 [1..20]" $ alt2 (StreamK.fromList [1..20]) `shouldReturn` Right [1..7]

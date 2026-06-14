@@ -3,20 +3,35 @@
 #if __GLASGOW_HASKELL__ >= 908
 {-# OPTIONS_GHC -Wno-x-partial #-}
 #endif
-module Streamly.Test.Data.Parser.Common (main) where
+-- We keep Parser and ParserK tests in the same (Parser) executable for 2
+-- reasons:
+-- 1. We almost always write Parser tests hence we prioritize Parser over
+--    ParserK
+-- 2. This results in minimal compilation overhead compared to duplicating
+--    or keeping the common part in the library.
+--    2.1. Duplication will result in compilation of this code twice
+--    2.2. Keeping the common part in the library will compile the Parser
+--         code even when it's not necessary. For example, if we are running
+--         non-parser test suites.
+--
+-- One problem is that this module becomes very big for compilation. We can
+-- break this further and keep them as a part of "other-modules" in
+-- Test.Parser test-suite.
+module Streamly.Test.Data.Parser.CommonTests (mainCommon, TestMode(..), takeWhileFailD) where
 
 import Control.Applicative ((<|>))
 import Control.Exception (displayException, try, evaluate, SomeException)
 import Data.List (isSuffixOf)
+import Streamly.Internal.Data.Fold (Fold(..))
 import Streamly.Internal.Data.MutByteArray (Unbox)
 import Streamly.Test.Common (listEquals, checkListEqual, chooseInt)
-import Streamly.Internal.Data.Parser (ParseErrorPos(..))
+import Streamly.Internal.Data.Parser (ParseErrorPos(..), Parser(..), Step(..), Initial(..), Final(..))
 import Test.QuickCheck
        (arbitrary, forAll, elements, Property, property, listOf,
         vectorOf, Gen, (.&&.), ioProperty)
 import Test.QuickCheck.Monadic (monadicIO, assert, run, PropertyM)
 
-import Prelude hiding (sequence)
+import Prelude hiding (sequence, take, takeWhile)
 
 import qualified Control.Monad.Fail as Fail
 import qualified Data.List as List
@@ -1070,6 +1085,31 @@ takeStartBy_ producer consumer =
                 predicate = odd
                 parser = P.takeBeginBy_ predicate FL.toList
 
+{-# INLINE takeWhileFailD #-}
+takeWhileFailD :: Monad m => (a -> Bool) -> Fold m a b -> Parser a m b
+takeWhileFailD predicate (Fold fstep finitial _ ffinal) =
+    Parser step initial extract
+
+    where
+
+    initial = do
+        res <- finitial
+        return $ case res of
+            FL.Partial s -> IPartial s
+            FL.Done b -> IDone b
+
+    step s a =
+        if predicate a
+        then do
+            fres <- fstep s a
+            return
+                $ case fres of
+                      FL.Partial s1 -> SContinue 1 s1
+                      FL.Done b -> SDone 1 b
+        else return $ SError "fail"
+
+    extract s = fmap (FDone 0) (ffinal s)
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -1167,18 +1207,18 @@ mainCommon ptt = do
             $ runParserTC_temp ptt takeBetweenPass
         prop ("P.takeBetween = Prelude.take when len >= m and len <= n and fail"
               ++ "otherwise fail") $ runParserTC_temp ptt takeBetween
-        prop "P.take = Prelude.take" $ runParserTC_temp ptt Streamly.Test.Data.Parser.Common.take
+        prop "P.take = Prelude.take" $ runParserTC_temp ptt take
         prop "P.takeEQ = Prelude.take when len >= n" $ runParserTC_temp ptt takeEQPass
         prop "P.takeEQ = Prelude.take when len >= n and fail otherwise"
-            $ runParserTC_temp ptt Streamly.Test.Data.Parser.Common.takeEQ
+            $ runParserTC_temp ptt takeEQ
         prop "P.takeGE n ls = ls when len >= n" $ runParserTC_temp ptt takeGEPass
-        prop "P.takeGE n ls = ls when len >= n and fail otherwise" $ runParserTC_temp ptt Streamly.Test.Data.Parser.Common.takeGE
+        prop "P.takeGE n ls = ls when len >= n and fail otherwise" $ runParserTC_temp ptt takeGE
         prop "lookAhead . take n >> lookAhead . take n = lookAhead . take n" $ runParserTC_temp ptt lookAheadPass
         -- prop "Fail when stream length exceeded" lookAheadFail
         prop "lookAhead . take n >> lookAhead . take n = lookAhead . take n, else fail" $ runParserTC_temp ptt lookAhead
         prop ("P.takeStartBy pred = head : Prelude.takeWhile (not . pred)"
                 ++ " tail") $ runParserTC ptt takeStartBy
-        prop "P.takeWhile = Prelude.takeWhile" $ runParserTC ptt Streamly.Test.Data.Parser.Common.takeWhile
+        prop "P.takeWhile = Prelude.takeWhile" $ runParserTC ptt takeWhile
         prop ("P.takeWhile1 = Prelude.takeWhile if taken something,"
                 ++ " else check why failed") $ runParserTC ptt takeWhile1
         prop "takeWhileP prd P.take = takeWhileMaxLen prd" $ runParserTC ptt takeWhileP
@@ -1219,23 +1259,3 @@ mainCommon ptt = do
 
     runParserTC_temp ptt takeProperties
 
-main :: Spec
-main = do
-        -- We keep Parser and ParserK tests in the same (Parser) executable for 2
-        -- reasons:
-        -- 1. We almost always write Parser tests hence we prioritize Parser over
-        --    ParserK
-        -- 2. This results in minimal compilation overhead compared to duplicating
-        --    or keeping the common part in the library.
-        --    2.1. Duplication will result in compilation of this code twice
-        --    2.2. Keeping the common part in the library will compile the Parser
-        --         code even when it's not necessary. For example, if we are running
-        --         non-parser test suites.
-        --
-        -- One problem is that this module becomes very big for compilation. We can
-        -- break this further and keep them as a part of "other-modules" in
-        -- Test.Parser test-suite.
-        mainCommon TMParserStream
-        mainCommon TMParserKStreamKChunks
-        mainCommon TMParserKStreamK
-        mainCommon TMParserKStreamKChunksGeneric

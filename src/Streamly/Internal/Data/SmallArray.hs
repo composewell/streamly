@@ -24,6 +24,8 @@ module Streamly.Internal.Data.SmallArray
   , length
 
   , createOf
+  , create
+  , createOfLast
 
   , toStreamD
   , toStreamDRev
@@ -33,8 +35,14 @@ module Streamly.Internal.Data.SmallArray
   , reader
 
   , fromListN
+  , fromList
   , fromStreamDN
   , fromStreamN
+  , fromStream
+
+  , toList
+  , unsafeGetIndex
+  , unsafeSliceOffLen
 
   , streamFold
   , fold
@@ -52,6 +60,9 @@ import Streamly.Data.Fold (Fold)
 import Streamly.Data.Stream (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Unfold (Unfold(..))
+
+import qualified Data.List as List
+import qualified Streamly.Data.Fold as Fold
 
 import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.Fold as FL
@@ -157,6 +168,10 @@ fromStreamDN limit str = do
 fromListN :: Int -> [a] -> SmallArray a
 fromListN n xs = unsafePerformIO $ fromStreamDN n $ D.fromList xs
 
+{-# INLINABLE fromList #-}
+fromList :: [a] -> SmallArray a
+fromList = smallArrayFromList
+
 instance NFData a => NFData (SmallArray a) where
     {-# INLINE rnf #-}
     rnf = foldl' (\_ x -> rnf x) ()
@@ -190,6 +205,31 @@ fold f arr = D.fold f (toStreamD arr)
 {-# INLINE streamFold #-}
 streamFold :: Monad m => (Stream m a -> m b) -> SmallArray a -> m b
 streamFold f arr = f (read arr)
+
+{-# INLINE toList #-}
+toList :: SmallArray a -> [a]
+toList = foldr (:) []
+
+{-# INLINE create #-}
+create :: MonadIO m => Fold m a (SmallArray a)
+create = fmap fromList Fold.toList
+
+{-# INLINE fromStream #-}
+fromStream :: MonadIO m => Stream m a -> m (SmallArray a)
+fromStream m = fmap fromList (D.fold Fold.toList m)
+
+{-# INLINE unsafeGetIndex #-}
+unsafeGetIndex :: Int -> SmallArray a -> a
+unsafeGetIndex i arr = indexSmallArray arr i
+
+{-# INLINE unsafeSliceOffLen #-}
+unsafeSliceOffLen :: Int -> Int -> SmallArray a -> SmallArray a
+unsafeSliceOffLen i n arr = cloneSmallArray arr i n
+
+{-# INLINE createOfLast #-}
+createOfLast :: MonadIO m => Int -> Fold m a (SmallArray a)
+createOfLast n = fmap (fromList . takeLast) Fold.toList
+  where takeLast xs = drop (List.length xs - n) xs
 
 {-# INLINE_NORMAL reader #-}
 reader :: Monad m => Unfold m (SmallArray a) a
