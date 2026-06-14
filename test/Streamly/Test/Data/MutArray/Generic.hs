@@ -15,11 +15,13 @@ import Test.Hspec.QuickCheck
 
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.Data.MutArray.Generic as MArray
+import qualified Streamly.Internal.Data.MutArray.Generic as Arr
 import qualified Streamly.Internal.Data.Stream as Stream
 
 moduleName :: String
 moduleName = "Data.MutArray.Generic"
 
+#include "Streamly/Test/Data/MutArray/Common.hs"
 #include "Streamly/Test/Data/MutArray/TypeCommon.hs"
 
 main :: IO ()
@@ -28,8 +30,10 @@ main =
     H.parallel $
     modifyMaxSuccess (const maxTestCount) $ do
         describe moduleName $ do
+            arrayCommon
             typeCommon
             -- IMPORTANT NOTE: Before adding any test here first consider if it
-            -- can be added to the MutArray/Common test module. Only those tests
-            -- which are specific to the Generic MutArray module and do not
+            -- can be added to the MutArray/Common (all variants) or
+            -- MutArray/TypeCommon (mutable variants) test module. Only those
+            -- tests which are specific to the Generic MutArray module and do not
             -- apply to the Unboxed MutArray module should be added here.

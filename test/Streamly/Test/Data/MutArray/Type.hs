@@ -39,12 +39,14 @@ import GHC.IO.SubSystem (IoSubSystem (..))
 
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.Data.MutArray as MArray
+import qualified Streamly.Internal.Data.MutArray as Arr
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Test.Hspec as Hspec
 
 moduleName :: String
 moduleName = "Data.MutArray"
 
+#include "Streamly/Test/Data/MutArray/Common.hs"
 #include "Streamly/Test/Data/MutArray/TypeCommon.hs"
 
 testAppend ::  Property
@@ -1104,5 +1106,6 @@ main =
     Hspec.parallel $
     modifyMaxSuccess (const maxTestCount) $
     describe moduleName $ do
+        arrayCommon
         typeCommon
         typeMain

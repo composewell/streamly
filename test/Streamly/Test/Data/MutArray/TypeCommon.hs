@@ -1,12 +1,4 @@
 
--- Coverage build takes too long with default number of tests
-maxTestCount :: Int
-#ifdef DEVBUILD
-maxTestCount = 100
-#else
-maxTestCount = 10
-#endif
-
 -------------------------------------------------------------------------------
 -- Construction
 -------------------------------------------------------------------------------
@@ -14,31 +6,6 @@ maxTestCount = 10
 testFromListN :: IO ()
 testFromListN = do
     arr <- MArray.fromListN 5 ([1..10] :: [Int])
-    lst <- MArray.toList arr
-    lst `shouldBe` [1..5]
-
-testFromStream :: IO ()
-testFromStream = do
-    arr <- MArray.fromStream $ Stream.fromList ([1..5] :: [Int])
-    lst <- MArray.toList arr
-    lst `shouldBe` [1..5]
-
-testFromStreamN :: IO ()
-testFromStreamN = do
-    arr <- MArray.fromStreamN 5 $ Stream.fromList ([1..10] :: [Int])
-    lst <- MArray.toList arr
-    lst `shouldBe` [1..5]
-
-testCreateOf :: IO ()
-testCreateOf = do
-    arr <- Stream.fold (MArray.createOf 5) $ Stream.fromList ([1..10] :: [Int])
-    lst <- MArray.toList arr
-    lst `shouldBe` [1..5]
-    MArray.length arr `shouldBe` 5
-
-testCreate :: IO ()
-testCreate = do
-    arr <- Stream.fold MArray.create $ Stream.fromList ([1..5] :: [Int])
     lst <- MArray.toList arr
     lst `shouldBe` [1..5]
 
@@ -63,15 +30,6 @@ testClone = do
     MArray.getIndex 0 arr2 `shouldReturn` Just 1
     lst <- MArray.toList arr2
     lst `shouldBe` [1..5]
-
--------------------------------------------------------------------------------
--- Size
--------------------------------------------------------------------------------
-
-testLength :: IO ()
-testLength = do
-    arr <- MArray.fromList ([1..10] :: [Int])
-    MArray.length arr `shouldBe` 10
 
 -------------------------------------------------------------------------------
 -- Random access
@@ -170,24 +128,6 @@ testUnsafeSnoc = do
 -- Reading / Streaming
 -------------------------------------------------------------------------------
 
-testRead :: IO ()
-testRead = do
-    arr <- MArray.fromList ([1..5] :: [Int])
-    lst <- Stream.fold Fold.toList $ MArray.read arr
-    lst `shouldBe` [1..5]
-
-testReadRev :: IO ()
-testReadRev = do
-    arr <- MArray.fromList ([1..5] :: [Int])
-    lst <- Stream.fold Fold.toList $ MArray.readRev arr
-    lst `shouldBe` [5,4,3,2,1]
-
-testReader :: IO ()
-testReader = do
-    arr <- MArray.fromList ([1..5] :: [Int])
-    lst <- Stream.fold Fold.toList $ Stream.unfold MArray.reader arr
-    lst `shouldBe` [1..5]
-
 testReaderWith :: IO ()
 testReaderWith = do
     arr <- MArray.fromList ([1..5] :: [Int])
@@ -199,18 +139,6 @@ testToStreamK = do
     arr <- MArray.fromList ([1..5] :: [Int])
     lst <- Stream.fold Fold.toList $ Stream.fromStreamK (MArray.toStreamK arr)
     lst `shouldBe` [1..5]
-
--------------------------------------------------------------------------------
--- Stream of arrays
--------------------------------------------------------------------------------
-
-testChunksOf :: IO ()
-testChunksOf = do
-    chunks <- Stream.fold Fold.toList
-        $ MArray.chunksOf 3
-        $ Stream.fromList ([1..10] :: [Int])
-    lsts <- mapM MArray.toList chunks
-    lsts `shouldBe` [[1,2,3],[4,5,6],[7,8,9],[10]]
 
 -------------------------------------------------------------------------------
 -- In-place mutation
@@ -258,22 +186,17 @@ testDropAroundEmpty = do
     x <- MArray.toList dt'
     return $ x == ""
 
--- Tests common to both MutArray (Unboxed) and MutArray.Generic. Only tests
--- that apply to both array variants should be added here.
+-- Tests common to the mutable array variants MutArray (Unboxed) and
+-- MutArray.Generic. Only tests that apply to both mutable variants should be
+-- added here. Tests common to all array variants (including the immutable
+-- Array) live in MutArray/Common.hs (arrayCommon).
 typeCommon :: SpecWith ()
 typeCommon = do
     -- Construction
     it "fromListN" testFromListN
-    it "fromStream" testFromStream
-    it "fromStreamN" testFromStreamN
-    describe "createOf" $ do
-        it "takes n elements" testCreateOf
-    it "create" testCreate
     it "unsafeCreateOf" testUnsafeCreateOf
     it "fromPureStream" testFromPureStream
     it "clone" testClone
-    -- Size
-    it "length" testLength
     -- Random access
     describe "getIndex" $ do
         it "valid and out of bounds" testGetIndex
@@ -299,13 +222,8 @@ typeCommon = do
     it "snocWith" testSnocWith
     it "unsafeSnoc" testUnsafeSnoc
     -- Reading
-    it "read" testRead
-    it "readRev" testReadRev
-    it "reader" testReader
     it "readerWith" testReaderWith
     it "toStreamK" testToStreamK
-    -- Stream of arrays
-    it "chunksOf" testChunksOf
     -- In-place mutation
     describe "dropAround" $ do
         it "both sides" (testDropAround      `shouldReturn` True)

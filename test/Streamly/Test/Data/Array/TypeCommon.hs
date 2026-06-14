@@ -1,14 +1,6 @@
 
 #include "MachDeps.h"
 
--- Coverage build takes too long with default number of tests
-maxTestCount :: Int
-#ifdef DEVBUILD
-maxTestCount = 100
-#else
-maxTestCount = 10
-#endif
-
 maxArrLen :: Int
 maxArrLen = defaultChunkSize * 8
 
