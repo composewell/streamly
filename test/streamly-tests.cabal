@@ -295,6 +295,7 @@ test-suite Data.MutArray
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/MutArray.hs
   ghc-options: -main-is Streamly.Test.Data.MutArray.main
+  other-modules: Streamly.Test.Data.MutArray.Type
 
 test-suite Data.MutArray.Generic
   import: test-options
