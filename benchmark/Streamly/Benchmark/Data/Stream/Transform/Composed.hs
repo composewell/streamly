@@ -522,8 +522,8 @@ iterateDropWhileTrue value iterCount =
     withRandomIntIO
         $ Common.drain . iterateSource (S.dropWhile (<= (value + 1))) (value `div` iterCount) iterCount
 
-iterateDropWhileFalse :: Int -> Int -> IO ()
-iterateDropWhileFalse value iterCount =
+_iterateDropWhileFalse :: Int -> Int -> IO ()
+_iterateDropWhileFalse value iterCount =
     withRandomIntIO
         $ Common.drain . iterateSource (S.dropWhile (> (value + 1))) (value `div` iterCount) iterCount
 
@@ -652,7 +652,7 @@ benchmarks size =
     , (StackO_n, benchIO "iterated/dropOne (n/10 x 10)" $ iterateDropOne size 10)
     , (StackO_n, benchIO "iterated/dropWhileTrue (n/10 x 10)" $ iterateDropWhileTrue size 10)
     -- XXX tasty-bench hangs on this sometimes
-    -- , (StackO_n, benchIO "iterated/dropWhileFalse (n/10 x 10)" $ iterateDropWhileFalse size 10)
+    -- , (StackO_n, benchIO "iterated/dropWhileFalse (n/10 x 10)" $ _iterateDropWhileFalse size 10)
     , (SpaceO_n, benchIO "iterated/(+) (n times) (baseline)" $ iteratePlusBaseline size)
     , (SpaceO_n, benchIO "iterated/(<$) (n times)" $ iterateSubMap size)
     , (SpaceO_n, benchIO "iterated/fmap (n times)" $ iterateFmap size)
