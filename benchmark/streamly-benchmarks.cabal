@@ -462,6 +462,10 @@ benchmark Data.Stream
       Stream.Transform.Basic
       Stream.Transform.Composed
       Stream.Type
+      Stream.Type.Basic
+      Stream.Type.MultiStream
+      Stream.Type.Nested
+      Stream.Type.Logic
   if flag(limit-build-mem)
     if flag(dev)
       ghc-options: +RTS -M1000M -RTS
