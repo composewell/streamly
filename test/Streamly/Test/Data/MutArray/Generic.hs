@@ -8,6 +8,7 @@
 
 module Streamly.Test.Data.MutArray.Generic (main) where
 
+import Control.Monad.IO.Class (liftIO)
 import Data.Char (isLower)
 import Test.Hspec as H
 import Test.Hspec.QuickCheck
