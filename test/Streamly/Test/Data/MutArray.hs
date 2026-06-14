@@ -8,13 +8,11 @@
 
 module Streamly.Test.Data.MutArray (main) where
 
-import Data.Proxy (Proxy(..))
 import GHC.Word (Word8(..))
 import Streamly.Internal.Data.MutArray (MutArray)
 import Test.Hspec (hspec, describe, it, shouldBe, SpecWith)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck (forAll, listOf, Property, Gen, arbitrary)
-import Test.QuickCheck.Monadic (monadicIO)
 
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.Data.MutArray as MArray
@@ -132,7 +130,10 @@ testSerializeDeserializeMultiple = do
 
 mutArrayMain :: SpecWith ()
 mutArrayMain = do
-    -- MutArray module
+    -- IMPORTANT NOTE: Before adding any test here first consider if it can be
+    -- added to the MutArray/TypeCommon test module. Only those tests which are
+    -- specific to the Unboxed MutArray module and do not apply to the Generic
+    -- MutArray module should be added here.
     describe "indexerFromLen" $ do
         it "basic" testIndexerFromLen
     describe "splitterFromLen" $ do
