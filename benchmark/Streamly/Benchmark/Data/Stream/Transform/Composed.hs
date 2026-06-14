@@ -35,7 +35,6 @@ import Streamly.Internal.Data.Stream (Stream)
 import qualified Stream.Common as Common
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Scanl as Scanl
-import qualified Streamly.Internal.Data.Scan as Scan
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream as Stream
 
@@ -528,96 +527,6 @@ iterateDropWhileFalse value iterCount =
     withRandomIntIO
         $ Common.drain . iterateSource (S.dropWhile (> (value + 1))) (value `div` iterCount) iterCount
 
-{-# INLINE scanMapM #-}
-scanMapM :: Monad m => Int -> Stream m Int -> m ()
-scanMapM n = composeN n $ Stream.scanr (Scan.functionM return)
-
-{-# INLINE scanComposeMapM #-}
-scanComposeMapM :: Monad m => Int -> Stream m Int -> m ()
-scanComposeMapM n =
-    composeN n $
-    Stream.scanr
-        (Scan.functionM (\x -> return (x + 1)) `Scan.compose`
-         Scan.functionM (\x -> return (x + 2)))
-
-{-# INLINE scanTeeMapM #-}
-scanTeeMapM :: Monad m => Int -> Stream m Int -> m ()
-scanTeeMapM n =
-    composeN n $
-    Stream.scanr
-        (Scan.teeWith (+) (Scan.functionM (\x -> return (x + 1)))
-         (Scan.functionM (\x -> return (x + 2))))
-
--------------------------------------------------------------------------------
--- Scans
--------------------------------------------------------------------------------
-
-scansMapM :: Int -> IO ()
-scansMapM value = withStream value (scanMapM 1)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'scansMapM
-inspect $ 'scansMapM `hasNoType` ''S.Step
-inspect $ 'scansMapM `hasNoType` ''S.RunScanState
-inspect $ 'scansMapM `hasNoType` ''FL.Step
-inspect $ 'scansMapM `hasNoType` ''SPEC
-#endif
-
-scansCompose :: Int -> IO ()
-scansCompose value = withStream value (scanComposeMapM 1)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'scansCompose
-inspect $ 'scansCompose `hasNoType` ''S.Step
-inspect $ 'scansCompose `hasNoType` ''S.RunScanState
-inspect $ 'scansCompose `hasNoType` ''FL.Step
-inspect $ 'scansCompose `hasNoType` ''SPEC
-#endif
-
-scansTee :: Int -> IO ()
-scansTee value = withStream value (scanTeeMapM 1)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'scansTee
-inspect $ 'scansTee `hasNoType` ''S.Step
-inspect $ 'scansTee `hasNoType` ''S.RunScanState
-inspect $ 'scansTee `hasNoType` ''FL.Step
-inspect $ 'scansTee `hasNoType` ''SPEC
-#endif
-
-scansMapMX4 :: Int -> IO ()
-scansMapMX4 value = withStream value (scanMapM 4)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'scansMapMX4
-inspect $ 'scansMapMX4 `hasNoType` ''S.Step
-inspect $ 'scansMapMX4 `hasNoType` ''S.RunScanState
-inspect $ 'scansMapMX4 `hasNoType` ''FL.Step
-inspect $ 'scansMapMX4 `hasNoType` ''SPEC
-#endif
-
-scansComposeX4 :: Int -> IO ()
-scansComposeX4 value = withStream value (scanComposeMapM 4)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'scansComposeX4
-inspect $ 'scansComposeX4 `hasNoType` ''S.Step
-inspect $ 'scansComposeX4 `hasNoType` ''S.RunScanState
-inspect $ 'scansComposeX4 `hasNoType` ''FL.Step
-inspect $ 'scansComposeX4 `hasNoType` ''SPEC
-#endif
-
-scansTeeX4 :: Int -> IO ()
-scansTeeX4 value = withStream value (scanTeeMapM 4)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'scansTeeX4
-inspect $ 'scansTeeX4 `hasNoType` ''S.Step
-inspect $ 'scansTeeX4 `hasNoType` ''S.RunScanState
-inspect $ 'scansTeeX4 `hasNoType` ''FL.Step
-inspect $ 'scansTeeX4 `hasNoType` ''SPEC
-#endif
-
 -------------------------------------------------------------------------------
 -- Composed transformations (scan + mapMaybe)
 -------------------------------------------------------------------------------
@@ -685,15 +594,6 @@ benchmarks size =
     , (SpaceO_1, benchIO "filter-scan x 4" $ filterScan4 size)
     , (SpaceO_1, benchIO "filter-scanl1 x 4" $ filterScanl14 size)
     , (SpaceO_1, benchIO "filter-map x 4" $ filterMap4 size)
-
-    -- XXX These should move to the Data.Scan module
-    -- scans
-    , (SpaceO_1, benchIO "scan/mapM" $ scansMapM size)
-    , (SpaceO_1, benchIO "scan/compose" $ scansCompose size)
-    , (SpaceO_1, benchIO "scan/tee" $ scansTee size)
-    , (SpaceO_1, benchIO "scan/mapM x 4" $ scansMapMX4 size)
-    , (SpaceO_1, benchIO "scan/compose x 4" $ scansComposeX4 size)
-    , (SpaceO_1, benchIO "scan/tee x 4" $ scansTeeX4 size)
 
     , (StackO_n, benchIO "iterated/mapM (n/10 x 10)" $ iterateMapM size 10)
     , (StackO_n, benchIO "iterated/scanl' (quadratic) (n/100 x 100)" $ iterateScan size 100)
