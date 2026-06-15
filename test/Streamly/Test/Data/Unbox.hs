@@ -20,7 +20,7 @@ module Streamly.Test.Data.Unbox (main) where
 -- Imports
 --------------------------------------------------------------------------------
 
-#ifdef USE_SERIALIZE
+#ifdef TEST_DERIVE_SERIALIZE
 import Data.Foldable (forM_)
 import Data.Word (Word8)
 import qualified Streamly.Internal.Data.Array as Array
@@ -35,21 +35,6 @@ import Data.Proxy (Proxy(..))
 import GHC.Generics (Generic, Rep)
 import GHC.Real (Ratio(..))
 
-#ifndef USE_SERIALIZE
-import Control.Monad (void)
-#if MIN_VERSION_base(4,14,0)
-import Data.Ord (Down)
-#endif
-import Foreign.Ptr (FunPtr, IntPtr, Ptr, WordPtr)
-import GHC.Int (Int8(..), Int16(..), Int32(..), Int64(..))
-#if MIN_VERSION_base(4,15,0)
-import GHC.IO.SubSystem (IoSubSystem (..))
-#endif
-import GHC.Stable (StablePtr(..))
-import GHC.Word (Word8(..), Word16(..), Word32(..), Word64(..))
-import qualified Streamly.Internal.Data.MutArray as MArray
-#endif
-
 import Streamly.Internal.Data.MutByteArray
 import qualified Streamly.Internal.Data.MutByteArray as MBA
 
@@ -59,28 +44,38 @@ import Test.Hspec as H
 -- Types
 --------------------------------------------------------------------------------
 
-#ifdef USE_SERIALIZE
+-- There are three cases, one for Serialize and two for Unbox
+-- 1. TEST_DERIVE_SERIALIZE defined: tests work using Serialize type class
+-- 2. TEST_DERIVE_SERIALIZE NOT defined: tests work using Unbox type class
+--   there are two further cases in Unbox case
+--   2a. TEST_DERIVE_UNBOX defined: Unbox type class uses deriveUnbox
+--   2b. TEST_DERIVE_UNBOX NOT defined: Unbox uses Generic deriving
 
+#ifdef TEST_DERIVE_SERIALIZE
+
+-- Tests for Serialize type class
+#define TYPE_CLASS Serialize
 #define MODULE_NAME "Data.Serialize.Deriving.TH"
 #define DERIVE_UNBOX(typ) $(deriveSerialize [d|instance Serialize typ|])
 #define PEEK(i, arr, sz) (deserializeAt i arr sz)
 #define POKE(i, arr, val) (serializeAt i arr val)
-#define TYPE_CLASS Serialize
 
 #else
 
+-- Tests for Unbox type class
+#define TYPE_CLASS Unbox
 #define PEEK(i, arr, sz) peekAtWithNextOff i arr
 #define POKE(i, arr, val) pokeAtWithNextOff i arr val
-#define TYPE_CLASS Unbox
-#define TEST_IE(_type) it "_type" $ testIE ([] :: [_type])
 
-#ifdef USE_TH
+#ifdef TEST_DERIVE_UNBOX
 
+-- Derive Unbox instances using deriveUnbox (TH)
 #define MODULE_NAME "Data.Unbox.Deriving.TH"
 #define DERIVE_UNBOX(typ) $(deriveUnbox [d|instance Unbox typ|])
 
 #else
 
+-- Derive Unbox instances using Generic deriving.
 #define MODULE_NAME "Data.Unbox.Deriving.Generic"
 #define DERIVE_UNBOX(typ) deriving instance Unbox (typ)
 
@@ -92,8 +87,9 @@ import Test.Hspec as H
 -- Helpers
 --------------------------------------------------------------------------------
 
-#ifndef USE_SERIALIZE
+#ifndef TEST_DERIVE_SERIALIZE
 
+-- For the Unbox case
 peekAtWithNextOff ::
        forall a. Unbox a
     => Int
@@ -192,7 +188,7 @@ deriving instance Generic (Ratio Int)
 deriving instance Generic (Fingerprint)
 #endif
 
-#if defined(USE_SERIALIZE)
+#if defined(TEST_DERIVE_SERIALIZE)
 $(deriveSerialize
     [d|instance Serialize a => Serialize (Complex a)|])
 $(deriveSerialize
@@ -207,7 +203,7 @@ $(deriveSerialize
 -- Test helpers
 --------------------------------------------------------------------------------
 
-#ifdef USE_SERIALIZE
+#ifdef TEST_DERIVE_SERIALIZE
 variableSizeOf ::
        forall a. Serialize a
     => a
@@ -221,14 +217,14 @@ testSerialization ::
     -> IO ()
 testSerialization val = do
     let len =
-#ifdef USE_SERIALIZE
+#ifdef TEST_DERIVE_SERIALIZE
                (variableSizeOf val)
 #else
                (sizeOf (Proxy :: Proxy a))
 #endif
     arr <- MBA.new len
     nextOff <- POKE(0, arr, val)
-#ifdef USE_SERIALIZE
+#ifdef TEST_DERIVE_SERIALIZE
     arr2 <- MBA.new len
     -- Re-initialize the array with random value
     forM_ [0..(len - 1)] $ \i -> POKE(i, arr2, (8 :: Word8))
@@ -250,7 +246,7 @@ testGenericConsistency ::
        forall a.
        ( Eq a
        , Show a
-#ifdef USE_SERIALIZE
+#ifdef TEST_DERIVE_SERIALIZE
        , Serialize a
 #endif
        , Unbox a
@@ -265,7 +261,7 @@ testGenericConsistency val = do
 
     -- Test the generic sizeOf
     let len =
-#ifdef USE_SERIALIZE
+#ifdef TEST_DERIVE_SERIALIZE
             variableSizeOf val
 #else
             sizeOf (Proxy :: Proxy a)
@@ -286,7 +282,7 @@ testGenericConsistency val = do
     nextOff `shouldBe` len
 
 
-#ifndef USE_SERIALIZE
+#ifndef TEST_DERIVE_SERIALIZE
 -- Size is also implicitly tested while serializing and deserializing.
 checkSizeOf :: forall a. Unbox a => Proxy a -> Int -> IO ()
 checkSizeOf _ sz = sizeOf (Proxy :: Proxy a) `shouldBe` sz
@@ -322,7 +318,7 @@ testCases = do
     it "SumOfProducts SOP2" $ testSerialization (SOP2 1 'a')
     it "SumOfProducts SOP3" $ testSerialization (SOP3 1 2 3)
 
-#ifndef USE_SERIALIZE
+#ifndef TEST_DERIVE_SERIALIZE
     CHECK_SIZE(Unit, 1)
     CHECK_SIZE(Unit1, 1)
     CHECK_SIZE(Unit2, 2)
@@ -360,105 +356,9 @@ testCases = do
 -- Main function
 --------------------------------------------------------------------------------
 
-#ifndef USE_SERIALIZE
--- C-ish foreign types are platform specific. The platform needs to be taken
--- into consideration when making instances.
-testUnboxInstanceExistance :: Spec
-testUnboxInstanceExistance = do
-    describe "Unbox instances" $ do
-        -- TEST_IE(CBool)
-        -- TEST_IE(CChar)
-        -- TEST_IE(CClock)
-        -- TEST_IE(CDouble)
-        -- TEST_IE(CFloat)
-        -- TEST_IE(CInt)
-        -- TEST_IE(CIntMax)
-        -- TEST_IE(CIntPtr)
-        -- TEST_IE(CLLong)
-        -- TEST_IE(CLong)
-        -- TEST_IE(CPtrdiff)
-        -- TEST_IE(CSChar)
-        -- TEST_IE(CSUSeconds)
-        -- TEST_IE(CShort)
-        -- TEST_IE(CSigAtomic)
-        -- TEST_IE(CSize)
-        -- TEST_IE(CTime)
-        -- TEST_IE(CUChar)
-        -- TEST_IE(CUInt)
-        -- TEST_IE(CUIntMax)
-        -- TEST_IE(CUIntPtr)
-        -- TEST_IE(CULLong)
-        -- TEST_IE(CULong)
-        -- TEST_IE(CUSeconds)
-        -- TEST_IE(CUShort)
-        -- TEST_IE(CWchar)
-        TEST_IE(IntPtr)
-        TEST_IE(WordPtr)
-        TEST_IE(Fingerprint)
-        TEST_IE(Int16)
-        TEST_IE(Int32)
-        TEST_IE(Int64)
-        TEST_IE(Int8)
-#if MIN_VERSION_base(4,15,0)
-        TEST_IE(IoSubSystem)
-#endif
-        TEST_IE(Word16)
-        TEST_IE(Word32)
-        TEST_IE(Word64)
-        TEST_IE(Word8)
-        -- TEST_IE(CBlkCnt)
-        -- TEST_IE(CBlkSize)
-        -- TEST_IE(CCc)
-        -- TEST_IE(CClockId)
-        -- TEST_IE(CDev)
-        -- TEST_IE(CFsBlkCnt)
-        -- TEST_IE(CFsFilCnt)
-        -- TEST_IE(CGid)
-        -- TEST_IE(CId)
-        -- TEST_IE(CIno)
-        -- TEST_IE(CKey)
-        -- TEST_IE(CMode)
-        -- TEST_IE(CNfds)
-        -- TEST_IE(CNlink)
-        -- TEST_IE(COff)
-        -- TEST_IE(CPid)
-        -- TEST_IE(CRLim)
-        -- TEST_IE(CSocklen)
-        -- TEST_IE(CSpeed)
-        -- TEST_IE(CSsize)
-        -- TEST_IE(CTcflag)
-        -- TEST_IE(CTimer)
-        -- TEST_IE(CUid)
-        -- TEST_IE(Fd)
-        TEST_IE(())
-        TEST_IE(Bool)
-        TEST_IE(Char)
-        TEST_IE(Double)
-        TEST_IE(Float)
-        TEST_IE(Int)
-        TEST_IE(Word)
-        TEST_IE(Complex Int)
-        TEST_IE(Identity Int)
-#if MIN_VERSION_base(4,14,0)
-        TEST_IE(Down Int)
-#endif
-        TEST_IE(FunPtr Int)
-        TEST_IE(Ptr Int)
-        TEST_IE(Ratio Int)
-        TEST_IE(StablePtr Int)
-        TEST_IE(Const Int Int)
-    where
-
-    testIE :: Unbox a => [a] -> IO ()
-    testIE lst = void $ MArray.fromList lst
-#endif
-
 moduleName :: String
 moduleName = MODULE_NAME
 
 main :: IO ()
 main = hspec $ H.parallel $ describe moduleName $ do
     testCases
-#ifndef USE_SERIALIZE
-    testUnboxInstanceExistance
-#endif

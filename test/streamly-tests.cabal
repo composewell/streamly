@@ -358,7 +358,7 @@ test-suite Data.MutByteArray
 test-suite Data.Serialize.Derive.TH
   import: test-options
   type: exitcode-stdio-1.0
-  cpp-options: -DUSE_SERIALIZE
+  cpp-options: -DTEST_DERIVE_SERIALIZE
   main-is: Streamly/Test/Data/Unbox.hs
   ghc-options: -main-is Streamly.Test.Data.Unbox.main
 
@@ -460,7 +460,7 @@ test-suite Data.Unbox.Derive.Generic
 test-suite Data.Unbox.Derive.TH
   import: test-options
   type: exitcode-stdio-1.0
-  cpp-options: -DUSE_TH
+  cpp-options: -DTEST_DERIVE_UNBOX
   main-is: Streamly/Test/Data/Unbox.hs
   ghc-options: -main-is Streamly.Test.Data.Unbox.main
 
