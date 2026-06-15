@@ -7,14 +7,14 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 -- |
--- Module      : Streamly.Test.Data.Unbox
+-- Module      : Streamly.Test.Data.MutByteArray.DeriveInstances
 -- Copyright   : (c) 2022 Composewell technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Test.Data.Unbox (main) where
+module Streamly.Test.Data.MutByteArray.DeriveInstances (main) where
 
 --------------------------------------------------------------------------------
 -- Imports

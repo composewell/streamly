@@ -359,8 +359,8 @@ test-suite Data.Serialize.Derive.TH
   import: test-options
   type: exitcode-stdio-1.0
   cpp-options: -DTEST_DERIVE_SERIALIZE
-  main-is: Streamly/Test/Data/Unbox.hs
-  ghc-options: -main-is Streamly.Test.Data.Unbox.main
+  main-is: Streamly/Test/Data/MutByteArray/DeriveInstances.hs
+  ghc-options: -main-is Streamly.Test.Data.MutByteArray.DeriveInstances.main
 
 test-suite Data.MutByteArray.ConstructorTags
   import: test-options
@@ -454,15 +454,15 @@ test-suite Data.Stream.Rate
 test-suite Data.Unbox.Derive.Generic
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Unbox.hs
-  ghc-options: -main-is Streamly.Test.Data.Unbox.main
+  main-is: Streamly/Test/Data/MutByteArray/DeriveInstances.hs
+  ghc-options: -main-is Streamly.Test.Data.MutByteArray.DeriveInstances.main
 
 test-suite Data.Unbox.Derive.TH
   import: test-options
   type: exitcode-stdio-1.0
   cpp-options: -DTEST_DERIVE_UNBOX
-  main-is: Streamly/Test/Data/Unbox.hs
-  ghc-options: -main-is Streamly.Test.Data.Unbox.main
+  main-is: Streamly/Test/Data/MutByteArray/DeriveInstances.hs
+  ghc-options: -main-is Streamly.Test.Data.MutByteArray.DeriveInstances.main
 
 test-suite Data.Unbox.TH
   import: test-options
