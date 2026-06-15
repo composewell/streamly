@@ -213,72 +213,76 @@ chunksOf :: Int -> Handle -> IO Int
 chunksOf n inh =
     S.fold Fold.length $ A.chunksOf n (S.unfold FH.reader inh)
 
+-- Benchmarks a mix of file reading and stream operations. The purpose is
+-- twofold: (1) verify that file read operations fuse with downstream stream
+-- operations, and (2) measure end-to-end performance of common real-world
+-- pipelines (e.g. line count, word count) that combine file I/O with stream
+-- processing.
 allBenchmarks :: BenchEnv -> [Benchmark]
 allBenchmarks env =
     -- read raw bytes without any decoding
-    [ mkBench "S.drain" env $ \inh _ ->
+    [ mkBench "Fold.drain" env $ \inh _ ->
         readDrain inh
-    , mkBench "S.last" env $ \inh _ ->
+    , mkBench "Fold.latest" env $ \inh _ ->
         readLast inh
-    , mkBench "S.sum" env $ \inh _ ->
+    , mkBench "Fold.sum" env $ \inh _ ->
         readSumBytes inh
 
     -- read with Latin1 decoding
-    , mkBench "SS.decodeLatin1" env $ \inh _ ->
+    , mkBench "Unicode.decodeLatin1" env $ \inh _ ->
         readDecodeLatin1 inh
-    , mkBench "S.length" env $ \inh _ ->
+    , mkBench "Fold.length (wc -c)" env $ \inh _ ->
         readCountBytes inh
-    , mkBench "US.lines . SS.decodeLatin1" env $ \inh _ ->
+    , mkBench "Unicode.lines . Unicode.decodeLatin1 (wc -l)" env $ \inh _ ->
         readCountLines inh
-    , mkBench "US.words . SS.decodeLatin1" env $ \inh _ ->
+    , mkBench "Unicode.words . Unicode.decodeLatin1 (wc -w)" env $ \inh _ ->
         readCountWords inh
 
     -- read with utf8 decoding
-    , mkBenchSmall "SS.decodeUtf8" env $ \inh _ ->
+    , mkBenchSmall "Unicode.decodeUtf8" env $ \inh _ ->
         readDecodeUtf8 inh
 
-    , mkBench "toBytes/US.lines . SS.decodeLatin1" env $ \inh _ ->
+    , mkBench "Handle.readChunks . Unicode.lines . Unicode.decodeLatin1 (wc -l)" env $ \inh _ ->
         getChunksConcatUnfoldCountLines inh
 
     -- XXX all these require @-fspec-constr-recursive=12@.
-    , mkBench ("S.groupsOf " ++ show (bigSize env) ++  " FL.sum") env $
+    , mkBench ("Stream.groupsOf " ++ show (bigSize env) ++ " . Fold.sum") env $
         \inh _ ->
             chunksOfSum (bigSize env) inh
-    , mkBench "S.groupsOf 1 FL.sum" env $ \inh _ ->
+    , mkBench "Stream.groupsOf 1 . Fold.sum" env $ \inh _ ->
         chunksOfSum 1 inh
 
     -- XXX investigate why we need inline/noinline in these cases (GHC)
-    -- Chunk using parsers
     , mkBench
-        ("S.foldMany1 (FL.take " ++ show (bigSize env) ++ " FL.sum)")
+        ("Stream.foldManyPost " ++ show (bigSize env) ++ " . Fold.sum")
         env
         $ \inh _ -> noinline foldMany1ChunksOfSum (bigSize env) inh
     , mkBench
-        "S.foldMany1 (FL.take 1 FL.sum)"
+        "Stream.foldManyPost 1 . Fold.sum"
         env
         $ \inh _ -> inline foldMany1ChunksOfSum 1 inh
     , mkBench
-        ("S.foldMany (FL.take " ++ show (bigSize env) ++ " FL.sum)")
+        ("Stream.foldMany " ++ show (bigSize env) ++ " . Fold.sum")
         env
         $ \inh _ -> noinline foldManyChunksOfSum (bigSize env) inh
     , mkBench
-        "S.foldMany (FL.take 1 FL.sum)"
+        "Stream.foldMany 1 . Fold.sum"
         env
         $ \inh _ -> inline foldManyChunksOfSum 1 inh
 
     -- folding chunks to arrays
-    , mkBenchSmall "S.groupsOf 1" env $ \inh _ ->
+    , mkBenchSmall "Stream.groupsOf 1 . Array.unsafeCreateOf" env $ \inh _ ->
         groupsOf 1 inh
-    , mkBench "S.groupsOf 10" env $ \inh _ ->
+    , mkBench "Stream.groupsOf 10 . Array.unsafeCreateOf" env $ \inh _ ->
         groupsOf 10 inh
-    , mkBench "S.groupsOf 1000" env $ \inh _ ->
+    , mkBench "Stream.groupsOf 1000 . Array.unsafeCreateOf" env $ \inh _ ->
         groupsOf 1000 inh
 
     -- chunksOf may use a different impl than groupsOf
-    , mkBenchSmall "A.chunksOf 1" env $ \inh _ ->
+    , mkBenchSmall "Array.chunksOf 1" env $ \inh _ ->
         chunksOf 1 inh
-    , mkBench "A.chunksOf 10" env $ \inh _ ->
+    , mkBench "Array.chunksOf 10" env $ \inh _ ->
         chunksOf 10 inh
-    , mkBench "A.chunksOf 1000" env $ \inh _ ->
+    , mkBench "Array.chunksOf 1000" env $ \inh _ ->
         chunksOf 1000 inh
     ]

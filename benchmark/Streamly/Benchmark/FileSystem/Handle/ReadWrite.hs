@@ -167,23 +167,23 @@ inspect $ 'writeRead `hasNoType` ''MutArray.ArrayUnsafe -- FH.write/writeNUnsafe
 
 allBenchmarks :: BenchEnv -> [Benchmark]
 allBenchmarks env =
-    [ mkBench "toNull" env $ \inH _ ->
+    [ mkBench "Handle.readChunks . Handle.writeChunks" env $ \inH _ ->
         copyChunks inH (nullH env)
-    , mkBench "raw" env $ \inH outH ->
+    , mkBench "Handle.readChunks . Handle.writeChunks (cat)" env $ \inH outH ->
         copyChunks inH outH
 
-    , mkBench "rawToNull" env $ \inh _ ->
+    , mkBench "Handle.reader . Handle.write" env $ \inh _ ->
         copyStream inh (nullH env)
-    , mkBench "rawToFile" env $ \inh outh ->
+    , mkBench "Handle.reader . Handle.write (cat)" env $ \inh outh ->
         copyStream inh outh
 
-    , mkBench "putBytes rawToNull" env $ \inh _ ->
+    , mkBench "Handle.reader . Handle.putBytes" env $ \inh _ ->
         readFromBytesNull inh (nullH env)
-    , mkBench "FH.readWith" env $ \inh _ ->
+    , mkBench "Handle.readerWith . Handle.putBytes" env $ \inh _ ->
         readWithFromBytesNull inh (nullH env)
 
-    , mkBench "FH.write . FH.read" env $ \inh _ ->
+    , mkBench "Handle.reader . Handle.write (Unfold.fold)" env $ \inh _ ->
         writeRead inh (nullH env)
-    , mkBench "FH.writeWith . FH.readWith" env $ \inh _ ->
+    , mkBench "Handle.readerWith . Handle.writeWith (Unfold.fold)" env $ \inh _ ->
         writeReadWith inh (nullH env)
     ]
