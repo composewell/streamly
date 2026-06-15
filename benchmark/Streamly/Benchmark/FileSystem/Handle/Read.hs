@@ -151,31 +151,6 @@ inspect $ hasNoTypeClasses 'readDecodeUtf8
 -- inspect $ 'readDecodeUtf8Lax `hasNoType` ''Step
 #endif
 
-o_1_space_reduce_read :: BenchEnv -> [Benchmark]
-o_1_space_reduce_read env =
-    -- read raw bytes without any decoding
-    [ mkBench "S.drain" env $ \inh _ ->
-        readDrain inh
-    , mkBench "S.last" env $ \inh _ ->
-        readLast inh
-    , mkBench "S.sum" env $ \inh _ ->
-        readSumBytes inh
-
-    -- read with Latin1 decoding
-    , mkBench "SS.decodeLatin1" env $ \inh _ ->
-        readDecodeLatin1 inh
-    , mkBench "S.length" env $ \inh _ ->
-        readCountBytes inh
-    , mkBench "US.lines . SS.decodeLatin1" env $ \inh _ ->
-        readCountLines inh
-    , mkBench "US.words . SS.decodeLatin1" env $ \inh _ ->
-        readCountWords inh
-
-    -- read with utf8 decoding
-    , mkBenchSmall "SS.decodeUtf8" env $ \inh _ ->
-        readDecodeUtf8 inh
-    ]
-
 -------------------------------------------------------------------------------
 -- stream toBytes
 -------------------------------------------------------------------------------
@@ -194,12 +169,6 @@ inspect $ hasNoTypeClasses 'getChunksConcatUnfoldCountLines
 inspect $ 'getChunksConcatUnfoldCountLines `hasNoType` ''Step
 inspect $ 'getChunksConcatUnfoldCountLines `hasNoType` ''Producer.ConcatState
 #endif
-
-o_1_space_reduce_toBytes :: BenchEnv -> [Benchmark]
-o_1_space_reduce_toBytes env =
-    [ mkBench "toBytes/US.lines . SS.decodeLatin1" env $ \inh _ ->
-        getChunksConcatUnfoldCountLines inh
-    ]
 
 -------------------------------------------------------------------------------
 -- reduce after grouping in chunks
@@ -244,10 +213,35 @@ chunksOf :: Int -> Handle -> IO Int
 chunksOf n inh =
     S.fold Fold.length $ A.chunksOf n (S.unfold FH.reader inh)
 
--- XXX all these require @-fspec-constr-recursive=12@.
-o_1_space_reduce_read_grouped :: BenchEnv -> [Benchmark]
-o_1_space_reduce_read_grouped env =
-    [ mkBench ("S.groupsOf " ++ show (bigSize env) ++  " FL.sum") env $
+allBenchmarks :: BenchEnv -> [Benchmark]
+allBenchmarks env =
+    -- read raw bytes without any decoding
+    [ mkBench "S.drain" env $ \inh _ ->
+        readDrain inh
+    , mkBench "S.last" env $ \inh _ ->
+        readLast inh
+    , mkBench "S.sum" env $ \inh _ ->
+        readSumBytes inh
+
+    -- read with Latin1 decoding
+    , mkBench "SS.decodeLatin1" env $ \inh _ ->
+        readDecodeLatin1 inh
+    , mkBench "S.length" env $ \inh _ ->
+        readCountBytes inh
+    , mkBench "US.lines . SS.decodeLatin1" env $ \inh _ ->
+        readCountLines inh
+    , mkBench "US.words . SS.decodeLatin1" env $ \inh _ ->
+        readCountWords inh
+
+    -- read with utf8 decoding
+    , mkBenchSmall "SS.decodeUtf8" env $ \inh _ ->
+        readDecodeUtf8 inh
+
+    , mkBench "toBytes/US.lines . SS.decodeLatin1" env $ \inh _ ->
+        getChunksConcatUnfoldCountLines inh
+
+    -- XXX all these require @-fspec-constr-recursive=12@.
+    , mkBench ("S.groupsOf " ++ show (bigSize env) ++  " FL.sum") env $
         \inh _ ->
             chunksOfSum (bigSize env) inh
     , mkBench "S.groupsOf 1 FL.sum" env $ \inh _ ->
@@ -287,11 +281,4 @@ o_1_space_reduce_read_grouped env =
         chunksOf 10 inh
     , mkBench "A.chunksOf 1000" env $ \inh _ ->
         chunksOf 1000 inh
-    ]
-
-allBenchmarks :: BenchEnv -> [Benchmark]
-allBenchmarks env = Prelude.concat
-    [ o_1_space_reduce_read env
-    , o_1_space_reduce_toBytes env
-    , o_1_space_reduce_read_grouped env
     ]

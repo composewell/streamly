@@ -60,14 +60,6 @@ inspect $ hasNoTypeClasses 'copyChunks
 inspect $ 'copyChunks `hasNoType` ''Step
 #endif
 
-o_1_space_copy_chunked :: BenchEnv -> [Benchmark]
-o_1_space_copy_chunked env =
-    [ mkBench "toNull" env $ \inH _ ->
-        copyChunks inH (nullH env)
-    , mkBench "raw" env $ \inH outH ->
-        copyChunks inH outH
-    ]
-
 -------------------------------------------------------------------------------
 -- copy unfold
 -------------------------------------------------------------------------------
@@ -84,14 +76,6 @@ inspect $ 'copyStream `hasNoType` ''MutArray.ArrayUnsafe -- FH.write/writeNUnsaf
                                                    -- FH.read/A.read
 inspect $ 'copyStream `hasNoType` ''Strict.Tuple3' -- FH.write/chunksOf
 #endif
-
-o_1_space_copy_read :: BenchEnv -> [Benchmark]
-o_1_space_copy_read env =
-    [ mkBench "rawToNull" env $ \inh _ ->
-        copyStream inh (nullH env)
-    , mkBench "rawToFile" env $ \inh outh ->
-        copyStream inh outh
-    ]
 
 -------------------------------------------------------------------------------
 -- copy stream
@@ -143,14 +127,6 @@ _readChunksWith inh devNull = IUF.fold fld unf (defaultChunkSize, inh)
     fld = FH.write devNull
     unf = IUF.unfoldEach A.reader FH.chunkReaderWith
 
-o_1_space_copy_fromBytes :: BenchEnv -> [Benchmark]
-o_1_space_copy_fromBytes env =
-    [ mkBench "putBytes rawToNull" env $ \inh _ ->
-        readFromBytesNull inh (nullH env)
-    , mkBench "FH.readWith" env $ \inh _ ->
-        readWithFromBytesNull inh (nullH env)
-    ]
-
 -- | Send the file contents ('defaultChunkSize') to /dev/null
 writeReadWith :: Handle -> Handle -> IO ()
 writeReadWith inh devNull = IUF.fold fld unf (defaultChunkSize, inh)
@@ -185,22 +161,29 @@ inspect $ 'writeRead `hasNoType` ''MutArray.ArrayUnsafe -- FH.write/writeNUnsafe
                                                   -- FH.read/A.read
 #endif
 
-o_1_space_copy :: BenchEnv -> [Benchmark]
-o_1_space_copy env =
-    [ mkBench "FH.write . FH.read" env $ \inh _ ->
-        writeRead inh (nullH env)
-    , mkBench "FH.writeWith . FH.readWith" env $ \inh _ ->
-        writeReadWith inh (nullH env)
-    ]
-
 -------------------------------------------------------------------------------
 --
 -------------------------------------------------------------------------------
 
 allBenchmarks :: BenchEnv -> [Benchmark]
-allBenchmarks env = Prelude.concat
-    [ o_1_space_copy_chunked env
-    , o_1_space_copy_read env
-    , o_1_space_copy_fromBytes env
-    , o_1_space_copy env
+allBenchmarks env =
+    [ mkBench "toNull" env $ \inH _ ->
+        copyChunks inH (nullH env)
+    , mkBench "raw" env $ \inH outH ->
+        copyChunks inH outH
+
+    , mkBench "rawToNull" env $ \inh _ ->
+        copyStream inh (nullH env)
+    , mkBench "rawToFile" env $ \inh outh ->
+        copyStream inh outh
+
+    , mkBench "putBytes rawToNull" env $ \inh _ ->
+        readFromBytesNull inh (nullH env)
+    , mkBench "FH.readWith" env $ \inh _ ->
+        readWithFromBytesNull inh (nullH env)
+
+    , mkBench "FH.write . FH.read" env $ \inh _ ->
+        writeRead inh (nullH env)
+    , mkBench "FH.writeWith . FH.readWith" env $ \inh _ ->
+        writeReadWith inh (nullH env)
     ]
