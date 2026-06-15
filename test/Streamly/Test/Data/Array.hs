@@ -14,11 +14,14 @@ import Test.Hspec.QuickCheck
 import Test.QuickCheck (Property, forAll, Gen, vectorOf, chooseInt)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
+import Streamly.Internal.Data.MutByteArray (Serialize)
 import Streamly.Test.Common (listEquals)
 import Streamly.Test.Data.Array.Type (typeMain)
 
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Array as A
+import qualified Streamly.Internal.Data.MutArray as MutArray
+import qualified Streamly.Internal.Data.MutByteArray as Serialize
 import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.Stream as S
 
@@ -70,6 +73,31 @@ testParseBreak = do
                     Right x -> listEquals (==) (x ++ ls2) ls
                     Left _ -> assert False
 
+-------------------------------------------------------------------------------
+-- Array serialize/deserialize tests
+-------------------------------------------------------------------------------
+
+-- | Roundtrip a value through the Array serialization API. Apart from the
+-- plain serialize'/deserialize roundtrip, this also exercises deserialization
+-- from a slice with a non-zero start offset (to catch hardcoded 0 offsets) and
+-- from a cloned slice.
+serializeRoundtrip ::
+       forall a. (Eq a, Show a, Serialize a) => a -> IO ()
+serializeRoundtrip val = do
+    val `shouldBe` fst (A.deserialize (A.serialize' val))
+
+    -- Serialize into a buffer at a non-zero offset and build an Array slice
+    -- over the serialized region.
+    let sz = Serialize.addSizeTo 0 val
+        off = 10
+    arr <- Serialize.new (sz + off)
+    end <- Serialize.serializeAt off arr val
+    let slice = A.Array arr off end :: A.Array Word8
+    val `shouldBe` fst (A.deserialize slice)
+
+    clonedSlice <- A.unsafeFreeze <$> MutArray.clone (A.unsafeThaw slice)
+    val `shouldBe` fst (A.deserialize clonedSlice)
+
 testSplitOnSuffix :: Word8 -> [Word8] -> [[Word8]] -> IO ()
 testSplitOnSuffix sep inp out = do
     res <-
@@ -93,6 +121,10 @@ arrayMain = do
                                     [[], [1, 2], [4], [5, 6]]
     -- Parsing Stream of Arrays (Streamly.Internal.Data.Array)
     prop "parseBreak" testParseBreak
+    describe "serialize/deserialize" $ do
+        prop "Int"       $ \(x :: Int) -> serializeRoundtrip x
+        prop "[Int]"     $ \(x :: [Int]) -> serializeRoundtrip x
+        prop "Array Int" $ \(x :: [Int]) -> serializeRoundtrip (A.fromList x)
 
 main :: IO ()
 main =
