@@ -52,61 +52,61 @@ benchWithPostscanInt = benchScanWith source
 
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks numElements =
-    [ (SpaceO_1, benchWithPostscan numElements "minimum (window size 10)"
+    [ (SpaceO_1, benchWithPostscan numElements "windowMinimum 10"
         (Scanl.windowMinimum 10))
     -- Below window size 30 the linear search based impl performs better
     -- than the dequeue based implementation.
-    , (SpaceO_1, benchWithPostscan numElements "minimum (window size 30)"
+    , (SpaceO_1, benchWithPostscan numElements "windowMinimum 30"
         (Scanl.windowMinimum 30))
-    , (SpaceO_1, benchWithPostscan numElements "minimum (window size 1000)"
+    , (SpaceO_1, benchWithPostscan numElements "windowMinimum 1000"
         (Scanl.windowMinimum 1000))
     , (SpaceO_1, benchScanWith sourceDescendingInt numElements
-        "minimum descending (window size 1000)"
+        "windowMinimum 1000 descending"
         (Scanl.windowMinimum 1000))
 
-    , (SpaceO_1, benchWithPostscan numElements "maximum (window size 10)"
+    , (SpaceO_1, benchWithPostscan numElements "windowMaximum 10"
         (Scanl.windowMaximum 10))
-    , (SpaceO_1, benchWithPostscan numElements "maximum (window size 30)"
+    , (SpaceO_1, benchWithPostscan numElements "windowMaximum 30"
         (Scanl.windowMaximum 30))
-    , (SpaceO_1, benchWithPostscan numElements "maximum (window size 1000)"
+    , (SpaceO_1, benchWithPostscan numElements "windowMaximum 1000"
         (Scanl.windowMaximum 1000))
     , (SpaceO_1, benchScanWith sourceDescendingInt numElements
-        "maximum descending (window size 1000)"
+        "windowMaximum 1000 descending"
         (Scanl.windowMaximum 1000))
 
-    , (SpaceO_1, benchWithPostscan numElements "range (window size 10)"
+    , (SpaceO_1, benchWithPostscan numElements "windowRange 10"
         (Scanl.windowRange 10))
-    , (SpaceO_1, benchWithPostscan numElements "range (window size 30)"
+    , (SpaceO_1, benchWithPostscan numElements "windowRange 30"
         (Scanl.windowRange 30))
-    , (SpaceO_1, benchWithPostscan numElements "range (window size 1000)"
+    , (SpaceO_1, benchWithPostscan numElements "windowRange 1000"
         (Scanl.windowRange 1000))
     , (SpaceO_1, benchScanWith sourceDescendingInt numElements
-        "range descending (window size 1000)"
+        "windowRange 1000 descending"
         (Scanl.windowRange 1000))
 
-    , (SpaceO_1, benchWithPostscan numElements "sum (window size 100)"
+    , (SpaceO_1, benchWithPostscan numElements "incrSum 100"
         (Scanl.incrScan 100 Scanl.incrSum))
-    , (SpaceO_1, benchWithPostscan numElements "sum (window size 1000)"
+    , (SpaceO_1, benchWithPostscan numElements "incrSum 1000"
         (Scanl.incrScan 1000 Scanl.incrSum))
-    , (SpaceO_1, benchWithPostscan numElements "sum (entire stream)"
+    , (SpaceO_1, benchWithPostscan numElements "incrSum cumulative"
         (Scanl.cumulativeScan Scanl.incrSum))
 
-    , (SpaceO_1, benchWithPostscanInt numElements "sumInt (window size 100)"
+    , (SpaceO_1, benchWithPostscanInt numElements "incrSumInt 100"
         (Scanl.incrScan 100 Scanl.incrSumInt))
-    , (SpaceO_1, benchWithPostscanInt numElements "sumInt (window size 1000)"
+    , (SpaceO_1, benchWithPostscanInt numElements "incrSumInt 1000"
         (Scanl.incrScan 1000 Scanl.incrSumInt))
 
-    , (SpaceO_1, benchWithPostscan numElements "mean (window size 100)"
+    , (SpaceO_1, benchWithPostscan numElements "incrMean 100"
         (Scanl.incrScan 100 Scanl.incrMean))
-    , (SpaceO_1, benchWithPostscan numElements "mean (window size 1000)"
+    , (SpaceO_1, benchWithPostscan numElements "incrMean 1000"
         (Scanl.incrScan 1000 Scanl.incrMean))
-    , (SpaceO_1, benchWithPostscan numElements "mean (entire stream)"
+    , (SpaceO_1, benchWithPostscan numElements "incrMean cumulative"
         (Scanl.cumulativeScan Scanl.incrMean))
 
-    , (SpaceO_1, benchWithPostscan numElements "powerSum 2 (window size 100)"
+    , (SpaceO_1, benchWithPostscan numElements "incrPowerSum 2 100"
         (Scanl.incrScan 100 (Scanl.incrPowerSum 2)))
-    , (SpaceO_1, benchWithPostscan numElements "powerSum 2 (window size 1000)"
+    , (SpaceO_1, benchWithPostscan numElements "incrPowerSum 2 1000"
         (Scanl.incrScan 1000 (Scanl.incrPowerSum 2)))
-    , (SpaceO_1, benchWithPostscan numElements "powerSum 2 (entire stream)"
+    , (SpaceO_1, benchWithPostscan numElements "incrPowerSum 2"
         (Scanl.cumulativeScan (Scanl.incrPowerSum 2)))
     ]
