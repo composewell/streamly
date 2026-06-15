@@ -32,7 +32,6 @@ import System.IO (Handle)
 
 import qualified Streamly.Data.Array as Array
 import qualified Streamly.Data.Fold as Fold
-import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.FileSystem.Handle as Handle
@@ -49,6 +48,7 @@ import Streamly.Internal.Data.MutByteArray (Unbox)
 import Streamly.Internal.Data.Stream (Step(..))
 import qualified Streamly.Internal.Data.MutArray as MutArray
 import qualified Streamly.Internal.Data.Fold as Fold
+import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Tuple.Strict as Strict
 
 import Test.Inspection
@@ -70,12 +70,6 @@ copyCodecUtf8ArraysLenient inh outh =
 inspect $ hasNoTypeClasses 'copyCodecUtf8ArraysLenient
 -- inspect $ 'copyCodecUtf8ArraysLenient `hasNoType` ''Step
 #endif
-
-o_1_space_decode_encode_chunked :: BenchEnv -> [Benchmark]
-o_1_space_decode_encode_chunked env =
-    [ mkBenchSmall "encodeUtf8' . decodeUtf8Arrays" env $ \inH outH ->
-        copyCodecUtf8ArraysLenient inH outH
-    ]
 
 -------------------------------------------------------------------------------
 -- copy with group/ungroup transformations
@@ -187,24 +181,6 @@ wordsUnwordsCharArrayCopy inh outh =
       $ Unicode.decodeLatin1
       $ Stream.unfold Handle.reader inh
 
--- XXX all these require @-fspec-constr-recursive=12@.
-o_1_space_copy_read_group_ungroup :: BenchEnv -> [Benchmark]
-o_1_space_copy_read_group_ungroup env =
-    [ mkBenchSmall "unlines . splitOnSuffix ([Word8])" env
-        $ \inh outh -> linesUnlinesCopy inh outh
-    , mkBenchSmall "interposeSuffix . splitOnSuffix (Array Word8)" env
-        $ \inh outh -> linesUnlinesArrayWord8Copy inh outh
-    , mkBenchSmall "UnicodeArr.unlines . UnicodeArr.lines (Array Char)" env
-        $ \inh outh -> linesUnlinesArrayCharCopy inh outh
-
-    , mkBenchSmall "interposeSuffix . wordsBy ([Word8])" env
-        $ \inh outh -> wordsUnwordsCopyWord8 inh outh
-    , mkBenchSmall "unwords . wordsBy ([Char])" env
-        $ \inh outh -> wordsUnwordsCopy inh outh
-    , mkBenchSmall "UnicodeArr.unwords . UnicodeArr.words (Array Char)" env
-        $ \inh outh -> wordsUnwordsCharArrayCopy inh outh
-    ]
-
 -------------------------------------------------------------------------------
 -- copy unfold
 -------------------------------------------------------------------------------
@@ -314,29 +290,49 @@ _copyStreamUtf8Parser inh outh =
            (Unicode.parseCharUtf8With Unicode.TransliterateCodingFailure)
      $ Stream.unfold Handle.reader inh
 
--- XXX all these require @-fspec-constr-recursive=12@.
-o_1_space_decode_encode_read :: BenchEnv -> [Benchmark]
-o_1_space_decode_encode_read env =
-    -- This needs an ascii file, as decode just errors out.
-    [ mkBench "encodeLatin1' . decodeLatin1" env $ \inh outh ->
-        copyStreamLatin1' inh outh
-    , mkBench "encodeLatin1 . decodeLatin1" env $ \inh outh ->
-        copyStreamLatin1 inh outh
+allBenchmarks :: BenchEnv -> [Benchmark]
+allBenchmarks env =
+    [ bgroup (o_1_space_prefix moduleName)
+        [ -- XXX all these require @-fspec-constr-recursive=12@.
+          mkBenchSmall "unlines . splitOnSuffix ([Word8])" env
+            $ \inh outh -> linesUnlinesCopy inh outh
+        , mkBenchSmall "interposeSuffix . splitOnSuffix (Array Word8)" env
+            $ \inh outh -> linesUnlinesArrayWord8Copy inh outh
+        , mkBenchSmall "UnicodeArr.unlines . UnicodeArr.lines (Array Char)" env
+            $ \inh outh -> linesUnlinesArrayCharCopy inh outh
+
+        , mkBenchSmall "interposeSuffix . wordsBy ([Word8])" env
+            $ \inh outh -> wordsUnwordsCopyWord8 inh outh
+        , mkBenchSmall "unwords . wordsBy ([Char])" env
+            $ \inh outh -> wordsUnwordsCopy inh outh
+        , mkBenchSmall "UnicodeArr.unwords . UnicodeArr.words (Array Char)" env
+            $ \inh outh -> wordsUnwordsCharArrayCopy inh outh
+
+        , mkBenchSmall "encodeUtf8' . decodeUtf8Arrays" env $ \inH outH ->
+            copyCodecUtf8ArraysLenient inH outH
+
+        -- XXX all these require @-fspec-constr-recursive=12@.
+        -- This needs an ascii file, as decode just errors out.
+        , mkBench "encodeLatin1' . decodeLatin1" env $ \inh outh ->
+            copyStreamLatin1' inh outh
+        , mkBench "encodeLatin1 . decodeLatin1" env $ \inh outh ->
+            copyStreamLatin1 inh outh
 #ifdef INCLUDE_STRICT_UTF8
-    -- Requires valid unicode input
-    , mkBench "encodeUtf8' . decodeUtf8'" env $ \inh outh ->
-        _copyStreamUtf8' inh outh
-    , mkBench "encodeUtf8' . foldMany writeCharUtf8'" env $ \inh outh ->
-        _copyStreamUtf8'Fold inh outh
+        -- Requires valid unicode input
+        , mkBench "encodeUtf8' . decodeUtf8'" env $ \inh outh ->
+            _copyStreamUtf8' inh outh
+        , mkBench "encodeUtf8' . foldMany writeCharUtf8'" env $ \inh outh ->
+            _copyStreamUtf8'Fold inh outh
 #endif
-    , mkBenchSmall "encodeUtf8 . parseMany parseCharUtf8" env
-          $ \inh outh -> _copyStreamUtf8Parser inh outh
-    , mkBenchSmall "encodeUtf8 . decodeUtf8" env $ \inh outh ->
-        copyStreamUtf8 inh outh
-    {-
-    , mkBenchSmall "encodeUtf16 . decodeUtf16" env $ \inh outh ->
-        copyStreamUtf16 inh outh
-    -}
+        , mkBenchSmall "encodeUtf8 . parseMany parseCharUtf8" env
+              $ \inh outh -> _copyStreamUtf8Parser inh outh
+        , mkBenchSmall "encodeUtf8 . decodeUtf8" env $ \inh outh ->
+            copyStreamUtf8 inh outh
+        {-
+        , mkBenchSmall "encodeUtf16 . decodeUtf16" env $ \inh outh ->
+            copyStreamUtf16 inh outh
+        -}
+        ]
     ]
 
 main :: IO ()
@@ -344,16 +340,6 @@ main = do
 #ifndef FUSION_CHECK
     env <- mkHandleBenchEnv
     defaultMain (allBenchmarks env)
-
-    where
-
-    allBenchmarks env =
-        [ bgroup (o_1_space_prefix moduleName) $ Prelude.concat
-            [ o_1_space_copy_read_group_ungroup env
-            , o_1_space_decode_encode_chunked env
-            , o_1_space_decode_encode_read env
-            ]
-        ]
 #else
     -- Enable FUSION_CHECK macro at the beginning of the file
     -- Enable one benchmark below, and run the benchmark
