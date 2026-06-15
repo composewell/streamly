@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wno-deprecations -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 --
 -- Module      : Streamly.Unicode.Char
