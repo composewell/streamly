@@ -467,8 +467,8 @@ test-suite Data.Unbox.Derive.TH
 test-suite Data.Unbox.TH
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Unbox/TH.hs
-  ghc-options: -main-is Streamly.Test.Data.Unbox.TH.main
+  main-is: Streamly/Test/Data/MutByteArray/DeriveUnbox.hs
+  ghc-options: -main-is Streamly.Test.Data.MutByteArray.DeriveUnbox.main
 
 test-suite Data.Unfold
   import: test-options

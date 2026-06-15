@@ -1,14 +1,14 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 -- |
--- Module      : Streamly.Test.Data.Unbox.TH
+-- Module      : Streamly.Test.Data.MutByteArray.DeriveUnbox
 -- Copyright   : (c) 2022 Composewell technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Test.Data.Unbox.TH (main) where
+module Streamly.Test.Data.MutByteArray.DeriveUnbox (main) where
 
 --------------------------------------------------------------------------------
 -- Imports

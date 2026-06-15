@@ -146,7 +146,6 @@ extra-source-files:
     test/Streamly/Test/Data/Fold/*.hs
     test/Streamly/Test/Unicode/ucd/NormalizationTest.txt
     test/Streamly/Test/Unicode/extra/NormalizationTest.txt
-    test/Streamly/Test/Data/Unbox/*.hs
     test/Streamly/Test/Data/MutByteArray/*.hs
     test/lib/Streamly/Test/Common.hs
     test/lib/Streamly/Test/Control/Exception/Common.hs
