@@ -109,17 +109,17 @@ targets =
             ]
       )
 
-    , ("Data.MutByteArray",
+    , ("Data.MutByteArray.Serialize",
             [ "mut_bytearray_grp"
             , "streamly_core_grp"
-            ]
-      )
-    , ("Data.Serialize.Derive.TH",
-            [ "mut_bytearray_grp"
             , "noBench"
             ]
       )
-    , ("Data.MutByteArray.ConstructorTags",
+    , ("Data.MutByteArray.DeriveSerialize",
+            [ "mut_bytearray_grp"
+            ]
+      )
+    , ("Data.MutByteArray.SerializeConstrTags",
             [ "mut_bytearray_grp"
             , "noBench"
             ]
@@ -201,20 +201,15 @@ targets =
             ]
       )
 -}
-    , ("Data.Unbox",
-            [ "noTest"
-            , "streamly_core_grp"
-            ]
-      )
-    , ("Data.Unbox.Derive.Generic",
-            [ "noBench"
-            ]
-      )
-    , ("Data.Unbox.Derive.TH",
+    , ("Data.MutByteArray.DeriveUnboxGeneric",
             [ "streamly_core_grp"
             ]
       )
-    , ("Data.Unbox.TH",
+    , ("Data.MutByteArray.DeriveUnboxTH",
+            [ "streamly_core_grp"
+            ]
+      )
+    , ("Data.MutByteArray.DeriveUnboxTHCustom",
             [ "noBench"
             ]
       )

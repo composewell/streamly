@@ -313,6 +313,33 @@ benchmark Data.MutArray
   else
     buildable: True
 
+benchmark Data.MutByteArray.DeriveSerialize
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: .
+  cpp-options: -DUSE_TH
+  main-is: Streamly/Benchmark/Data/Serialize.hs
+  build-depends: QuickCheck, template-haskell
+  other-modules:
+      Streamly.Benchmark.Data.Serialize.TH
+      Streamly.Benchmark.Data.Serialize.RecCompatible
+      Streamly.Benchmark.Data.Serialize.RecNonCompatible
+
+benchmark Data.MutByteArray.DeriveUnboxGeneric
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: .
+  cpp-options: -DUSE_UNBOX
+  main-is: Streamly/Benchmark/Data/Serialize.hs
+
+benchmark Data.MutByteArray.DeriveUnboxTH
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: .
+  cpp-options: -DUSE_UNBOX
+  cpp-options: -DUSE_TH
+  main-is: Streamly/Benchmark/Data/Serialize.hs
+
 benchmark Data.Parser
   import: bench-options
   type: exitcode-stdio-1.0
@@ -406,19 +433,6 @@ benchmark Data.Scanl.Concurrent
     buildable: False
   else
     buildable: True
-
--- XXX Should be renamed to MutByteArray
-benchmark Data.Serialize
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: .
-  cpp-options: -DUSE_TH
-  main-is: Streamly/Benchmark/Data/Serialize.hs
-  build-depends: QuickCheck, template-haskell
-  other-modules:
-      Streamly.Benchmark.Data.Serialize.TH
-      Streamly.Benchmark.Data.Serialize.RecCompatible
-      Streamly.Benchmark.Data.Serialize.RecNonCompatible
 
 benchmark Data.SmallArray
   import: bench-options
@@ -584,21 +598,6 @@ benchmark Data.StreamK.StreamKAlt
   main-is: StreamKAlt.hs
   if !flag(dev) || impl(ghcjs)
     buildable: False
-
-benchmark Data.Unbox
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: .
-  cpp-options: -DUSE_UNBOX
-  main-is: Streamly/Benchmark/Data/Serialize.hs
-
-benchmark Data.Unbox.Derive.TH
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: .
-  cpp-options: -DUSE_UNBOX
-  cpp-options: -DUSE_TH
-  main-is: Streamly/Benchmark/Data/Serialize.hs
 
 benchmark Data.Unfold
   import: bench-options

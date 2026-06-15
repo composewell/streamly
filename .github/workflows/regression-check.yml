@@ -30,6 +30,9 @@ jobs:
         Data.Array.Stream
         Data.Fold
         Data.MutArray
+        Data.MutByteArray.DeriveSerialize
+        Data.MutByteArray.DeriveUnboxGeneric
+        Data.MutByteArray.DeriveUnboxTH
         Data.Parser
         Data.ParserK
         Data.ParserK.Chunked
@@ -37,7 +40,6 @@ jobs:
         Data.RingArray
         Data.Scanl
         Data.Scanl.Concurrent
-        Data.Serialize
         Data.Stream
         Data.Stream.Concurrent
         Data.Stream.ConcurrentEager
@@ -45,8 +47,6 @@ jobs:
         Data.Stream.ConcurrentOrdered
         Data.Stream.Prelude
         Data.StreamK:6
-        Data.Unbox
-        Data.Unbox.Derive.TH
         Data.Unfold
         Data.Unfold.Prelude
         FileSystem.DirIO
