@@ -646,9 +646,6 @@ benchmark FileSystem.Handle
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/FileSystem
   main-is: Handle.hs
-  other-modules:
-      Handle.Read
-    , Handle.ReadWrite
   if flag(use-streamly-core)
     buildable: False
   else
