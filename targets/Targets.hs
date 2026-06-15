@@ -109,7 +109,7 @@ targets =
             ]
       )
 
-    , ("Data.Serialize",
+    , ("Data.MutByteArray",
             [ "mut_bytearray_grp"
             , "streamly_core_grp"
             ]
@@ -119,7 +119,7 @@ targets =
             , "noBench"
             ]
       )
-    , ("Data.Serialize.ENABLE_constructorTagAsString",
+    , ("Data.MutByteArray.ConstructorTags",
             [ "mut_bytearray_grp"
             , "noBench"
             ]

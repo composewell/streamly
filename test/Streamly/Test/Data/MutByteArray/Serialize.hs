@@ -8,14 +8,14 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- |
--- Module      : Streamly.Test.Data.Serialize
+-- Module      : Streamly.Test.Data.MutByteArray.Serialize
 -- Copyright   : (c) 2022 Composewell technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Test.Data.Serialize (main) where
+module Streamly.Test.Data.MutByteArray.Serialize (main) where
 
 --------------------------------------------------------------------------------
 -- Imports
@@ -27,15 +27,15 @@ import System.Random (randomRIO)
 import Streamly.Internal.Data.MutByteArray (MutByteArray)
 import GHC.Generics (Generic)
 import Streamly.Data.MutByteArray (Serialize)
-import Streamly.Test.Data.Serialize.TH (genDatatype)
+import Streamly.Test.Data.MutByteArray.TH (genDatatype)
 
 import Data.Functor.Identity (Identity (..))
 
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.MutByteArray as Serialize
 
-import qualified Streamly.Test.Data.Serialize.CompatV0 as CompatV0
-import qualified Streamly.Test.Data.Serialize.CompatV1 as CompatV1
+import qualified Streamly.Test.Data.MutByteArray.CompatV0 as CompatV0
+import qualified Streamly.Test.Data.MutByteArray.CompatV1 as CompatV1
 
 import Test.Hspec.QuickCheck
 import Test.QuickCheck

@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Streamly.Test.Data.Serialize.CompatV1
+module Streamly.Test.Data.MutByteArray.CompatV1
     ( Rec(..)
     , River(..)
     ) where

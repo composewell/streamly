@@ -1,14 +1,14 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 -- |
--- Module      : Streamly.Test.Data.Serialize.TH
+-- Module      : Streamly.Test.Data.MutByteArray.TH
 -- Copyright   : (c) 2022 Composewell technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Test.Data.Serialize.TH (genDatatype) where
+module Streamly.Test.Data.MutByteArray.TH (genDatatype) where
 
 --------------------------------------------------------------------------------
 -- Imports

@@ -343,16 +343,15 @@ test-suite Data.Scanl.Concurrent
   if flag(use-streamly-core)
     buildable: False
 
--- XXX Rename to MutByteArray
-test-suite Data.Serialize
+test-suite Data.MutByteArray
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Serialize.hs
+  main-is: Streamly/Test/Data/MutByteArray/Serialize.hs
   other-modules:
-      Streamly.Test.Data.Serialize.TH
-      Streamly.Test.Data.Serialize.CompatV0
-      Streamly.Test.Data.Serialize.CompatV1
-  ghc-options: -main-is Streamly.Test.Data.Serialize.main
+      Streamly.Test.Data.MutByteArray.TH
+      Streamly.Test.Data.MutByteArray.CompatV0
+      Streamly.Test.Data.MutByteArray.CompatV1
+  ghc-options: -main-is Streamly.Test.Data.MutByteArray.Serialize.main
   if flag(limit-build-mem)
     ghc-options: +RTS -M1500M -RTS
 
@@ -363,16 +362,16 @@ test-suite Data.Serialize.Derive.TH
   main-is: Streamly/Test/Data/Unbox.hs
   ghc-options: -main-is Streamly.Test.Data.Unbox.main
 
-test-suite Data.Serialize.ENABLE_constructorTagAsString
+test-suite Data.MutByteArray.ConstructorTags
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Serialize.hs
+  main-is: Streamly/Test/Data/MutByteArray/Serialize.hs
   other-modules:
-      Streamly.Test.Data.Serialize.TH
-      Streamly.Test.Data.Serialize.CompatV0
-      Streamly.Test.Data.Serialize.CompatV1
+      Streamly.Test.Data.MutByteArray.TH
+      Streamly.Test.Data.MutByteArray.CompatV0
+      Streamly.Test.Data.MutByteArray.CompatV1
   cpp-options: -DENABLE_constructorTagAsString
-  ghc-options: -main-is Streamly.Test.Data.Serialize.main
+  ghc-options: -main-is Streamly.Test.Data.MutByteArray.Serialize.main
   if flag(limit-build-mem)
     ghc-options: +RTS -M1500M -RTS
 
