@@ -318,19 +318,19 @@ benchmark Data.MutByteArray.DeriveSerialize
   type: exitcode-stdio-1.0
   hs-source-dirs: .
   cpp-options: -DUSE_TH
-  main-is: Streamly/Benchmark/Data/Serialize.hs
+  main-is: Streamly/Benchmark/Data/MutByteArray/Serialize.hs
   build-depends: QuickCheck, template-haskell
   other-modules:
-      Streamly.Benchmark.Data.Serialize.TH
-      Streamly.Benchmark.Data.Serialize.RecCompatible
-      Streamly.Benchmark.Data.Serialize.RecNonCompatible
+      Streamly.Benchmark.Data.MutByteArray.TH
+      Streamly.Benchmark.Data.MutByteArray.RecCompatible
+      Streamly.Benchmark.Data.MutByteArray.RecNonCompatible
 
 benchmark Data.MutByteArray.DeriveUnboxGeneric
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: .
   cpp-options: -DUSE_UNBOX
-  main-is: Streamly/Benchmark/Data/Serialize.hs
+  main-is: Streamly/Benchmark/Data/MutByteArray/Serialize.hs
 
 benchmark Data.MutByteArray.DeriveUnboxTH
   import: bench-options
@@ -338,7 +338,7 @@ benchmark Data.MutByteArray.DeriveUnboxTH
   hs-source-dirs: .
   cpp-options: -DUSE_UNBOX
   cpp-options: -DUSE_TH
-  main-is: Streamly/Benchmark/Data/Serialize.hs
+  main-is: Streamly/Benchmark/Data/MutByteArray/Serialize.hs
 
 benchmark Data.Parser
   import: bench-options

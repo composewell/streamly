@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Streamly.Benchmark.Data.Serialize.TH (genLargeRecord) where
+module Streamly.Benchmark.Data.MutByteArray.TH (genLargeRecord) where
 
 --------------------------------------------------------------------------------
 -- Imports

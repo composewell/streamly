@@ -7,7 +7,7 @@
 #endif
 
 -- |
--- Module      : Streamly.Benchmark.Data.Serialize
+-- Module      : Streamly.Benchmark.Data.MutByteArray.Serialize
 -- Copyright   : (c) 2023 Composewell
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -39,8 +39,8 @@ import Test.Tasty.Bench
 import Streamly.Benchmark.Common
 
 #ifndef USE_UNBOX
-import Streamly.Benchmark.Data.Serialize.RecCompatible
-import Streamly.Benchmark.Data.Serialize.RecNonCompatible
+import Streamly.Benchmark.Data.MutByteArray.RecCompatible
+import Streamly.Benchmark.Data.MutByteArray.RecNonCompatible
 #endif
 
 #ifdef USE_UNBOX

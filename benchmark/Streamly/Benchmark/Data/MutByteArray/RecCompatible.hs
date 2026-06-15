@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Streamly.Benchmark.Data.Serialize.RecCompatible
+module Streamly.Benchmark.Data.MutByteArray.RecCompatible
     ( RecCompatible(..)
     , valRecCompatible
     ) where
@@ -10,7 +10,7 @@ module Streamly.Benchmark.Data.Serialize.RecCompatible
 --------------------------------------------------------------------------------
 
 import Streamly.Internal.Data.MutByteArray (Serialize)
-import Streamly.Benchmark.Data.Serialize.TH (genLargeRecord)
+import Streamly.Benchmark.Data.MutByteArray.TH (genLargeRecord)
 
 import qualified Streamly.Internal.Data.MutByteArray as Serialize
 
