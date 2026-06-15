@@ -17,7 +17,6 @@ on:
 #----------------------------------------------------------------------
 #-- Benchmarks listed in alphabetical order
 #----------------------------------------------------------------------
-# Removed Data.Fold.Prelude - was failing for some reason (memory issue?)
 jobs:
   build:
     name: "Comparison: master vs PR (ubuntu-latest ghc-9.14.1)"
@@ -27,8 +26,8 @@ jobs:
       CI_BENCHMARKS_WITH_CUTOFF: >-
         Data.Array
         Data.Array.Generic
-        Data.Array.Stream
         Data.Fold
+        Data.Fold.Prelude
         Data.MutArray
         Data.MutByteArray.DeriveSerialize
         Data.MutByteArray.DeriveUnboxGeneric
@@ -37,7 +36,9 @@ jobs:
         Data.ParserK
         Data.ParserK.Chunked
         Data.ParserK.Chunked.Generic
+        Data.Pipe
         Data.RingArray
+        Data.Scan
         Data.Scanl
         Data.Scanl.Concurrent
         Data.Stream
@@ -49,6 +50,7 @@ jobs:
         Data.StreamK:6
         Data.Unfold
         Data.Unfold.Prelude
+        CrossModule
         FileSystem.DirIO
         FileSystem.Handle
         Unicode.Parser
