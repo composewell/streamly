@@ -33,10 +33,7 @@ import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream as IP
-import qualified Streamly.Internal.FileSystem.Handle as IFH
-import qualified Streamly.Internal.Unicode.Stream as IUS
 import qualified Streamly.Data.Stream.Prelude as S
-import qualified Streamly.Unicode.Stream as SS
 
 import Test.Tasty.Bench hiding (env)
 import Prelude hiding (last, length)
@@ -68,7 +65,6 @@ inspect $ 'readLast `hasNoType` ''Producer.ConcatState -- FH.read/UF.many
 inspect $ 'readLast `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 #endif
 
--- assert that flattenArrays constructors are not present
 -- | Count the number of bytes in a file.
 readCountBytes :: Handle -> IO Int
 readCountBytes = S.fold Fold.length . S.unfold FH.reader
@@ -78,34 +74,6 @@ inspect $ hasNoTypeClasses 'readCountBytes
 inspect $ 'readCountBytes `hasNoType` ''Step -- S.unfold
 inspect $ 'readCountBytes `hasNoType` ''Producer.ConcatState -- FH.read/UF.many
 inspect $ 'readCountBytes `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
-#endif
-
--- | Count the number of lines in a file.
-readCountLines :: Handle -> IO Int
-readCountLines =
-    S.fold Fold.length
-        . IUS.lines FL.drain
-        . SS.decodeLatin1
-        . S.unfold FH.reader
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'readCountLines
-inspect $ 'readCountLines `hasNoType` ''Step
-inspect $ 'readCountLines `hasNoType` ''Producer.ConcatState -- FH.read/UF.many
-inspect $ 'readCountLines `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
-#endif
-
--- | Count the number of words in a file.
-readCountWords :: Handle -> IO Int
-readCountWords =
-    S.fold Fold.length
-        . IUS.words FL.drain
-        . SS.decodeLatin1
-        . S.unfold FH.reader
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'readCountWords
--- inspect $ 'readCountWords `hasNoType` ''Step
 #endif
 
 -- | Sum the bytes in a file.
@@ -131,44 +99,6 @@ inspect $ 'readSumBytes `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 -- does not occur.
 readDrain :: Handle -> IO ()
 readDrain inh = S.fold Fold.drain $ S.unfold FH.reader inh
-
--- XXX investigate why we need an INLINE in this case (GHC)
-{-# INLINE readDecodeLatin1 #-}
-readDecodeLatin1 :: Handle -> IO ()
-readDecodeLatin1 inh =
-   S.fold Fold.drain
-     $ SS.decodeLatin1
-     $ S.unfold FH.reader inh
-
-readDecodeUtf8 :: Handle -> IO ()
-readDecodeUtf8 inh =
-   S.fold Fold.drain
-     $ SS.decodeUtf8
-     $ S.unfold FH.reader inh
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'readDecodeUtf8
--- inspect $ 'readDecodeUtf8Lax `hasNoType` ''Step
-#endif
-
--------------------------------------------------------------------------------
--- stream toBytes
--------------------------------------------------------------------------------
-
--- | Count the number of lines in a file.
-getChunksConcatUnfoldCountLines :: Handle -> IO Int
-getChunksConcatUnfoldCountLines inh =
-    S.fold Fold.length
-        $ IUS.lines FL.drain
-        $ SS.decodeLatin1
-        -- XXX replace with toBytes
-        $ S.unfoldEach A.reader (IFH.readChunks inh)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'getChunksConcatUnfoldCountLines
-inspect $ 'getChunksConcatUnfoldCountLines `hasNoType` ''Step
-inspect $ 'getChunksConcatUnfoldCountLines `hasNoType` ''Producer.ConcatState
-#endif
 
 -------------------------------------------------------------------------------
 -- reduce after grouping in chunks
@@ -228,22 +158,8 @@ allBenchmarks env =
     , mkBench "Fold.sum" env $ \inh _ ->
         readSumBytes inh
 
-    -- read with Latin1 decoding
-    , mkBench "Unicode.decodeLatin1" env $ \inh _ ->
-        readDecodeLatin1 inh
     , mkBench "Fold.length (wc -c)" env $ \inh _ ->
         readCountBytes inh
-    , mkBench "Unicode.lines . Unicode.decodeLatin1 (wc -l)" env $ \inh _ ->
-        readCountLines inh
-    , mkBench "Unicode.words . Unicode.decodeLatin1 (wc -w)" env $ \inh _ ->
-        readCountWords inh
-
-    -- read with utf8 decoding
-    , mkBenchSmall "Unicode.decodeUtf8" env $ \inh _ ->
-        readDecodeUtf8 inh
-
-    , mkBench "Handle.readChunks . Unicode.lines . Unicode.decodeLatin1 (wc -l)" env $ \inh _ ->
-        getChunksConcatUnfoldCountLines inh
 
     -- XXX all these require @-fspec-constr-recursive=12@.
     , mkBench ("Stream.groupsOf " ++ show (bigSize env) ++ " . Fold.sum") env $

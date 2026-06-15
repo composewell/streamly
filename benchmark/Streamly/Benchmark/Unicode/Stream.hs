@@ -290,12 +290,73 @@ _copyStreamUtf8Parser inh outh =
            (Unicode.parseCharUtf8With Unicode.TransliterateCodingFailure)
      $ Stream.unfold Handle.reader inh
 
+-------------------------------------------------------------------------------
+-- read and decode
+-------------------------------------------------------------------------------
+
+-- XXX investigate why we need an INLINE in this case (GHC)
+{-# INLINE readDecodeLatin1 #-}
+readDecodeLatin1 :: Handle -> IO ()
+readDecodeLatin1 inh =
+   Stream.fold Fold.drain
+     $ Unicode.decodeLatin1
+     $ Handle.read inh
+
+readCountLines :: Handle -> IO Int
+readCountLines =
+    Stream.fold Fold.length
+        . Unicode.lines Fold.drain
+        . Unicode.decodeLatin1
+        . Handle.read
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'readCountLines
+inspect $ 'readCountLines `hasNoType` ''Step
+inspect $ 'readCountLines `hasNoType` ''Producer.ConcatState -- Handle.read/UF.many
+inspect $ 'readCountLines `hasNoType` ''MutArray.ArrayUnsafe  -- Handle.read/Array.read
+#endif
+
+readCountWords :: Handle -> IO Int
+readCountWords =
+    Stream.fold Fold.length
+        . Unicode.words Fold.drain
+        . Unicode.decodeLatin1
+        . Handle.read
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'readCountWords
+-- inspect $ 'readCountWords `hasNoType` ''Step
+#endif
+
+readDecodeUtf8 :: Handle -> IO ()
+readDecodeUtf8 inh =
+   Stream.fold Fold.drain
+     $ Unicode.decodeUtf8
+     $ Handle.read inh
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'readDecodeUtf8
+-- inspect $ 'readDecodeUtf8Lax `hasNoType` ''Step
+#endif
+
 allBenchmarks :: BenchEnv -> [Benchmark]
 allBenchmarks env =
     [ bgroup (o_1_space_prefix moduleName)
-        [ -- XXX all these require @-fspec-constr-recursive=12@.
+        [ -- read with Latin1 decoding
+          mkBench "Unicode.decodeLatin1 (read file)" env
+            $ \inh _ -> readDecodeLatin1 inh
+        , mkBench "Unicode.lines . Unicode.decodeLatin1 (wc -l)" env
+            $ \inh _ -> readCountLines inh
+        , mkBench "Unicode.words . Unicode.decodeLatin1 (wc -w)" env
+            $ \inh _ -> readCountWords inh
+
+        -- read with utf8 decoding
+        , mkBenchSmall "Unicode.decodeUtf8" env $ \inh _ ->
+            readDecodeUtf8 inh
+
+        -- XXX all these require @-fspec-constr-recursive=12@.
           -- lines/unlines
-          mkBenchSmall "Unicode.unlines . Stream.splitOnSuffix ([Word8])" env
+        , mkBenchSmall "Unicode.unlines . Stream.splitOnSuffix ([Word8])" env
             $ \inh outh -> linesUnlinesCopy inh outh
         , mkBenchSmall "Stream.unfoldEachEndBy . Stream.splitOnSuffix (Array Word8)" env
             $ \inh outh -> linesUnlinesArrayWord8Copy inh outh
@@ -311,7 +372,7 @@ allBenchmarks env =
             $ \inh outh -> wordsUnwordsCharArrayCopy inh outh
 
         -- decode/encode
-        , mkBenchSmall "Handle.readChunks . Unicode.decodeUtf8Chunks . Unicode.encodeUtf8' (copy)" env $ \inH outH ->
+        , mkBenchSmall "Unicode.decodeUtf8Chunks . Unicode.encodeUtf8' (copy)" env $ \inH outH ->
             copyCodecUtf8ArraysLenient inH outH
 
         -- XXX all these require @-fspec-constr-recursive=12@.
