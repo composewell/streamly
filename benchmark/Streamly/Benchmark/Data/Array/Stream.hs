@@ -157,27 +157,6 @@ inspect $ hasNoTypeClasses 'toChunksSplitOn
 inspect $ 'toChunksSplitOn `hasNoType` ''Step
 #endif
 
-o_1_space_read_chunked :: BenchEnv -> [Benchmark]
-o_1_space_read_chunked env =
-    -- read using toChunks instead of read
-    [ bgroup "reduce/toChunks"
-        [ mkBench "Stream.last" env $ \inH _ ->
-            toChunksLast inH
-        -- Note: this cannot be fairly compared with GNU wc -c or wc -m as
-        -- wc uses lseek to just determine the file size rather than reading
-        -- and counting characters.
-        , mkBench "Stream.sum . Stream.map Array.length" env $ \inH _ ->
-            toChunksSumLengths inH
-        , mkBench "splitOnSuffix" env $ \inH _ ->
-            toChunksSplitOnSuffix inH
-        , mkBench "splitOn" env $ \inH _ ->
-            toChunksSplitOn inH
-        , mkBench "countBytes" env $ \inH _ ->
-            toChunksCountBytes inH
-        , mkBenchSmall "decodeUtf8Arrays" env $ \inH _ ->
-            toChunksDecodeUtf8Arrays inH
-        ]
-    ]
 
 -------------------------------------------------------------------------------
 -- copy with group/ungroup transformations
@@ -211,15 +190,6 @@ inspect $ hasNoTypeClassesExcept 'copyChunksSplitInterpose [''Unbox]
 inspect $ 'copyChunksSplitInterpose `hasNoType` ''Step
 #endif
 
-o_1_space_copy_toChunks_group_ungroup :: BenchEnv -> [Benchmark]
-o_1_space_copy_toChunks_group_ungroup env =
-    [ bgroup "copy/toChunks/group-ungroup"
-        [ mkBench "interposeSuffix . splitOnSuffix" env $ \inh outh ->
-            copyChunksSplitInterposeSuffix inh outh
-        , mkBenchSmall "interpose . splitOn" env $ \inh outh ->
-            copyChunksSplitInterpose inh outh
-        ]
-    ]
 
 -------------------------------------------------------------------------------
 -- Parsers
@@ -258,24 +228,6 @@ parseBreak s = do
         (Left _, _) -> return ()
         (Right _, s1) -> parseBreak s1
 
-o_1_space_serial_array ::
-    Int -> [Array.Array Int] -> [Array.Array Int] -> [Benchmark]
-o_1_space_serial_array bound arraysSmall arraysBig =
-    [ benchIO "fold (of 100)" (\_ -> Stream.fromList arraysSmall) fold
-    , benchIO "fold (single)" (\_ -> Stream.fromList arraysBig) fold
-    , benchIO
-        "foldBreak (recursive, small arrays)"
-        (\_ -> Stream.fromList arraysSmall)
-        (foldBreak . StreamK.fromStream)
-    , benchIO "parse (of 100)" (\_ -> Stream.fromList arraysSmall)
-        $ parse bound
-    , benchIO "parse (single)" (\_ -> Stream.fromList arraysBig)
-        $ parse bound
-    , benchIO
-        "parseBreak (recursive, small arrays)"
-        (\_ -> Stream.fromList arraysSmall)
-        (parseBreak . StreamK.fromStream)
-    ]
 
 -------------------------------------------------------------------------------
 -- Driver
@@ -302,10 +254,43 @@ main = do
 
     benchmarks env arrays value =
         let (arraysSmall, arraysBig) = arrays
-        in map (SpaceO_1,) $ Prelude.concat
-          [ o_1_space_read_chunked env
-          , o_1_space_serial_array value arraysSmall arraysBig
-          , o_1_space_copy_toChunks_group_ungroup env
+        in
+        -- read using toChunks instead of read
+          [ (SpaceO_1, mkBench "Stream.last" env $ \inH _ ->
+                toChunksLast inH)
+          -- Note: this cannot be fairly compared with GNU wc -c or wc -m as
+          -- wc uses lseek to just determine the file size rather than reading
+          -- and counting characters.
+          , (SpaceO_1, mkBench "Stream.sum . Stream.map Array.length" env $ \inH _ ->
+                toChunksSumLengths inH)
+          , (SpaceO_1, mkBench "splitOnSuffix" env $ \inH _ ->
+                toChunksSplitOnSuffix inH)
+          , (SpaceO_1, mkBench "splitOn" env $ \inH _ ->
+                toChunksSplitOn inH)
+          , (SpaceO_1, mkBench "countBytes" env $ \inH _ ->
+                toChunksCountBytes inH)
+          , (SpaceO_1, mkBenchSmall "decodeUtf8Arrays" env $ \inH _ ->
+                toChunksDecodeUtf8Arrays inH)
+
+          , (SpaceO_1, benchIO "fold (of 100)" (\_ -> Stream.fromList arraysSmall) fold)
+          , (SpaceO_1, benchIO "fold (single)" (\_ -> Stream.fromList arraysBig) fold)
+          , (SpaceO_1, benchIO
+                "foldBreak (recursive, small arrays)"
+                (\_ -> Stream.fromList arraysSmall)
+                (foldBreak . StreamK.fromStream))
+          , (SpaceO_1, benchIO "parse (of 100)" (\_ -> Stream.fromList arraysSmall)
+                $ parse value)
+          , (SpaceO_1, benchIO "parse (single)" (\_ -> Stream.fromList arraysBig)
+                $ parse value)
+          , (SpaceO_1, benchIO
+                "parseBreak (recursive, small arrays)"
+                (\_ -> Stream.fromList arraysSmall)
+                (parseBreak . StreamK.fromStream))
+
+          , (SpaceO_1, mkBench "interposeSuffix . splitOnSuffix" env $ \inh outh ->
+                copyChunksSplitInterposeSuffix inh outh)
+          , (SpaceO_1, mkBenchSmall "interpose . splitOn" env $ \inh outh ->
+                copyChunksSplitInterpose inh outh)
           ]
 
     allBenchmarks env arrays value =

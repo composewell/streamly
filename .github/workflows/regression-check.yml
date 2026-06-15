@@ -29,7 +29,6 @@ jobs:
         Data.Array.Generic
         Data.Array.Stream
         Data.Fold
-        Data.Fold.Window
         Data.MutArray
         Data.Parser
         Data.ParserK
@@ -38,7 +37,6 @@ jobs:
         Data.RingArray
         Data.Scanl
         Data.Scanl.Concurrent
-        Data.Scanl.Window
         Data.Serialize
         Data.Stream
         Data.Stream.Concurrent

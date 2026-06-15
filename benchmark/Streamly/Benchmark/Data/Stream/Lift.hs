@@ -69,7 +69,6 @@ withState value n =
     Stream.evalStateT
         (return (0 :: Int)) (Stream.liftInner (sourceUnfoldrM value n))
 
-{-# INLINE evalStateTIO #-}
 evalStateTIO :: Int -> IO ()
 evalStateTIO value = withRandomIntIO $ \n ->
     Stream.fold Fold.drain (evalStateT value n :: Stream IO Int)
@@ -81,7 +80,6 @@ inspect $ 'evalStateTIO `hasNoType` ''Fold.Step
 inspect $ 'evalStateTIO `hasNoType` ''SPEC
 #endif
 
-{-# INLINE withStateIO #-}
 withStateIO :: Int -> IO ()
 withStateIO value = withRandomIntIO $ \n ->
     Stream.fold Fold.drain (withState value n :: Stream IO Int)
@@ -93,7 +91,6 @@ inspect $ 'withStateIO `hasNoType` ''Fold.Step
 inspect $ 'withStateIO `hasNoType` ''SPEC
 #endif
 
-{-# INLINE generalizeInner #-}
 generalizeInner :: Int -> IO Int
 generalizeInner value =
     withPureStream value $
@@ -106,29 +103,19 @@ inspect $ 'generalizeInner `hasNoType` ''Fold.Step
 inspect $ 'generalizeInner `hasNoType` ''SPEC
 #endif
 
-{-# INLINE generalizeInnerIO #-}
 generalizeInnerIO :: Int -> IO Int
 generalizeInnerIO value = withRandomIntIO $ \n ->
     Stream.fold Fold.length
         (Stream.generalizeInner (sourceUnfoldr value n) :: Stream IO Int)
 
-o_1_space_hoisting :: Int -> [Benchmark]
-o_1_space_hoisting value =
-    [ bgroup "hoisting"
-        [ benchIO "evalState" $ evalStateTIO value
-        , benchIO "withState" $ withStateIO value
-        , benchIO "length . generalizeInner" $ generalizeInner value
-        , benchIO "generalizeInner" $ generalizeInnerIO value
-        ]
-    ]
-
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
 
--- In addition to gauge options, the number of elements in the stream can be
--- passed using the --stream-size option.
---
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
-    map (SpaceO_1,) (o_1_space_hoisting size)
+      [ (SpaceO_1, benchIO "evalState" $ evalStateTIO size)
+      , (SpaceO_1, benchIO "withState" $ withStateIO size)
+      , (SpaceO_1, benchIO "length . generalizeInner" $ generalizeInner size)
+      , (SpaceO_1, benchIO "generalizeInner" $ generalizeInnerIO size)
+      ]

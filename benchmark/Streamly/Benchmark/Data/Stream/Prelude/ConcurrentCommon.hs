@@ -55,25 +55,21 @@ mapM ::
     -> m ()
 mapM f n = composeN n $ Async.parMapM f return
 
-o_1_space_mapping :: Int -> (Config -> Config) -> [Benchmark]
+o_1_space_mapping :: Int -> (Config -> Config) -> [(SpaceComplexity, Benchmark)]
 o_1_space_mapping value f =
-    [ bgroup "mapping"
-        [ benchIOSink value "mapM" $ mapM f 1
-        ]
+    [ (SpaceO_1, benchIOSink value "mapM" $ mapM f 1)
     ]
 
 -------------------------------------------------------------------------------
 -- Size conserving transformations (reordering, buffering, etc.)
 -------------------------------------------------------------------------------
 
-o_n_heap_benchmarks :: Int -> (Config -> Config) -> [Benchmark]
+o_n_heap_benchmarks :: Int -> (Config -> Config) -> [(SpaceComplexity, Benchmark)]
 o_n_heap_benchmarks value f =
-    [ bgroup "buffered"
-        [ benchIOSink value "parBuffered"
-            (Stream.fold Fold.drain . Async.parBuffered f)
-        , benchIOSink value "fmap parBuffered"
-            (Stream.fold Fold.drain . fmap (+1) . Async.parBuffered f)
-        ]
+    [ (HeapO_n, benchIOSink value "parBuffered"
+        (Stream.fold Fold.drain . Async.parBuffered f))
+    , (HeapO_n, benchIOSink value "fmap parBuffered"
+        (Stream.fold Fold.drain . fmap (+1) . Async.parBuffered f))
     ]
 
 -------------------------------------------------------------------------------
@@ -149,19 +145,17 @@ parTap f count n =
     Stream.fold Fold.drain
         $ Stream.tap (Fold.parBuffered f Fold.sum) (sourceUnfoldrM count n)
 
-o_1_space_joining :: Int -> (Config -> Config) -> [Benchmark]
+o_1_space_joining :: Int -> (Config -> Config) -> [(SpaceComplexity, Benchmark)]
 o_1_space_joining value f =
-    [ bgroup "joining (2 of n/2)"
-        [ benchIOSrc1 "parTwo" (async2 f (value `div` 2))
-        , benchIOSrc1 "parConcat" (concatAsync2 f (value `div` 2))
-        , benchIOSrc1 "parMergeByM" (parMergeByM f (value `div` 2))
-        , benchIOSrc1 "parMergeBy" (parMergeBy f (value `div` 2))
-        , benchIOSrc1 "parZipWithM" (parZipWithM f (value `div` 2))
-        , benchIOSrc1 "parZipWith" (parZipWith f (value `div` 2))
-        , benchIO "parZipApplicative" $ zipApplicative value
-        ]
+    [ (SpaceO_1, benchIOSrc1 "parTwo" (async2 f (value `div` 2)))
+    , (SpaceO_1, benchIOSrc1 "parConcat" (concatAsync2 f (value `div` 2)))
+    , (SpaceO_1, benchIOSrc1 "parMergeByM" (parMergeByM f (value `div` 2)))
+    , (SpaceO_1, benchIOSrc1 "parMergeBy" (parMergeBy f (value `div` 2)))
+    , (SpaceO_1, benchIOSrc1 "parZipWithM" (parZipWithM f (value `div` 2)))
+    , (SpaceO_1, benchIOSrc1 "parZipWith" (parZipWith f (value `div` 2)))
+    , (SpaceO_1, benchIO "parZipApplicative" $ zipApplicative value)
     -- XXX use configurable modifier, put this in concurrent fold benchmarks
-    , benchIOSrc1 "tap (Fold.parBuffered id Fold.sum)" (parTap id value)
+    , (SpaceO_1, benchIOSrc1 "tap (Fold.parBuffered id Fold.sum)" (parTap id value))
     ]
 
 -------------------------------------------------------------------------------
@@ -189,16 +183,14 @@ concatFoldableWith f value n =
         list = List.unfoldr step n
      in Async.parConcat f (Stream.fromList  list)
 
-o_1_space_concatFoldable :: Int -> (Config -> Config) -> [Benchmark]
+o_1_space_concatFoldable :: Int -> (Config -> Config) -> [(SpaceComplexity, Benchmark)]
 o_1_space_concatFoldable value f =
-    [ bgroup "concat-foldable"
-        [ benchIOSrc "foldMapWith (<>) (List)"
-            (sourceFoldMapWith f value)
-        , benchIOSrc "foldMapWith (<>) (Stream)"
-            (sourceFoldMapWithStream f value)
-        , benchIOSrc "S.concatFoldableWith (<>) (List)"
-            (concatFoldableWith f value)
-        ]
+    [ (SpaceO_1, benchIOSrc "foldMapWith (<>) (List)"
+        (sourceFoldMapWith f value))
+    , (SpaceO_1, benchIOSrc "foldMapWith (<>) (Stream)"
+        (sourceFoldMapWithStream f value))
+    , (SpaceO_1, benchIOSrc "S.concatFoldableWith (<>) (List)"
+        (concatFoldableWith f value))
     ]
 
 {-# INLINE concatMapStreamsWith #-}
@@ -224,26 +216,24 @@ concatFmapStreamsWith f outer inner n =
         $ Async.parConcat f
         $ fmap (sourceUnfoldrM inner) (sourceUnfoldrM outer n)
 
-o_1_space_concatMap :: String -> Int -> (Config -> Config) -> [Benchmark]
+o_1_space_concatMap :: String -> Int -> (Config -> Config) -> [(SpaceComplexity, Benchmark)]
 o_1_space_concatMap label value f =
     value2 `seq`
-        [ bgroup ("concat" ++ label)
-            [ benchIO "parConcatMap (n of 1)"
-                  (concatMapStreamsWith f value 1)
-            , benchIO "parConcatMap (sqrt n of sqrt n)"
-                  (concatMapStreamsWith f value2 value2)
-            , benchIO "parConcatMap (1 of n)"
-                  (concatMapStreamsWith f 1 value)
-            , benchIO "concat . fmap (n of 1)"
-                  (concatFmapStreamsWith f value 1)
-            ]
+        [ (SpaceO_1, benchIO ("concat" ++ label ++ " parConcatMap (n of 1)")
+              (concatMapStreamsWith f value 1))
+        , (SpaceO_1, benchIO ("concat" ++ label ++ " parConcatMap (sqrt n of sqrt n)")
+              (concatMapStreamsWith f value2 value2))
+        , (SpaceO_1, benchIO ("concat" ++ label ++ " parConcatMap (1 of n)")
+              (concatMapStreamsWith f 1 value))
+        , (SpaceO_1, benchIO ("concat" ++ label ++ " fmap (n of 1)")
+              (concatFmapStreamsWith f value 1))
         ]
 
     where
 
     value2 = round $ sqrt (fromIntegral value :: Double)
 
-o_1_space_benchmarks :: Int -> (Config -> Config) -> [Benchmark]
+o_1_space_benchmarks :: Int -> (Config -> Config) -> [(SpaceComplexity, Benchmark)]
 o_1_space_benchmarks value modifier =
     concat
         [ o_1_space_mapping value modifier
@@ -406,30 +396,29 @@ monadBreak mk un linearCount start =
 -}
 
 crossBenchmarks :: Monad (t IO) =>
-       Bool
+       SpaceComplexity
+    -> Bool
     -> (Stream IO Int -> t IO Int)
     -> (t IO Int -> Stream IO Int)
-    -> Int -> (Stream.Config -> Stream.Config) -> [Benchmark]
-crossBenchmarks wide mk un len f =
-    [ bgroup "cross-product" (
-        [ benchIO "monad2FilterAllOut" $ monadFilterAllOut mk un len
+    -> Int -> (Stream.Config -> Stream.Config) -> [(SpaceComplexity, Benchmark)]
+crossBenchmarks space wide mk un len f =
+    fmap (space,) $
+    [ benchIO "monad2FilterAllOut" $ monadFilterAllOut mk un len
 
-        -- High heap requirement for eager/wide streams
-        , benchIO (suf "parCrossApply") $ parCrossApply f len2
-        , benchIO (suf "monadAp") $ applicative mk un len2
-        , benchIO (suf "monad2Levels") $ monad2 mk un len2
-        , benchIO (suf "monad3Levels") $ monad3 mk un len2
-        , benchIO (suf "monad2FilterAllIn") $ monadFilterAllIn mk un len2
-        , benchIO (suf "monad2FilterSome") $ monadFilterSome mk un len2
-        -- , benchIO "monad2Break" $ monadBreak mk un len
-        ]
-        ++
-        -- XXX this takes too much heap in Eager case, because "take" does
-        -- not reduce eagerness. Pass "eager" arg to remove this only for eager
-        -- and not for "wide" case.
-        [benchIO "monad2TakeSome" $ monadTakeSome mk un len | not wide]
-        )
+    -- High heap requirement for eager/wide streams
+    , benchIO (suf "parCrossApply") $ parCrossApply f len2
+    , benchIO (suf "monadAp") $ applicative mk un len2
+    , benchIO (suf "monad2Levels") $ monad2 mk un len2
+    , benchIO (suf "monad3Levels") $ monad3 mk un len2
+    , benchIO (suf "monad2FilterAllIn") $ monadFilterAllIn mk un len2
+    , benchIO (suf "monad2FilterSome") $ monadFilterSome mk un len2
+    -- , benchIO "monad2Break" $ monadBreak mk un len
     ]
+    ++
+    -- XXX this takes too much heap in Eager case, because "take" does
+    -- not reduce eagerness. Pass "eager" arg to remove this only for eager
+    -- and not for "wide" case.
+    [benchIO "monad2TakeSome" $ monadTakeSome mk un len | not wide]
 
     where
 
@@ -447,10 +436,14 @@ allBenchmarks :: Monad (t IO) =>
     -> (t IO Int -> Stream IO Int)
     -> String -> Bool -> (Config -> Config) -> Int -> [Benchmark]
 allBenchmarks mk un moduleName wide modifier value =
-    [ bgroup (o_1_space_prefix moduleName) $
-        o_1_space_benchmarks value modifier
-        ++ if wide then [] else crossBenchmarks wide mk un value modifier
-    , bgroup (o_n_heap_prefix moduleName) $
-        o_n_heap_benchmarks value modifier
-        ++ if wide then crossBenchmarks wide mk un value modifier else []
+    let allBenches = concat
+            [ o_1_space_benchmarks value modifier
+            , if wide then [] else crossBenchmarks SpaceO_1 wide mk un value modifier
+            , o_n_heap_benchmarks value modifier
+            , if wide then crossBenchmarks HeapO_n wide mk un value modifier else []
+            ]
+        get x = map snd $ filter ((==) x . fst) allBenches
+    in
+    [ bgroup (o_1_space_prefix moduleName) (get SpaceO_1)
+    , bgroup (o_n_heap_prefix moduleName) (get HeapO_n)
     ]

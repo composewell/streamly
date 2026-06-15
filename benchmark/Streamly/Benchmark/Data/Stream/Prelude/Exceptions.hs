@@ -38,8 +38,6 @@ import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.Prelude as Stream
-import qualified Streamly.Internal.Data.Unfold as IUF
-import qualified Streamly.Internal.Data.Unfold.Prelude as IUF
 
 import Test.Tasty.Bench hiding (env)
 import Prelude hiding (last, length)
@@ -119,13 +117,10 @@ retryUnknown length from = do
 
 o_1_space_serial_exceptions :: Int -> [Benchmark]
 o_1_space_serial_exceptions length =
-    [ bgroup
-          "exceptions/serial"
-          [ benchIOSrc1 "retryNoneSimple" (retryNoneSimple length)
-          , benchIOSrc1 "retryNone" (retryNone length)
-          , benchIOSrc1 "retryAll" (retryAll length)
-          , benchIOSrc1 "retryUnknown" (retryUnknown length)
-          ]
+    [ benchIOSrc1 "retryNoneSimple" (retryNoneSimple length)
+    , benchIOSrc1 "retryNone" (retryNone length)
+    , benchIOSrc1 "retryAll" (retryAll length)
+    , benchIOSrc1 "retryUnknown" (retryUnknown length)
     ]
 
 -- XXX Move these to FileSystem.Handle benchmarks
@@ -167,35 +162,14 @@ inspect $ 'readWriteAfterStream `hasNoType` ''Stream.Step
 
 o_1_space_copy_stream_exceptions :: BenchEnv -> [Benchmark]
 o_1_space_copy_stream_exceptions env =
-    [ bgroup "exceptions"
-       [ mkBenchSmall "Stream.finally" env $ \inh _ ->
-           readWriteFinallyStream inh (nullH env)
-       , mkBenchSmall "Stream.after . Stream.before" env $ \inh _ ->
-           readWriteBeforeAfterStream inh (nullH env)
-       , mkBenchSmall "Stream.after" env $ \inh _ ->
-           readWriteAfterStream inh (nullH env)
-       ]
-    , bgroup "exceptions/fromToBytes"
-       [ mkBenchSmall "Stream.bracket" env $ \inh _ ->
-           fromToBytesBracketStream inh (nullH env)
-        ]
-    ]
-
- -------------------------------------------------------------------------------
--- Exceptions readChunks
--------------------------------------------------------------------------------
-
-readChunksBracket :: Handle -> Handle -> IO ()
-readChunksBracket inh devNull =
-    let readEx = IUF.bracket return (\_ -> hClose inh) FH.chunkReader
-    in IUF.fold (IFH.writeChunks devNull) readEx inh
-
-o_1_space_copy_exceptions_readChunks :: BenchEnv -> [Benchmark]
-o_1_space_copy_exceptions_readChunks env =
-    [ bgroup "exceptions/readChunks"
-        [ mkBench "UF.bracket" env $ \inH _ ->
-            readChunksBracket inH (nullH env)
-        ]
+    [ mkBenchSmall "Stream.finally" env $ \inh _ ->
+        readWriteFinallyStream inh (nullH env)
+    , mkBenchSmall "Stream.after . Stream.before" env $ \inh _ ->
+        readWriteBeforeAfterStream inh (nullH env)
+    , mkBenchSmall "Stream.after" env $ \inh _ ->
+        readWriteAfterStream inh (nullH env)
+    , mkBenchSmall "Stream.bracket fromToBytes" env $ \inh _ ->
+        fromToBytesBracketStream inh (nullH env)
     ]
 
 -------------------------------------------------------------------------------
@@ -212,17 +186,14 @@ toChunksBracket inh devNull =
 
 o_1_space_copy_exceptions_toChunks :: BenchEnv -> [Benchmark]
 o_1_space_copy_exceptions_toChunks env =
-    [ bgroup "exceptions/toChunks"
-        [ mkBench "Stream.bracket" env $ \inH _ ->
-            toChunksBracket inH (nullH env)
-        ]
+    [ mkBench "Stream.bracket toChunks" env $ \inH _ ->
+        toChunksBracket inH (nullH env)
     ]
 
 excBenchmarks :: BenchEnv -> Int -> [Benchmark]
 excBenchmarks env size =
     [ bgroup (o_1_space_prefix moduleName) $ concat
         [ o_1_space_serial_exceptions size
-        , o_1_space_copy_exceptions_readChunks env
         , o_1_space_copy_exceptions_toChunks env
         , o_1_space_copy_stream_exceptions env
         ]
@@ -298,16 +269,14 @@ classifySessionsOfHash getKey =
 o_1_space_grouping :: BenchEnv -> Int -> [Benchmark]
 o_1_space_grouping _env value =
     -- Buffering operations using heap proportional to group/window sizes.
-    [ bgroup "grouping"
-        [ benchIOSink value "classifySessionsOf (10000 buckets)"
-            (classifySessionsOf (getKey 10000))
-        , benchIOSink value "classifySessionsOf (64 buckets)"
-            (classifySessionsOf (getKey 64))
-        , benchIOSink value "classifySessionsOfHash (10000 buckets)"
-            (classifySessionsOfHash (getKey 10000))
-        , benchIOSink value "classifySessionsOfHash (64 buckets)"
-            (classifySessionsOfHash (getKey 64))
-        ]
+    [ benchIOSink value "classifySessionsOf (10000 buckets)"
+        (classifySessionsOf (getKey 10000))
+    , benchIOSink value "classifySessionsOf (64 buckets)"
+        (classifySessionsOf (getKey 64))
+    , benchIOSink value "classifySessionsOfHash (10000 buckets)"
+        (classifySessionsOfHash (getKey 10000))
+    , benchIOSink value "classifySessionsOfHash (64 buckets)"
+        (classifySessionsOfHash (getKey 64))
     ]
 
     where

@@ -23,7 +23,7 @@ import qualified Streamly.Internal.Unicode.Utf8 as Utf8
 --------------------------------------------------------------------------------
 
 moduleName :: String
-moduleName = "Unicode.Stream"
+moduleName = "Unicode.Utf8"
 
 --------------------------------------------------------------------------------
 -- Benchmarks

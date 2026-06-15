@@ -13,6 +13,7 @@ import System.IO (Handle, hClose)
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Unfold.Prelude as UF
 import qualified Streamly.FileSystem.Handle as FH
+import qualified Streamly.Internal.FileSystem.Handle as IFH
 
 import Test.Tasty.Bench hiding (env)
 import Streamly.Benchmark.Common
@@ -28,14 +29,23 @@ readWriteBracketUnfold inh devNull =
     let readEx = UF.bracket return (\_ -> hClose inh) FH.reader
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
+readChunksBracket :: Handle -> Handle -> IO ()
+readChunksBracket inh devNull =
+    let readEx = UF.bracket return (\_ -> hClose inh) FH.chunkReader
+    in S.fold (IFH.writeChunks devNull) $ S.unfold readEx inh
+
+o_1_space_copy_exceptions_readChunks :: BenchEnv -> [Benchmark]
+o_1_space_copy_exceptions_readChunks env =
+    [ mkBench "UF.bracket (chunk)" env $ \inH _ ->
+        readChunksBracket inH (nullH env)
+    ]
+
 o_1_space_copy_read_exceptions :: BenchEnv -> [Benchmark]
 o_1_space_copy_read_exceptions env =
-    [ bgroup "exceptions"
-       [ mkBenchSmall "UF.finally" env $ \inh _ ->
-           readWriteFinallyUnfold inh (nullH env)
-       , mkBenchSmall "UF.bracket" env $ \inh _ ->
-           readWriteBracketUnfold inh (nullH env)
-        ]
+    [ mkBenchSmall "UF.finally" env $ \inh _ ->
+        readWriteFinallyUnfold inh (nullH env)
+    , mkBenchSmall "UF.bracket" env $ \inh _ ->
+        readWriteBracketUnfold inh (nullH env)
     ]
 
 moduleName :: String
@@ -50,5 +60,6 @@ main = do
 
     allBenchmarks env _size =
         [ bgroup (o_1_space_prefix moduleName)
-            $ o_1_space_copy_read_exceptions env
+            $  o_1_space_copy_read_exceptions env
+            ++ o_1_space_copy_exceptions_readChunks env
         ]

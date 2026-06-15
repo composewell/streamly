@@ -73,11 +73,8 @@ inspect $ hasNoTypeClasses 'copyCodecUtf8ArraysLenient
 
 o_1_space_decode_encode_chunked :: BenchEnv -> [Benchmark]
 o_1_space_decode_encode_chunked env =
-    [ bgroup "decode-encode/toChunks"
-        [
-        mkBenchSmall "encodeUtf8' . decodeUtf8Arrays" env $ \inH outH ->
-            copyCodecUtf8ArraysLenient inH outH
-        ]
+    [ mkBenchSmall "encodeUtf8' . decodeUtf8Arrays" env $ \inH outH ->
+        copyCodecUtf8ArraysLenient inH outH
     ]
 
 -------------------------------------------------------------------------------
@@ -193,21 +190,19 @@ wordsUnwordsCharArrayCopy inh outh =
 -- XXX all these require @-fspec-constr-recursive=12@.
 o_1_space_copy_read_group_ungroup :: BenchEnv -> [Benchmark]
 o_1_space_copy_read_group_ungroup env =
-    [ bgroup "ungroup-group"
-        [ mkBenchSmall "unlines . splitOnSuffix ([Word8])" env
-            $ \inh outh -> linesUnlinesCopy inh outh
-        , mkBenchSmall "interposeSuffix . splitOnSuffix (Array Word8)" env
-            $ \inh outh -> linesUnlinesArrayWord8Copy inh outh
-        , mkBenchSmall "UnicodeArr.unlines . UnicodeArr.lines (Array Char)" env
-            $ \inh outh -> linesUnlinesArrayCharCopy inh outh
+    [ mkBenchSmall "unlines . splitOnSuffix ([Word8])" env
+        $ \inh outh -> linesUnlinesCopy inh outh
+    , mkBenchSmall "interposeSuffix . splitOnSuffix (Array Word8)" env
+        $ \inh outh -> linesUnlinesArrayWord8Copy inh outh
+    , mkBenchSmall "UnicodeArr.unlines . UnicodeArr.lines (Array Char)" env
+        $ \inh outh -> linesUnlinesArrayCharCopy inh outh
 
-        , mkBenchSmall "interposeSuffix . wordsBy ([Word8])" env
-            $ \inh outh -> wordsUnwordsCopyWord8 inh outh
-        , mkBenchSmall "unwords . wordsBy ([Char])" env
-            $ \inh outh -> wordsUnwordsCopy inh outh
-        , mkBenchSmall "UnicodeArr.unwords . UnicodeArr.words (Array Char)" env
-            $ \inh outh -> wordsUnwordsCharArrayCopy inh outh
-        ]
+    , mkBenchSmall "interposeSuffix . wordsBy ([Word8])" env
+        $ \inh outh -> wordsUnwordsCopyWord8 inh outh
+    , mkBenchSmall "unwords . wordsBy ([Char])" env
+        $ \inh outh -> wordsUnwordsCopy inh outh
+    , mkBenchSmall "UnicodeArr.unwords . UnicodeArr.words (Array Char)" env
+        $ \inh outh -> wordsUnwordsCharArrayCopy inh outh
     ]
 
 -------------------------------------------------------------------------------
@@ -322,29 +317,26 @@ _copyStreamUtf8Parser inh outh =
 -- XXX all these require @-fspec-constr-recursive=12@.
 o_1_space_decode_encode_read :: BenchEnv -> [Benchmark]
 o_1_space_decode_encode_read env =
-    [ bgroup "decode-encode"
-        [
-        -- This needs an ascii file, as decode just errors out.
-          mkBench "encodeLatin1' . decodeLatin1" env $ \inh outh ->
-            copyStreamLatin1' inh outh
-        , mkBench "encodeLatin1 . decodeLatin1" env $ \inh outh ->
-            copyStreamLatin1 inh outh
+    -- This needs an ascii file, as decode just errors out.
+    [ mkBench "encodeLatin1' . decodeLatin1" env $ \inh outh ->
+        copyStreamLatin1' inh outh
+    , mkBench "encodeLatin1 . decodeLatin1" env $ \inh outh ->
+        copyStreamLatin1 inh outh
 #ifdef INCLUDE_STRICT_UTF8
-        -- Requires valid unicode input
-        , mkBench "encodeUtf8' . decodeUtf8'" env $ \inh outh ->
-            _copyStreamUtf8' inh outh
-        , mkBench "encodeUtf8' . foldMany writeCharUtf8'" env $ \inh outh ->
-            _copyStreamUtf8'Fold inh outh
+    -- Requires valid unicode input
+    , mkBench "encodeUtf8' . decodeUtf8'" env $ \inh outh ->
+        _copyStreamUtf8' inh outh
+    , mkBench "encodeUtf8' . foldMany writeCharUtf8'" env $ \inh outh ->
+        _copyStreamUtf8'Fold inh outh
 #endif
-        , mkBenchSmall "encodeUtf8 . parseMany parseCharUtf8" env
-              $ \inh outh -> _copyStreamUtf8Parser inh outh
-        , mkBenchSmall "encodeUtf8 . decodeUtf8" env $ \inh outh ->
-            copyStreamUtf8 inh outh
-        {-
-        , mkBenchSmall "encodeUtf16 . decodeUtf16" env $ \inh outh ->
-            copyStreamUtf16 inh outh
-        -}
-        ]
+    , mkBenchSmall "encodeUtf8 . parseMany parseCharUtf8" env
+          $ \inh outh -> _copyStreamUtf8Parser inh outh
+    , mkBenchSmall "encodeUtf8 . decodeUtf8" env $ \inh outh ->
+        copyStreamUtf8 inh outh
+    {-
+    , mkBenchSmall "encodeUtf16 . decodeUtf16" env $ \inh outh ->
+        copyStreamUtf16 inh outh
+    -}
     ]
 
 main :: IO ()

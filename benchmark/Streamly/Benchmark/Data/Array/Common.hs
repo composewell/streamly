@@ -140,63 +140,30 @@ writeN value = withStream value (S.fold (A.createOf value))
 -- Bench groups
 -------------------------------------------------------------------------------
 
-common_o_1_space_generation :: Int -> [Benchmark]
-common_o_1_space_generation value =
-    [ bgroup
-        "generation"
-        [ benchIO "writeN . intFromTo" $ sourceIntFromTo value
-        , benchIO "fromList . intFromTo" $ sourceIntFromToFromList value
-        , benchIO "writeN . unfoldr" $ sourceUnfoldr value
-        , benchIO "writeN . fromList" $ sourceFromList value
-        , benchIO "show" $ showStream value
-        ]
-    ]
-
-common_o_1_space_elimination :: Int -> [Benchmark]
-common_o_1_space_elimination value =
-    [ bgroup "elimination"
-        [ benchIO "id" $ idArr value
-        , benchIO "==" $ eqInstance value
-        , benchIO "/=" $ eqInstanceNotEq value
-        , benchIO "<" $ ordInstance value
-        , benchIO "min" $ ordInstanceMin value
-        , benchIO "foldl'" $ pureFoldl' value
-        , benchIO "read" $ unfoldReadDrain value
-        , benchIO "toStreamRev" $ toStreamRevDrain value
-        ]
-      ]
-
-common_o_n_heap_serial :: Int -> [Benchmark]
-common_o_n_heap_serial value =
-    [ bgroup "elimination"
-        [ benchIO "writeN" $ writeN value
-        ]
-    ]
-
-common_o_1_space_transformation :: Int -> [Benchmark]
-common_o_1_space_transformation value =
-   [ bgroup "transformation"
-        [ benchIO "scanl'" $ scanl' value
-        , benchIO "scanl1'" $ scanl1' value
-        , benchIO "map" $ map value
-        ]
-   ]
-
-common_o_1_space_transformationX4 :: Int -> [Benchmark]
-common_o_1_space_transformationX4 value =
-    [ bgroup "transformationX4"
-        [ benchIO "scanl'" $ scanl'X4 value
-        , benchIO "scanl1'" $ scanl1'X4 value
-        , benchIO "map" $ mapX4 value
-        ]
-      ]
-
 commonBenchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 commonBenchmarks size =
-       fmap (SpaceO_1,) (concat
-            [ common_o_1_space_generation size
-            , common_o_1_space_elimination size
-            , common_o_1_space_transformation size
-            , common_o_1_space_transformationX4 size
-            ])
-    ++ fmap (HeapO_n,) (common_o_n_heap_serial size)
+      [ (SpaceO_1, benchIO "writeN . intFromTo" $ sourceIntFromTo size)
+      , (SpaceO_1, benchIO "fromList . intFromTo" $ sourceIntFromToFromList size)
+      , (SpaceO_1, benchIO "writeN . unfoldr" $ sourceUnfoldr size)
+      , (SpaceO_1, benchIO "writeN . fromList" $ sourceFromList size)
+      , (SpaceO_1, benchIO "show" $ showStream size)
+
+      , (SpaceO_1, benchIO "id" $ idArr size)
+      , (SpaceO_1, benchIO "==" $ eqInstance size)
+      , (SpaceO_1, benchIO "/=" $ eqInstanceNotEq size)
+      , (SpaceO_1, benchIO "<" $ ordInstance size)
+      , (SpaceO_1, benchIO "min" $ ordInstanceMin size)
+      , (SpaceO_1, benchIO "foldl'" $ pureFoldl' size)
+      , (SpaceO_1, benchIO "unfoldRead" $ unfoldReadDrain size)
+      , (SpaceO_1, benchIO "toStreamRev" $ toStreamRevDrain size)
+
+      , (SpaceO_1, benchIO "scanl'" $ scanl' size)
+      , (SpaceO_1, benchIO "scanl1'" $ scanl1' size)
+      , (SpaceO_1, benchIO "map" $ map size)
+
+      , (SpaceO_1, benchIO "scanl'X4" $ scanl'X4 size)
+      , (SpaceO_1, benchIO "scanl1'X4" $ scanl1'X4 size)
+      , (SpaceO_1, benchIO "mapX4" $ mapX4 size)
+
+      , (HeapO_n, benchIO "writeN" $ writeN size)
+      ]

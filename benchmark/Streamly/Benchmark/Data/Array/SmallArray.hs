@@ -49,14 +49,6 @@ foldableSum = P.sum
 -- Bench groups
 -------------------------------------------------------------------------------
 
-o_1_space_generation :: Int -> [Benchmark]
-o_1_space_generation value =
-    [ bgroup
-        "generation"
-        [ benchIO "read" $ readInstance value
-        ]
-    ]
-
 {-
 o_1_space_elimination :: Int -> [Benchmark]
 o_1_space_elimination value =
@@ -80,7 +72,9 @@ defStreamSize = 128
 
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
-    fmap (SpaceO_1,) (o_1_space_generation size) ++ commonBenchmarks size
+      [ (SpaceO_1, benchIO "read" $ readInstance size)
+      ]
+    ++ commonBenchmarks size
 
 main :: IO ()
 main = runWithCLIOpts defStreamSize allBenchmarks

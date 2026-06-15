@@ -34,6 +34,7 @@ import System.Random (randomRIO)
 
 import qualified Prelude
 import qualified Streamly.FileSystem.Handle as FH
+import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Scanl as Scanl
 import qualified Streamly.Internal.Data.Unfold as UF
@@ -616,6 +617,38 @@ moduleName = "Data.Unfold"
 -- Unfold Exception Benchmarks
 -------------------------------------------------------------------------------
 -- | Send the file contents to /dev/null with exception handling
+readChunksOnException :: Handle -> Handle -> IO ()
+readChunksOnException inh devNull =
+    let readEx = UF.onException (\_ -> hClose inh) FH.chunkReader
+    in UF.fold (IFH.writeChunks devNull) readEx inh
+
+-- | Send the file contents to /dev/null with exception handling
+readChunksBracket_ :: Handle -> Handle -> IO ()
+readChunksBracket_ inh devNull =
+    let readEx = UF.bracket_ return (\_ -> hClose inh) FH.chunkReader
+    in UF.fold (IFH.writeChunks devNull) readEx inh
+
+#ifdef INSPECTION
+#if __GLASGOW_HASKELL__ >= 906
+inspect $ hasNoTypeClassesExcept 'readChunksOnException [''MonadCatch]
+#else
+inspect $ hasNoTypeClasses 'readChunksOnException
+#endif
+-- inspect $ 'readChunksOnException `hasNoType` ''S.Step
+inspect $ 'readChunksOnException `hasNoType` ''FL.Step
+inspect $ 'readChunksOnException `hasNoType` ''SPEC
+
+#if __GLASGOW_HASKELL__ >= 906
+inspect $ hasNoTypeClassesExcept 'readChunksBracket_ [''MonadCatch]
+#else
+inspect $ hasNoTypeClasses 'readChunksBracket_
+#endif
+-- inspect $ 'readChunksBracket_ `hasNoType` ''S.Step
+inspect $ 'readChunksBracket_ `hasNoType` ''FL.Step
+inspect $ 'readChunksBracket_ `hasNoType` ''SPEC
+#endif
+
+-- | Send the file contents to /dev/null with exception handling
 readWriteOnExceptionUnfold :: Handle -> Handle -> IO ()
 readWriteOnExceptionUnfold inh devNull =
     let readEx = UF.onException (\_ -> hClose inh) FH.reader
@@ -729,6 +762,10 @@ benchmarks env size =
     -- Exceptions
     , (SpaceO_1, mkBenchSmall "UF.onException" env $ \inh _ ->
         readWriteOnExceptionUnfold inh (nullH env))
+    , (SpaceO_1, mkBench "UF.onException (chunk)" env $ \inh _ ->
+        readChunksOnException inh (nullH env))
+    , (SpaceO_1, mkBench "UF.bracket_ (chunk)" env $ \inh _ ->
+        readChunksBracket_ inh (nullH env))
     , (SpaceO_1, mkBenchSmall "UF.handle" env $ \inh _ ->
         readWriteHandleExceptionUnfold inh (nullH env))
     ]

@@ -7,6 +7,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+-- {-# OPTIONS_GHC -fforce-recomp #-}
 
 #ifdef __HADDOCK_VERSION__
 #undef INSPECTION
@@ -38,7 +39,6 @@ import Stream.Type (benchIO, withStream)
 -- Grouping transformations
 -------------------------------------------------------------------------------
 
-{-# INLINE groups #-}
 groups :: Int -> IO ()
 groups value = withStream value $ Common.drain . S.groupsWhile (==) FL.drain
 
@@ -49,7 +49,6 @@ inspect $ 'groups `hasNoType` ''FL.Step
 inspect $ 'groups `hasNoType` ''SPEC
 #endif
 
-{-# INLINE groupsWhileLT #-}
 groupsWhileLT :: Int -> IO ()
 groupsWhileLT value = withStream value $ Common.drain . S.groupsWhile (<) FL.drain
 
@@ -60,7 +59,6 @@ inspect $ 'groupsWhileLT `hasNoType` ''FL.Step
 inspect $ 'groupsWhileLT `hasNoType` ''SPEC
 #endif
 
-{-# INLINE groupsWhileEq #-}
 groupsWhileEq :: Int -> IO ()
 groupsWhileEq value = withStream value $ Common.drain . S.groupsWhile (==) FL.drain
 
@@ -71,7 +69,6 @@ inspect $ 'groupsWhileEq `hasNoType` ''FL.Step
 inspect $ 'groupsWhileEq `hasNoType` ''SPEC
 #endif
 
-{-# INLINE groupsByRollingLT #-}
 groupsByRollingLT :: Int -> IO ()
 groupsByRollingLT value = withStream value $ Common.drain . S.groupsRollingBy (<) FL.drain
 
@@ -83,7 +80,6 @@ inspect $ 'groupsByRollingLT `hasNoType` ''FL.Step
 inspect $ 'groupsByRollingLT `hasNoType` ''SPEC
 #endif
 
-{-# INLINE groupsByRollingEq #-}
 groupsByRollingEq :: Int -> IO ()
 groupsByRollingEq value = withStream value $ Common.drain . S.groupsRollingBy (==) FL.drain
 
@@ -95,7 +91,6 @@ inspect $ 'groupsByRollingEq `hasNoType` ''FL.Step
 inspect $ 'groupsByRollingEq `hasNoType` ''SPEC
 #endif
 
-{-# INLINE foldIterateM #-}
 foldIterateM :: Int -> IO ()
 foldIterateM value =
     withStream value $
@@ -113,28 +108,21 @@ inspect $ 'foldIterateM `hasNoType` ''FL.Step
 inspect $ 'foldIterateM `hasNoType` ''SPEC
 #endif
 
-o_1_space_grouping :: Int -> [Benchmark]
-o_1_space_grouping value =
-    -- Buffering operations using heap proportional to group/window sizes.
-    [ bgroup "grouping"
-        [
-          benchIO "groups" $ groups value
-        , benchIO "groupsWhileLT" $ groupsWhileLT value
-        , benchIO "groupsWhileEq" $ groupsWhileEq value
-        , benchIO "groupsByRollingLT" $ groupsByRollingLT value
-        , benchIO "groupsByRollingEq" $ groupsByRollingEq value
-
-        -- XXX parseMany/parseIterate benchmarks are in the Parser/ParserD
-        -- modules we can bring those here. chunksOf benchmarks are in
-        -- Parser/ParserD/Array.Stream/FileSystem.Handle.
-        , benchIO "foldIterateM" $ foldIterateM value
-        ]
-    ]
-
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
 
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
-    map (SpaceO_1,) (o_1_space_grouping size)
+    -- Buffering operations using heap proportional to group/window sizes.
+      [ (SpaceO_1, benchIO "groups" $ groups size)
+      , (SpaceO_1, benchIO "groupsWhileLT" $ groupsWhileLT size)
+      , (SpaceO_1, benchIO "groupsWhileEq" $ groupsWhileEq size)
+      , (SpaceO_1, benchIO "groupsByRollingLT" $ groupsByRollingLT size)
+      , (SpaceO_1, benchIO "groupsByRollingEq" $ groupsByRollingEq size)
+
+      -- XXX parseMany/parseIterate benchmarks are in the Parser/ParserD
+      -- modules we can bring those here. chunksOf benchmarks are in
+      -- Parser/ParserD/Array.Stream/FileSystem.Handle.
+      , (SpaceO_1, benchIO "foldIterateM" $ foldIterateM size)
+      ]

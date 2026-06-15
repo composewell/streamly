@@ -47,6 +47,8 @@ import Test.Tasty.Bench hiding (env)
 import Streamly.Benchmark.Common
 import Prelude hiding (last, length, all, any, take, unzip, sequence_)
 
+import qualified Scanl.Window as Window
+
 #ifdef INSPECTION
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Stream (Step(..))
@@ -167,12 +169,10 @@ inspect $ 'classifySum `hasNoType` ''SPEC
 
 o_1_space_serial :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_serial value =
-    [ (SpaceO_1, bgroup "key-value"
-            [ benchIO "demuxIO (1-shot) (64 buckets) [sum 100]" $ demuxIOOneShot value
-            , benchIO "demuxIO (64 buckets) [sum]" $ demuxSum value
-            , benchIO "classifyIO (64 buckets) [sum 100]" $ classifyLimitedSum value
-            , benchIO "classifyIO (64 buckets) [sum]" $ classifySum value
-            ])
+    [ (SpaceO_1, benchIO "demuxIO (1-shot) (64 buckets) [sum 100]" $ demuxIOOneShot value)
+    , (SpaceO_1, benchIO "demuxIO (64 buckets) [sum]" $ demuxSum value)
+    , (SpaceO_1, benchIO "classifyIO (64 buckets) [sum 100]" $ classifyLimitedSum value)
+    , (SpaceO_1, benchIO "classifyIO (64 buckets) [sum]" $ classifySum value)
     ]
 
 -------------------------------------------------------------------------------
@@ -186,6 +186,7 @@ main = runWithCLIOpts defaultStreamSize allBenchmarks
 
     allBenchmarks value =
         let allBenches = o_1_space_serial value
+                      ++ Window.benchmarks value
             get x = map snd $ filter ((==) x . fst) allBenches
             o_1_space = get SpaceO_1
         in

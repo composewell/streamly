@@ -82,7 +82,11 @@ extra-source-files:
     benchmark/Streamly/Benchmark/Data/Scanl/*.hs
     benchmark/Streamly/Benchmark/Data/Serialize/*.hs
     benchmark/Streamly/Benchmark/Data/Stream/*.hs
+    benchmark/Streamly/Benchmark/Data/Stream/Nesting/*.hs
+    benchmark/Streamly/Benchmark/Data/Stream/Parse/*.hs
     benchmark/Streamly/Benchmark/Data/Stream/Prelude/*.hs
+    benchmark/Streamly/Benchmark/Data/Stream/Transform/*.hs
+    benchmark/Streamly/Benchmark/Data/Stream/Type/*.hs
     benchmark/Streamly/Benchmark/Data/StreamK/*.hs
     benchmark/Streamly/Benchmark/Data/Unfold/*.hs
     benchmark/Streamly/Benchmark/FileSystem/*.hs
@@ -131,6 +135,8 @@ extra-source-files:
     test/Streamly/Test/Data/Parser/*.hs
     test/Streamly/Test/Data/ParserK.hs
     test/Streamly/Test/Data/Stream/*.hs
+    test/Streamly/Test/Data/Stream/MkType/*.hs
+    test/Streamly/Test/Data/Stream/Prelude/*.hs
     test/Streamly/Test/Data/Stream/Serial/Common.hs
     test/Streamly/Test/FileSystem/Event.hs
     test/Streamly/Test/FileSystem/Event/Common.hs

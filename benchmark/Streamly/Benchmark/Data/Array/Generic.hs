@@ -71,30 +71,6 @@ createOfLastMax value = withStream value (S.fold (IA.createOfLast (value + 1)))
 -- Bench groups
 -------------------------------------------------------------------------------
 
-o_1_space_generation :: Int -> [Benchmark]
-o_1_space_generation value =
-    [ bgroup
-        "generation"
-        [ benchIO "write . intFromTo" $ sourceIntFromToFromStream value
-        , benchIO "read" $ readInstance value
-        ]
-    ]
-
-o_1_space_elimination :: Int -> [Benchmark]
-o_1_space_elimination value =
-    [ bgroup "elimination"
-        [ benchIO "createOfLast.1" $ createOfLast1 value
-        , benchIO "createOfLast.10" $ createOfLast10 value
-        ]
-      ]
-
-o_n_heap_serial :: Int -> [Benchmark]
-o_n_heap_serial value =
-    [ bgroup "elimination"
-        [ benchIO "createOfLast.Max" $ createOfLastMax value
-        ]
-    ]
-
 moduleName :: String
 moduleName = "Data.Array.Generic"
 
@@ -103,9 +79,14 @@ defStreamSize = defaultStreamSize
 
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
-       fmap (SpaceO_1,)
-            (o_1_space_generation size ++ o_1_space_elimination size)
-    ++ fmap (HeapO_n,) (o_n_heap_serial size)
+      [ (SpaceO_1, benchIO "write . intFromTo" $ sourceIntFromToFromStream size)
+      , (SpaceO_1, benchIO "read" $ readInstance size)
+
+      , (SpaceO_1, benchIO "createOfLast.1" $ createOfLast1 size)
+      , (SpaceO_1, benchIO "createOfLast.10" $ createOfLast10 size)
+
+      , (HeapO_n, benchIO "createOfLast.Max" $ createOfLastMax size)
+      ]
     ++ commonBenchmarks size
 
 main :: IO ()

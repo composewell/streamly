@@ -52,9 +52,7 @@ parDistributeScanM len seed = do
 
 o_1_space_scans :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_scans numElements =
-    [ (SpaceO_1, bgroup "scan"
-        [ mkBench "parDistributeScanM" (parDistributeScanM numElements)
-        ])
+    [ (SpaceO_1, mkBench "parDistributeScanM" (parDistributeScanM numElements))
     ]
 
 --------------------------------------------------------------------------------

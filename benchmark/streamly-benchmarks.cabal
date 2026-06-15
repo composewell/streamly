@@ -278,6 +278,7 @@ benchmark Data.Fold
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data
+                , Streamly/Benchmark/Data/Fold
   main-is: Fold.hs
   if impl(ghcjs)
     buildable: False
@@ -285,6 +286,10 @@ benchmark Data.Fold
     buildable: True
   if flag(limit-build-mem) && !flag(fusion-plugin)
     ghc-options: +RTS -M600M -RTS
+  -- MonoLocalBinds increases the memory requirement from 400MB to 1000MB,
+  -- observed on macOS.
+  -- if flag(limit-build-mem)
+    -- ghc-options: +RTS -M1000M -RTS
 
 benchmark Data.Fold.Prelude
   import: bench-options
@@ -296,16 +301,6 @@ benchmark Data.Fold.Prelude
     buildable: False
   else
     buildable: True
-
-benchmark Data.Fold.Window
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data/Fold
-  main-is: Window.hs
-  -- MonoLocalBinds increases the memory requirement from 400MB to 1000MB,
-  -- observed on macOS.
-  -- if flag(limit-build-mem)
-    -- ghc-options: +RTS -M1000M -RTS
 
 benchmark Data.MutArray
   import: bench-options
@@ -377,22 +372,30 @@ benchmark Data.ParserK.Chunked.Generic
     buildable: True
     build-depends: exceptions >= 0.8   && < 0.11
 
+benchmark Data.Pipe
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data
+  main-is: Pipe.hs
+
 benchmark Data.RingArray
   import: bench-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Benchmark/Data/RingArray.hs
 
+benchmark Data.Scan
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data
+  main-is: Scan.hs
+
 benchmark Data.Scanl
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data
+                , Streamly/Benchmark/Data/Scanl
   main-is: Scanl.hs
-
-benchmark Data.Scanl.Window
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data/Scanl
-  main-is: Window.hs
+  other-modules: Scanl.Window
 
 benchmark Data.Scanl.Concurrent
   import: bench-options
@@ -439,22 +442,26 @@ benchmark Data.Stream
       Stream.Eliminate
       Stream.Exceptions
       Stream.Nesting
+      Stream.Nesting.Basic
+      Stream.Nesting.LogicConcat
+      Stream.Nesting.LogicUnfold
       Stream.Generate
       Stream.Lift
       Stream.Parse
       Stream.Parse.Group
       Stream.Parse.Split
-      -- XXX uses lot of memory
+      -- Note: uses around 400MB during build
       Stream.Parse.SplitChunks
       Stream.Transform
       Stream.Transform.Basic
       Stream.Transform.Composed
       Stream.Type
+      Stream.Type.Basic
+      Stream.Type.MultiStream
+      Stream.Type.Nested
+      Stream.Type.Logic
   if flag(limit-build-mem)
-    if flag(dev)
-      ghc-options: +RTS -M1000M -RTS
-    else
-      ghc-options: +RTS -M1200M -RTS
+    ghc-options: +RTS -M500M -RTS
 
 benchmark Data.Stream.Adaptive
   import: bench-options-threaded
@@ -667,12 +674,13 @@ benchmark Unicode.Stream
   else
     buildable: True
 
-benchmark Unicode.Utf8
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Unicode
-  main-is: Utf8.hs
-  if flag(use-streamly-core)
-    buildable: False
-  else
-    buildable: True
+-- XXX this is broken
+-- benchmark Unicode.Utf8
+--   import: bench-options
+--   type: exitcode-stdio-1.0
+--   hs-source-dirs: Streamly/Benchmark/Unicode
+--   main-is: Utf8.hs
+--   if flag(use-streamly-core)
+--     buildable: False
+--   else
+--     buildable: True
