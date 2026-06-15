@@ -154,6 +154,7 @@ jobs:
               GHCVER: "9.14.1"
               CABAL_PROJECT: "cabal.project.doctest"
               DISABLE_SDIST_BUILD: "y"
+              DISABLE_DIST_CHECKS: "y"
               DISABLE_TEST: "y"
               DISABLE_BENCH: "y"
               DISABLE_DOCS: "y"
