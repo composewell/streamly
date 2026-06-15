@@ -225,6 +225,7 @@ targets =
             , "noTest"
             ]
       )
+    , ("CrossModule", ["noTest"])
     , ("FileSystem.DirIO", [])
     , ("FileSystem.Event",
             [ "noBench"

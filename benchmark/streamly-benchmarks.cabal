@@ -622,6 +622,12 @@ benchmark Data.Unfold.Prelude
   else
     buildable: True
 
+benchmark CrossModule
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark
+  main-is: CrossModule.hs
+
 benchmark FileSystem.DirIO
   import: bench-options
   type: exitcode-stdio-1.0
