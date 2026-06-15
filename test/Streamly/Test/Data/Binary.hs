@@ -194,7 +194,7 @@ charLatin1 = forAll (chooseChar (unsafeChr 0, unsafeChr 255)) $ \x ->
         monadicIO $ action x Encoder.charLatin1  Decoder.charLatin1
 
 moduleName :: String
-moduleName = "Serialize.Serializable"
+moduleName = "Data.Binary"
 
 main :: IO ()
 main =

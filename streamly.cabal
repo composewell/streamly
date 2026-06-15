@@ -145,7 +145,6 @@ extra-source-files:
     test/Streamly/Test/Prelude.hs
     test/Streamly/Test/Prelude/*.hs
     test/Streamly/Test/Unicode/*.hs
-    test/Streamly/Test/Serialize/*.hs
     test/Streamly/Test/Data/Scanl/*.hs
     test/Streamly/Test/Data/Fold/*.hs
     test/Streamly/Test/Unicode/ucd/NormalizationTest.txt

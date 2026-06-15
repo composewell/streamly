@@ -262,7 +262,7 @@ test-suite Data.Array.Generic
 test-suite Data.Binary
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Serialize/Serializable.hs
+  main-is: Streamly/Test/Data/Binary.hs
 
 test-suite Data.Fold
   import: test-options
