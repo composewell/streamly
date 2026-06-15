@@ -32,26 +32,20 @@
 module Streamly.Benchmark.Data.Parser.Sequence
   (
     benchmarks
-  , benchmarksFileIO
   ) where
 
 import Control.DeepSeq (NFData(..))
 import Data.Monoid (Sum(..))
-import GHC.Magic (inline)
-import GHC.Magic (noinline)
-import System.IO (Handle)
 import System.Random (randomRIO)
 import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.Stream (Stream)
 
-import qualified Streamly.FileSystem.Handle as Handle
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Stream as Stream
 
 import Test.Tasty.Bench hiding (env)
 import Streamly.Benchmark.Common
-import Streamly.Benchmark.Common.Handle
 
 #ifdef INSPECTION
 import GHC.Types (SPEC(..))
@@ -215,24 +209,3 @@ benchmarks value =
     {-# NOINLINE parseManyGroupsRollingEitherAlt1 #-}
     parseManyGroupsRollingEitherAlt1 =
         parseManyGroupsRollingEitherAlt (>) value
-
--------------------------------------------------------------------------------
--- parseMany with FileIO
--------------------------------------------------------------------------------
-
-parseManyChunksOfSum :: Int -> Handle -> IO Int
-parseManyChunksOfSum n inh =
-    Stream.fold Fold.length
-        $ Stream.parseMany
-              (PR.fromFold $ Fold.take n Fold.sum)
-              (Stream.unfold Handle.reader inh)
-
-benchmarksFileIO :: BenchEnv -> [(SpaceComplexity, Benchmark)]
-benchmarksFileIO env =
-    [
-    -- parseMany with file IO
-      (SpaceO_1, mkBench ("parseMany (Fold.take " ++ show (bigSize env) ++ " Fold.sum)") env
-          $ \inh _ -> noinline parseManyChunksOfSum (bigSize env) inh)
-    , (SpaceO_1, mkBench "parseMany (Fold.take 1 Fold.sum)" env
-          $ \inh _ -> inline parseManyChunksOfSum 1 inh)
-    ]

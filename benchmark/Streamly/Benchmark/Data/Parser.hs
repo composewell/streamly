@@ -45,7 +45,7 @@ benchmarkList ::
     -> BenchEnv
     -> [Array.Array Int]
     -> [(SpaceComplexity, Benchmark)]
-benchmarkList value env _arrays =
+benchmarkList value _env _arrays =
     -- Benchmarks for lower level Parser/Type.hs source module
        Alternative.benchmarks value
     ++ Applicative.benchmarks value
@@ -53,7 +53,6 @@ benchmarkList value env _arrays =
 
     -- Benchmarks for Higher level Parser.hs source module.
     ++ Sequence.benchmarks value
-    ++ Sequence.benchmarksFileIO env
     ++ Groups.benchmarks value
     ++ Interleave.benchmarks value
 

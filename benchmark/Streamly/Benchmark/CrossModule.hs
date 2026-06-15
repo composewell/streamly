@@ -31,6 +31,7 @@ import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Stream as IP
 import qualified Streamly.Data.Stream.Prelude as S
 
@@ -106,6 +107,11 @@ foldManyChunksOfSum n inh =
     S.fold Fold.length
         $ IP.foldMany (FL.take n FL.sum) (S.unfold FH.reader inh)
 
+parseManyChunksOfSum :: Int -> Handle -> IO Int
+parseManyChunksOfSum n inh =
+    S.fold Fold.length
+        $ IP.parseMany (PR.fromFold $ FL.take n FL.sum) (S.unfold FH.reader inh)
+
 -- XXX investigate why we need an INLINE in this case (GHC)
 -- Even though allocations remain the same in both cases inlining improves time
 -- by 4x.
@@ -165,6 +171,16 @@ allBenchmarks env =
             "Stream.foldMany 1 . Fold.sum"
             env
             $ \inh _ -> inline foldManyChunksOfSum 1 inh
+
+        -- parseMany with file IO
+        , mkBench
+            ("Stream.parseMany (Fold.take " ++ show (bigSize env) ++ " Fold.sum)")
+            env
+            $ \inh _ -> noinline parseManyChunksOfSum (bigSize env) inh
+        , mkBench
+            "Stream.parseMany (Fold.take 1 Fold.sum)"
+            env
+            $ \inh _ -> inline parseManyChunksOfSum 1 inh
 
         -- folding chunks to arrays
         , mkBenchSmall "Stream.groupsOf 1 . Array.unsafeCreateOf" env $ \inh _ ->
