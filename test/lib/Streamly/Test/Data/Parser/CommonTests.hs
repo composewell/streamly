@@ -23,7 +23,7 @@ import Control.Exception (displayException, try, evaluate, SomeException)
 import Data.List (isSuffixOf)
 import Streamly.Test.Common (listEquals, checkListEqual, chooseInt)
 import Test.QuickCheck
-       (arbitrary, forAll, elements, Property, property, listOf,
+       (arbitrary, forAll, elements, Gen, Property, property, listOf,
         vectorOf, (.&&.), ioProperty)
 import Test.QuickCheck.Monadic (monadicIO, assert)
 
@@ -651,6 +651,16 @@ someFail producer consumer =
         Right _ -> False
         Left _ -> True)
 
+parserSequence :: ParserTestCase_Temp Int Identity Int Property
+parserSequence producer consumer =
+    forAll (vectorOf 11 (listOf (arbitrary :: Gen Int))) $ \ins ->
+        let parsers = S.fromList
+                $ fmap (\xs -> P.fromFold $ FL.take (Prelude.length xs) FL.sum) ins
+            sequencedParser = P.sequence parsers FL.sum
+         in case runIdentity $ consumer sequencedParser (producer (concat ins)) of
+                Right x -> x == sum (map sum ins)
+                Left _ -> False
+
 takeEndBy1 :: ParserTestCase_Temp Int Identity [Int] Property
 takeEndBy1 producer consumer =
     forAll (listOf (chooseInt (0, 1))) $ \ls ->
@@ -980,6 +990,7 @@ mainCommon ptt = do
         prop ("P.some concatFold $ P.takeEndBy_ (== 1) FL.toList ="
                 ++ "Prelude.filter (== 0)") $ runParserTC_temp ptt some
         prop "fail due to parser being die" $ runParserTC_temp ptt someFail
+        prop "parserSequence" $ runParserTC_temp ptt parserSequence
         prop "takeEndBy_" $ runParserTC ptt takeEndBy_
         prop "takeEndByOrMax_" $ runParserTC ptt takeEndByOrMax_
         prop "takeEndBy1" $ runParserTC_temp ptt takeEndBy1

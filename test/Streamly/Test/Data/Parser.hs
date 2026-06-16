@@ -115,20 +115,6 @@ parseMany =
                 listEquals (==) outs ins
 
 
-parserSequence :: Property
-parserSequence =
-  forAll (vectorOf 11 (listOf (chooseAny :: Gen Int))) $ \ins ->
-    monadicIO $ do
-    let parsers = S.fromList
-            $ fmap (\xs -> P.fromFold $ FL.take (length xs) FL.sum) ins
-    let sequencedParser = P.sequence parsers FL.sum
-    outs <-
-        S.parse sequencedParser $ S.concatMap S.fromList (S.fromList ins)
-    return $
-        case outs of
-            Right x -> x == sum (map sum ins)
-            Left _ -> False
-
 -------------------------------------------------------------------------------
 -- Test for a particular case hit during fs events testing
 -------------------------------------------------------------------------------
@@ -324,13 +310,11 @@ main = do
         Type.spec
         Common.mainCommon TMParserStream
         parserSanityTests "Stream.parseBreak" sanityParseBreak
-        -- parserSanityTests "A.sanityParseBreakChunksK" sanityParseBreakChunksK
         parserSanityTests "Stream.parseMany" sanityParseMany
         parserSanityTests "Stream.parseIterate" sanityParseIterate
         describe "Stream parsing" $ do
             prop "parseMany" parseMany
             prop "parseMany2Events" parseMany2Events
-            prop "parserSequence" parserSequence
 
         describe "test for sequence parser" $ do
             parseManyWordQuotedBy
