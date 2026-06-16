@@ -1,5 +1,4 @@
 {-# Language NoMonoLocalBinds #-}
-{-# OPTIONS_GHC -Wno-deprecations #-}
 -- XXX We are using head/tail at one place
 #if __GLASGOW_HASKELL__ >= 908
 {-# OPTIONS_GHC -Wno-x-partial #-}
@@ -1054,8 +1053,8 @@ transformCombineOpsCommon constr desc eq = do
     prop (desc <> " unfoldMany") $
         forAll (choose (0, 100)) $ \n ->
             transform (concatMap (const [1..n]))
-                (S.unfoldMany (UF.lmap (const undefined)
-                                   $ UF.both [1..n] UF.fromList))
+                (S.unfoldEach (UF.lmap (const undefined)
+                                   $ UF.supply [1..n] UF.fromList))
 
 toListFL :: Monad m => FL.Fold m a [a]
 toListFL = FL.toList

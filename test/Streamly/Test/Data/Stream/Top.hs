@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wno-deprecations #-}
-
 module Streamly.Test.Data.Stream.Top (main) where
 
 import Data.List (deleteFirstsBy, intersect, sort, unionBy)
