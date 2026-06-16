@@ -194,12 +194,12 @@ library
     exposed-modules:
         Streamly.Test.Common
         Streamly.Test.Data.Parser.CommonUtilities
+        Streamly.Test.Data.Parser.CommonTestDriver
+        Streamly.Test.Data.Parser.CommonTypeTests
         Streamly.Test.Data.Parser.CommonTests
         Streamly.Test.Control.Exception.Common
     if !flag(use-streamly-core) && flag(dev)
       exposed-modules: Streamly.Test.Prelude.Common
-    if flag(limit-build-mem)
-      ghc-options: +RTS -M1500M -RTS
 
 -------------------------------------------------------------------------------
 -- Test suite options
