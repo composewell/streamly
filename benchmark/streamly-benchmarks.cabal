@@ -298,6 +298,8 @@ benchmark Data.MutArray
   import: bench-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Benchmark/Data/MutArray.hs
+  other-modules:
+      Streamly.Benchmark.Data.MutArray.Type
   if flag(limit-build-mem) && !flag(fusion-plugin)
     ghc-options: +RTS -M500M -RTS
   if flag(use-streamly-core)
