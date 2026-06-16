@@ -36,7 +36,7 @@ import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Stream as IP
-import qualified Streamly.Data.Stream.Prelude as S
+import qualified Streamly.Data.Stream as S
 
 import Test.Tasty.Bench hiding (env)
 import Prelude hiding (last, length)
