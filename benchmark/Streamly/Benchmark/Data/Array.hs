@@ -9,7 +9,6 @@
 import Data.Kind (Type)
 #endif
 
-import qualified Streamly.Internal.Data.Array as IA
 import qualified GHC.Exts as GHC
 
 import qualified Array.Stream as ArrayStream
@@ -31,20 +30,6 @@ type Arr = A.Array
 -- Bench Ops
 -------------------------------------------------------------------------------
 
-{-# INLINE parseInstance #-}
-parseInstance :: P.String -> Arr Int
-parseInstance str =
-    let r = P.reads str
-    in case r of
-        [(x,"")] -> x
-        _ -> P.error "parseInstance: no parse"
-
-{-# INLINE readInstance #-}
-readInstance :: Int -> IO (Arr Int)
-readInstance value = withRandomIntIO $ \n ->
-    let testStr = "fromList " ++ show [n..n+value]
-    in return $! parseInstance testStr
-
 {-# INLINE sourceIsList #-}
 sourceIsList :: Int -> IO (Arr Int)
 sourceIsList value = withRandomIntIO $ \n -> return $! GHC.fromList [n..n+value]
@@ -54,26 +39,9 @@ sourceIsString :: Int -> IO (Arr P.Char)
 sourceIsString value = withRandomIntIO $ \n ->
     return $! GHC.fromString (P.replicate (n + value) 'a')
 
-{-# INLINE sourceIntFromToFromStream #-}
-sourceIntFromToFromStream :: Int -> IO (Arr Int)
-sourceIntFromToFromStream value = withRandomIntIO $ \n ->
-    S.fold A.create $ S.enumerateFromTo n (n + value)
-
 {-# INLINE toListLength #-}
 toListLength :: Int -> IO Int
 toListLength value = withArray value $ \arr -> return $! length (GHC.toList arr)
-
-{-# INLINE createOfLast1 #-}
-createOfLast1 :: Int -> IO (Arr Int)
-createOfLast1 value = withStream value (S.fold (IA.createOfLast 1))
-
-{-# INLINE createOfLast10 #-}
-createOfLast10 :: Int -> IO (Arr Int)
-createOfLast10 value = withStream value (S.fold (IA.createOfLast 10))
-
-{-# INLINE createOfLastMax #-}
-createOfLastMax :: Int -> IO (Arr Int)
-createOfLastMax value = withStream value (S.fold (IA.createOfLast (value + 1)))
 
 -------------------------------------------------------------------------------
 -- Bench groups
@@ -87,19 +55,17 @@ defStreamSize = defaultStreamSize
 
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
-      [ (SpaceO_1, benchIO "write . intFromTo" $ sourceIntFromToFromStream size)
-      , (SpaceO_1, benchIO "read" $ readInstance size)
-      , (SpaceO_1, benchIO "writeN . IsList.fromList" $ sourceIsList size)
-      , (SpaceO_1, benchIO "writeN . IsString.fromString" $ sourceIsString size)
-
-      , (SpaceO_1, benchIO "length . IsList.toList" $ toListLength size)
-      , (SpaceO_1, benchIO "createOfLast.1" $ createOfLast1 size)
-      , (SpaceO_1, benchIO "createOfLast.10" $ createOfLast10 size)
-
-      , (HeapO_n, benchIO "createOfLast.Max" $ createOfLastMax size)
-      ]
-    ++ typeCommonBenchmarks size
+    typeCommonBenchmarks size
     ++ commonBenchmarks size
+    ++
+    -- Before adding any benchmarks here check if they can be added to
+    -- typeCommonBenchmarks (Array.Type source module common with
+    -- Array.Generic) or commonBenchmarks (Array module common with
+    -- Array.Generic) above.
+      [ (SpaceO_1, benchIO "writeN . IsList.fromList" $ sourceIsList size)
+      , (SpaceO_1, benchIO "writeN . IsString.fromString" $ sourceIsString size)
+      , (SpaceO_1, benchIO "length . IsList.toList" $ toListLength size)
+      ]
 
 main :: IO ()
 main = runWithCLIOptsEnv defStreamSize ArrayStream.alloc allBenchmarks

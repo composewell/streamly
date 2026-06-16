@@ -44,6 +44,18 @@ map value = withArray value $ composeN 1 $ onArray value $ fmap (+1)
 mapX4 :: Int -> IO (Arr Int)
 mapX4 value = withArray value $ composeN 4 $ onArray value $ fmap (+1)
 
+{-# INLINE createOfLast1 #-}
+createOfLast1 :: Int -> IO (Arr Int)
+createOfLast1 value = withStream value (S.fold (A.createOfLast 1))
+
+{-# INLINE createOfLast10 #-}
+createOfLast10 :: Int -> IO (Arr Int)
+createOfLast10 value = withStream value (S.fold (A.createOfLast 10))
+
+{-# INLINE createOfLastMax #-}
+createOfLastMax :: Int -> IO (Arr Int)
+createOfLastMax value = withStream value (S.fold (A.createOfLast (value + 1)))
+
 -------------------------------------------------------------------------------
 -- Bench groups
 -------------------------------------------------------------------------------
@@ -57,4 +69,9 @@ commonBenchmarks size =
       , (SpaceO_1, benchIO "scanl'X4" $ scanl'X4 size)
       , (SpaceO_1, benchIO "scanl1'X4" $ scanl1'X4 size)
       , (SpaceO_1, benchIO "mapX4" $ mapX4 size)
+
+      , (SpaceO_1, benchIO "createOfLast.1" $ createOfLast1 size)
+      , (SpaceO_1, benchIO "createOfLast.10" $ createOfLast10 size)
+
+      , (HeapO_n, benchIO "createOfLast.Max" $ createOfLastMax size)
       ]

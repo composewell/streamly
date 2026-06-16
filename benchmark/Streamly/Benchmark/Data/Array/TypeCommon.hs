@@ -41,6 +41,25 @@ sourceFromList :: Int -> IO (Arr Int)
 sourceFromList value = withRandomIntIO $ \n ->
     S.fold (A.createOf value) $ S.fromList [n..n+value]
 
+{-# INLINE sourceIntFromToFromStream #-}
+sourceIntFromToFromStream :: Int -> IO (Arr Int)
+sourceIntFromToFromStream value = withRandomIntIO $ \n ->
+    S.fold A.create $ S.enumerateFromTo n (n + value)
+
+{-# INLINE parseInstance #-}
+parseInstance :: P.String -> Arr Int
+parseInstance str =
+    let r = P.reads str
+    in case r of
+        [(x,"")] -> x
+        _ -> P.error "parseInstance: no parse"
+
+{-# INLINE readInstance #-}
+readInstance :: Int -> IO (Arr Int)
+readInstance value = withRandomIntIO $ \n ->
+    let testStr = "fromList " ++ show [n..n+value]
+    in return $! parseInstance testStr
+
 
 {-# INLINE showStream #-}
 showStream :: Int -> IO P.String
@@ -96,11 +115,13 @@ writeN value = withStream value (S.fold (A.createOf value))
 
 typeCommonBenchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 typeCommonBenchmarks size =
-      [ (SpaceO_1, benchIO "writeN . intFromTo" $ sourceIntFromTo size)
+      [ (SpaceO_1, benchIO "write . intFromTo" $ sourceIntFromToFromStream size)
+      , (SpaceO_1, benchIO "writeN . intFromTo" $ sourceIntFromTo size)
       , (SpaceO_1, benchIO "fromList . intFromTo" $ sourceIntFromToFromList size)
       , (SpaceO_1, benchIO "writeN . unfoldr" $ sourceUnfoldr size)
       , (SpaceO_1, benchIO "writeN . fromList" $ sourceFromList size)
       , (SpaceO_1, benchIO "show" $ showStream size)
+      , (SpaceO_1, benchIO "read" $ readInstance size)
 
       , (SpaceO_1, benchIO "id" $ idArr size)
       , (SpaceO_1, benchIO "==" $ eqInstance size)
