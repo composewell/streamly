@@ -243,6 +243,7 @@ benchmark Data.Array
   other-modules:
       Stream.Common
     , Array.Stream
+    , Array.Type
   if flag(use-streamly-core)
     buildable: False
   else

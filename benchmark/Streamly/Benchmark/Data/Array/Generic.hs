@@ -9,6 +9,8 @@ import qualified Streamly.Internal.Data.Array.Generic as A
 
 type Arr = A.Array
 
+#include "Streamly/Benchmark/Data/Array/TypeCommon.hs"
+
 #include "Streamly/Benchmark/Data/Array/Common.hs"
 
 instance NFData a => NFData (A.Array a) where
@@ -87,6 +89,7 @@ benchmarks size =
 
       , (HeapO_n, benchIO "createOfLast.Max" $ createOfLastMax size)
       ]
+    ++ typeCommonBenchmarks size
     ++ commonBenchmarks size
 
 main :: IO ()

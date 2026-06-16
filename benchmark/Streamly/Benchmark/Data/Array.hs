@@ -17,6 +17,9 @@ import qualified Array.Stream as ArrayStream
 -- import qualified Streamly.Data.Array as A
 import qualified Streamly.Internal.Data.Array as A
 
+import Array.Type
+    (typeCommonBenchmarks, benchIO, withRandomIntIO, withArray, withStream)
+
 #if __GLASGOW_HASKELL__ >= 810
 type Arr :: Type -> Type
 #endif
@@ -24,18 +27,9 @@ type Arr = A.Array
 
 #include "Streamly/Benchmark/Data/Array/Common.hs"
 
-instance NFData (A.Array a) where
-    {-# INLINE rnf #-}
-    rnf _ = ()
-
 -------------------------------------------------------------------------------
 -- Bench Ops
 -------------------------------------------------------------------------------
-
-{-# INLINE sourceIntFromToFromList #-}
-sourceIntFromToFromList :: Int -> IO (Arr Int)
-sourceIntFromToFromList value = withRandomIntIO $ \n ->
-    P.return $ A.fromListN value [n..n + value]
 
 {-# INLINE parseInstance #-}
 parseInstance :: P.String -> Arr Int
@@ -104,6 +98,7 @@ benchmarks size =
 
       , (HeapO_n, benchIO "createOfLast.Max" $ createOfLastMax size)
       ]
+    ++ typeCommonBenchmarks size
     ++ commonBenchmarks size
 
 main :: IO ()

@@ -5,6 +5,8 @@
 import qualified Streamly.Internal.Data.SmallArray as A
 type Arr = A.SmallArray
 
+#include "Streamly/Benchmark/Data/Array/TypeCommon.hs"
+
 #include "Streamly/Benchmark/Data/Array/Common.hs"
 
 -------------------------------------------------------------------------------
@@ -72,6 +74,7 @@ benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
       [ (SpaceO_1, benchIO "read" $ readInstance size)
       ]
+    ++ typeCommonBenchmarks size
     ++ commonBenchmarks size
 
 main :: IO ()
