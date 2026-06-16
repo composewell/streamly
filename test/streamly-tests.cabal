@@ -386,6 +386,12 @@ test-suite Data.RingArray
   main-is: Streamly/Test/Data/RingArray.hs
   ghc-options: -main-is Streamly.Test.Data.RingArray.main
 
+test-suite Data.RingArray.Generic
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/RingArray/Generic.hs
+  ghc-options: -main-is Streamly.Test.Data.RingArray.Generic.main
+
 test-suite Data.Scanl.Concurrent
   import: test-options
   type: exitcode-stdio-1.0
