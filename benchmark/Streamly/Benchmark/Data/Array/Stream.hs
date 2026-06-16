@@ -125,18 +125,18 @@ benchmarks :: Arrays -> Int -> [(SpaceComplexity, Benchmark)]
 benchmarks arrays value =
     let (arraysSmall, arraysBig) = arrays
     in
-      [ (SpaceO_1, benchIO "fold (of 100)" (\_ -> Stream.fromList arraysSmall) fold)
-      , (SpaceO_1, benchIO "fold (single)" (\_ -> Stream.fromList arraysBig) fold)
+      [ (SpaceO_1, benchIO "foldBreak drain (100-elem arrays)" (\_ -> Stream.fromList arraysSmall) fold)
+      , (SpaceO_1, benchIO "foldBreak drain (one large array)" (\_ -> Stream.fromList arraysBig) fold)
       , (SpaceO_1, benchIO
-            "foldBreak (recursive, small arrays)"
+            "foldBreak (recursive, one at a time, 100-elem arrays)"
             (\_ -> Stream.fromList arraysSmall)
             (foldBreak . StreamK.fromStream))
-      , (SpaceO_1, benchIO "parse (of 100)" (\_ -> Stream.fromList arraysSmall)
+      , (SpaceO_1, benchIO "parseBreak drain (100-elem arrays)" (\_ -> Stream.fromList arraysSmall)
             $ parse value)
-      , (SpaceO_1, benchIO "parse (single)" (\_ -> Stream.fromList arraysBig)
+      , (SpaceO_1, benchIO "parseBreak drain (one large array)" (\_ -> Stream.fromList arraysBig)
             $ parse value)
       , (SpaceO_1, benchIO
-            "parseBreak (recursive, small arrays)"
+            "parseBreak (recursive, one at a time, 100-elem arrays)"
             (\_ -> Stream.fromList arraysSmall)
             (parseBreak . StreamK.fromStream))
       ]
