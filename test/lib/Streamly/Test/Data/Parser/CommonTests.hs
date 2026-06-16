@@ -17,13 +17,11 @@
 -- One problem is that this module becomes very big for compilation. We can
 -- break this further and keep them as a part of "other-modules" in
 -- Test.Parser test-suite.
-module Streamly.Test.Data.Parser.CommonTests (mainCommon, TestMode(..), takeWhileFailD) where
+module Streamly.Test.Data.Parser.CommonTests (mainCommon, TestMode(..)) where
 
 import Control.Exception (displayException, try, evaluate, SomeException)
 import Data.List (isSuffixOf)
-import Streamly.Internal.Data.Fold (Fold(..))
 import Streamly.Test.Common (listEquals, checkListEqual, chooseInt)
-import Streamly.Internal.Data.Parser (Parser(..), Step(..), Initial(..), Final(..))
 import Test.QuickCheck
        (arbitrary, forAll, elements, Property, property, listOf,
         vectorOf, (.&&.), ioProperty)
@@ -919,31 +917,6 @@ takeStartBy_ producer consumer =
             where
                 predicate = odd
                 parser = P.takeBeginBy_ predicate FL.toList
-
-{-# INLINE takeWhileFailD #-}
-takeWhileFailD :: Monad m => (a -> Bool) -> Fold m a b -> Parser a m b
-takeWhileFailD predicate (Fold fstep finitial _ ffinal) =
-    Parser step initial extract
-
-    where
-
-    initial = do
-        res <- finitial
-        return $ case res of
-            FL.Partial s -> IPartial s
-            FL.Done b -> IDone b
-
-    step s a =
-        if predicate a
-        then do
-            fres <- fstep s a
-            return
-                $ case fres of
-                      FL.Partial s1 -> SContinue 1 s1
-                      FL.Done b -> SDone 1 b
-        else return $ SError "fail"
-
-    extract s = fmap (FDone 0) (ffinal s)
 
 -------------------------------------------------------------------------------
 -- Main

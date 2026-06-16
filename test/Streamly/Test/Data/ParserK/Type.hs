@@ -1,11 +1,8 @@
 module Streamly.Test.Data.ParserK.Type (spec) where
 
-import Control.Applicative ((<|>))
-import Control.Monad.IO.Class (MonadIO(..))
 import Data.Either (fromRight)
-import Streamly.Internal.Data.Parser (ParseError(..))
 import Test.Hspec
-       (Spec, describe, it, expectationFailure, shouldBe, shouldReturn)
+       (Spec, describe, it, expectationFailure, shouldBe)
 
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as Parser
@@ -94,27 +91,6 @@ fusionBreaker :: a -> a
 fusionBreaker = id
 
 -------------------------------------------------------------------------------
--- Instances
--------------------------------------------------------------------------------
-
-{-# INLINE takeWhileFail #-}
-takeWhileFail :: MonadIO m =>
-    (a -> Bool) -> FL.Fold m a b -> ParserK.ParserK a m b
-takeWhileFail p f = ParserK.toParserK (Common.takeWhileFailD p f)
-
-{-# INLINE takeWhileK #-}
-takeWhileK :: MonadIO m => (a -> Bool) -> ParserK.ParserK a m [a]
-takeWhileK p = ParserK.toParserK $ Parser.takeWhile p FL.toList
-
-{-# INLINE alt2 #-}
-alt2 :: MonadIO m => StreamK.StreamK m Int -> m (Either ParseError [Int])
-alt2 =
-    StreamK.parse
-        (   takeWhileFail (<= 5) FL.toList
-        <|> takeWhileK (<= 7)
-        )
-
--------------------------------------------------------------------------------
 -- Spec
 -------------------------------------------------------------------------------
 
@@ -122,4 +98,3 @@ spec :: Spec
 spec = do
     CommonType.mainCommonType Common.TMParserKStreamK
     toParser
-    it "alt2 [1..20]" $ alt2 (StreamK.fromList [1..20]) `shouldReturn` Right [1..7]

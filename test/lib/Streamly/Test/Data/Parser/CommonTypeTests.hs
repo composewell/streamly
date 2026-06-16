@@ -5,7 +5,9 @@
 module Streamly.Test.Data.Parser.CommonTypeTests (mainCommonType) where
 
 import Control.Applicative ((<|>))
-import Streamly.Internal.Data.Parser (ParseErrorPos(..))
+import Streamly.Internal.Data.Fold (Fold(..))
+import Streamly.Internal.Data.Parser
+       (ParseErrorPos(..), Parser(..), Step(..), Initial(..), Final(..))
 import Streamly.Test.Common (chooseInt)
 import Test.QuickCheck
        (forAll, Property, property, listOf, vectorOf, Gen)
@@ -46,6 +48,34 @@ chooseAny :: Random a => Gen a
 chooseAny = MkGen (\r _ -> let (x,_) = random r in x)
 
 #endif
+
+-- | A 'takeWhile' that fails (instead of succeeding) when the predicate stops
+-- holding. Used to exercise Alternative backtracking after a parser fails
+-- mid-stream having already consumed input.
+{-# INLINE takeWhileFailD #-}
+takeWhileFailD :: Monad m => (a -> Bool) -> Fold m a b -> Parser a m b
+takeWhileFailD predicate (Fold fstep finitial _ ffinal) =
+    Parser step initial extract
+
+    where
+
+    initial = do
+        res <- finitial
+        return $ case res of
+            FL.Partial s -> IPartial s
+            FL.Done b -> IDone b
+
+    step s a =
+        if predicate a
+        then do
+            fres <- fstep s a
+            return
+                $ case fres of
+                      FL.Partial s1 -> SContinue 1 s1
+                      FL.Done b -> SDone 1 b
+        else return $ SError "fail"
+
+    extract s = fmap (FDone 0) (ffinal s)
 
 -- Accumulator Tests
 
@@ -168,6 +198,20 @@ altEOF2 producer consumer =
             Right x -> x == [51]
             Left _ -> False
 
+-- The left parser consumes 1..5 and then fails on 6 (mid-stream, with input
+-- still available); the alternative backtracks and re-runs from the start,
+-- consuming 1..7.
+alt :: ParserTestCase_Temp Int (PropertyM IO) [Int] Property
+alt producer consumer =
+    monadicIO $ do
+    s1 <- consumer
+        (takeWhileFailD (<= 5) FL.toList <|> P.takeWhile (<= 7) FL.toList)
+        (producer [1..20])
+    return $
+        case s1 of
+            Right x -> x == [1..7]
+            Left _ -> False
+
 monad :: ParserTestCase_Temp Int (PropertyM IO) ([Int], [Int]) Property
 monad producer consumer =
     forAll (listOf (chooseAny :: Gen Int)) $ \ list1 ->
@@ -197,6 +241,7 @@ mainCommonType ptt = do
         prop "applicative" $ runParserTC_temp ptt applicative
         prop "Alternative: end of input 1" $ runParserTC_temp ptt altEOF1
         prop "Alternative: end of input 2" $ runParserTC_temp ptt altEOF2
+        prop "Alternative: backtrack after mid-stream failure" $ runParserTC_temp ptt alt
         prop "monad" $ runParserTC_temp ptt monad
         prop "sequence" $ runParserTC_temp ptt sequence
 
