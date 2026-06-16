@@ -15,6 +15,7 @@ import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
 import Prelude hiding (sequence)
 
+import Streamly.Test.Data.Parser.CommonTestDriver (TestMode(..))
 import qualified Streamly.Test.Data.Parser.CommonTests as Common
 import qualified Streamly.Test.Data.Parser.Type as Type
 import qualified Streamly.Data.Stream as S
@@ -320,7 +321,8 @@ main = do
       H.parallel $
       modifyMaxSuccess (const maxTestCount) $ do
       describe moduleName $ do
-        Common.mainCommon Common.TMParserStream
+        Type.spec
+        Common.mainCommon TMParserStream
         parserSanityTests "Stream.parseBreak" sanityParseBreak
         -- parserSanityTests "A.sanityParseBreakChunksK" sanityParseBreakChunksK
         parserSanityTests "Stream.parseMany" sanityParseMany
@@ -343,5 +345,3 @@ main = do
                quotedWordTest
                    "\"hello\\\"\\\\w\\'orld\""
                    ["hello\"\\w\\'orld"]
-
-        Type.spec

@@ -17,7 +17,7 @@
 -- One problem is that this module becomes very big for compilation. We can
 -- break this further and keep them as a part of "other-modules" in
 -- Test.Parser test-suite.
-module Streamly.Test.Data.Parser.CommonTests (mainCommon, TestMode(..)) where
+module Streamly.Test.Data.Parser.CommonTests (mainCommon) where
 
 import Control.Exception (displayException, try, evaluate, SomeException)
 import Data.List (isSuffixOf)
@@ -41,7 +41,7 @@ import Test.Hspec.QuickCheck
 import Control.Monad.Identity (Identity(runIdentity))
 
 import Streamly.Test.Data.Parser.CommonTestDriver
-    ( TestMode(..)
+    ( TestMode
     , ParserTestCase
     , ParserTestCase_Temp
     , runParserTC

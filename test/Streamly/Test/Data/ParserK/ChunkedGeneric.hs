@@ -7,6 +7,7 @@ import qualified Streamly.Internal.Data.Array.Generic as AG
 import qualified Streamly.Internal.Data.StreamK as StreamK
 import qualified Test.Hspec as H
 
+import Streamly.Test.Data.Parser.CommonTestDriver (TestMode(..))
 import Streamly.Test.Data.Parser.CommonUtilities
 import qualified Streamly.Test.Data.Parser.CommonTests as Common
 import qualified Streamly.Test.Data.Parser.CommonTypeTests as CommonType
@@ -31,6 +32,6 @@ main =
   H.parallel $
   modifyMaxSuccess (const maxTestCount) $
   describe moduleName $ do
-    Common.mainCommon Common.TMParserKStreamKChunksGeneric
-    CommonType.mainCommonType Common.TMParserKStreamKChunksGeneric
+    CommonType.mainCommonType TMParserKStreamKChunksGeneric
+    Common.mainCommon TMParserKStreamKChunksGeneric
     parserSanityTests "StreamK.parseBreakChunksGeneric" sanityParseBreakChunksGeneric

@@ -12,6 +12,7 @@ import qualified Streamly.Internal.Data.ParserK as ParserK
 import qualified Streamly.Internal.Data.StreamK as StreamK
 import qualified Test.Hspec as H
 
+import Streamly.Test.Data.Parser.CommonTestDriver (TestMode(..))
 import Streamly.Test.Data.Parser.CommonUtilities
 import qualified Streamly.Test.Data.Parser.CommonTests as Common
 import qualified Streamly.Test.Data.ParserK.Type as Type
@@ -46,6 +47,6 @@ main =
   H.parallel $
   modifyMaxSuccess (const maxTestCount) $ do
   describe moduleName $ do
-    Common.mainCommon Common.TMParserKStreamK
-    parserSanityTests "StreamK.parseBreak" sanityParseBreak
     Type.spec
+    Common.mainCommon TMParserKStreamK
+    parserSanityTests "StreamK.parseBreak" sanityParseBreak

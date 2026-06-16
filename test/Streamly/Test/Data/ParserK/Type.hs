@@ -10,7 +10,7 @@ import qualified Streamly.Internal.Data.ParserK as ParserK
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.StreamK as StreamK
 
-import qualified Streamly.Test.Data.Parser.CommonTests as Common
+import Streamly.Test.Data.Parser.CommonTestDriver (TestMode(..))
 import qualified Streamly.Test.Data.Parser.CommonTypeTests as CommonType
 
 -------------------------------------------------------------------------------
@@ -96,5 +96,5 @@ fusionBreaker = id
 
 spec :: Spec
 spec = do
-    CommonType.mainCommonType Common.TMParserKStreamK
+    CommonType.mainCommonType TMParserKStreamK
     toParser

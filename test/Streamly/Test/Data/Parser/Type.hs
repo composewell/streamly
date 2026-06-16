@@ -2,7 +2,7 @@ module Streamly.Test.Data.Parser.Type (spec) where
 
 import Test.Hspec
 
-import qualified Streamly.Test.Data.Parser.CommonTests as Common
+import Streamly.Test.Data.Parser.CommonTestDriver (TestMode(..))
 import qualified Streamly.Test.Data.Parser.CommonTypeTests as CommonType
 
 -------------------------------------------------------------------------------
@@ -10,4 +10,4 @@ import qualified Streamly.Test.Data.Parser.CommonTypeTests as CommonType
 -------------------------------------------------------------------------------
 
 spec :: Spec
-spec = CommonType.mainCommonType Common.TMParserStream
+spec = CommonType.mainCommonType TMParserStream
