@@ -370,6 +370,7 @@ test-suite Data.ParserK
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/ParserK.hs
+  other-modules: Streamly.Test.Data.ParserK.Type
 
 test-suite Data.ParserK.Chunked
   import: test-options
