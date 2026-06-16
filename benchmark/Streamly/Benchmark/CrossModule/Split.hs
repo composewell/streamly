@@ -1,6 +1,6 @@
 
 -- |
--- Module      : Stream.Split
+-- Module      : CrossModule.Split
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -20,7 +20,7 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
-module Stream.Parse.Split (benchmarks) where
+module CrossModule.Split (benchmarks) where
 
 import Data.Char (ord)
 import Data.Word (Word8)

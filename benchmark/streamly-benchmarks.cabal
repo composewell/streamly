@@ -463,9 +463,6 @@ benchmark Data.Stream
       Stream.Lift
       Stream.Parse
       Stream.Parse.Group
-      Stream.Parse.Split
-      -- Note: uses around 400MB during build
-      Stream.Parse.SplitChunks
       Stream.Transform
       Stream.Transform.Basic
       Stream.Transform.Composed
@@ -474,8 +471,6 @@ benchmark Data.Stream
       Stream.Type.MultiStream
       Stream.Type.Nested
       Stream.Type.Logic
-  if flag(limit-build-mem)
-    ghc-options: +RTS -M500M -RTS
 
 benchmark Data.Stream.Adaptive
   import: bench-options-threaded
@@ -627,6 +622,13 @@ benchmark CrossModule
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark
   main-is: CrossModule.hs
+  other-modules:
+      CrossModule.FileSystem
+      CrossModule.Split
+      -- Note: uses around 400MB during build
+      CrossModule.SplitChunks
+  if flag(limit-build-mem)
+    ghc-options: +RTS -M500M -RTS
 
 benchmark FileSystem.DirIO
   import: bench-options

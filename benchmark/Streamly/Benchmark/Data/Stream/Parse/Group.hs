@@ -121,8 +121,5 @@ benchmarks size =
       , (SpaceO_1, benchIO "groupsByRollingLT" $ groupsByRollingLT size)
       , (SpaceO_1, benchIO "groupsByRollingEq" $ groupsByRollingEq size)
 
-      -- XXX parseMany/parseIterate benchmarks are in the Parser/ParserD
-      -- modules we can bring those here. chunksOf benchmarks are in
-      -- Parser/ParserD/Array.Stream/FileSystem.Handle.
       , (SpaceO_1, benchIO "foldIterateM" $ foldIterateM size)
       ]

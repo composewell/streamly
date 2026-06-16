@@ -1,6 +1,6 @@
 
 -- |
--- Module      : Stream.SplitChunks
+-- Module      : CrossModule.SplitChunks
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -20,7 +20,7 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
-module Stream.Parse.SplitChunks (benchmarks) where
+module CrossModule.SplitChunks (benchmarks) where
 
 import System.IO (Handle)
 

@@ -1,5 +1,5 @@
 --
--- Module      : Streamly.Benchmark.CrossModule
+-- Module      : CrossModule.FileSystem
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
@@ -21,6 +21,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
+
+module CrossModule.FileSystem (benchmarks) where
 
 import Data.Functor.Identity (runIdentity)
 import Data.Word (Word8)
@@ -50,9 +52,6 @@ import qualified Streamly.Internal.Data.Producer as Producer
 
 import Test.Inspection
 #endif
-
-moduleName :: String
-moduleName = "CrossModule"
 
 -------------------------------------------------------------------------------
 -- Handle read
@@ -240,9 +239,9 @@ inspect $ hasNoTypeClassesExcept 'copyChunksSplitInterpose [''Unbox]
 inspect $ 'copyChunksSplitInterpose `hasNoType` ''Step
 #endif
 
-allBenchmarks :: BenchEnv -> [Benchmark]
-allBenchmarks env =
-    [ bgroup (o_1_space_prefix moduleName)
+benchmarks :: BenchEnv -> [(SpaceComplexity, Benchmark)]
+benchmarks env =
+    map (\b -> (SpaceO_1, b))
         [ mkBench "Fold.latest" env $ \inh _ ->
             readLast inh
         , mkBench "Fold.sum" env $ \inh _ ->
@@ -322,9 +321,3 @@ allBenchmarks env =
         , mkBenchSmall "interpose . splitOn" env $ \inh outh ->
             copyChunksSplitInterpose inh outh
         ]
-    ]
-
-main :: IO ()
-main = do
-    env <- mkHandleBenchEnv
-    defaultMain (allBenchmarks env)
