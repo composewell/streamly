@@ -4,6 +4,12 @@
 
 #include "Streamly/Benchmark/Data/Array/CommonImports.hs"
 
+import Control.DeepSeq (NFData(..))
+import System.Random (randomRIO)
+
+import qualified Streamly.Data.Fold as Fold
+import qualified Stream.Common as P
+
 import qualified Streamly.Internal.Data.Array.Generic as A
 
 type Arr = A.Array
