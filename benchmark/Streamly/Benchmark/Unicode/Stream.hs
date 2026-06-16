@@ -339,6 +339,15 @@ inspect $ hasNoTypeClasses 'readDecodeUtf8
 -- inspect $ 'readDecodeUtf8Lax `hasNoType` ''Step
 #endif
 
+toChunksDecodeUtf8Arrays :: Handle -> IO ()
+toChunksDecodeUtf8Arrays =
+   Stream.drain . Unicode.decodeUtf8Chunks . Handle.readChunks
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'toChunksDecodeUtf8Arrays
+-- inspect $ 'toChunksDecodeUtf8Arrays `hasNoType` ''Step
+#endif
+
 allBenchmarks :: BenchEnv -> [Benchmark]
 allBenchmarks env =
     [ bgroup (o_1_space_prefix moduleName)
@@ -353,6 +362,8 @@ allBenchmarks env =
         -- read with utf8 decoding
         , mkBenchSmall "Unicode.decodeUtf8" env $ \inh _ ->
             readDecodeUtf8 inh
+        , mkBenchSmall "Unicode.decodeUtf8Chunks" env $ \inh _ ->
+            toChunksDecodeUtf8Arrays inh
 
         -- XXX all these require @-fspec-constr-recursive=12@.
           -- lines/unlines

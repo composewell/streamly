@@ -22,6 +22,7 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
+import Data.Functor.Identity (runIdentity)
 import Data.Word (Word8)
 import GHC.Magic (inline)
 import GHC.Magic (noinline)
@@ -41,6 +42,7 @@ import Streamly.Benchmark.Common
 import Streamly.Benchmark.Common.Handle
 
 #ifdef INSPECTION
+import Streamly.Internal.Data.MutByteArray (Unbox)
 import Streamly.Internal.Data.Stream (Step(..), FoldMany)
 
 import qualified Streamly.Internal.Data.MutArray as MutArray
@@ -137,6 +139,107 @@ chunksOf :: Int -> Handle -> IO Int
 chunksOf n inh =
     S.fold Fold.length $ A.chunksOf n (S.unfold FH.reader inh)
 
+-------------------------------------------------------------------------------
+-- read chunked using toChunks
+-------------------------------------------------------------------------------
+
+-- | Get the last byte from a file bytestream.
+toChunksLast :: Handle -> IO (Maybe Word8)
+toChunksLast inh = do
+    let s = FH.readChunks inh
+    larr <- IP.last s
+    return $ case larr of
+        Nothing -> Nothing
+        Just arr -> A.getIndex (A.length arr - 1) arr
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'toChunksLast
+inspect $ 'toChunksLast `hasNoType` ''Step
+#endif
+
+-- | Count the number of bytes in a file.
+toChunksSumLengths :: Handle -> IO Int
+toChunksSumLengths inh =
+    let s = FH.readChunks inh
+    in IP.fold Fold.sum (IP.map A.length s)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'toChunksSumLengths
+inspect $ 'toChunksSumLengths `hasNoType` ''Step
+#endif
+
+-- | Sum the bytes in a file.
+toChunksCountBytes :: Handle -> IO Word8
+toChunksCountBytes inh = do
+    let foldlArr' f z = runIdentity . IP.foldl' f z . A.read
+    let s = FH.readChunks inh
+    IP.foldl' (\acc arr -> acc + foldlArr' (+) 0 arr) 0 s
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'toChunksCountBytes
+inspect $ 'toChunksCountBytes `hasNoType` ''Step
+#endif
+
+-------------------------------------------------------------------------------
+-- Splitting
+-------------------------------------------------------------------------------
+
+-- | Count the number of lines in a file.
+toChunksSplitOnSuffix :: Handle -> IO Int
+toChunksSplitOnSuffix =
+    IP.fold Fold.length
+        . A.compactEndByByte_ 10
+        . FH.readChunks
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'toChunksSplitOnSuffix
+inspect $ 'toChunksSplitOnSuffix `hasNoType` ''Step
+#endif
+
+-- | Count the number of words in a file.
+toChunksSplitOn :: Handle -> IO Int
+toChunksSplitOn =
+    IP.fold Fold.length
+        . A.compactSepByByte_ 32
+        . FH.readChunks
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'toChunksSplitOn
+inspect $ 'toChunksSplitOn `hasNoType` ''Step
+#endif
+
+-------------------------------------------------------------------------------
+-- copy with group/ungroup transformations
+-------------------------------------------------------------------------------
+
+-- | Lines and unlines
+{-# NOINLINE copyChunksSplitInterposeSuffix #-}
+copyChunksSplitInterposeSuffix :: Handle -> Handle -> IO ()
+copyChunksSplitInterposeSuffix inh outh =
+    IP.fold (FH.write outh)
+        $ A.concatEndBy 10 . A.compactEndByByte_ 10
+        $ FH.readChunks inh
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClassesExcept 'copyChunksSplitInterposeSuffix [''Unbox]
+inspect $ 'copyChunksSplitInterposeSuffix `hasNoType` ''Step
+#endif
+
+-- | Words and unwords
+{-# NOINLINE copyChunksSplitInterpose #-}
+copyChunksSplitInterpose :: Handle -> Handle -> IO ()
+copyChunksSplitInterpose inh outh =
+    IP.fold (FH.write outh)
+        -- XXX requires @-fspec-constr-recursive=12@.
+        -- XXX this is not correct word splitting combinator
+        $ A.concatSepBy 32 . A.compactSepByByte_ 32
+        $ FH.readChunks inh
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClassesExcept 'copyChunksSplitInterpose [''Unbox]
+inspect $ 'copyChunksSplitInterpose `hasNoType` ''Step
+#endif
+
 allBenchmarks :: BenchEnv -> [Benchmark]
 allBenchmarks env =
     [ bgroup (o_1_space_prefix moduleName)
@@ -197,6 +300,27 @@ allBenchmarks env =
             chunksOf 10 inh
         , mkBench "Array.chunksOf 1000" env $ \inh _ ->
             chunksOf 1000 inh
+
+        -- read chunked using toChunks
+        , mkBench "Stream.last" env $ \inh _ ->
+            toChunksLast inh
+        -- Note: this cannot be fairly compared with GNU wc -c or wc -m as
+        -- wc uses lseek to just determine the file size rather than reading
+        -- and counting characters.
+        , mkBench "Stream.sum . Stream.map Array.length" env $ \inh _ ->
+            toChunksSumLengths inh
+        , mkBench "splitOnSuffix" env $ \inh _ ->
+            toChunksSplitOnSuffix inh
+        , mkBench "splitOn" env $ \inh _ ->
+            toChunksSplitOn inh
+        , mkBench "countBytes" env $ \inh _ ->
+            toChunksCountBytes inh
+
+        -- copy with group/ungroup transformations
+        , mkBench "interposeSuffix . splitOnSuffix" env $ \inh outh ->
+            copyChunksSplitInterposeSuffix inh outh
+        , mkBenchSmall "interpose . splitOn" env $ \inh outh ->
+            copyChunksSplitInterpose inh outh
         ]
     ]
 
