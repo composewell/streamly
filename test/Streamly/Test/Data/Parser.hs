@@ -5,9 +5,7 @@
 #endif
 module Main (main) where
 
-import Control.Applicative ((<|>))
 import Control.Exception (displayException)
-import Control.Monad.IO.Class (MonadIO(..))
 import Data.Char (isSpace)
 import Data.Foldable (for_)
 import Data.Word (Word8, Word32, Word64)
@@ -18,6 +16,7 @@ import Test.QuickCheck.Monadic (monadicIO, assert, run)
 import Prelude hiding (sequence)
 
 import qualified Streamly.Test.Data.Parser.CommonTests as Common
+import qualified Streamly.Test.Data.Parser.Type as Type
 import qualified Streamly.Data.Stream as S
 import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Fold as FL
@@ -309,18 +308,6 @@ sanityParseIterate jumps = it (show jumps) $ do
     res `shouldBe` (expectedResultMany jumps tape)
 
 -------------------------------------------------------------------------------
--- Instances
--------------------------------------------------------------------------------
-
-{-# INLINE alt #-}
-alt :: MonadIO m => S.Stream m Int -> m (Either P.ParseError [Int])
-alt =
-    S.parse
-        (   Common.takeWhileFailD (<= 5) FL.toList
-        <|> P.takeWhile (<= 7) FL.toList
-        )
-
--------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
 
@@ -357,4 +344,4 @@ main = do
                    "\"hello\\\"\\\\w\\'orld\""
                    ["hello\"\\w\\'orld"]
 
-        it "alt [1..20]" $ alt (S.fromList [1..20]) `shouldReturn` Right [1..7]
+        Type.spec
