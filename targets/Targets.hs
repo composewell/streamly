@@ -28,11 +28,6 @@ targets =
             , "array_cmp"
             ]
       )
-    , ("Data.Array.Stream",
-            [ "infinite_grp"
-            , "serial_stream_grp"
-            ]
-      )
     , ("Data.Binary",
             [ "noBench"
             ]
@@ -41,6 +36,11 @@ targets =
             [ "infinite_grp"
             , "fold_parser_grp"
             , "streamly_core_grp"
+            ]
+      )
+    , ("Data.Fold.Prelude",
+            [ "fold_parser_grp"
+            , "noTest"
             ]
       )
 
@@ -90,9 +90,21 @@ targets =
             , "noTest"
             ]
       )
+    , ("Data.Pipe",
+            [ "streamly_core_grp"
+            , "noTest"
+            ]
+      )
     , ("Data.RingArray",
             [ "array_grp"
             , "streamly_core_grp"
+            ]
+      )
+    , ("Data.Scan",
+            [ "infinite_grp"
+            , "fold_parser_grp"
+            , "streamly_core_grp"
+            , "noTest"
             ]
       )
     , ("Data.Scanl",
@@ -175,6 +187,11 @@ targets =
     , ("Data.Stream.ConcurrentThreadHeavy",
             [ "concurrent_stream_grp"
             , "noTest"
+            ]
+      )
+    , ("Data.Stream.Prelude",
+            [ "infinite_grp"
+            , "concurrent_stream_grp"
             ]
       )
     , ("Data.Stream.Rate",
