@@ -37,20 +37,20 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
         -- XXX GHC 9.6 onwards needs 64M, earlier it was 32M
         | "Data.Array" `isPrefixOf` benchName
              && "/o-1-space.show" `isSuffixOf` benchName = "-M64M"
+        -- XXX For --long option, need to check why so much heap is required.
+        | "Data.Array/o-1-space.foldBreak"
+            `isPrefixOf` benchName = "-K4M -M512M"
+        | "Data.Array/o-1-space.parseBreak"
+            `isPrefixOf` benchName = "-K4M -M512M"
         -- XXX GHC 9.6 onwards needs 64M, earlier it was 32M
         | "Data.Array.Generic/o-1-space.mapX4"
             `isPrefixOf` benchName = "-M64M"
 
-        -- XXX For --long option, need to check why so much heap is required.
-        -- Note, if we remove the chunked stream module we need to keep the
-        -- chunked stream benchmarks in the stream module.
-        | "Data.Array.Stream/o-1-space"
-            `isPrefixOf` benchName = "-K4M -M512M"
 
         ----------------------------------------------------------------------
 
         -- GHC-9.6 requires 64M, earlier it was 16M
-        | "Data.Fold/o-n-heap.toHashMapIO (max buckets) sum"
+        | "Data.Fold.Prelude/o-n-heap.toHashMapIO (max buckets) sum"
             == benchName = "-M64M"
 
         ----------------------------------------------------------------------
