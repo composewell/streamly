@@ -14,6 +14,7 @@ import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.StreamK as StreamK
 
 import qualified Streamly.Test.Data.Parser.CommonTests as Common
+import qualified Streamly.Test.Data.Parser.CommonTypeTests as CommonType
 
 -------------------------------------------------------------------------------
 -- Adapting from/to Parser
@@ -119,5 +120,6 @@ alt2 =
 
 spec :: Spec
 spec = do
+    CommonType.mainCommonType Common.TMParserKStreamK
     toParser
     it "alt2 [1..20]" $ alt2 (StreamK.fromList [1..20]) `shouldReturn` Right [1..7]

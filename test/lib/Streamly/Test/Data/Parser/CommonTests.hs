@@ -53,7 +53,6 @@ import Streamly.Test.Data.Parser.CommonTestDriver
     , max_value
     , max_length
     )
-import Streamly.Test.Data.Parser.CommonTypeTests (mainCommonType)
 
 -- Accumulator Tests
 
@@ -953,9 +952,9 @@ takeWhileFailD predicate (Fold fstep finitial _ ffinal) =
 {-# NOINLINE mainCommon #-}
 mainCommon :: TestMode -> Spec
 mainCommon ptt = do
+  -- This file has tests corresponding to Parser.hs source file that are common
+  -- to Parser and ParserK.
   describe (show ptt) $ do
-    mainCommonType ptt
-
     describe "test for accumulator" $ do
         prop "P.fromFold FL.sum = FL.sum" $ runParserTC ptt fromFold
 

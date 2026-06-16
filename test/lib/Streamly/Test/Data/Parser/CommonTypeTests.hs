@@ -190,6 +190,9 @@ monad producer consumer =
 {-# NOINLINE mainCommonType #-}
 mainCommonType :: TestMode -> Spec
 mainCommonType ptt = do
+  -- This file has tests corresponding to Parser/Type.hs source file that are
+  -- common to Parser and ParserK.
+  describe (show ptt) $ do
     describe "Instances" $ do
         prop "applicative" $ runParserTC_temp ptt applicative
         prop "Alternative: end of input 1" $ runParserTC_temp ptt altEOF1

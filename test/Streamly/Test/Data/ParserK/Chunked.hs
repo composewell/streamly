@@ -9,6 +9,7 @@ import qualified Test.Hspec as H
 
 import Streamly.Test.Data.Parser.CommonUtilities
 import qualified Streamly.Test.Data.Parser.CommonTests as Common
+import qualified Streamly.Test.Data.Parser.CommonTypeTests as CommonType
 
 maxTestCount :: Int
 maxTestCount = 100
@@ -31,4 +32,5 @@ main =
   modifyMaxSuccess (const maxTestCount) $
   describe moduleName $ do
     Common.mainCommon Common.TMParserKStreamKChunks
+    CommonType.mainCommonType Common.TMParserKStreamKChunks
     parserSanityTests "StreamK.parseBreakChunks" sanityParseBreakChunks

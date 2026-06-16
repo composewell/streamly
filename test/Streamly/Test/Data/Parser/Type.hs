@@ -10,6 +10,7 @@ import qualified Streamly.Internal.Data.Parser as P
 import Test.Hspec
 
 import qualified Streamly.Test.Data.Parser.CommonTests as Common
+import qualified Streamly.Test.Data.Parser.CommonTypeTests as CommonType
 
 -------------------------------------------------------------------------------
 -- Instances
@@ -28,5 +29,6 @@ alt =
 -------------------------------------------------------------------------------
 
 spec :: Spec
-spec =
+spec = do
+    CommonType.mainCommonType Common.TMParserStream
     it "alt [1..20]" $ alt (S.fromList [1..20]) `shouldReturn` Right [1..7]
