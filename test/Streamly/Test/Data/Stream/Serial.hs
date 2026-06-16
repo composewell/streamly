@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-deprecations #-}
 -- XXX We are using head/tail at one place
 #if __GLASGOW_HASKELL__ >= 908
 {-# OPTIONS_GHC -Wno-x-partial #-}
@@ -142,27 +141,27 @@ splitterProperties sep desc = do
         $ do
 
             forM_ [0, 1, 2, 4]
-                $ intercalateSplitEqId splitOnSeq_ intercalate IS.intercalate
+                $ intercalateSplitEqId splitOnSeq_ intercalate sIntercalate
 
             forM_ [0, 1, 2, 4]
                 $ concatSplitIntercalateEqConcat
                       splitOnSeq_
                       intercalate
-                      IS.intercalate
+                      sIntercalate
 
             -- Exclusive case
-            splitIntercalateEqId splitOnSeq_ intercalate IS.intercalate
+            splitIntercalateEqId splitOnSeq_ intercalate sIntercalate
 
     describe (desc <> " splitOn")
         $ do
 
-            intercalateSplitEqId splitOn_ intercalate IS.intercalate 1
+            intercalateSplitEqId splitOn_ intercalate sIntercalate 1
 
             concatSplitIntercalateEqConcat
-                splitOn_ intercalate IS.intercalate 1
+                splitOn_ intercalate sIntercalate 1
 
             -- Exclusive case
-            splitIntercalateEqId splitOn_ intercalate IS.intercalate
+            splitIntercalateEqId splitOn_ intercalate sIntercalate
 
     describe (desc <> " splitOnSuffixSeq")
         $ do
@@ -171,32 +170,32 @@ splitterProperties sep desc = do
                 $ intercalateSplitEqIdNoSepEnd
                       splitOnSuffixSeq_
                       intercalate
-                      IS.intercalate
+                      sIntercalate
 
             forM_ [0, 1, 2, 4]
                 $ concatSplitIntercalateEqConcat
                       splitOnSuffixSeq_
                       intercalateSuffix
-                      IS.intercalateSuffix
+                      sIntercalateSuffix
 
             -- Exclusive case
             splitIntercalateEqId
                 splitOnSuffixSeq_
                 intercalateSuffix
-                IS.intercalateSuffix
+                sIntercalateSuffix
 
     describe (desc <> " splitOnSuffix")
         $ do
 
             intercalateSplitEqIdNoSepEnd
-                splitOnSuffix_ intercalate IS.intercalate 1
+                splitOnSuffix_ intercalate sIntercalate 1
 
             concatSplitIntercalateEqConcat
-                splitOnSuffix_ intercalateSuffix IS.intercalateSuffix 1
+                splitOnSuffix_ intercalateSuffix sIntercalateSuffix 1
 
             -- Exclusive case
             splitIntercalateEqId
-                splitOnSuffix_ intercalateSuffix IS.intercalateSuffix
+                splitOnSuffix_ intercalateSuffix sIntercalateSuffix
 
     where
 
@@ -213,6 +212,10 @@ splitterProperties sep desc = do
         toList $ splitOnSuffix (== head pat) FL.toList (S.fromList xs)
 
     intercalateSuffix xs yss = intercalate xs yss ++ xs
+
+    sIntercalate u x = IS.unfoldEachSepBySeq x u
+
+    sIntercalateSuffix u x = IS.unfoldEachEndBySeq x u
 
     nonSepElem :: Gen a
     nonSepElem = suchThat arbitrary (/= sep)
@@ -439,7 +442,7 @@ foldIterateM =
         let s1 = Prelude.sum lst
             strm = S.fromList lst
         ms2 <-
-            S.fold FL.last
+            S.fold FL.latest
                 $ fmap getSum
                 $ IS.foldIterateM
                       (return . FL.take 1 . FL.sconcat)
