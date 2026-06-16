@@ -3,12 +3,12 @@
 ## Build and run benchmarks directly
 
 ```
-$ cabal run bench:Prelude.Serial  # run selected
-$ cabal run bench:Prelude.Serial -- --help # help on arguments
-$ cabal run bench:Prelude.Serial -- --stdev 100000 # specify arguments
-$ cabal run bench:Prelude.Serial --flag fusion-plugin # with fusion-plugin
+$ cabal run bench:Data.Stream  # run selected
+$ cabal run bench:Data.Stream -- --help # help on arguments
+$ cabal run bench:Data.Stream -- --stdev 100000 # specify arguments
+$ cabal run bench:Data.Stream --flag fusion-plugin # with fusion-plugin
 
-$ cabal build bench:Prelude.Serial # build selected
+$ cabal build bench:Data.Stream # build selected
 $ cabal build --enable-benchmarks streamly-benchmarks # build all
 $ cabal build --enable-benchmarks all # build all, alternate method
 
@@ -17,9 +17,13 @@ $ cabal build --flag "-opt" ... # disable optimization, faster build
 
 ## Building and Running Benchmarks with bench-runner
 
-The executable `bench-runner` is the top level driver for
-running benchmarks. It runs the requested benchmarks and then creates a
-report from the results using the `bench-show` package.
+`bench-runner` executable can be used to run benchmarks. Why use it?
+* It runs one benchmark pre invocation of the benchmark executable, no
+  GC interference, more reliable results
+* It specifies limits on heap, stack memory to verify the usage.
+* It exposes groups of benchmarks to run
+* It shows a summary report of all benchmark results
+* It shows comparisons of results with previous runs
 
 IMPORTANT NOTE:  The first time you run this executable it may take a long
 time because it has to build the `bench-report` executable which has a
@@ -27,21 +31,21 @@ lot of dependencies.
 
 You can install it once in the root of the repository and use it multiple times.
 
-You can use `cabal.project.report` to install bench-runner like so:
-```
-$ cabal install bench-runner --project-file=cabal.project.report --installdir=./  --overwrite-policy=always
-$ ./bench-runner <bench-runner-args>
-```
-
 If you're using nix, you can install bench-runner like so:
 ```
 $ cd benchmark/bench-runner
-$ nix-shell --run 'cabal install bench-runner --installdir=../../  --overwrite-policy=always'
+$ nix develop -c 'cabal install bench-runner --installdir=../../bin  --overwrite-policy=always'
 $ cd ../../
-$ ./bench-runner <bench-runner-args>
+$ bin/bench-runner <bench-runner-args>
 ```
 
-You can run the `bench-runner` without installing, like so:
+You can use `cabal.project.report` to install bench-runner like so:
+```
+$ cabal install bench-runner --project-file=cabal.project.report --installdir=bin/  --overwrite-policy=always
+$ bin/bench-runner <bench-runner-args>
+```
+
+To run without installing:
 ```
 $ cabal run bench-runner --project-file=cabal.project.report -- <bench-runner-args>
 ```
@@ -69,11 +73,11 @@ $ ./bench-runner --targets serial_grp # Run all serial benchmark suites
 $ ./bench-runner --targets "Prelude.Serial Data.Parser" # run selected suites
 $ ./bench-runner --no-measure # don't run benchmarks just show previous results
 
-# Run all O(1) space complexity benchmarks in `Prelude.Serial` suite
-$ ./bench-runner --targets Prelude.Serial --prefix Prelude.Serial/o-1-space
+# Run all O(1) space complexity benchmarks in `Data.Stream` suite
+$ ./bench-runner --targets Data.Stream --prefix Data.Stream/o-1-space
 
-# Run a specific benchmark in `Prelude.Serial` suite
-$ ./bench-runner --targets Prelude.Serial --prefix Prelude.Serial/o-1-space.generation.unfoldr
+# Run a specific benchmark in `Data.Stream` suite
+$ ./bench-runner --targets Data.Stream --prefix Data.Stream/o-1-space.generation.unfoldr
 ```
 
 Note: `bench-runner` enables fusion-plugin by default.
@@ -133,7 +137,7 @@ You can specify the stream size (default is 100000) to be used for
 benchmarking:
 
 ```
-$ cabal run bench:Prelude.Serial -- --stream-size 1000000
+$ cabal run bench:Data.Stream -- --stream-size 1000000
 ```
 
 ### External input file
