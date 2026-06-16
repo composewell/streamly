@@ -67,6 +67,8 @@ build-type:          Configure
 extra-source-files:
     bench-test-lib/bench-test-lib.cabal
     bench-test-lib/src/BenchTestLib/DirIO.hs
+    benchmark/Streamly/Benchmark/CrossModule.hs
+    benchmark/Streamly/Benchmark/CrossModule/*.hs
     benchmark/Streamly/Benchmark/Data/*.hs
     benchmark/Streamly/Benchmark/Data/Array.hs
     benchmark/Streamly/Benchmark/Data/Array/Common.hs
