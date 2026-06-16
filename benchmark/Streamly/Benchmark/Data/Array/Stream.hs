@@ -1,6 +1,6 @@
 
 -- |
--- Module      : Streamly.Benchmark.Data.ParserD
+-- Module      : Array.Stream
 -- Copyright   : (c) 2020 Composewell Technologies
 --
 -- License     : BSD-3-Clause
@@ -19,9 +19,11 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
-module Main
+module Array.Stream
   (
-    main
+    Arrays
+  , alloc
+  , benchmarks
   ) where
 
 import Control.DeepSeq (NFData(..))
@@ -41,7 +43,6 @@ import qualified Streamly.Internal.Data.StreamK as StreamK
 
 import Test.Tasty.Bench hiding (env)
 import Streamly.Benchmark.Common
-import Streamly.Benchmark.Common.Handle
 import Control.Monad.IO.Class (MonadIO)
 
 -------------------------------------------------------------------------------
@@ -105,51 +106,37 @@ parseBreak s = do
 
 
 -------------------------------------------------------------------------------
--- Driver
+-- Benchmarks
 -------------------------------------------------------------------------------
 
-moduleName :: String
-moduleName = "Data.Array.Stream"
+type Arrays = ([Array.Array Int], [Array.Array Int])
 
-main :: IO ()
-main = do
-    env <- mkHandleBenchEnv
-    runWithCLIOptsEnv defaultStreamSize alloc (allBenchmarks env)
+alloc :: Int -> IO Arrays
+alloc value =
+    if value <= 0
+    then return  (undefined, undefined)
+    else
+        do
+        small <- Stream.toList $ Array.chunksOf 100 $ sourceUnfoldrM value 0
+        big <- Stream.toList $ Array.chunksOf value $ sourceUnfoldrM value 0
+        return (small, big)
 
-    where
-
-    alloc value =
-        if value <= 0
-        then return  (undefined, undefined)
-        else
-            do
-            small <- Stream.toList $ Array.chunksOf 100 $ sourceUnfoldrM value 0
-            big <- Stream.toList $ Array.chunksOf value $ sourceUnfoldrM value 0
-            return (small, big)
-
-    benchmarks _env arrays value =
-        let (arraysSmall, arraysBig) = arrays
-        in
-          [ (SpaceO_1, benchIO "fold (of 100)" (\_ -> Stream.fromList arraysSmall) fold)
-          , (SpaceO_1, benchIO "fold (single)" (\_ -> Stream.fromList arraysBig) fold)
-          , (SpaceO_1, benchIO
-                "foldBreak (recursive, small arrays)"
-                (\_ -> Stream.fromList arraysSmall)
-                (foldBreak . StreamK.fromStream))
-          , (SpaceO_1, benchIO "parse (of 100)" (\_ -> Stream.fromList arraysSmall)
-                $ parse value)
-          , (SpaceO_1, benchIO "parse (single)" (\_ -> Stream.fromList arraysBig)
-                $ parse value)
-          , (SpaceO_1, benchIO
-                "parseBreak (recursive, small arrays)"
-                (\_ -> Stream.fromList arraysSmall)
-                (parseBreak . StreamK.fromStream))
-          ]
-
-    allBenchmarks env arrays value =
-        let allBenches = benchmarks env arrays value
-            get x = map snd $ filter ((==) x . fst) allBenches
-            o_1_space = get SpaceO_1
-        in
-        [ bgroup (o_1_space_prefix moduleName) o_1_space
-        ]
+benchmarks :: Arrays -> Int -> [(SpaceComplexity, Benchmark)]
+benchmarks arrays value =
+    let (arraysSmall, arraysBig) = arrays
+    in
+      [ (SpaceO_1, benchIO "fold (of 100)" (\_ -> Stream.fromList arraysSmall) fold)
+      , (SpaceO_1, benchIO "fold (single)" (\_ -> Stream.fromList arraysBig) fold)
+      , (SpaceO_1, benchIO
+            "foldBreak (recursive, small arrays)"
+            (\_ -> Stream.fromList arraysSmall)
+            (foldBreak . StreamK.fromStream))
+      , (SpaceO_1, benchIO "parse (of 100)" (\_ -> Stream.fromList arraysSmall)
+            $ parse value)
+      , (SpaceO_1, benchIO "parse (single)" (\_ -> Stream.fromList arraysBig)
+            $ parse value)
+      , (SpaceO_1, benchIO
+            "parseBreak (recursive, small arrays)"
+            (\_ -> Stream.fromList arraysSmall)
+            (parseBreak . StreamK.fromStream))
+      ]

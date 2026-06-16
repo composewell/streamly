@@ -242,10 +242,12 @@ benchmark Data.Array
   main-is: Streamly/Benchmark/Data/Array.hs
   other-modules:
       Stream.Common
+    , Array.Stream
   if flag(use-streamly-core)
     buildable: False
   else
     buildable: True
+    build-depends: exceptions >= 0.8   && < 0.11
   if flag(limit-build-mem) && !flag(fusion-plugin)
     ghc-options: +RTS -M600M -RTS
 
@@ -262,17 +264,6 @@ benchmark Data.Array.Generic
     buildable: True
   if flag(limit-build-mem)
     ghc-options: +RTS -M600M -RTS
-
-benchmark Data.Array.Stream
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data/Array
-  main-is: Stream.hs
-  if flag(use-streamly-core) || impl(ghcjs)
-    buildable: False
-  else
-    buildable: True
-    build-depends: exceptions >= 0.8   && < 0.11
 
 benchmark Data.Fold
   import: bench-options

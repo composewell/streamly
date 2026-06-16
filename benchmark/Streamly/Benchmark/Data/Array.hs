@@ -12,6 +12,8 @@ import Data.Kind (Type)
 import qualified Streamly.Internal.Data.Array as IA
 import qualified GHC.Exts as GHC
 
+import qualified Array.Stream as ArrayStream
+
 -- import qualified Streamly.Data.Array as A
 import qualified Streamly.Internal.Data.Array as A
 
@@ -105,12 +107,12 @@ benchmarks size =
     ++ commonBenchmarks size
 
 main :: IO ()
-main = runWithCLIOpts defStreamSize allBenchmarks
+main = runWithCLIOptsEnv defStreamSize ArrayStream.alloc allBenchmarks
 
     where
 
-    allBenchmarks size =
-        let allBenches = benchmarks size
+    allBenchmarks arrays size =
+        let allBenches = benchmarks size ++ ArrayStream.benchmarks arrays size
             get x = fmap snd $ filter ((==) x . fst) allBenches
             o_1_space = get SpaceO_1
             o_n_heap = get HeapO_n
