@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+* Fixed `Stream.postscanl` to omit the output of a scan that terminates without
+  consuming any input (e.g. `Scanl.take 0`).
 * Breaking: In `FileSystem.Path` module the default for `eqPath` changed
   on Windows to case-sensitive comparison.
 * Breaking: A leading "." component (e.g. "." or "./x") is no longer

@@ -537,16 +537,23 @@ data ScanState s f = ScanInit s | ScanDo s !f | ScanDone
 -- Unfortunately, we cannot define lazy scans because the Partial constructor
 -- itself is strict.
 
--- | Postscan a stream using the given fold. A postscan omits the initial
--- (default) value of the accumulator and includes the final value.
+-- | Postscan a stream using the given scan. A postscan emits one output per
+-- input element, omitting the initial value of the accumulator. Equivalently,
+-- @postscanl s = 'Data.List.drop' 1 . 'scanl' s@.
 --
 -- >>> Stream.toList $ Stream.postscanl Scanl.latest (Stream.fromList [])
 -- []
 --
--- Compare with 'scan' which includes the initial value as well:
+-- Compare with 'scanl' which additionally emits the initial value:
 --
 -- >>> Stream.toList $ Stream.scanl Scanl.latest (Stream.fromList [])
 -- [Nothing]
+--
+-- A scan that terminates at the initial step (e.g. @Scanl.take 0@) consumes no
+-- input, so the postscan is empty:
+--
+-- >>> Stream.toList $ Stream.postscanl (Scanl.take 0 Scanl.toList) (Stream.fromList [1,2,3::Int])
+-- []
 --
 -- The following example extracts the input stream up to a point where the
 -- running average of elements is no more than 10:
@@ -575,7 +582,12 @@ postscanl (Scanl fstep initial extract final) (Stream sstep state) =
         return
             $ case res of
                   FL.Partial fs -> Skip $ ScanDo st fs
-                  FL.Done b -> Yield b ScanDone
+                  -- A scan that is Done at the initial step has consumed no
+                  -- input, so a postscan (one output per consumed input) emits
+                  -- nothing. This keeps the invariant
+                  -- @postscanl s = drop 1 . scanl s@: the initial value is
+                  -- always dropped, whether it comes from a Partial or a Done.
+                  FL.Done _ -> Stop
     step gst (ScanDo st fs) = do
         res <- sstep (adaptState gst) st
         case res of
