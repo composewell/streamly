@@ -276,7 +276,18 @@ test-suite Data.Fold
     Streamly.Test.Data.Fold.Exception
     Streamly.Test.Data.Fold.Tee
     Streamly.Test.Data.Fold.Type
-    Streamly.Test.Data.Fold.Window
+
+test-suite Data.Scanl
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/Scanl.hs
+  hs-source-dirs: .
+  ghc-options: -main-is Main.main
+  other-modules:
+    Streamly.Test.Data.Scanl.Combinators
+    Streamly.Test.Data.Scanl.Container
+    Streamly.Test.Data.Scanl.Type
+    Streamly.Test.Data.Scanl.Window
 
 -- The Streamly.Data.List needs to be fixed to enable this
 -- test-suite Data.List

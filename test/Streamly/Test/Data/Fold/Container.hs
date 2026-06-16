@@ -10,15 +10,16 @@
 module Streamly.Test.Data.Fold.Container (main) where
 
 import qualified Data.IntSet as IntSet
-import qualified Data.Map
+import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Streamly.Internal.Data.Fold as Fold
+import qualified Streamly.Internal.Data.Fold as F
 import qualified Streamly.Internal.Data.Stream as Stream
 
+import Streamly.Test.Data.Fold.Type (check, checkPostscanl)
 import Test.Hspec
-import Test.Hspec.QuickCheck
-import Test.QuickCheck (Property)
-import Test.QuickCheck.Monadic (monadicIO, assert)
+
+#include "Streamly/Test/Data/Scanl/CommonContainer.hs"
 
 demux :: Expectation
 demux =
@@ -40,7 +41,7 @@ demux =
         (Fold.demuxKvToMap table)
         input
         `shouldReturn`
-        Data.Map.fromList [("PRODUCT", 8),("SUM", 4),("abc",3),("xyz",2)]
+        Map.fromList [("PRODUCT", 8),("SUM", 4),("abc",3),("xyz",2)]
 
 demuxWith :: Expectation
 demuxWith =
@@ -56,7 +57,7 @@ demuxWith =
         (Fold.demuxToContainer getKey (getFold . getKey))
         input
         `shouldReturn`
-        Data.Map.fromList [("PRODUCT",3),("SUM",6)]
+        Map.fromList [("PRODUCT",3),("SUM",6)]
 
 classifyWith :: Expectation
 classifyWith =
@@ -65,7 +66,7 @@ classifyWith =
         (Fold.toContainer fst (Fold.lmap snd Fold.toList))
         input
         `shouldReturn`
-        Data.Map.fromList
+        Map.fromList
         [("ONE",[1.0, 1.1 :: Double]), ("TWO",[2.0, 2.2])]
 
 classify :: Expectation
@@ -82,7 +83,7 @@ classify =
         (Fold.kvToMap (Fold.lmap snd Fold.toList))
         input
         `shouldReturn`
-        Data.Map.fromList
+        Map.fromList
         [("ONE",[1.0, 1.1 :: Double]), ("TWO",[2.0, 2.2])]
 
 classifyScan :: Expectation
@@ -100,48 +101,12 @@ classifyScan =
         (Stream.postscanlMaybe (Fold.classifyScan getKey innerFold) input)
         `shouldReturn` [("ONE", 4), ("TWO", 6)]
 
-nub :: Property
-nub = monadicIO $ do
-    vals <- Stream.fold Fold.toList
-            $ Stream.catMaybes
-            $ Stream.postscan Fold.nub
-            $ Stream.fromList [1::Int, 1, 2, 3, 4, 4, 5, 1, 5, 7]
-    assert (vals == [1, 2, 3, 4, 5, 7])
-
-toSet :: Expectation
-toSet =
-    Stream.fold Fold.toSet (Stream.fromList [1,2,3,2,1 :: Int])
-        `shouldReturn` Set.fromList [1,2,3]
-
-toIntSet :: Expectation
-toIntSet =
-    Stream.fold Fold.toIntSet (Stream.fromList [1,2,3,2,1 :: Int])
-        `shouldReturn` IntSet.fromList [1,2,3]
-
-countDistinct :: Expectation
-countDistinct =
-    Stream.fold Fold.countDistinct (Stream.fromList [1,2,3,2,1 :: Int])
-        `shouldReturn` 3
-
-countDistinctInt :: Expectation
-countDistinctInt =
-    Stream.fold Fold.countDistinctInt (Stream.fromList [1,2,3,2,1 :: Int])
-        `shouldReturn` 3
-
-nubInt :: Property
-nubInt = monadicIO $ do
-    vals <- Stream.fold Fold.toList
-            $ Stream.catMaybes
-            $ Stream.postscan Fold.nubInt
-            $ Stream.fromList [1::Int, 1, 2, 3, 4, 4, 5, 1, 5, 7]
-    assert (vals == [1, 2, 3, 4, 5, 7])
-
 frequency :: Expectation
 frequency =
     Stream.fold Fold.frequency
         (Stream.fromList ["a","b","a","c","b","a" :: String])
     `shouldReturn`
-    Data.Map.fromList [("a",3),("b",2),("c",1)]
+    Map.fromList [("a",3),("b",2),("c",1)]
 
 demuxerToMap :: Expectation
 demuxerToMap =
@@ -154,7 +119,7 @@ demuxerToMap =
         (Fold.demuxerToMap getKey getFold)
         input
         `shouldReturn`
-        Data.Map.fromList [("SUM", 4 :: Int), ("X", 3)]
+        Map.fromList [("SUM", 4 :: Int), ("X", 3)]
 
 demuxerToContainer :: Expectation
 demuxerToContainer =
@@ -167,7 +132,7 @@ demuxerToContainer =
         (Fold.demuxerToContainer getKey getFold)
         input
         `shouldReturn`
-        Data.Map.fromList [("SUM", 4 :: Int), ("X", 3)]
+        Map.fromList [("SUM", 4 :: Int), ("X", 3)]
 
 demuxKvToContainer :: Expectation
 demuxKvToContainer =
@@ -180,7 +145,7 @@ demuxKvToContainer =
         (Fold.demuxKvToContainer table)
         input
         `shouldReturn`
-        Data.Map.fromList [("PRODUCT",8 :: Int),("SUM",4)]
+        Map.fromList [("PRODUCT",8 :: Int),("SUM",4)]
 
 toMap :: Expectation
 toMap =
@@ -189,7 +154,7 @@ toMap =
         (Fold.toMap fst (Fold.lmap snd Fold.toList))
         input
         `shouldReturn`
-        Data.Map.fromList [("ONE",[1.0,1.1 :: Double]), ("TWO",[2.0,2.2])]
+        Map.fromList [("ONE",[1.0,1.1 :: Double]), ("TWO",[2.0,2.2])]
 
 demuxScan :: Expectation
 demuxScan = do
@@ -208,17 +173,16 @@ moduleName = "Data.Fold.Container"
 main :: IO ()
 main = hspec $ do
     describe moduleName $ do
-        prop "demux" demux
-        prop "demuxWith" demuxWith
-        prop "classifyWith" classifyWith
-        prop "classify" classify
-        prop "classifyScan" classifyScan
-        prop "nub" nub
-        it "toSet" toSet
-        it "toIntSet" toIntSet
-        it "countDistinct" countDistinct
-        it "countDistinctInt" countDistinctInt
-        prop "nubInt" nubInt
+        describe "common" commonContainerSpec
+
+        -- Before adding any tests here consider if it can be added to the
+        -- common tests above.
+
+        it "demux" demux
+        it "demuxWith" demuxWith
+        it "classifyWith" classifyWith
+        it "classify" classify
+        it "classifyScan" classifyScan
         it "frequency" frequency
         it "demuxerToMap" demuxerToMap
         it "demuxerToContainer" demuxerToContainer

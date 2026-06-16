@@ -9,16 +9,15 @@
 
 module Streamly.Test.Data.Fold.Combinators (main) where
 
-import Control.Monad.IO.Class (liftIO)
 import Data.IORef (newIORef, atomicModifyIORef)
-import Data.List (sort, sortBy)
-import Data.Ord (comparing, Down(..))
-import Data.Semigroup (Sum(..), getSum)
+import Data.Int (Int64)
+import Data.Semigroup (Sum(..))
 
 import qualified Prelude
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.MutArray as MArray
 import qualified Streamly.Internal.Data.Fold as Fold
+import qualified Streamly.Internal.Data.Fold as F
 import qualified Streamly.Internal.Data.Stream as Stream
 
 import Prelude hiding
@@ -27,32 +26,33 @@ import Prelude hiding
     , maybe
     )
 import Streamly.Test.Common (chooseInt, withNumTests)
+import Streamly.Test.Data.Fold.Type (check, checkApprox, checkPostscanl)
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
     ( Gen
     , Property
-    , arbitrary
     , choose
     , forAll
-    , listOf
     , listOf1
-    , vectorOf
-    , generate
     )
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
+
+-------------------------------------------------------------------------------
+-- Shared Fold/Scanl tests
+-------------------------------------------------------------------------------
+
+#include "Streamly/Test/Data/Scanl/CommonCombinators.hs"
+
+-------------------------------------------------------------------------------
+-- Fold specific tests
+-------------------------------------------------------------------------------
 
 intMin :: Int
 intMin = minBound
 
 intMax :: Int
 intMax = maxBound
-
-maxStreamLen :: Int
-maxStreamLen = 1000
-
-lesser :: (a -> a -> Ordering) -> a -> a -> a
-lesser f x y = if f x y == LT then x else y
 
 greater :: (a -> a -> Ordering) -> a -> a -> a
 greater f x y = if f x y == GT then x else y
@@ -67,9 +67,6 @@ headl :: [a] -> Maybe a
 headl [] = Nothing
 headl (x:_) = Just x
 
-chooseFloat :: (Float, Float) -> Gen Float
-chooseFloat = choose
-
 nth :: Int -> [a] -> Maybe a
 nth idx (x : xs)
     | idx == 0 = Just x
@@ -83,63 +80,8 @@ neg f x = not (f x)
 predicate :: Int -> Bool
 predicate x = x * x < 100
 
-rollingHashFirstN :: Property
-rollingHashFirstN =
-    forAll (choose (0, maxStreamLen)) $ \len ->
-        forAll (choose (0, len)) $ \n ->
-            forAll (vectorOf len (arbitrary :: Gen Int)) $ \vec ->
-                monadicIO $ do
-                a <- run
-                    $ Stream.fold Fold.rollingHash
-                    $ Stream.take n
-                    $ Stream.fromList vec
-                b <- run
-                    $ Stream.fold (Fold.rollingHashFirstN n)
-                    $ Stream.fromList vec
-                assert $ a == b
-
 head :: [Int] -> Expectation
 head ls = Stream.fold Fold.one (Stream.fromList ls) `shouldReturn` headl ls
-
-sum :: [Int] -> Expectation
-sum ls = Stream.fold Fold.sum (Stream.fromList ls) `shouldReturn` Prelude.sum ls
-
-product :: [Int] -> Expectation
-product ls =
-    Stream.fold Fold.product (Stream.fromList ls)
-        `shouldReturn` Prelude.product ls
-
-maximumBy :: (Ord a, Show a) => a -> (a -> a -> Ordering) -> [a] -> Expectation
-maximumBy genmin f ls =
-    Stream.fold (Fold.maximumBy f) (Stream.fromList ls)
-        `shouldReturn` foldMaybe (greater f) genmin ls
-
-maximum :: (Show a, Ord a) => a -> [a] -> Expectation
-maximum genmin ls =
-    Stream.fold Fold.maximum (Stream.fromList ls)
-        `shouldReturn` foldMaybe (greater compare) genmin ls
-
-minimumBy :: (Ord a, Show a) => a -> (a -> a -> Ordering) -> [a] -> Expectation
-minimumBy genmax f ls =
-    Stream.fold (Fold.minimumBy f) (Stream.fromList ls)
-        `shouldReturn` foldMaybe (lesser f) genmax ls
-
-minimum :: (Show a, Ord a) => a -> [a] -> Expectation
-minimum genmax ls =
-    Stream.fold Fold.minimum (Stream.fromList ls)
-        `shouldReturn` foldMaybe (lesser compare) genmax ls
-
-mean :: Property
-mean =
-    forAll (listOf1 (chooseFloat (-100.0, 100.0)))
-        $ \ls0 -> withNumTests 1000 $ monadicIO $ action ls0
-
-    where
-
-    action ls = do
-        v1 <- run $ Stream.fold Fold.mean (Stream.fromList ls)
-        let v2 = Prelude.sum ls / fromIntegral (Prelude.length ls)
-        assert (abs (v1 - v2) < 0.0001)
 
 stdDev :: Property
 stdDev =
@@ -168,42 +110,6 @@ variance =
             se = Prelude.sum (fmap (\x -> (x - avg) * (x - avg)) ls)
             vr = se / fromIntegral (Prelude.length ls)
         assert (abs (v1 - vr) < 0.01)
-
-mconcat :: Property
-mconcat =
-    forAll (listOf1 (chooseInt (intMin, intMax)))
-        $ \ls0 -> monadicIO $ action ls0
-
-    where
-
-    action ls = do
-        v1 <- run $ Stream.fold Fold.mconcat (fmap Sum $ Stream.fromList ls)
-        let v2 = Prelude.sum ls
-        assert (getSum v1 == v2)
-
-foldMap :: Property
-foldMap =
-    forAll (listOf1 (chooseInt (intMin, intMax)))
-        $ \ls0 -> monadicIO $ action ls0
-
-    where
-
-    action ls = do
-        v1 <- run $ Stream.fold (Fold.foldMap Sum) $ Stream.fromList ls
-        let v2 = Prelude.sum ls
-        assert (getSum v1 == v2)
-
-foldMapM :: Property
-foldMapM =
-    forAll (listOf1 (chooseInt (intMin, intMax)))
-        $ \ls0 -> monadicIO $ action ls0
-
-    where
-
-    action ls = do
-        v1 <- run $ Stream.fold (Fold.foldMapM (return . Sum)) $ Stream.fromList ls
-        let v2 = Prelude.sum ls
-        assert (getSum v1 == v2)
 
 drainBy :: [Int] -> Expectation
 drainBy ls =
@@ -307,40 +213,6 @@ and ls = Stream.fold Fold.and (Stream.fromList ls) `shouldReturn` Prelude.and ls
 or :: [Bool] -> Expectation
 or ls = Stream.fold Fold.or (Stream.fromList ls) `shouldReturn` Prelude.or ls
 
-top :: Property
-top = topBy True
-
-bottom :: Property
-bottom = topBy False
-
-topBy :: Bool -> Property
-topBy isTop = forAll (listOf (chooseInt (-50, 100))) $ \ls0 ->
-        monadicIO $ action ls0
-
-        where
-
-        action ls = do
-            let n0 = Prelude.length ls
-            n <- liftIO $ generate $ chooseInt (-2, n0 + 2)
-            if isTop
-            then do
-                lst <- run $ Stream.fold (Fold.top n) (Stream.fromList ls)
-                            >>= MArray.toList
-                assert ((Prelude.take n . sortBy (comparing Down)) ls == lst)
-            else do
-                lst <- run $ Stream.fold (Fold.bottom n) (Stream.fromList ls)
-                            >>= MArray.toList
-                assert ((Prelude.take n . sort) ls == lst)
-
-mapMaybe :: [Int] -> Expectation
-mapMaybe ls =
-    let maybeEven x =
-            if even x
-            then Just x
-            else Nothing
-        f = Fold.mapMaybe maybeEven Fold.toList
-     in Stream.fold f (Stream.fromList ls) `shouldReturn` filter even ls
-
 teeWithLength :: Property
 teeWithLength =
     forAll (listOf1 (chooseInt (intMin, intMax)))
@@ -367,6 +239,10 @@ teeWithMax =
             v3 = foldMaybe (greater compare) intMin ls
         assert (v1 == (v2, v3))
 
+-- In Scanl but not shared: partitionBy/partitionByM/partition diverge
+-- semantically between Fold and Scanl. Fold returns the tuple of both branch
+-- results; Scanl emits a single interleaved value per input (the just-updated
+-- branch), so they are not the same combinator and cannot share a test.
 partitionByM :: Property
 partitionByM =
     forAll (listOf1 (chooseInt (intMin, intMax)))
@@ -438,21 +314,6 @@ partitionByMinM2 =
             v3 = foldl (\b a -> if even a then b+1 else b) 0 ([1..49] :: [Int])
         assert (v1 == (v2, v3))
 
-distribute :: Property
-distribute =
-    forAll (listOf1 (chooseInt (intMin, intMax)))
-        $ \ls0 -> monadicIO $ action ls0
-
-    where
-
-    action ls = do
-        v1 <-
-            run $ Stream.fold (Fold.distribute [Fold.sum, Fold.length])
-                $ Stream.fromList ls
-        let v2 = Prelude.sum ls
-            v3 = Prelude.length ls
-        assert (v1 == [v2, v3])
-
 partition :: Property
 partition =
     monadicIO $ do
@@ -464,16 +325,6 @@ partition =
         let v2 = (4,["abc","xy","pp2"])
         assert (v1 == v2)
 
-unzip :: Property
-unzip =
-    monadicIO $ do
-    v1 :: (Int, [String]) <-
-        run
-            $ Stream.fold (Fold.unzip Fold.sum Fold.toList)
-            $ Stream.fromList [(1, "aa"), (2, "bb"), (3, "cc")]
-    let v2 = (6, ["aa", "bb", "cc"])
-    assert (v1 == v2)
-
 splitAt :: Expectation
 splitAt =
     Stream.fold
@@ -481,125 +332,6 @@ splitAt =
     (Stream.fromList "Hello World!")
     `shouldReturn`
     ("Hello ","World!")
-
--------------------------------------------------------------------------------
--- Accumulators
--------------------------------------------------------------------------------
-
-sconcat :: Expectation
-sconcat =
-    Stream.fold (Fold.sconcat (Sum 10)) (fmap Sum $ Stream.fromList [1,2,3 :: Int])
-        `shouldReturn` Sum 16
-
-drainMapM :: Expectation
-drainMapM =
-    Stream.fold (Fold.drainMapM return) (Stream.fromList [1,2,3 :: Int])
-        `shouldReturn` ()
-
-the :: Expectation
-the = do
-    Stream.fold Fold.the (Stream.fromList [3,3,3 :: Int])
-        `shouldReturn` Just 3
-    Stream.fold Fold.the (Stream.fromList [3,3,4 :: Int])
-        `shouldReturn` Nothing
-    Stream.fold Fold.the (Stream.fromList ([] :: [Int]))
-        `shouldReturn` Nothing
-
-rollingHash :: [Int] -> Expectation
-rollingHash ls = do
-    h1 <- Stream.fold Fold.rollingHash (Stream.fromList ls)
-    h2 <- Stream.fold Fold.rollingHash (Stream.fromList ls)
-    h1 `shouldBe` h2
-
-rollingHashWithSalt :: [Int] -> Expectation
-rollingHashWithSalt ls = do
-    h1 <- Stream.fold (Fold.rollingHashWithSalt 0) (Stream.fromList ls)
-    h2 <- Stream.fold (Fold.rollingHashWithSalt 0) (Stream.fromList ls)
-    h1 `shouldBe` h2
-
-rangeBy :: Expectation
-rangeBy = do
-    Stream.fold (Fold.rangeBy compare) (Stream.fromList [3,1,4,1,5,9,2,6 :: Int])
-        `shouldReturn` Just (1,9)
-    Stream.fold (Fold.rangeBy compare) (Stream.fromList ([] :: [Int]))
-        `shouldReturn` Nothing
-
-range :: Expectation
-range = do
-    Stream.fold Fold.range (Stream.fromList [3,1,4,1,5,9,2,6 :: Int])
-        `shouldReturn` Just (1,9)
-    Stream.fold Fold.range (Stream.fromList ([] :: [Int]))
-        `shouldReturn` Nothing
-
-toStream :: [Int] -> Expectation
-toStream ls = do
-    strm <- Stream.fold Fold.toStream (Stream.fromList ls)
-    result <- Stream.fold Fold.toList strm
-    result `shouldBe` ls
-
-toStreamRev :: [Int] -> Expectation
-toStreamRev ls = do
-    strm <- Stream.fold Fold.toStreamRev (Stream.fromList ls)
-    result <- Stream.fold Fold.toList strm
-    result `shouldBe` reverse ls
-
--------------------------------------------------------------------------------
--- Scanners
--------------------------------------------------------------------------------
-
-rollingMap :: Expectation
-rollingMap =
-    Stream.fold
-        (Fold.rollingMap (\prev cur -> Prelude.maybe 0 (cur -) prev))
-        (Stream.fromList [1,3,6 :: Int])
-    `shouldReturn` 3
-
-rollingMapM :: Expectation
-rollingMapM =
-    Stream.fold
-        (Fold.rollingMapM (\prev cur -> return $ Prelude.maybe 0 (cur -) prev))
-        (Stream.fromList [1,3,6 :: Int])
-    `shouldReturn` 3
-
-deleteBy :: Expectation
-deleteBy = do
-    r <- Stream.fold Fold.toList
-             $ Stream.catMaybes
-             $ Stream.postscan (Fold.deleteBy (==) 3)
-             $ Stream.fromList [1,2,3,4,3,5 :: Int]
-    r `shouldBe` [1,2,4,3,5]
-
-uniqBy :: Expectation
-uniqBy = do
-    r <- Stream.fold Fold.toList
-             $ Stream.catMaybes
-             $ Stream.postscan (Fold.uniqBy (==))
-             $ Stream.fromList [1,1,2,3,3,3,4 :: Int]
-    r `shouldBe` [1,2,3,4]
-
-uniq :: Expectation
-uniq = do
-    r <- Stream.fold Fold.toList
-             $ Stream.catMaybes
-             $ Stream.postscan Fold.uniq
-             $ Stream.fromList [1,1,2,3,3,3,4 :: Int]
-    r `shouldBe` [1,2,3,4]
-
-findIndices :: Expectation
-findIndices = do
-    r <- Stream.fold Fold.toList
-             $ Stream.catMaybes
-             $ Stream.postscan (Fold.findIndices even)
-             $ Stream.fromList [1,2,3,4,5,6 :: Int]
-    r `shouldBe` [1,3,5]
-
-elemIndices :: Expectation
-elemIndices = do
-    r <- Stream.fold Fold.toList
-             $ Stream.catMaybes
-             $ Stream.postscan (Fold.elemIndices 3)
-             $ Stream.fromList [1,3,2,3,4,3 :: Int]
-    r `shouldBe` [1,3,5]
 
 -------------------------------------------------------------------------------
 -- Singleton folds
@@ -620,11 +352,6 @@ maybe = do
     Stream.fold (Fold.maybe f) (Stream.fromList [1,2,3 :: Int])
         `shouldReturn` Nothing
 
-drainN :: Expectation
-drainN =
-    Stream.fold (Fold.drainN 3) (Stream.fromList [1..10 :: Int])
-        `shouldReturn` ()
-
 genericIndex :: Expectation
 genericIndex = do
     Stream.fold (Fold.genericIndex (2 :: Int)) (Stream.fromList [1,2,3,4,5 :: Int])
@@ -638,44 +365,6 @@ findM = do
         `shouldReturn` Just 2
     Stream.fold (Fold.findM (return . even)) (Stream.fromList [1,3,5 :: Int])
         `shouldReturn` Nothing
-
--------------------------------------------------------------------------------
--- Trimmers
--------------------------------------------------------------------------------
-
-takingEndByM :: Expectation
-takingEndByM = do
-    r <- Stream.fold (Fold.takingEndByM (return . (== 3)))
-             (Stream.fromList [1,2,3,4,5 :: Int])
-    r `shouldBe` Just 3
-
-takingEndBy :: Expectation
-takingEndBy = do
-    r <- Stream.fold (Fold.takingEndBy (== 3))
-             (Stream.fromList [1,2,3,4,5 :: Int])
-    r `shouldBe` Just 3
-
-takingEndByM_ :: Expectation
-takingEndByM_ = do
-    r <- Stream.fold (Fold.takingEndByM_ (return . (== 3)))
-             (Stream.fromList [1,2,3,4,5 :: Int])
-    r `shouldBe` Nothing
-
-droppingWhileM :: Expectation
-droppingWhileM = do
-    r <- Stream.fold Fold.toList
-             $ Stream.catMaybes
-             $ Stream.postscan (Fold.droppingWhileM (return . (< 3)))
-             $ Stream.fromList [1,2,3,4,5 :: Int]
-    r `shouldBe` [3,4,5]
-
-droppingWhile :: Expectation
-droppingWhile = do
-    r <- Stream.fold Fold.toList
-             $ Stream.catMaybes
-             $ Stream.postscan (Fold.droppingWhile (< 3))
-             $ Stream.fromList [1,2,3,4,5 :: Int]
-    r `shouldBe` [3,4,5]
 
 -------------------------------------------------------------------------------
 -- Running a fold
@@ -704,16 +393,6 @@ slide2 =
         (Stream.fromList [1,3,6,10 :: Int])
     `shouldReturn` 4
 
-indexed :: Expectation
-indexed =
-    Stream.fold (Fold.indexed Fold.toList) (Stream.fromList ['a','b','c'])
-    `shouldReturn` [(0,'a'),(1,'b'),(2,'c')]
-
-sampleFromthen :: Expectation
-sampleFromthen =
-    Stream.fold (Fold.sampleFromthen 0 2 Fold.toList) (Stream.fromList [1..6 :: Int])
-    `shouldReturn` [1,3,5]
-
 takeEndBySeq :: Expectation
 takeEndBySeq =
     Stream.fold
@@ -736,18 +415,6 @@ distributeScan = do
              $ Stream.postscanl (Fold.distributeScan gen)
              $ Stream.fromList [1..5 :: Int]
     r `shouldBe` [[], [], [2, 3], [], []]
-
-unzipWith :: Expectation
-unzipWith =
-    Stream.fold (Fold.unzipWith (\x -> (x, x * 2)) Fold.sum Fold.sum)
-        (Stream.fromList [1,2,3 :: Int])
-    `shouldReturn` (6, 12)
-
-unzipWithM :: Expectation
-unzipWithM =
-    Stream.fold (Fold.unzipWithM (\x -> return (x, x * 2)) Fold.sum Fold.sum)
-        (Stream.fromList [1,2,3 :: Int])
-    `shouldReturn` (6, 12)
 
 unzipWithFstM :: Property
 unzipWithFstM =
@@ -792,21 +459,15 @@ moduleName = "Data.Fold.Combinators"
 main :: IO ()
 main = hspec $ do
     describe moduleName $ do
-        prop "mconcat" mconcat
-        prop "foldMap" foldMap
-        prop "foldMapM" foldMapM
+        -- Tests shared with the Scanl suite (see Scanl/CommonCombinators.hs)
+        describe "common" commonCombinatorsSpec
+
+        -- Before adding any tests here consider if they can be added to the
+        -- common tests above.
         prop "drainBy" drainBy
         prop "head" head
-        prop "sum" sum
-        prop "product" product
-        prop "maximumBy" $ maximumBy intMin compare
-        prop "maximum" $ maximum intMin
-        prop "minimumBy" $ minimumBy intMax compare
-        prop "minimum" $ minimum intMax
-        prop "mean" mean
         prop "stdDev" stdDev
         prop "variance" variance
-        prop "rollingHashFirstN" rollingHashFirstN
         prop "index" index
         prop "find" $ find predicate
         prop "lookup" lookup
@@ -819,55 +480,24 @@ main = hspec $ do
         prop "any" $ any predicate
         prop "and" and
         prop "or" or
-        prop "top" top
-        prop "bottom" bottom
-        prop "mapMaybe" mapMaybe
         prop "teeWithLength" teeWithLength
         prop "teeWithMax" teeWithMax
         prop "partitionByM" partitionByM
         prop "partitionByFstM" partitionByFstM
         prop "partitionByMinM1" partitionByMinM1
         prop "partitionByMinM2" partitionByMinM2
-        prop "distribute" distribute
         prop "partition" partition
-        prop "unzip" unzip
         prop "splitAt" splitAt
-        it "sconcat" sconcat
-        it "drainMapM" drainMapM
-        it "the" the
-        prop "rollingHash" rollingHash
-        prop "rollingHashWithSalt" rollingHashWithSalt
-        it "rangeBy" rangeBy
-        it "range" range
-        prop "toStream" toStream
-        prop "toStreamRev" toStreamRev
-        it "rollingMap" rollingMap
-        it "rollingMapM" rollingMapM
-        it "deleteBy" deleteBy
-        it "uniqBy" uniqBy
-        it "uniq" uniq
-        it "findIndices" findIndices
-        it "elemIndices" elemIndices
         it "satisfy" satisfy
         it "maybe" maybe
-        it "drainN" drainN
         it "genericIndex" genericIndex
         it "findM" findM
-        it "takingEndByM" takingEndByM
-        it "takingEndBy" takingEndBy
-        it "takingEndByM_" takingEndByM_
-        it "droppingWhileM" droppingWhileM
-        it "droppingWhile" droppingWhile
         prop "drive" drive
         it "addStream" addStream
         it "slide2" slide2
-        it "indexed" indexed
-        it "sampleFromthen" sampleFromthen
         it "takeEndBySeq" takeEndBySeq
         it "takeEndBySeq_" takeEndBySeq_
         it "distributeScan" distributeScan
-        it "unzipWith" unzipWith
-        it "unzipWithM" unzipWithM
         prop "unzipWithFstM" unzipWithFstM
         prop "unzipWithMinM" unzipWithMinM
         it "partitionBy" partitionBy

@@ -7,10 +7,12 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Test.Data.Fold.Type (main) where
+module Streamly.Test.Data.Fold.Type
+    (main, check, checkApprox, checkPostscanl) where
 
 import Data.Functor.Identity (Identity(..), runIdentity)
 import qualified Streamly.Internal.Data.Fold as Fold
+import qualified Streamly.Internal.Data.Fold as F
 import qualified Streamly.Internal.Data.Scanl as Scanl
 import qualified Streamly.Internal.Data.Stream as Stream
 
@@ -22,6 +24,37 @@ import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck (Property, forAll, listOf, listOf1, property)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
+
+-------------------------------------------------------------------------------
+-- Shared Fold/Scanl tests (see Scanl/CommonType.hs)
+-------------------------------------------------------------------------------
+
+-- | A Fold is exercised by folding a stream to a single final value. The shared
+-- @expected@ value is the inclusive prescan list; the fold result is its last
+-- element.
+type Op = F.Fold
+
+check :: (Eq b, Show b) => Op IO a b -> [a] -> [b] -> Expectation
+check cons xs expected =
+    Stream.fold cons (Stream.fromList xs) `shouldReturn` Prelude.last expected
+
+-- | Epsilon-equality counterpart of 'check' for Fractional results whose
+-- floating-point output is only approximately equal to the reference (e.g.
+-- 'mean'). The fold result must be within 1e-4 of the last expected prescan
+-- value.
+checkApprox ::
+    (Ord b, Fractional b, Show b) => Op IO a b -> [a] -> [b] -> Expectation
+checkApprox cons xs expected = do
+    res <- Stream.fold cons (Stream.fromList xs)
+    res `shouldSatisfy` \r -> abs (r - Prelude.last expected) < 1e-4
+
+-- | Postscan-only counterpart of 'check' (for combinators whose scanl initial
+-- is undefined). The fold result equals the last postscanl output.
+checkPostscanl :: (Eq b, Show b) => Op IO a b -> [a] -> [b] -> Expectation
+checkPostscanl cons xs expected =
+    Stream.fold cons (Stream.fromList xs) `shouldReturn` Prelude.last expected
+
+#include "Streamly/Test/Data/Scanl/CommonType.hs"
 
 intMin :: Int
 intMin = minBound
@@ -92,9 +125,6 @@ foldrM' ls =
 -- Folds
 -------------------------------------------------------------------------------
 
-drain :: [Int] -> Expectation
-drain ls = Stream.fold Fold.drain (Stream.fromList ls) `shouldReturn` ()
-
 fromPure :: Expectation
 fromPure =
     Stream.fold (Fold.fromPure (42 :: Int)) (Stream.fromList [1,2,3 :: Int])
@@ -112,18 +142,6 @@ fromScanl ls =
     Stream.fold (Fold.fromScanl (Scanl.scanl' (+) 0)) (Stream.fromList ls)
         `shouldReturn` Prelude.sum ls
 
-length :: [Int] -> Expectation
-length ls =
-    Stream.fold Fold.length (Stream.fromList ls)
-        `shouldReturn` Prelude.length ls
-
-toList :: [Int] -> Expectation
-toList ls = Stream.fold Fold.toList (Stream.fromList ls) `shouldReturn` ls
-
-toListRev :: [Int] -> Expectation
-toListRev ls =
-    Stream.fold Fold.toListRev (Stream.fromList ls) `shouldReturn` reverse ls
-
 toStreamK :: [Int] -> Expectation
 toStreamK ls = do
     sk <- Stream.fold Fold.toStreamK (Stream.fromList ls)
@@ -136,48 +154,8 @@ toStreamKRev ls = do
     result <- Stream.fold Fold.toList (Stream.fromStreamK sk)
     result `shouldBe` reverse ls
 
-genericLength :: [Int] -> Expectation
-genericLength ls =
-    Stream.fold (Fold.genericLength :: Fold.Fold IO Int Int) (Stream.fromList ls)
-        `shouldReturn` Prelude.length ls
-
-latest :: Expectation
-latest = do
-    Stream.fold Fold.latest (Stream.fromList [1,2,3 :: Int])
-        `shouldReturn` Just 3
-    Stream.fold Fold.latest (Stream.fromList ([] :: [Int]))
-        `shouldReturn` Nothing
-
 last :: [String] -> Expectation
 last ls = Stream.fold Fold.last (Stream.fromList ls) `shouldReturn` safeLast ls
-
--------------------------------------------------------------------------------
--- Mapping
--------------------------------------------------------------------------------
-
-rmapM :: Property
-rmapM =
-    forAll (listOf1 (chooseInt (intMin, intMax)))
-        $ \ls0 -> monadicIO $ action ls0
-
-    where
-
-    action ls = do
-        let addLen x = return $ x + Prelude.length ls
-            fld = Fold.rmapM addLen Fold.sum
-            v2 = foldl (+) (Prelude.length ls) ls
-        v1 <- run $ Stream.fold fld $ Stream.fromList ls
-        assert (v1 == v2)
-
-lmap :: [Int] -> Expectation
-lmap ls =
-    Stream.fold (Fold.lmap (* 2) Fold.sum) (Stream.fromList ls)
-        `shouldReturn` Prelude.sum (fmap (* 2) ls)
-
-lmapM :: [Int] -> Expectation
-lmapM ls =
-    Stream.fold (Fold.lmapM (\x -> return (x * 2)) Fold.sum) (Stream.fromList ls)
-        `shouldReturn` Prelude.sum (fmap (* 2) ls)
 
 -------------------------------------------------------------------------------
 -- Scanning
@@ -245,16 +223,33 @@ postscanlMaybe =
         (Stream.fromList [1,2,3,4,5,6 :: Int])
     `shouldReturn` [2,4,6]
 
+-- When the scanner is Done at the initial step it consumes no input, so with
+-- postscanl the collector sees nothing, whereas with scanl it sees the default
+-- (initial) value.
+postscanlDoneAtInit :: Expectation
+postscanlDoneAtInit =
+    Stream.fold
+        (Fold.postscanl (Scanl.take 0 Scanl.sum) Fold.toList)
+        (Stream.fromList [1,2,3 :: Int])
+    `shouldReturn` []
+
+scanlDoneAtInit :: Expectation
+scanlDoneAtInit =
+    Stream.fold
+        (Fold.scanl (Scanl.take 0 Scanl.sum) Fold.toList)
+        (Stream.fromList [1,2,3 :: Int])
+    `shouldReturn` [0]
+
+postscanlMaybeDoneAtInit :: Expectation
+postscanlMaybeDoneAtInit =
+    Stream.fold
+        (Fold.postscanlMaybe (fmap Just (Scanl.take 0 Scanl.sum)) Fold.toList)
+        (Stream.fromList [1,2,3 :: Int])
+    `shouldReturn` ([] :: [Int])
+
 -------------------------------------------------------------------------------
 -- Filtering
 -------------------------------------------------------------------------------
-
-catMaybes :: Expectation
-catMaybes =
-    Stream.fold
-        (Fold.catMaybes Fold.toList)
-        (Stream.fromList [Just 1, Nothing, Just 3, Nothing, Just 5 :: Maybe Int])
-    `shouldReturn` [1,3,5]
 
 scanMaybe :: Expectation
 scanMaybe =
@@ -265,73 +260,9 @@ scanMaybe =
         (Stream.fromList [1,2,3,4,5,6 :: Int])
     `shouldReturn` [2,4,6]
 
-filter :: [Int] -> Expectation
-filter ls =
-    Stream.fold (Fold.filter even Fold.toList) (Stream.fromList ls)
-        `shouldReturn` Prelude.filter even ls
-
-filtering :: Expectation
-filtering = do
-    Stream.fold (Fold.filtering even) (Stream.fromList [1,2,3,4,5 :: Int])
-        `shouldReturn` Nothing
-    Stream.fold (Fold.filtering even) (Stream.fromList [1,2,3,4 :: Int])
-        `shouldReturn` Just 4
-    Stream.fold (Fold.filtering even) (Stream.fromList ([] :: [Int]))
-        `shouldReturn` Nothing
-
-filterM :: [Int] -> Expectation
-filterM ls =
-    Stream.fold (Fold.filterM (return . even) Fold.toList) (Stream.fromList ls)
-        `shouldReturn` Prelude.filter even ls
-
-catLefts :: Expectation
-catLefts =
-    Stream.fold
-        (Fold.catLefts Fold.toList)
-        (Stream.fromList [Left 1, Right "a", Left 3, Right "b" :: Either Int String])
-    `shouldReturn` [1,3]
-
-catRights :: Expectation
-catRights =
-    Stream.fold
-        (Fold.catRights Fold.toList)
-        (Stream.fromList [Left "a", Right 2, Left "b", Right 4 :: Either String Int])
-    `shouldReturn` [2,4]
-
-catEithers :: Expectation
-catEithers =
-    Stream.fold
-        (Fold.catEithers Fold.toList)
-        (Stream.fromList [Left 1, Right 2, Left 3, Right 4 :: Either Int Int])
-    `shouldReturn` [1,2,3,4]
-
 -------------------------------------------------------------------------------
 -- Trimming
 -------------------------------------------------------------------------------
-
-take :: [Int] -> Property
-take ls =
-    forAll (chooseInt (-1, Prelude.length ls + 2)) $ \n ->
-            Stream.fold (Fold.take n Fold.toList) (Stream.fromList ls)
-                `shouldReturn` Prelude.take n ls
-
-taking :: Expectation
-taking = do
-    Stream.fold (Fold.taking 3) (Stream.fromList [1,2,3,4,5 :: Int])
-        `shouldReturn` Just 3
-    Stream.fold (Fold.taking 0) (Stream.fromList [1,2,3 :: Int])
-        `shouldReturn` Nothing
-    Stream.fold (Fold.taking 3) (Stream.fromList ([] :: [Int]))
-        `shouldReturn` Nothing
-
-dropping :: Expectation
-dropping = do
-    Stream.fold (Fold.dropping 2) (Stream.fromList [1,2,3,4,5 :: Int])
-        `shouldReturn` Just 5
-    Stream.fold (Fold.dropping 0) (Stream.fromList [1,2,3 :: Int])
-        `shouldReturn` Just 3
-    Stream.fold (Fold.dropping 10) (Stream.fromList [1,2,3 :: Int])
-        `shouldReturn` Nothing
 
 takeEndBy_ :: Property
 takeEndBy_ =
@@ -460,22 +391,6 @@ duplicate = do
 -------------------------------------------------------------------------------
 -- Parallel distribution
 -------------------------------------------------------------------------------
-
-teeWith :: Property
-teeWith =
-    forAll (listOf1 (chooseInt (intMin, intMax)))
-        $ \ls0 -> monadicIO $ action ls0
-
-    where
-
-    action ls = do
-        v1 <-
-            run
-                $ Stream.fold (Fold.teeWith (,) Fold.sum Fold.length)
-                $ Stream.fromList ls
-        let v2 = Prelude.sum ls
-            v3 = Prelude.length ls
-        assert (v1 == (v2, v3))
 
 teeWithFstLength :: Property
 teeWithFstLength =
@@ -608,24 +523,6 @@ isClosed = do
     b2 `shouldBe` True
 
 -------------------------------------------------------------------------------
--- Transforming inner monad
--------------------------------------------------------------------------------
-
-morphInner :: Expectation
-morphInner = do
-    let identityFold = Fold.foldl' (+) (0 :: Int)
-        ioFold = Fold.morphInner (return . runIdentity) identityFold
-    result <- Stream.fold ioFold (Stream.fromList [1,2,3])
-    result `shouldBe` 6
-
-generalizeInner :: Expectation
-generalizeInner = do
-    let identityFold = Fold.foldl' (+) (0 :: Int) :: Fold.Fold Identity Int Int
-        ioFold = Fold.generalizeInner identityFold
-    result <- Stream.fold ioFold (Stream.fromList [1,2,3])
-    result `shouldBe` 6
-
--------------------------------------------------------------------------------
 -- foldBreak
 -------------------------------------------------------------------------------
 
@@ -648,6 +545,18 @@ moduleName = "Data.Fold.Type"
 main :: IO ()
 main = hspec $ do
     describe moduleName $ do
+        -- Tests shared with the Scanl suite (see Scanl/CommonType.hs)
+        describe "common" commonTypeSpec
+
+        -- Even though the following operations are common with scans, we have
+        -- some additional tests which are not written in a way which can be
+        -- shared with scans.
+        prop "takeEndBy_" takeEndBy_
+        it "takeEndBy" takeEndBy
+        prop "takeEndByOrMax" takeEndByOrMax
+
+        -- Before adding any tests here consider if it can be added to the
+        -- common tests above.
         prop "foldl'" foldl'
         prop "foldlM'" foldlM'
         it "foldl1'" foldl1'
@@ -657,38 +566,21 @@ main = hspec $ do
         it "fromPure" fromPure
         it "fromEffect" fromEffect
         prop "fromScanl" fromScanl
-        prop "drain" drain
-        prop "length" length
-        prop "toList" toList
-        prop "toListRev" toListRev
         prop "toStreamK" toStreamK
         prop "toStreamKRev" toStreamKRev
-        prop "genericLength" genericLength
-        it "latest" latest
         prop "last" last
-        prop "rmapM" rmapM
-        prop "lmap" lmap
-        prop "lmapM" lmapM
         prop "scan" scan
         prop "postscan" postscan
         prop "postscanl" postscanl
         prop "scanl" scanlFold
         prop "scanlMany" scanlMany
         it "postscanlMaybe" postscanlMaybe
-        it "catMaybes" catMaybes
+        it "postscanl done-at-init" postscanlDoneAtInit
+        it "postscanlMaybe done-at-init" postscanlMaybeDoneAtInit
+        it "scanl done-at-init" scanlDoneAtInit
         it "scanMaybe" scanMaybe
-        prop "filter" filter
-        it "filtering" filtering
-        prop "filterM" filterM
-        it "catLefts" catLefts
-        it "catRights" catRights
-        it "catEithers" catEithers
-        prop "take" take
-        it "taking" taking
-        it "dropping" dropping
-        prop "takeEndBy_" takeEndBy_
-        it "takeEndBy" takeEndBy
-        prop "takeEndByOrMax" takeEndByOrMax
+
+
         it "foldMaybes" foldMaybes
         it "foldEithers" foldEithers
         it "ifThen" ifThen
@@ -698,7 +590,6 @@ main = hspec $ do
         it "groupsOf" groupsOf
         it "concatMap" concatMap
         it "duplicate" duplicate
-        prop "teeWith" teeWith
         prop "teeWithFstLength" teeWithFstLength
         prop "teeWithMinLength1" teeWithMinLength1
         prop "teeWithMinLength2" teeWithMinLength2
@@ -713,6 +604,4 @@ main = hspec $ do
         it "finalM" finalM
         it "close" closeFold
         it "isClosed" isClosed
-        it "morphInner" morphInner
-        it "generalizeInner" generalizeInner
         prop "foldBreak" foldBreak

@@ -1,4 +1,4 @@
-module Streamly.Test.Data.Fold.Window (main) where
+module Streamly.Test.Data.Scanl.Window (main) where
 
 import Test.Hspec (hspec, describe, it, runIO)
 import Streamly.Internal.Data.Scanl (Incr(..))
@@ -45,8 +45,8 @@ main = hspec $ do
 
             testFunc tc f sI sW = do
                 let c = S.fromList tc
-                a <- runIO $ S.fold Fold.toList $ S.postscanl f $ fmap Insert c
-                b <- runIO $ S.fold Fold.toList $ S.postscanl
+                a <- runIO $ S.toList $ S.postscanl f $ fmap Insert c
+                b <- runIO $ S.toList $ S.postscanl
                         (Scanl.incrScan winSize f) c
                 it "Infinite" $ a  == sI
                 it ("Finite " ++ show winSize) $ b == sW
@@ -62,23 +62,23 @@ main = hspec $ do
                 [[1.0],[1.0,4.0],[1.0,4.0,3.0],[4.0,3.0,2.1],[3.0,2.1,-5.1]
                 ,[2.1,-5.1,-2.0],[-5.1,-2.0,7.0],[-2.0,7.0,3.0],[7.0,3.0,-2.5]
                 ]
-                (RingArray.scanFoldRingsBy Fold.toList)
+                (RingArray.scanFoldRingsBy (Fold.fromScanl Scanl.toList))
         describe "minimum" $ do
             testFunc2 testCase1
                 [Just 1.0,Just 1.0,Just 1.0,Just 2.1,Just (-5.1),Just (-5.1)
                 ,Just (-5.1),Just (-2.0),Just (-2.5)]
-                (RingArray.scanFoldRingsBy Fold.minimum)
+                (RingArray.scanFoldRingsBy (Fold.fromScanl Scanl.minimum))
         describe "maximum" $ do
             testFunc2 testCase1
                 [Just 1.0,Just 4.0,Just 4.0,Just 4.0,Just 3.0,Just 2.1
                 ,Just 7.0,Just 7.0,Just 7.0]
-                (RingArray.scanFoldRingsBy Fold.maximum)
+                (RingArray.scanFoldRingsBy (Fold.fromScanl Scanl.maximum))
         describe "range" $ do
             testFunc2 testCase1
                 [Just (1.0,1.0),Just (1.0,4.0),Just (1.0,4.0),Just (2.1,4.0)
                 ,Just (-5.1,3.0),Just (-5.1,2.1),Just (-5.1,7.0)
                 ,Just (-2.0,7.0),Just (-2.5,7.0)]
-                (RingArray.scanFoldRingsBy Fold.range)
+                (RingArray.scanFoldRingsBy (Fold.fromScanl Scanl.range))
         describe "sum" $ do
             let scanInf = [1, 2, 3, 4, 5, 12] :: [Double]
                 scanWin = [1, 2, 3, 3, 3, 9] :: [Double]

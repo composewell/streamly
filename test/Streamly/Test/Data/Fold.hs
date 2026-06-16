@@ -13,13 +13,10 @@ import qualified Streamly.Test.Data.Fold.Container as Container
 import qualified Streamly.Test.Data.Fold.Exception as Exception
 import qualified Streamly.Test.Data.Fold.Tee as Tee
 import qualified Streamly.Test.Data.Fold.Type as Type
-import qualified Streamly.Test.Data.Fold.Window as Window
-
 main :: IO ()
 main = do
     Type.main
     Combinators.main
     Container.main
-    Window.main
     Exception.main
     Tee.main
