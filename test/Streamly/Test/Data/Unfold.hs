@@ -492,6 +492,18 @@ postscan =
                   mList = scanl1 (+) ls
               in testUnfold unf ls mList
 
+-- A scan that is Done at the initial step consumes no input, so postscanl emits
+-- nothing, while scanl emits the default (initial) value.
+postscanlDoneAtInit :: Bool
+postscanlDoneAtInit =
+    let unf = UF.postscanl (Scanl.take 0 Scanl.sum) UF.fromList
+    in testUnfold unf ([1, 2, 3] :: [Int]) []
+
+scanlDoneAtInit :: Bool
+scanlDoneAtInit =
+    let unf = UF.scanl (Scanl.take 0 Scanl.sum) UF.fromList
+    in testUnfold unf ([1, 2, 3] :: [Int]) [0]
+
 fold :: Bool
 fold = runIdentity (UF.fold Fold.sum UF.fromList [1..10 :: Int]) == 55
 
@@ -997,8 +1009,10 @@ testTransformation =
         $ do
             -- prop "map" map
             prop "postscan" postscan
+            prop "postscanl done-at-init" postscanlDoneAtInit
             prop "fold" fold
             prop "scanl" scanl
+            prop "scanl done-at-init" scanlDoneAtInit
             prop "scanlMany" scanlMany
             prop "foldMany" foldMany
             prop "either" either
