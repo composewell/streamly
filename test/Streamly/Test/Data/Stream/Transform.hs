@@ -149,6 +149,27 @@ testPostscanlEmpty =
     toList (Stream.postscanl Scanl.sum (Stream.fromList ([] :: [Int])))
         `shouldReturn` []
 
+-- A scan that is Done at the initial step consumes no input, so postscanl
+-- (one output per consumed input) emits nothing, while scanl still emits the
+-- initial value.
+testScanlDoneAtInit :: Expectation
+testScanlDoneAtInit =
+    toList (Stream.scanl (Scanl.take 0 Scanl.sum) (Stream.fromList [1, 2, 3 :: Int]))
+        `shouldReturn` [0]
+
+testPostscanlDoneAtInit :: Expectation
+testPostscanlDoneAtInit =
+    toList (Stream.postscanl (Scanl.take 0 Scanl.sum) (Stream.fromList [1, 2, 3 :: Int]))
+        `shouldReturn` []
+
+testPostscanlMaybeDoneAtInit :: Expectation
+testPostscanlMaybeDoneAtInit =
+    toList
+        (Stream.postscanlMaybe
+            (fmap Just (Scanl.take 0 Scanl.sum))
+            (Stream.fromList [1, 2, 3 :: Int]))
+        `shouldReturn` []
+
 testScanlMany :: Expectation
 testScanlMany =
     toList (Stream.scanlMany Scanl.sum (Stream.fromList [1, 2, 3 :: Int]))
@@ -566,6 +587,9 @@ main = hspec
         it "scanl (Scanl) empty" testScanlScanlEmpty
         it "postscanl" testPostscanl
         it "postscanl empty" testPostscanlEmpty
+        it "scanl (Scanl) done-at-init" testScanlDoneAtInit
+        it "postscanl done-at-init" testPostscanlDoneAtInit
+        it "postscanlMaybe done-at-init" testPostscanlMaybeDoneAtInit
         it "scanlMany" testScanlMany
         it "scanr" testScanr
         it "pipe map" testPipe
