@@ -191,16 +191,3 @@ data Consumer s a m b = Consumer (s -> a -> m (ConsumerStatus s b))
 data Fold m a b = forall s. Stream (Consumer s a m b) s
 ```
 
-## lmap Naming
-
-Now coming to a better lmap. lmap is inverted because we need to first
-think of map and then invert it. that's the problem, it creates a lot
-of indirection. We should be thinking straight and fresh instead of thinking
-the inverse process of an already established dual. I would use the term
-"plug" instead of lmap, which means we are plugging the thing between
-the input and the object. For example, "plug fst u", plug the "fst"
-function into the unfold "u", so what we are going to give would go into
-fst and fst's output goes into u. This is straight forward to think.
-it's like the electrical adaptor goes into a socket and our device's
-plug goes into the adapter.
-
