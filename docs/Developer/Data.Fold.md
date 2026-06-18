@@ -74,3 +74,35 @@ simple "s -> m b". Otherwise we will need it to return "Skip s | Stop b".
 
 if we yield "a -> s" will it be able to fuse? This is a dynamic function as it
 has the current state of the fold baked in.
+
+## Why `Fold m` and `Unfold m` do not have `Profunctor` instances
+
+`lmap` and `rmap` can be defined for both `Fold m` and `Unfold m`, and
+`Unfold m` can additionally support `Strong` and `Choice`. However, a
+`Profunctor` typeclass instance is only useful when `p` is abstract —
+i.e. when writing code polymorphic over any `Profunctor p`. The main
+payoff is profunctor optics, where types like `Lens` and `Prism` are
+quantified over `p`:
+
+    type Lens s t a b = forall p. Strong p => p a b -> p s t
+
+For `Fold` to participate meaningfully it would need a `Strong` instance:
+
+    first' :: Fold m a b -> Fold m (a, c) (b, c)
+
+This has no coherent implementation. A fold collapses a stream of `(a, c)`
+pairs into a single `b`, leaving no canonical `c` to pair with the result.
+`Strong` assumes a one-to-one input/output relationship that `Fold`, as a
+many-to-one consumer, cannot satisfy. Without `Strong`, `Fold` only reaches
+`Iso`-level optics, which reduce to `lmap` and `rmap` anyway.
+
+`Unfold m` fares better: being a one-to-many producer, the `c` in `(a, c)`
+can be threaded through the step state and paired with every emitted element,
+making `Strong` coherent. But even here, the optics machinery reduces to
+`lmap (view lens)` at the call site — no more concise or general than calling
+`lmap` directly. The main consumers of polymorphic profunctor code are optics
+libraries built around `(->)` and `Star`, not stream processors, so the
+scenario of passing `Unfold` as an abstract `p` rarely arises in practice.
+
+The instances are therefore omitted to avoid implying an integration with
+profunctor optics that does not exist in practice.
