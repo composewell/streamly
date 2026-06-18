@@ -1426,7 +1426,22 @@ concatMap f (Fold stepa initiala _ finala) =
 -- Mapping on input
 ------------------------------------------------------------------------------
 
--- | @lmap f fold@ maps the function @f@ on the input of the fold.
+-- | Transform the input of a fold using a pure function.
+--
+-- @lmap f fold@ applies @f@ to each input element before passing it to
+-- @fold@.
+--
+-- Think of @lmap f fold@ as plugging @f@ into the input socket of
+-- @fold@. The input of the resulting fold is the input of the plug f.
+-- The output of the plug must match the input of the fold.
+--
+-- @
+--       +-----------+           +-----------------+
+-- a ->  |     f     |  -> b ->  |    Fold m b c   |  -> c
+--       +-----------+           +-----------------+
+--                \\_______________________/
+--                      Fold m a c
+-- @
 --
 -- Definition:
 --
@@ -1439,12 +1454,14 @@ concatMap f (Fold stepa initiala _ finala) =
 -- 338350
 --
 {-# INLINE lmap #-}
-lmap :: (a -> b) -> Fold m b r -> Fold m a r
+lmap :: (a -> b) -> Fold m b c -> Fold m a c
 lmap f (Fold step begin done final) = Fold step' begin done final
     where
     step' x a = step x (f a)
 
 -- | @lmapM f fold@ maps the monadic function @f@ on the input of the fold.
+--
+-- See 'lmap' for detailed documentation.
 --
 {-# INLINE lmapM #-}
 lmapM :: Monad m => (a -> m b) -> Fold m b r -> Fold m a r

@@ -72,8 +72,8 @@ module Streamly.Internal.Data.Unfold.Type
     , fromTuple
 
     -- * Transformations
-    , lmap -- XXX plug
-    , lmapM -- XXX plugM
+    , lmap
+    , lmapM
     , map
     , mapM
     , supply
@@ -296,28 +296,39 @@ unfoldr step = unfoldrM (pure . step)
 -- Map input
 ------------------------------------------------------------------------------
 
--- | Map a function on the input argument of the 'Unfold'.
+-- | Transform the input of an 'Unfold' using a pure function.
+--
+-- @lmap f unfold@ applies @f@ to the input seed before passing it to
+-- @unfold@.
+--
+-- Think of @lmap f unfold@ as plugging @f@ into the input socket of
+-- @unfold@. The input of the resulting unfold is the input of the plug f.
+-- The output of the plug must match the input of the fold.
+--
+-- @
+--       +-----------+           +-----------------+
+-- a ->  |     f     |  -> b ->  |   Unfold m b c  |  -> c
+--       +-----------+           +-----------------+
+--                \\_______________________/
+--                      Unfold m a c
+-- @
+--
+-- Example:
 --
 -- >>> u = Unfold.lmap (fmap (+1)) Unfold.fromList
 -- >>> Unfold.fold Fold.toList u [1..5]
 -- [2,3,4,5,6]
 --
--- Definition:
---
--- >>> lmap f = Unfold.unfoldEach (Unfold.function f)
---
 {-# INLINE_NORMAL lmap #-}
-lmap :: (a -> c) -> Unfold m c b -> Unfold m a b
+lmap :: (a -> b) -> Unfold m b c -> Unfold m a c
 lmap f (Unfold ustep uinject) = Unfold ustep (uinject . f)
 
 -- | Map an action on the input argument of the 'Unfold'.
 --
--- Definition:
---
--- lmapM f = Unfold.unfoldEach (Unfold.functionM f)
+-- See 'lmap' for detailed documentation.
 --
 {-# INLINE_NORMAL lmapM #-}
-lmapM :: Monad m => (a -> m c) -> Unfold m c b -> Unfold m a b
+lmapM :: Monad m => (a -> m b) -> Unfold m b c -> Unfold m a c
 lmapM f (Unfold ustep uinject) = Unfold ustep (f >=> uinject)
 
 -- | Supply the seed to an unfold closing the input end of the unfold.

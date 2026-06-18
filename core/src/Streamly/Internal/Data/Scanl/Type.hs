@@ -1231,7 +1231,22 @@ concatMap f (Fold stepa initiala _ finala) =
 -- Mapping on input
 ------------------------------------------------------------------------------
 
--- | @lmap f scan@ maps the function @f@ on the input of the scan.
+-- | Transform the input of a @scan@ using a pure function.
+--
+-- @lmap f scan@ applies @f@ to each input element before passing it to
+-- @scan@.
+--
+-- Think of @lmap f scan@ as plugging @f@ into the input socket of
+-- @scan@. The input of the resulting scan is the input of the plug f.
+-- The output of the plug must match the input of the scan.
+--
+-- @
+--       +-----------+           +-----------------+
+-- a ->  |     f     |  -> b ->  |   Scanl m b c   |  -> c
+--       +-----------+           +-----------------+
+--                \\_______________________/
+--                      Scanl m a c
+-- @
 --
 -- Definition:
 --
@@ -1250,6 +1265,8 @@ lmap f (Scanl step begin done final) = Scanl step' begin done final
     step' x a = step x (f a)
 
 -- | @lmapM f scan@ maps the monadic function @f@ on the input of the scan.
+--
+-- See 'lmap' for detailed documentation.
 --
 {-# INLINE lmapM #-}
 lmapM :: Monad m => (a -> m b) -> Scanl m b r -> Scanl m a r

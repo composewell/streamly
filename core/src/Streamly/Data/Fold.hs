@@ -136,26 +136,28 @@
 -- Streams are producers, transformations on streams happen on the output side:
 --
 -- >>> :{
---  f stream =
---        Stream.filter odd stream
+--  f fold =
+--        Stream.fromList [1..100 :: Int]
+--      & Stream.filter odd
 --      & fmap (+1)
---      & Stream.fold Fold.sum
+--      & Stream.fold fold
 -- :}
 --
--- >>> f $ Stream.fromList [1..100 :: Int]
+-- >>> f Fold.sum
 -- 2550
 --
 -- Folds are stream consumers with an input stream and an output value, stream
 -- transformations on folds happen on the input side:
 --
 -- >>> :{
--- f =
---        Fold.filter odd
+-- f stream =
+--        Fold.drive stream
+--      $ Fold.filter odd
 --      $ Fold.lmap (+1)
 --      $ Fold.sum
 -- :}
 --
--- >>> Stream.fold f $ Stream.fromList [1..100 :: Int]
+-- >>> f $ Stream.fromList [1..100 :: Int]
 -- 2550
 --
 -- Notice the similiarity in the definition of @f@ in both cases, the only

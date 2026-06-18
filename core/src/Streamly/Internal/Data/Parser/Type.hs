@@ -1503,15 +1503,35 @@ instance (MonadIO m) => MonadIO (Parser a m) where
 -- Mapping on input
 ------------------------------------------------------------------------------
 
--- | @lmap f parser@ maps the function @f@ on the input of the parser.
+-- | Transform the input of a parser using a pure function.
 --
--- >>> Stream.parse (Parser.lmap (\x -> x * x) (Parser.fromFold Fold.sum)) (Stream.enumerateFromTo 1 100)
+-- @lmap f parser@ applies @f@ to each input element before passing it to
+-- @parser@.
+--
+-- Think of @lmap f parser@ as plugging @f@ into the input socket of
+-- @parser@. The input of the resulting parser is the input of the plug f.
+-- The output of the plug must match the input of the fold.
+--
+-- @
+--       +-----------+           +-----------------+
+-- a ->  |     f     |  -> b ->  |   Parser b m c  |  -> c
+--       +-----------+           +-----------------+
+--                \\_______________________/
+--                      Parser a m c
+-- @
+--
+-- Definition:
+--
+-- >>> lmap = Fold.lmapM return
+--
+-- Example:
+--
+-- >>> sumSquared = Parser.lmap (\x -> x * x) (Parser.fromFold Fold.sum)
+-- >>> Stream.parse sumSquared (Stream.enumerateFromTo 1 100)
 -- Right 338350
 --
--- > lmap = Parser.lmapM return
---
 {-# INLINE lmap #-}
-lmap :: (a -> b) -> Parser b m r -> Parser a m r
+lmap :: (a -> b) -> Parser b m c -> Parser a m c
 lmap f (Parser step begin done) = Parser step1 begin done
 
     where
@@ -1521,7 +1541,7 @@ lmap f (Parser step begin done) = Parser step1 begin done
 -- | @lmapM f parser@ maps the monadic function @f@ on the input of the parser.
 --
 {-# INLINE lmapM #-}
-lmapM :: Monad m => (a -> m b) -> Parser b m r -> Parser a m r
+lmapM :: Monad m => (a -> m b) -> Parser b m c -> Parser a m c
 lmapM f (Parser step begin done) = Parser step1 begin done
 
     where
