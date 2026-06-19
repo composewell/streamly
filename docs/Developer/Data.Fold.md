@@ -106,3 +106,8 @@ scenario of passing `Unfold` as an abstract `p` rarely arises in practice.
 
 The instances are therefore omitted to avoid implying an integration with
 profunctor optics that does not exist in practice.
+
+## Fold's Monadic extract
+
+Like the Unfold's lmapM requires a monadic inject, the same way the
+fold's rmapM requires a monadic extract.

@@ -36,10 +36,25 @@ How "plug" solves the problem:
   independent concept association hooks rather than a common "map" hook.
 * combines nicely with other verbs, e.g. "plugUnfold" can be used to unfold the
   input.
+* with "plug" we do not need rmapM on a fold, it can just be unambiguously
+  "mapM".
 * short, same length as lmap
 
 Cons:
 * not familiar, new vocabulary
+* There is an entire family of "map" root based names:
+  * mapMaybeM f = lmapM f . catMaybes
+  * mapMaybe f = lmap f . catMaybes
+  * drainMapM f = lmapM f drain
+  * foldMap f = Fold.lmap f Fold.mconcat
+  * foldMapM f = Fold.lmapM f Fold.mconcat
+
+An advantage of keeping the "l" and "r " terminology is that we can use
+those to disambiguate whenever there is a need. For example, if we ever
+need a covariant mapMaybe we can call it rmapMaybe or if we need to
+distinguish the left ones we can call them lmapMaybe, and when we don't
+we can just call it mapMaybe.
+
 
 The Profunctor "dimap" equivalent could be called "plugMap"; it is even better
 because it has a self-documenting argument order, though we do not need
@@ -80,3 +95,25 @@ final result of the actual transformation is inverse of the forward
 operation being composed at the input e.g. the operation being composed
 here is "fst" which projects the first element of a tuple, however the
 result of the transformation is the input becoming a tuple.
+
+# Pushing Fold/Scanl Combinators to Scan
+
+Transformation combinators are contravariant for Streams and Covariant
+for Scanl and Fold. Transformation combinators like , "filter", "take",
+"mapMaybe" and even "map" would be written as "scans" in our new
+composable "Scan" type. The "Scan" type does not have a left or right
+distinction, scans can compose on right of streams or they can compose
+on left of folds. So we can have a mapMaybe scan which can use with
+stream or with fold, it will be just mapMaybe, no left or right. And
+two scans anyway are symmetric and can be composed in any order e.g.
+"take . filter" or "filter . take" so there is no rigid left or right,
+it is based on how you compose them. With that scheme in future, the
+left/rightness of most combinators will dissolve.
+
+And if Scan pans out as expected then all the stream/fold
+transformations will become l/r agnostic scans. So the question of l/r
+naming becomes moot. So we should wait for that before renaming to
+plug/plugM because even those would be map/mapM scans.
+
+Only distinction that remains would be the lmapM in unfolds and
+rmapM in Fold.
