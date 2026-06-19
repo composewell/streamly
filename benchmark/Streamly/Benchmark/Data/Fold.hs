@@ -808,10 +808,10 @@ unzipWithMinM n = withStream n $ Stream.fold (FL.unzipWithMinM f FL.sum FL.lengt
 -- Nested
 -------------------------------------------------------------------------------
 
-{-# INLINE unfoldMany #-}
-unfoldMany :: Int -> IO ()
-unfoldMany n =
-    Stream.fold (FL.unfoldMany Unfold.replicateM FL.drain)
+{-# INLINE unfoldEach #-}
+unfoldEach :: Int -> IO ()
+unfoldEach n =
+    Stream.fold (FL.unfoldEach Unfold.replicateM FL.drain)
         $ Stream.fromPure (n, randomRIO (1, 1 :: Int))
 
 -------------------------------------------------------------------------------
@@ -1114,7 +1114,7 @@ benchmarks env value =
     , benchIO "split_ (all, any)" $ split_ value
     , benchIO "tee (all, any)" $ teeAllAny value
     , benchIO "many drain (take 1)" $ many value
-    , benchIO "unfoldMany" $ unfoldMany value
+    , benchIO "unfoldEach" $ unfoldEach value
     , benchIO "shortest (sum, length)" $ shortest value
     , benchIO "longest (sum, length)" $ longest value
     , benchIO "tee (sum, length)" $ teeSumLength value

@@ -201,10 +201,11 @@ module Streamly.Internal.Data.Fold.Combinators
     , intersperseWithQuotes
 
     -- ** Nesting
-    , unfoldMany
+    , unfoldEach
     , concatSequence
 
     -- * Deprecated
+    , unfoldMany
     , drainBy
     , head
     , sequence
@@ -2199,13 +2200,13 @@ toStreamRev = fromScanl Scanl.toStreamRev
 -- | Unfold and flatten the input stream of a fold.
 --
 -- @
--- Stream.fold (unfoldMany u f) = Stream.fold f . Stream.unfoldMany u
+-- Stream.fold (unfoldEach u f) = Stream.fold f . Stream.unfoldEach u
 -- @
 --
 -- /Pre-release/
-{-# INLINE unfoldMany #-}
-unfoldMany :: Monad m => Unfold m a b -> Fold m b c -> Fold m a c
-unfoldMany (Unfold ustep inject) (Fold fstep initial extract final) =
+{-# INLINE unfoldEach #-}
+unfoldEach :: Monad m => Unfold m a b -> Fold m b c -> Fold m a c
+unfoldEach (Unfold ustep inject) (Fold fstep initial extract final) =
     Fold consume initial extract final
 
     where
@@ -2225,6 +2226,11 @@ unfoldMany (Unfold ustep inject) (Fold fstep initial extract final) =
 
     {-# INLINE_LATE consume #-}
     consume s a = inject a >>= produce s
+
+-- {-# DEPRECATED unfoldMany "Use unfoldEach instead." #-}
+{-# INLINE unfoldMany #-}
+unfoldMany :: Monad m => Unfold m a b -> Fold m b c -> Fold m a c
+unfoldMany = unfoldEach
 
 -- | Get the bottom most @n@ elements using the supplied comparison function.
 --
