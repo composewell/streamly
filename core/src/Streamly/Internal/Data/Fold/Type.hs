@@ -342,6 +342,16 @@
 -- can be expressed using 'mconcat' and a suitable 'Monoid'.  Instead of
 -- writing folds we can write Monoids and turn them into folds.
 --
+-- = Initial, Final Duality
+--
+-- Currently there is a discrepancy between folds and streams, folds have an
+-- "initial" to initialize the fold without any input. A producer side dual
+-- would be a finalizer called whenever the stream stops.
+--
+-- However, the initial action in folds creates a discrepancy with the CPS
+-- folds, and the same may be the case if we have a stop/cleanup operation in
+-- streams.
+
 module Streamly.Internal.Data.Fold.Type
     (
       module Streamly.Internal.Data.Fold.Step
@@ -816,6 +826,8 @@ fromRefold (Refold step inject extract) c =
 -- Basic Folds
 ------------------------------------------------------------------------------
 
+-- drain is a dual of infinite streams. This is the /dev/null of folds.
+
 -- | A fold that drains all its input, running the effects and discarding the
 -- results.
 --
@@ -829,6 +841,8 @@ drain = fromScanl Scanl.drain
 ------------------------------------------------------------------------------
 -- To Containers
 ------------------------------------------------------------------------------
+
+-- toList is a dual of Stream.fromList.
 
 -- | Folds the input stream to a list.
 --
@@ -876,6 +890,8 @@ toListRev = foldl' (flip (:)) []
 toStreamKRev :: Monad m => Fold m a (K.StreamK n a)
 toStreamKRev = fromScanl Scanl.toStreamKRev
 
+-- toStreamK is a dual of Stream.fromStreamK
+
 -- | A fold that buffers its input to a pure stream.
 --
 -- >>> toStreamK = foldr StreamK.cons StreamK.nil
@@ -909,6 +925,9 @@ genericLength = fromScanl Scanl.genericLength
 length :: Monad m => Fold m a Int
 length = fromScanl Scanl.length
 
+-- Naming: "last" makes better sense for folds whereas "latest" makes better
+-- sense for scans.
+
 -- | Returns the latest element of the input stream, if any.
 --
 -- >>> latest = Fold.foldl1' (\_ x -> x)
@@ -939,39 +958,27 @@ instance Functor m => Functor (Fold m a) where
         step s b = fmap2 f (step1 s b)
         fmap2 g = fmap (fmap g)
 
--- XXX These are singleton folds that are closed for input. The correspondence
--- to a nil stream would be a nil fold that returns "Done" in "initial" i.e. it
--- does not produce any accumulator value. However, we do not have a
--- representation of an empty value in folds, because the Done constructor
--- always produces a value (Done b). We can potentially use "Partial s b" and
--- "Done" to make the type correspond to the stream type. That may be possible
--- if we introduce the "Skip" constructor as well because after the last
--- "Partial s b" we have to emit a "Skip to Done" state to keep cranking the
--- fold until it is done.
+-- NOTE: Canonical producer side dual of this is "Stream.nil" which generates a
+-- nil stream regardless of the seed. This folds a nil stream to some known
+-- value, reversing the producer side process.
 --
--- There is also the asymmetry between folds and streams because folds have an
--- "initial" to initialize the fold without any input. A similar concept is
--- possible in streams as well to stop the stream. That would be a "closing"
--- operation for the stream which can be called even without consuming any item
--- from the stream or when we are done consuming.
---
--- However, the initial action in folds creates a discrepancy with the CPS
--- folds, and the same may be the case if we have a stop/cleanup operation in
--- streams.
+-- Alternate names: const
 
--- | Make a fold that yields the supplied value without consuming any further
--- input.
---
--- /Pre-release/
+-- | Make a fold that immediately returns a constant output without consuming
+-- any input.
 --
 {-# INLINE fromPure #-}
 fromPure :: Applicative m => b -> Fold m a b
 fromPure b = Fold undefined (pure $ Done b) pure pure
 
--- | Make a fold that yields the result of the supplied effectful action
--- without consuming any further input.
+-- NOTE: Canonical producer side dual of this is "Stream.nilM" which generates
+-- a nil stream and an effect. This folds a nil stream to some known value and
+-- an effect, reverse of the producer.
 --
--- /Pre-release/
+-- Alternative names: constM
+
+-- | Make a fold that immediately returns a constant output along with an
+-- effect without consuming any input.
 --
 {-# INLINE fromEffect #-}
 fromEffect :: Applicative m => m b -> Fold m a b
@@ -979,6 +986,9 @@ fromEffect b = Fold undefined (Done <$> b) pure pure
 
 {-# ANN type SeqFoldState Fuse #-}
 data SeqFoldState sl f sr = SeqFoldL !sl | SeqFoldR !f !sr
+
+-- dual of Stream.append
+-- Alternative names: appendWith, serialWith.
 
 -- | Sequential fold application. Apply two folds sequentially to an input
 -- stream.  The input is provided to the first fold, when it is done - the
@@ -2054,6 +2064,8 @@ ifThen predicate
 -- 'duplicate' essentially appends a stream to the fold without finishing the
 -- fold.  Compare with 'snoc' which appends a singleton value to the fold.
 --
+-- See 'Fold.addStream' as well.
+--
 -- /Pre-release/
 {-# INLINE duplicate #-}
 duplicate :: Monad m => Fold m a b -> Fold m a (Fold m a b)
@@ -2086,7 +2098,7 @@ reduce (Fold step initial extract final) = do
     i <- initial
     return $ Fold step (return i) extract final
 
--- This is the dual of Stream @cons@.
+-- This is a fold builder equivalent of the stream builder @cons@.
 
 -- | Append an effect to the fold lazily, in other words run a single
 -- step of the fold.

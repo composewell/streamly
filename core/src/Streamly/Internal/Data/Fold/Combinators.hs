@@ -593,8 +593,7 @@ repeated = error "Not implemented yet!"
 -- >>> drainMapM f = Fold.lmapM f Fold.drain
 -- >>> drainMapM f = Fold.foldMapM (void . f)
 --
--- Drain all input after passing it through a monadic function. This is the
--- dual of mapM_ on stream producers.
+-- Drain all input after passing it through a monadic function.
 --
 {-# INLINE drainMapM #-}
 drainMapM ::  Monad m => (a -> m b) -> Fold m a ()
@@ -1742,7 +1741,7 @@ tee = teeWith (,)
 -- XXX use "List" instead of "[]"?, use Array for output to scale it to a large
 -- number of consumers? For polymorphic case a vector could be helpful. For
 -- Unboxs we can use arrays. Will need separate APIs for those.
---
+
 -- | Distribute one copy of the stream to each fold and collect the results in
 -- a container.
 --
@@ -1759,8 +1758,6 @@ tee = teeWith (,)
 -- [15,5]
 --
 -- >>> distribute = Prelude.foldr (Fold.teeWith (:)) (Fold.fromPure [])
---
--- This is the consumer side dual of the producer side 'sequence' operation.
 --
 -- Stops when all the folds stop.
 --
@@ -1877,8 +1874,6 @@ partitionByMUsing t f fld1 fld2 =
 -- (67,33)
 --
 --
--- This is the consumer side dual of the producer side 'mergeBy' operation.
---
 -- When one fold is done, any input meant for it is ignored until the other
 -- fold is also done.
 --
@@ -1922,7 +1917,9 @@ partitionByMinM = partitionByMUsing teeWithMin
 -- :}
 -- ("Even 50","Odd 50")
 --
--- /Pre-release/
+-- NOTE: This is the exact analogue of the @choose@ method of the Contravariant
+-- functor typeclass Decidable.
+--
 {-# INLINE partitionBy #-}
 partitionBy :: Monad m
     => (a -> Either b c) -> Fold m b x -> Fold m c y -> Fold m a (x, y)
@@ -2005,7 +2002,9 @@ unzipWithMinM = unzipWithMUsing teeWithMin
 --
 -- This fold terminates when both the input folds terminate.
 --
--- /Pre-release/
+-- NOTE: This is the exact analogue of the @divide@ method of the Contravariant
+-- functor typeclass Divisible.
+--
 {-# INLINE unzipWith #-}
 unzipWith :: Monad m
     => (a -> (b,c)) -> Fold m b x -> Fold m c y -> Fold m a (x,y)
@@ -2025,8 +2024,6 @@ unzipWith f = unzipWithM (return . f)
 -- Definition:
 --
 -- >>> unzip = Fold.unzipWith id
---
--- This is the consumer side dual of the producer side 'zip' operation.
 --
 {-# INLINE unzip #-}
 unzip :: Monad m => Fold m a x -> Fold m b y -> Fold m (a,b) (x,y)
