@@ -583,65 +583,6 @@ combinators to construct and transform streams directly.Use Unfold when
 flattening nested streams; use Stream combinators to construct and
 transform streams directly.
 
-# Streams and Folds are Time-Reversed Duals
-
-A **stream** takes its input all at once — a *seed* — and emits output
-incrementally. A **fold** takes input incrementally and emits its output
-all at once — a *result*. Run one backwards and you get the other.
-
-| stream (source)                  | fold (sink)                       |
-| -------------------------------- | --------------------------------- |
-| seeded once, at the start        | result delivered once, at the end |
-| emits `b`s over time             | consumes `a`s over time           |
-
-The seed at the *start* of a stream is the dual of the result at the
-*end* of a fold; the `b`s a stream emits are the dual of the `a`s a fold
-consumes.
-
-## Why the seed is invisible
-
-`Stream m b` has no seed type parameter because the seed is **erased into
-the existential state**:
-
-```haskell
-fromList xs   -- picks s = [a], sets init = xs, steps by popping the head
-```
-
-Erasure is legitimate: nothing outside ever needs the seed's type, since
-it's absorbed before the stream is observed. A fold's *result* type can't
-be erased — it's the thing the outside world reaches in for. Each type
-exposes only the boundary you actually touch.
-
-## Expose the init, and you climb a square
-
-Surface the seed as a parameter instead of erasing it, and the four
-types fall into a 2×2:
-
-|                | source (emits `b`)        | sink (consumes `a`)            |
-| -------------- | ------------------------- | ------------------------------ |
-| **init baked** | `Stream m b`              | `Fold m a b`                   |
-| **init exposed** | `Unfold m a b` (seed `a`) | `Refold m c a b` (seed `c`)  |
-
-Each **row** is a dual pair:
-
-- `Stream m b`  ⟷  `Fold m a b`
-- `Unfold m a b`  ⟷  `Refold m c a b`
-
-The rows differ only in whether initialization is hidden in the state or
-surfaced as an injection (`inject :: seed -> m s`).
-
-## Why `Unfold`'s dual is `Refold`, not `Fold`
-
-Time-reversing an `Unfold` yields a sink that consumes the emitted stream
-and produces the seed's counterpart at the end — but the reversed machine
-still has to be *started*, and that starting accumulator is a free choice.
-Keeping the duality exact means exposing it, mirroring the exposed seed on
-the source side: hence `Refold`'s injectable accumulator `c -> m s`.
-
-A plain `Fold` nails its initial down as `m s`, throwing that freedom
-away — which is exactly why it pairs with `Stream`, whose seed is likewise
-fixed inside the existential.
-
 ## Type Summary
 
 ```
