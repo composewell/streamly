@@ -14,6 +14,8 @@
   default. Literally identical relative paths (e.g. `./x` and `./x`, or
   `c:` and `c:` on Windows) now compare equal. Pass
   `allowRelativeEquality False` to restore the previous strict behaviour.
+* Internal: Removed deprecated module `Streamly.Internal.Data.Stream.StreamD`.
+  Use `Streamly.Internal.Data.Stream` instead.
 
 ## 0.3.1 (May 2026)
 

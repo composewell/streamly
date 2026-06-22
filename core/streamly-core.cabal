@@ -480,7 +480,6 @@ library
                     -- Deprecated in 0.2.0
                      , Streamly.Internal.Data.MutArray.Stream
                      , Streamly.Internal.Data.Array.Stream
-                     , Streamly.Internal.Data.Stream.StreamD
                      , Streamly.Internal.Data.Fold.Chunked
 
     -- Only those modules should be here which are fully re-exported via some
