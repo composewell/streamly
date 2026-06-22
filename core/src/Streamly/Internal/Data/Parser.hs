@@ -2136,9 +2136,7 @@ groupByRollingEither
                     FL.Done b -> return $ FDone 0 (Left b)
                     FL.Partial s11 -> FDone 0 . Left <$> ffinal1 s11
 
--- XXX use an Unfold instead of a list?
--- XXX custom combinators for matching list, array and stream?
--- XXX rename to listBy?
+-- XXX custom combinator for matching, array as well?
 
 -- | Match the given sequence of elements using the given comparison function.
 -- Returns the original sequence if successful.
@@ -2153,7 +2151,7 @@ groupByRollingEither
 -- Right "string"
 --
 -- >>> Stream.parsePos (Parser.listEqBy (==) "mismatch") $ Stream.fromList "match"
--- Left (ParseErrorPos 2 "listEqBy: mismatch occurred")
+-- Left (ParseErrorPos 2 "listEqBy: mismatch after matching 1 elements")
 --
 {-# INLINE listEqBy #-}
 listEqBy :: Monad m => (a -> a -> Bool) -> [a] -> Parser a m [a]
@@ -2196,33 +2194,37 @@ streamEqByInternal fname cmp (D.Stream sstep state) = Parser step initial extrac
     initial = do
         r <- sstep defState state
         case r of
-            D.Yield x s -> return $ IPartial (Just' x, s)
+            D.Yield x s -> return $ IPartial (Just' x, s, 0 :: Int)
             D.Stop -> return $ IDone ()
             -- Need Skip/Continue in initial to loop right here
-            D.Skip s -> return $ IPartial (Nothing', s)
+            D.Skip s -> return $ IPartial (Nothing', s, 0)
 
-    step (Just' x, st) a =
+    step (Just' x, st, n) a =
         if x `cmp` a
           then do
             r <- sstep defState st
             return
                 $ case r of
-                    D.Yield x1 s -> SContinue 1 (Just' x1, s)
+                    D.Yield x1 s -> SContinue 1 (Just' x1, s, n + 1)
                     D.Stop -> SDone 1 ()
-                    D.Skip s -> SContinue 0 (Nothing', s)
-          else return $ SError (fname ++ ": mismatch occurred")
-    step (Nothing', st) a = do
+                    D.Skip s -> SContinue 0 (Nothing', s, n + 1)
+          else return $ SError
+              (fname ++ ": mismatch after matching " ++ show n ++ " elements")
+    step (Nothing', st, n) a = do
         r <- sstep defState st
         return
             $ case r of
                 D.Yield x s -> do
                     if x `cmp` a
-                    then SContinue 1 (Nothing', s)
-                    else SError (fname ++ ": mismatch occurred")
+                    then SContinue 1 (Nothing', s, n + 1)
+                    else SError
+                        (fname ++ ": mismatch after matching "
+                            ++ show n ++ " elements")
                 D.Stop -> SDone 0 ()
-                D.Skip s -> SContinue 0 (Nothing', s)
+                D.Skip s -> SContinue 0 (Nothing', s, n)
 
-    extract _ = return $ FError (fname ++ ": end of input")
+    extract (_, _, n) = return $ FError
+        (fname ++ ": end of input after matching " ++ show n ++ " elements")
 
 -- | Like 'listEqBy' but uses a stream instead of a list and does not return
 -- the stream.
