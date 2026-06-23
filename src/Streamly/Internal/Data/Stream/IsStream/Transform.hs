@@ -1339,6 +1339,11 @@ indexedR n = fromStreamD . D.indexedR n . toStreamD
 -- Time Indexing
 -------------------------------------------------------------------------------
 
+-- XXX Use the timestamp as (AbsTime, RelTime, a). AbsTime is the time when we
+-- started evaluating the stream and RelTime is the time relative to that.
+-- When we use only RelTime, AbsTime would be discarded by the compiler so it
+-- should not pose any overhead. Have some benchmarks to prove that.
+
 -- Note: The timestamp stream must be the second stream in the zip so that the
 -- timestamp is generated after generating the stream element and not before.
 -- If we do not do that then the following example will generate the same
