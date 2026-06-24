@@ -11,10 +11,11 @@ module Streamly.Test.Data.Scanl.Type
     (main, check, checkApprox, checkPostscanl) where
 
 import Data.Functor.Identity (Identity, runIdentity)
+import qualified Streamly.Internal.Data.Refold.Type as Refold
 import qualified Streamly.Internal.Data.Scanl as F
 import qualified Streamly.Internal.Data.Stream as Stream
 
-import Prelude hiding (last, length, take, filter, scanl, foldl', concatMap)
+import Prelude hiding (const, last, length, take, filter, scanl, foldl', concatMap)
 import qualified Prelude
 
 import Streamly.Test.Common (chooseInt)
@@ -134,6 +135,117 @@ postscanlMaybeCompose = do
         (Stream.postscanl (F.postscanlMaybe (fmap Just (F.take 0 F.sum)) F.length) (Stream.fromList [1, 2, 3 :: Int]))
         `shouldReturn` ([] :: [Int])
 
+-------------------------------------------------------------------------------
+-- Constructors
+-------------------------------------------------------------------------------
+
+scanlS :: [Int] -> Expectation
+scanlS ls = check (F.scanl' (+) 0) ls (Prelude.scanl (+) 0 ls)
+
+scanlMS :: [Int] -> Expectation
+scanlMS ls =
+    check (F.scanlM' (\b a -> return (b + a)) (return 0)) ls
+        (Prelude.scanl (+) 0 ls)
+
+scanl1S :: Expectation
+scanl1S = do
+    check (F.scanl1' (+)) ([1, 2, 3] :: [Int]) [Nothing, Just 1, Just 3, Just 6]
+    check (F.scanl1' (+)) ([] :: [Int]) [Nothing]
+
+scanl1MS :: Expectation
+scanl1MS =
+    check (F.scanl1M' (\a b -> return (a + b))) ([1, 2, 3] :: [Int])
+        [Nothing, Just 1, Just 3, Just 6]
+
+-- A terminating scan: accumulate the running sum but stop (terminate) at, and
+-- including, the input value 3.
+scantStep :: Int -> Int -> F.Step Int Int
+scantStep s a = if a == 3 then F.Done s else F.Partial (s + a)
+
+scantS :: Expectation
+scantS =
+    check (F.scant' scantStep (F.Partial 0) id) ([1, 2, 3, 4] :: [Int])
+        [0, 1, 3, 3]
+
+scantMS :: Expectation
+scantMS =
+    check (F.scantM' (\s a -> return (scantStep s a)) (return (F.Partial 0)) return)
+        ([1, 2, 3, 4] :: [Int]) [0, 1, 3, 3]
+
+mkScanrS :: Expectation
+mkScanrS =
+    check (F.mkScanr (:) []) ([1, 2, 3] :: [Int]) [[], [1], [1, 2], [1, 2, 3]]
+
+mkScanrMS :: Expectation
+mkScanrMS =
+    check (F.mkScanrM (\a xs -> return (a : xs)) (return [])) ([1, 2, 3] :: [Int])
+        [[], [1], [1, 2], [1, 2, 3]]
+
+constS :: Expectation
+constS = check (F.const (7 :: Int)) ([1, 2, 3] :: [Int]) [7, 7, 7, 7]
+
+constMS :: Expectation
+constMS = check (F.constM (return (7 :: Int))) ([1, 2, 3] :: [Int]) [7, 7, 7, 7]
+
+functionMS :: Expectation
+functionMS =
+    check
+        (F.functionM (\x -> return (if even x then Just x else Nothing)))
+        ([1, 2, 3, 4] :: [Int])
+        [Nothing, Nothing, Just 2, Nothing, Just 4]
+
+-- A 'Refold' that sums starting from the injected seed.
+sumRefold :: Monad m => Refold.Refold m Int Int Int
+sumRefold =
+    Refold.Refold
+        (\s a -> return (F.Partial (s + a)))
+        (\c -> return (F.Partial c))
+        return
+
+fromRefoldS :: Expectation
+fromRefoldS = check (F.fromRefold sumRefold 0) ([1, 2, 3] :: [Int]) [0, 1, 3, 6]
+
+toStreamKS :: [Int] -> Expectation
+toStreamKS ls =
+    check (F.rmapM (Stream.toList . Stream.fromStreamK) F.toStreamK) ls
+        (Prelude.scanl (\acc x -> acc ++ [x]) [] ls)
+
+toStreamKRevS :: [Int] -> Expectation
+toStreamKRevS ls =
+    check (F.rmapM (Stream.toList . Stream.fromStreamK) F.toStreamKRev) ls
+        (Prelude.scanl (flip (:)) [] ls)
+
+-------------------------------------------------------------------------------
+-- Deprecated constructors (aliases for the corresponding scanl*' functions)
+-------------------------------------------------------------------------------
+
+mkScanlS :: [Int] -> Expectation
+mkScanlS ls = check (F.mkScanl (+) 0) ls (Prelude.scanl (+) 0 ls)
+
+mkScanlMS :: [Int] -> Expectation
+mkScanlMS ls =
+    check (F.mkScanlM (\b a -> return (b + a)) (return 0)) ls
+        (Prelude.scanl (+) 0 ls)
+
+mkScanl1S :: Expectation
+mkScanl1S =
+    check (F.mkScanl1 (+)) ([1, 2, 3] :: [Int]) [Nothing, Just 1, Just 3, Just 6]
+
+mkScanl1MS :: Expectation
+mkScanl1MS =
+    check (F.mkScanl1M (\a b -> return (a + b))) ([1, 2, 3] :: [Int])
+        [Nothing, Just 1, Just 3, Just 6]
+
+mkScantS :: Expectation
+mkScantS =
+    check (F.mkScant scantStep (F.Partial 0) id) ([1, 2, 3, 4] :: [Int])
+        [0, 1, 3, 3]
+
+mkScantMS :: Expectation
+mkScantMS =
+    check (F.mkScantM (\s a -> return (scantStep s a)) (return (F.Partial 0)) return)
+        ([1, 2, 3, 4] :: [Int]) [0, 1, 3, 3]
+
 moduleName :: String
 moduleName = "Data.Scanl.Type"
 
@@ -147,3 +259,25 @@ main = hspec $
         it "scanl emits initial, postscanl omits it" scanlVsPostscanl
         it "postscanl (compose)" postscanlCompose
         it "postscanlMaybe (compose)" postscanlMaybeCompose
+
+        prop "scanl'" scanlS
+        prop "scanlM'" scanlMS
+        it "scanl1'" scanl1S
+        it "scanl1M'" scanl1MS
+        it "scant'" scantS
+        it "scantM'" scantMS
+        it "mkScanr" mkScanrS
+        it "mkScanrM" mkScanrMS
+        it "const" constS
+        it "constM" constMS
+        it "functionM" functionMS
+        it "fromRefold" fromRefoldS
+        prop "toStreamK" toStreamKS
+        prop "toStreamKRev" toStreamKRevS
+
+        prop "mkScanl" mkScanlS
+        prop "mkScanlM" mkScanlMS
+        it "mkScanl1" mkScanl1S
+        it "mkScanl1M" mkScanl1MS
+        it "mkScant" mkScantS
+        it "mkScantM" mkScantMS

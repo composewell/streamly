@@ -1,6 +1,6 @@
 module Streamly.Test.Data.Scanl.Window (main) where
 
-import Test.Hspec (hspec, describe, it, runIO)
+import Test.Hspec (hspec, describe, it, runIO, shouldReturn)
 import Streamly.Internal.Data.Scanl (Incr(..))
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.RingArray as RingArray
@@ -87,3 +87,54 @@ main = hspec $ do
             let scanInf = [1, 1, 1, 1, 1, 2] :: [Double]
                 scanWin = [1, 1, 1, 1, 1, 3] :: [Double]
             testFunc testCase2 Scanl.incrMean scanInf scanWin
+
+    -- Direct tests for the incremental and windowed scans. 'incrScan' and the
+    -- cumulative versions ('incrSum', 'incrMean') are exercised above; here we
+    -- cover the remaining exported scans.
+    describe "Scanl operations" $ do
+        let scl s xs = S.toList (S.scanl s (S.fromList xs))
+            -- A stream of incremental operations exercising both Insert and
+            -- Replace constructors. Window of {1,2} then replace 1 with 5.
+            incrs = [Insert 1, Insert 2, Replace 1 5] :: [Incr Int]
+
+        it "cumulativeScan" $
+            scl (Scanl.cumulativeScan Scanl.incrSum) ([1, 2, 3] :: [Double])
+                `shouldReturn` [0, 1, 3, 6]
+        it "incrScanWith" $
+            scl (Scanl.incrScanWith 3 (Scanl.lmap fst Scanl.incrSum))
+                ([1, 2, 3, 4, 5] :: [Double])
+                `shouldReturn` [0, 1, 3, 6, 9, 12]
+        it "incrRollingMap" $
+            scl (Scanl.incrRollingMap (\p c -> Just (maybe 0 (c -) p)))
+                ([Insert 1, Replace 1 3, Replace 3 6] :: [Incr Int])
+                `shouldReturn` [Nothing, Just 0, Just 2, Just 3]
+        it "incrRollingMapM" $
+            scl (Scanl.incrRollingMapM (\p c -> return (Just (maybe 0 (c -) p))))
+                ([Insert 1, Replace 1 3, Replace 3 6] :: [Incr Int])
+                `shouldReturn` [Nothing, Just 0, Just 2, Just 3]
+        it "incrCount" $
+            (scl Scanl.incrCount incrs :: IO [Int])
+                `shouldReturn` [0, 1, 2, 2]
+        it "incrSumInt" $
+            scl Scanl.incrSumInt incrs `shouldReturn` [0, 1, 3, 7]
+        it "incrPowerSum" $
+            scl (Scanl.incrPowerSum 2) ([Insert 2, Insert 3] :: [Incr Int])
+                `shouldReturn` [0, 4, 13]
+        it "incrPowerSumFrac" $
+            scl (Scanl.incrPowerSumFrac 0.5)
+                ([Insert 4, Insert 9] :: [Incr Double])
+                `shouldReturn` [0, 2, 5]
+        it "windowRange" $
+            scl (Scanl.windowRange 3) ([1, 2, 3, 4, 5] :: [Int])
+                `shouldReturn`
+                [ Nothing, Just (1, 1), Just (1, 2), Just (1, 3), Just (2, 4)
+                , Just (3, 5)
+                ]
+        it "windowMinimum" $
+            scl (Scanl.windowMinimum 3) ([1, 2, 3, 4, 5] :: [Int])
+                `shouldReturn`
+                [Nothing, Just 1, Just 1, Just 1, Just 2, Just 3]
+        it "windowMaximum" $
+            scl (Scanl.windowMaximum 3) ([1, 2, 3, 4, 5] :: [Int])
+                `shouldReturn`
+                [Nothing, Just 1, Just 2, Just 3, Just 4, Just 5]
