@@ -107,6 +107,9 @@ stream or the remaining seed or whatever makes sense. Thus that return type
 could usually be the seed type. For example, `fromList :: [a] -> Stream m a
 [a]`.
 
+A stream always stops with a possibly empty (of no consequence) result,
+a fold always starts with a possibly empty/zero result.
+
 Stream is covariant in both "a" and "r", therefore, Monad instances are
 possible both ways:
 * Source m a r : Appending Monad

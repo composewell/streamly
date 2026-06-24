@@ -33,12 +33,12 @@ Refold: OpenScanl with only the final output
 Fold: Scanl with only the final output
 Parser: A Fold with error and backtracking
 
-Alternatives naming:
+Full progression of the stream types and alternative naming:
 
 * Producer (composes on output side)
 * Unfold
 * Stream
-* Transition
+* Transducer <-> Transition
 * OpenMealy <-> UnfoldScan
 * MealyScan <-> ProducerScan <-> StreamScan?
 * OpenScan
@@ -49,8 +49,8 @@ Alternatives naming:
 * Refold <-> OpenFold
 * Consumer (composes on the input side)
 
-Duality: A stream can always stop without generating any output, a fold
-always has an output to start with.
+See the stream-fold-duality document for better understanding of the symmetry
+of types across this spectrum.
 
 Even richer folds and producers:
 * Parser
@@ -67,6 +67,8 @@ Nested streams:
 * MoorePipe, MealyPipe?
 * Process (bidirectional pipe)
 
+## Refolds
+
 Refold -- resumable fold, folding to a different accumulator, we supply the
 accumulator to fold to.
 
@@ -76,19 +78,23 @@ and the value is supplied on call site, inside the nesting. So there is
 no nesting. Rescanl could be OpenMoore and we can have an OpenMealy as
 well.
 
-A scan has two variants depending on whether we emit the initial state of the
-machine or the final state in addition to transitions. Scan only emits
-transitions. The variant naming axes: left, right; l, r;  pre, post; head,
-tail; initial, final; before, after. we could use scanLeft, scanRight but
-"right" might be confused with "scanr", though scanr is an obsolete, much less
-used thing, should go into obsolescence.
+## MapAccum-stream and Scanl-fold progressions
 
-Symmetric types like "scan" and "pipe" can name their connecting
-functions as "compose", whereas assymetric ones can use like
-"unfoldEach" for unfold and "foldMany" for folds. Anyway if we use
-"scanl" to scan a scan then we cannot use "pipe" to pipe a pipe; compose
-works. For restartable scan we can use "composeResume", which can work
-for pipe as well.
+There are two variants of stateful scans , MapAccum which is essentially
+a transformation and Scanl which is essentially a reducer.  The
+fundamental difference is that a transformation emits an empty stream
+on an empty stream input whereas a reducer always emits a value even on
+empty stream input.
+
+## Symmetric vs Asymmetric Ends
+
+Types with symmetric endpoints (Stream-to-Stream) like "MapAccum"
+and "Pipe" can name their connecting functions as "compose", whereas
+asymmetric (producer or reducer) ones can use like "unfoldEach" for
+unfold and "foldMany" or "foldRepeat" for folds. Anyway if we use
+"scanl" for an operation to scan a scan then we cannot use the name
+"pipe" to pipe a pipe; compose works for all cases. For restartable scan
+we can use "composeRepeat", which can work for pipe as well.
 
 compose <-> scanInput, flipped scanInput is scanOutput
 
