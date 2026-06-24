@@ -416,7 +416,10 @@ benchmark Data.Scanl
   hs-source-dirs: Streamly/Benchmark/Data
                 , Streamly/Benchmark/Data/Scanl
   main-is: Scanl.hs
-  other-modules: Scanl.Window
+  other-modules: Scanl.Type
+               , Scanl.Combinators
+               , Scanl.Container
+               , Scanl.Window
 
 benchmark Data.Scanl.Concurrent
   import: bench-options
