@@ -83,41 +83,44 @@ rmapMS ls =
 -- Filtering
 -------------------------------------------------------------------------------
 
+-- A filtered-out element emits no output, so the scan emits the initial value
+-- and then one output per element that passes the predicate.
 filterS :: [Int] -> Expectation
 filterS ls =
     check (F.filter even F.toList) ls
-        (Prelude.scanl (\acc x -> if even x then acc ++ [x] else acc) [] ls)
+        (Prelude.scanl (\acc x -> acc ++ [x]) [] (Prelude.filter even ls))
 
 filterMS :: [Int] -> Expectation
 filterMS ls =
     check (F.filterM (return . even) F.toList) ls
-        (Prelude.scanl (\acc x -> if even x then acc ++ [x] else acc) [] ls)
+        (Prelude.scanl (\acc x -> acc ++ [x]) [] (Prelude.filter even ls))
 
 filteringS :: [Int] -> Expectation
 filteringS ls =
     check (F.filtering even) ls
         (Prelude.scanl (\_ x -> if even x then Just x else Nothing) Nothing ls)
 
+-- A 'Nothing' (or filtered-out) element emits no output.
 catMaybesS :: Expectation
 catMaybesS =
     check
         (F.catMaybes F.toList)
         ([Just 1, Nothing, Just 3, Nothing, Just 5] :: [Maybe Int])
-        [[], [1], [1], [1, 3], [1, 3], [1, 3, 5]]
+        [[], [1], [1, 3], [1, 3, 5]]
 
 catLeftsS :: Expectation
 catLeftsS =
     check
         (F.catLefts F.toList)
         ([Left 1, Right "a", Left 3, Right "b"] :: [Either Int String])
-        [[], [1], [1], [1, 3], [1, 3]]
+        [[], [1], [1, 3]]
 
 catRightsS :: Expectation
 catRightsS =
     check
         (F.catRights F.toList)
         ([Left "a", Right 2, Left "b", Right 4] :: [Either String Int])
-        [[], [], [2], [2], [2, 4]]
+        [[], [2], [2, 4]]
 
 catEithersS :: Expectation
 catEithersS =

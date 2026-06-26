@@ -102,6 +102,7 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 
 import qualified Data.IntSet as IntSet
 import qualified Data.Set as Set
+import qualified Streamly.Internal.Data.Fold.Step as Fold
 import qualified Streamly.Internal.Data.IsMap as IsMap
 
 import Prelude hiding (Foldable(..))
@@ -277,7 +278,7 @@ demuxGeneric :: (Monad m, IsMap f, Traversable f) =>
     -> (Key f -> m (Maybe (Scanl m a b)))
     -> Scanl m a (m (f b), Maybe (Key f, b))
 demuxGeneric getKey getFold =
-    Scanl (\s a -> Partial <$> step s a) (Partial <$> initial) extract final
+    Scanl (\s a -> Partial <$> step s a) (Fold.Partial <$> initial) extract final
 
     where
 
@@ -287,19 +288,24 @@ demuxGeneric getKey getFold =
     runFold kv (Scanl step1 initial1 extract1 final1) (k, a) = do
          res <- initial1
          case res of
-            Partial s -> do
+            Fold.Partial s -> do
                 res1 <- step1 s a
                 case res1 of
                         Partial ss -> do
                             b <- extract1 ss
-                            let fld = Scanl step1 (return res1) extract1 final1
+                            let fld = Scanl step1 (return (Fold.Partial ss)) extract1 final1
                             return
                                 $ Tuple'
                                     (IsMap.mapInsert k fld kv) (Just (k, b))
+                        Continue ss ->
+                            let fld = Scanl step1 (return (Fold.Partial ss)) extract1 final1
+                             in return
+                                $ Tuple'
+                                    (IsMap.mapInsert k fld kv) Nothing
                         Done b ->
                             return
                                 $ Tuple' (IsMap.mapDelete k kv) (Just (k, b))
-            Done b ->
+            Fold.Done b ->
                 -- Done in "initial" is possible only for the very first time
                 -- the fold is initialized, and in that case we have not yet
                 -- inserted it in the Map, so we do not need to delete it.
@@ -322,7 +328,7 @@ demuxGeneric getKey getFold =
         f (Scanl _ i e _) = do
             r <- i
             case r of
-                Partial s -> e s
+                Fold.Partial s -> e s
                 _ -> error "demuxGeneric: unreachable code"
 
     final (Tuple' kv x) = return (Prelude.mapM f kv, x)
@@ -332,7 +338,7 @@ demuxGeneric getKey getFold =
         f (Scanl _ i _ fin) = do
             r <- i
             case r of
-                Partial s -> fin s
+                Fold.Partial s -> fin s
                 _ -> error "demuxGeneric: unreachable code"
 
 {-# INLINE demuxUsingMap #-}
@@ -385,7 +391,7 @@ demuxGenericIO :: (MonadIO m, IsMap f, Traversable f) =>
     -> (Key f -> m (Maybe (Scanl m a b)))
     -> Scanl m a (m (f b), Maybe (Key f, b))
 demuxGenericIO getKey getFold =
-    Scanl (\s a -> Partial <$> step s a) (Partial <$> initial) extract final
+    Scanl (\s a -> Partial <$> step s a) (Fold.Partial <$> initial) extract final
 
     where
 
@@ -395,37 +401,46 @@ demuxGenericIO getKey getFold =
     initFold kv (Scanl step1 initial1 extract1 final1) (k, a) = do
          res <- initial1
          case res of
-            Partial s -> do
+            Fold.Partial s -> do
                 res1 <- step1 s a
                 case res1 of
                     Partial ss -> do
                         -- XXX Instead of using a Fold type here use a custom
                         -- type with an IORef (possibly unboxed) for the
                         -- accumulator. That will reduce the allocations.
-                        let fld = Scanl step1 (return res1) extract1 final1
+                        let fld = Scanl step1 (return (Fold.Partial ss)) extract1 final1
                         ref <- liftIO $ newIORef fld
                         b <- extract1 ss
                         return
                             $ Tuple' (IsMap.mapInsert k ref kv) (Just (k, b))
+                    Continue ss -> do
+                        let fld = Scanl step1 (return (Fold.Partial ss)) extract1 final1
+                        ref <- liftIO $ newIORef fld
+                        return
+                            $ Tuple' (IsMap.mapInsert k ref kv) Nothing
                     Done b -> return $ Tuple' kv (Just (k, b))
-            Done b -> return $ Tuple' kv (Just (k, b))
+            Fold.Done b -> return $ Tuple' kv (Just (k, b))
 
     {-# INLINE runFold #-}
     runFold kv ref (Scanl step1 initial1 extract1 final1) (k, a) = do
          res <- initial1
          case res of
-            Partial s -> do
+            Fold.Partial s -> do
                 res1 <- step1 s a
                 case res1 of
                         Partial ss -> do
-                            let fld = Scanl step1 (return res1) extract1 final1
+                            let fld = Scanl step1 (return (Fold.Partial ss)) extract1 final1
                             liftIO $ writeIORef ref fld
                             b <- extract1 ss
                             return $ Tuple' kv (Just (k, b))
+                        Continue ss -> do
+                            let fld = Scanl step1 (return (Fold.Partial ss)) extract1 final1
+                            liftIO $ writeIORef ref fld
+                            return $ Tuple' kv Nothing
                         Done b ->
                             let kv1 = IsMap.mapDelete k kv
                              in return $ Tuple' kv1 (Just (k, b))
-            Done _ -> error "demuxGenericIO: unreachable"
+            Fold.Done _ -> error "demuxGenericIO: unreachable"
 
     step (Tuple' kv _) a = do
         let k = getKey a
@@ -447,7 +462,7 @@ demuxGenericIO getKey getFold =
             Scanl _ i e _ <- liftIO $ readIORef ref
             r <- i
             case r of
-                Partial s -> e s
+                Fold.Partial s -> e s
                 _ -> error "demuxGenericIO: unreachable code"
 
     final (Tuple' kv x) = return (Prelude.mapM f kv, x)
@@ -458,7 +473,7 @@ demuxGenericIO getKey getFold =
             Scanl _ i _ fin <- liftIO $ readIORef ref
             r <- i
             case r of
-                Partial s -> fin s
+                Fold.Partial s -> fin s
                 _ -> error "demuxGenericIO: unreachable code"
 
 {-# INLINE demuxUsingMapIO #-}
@@ -580,7 +595,7 @@ classifyGeneric :: (Monad m, IsMap f, Traversable f, Ord (Key f)) =>
     -- that the downstream consumers can choose to process or discard it.
     (a -> Key f) -> Scanl m a b -> Scanl m a (m (f b), Maybe (Key f, b))
 classifyGeneric f (Scanl step1 initial1 extract1 final1) =
-    Scanl (\s a -> Partial <$> step s a) (Partial <$> initial) extract final
+    Scanl (\s a -> Partial <$> step s a) (Fold.Partial <$> initial) extract final
 
     where
 
@@ -592,16 +607,19 @@ classifyGeneric f (Scanl step1 initial1 extract1 final1) =
     initFold kv set k a = do
         x <- initial1
         case x of
-              Partial s -> do
+              Fold.Partial s -> do
                 r <- step1 s a
                 case r of
                   Partial s1 -> do
                     b <- extract1 s1
                     return
                         $ Tuple3' (IsMap.mapInsert k s1 kv) set (Just (k, b))
+                  Continue s1 ->
+                    return
+                        $ Tuple3' (IsMap.mapInsert k s1 kv) set Nothing
                   Done b ->
                     return $ Tuple3' kv set (Just (k, b))
-              Done b -> return (Tuple3' kv (Set.insert k set) (Just (k, b)))
+              Fold.Done b -> return (Tuple3' kv (Set.insert k set) (Just (k, b)))
 
     step (Tuple3' kv set _) a = do
         let k = f a
@@ -616,6 +634,8 @@ classifyGeneric f (Scanl step1 initial1 extract1 final1) =
                   Partial s1 -> do
                     b <- extract1 s1
                     return $ Tuple3' (IsMap.mapInsert k s1 kv) set (Just (k,b))
+                  Continue s1 ->
+                    return $ Tuple3' (IsMap.mapInsert k s1 kv) set Nothing
                   Done b ->
                     let kv1 = IsMap.mapDelete k kv
                      in return $ Tuple3' kv1 (Set.insert k set) (Just (k, b))
@@ -665,7 +685,7 @@ classify getKey = fmap snd . classifyUsingMap getKey
 classifyGenericIO :: (MonadIO m, IsMap f, Traversable f, Ord (Key f)) =>
     (a -> Key f) -> Scanl m a b -> Scanl m a (m (f b), Maybe (Key f, b))
 classifyGenericIO f (Scanl step1 initial1 extract1 final1) =
-    Scanl (\s a -> Partial <$> step s a) (Partial <$> initial) extract final
+    Scanl (\s a -> Partial <$> step s a) (Fold.Partial <$> initial) extract final
 
     where
 
@@ -675,7 +695,7 @@ classifyGenericIO f (Scanl step1 initial1 extract1 final1) =
     initFold kv set k a = do
         x <- initial1
         case x of
-              Partial s -> do
+              Fold.Partial s -> do
                 r <- step1 s a
                 case r of
                       Partial s1 -> do
@@ -684,9 +704,14 @@ classifyGenericIO f (Scanl step1 initial1 extract1 final1) =
                         return
                             $ Tuple3'
                                 (IsMap.mapInsert k ref kv) set (Just (k, b))
+                      Continue s1 -> do
+                        ref <- liftIO $ newIORef s1
+                        return
+                            $ Tuple3'
+                                (IsMap.mapInsert k ref kv) set Nothing
                       Done b ->
                         return $ Tuple3' kv set (Just (k, b))
-              Done b -> return (Tuple3' kv (Set.insert k set) (Just (k, b)))
+              Fold.Done b -> return (Tuple3' kv (Set.insert k set) (Just (k, b)))
 
     step (Tuple3' kv set _) a = do
         let k = f a
@@ -703,6 +728,9 @@ classifyGenericIO f (Scanl step1 initial1 extract1 final1) =
                         liftIO $ writeIORef ref s1
                         b <- extract1 s1
                         return $ Tuple3' kv set (Just (k, b))
+                      Continue s1 -> do
+                        liftIO $ writeIORef ref s1
+                        return $ Tuple3' kv set Nothing
                       Done b ->
                         let kv1 = IsMap.mapDelete k kv
                          in return

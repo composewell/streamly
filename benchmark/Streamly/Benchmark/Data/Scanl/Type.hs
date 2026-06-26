@@ -125,7 +125,7 @@ inspect $ 'scanl1M' `hasNoType` ''SPEC
 
 {-# INLINE scant' #-}
 scant' :: Int -> IO ()
-scant' n = withPostscanl n (Scanl.scant' (\s a -> Scanl.Partial (s + a)) (Scanl.Partial 0) id)
+scant' n = withPostscanl n (Scanl.scant' (\s a -> Scanl.Partial (s + a)) (FL.Partial 0) id)
 
 #ifdef INSPECTION
 inspect $ 'scant' `hasNoType` ''Step
@@ -138,7 +138,7 @@ scantM' n =
     withPostscanl n
         (Scanl.scantM'
             (\s a -> return (Scanl.Partial (s + a)))
-            (return (Scanl.Partial 0))
+            (return (FL.Partial 0))
             return)
 
 #ifdef INSPECTION

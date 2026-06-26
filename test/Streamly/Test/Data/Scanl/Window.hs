@@ -1,6 +1,6 @@
 module Streamly.Test.Data.Scanl.Window (main) where
 
-import Test.Hspec (hspec, describe, it, runIO, shouldReturn)
+import Test.Hspec (Expectation, hspec, describe, it, runIO, shouldReturn, shouldBe)
 import Streamly.Internal.Data.Scanl (Incr(..))
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.RingArray as RingArray
@@ -8,6 +8,33 @@ import qualified Streamly.Internal.Data.Scanl as Scanl
 import qualified Streamly.Internal.Data.Stream as S
 
 import Prelude hiding (sum, maximum, minimum)
+
+-- Inner scan returns Continue for odd inputs and Partial (window sum) for even.
+-- Verifies that incrScanWith propagates Continue without emitting output.
+-- Even inputs: 2->{} =0, 4->{2}=2, 6->{2,4}=6, 8->{4,6}=10.
+incrScanWithFilterS :: Expectation
+incrScanWithFilterS = do
+    out <-
+        S.toList
+            $ S.postscanl
+                (Scanl.incrScanWith 2 inner)
+                (S.fromList [1, 2, 3, 4, 5, 6, 7, 8 :: Int])
+    out `shouldBe` [0, 2, 6, 10]
+  where
+    inner =
+        Scanl.Scanl
+            (\s (incr, ring) -> do
+                 let v = case incr of
+                             Insert x -> x
+                             Replace _ x -> x
+                 if even v
+                 then do
+                     xs <- RingArray.toList ring
+                     return (Scanl.Partial (foldr (+) 0 xs))
+                 else return (Scanl.Continue s))
+            (return (Fold.Partial 0))
+            return
+            return
 
 moduleName :: String
 moduleName = "Window"
@@ -104,6 +131,7 @@ main = hspec $ do
             scl (Scanl.incrScanWith 3 (Scanl.lmap fst Scanl.incrSum))
                 ([1, 2, 3, 4, 5] :: [Double])
                 `shouldReturn` [0, 1, 3, 6, 9, 12]
+        it "incrScanWith: filter" incrScanWithFilterS
         it "incrRollingMap" $
             scl (Scanl.incrRollingMap (\p c -> Just (maybe 0 (c -) p)))
                 ([Insert 1, Replace 1 3, Replace 3 6] :: [Incr Int])

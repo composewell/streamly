@@ -10,11 +10,14 @@
 --
 -- Scanl vs Pipe:
 --
--- A scanl is a simpler version of pipes. A scan always produces an output and
--- may or may not consume an input. It can consume at most one input on one
--- output. Whereas a pipe may consume input even without producing anything or
--- it can consume multiple inputs on a single output. Scans are simpler
--- abstractions to think about and easier for the compiler to optimize.
+-- A scanl is a simpler version of pipes. A scan consumes at most one input to
+-- produce at most one output. It usually produces an output on each input, but
+-- using the 'Continue' step it may consume an input without producing an
+-- output (e.g. 'filter'), so a scan's output stream can be shorter than the
+-- input but cannot be empty. Whereas a pipe may consume input even without
+-- producing anything or it can consume multiple inputs on a single output.
+-- Scans are simpler abstractions to think about and easier for the compiler to
+-- optimize.
 --
 -- Returning a stream on "extract":
 --
@@ -72,7 +75,7 @@
 --
 module Streamly.Internal.Data.Scanl.Type
     (
-      module Streamly.Internal.Data.Fold.Step
+      module Streamly.Internal.Data.Scanl.Step
 
     -- * Scanl Type
     , Scanl (..)
@@ -209,13 +212,15 @@ import Streamly.Internal.Data.Refold.Type (Refold(..))
 -- import Streamly.Internal.Data.Scan (Scan(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
+import qualified Streamly.Internal.Data.Fold.Step as Fold
+
 --import qualified Streamly.Internal.Data.Stream.Step as Stream
 import qualified Streamly.Internal.Data.StreamK.Type as K
 
 import Prelude hiding (Foldable(..), concatMap, filter, map, take, const)
 
 -- Entire module is exported, do not import selectively
-import Streamly.Internal.Data.Fold.Step
+import Streamly.Internal.Data.Scanl.Step
 
 #include "DocTestDataScanl.hs"
 
@@ -284,7 +289,11 @@ import Streamly.Internal.Data.Fold.Step
 --
 data Scanl m a b =
   -- | @Scanl@ @step@ @initial@ @extract@ @final@
-  forall s. Scanl (s -> a -> m (Step s b)) (m (Step s b)) (s -> m b) (s -> m b)
+    forall s. Scanl
+        (s -> a -> m (Step s b)) -- step
+        (m (Fold.Step s b)) -- initial
+        (s -> m b) -- extract
+        (s -> m b) -- cleanup
 
 {-
 -- XXX Change the type to as follows. This takes care of the unfoldMany case
@@ -317,7 +326,7 @@ rmapM f (Scanl step initial extract final) =
 
     where
 
-    initial1 = initial >>= mapMStep f
+    initial1 = initial >>= Fold.mapMStep f
     step1 s a = step s a >>= mapMStep f
 
 ------------------------------------------------------------------------------
@@ -335,7 +344,7 @@ scanl', mkScanl :: Monad m => (b -> a -> b) -> b -> Scanl m a b
 scanl' step initial =
     Scanl
         (\s a -> return $ Partial $ step s a)
-        (return (Partial initial))
+        (return (Fold.Partial initial))
         return
         return
 
@@ -345,7 +354,7 @@ scanl' step initial =
 {-# INLINE scanlM' #-}
 scanlM', mkScanlM :: Monad m => (b -> a -> m b) -> m b -> Scanl m a b
 scanlM' step initial =
-    Scanl (\s a -> Partial <$> step s a) (Partial <$> initial) return return
+    Scanl (\s a -> Partial <$> step s a) (Fold.Partial <$> initial) return return
 
 -- | Maps a function on the output of the scan (the type @b@).
 instance Functor m => Functor (Scanl m a) where
@@ -488,7 +497,7 @@ mkScanrM g z =
 -- /Pre-release/
 --
 {-# INLINE scant' #-}
-scant', mkScant :: Monad m => (s -> a -> Step s b) -> Step s b -> (s -> b) -> Scanl m a b
+scant', mkScant :: Monad m => (s -> a -> Step s b) -> Fold.Step s b -> (s -> b) -> Scanl m a b
 scant' step initial extract =
     Scanl
         (\s a -> return $ step s a)
@@ -506,7 +515,7 @@ scant' step initial extract =
 -- /Pre-release/
 --
 {-# INLINE scantM' #-}
-scantM', mkScantM :: (s -> a -> m (Step s b)) -> m (Step s b) -> (s -> m b) -> Scanl m a b
+scantM', mkScantM :: (s -> a -> m (Step s b)) -> m (Fold.Step s b) -> (s -> m b) -> Scanl m a b
 scantM' step initial extract = Scanl step initial extract extract
 
 ------------------------------------------------------------------------------
@@ -519,9 +528,13 @@ scantM' step initial extract = Scanl step initial extract extract
 -- | Make a scan from a consumer.
 --
 -- /Internal/
-fromRefold :: Refold m c a b -> c -> Scanl m a b
+fromRefold :: Functor m => Refold m c a b -> c -> Scanl m a b
 fromRefold (Refold step inject extract) c =
-    Scanl step (inject c) extract extract
+    Scanl
+        (\s a -> fmap fromFoldStep (step s a))
+        (inject c)
+        extract
+        extract
 
 ------------------------------------------------------------------------------
 -- Basic Scans
@@ -552,7 +565,7 @@ functionM f = Scanl step initial return return
 
     where
 
-    initial = return $ Partial Nothing
+    initial = return $ Fold.Partial Nothing
 
     step _ x = f x <&> Partial
 
@@ -745,7 +758,7 @@ fromPure b = Scanl undefined (pure $ Done b) pure pure
 --
 {-# INLINE const #-}
 const :: Applicative m => b -> Scanl m a b
-const b = Scanl (\s _ -> pure $ Partial s) (pure $ Partial b) pure pure
+const b = Scanl (\s _ -> pure $ Partial s) (pure $ Fold.Partial b) pure pure
 
 {-
 -- | Make a scan that yields the result of the supplied effectful action
@@ -765,7 +778,7 @@ fromEffect b = Scanl undefined (Done <$> b) pure pure
 --
 {-# INLINE constM #-}
 constM :: Applicative m => m b -> Scanl m a b
-constM b = Scanl (\s _ -> pure $ Partial s) (Partial <$> b) pure pure
+constM b = Scanl (\s _ -> pure $ Partial s) (Fold.Partial <$> b) pure pure
 
 {-
 {-# ANN type SeqFoldState Fuse #-}
@@ -1008,7 +1021,8 @@ teeWithFst f
 
 -- | @teeWith k f1 f2@ distributes its input to both @f1@ and @f2@ until any
 -- one of them terminates. The outputs of the two scans are combined using the
--- function @k@.
+-- function @k@. If on an input the output of any side is filtered, no output
+-- is produced for that input.
 --
 -- Definition:
 --
@@ -1034,23 +1048,41 @@ teeWith f
 
     where
 
+    initial = do
+        resL <- initialL
+        resR <- initialR
+        case resL of
+            Fold.Done bl ->
+                Fold.Done . f bl <$>
+                    case resR of
+                        Fold.Partial sr -> finalR sr
+                        Fold.Done br -> return br
+            Fold.Partial sl ->
+                case resR of
+                    Fold.Done br -> Fold.Done . (`f` br) <$> finalL sl
+                    Fold.Partial sr -> return $ Fold.Partial $ Tuple' sl sr
+
     {-# INLINE runBoth #-}
     runBoth actionL actionR = do
         resL <- actionL
         resR <- actionR
         case resL of
-            Partial sl -> do
-                case resR of
-                    Partial sr -> return $ Partial $ Tuple' sl sr
-                    Done br -> Done . (`f` br) <$> finalL sl
-
-            Done bl -> do
+            Done bl ->
                 Done . f bl <$>
                     case resR of
                         Partial sr -> finalR sr
+                        Continue sr -> finalR sr
                         Done br -> return br
-
-    initial = runBoth initialL initialR
+            Partial sl ->
+                case resR of
+                    Done br -> Done . (`f` br) <$> finalL sl
+                    Partial sr -> return $ Partial $ Tuple' sl sr
+                    Continue sr -> return $ Continue $ Tuple' sl sr
+            Continue sl ->
+                case resR of
+                    Done br -> Done . (`f` br) <$> finalL sl
+                    Partial sr -> return $ Continue $ Tuple' sl sr
+                    Continue sr -> return $ Continue $ Tuple' sl sr
 
     step (Tuple' sL sR) a = runBoth (stepL sL a) (stepR sR a)
 
@@ -1277,8 +1309,6 @@ lmapM f (Scanl step begin done final) = Scanl step' begin done final
 -- | Postscan the input of a 'Scanl' to change it in a stateful manner using
 -- another 'Scanl'.
 --
--- This is basically an append operation.
---
 -- /Pre-release/
 {-# INLINE postscanl #-}
 postscanl :: Monad m => Scanl m a b -> Scanl m b c -> Scanl m a c
@@ -1297,23 +1327,26 @@ postscanl
                 rR <- stepR sR bL
                 case rR of
                     Partial sR1 -> Done <$> finalR sR1
+                    Continue sR1 -> Done <$> finalR sR1
                     Done bR -> return $ Done bR
             Partial sL -> do
                 !b <- extractL sL
                 rR <- stepR sR b
                 case rR of
                     Partial sR1 -> return $ Partial (sL, sR1)
+                    Continue sR1 -> return $ Continue (sL, sR1)
                     Done bR -> finalL sL >> return (Done bR)
+            Continue sL -> return $ Continue (sL, sR)
 
     initial = do
         rR <- initialR
         case rR of
-            Partial sR -> do
+            Fold.Partial sR -> do
                 rL <- initialL
                 case rL of
-                    Done _ -> Done <$> finalR sR
-                    Partial sL -> return $ Partial (sL, sR)
-            Done b -> return $ Done b
+                    Fold.Done _ -> Fold.Done <$> finalR sR
+                    Fold.Partial sL -> return $ Fold.Partial (sL, sR)
+            Fold.Done b -> return $ Fold.Done b
 
     -- XXX should use Tuple'
     step (sL, sR) x = runStep (stepL sL x) sR
@@ -1341,7 +1374,7 @@ catMaybes (Scanl step initial extract final) =
 
     step1 s a =
         case a of
-            Nothing -> return $ Partial s
+            Nothing -> return $ Continue s
             Just x -> step s x
 
 -- | Scan using a 'Maybe' returning scan, filter out 'Nothing' values.
@@ -1363,10 +1396,11 @@ filtering f = scanl' step Nothing
 
     step _ a = if f a then Just a else Nothing
 
--- | Include only those elements that pass a predicate.
+-- | Process input and emit scan output only for those input elements that pass
+-- a predicate.
 --
 -- >>> Stream.toList $ Stream.scanl (Scanl.filter (> 5) Scanl.sum) $ Stream.fromList [1..10]
--- [0,0,0,0,0,0,6,13,21,30,40]
+-- [0,6,13,21,30,40]
 --
 -- >>> filter p = Scanl.postscanlMaybe (Scanl.filtering p)
 -- >>> filter p = Scanl.filterM (return . p)
@@ -1377,7 +1411,7 @@ filter :: Monad m => (a -> Bool) -> Scanl m a r -> Scanl m a r
 -- filter p = postscanlMaybe (filtering p)
 filter f (Scanl step begin extract final) = Scanl step' begin extract final
     where
-    step' x a = if f a then step x a else return $ Partial x
+    step' x a = if f a then step x a else return $ Continue x
 
 -- | Like 'filter' but with a monadic predicate.
 --
@@ -1390,7 +1424,7 @@ filterM f (Scanl step begin extract final) = Scanl step' begin extract final
     where
     step' x a = do
       use <- f a
-      if use then step x a else return $ Partial x
+      if use then step x a else return $ Continue x
 
 ------------------------------------------------------------------------------
 -- Either streams
@@ -1441,8 +1475,8 @@ taking n = scant' step initial extract
 
     initial =
         if n <= 0
-        then Done Nothing
-        else Partial (Tuple'Fused n Nothing)
+        then Fold.Done Nothing
+        else Fold.Partial (Tuple'Fused n Nothing)
 
     step (Tuple'Fused i _) a =
         if i > 1
@@ -1457,7 +1491,7 @@ dropping n = scant' step initial extract
 
     where
 
-    initial = Partial (Tuple'Fused n Nothing)
+    initial = Fold.Partial (Tuple'Fused n Nothing)
 
     step (Tuple'Fused i _) a =
         if i > 0
@@ -1488,9 +1522,18 @@ take n (Scanl fstep finitial fextract ffinal) = Scanl step initial extract final
                 if i1 < n
                 then return $ Partial s1
                 else Done <$> ffinal s
+            Continue s ->
+                return $ Continue (Tuple'Fused i s)
             Done b -> return $ Done b
 
-    initial = finitial >>= next (-1)
+    initial = do
+        res <- finitial
+        case res of
+            Fold.Partial s ->
+                if n > (0 :: Int)
+                then return $ Fold.Partial (Tuple'Fused 0 s)
+                else Fold.Done <$> ffinal s
+            Fold.Done b -> return $ Fold.Done b
 
     step (Tuple'Fused i r) a = fstep r a >>= next i
 
@@ -1554,6 +1597,7 @@ takeEndBy predicate (Scanl fstep finitial fextract ffinal) =
         else do
             case res of
                 Partial s1 -> Done <$> ffinal s1
+                Continue s1 -> Done <$> ffinal s1
                 Done b -> return $ Done b
 
 ------------------------------------------------------------------------------

@@ -78,6 +78,7 @@ import Streamly.Internal.Data.Tuple.Strict
     (Tuple'(..), Tuple3Fused' (Tuple3Fused'))
 import Streamly.Internal.Data.Unbox (Unbox(..))
 
+import qualified Streamly.Internal.Data.Fold.Step as Fold
 import qualified Streamly.Internal.Data.MutArray.Type as MutArray
 import qualified Streamly.Internal.Data.RingArray as RingArray
 import qualified Streamly.Internal.Data.Scanl.Type as Scanl
@@ -125,7 +126,8 @@ data SlidingWindow a r s = SWArray !a !Int !s | SWRing !r !s
 -- data SlidingWindow a s = SWArray !a !Int !s !Int | SWRing !a !Int !s
 
 -- | Like 'incrScan' but also provides the ring array to the scan. The ring
--- array reflects the state of the ring after inserting the incoming element.
+-- array reflects the state of the window /before/ the incoming element is
+-- inserted.
 --
 -- IMPORTANT NOTE: The ring is mutable, therefore, references to it should not
 -- be stored and used later, the state would have changed by then. If you need
@@ -146,28 +148,31 @@ incrScanWith n (Scanl step1 initial1 extract1 final1) =
             arr <- liftIO $ MutArray.emptyOf n
             return $
                 case r of
-                    Partial s -> Partial $ SWArray arr (0 :: Int) s
-                    Done b -> Done b
+                    Fold.Partial s -> Fold.Partial $ SWArray arr (0 :: Int) s
+                    Fold.Done b -> Fold.Done b
 
     step (SWArray arr i st) a = do
-        -- XXX compare this with the slidingWindow impl
-        arr1 <- liftIO $ MutArray.unsafeSnoc arr a
-        r <- step1 st (Insert a, RingArray.unsafeCastMutArray arr1)
-        return $ case r of
-            Partial s ->
+        r <- step1 st (Insert a, RingArray.unsafeCastMutArray arr)
+        case r of
+            Partial s -> do
+                arr1 <- liftIO $ MutArray.unsafeSnoc arr a
                 let i1 = i + 1
-                in if i1 < n
-                   then Partial $ SWArray arr1 i1 s
-                   else Partial $ SWRing (RingArray.unsafeCastMutArray arr1) s
-            Done b -> Done b
+                return
+                    $ if i1 < n
+                      then Partial $ SWArray arr1 i1 s
+                      else Partial $ SWRing (RingArray.unsafeCastMutArray arr1) s
+            Continue s -> return $ Continue $ SWArray arr i s
+            Done b -> return $ Done b
 
     step (SWRing rb st) a = do
-        (rb1, old) <- RingArray.replace rb a
-        r <- step1 st (Replace old a, rb1)
-        return $
-            case r of
-                Partial s -> Partial $ SWRing rb1 s
-                Done b -> Done b
+        old <- RingArray.unsafeGetIndex 0 rb
+        r <- step1 st (Replace old a, rb)
+        case r of
+            Partial s -> do
+                (rb1, _) <- RingArray.replace rb a
+                return $ Partial $ SWRing rb1 s
+            Continue s -> return $ Continue $ SWRing rb s
+            Done b -> return $ Done b
 
     extract (SWArray _ _ st) = extract1 st
     extract (SWRing _ st) = extract1 st
@@ -291,7 +296,7 @@ incrSumInt = Scanl step initial extract extract
 
     where
 
-    initial = return $ Partial (0 :: a)
+    initial = return $ Fold.Partial (0 :: a)
 
     step s (Insert a) = return $ Partial (s + a)
     -- step s (Delete a) = return $ Partial (s - a)
@@ -324,7 +329,7 @@ incrSum = Scanl step initial extract extract
 
     initial =
         return
-            $ Partial
+            $ Fold.Partial
             $ Tuple'
                 (0 :: a) -- running sum
                 (0 :: a) -- accumulated rounding error
@@ -447,7 +452,7 @@ windowRange n = Scanl step initial extract extract
         then error "ringsOf: window size must be > 0"
         else do
             arr :: MutArray.MutArray a <- liftIO $ MutArray.emptyOf n
-            return $ Partial $ Tuple3Fused' (MutArray.arrContents arr) 0 0
+            return $ Fold.Partial $ Tuple3Fused' (MutArray.arrContents arr) 0 0
 
     step (Tuple3Fused' mba rh i) a = do
         RingArray _ _ rh1 <- RingArray.replace_ (RingArray mba (n * SIZE_OF(a)) rh) a

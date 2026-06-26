@@ -17,7 +17,8 @@ productS = do
     check F.product ([] :: [Int]) [1]
     -- Short-circuit: the element after the first 0 is bottom, so this throws
     -- (and fails) if 'product' consumes past the 0.
-    check F.product ([2, 0, error "product consumed past 0"] :: [Int]) [1, 2, 0]
+    checkNoLaw
+        F.product ([2, 0, error "product consumed past 0"] :: [Int]) [1, 2, 0]
 
 sumS :: [Int] -> Expectation
 sumS ls = check F.sum ls (Prelude.scanl (+) 0 ls)
@@ -46,7 +47,7 @@ theS = do
     check F.the ([] :: [Int]) [Nothing]
     -- Short-circuit: the element after the first mismatch is bottom, so this
     -- throws (and fails) if 'the' consumes past the mismatch.
-    check F.the ([3, 3, 4, error "the consumed past mismatch"] :: [Int])
+    checkNoLaw F.the ([3, 3, 4, error "the consumed past mismatch"] :: [Int])
         [Nothing, Just 3, Just 3, Nothing]
 
 -- Polynomial rolling hash:
@@ -126,12 +127,13 @@ meanS =
 -- Filtering / mapping
 -------------------------------------------------------------------------------
 
+-- A filtered-out (Nothing) element emits no output.
 mapMaybeS :: [Int] -> Expectation
 mapMaybeS ls =
     check
         (F.mapMaybe (\x -> if even x then Just x else Nothing) F.toList)
         ls
-        (Prelude.scanl (\acc x -> if even x then acc ++ [x] else acc) [] ls)
+        (Prelude.scanl (\acc x -> acc ++ [x]) [] (Prelude.filter even ls))
 
 drainMapMS :: [Int] -> Expectation
 drainMapMS ls = check (F.drainMapM return) ls (Prelude.scanl (\_ _ -> ()) () ls)
@@ -167,7 +169,7 @@ indexedS =
 sampleFromthenS :: Expectation
 sampleFromthenS =
     check (F.sampleFromthen 0 2 F.toList) ([1 .. 6] :: [Int])
-        [[], [1], [1], [1, 3], [1, 3], [1, 3, 5], [1, 3, 5]]
+        [[], [1], [1, 3], [1, 3, 5]]
 
 sconcatS :: Expectation
 sconcatS =

@@ -387,7 +387,9 @@ parDistributeScan cfg getFolds (Stream sstep state) =
                         let ch = filter (\(_, t) -> t /= tid) chans
                          in processOutputs ch xs (b:done)
                     FoldPartial _ ->
-                        error "parDistributeScan: cannot occur for folds"
+                        error "parDistributeScan: FoldPartial cannot occur for folds"
+                    FoldContinue ->
+                        error "parDistributeScan: FoldContinue cannot occur for folds"
                     FoldEOF _ ->
                         error
                             "parDistributeScan: FoldEOF cannot occur for folds"
@@ -516,6 +518,8 @@ parDemuxScan cfg getKey getFold (Stream sstep state) =
                          in processOutputs ch xs (o:done)
                     FoldPartial _ ->
                         error "parDemuxScan: cannot occur for folds"
+                    FoldContinue ->
+                        error "parDemuxScan: FoldContinue cannot occur for folds"
                     FoldEOF _ ->
                         error "parDemuxScan: FoldEOF cannot occur for folds"
 

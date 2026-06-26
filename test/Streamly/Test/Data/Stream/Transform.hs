@@ -20,7 +20,9 @@ import qualified Streamly.Internal.Data.Scan as Scan
 import qualified Streamly.Internal.Data.Scanl as Scanl
 import qualified Streamly.Internal.Data.Stream as Stream
 
+import Streamly.Test.Data.Scanl.Common (evenScanl, filterLawScanModifier, filterLawScan)
 import Test.Hspec as H
+import Test.Hspec.QuickCheck (prop)
 #ifdef DEVBUILD
 #endif
 
@@ -174,6 +176,36 @@ testScanlMany :: Expectation
 testScanlMany =
     toList (Stream.scanlMany Scanl.sum (Stream.fromList [1, 2, 3 :: Int]))
         `shouldReturn` [0, 1, 3, 6]
+
+streamPostscanlFilter :: Expectation
+streamPostscanlFilter = do
+    ref <- newIORef []
+    out <-
+        Stream.toList
+            $ Stream.postscanl (evenScanl ref) (Stream.fromList [1 .. 6 :: Int])
+    calls <- reverse <$> readIORef ref
+    out `shouldBe` [2, 4, 6]
+    calls `shouldBe` [2, 4, 6]
+
+streamScanlFilter :: Expectation
+streamScanlFilter = do
+    ref <- newIORef []
+    out <-
+        Stream.toList
+            $ Stream.scanl (evenScanl ref) (Stream.fromList [1 .. 6 :: Int])
+    calls <- reverse <$> readIORef ref
+    out `shouldBe` [0, 2, 4, 6]
+    calls `shouldBe` [0, 2, 4, 6]
+
+scanlManyFilter :: Expectation
+scanlManyFilter = do
+    ref <- newIORef []
+    out <-
+        Stream.toList
+            $ Stream.scanlMany (evenScanl ref) (Stream.fromList [1 .. 6 :: Int])
+    calls <- reverse <$> readIORef ref
+    out `shouldBe` [0, 2, 4, 6]
+    calls `shouldBe` [0, 2, 4, 6]
 
 testScanr :: Expectation
 testScanr =
@@ -587,10 +619,15 @@ main = hspec
         it "scanl (Scanl) empty" testScanlScanlEmpty
         it "postscanl" testPostscanl
         it "postscanl empty" testPostscanlEmpty
+        it "postscanl filter" streamPostscanlFilter
+        it "scanl filter" streamScanlFilter
         it "scanl (Scanl) done-at-init" testScanlDoneAtInit
         it "postscanl done-at-init" testPostscanlDoneAtInit
         it "postscanlMaybe done-at-init" testPostscanlMaybeDoneAtInit
         it "scanlMany" testScanlMany
+        it "scanlMany filter" scanlManyFilter
+        prop "filter law: id (driver)" $ filterLawScanModifier id
+        prop "filter law: sum" $ filterLawScan Scanl.sum
         it "scanr" testScanr
         it "pipe map" testPipe
         it "pipe filter" testPipeFilter
