@@ -1052,6 +1052,7 @@ splitWith func
         fmap (func rL)
             $ case res of
                 Partial sR -> finalR sR
+                Continue sR -> finalR sR
                 Done rR -> return rR
 
 {-# DEPRECATED serialWith "Please use \"splitWith\" instead" #-}
@@ -1080,6 +1081,7 @@ split_ (Fold stepL initialL _ finalL) (Fold stepR initialR _ finalR) =
         resL <- initialL
         case resL of
             Partial sl -> return $ Partial $ SeqFoldL_ sl
+            Continue sl -> return $ Partial $ SeqFoldL_ sl
             Done _ -> do
                 resR <- initialR
                 return $ first SeqFoldR_ resR
@@ -1088,6 +1090,7 @@ split_ (Fold stepL initialL _ finalL) (Fold stepR initialR _ finalR) =
         r <- stepL st a
         case r of
             Partial s -> return $ Partial (SeqFoldL_ s)
+            Continue s -> return $ Partial (SeqFoldL_ s)
             Done _ -> do
                 resR <- initialR
                 return $ first SeqFoldR_ resR
@@ -1105,6 +1108,7 @@ split_ (Fold stepL initialL _ finalL) (Fold stepR initialR _ finalR) =
         res <- initialR
         case res of
             Partial sR -> finalR sR
+            Continue sR -> finalR sR
             Done rR -> return rR
 
 -- | 'Applicative' form of 'splitWith'. Split the input serially over two
@@ -1169,6 +1173,13 @@ teeWith f
                       Partial
                           $ case resR of
                                 Partial sr -> TeeBoth sl sr
+                                Continue sr -> TeeBoth sl sr
+                                Done br -> TeeLeft br sl
+                  Continue sl ->
+                      Partial
+                          $ case resR of
+                                Partial sr -> TeeBoth sl sr
+                                Continue sr -> TeeBoth sl sr
                                 Done br -> TeeLeft br sl
                   Done bl -> bimap (TeeRight bl) (f bl) resR
 
@@ -1216,11 +1227,20 @@ teeWithFst f
                     $ Partial
                     $ case resR of
                         Partial sr -> TeeFstBoth sl sr
+                        Continue sr -> TeeFstBoth sl sr
+                        Done br -> TeeFstLeft br sl
+            Continue sl ->
+                return
+                    $ Partial
+                    $ case resR of
+                        Partial sr -> TeeFstBoth sl sr
+                        Continue sr -> TeeFstBoth sl sr
                         Done br -> TeeFstLeft br sl
             Done bl -> do
                 Done . f bl <$>
                     case resR of
                         Partial sr -> finalR sr
+                        Continue sr -> finalR sr
                         Done br -> return br
 
     initial = runBoth initialL initialR
@@ -1257,12 +1277,19 @@ teeWithMin f
             Partial sl -> do
                 case resR of
                     Partial sr -> return $ Partial $ Tuple' sl sr
+                    Continue sr -> return $ Partial $ Tuple' sl sr
+                    Done br -> Done . (`f` br) <$> finalL sl
+            Continue sl -> do
+                case resR of
+                    Partial sr -> return $ Partial $ Tuple' sl sr
+                    Continue sr -> return $ Partial $ Tuple' sl sr
                     Done br -> Done . (`f` br) <$> finalL sl
 
             Done bl -> do
                 Done . f bl <$>
                     case resR of
                         Partial sr -> finalR sr
+                        Continue sr -> finalR sr
                         Done br -> return br
 
     initial = runBoth initialL initialR
@@ -1297,10 +1324,17 @@ shortest (Fold stepL initialL extractL finalL) (Fold stepR initialR _ finalR) =
             Partial sL ->
                 case resR of
                     Partial sR -> return $ Partial $ Tuple' sL sR
+                    Continue sR -> return $ Partial $ Tuple' sL sR
+                    Done bR -> finalL sL >> return (Done (Right bR))
+            Continue sL ->
+                case resR of
+                    Partial sR -> return $ Partial $ Tuple' sL sR
+                    Continue sR -> return $ Partial $ Tuple' sL sR
                     Done bR -> finalL sL >> return (Done (Right bR))
             Done bL -> do
                 case resR of
                     Partial sR -> void (finalR sR)
+                    Continue sR -> void (finalR sR)
                     Done _ -> return ()
                 return (Done (Left bL))
 
@@ -1346,6 +1380,13 @@ longest
                     Partial $
                         case resR of
                             Partial sR -> LongestBoth sL sR
+                            Continue sR -> LongestBoth sL sR
+                            Done _ -> LongestLeft sL
+                Continue sL ->
+                    Partial $
+                        case resR of
+                            Partial sR -> LongestBoth sL sR
+                            Continue sR -> LongestBoth sL sR
                             Done _ -> LongestLeft sL
                 Done bL -> bimap LongestRight (const (Left bL)) resR
 
@@ -1398,18 +1439,21 @@ concatMap f (Fold stepa initiala _ finala) =
         r <- initiala
         case r of
             Partial s -> return $ Partial (B s finala)
+            Continue s -> return $ Partial (B s finala)
             Done b -> initInnerFold (f b)
 
     stepc (B s fin) a = do
         r <- stepa s a
         case r of
             Partial s1 -> return $ Partial (B s1 fin)
+            Continue s1 -> return $ Partial (B s1 fin)
             Done b -> initInnerFold (f b)
 
     stepc (C stepInner s extractInner fin) a = do
         r <- stepInner s a
         return $ case r of
             Partial sc -> Partial (C stepInner sc extractInner fin)
+            Continue sc -> Partial (C stepInner sc extractInner fin)
             Done c -> Done c
 
     -- XXX Cannot use for scanning
@@ -1419,12 +1463,14 @@ concatMap f (Fold stepa initiala _ finala) =
         r <- i
         return $ case r of
             Partial s -> Partial (C step s e fin)
+            Continue s -> Partial (C step s e fin)
             Done c -> Done c
 
     initFinalize (Fold _ i _ fin) = do
         r <- i
         case r of
             Partial s -> fin s
+            Continue s -> fin s
             Done c -> return c
 
     finalc (B s fin) = do
@@ -1507,12 +1553,21 @@ postscan
                 rR <- stepR sR bL
                 case rR of
                     Partial sR1 -> Done <$> finalR sR1
+                    Continue sR1 -> Done <$> finalR sR1
                     Done bR -> return $ Done bR
             Partial sL -> do
                 !b <- extractL sL
                 rR <- stepR sR b
                 case rR of
                     Partial sR1 -> return $ Partial (sL, sR1)
+                    Continue sR1 -> return $ Partial (sL, sR1)
+                    Done bR -> finalL sL >> return (Done bR)
+            Continue sL -> do
+                !b <- extractL sL
+                rR <- stepR sR b
+                case rR of
+                    Partial sR1 -> return $ Partial (sL, sR1)
+                    Continue sR1 -> return $ Partial (sL, sR1)
                     Done bR -> finalL sL >> return (Done bR)
 
     initial = do
@@ -1523,6 +1578,13 @@ postscan
                 case rL of
                     Done _ -> Done <$> finalR sR
                     Partial sL -> return $ Partial (sL, sR)
+                    Continue sL -> return $ Partial (sL, sR)
+            Continue sR -> do
+                rL <- initialL
+                case rL of
+                    Done _ -> Done <$> finalR sR
+                    Partial sL -> return $ Partial (sL, sR)
+                    Continue sL -> return $ Partial (sL, sR)
             Done b -> return $ Done b
 
     -- XXX should use Tuple'
@@ -1599,12 +1661,21 @@ postscanl
                 rR <- stepR sR bL
                 case rR of
                     Partial sR1 -> Done <$> finalR sR1
+                    Continue sR1 -> Done <$> finalR sR1
                     Done bR -> return $ Done bR
             Partial sL -> do
                 !b <- extractL sL
                 rR <- stepR sR b
                 case rR of
                     Partial sR1 -> return $ Partial (sL, sR1)
+                    Continue sR1 -> return $ Partial (sL, sR1)
+                    Done bR -> finalL sL >> return (Done bR)
+            Continue sL -> do
+                !b <- extractL sL
+                rR <- stepR sR b
+                case rR of
+                    Partial sR1 -> return $ Partial (sL, sR1)
+                    Continue sR1 -> return $ Partial (sL, sR1)
                     Done bR -> finalL sL >> return (Done bR)
 
     initial = do
@@ -1615,6 +1686,13 @@ postscanl
                 case rL of
                     Done _ -> Done <$> finalR sR
                     Partial sL -> return $ Partial (sL, sR)
+                    Continue sL -> return $ Partial (sL, sR)
+            Continue sR -> do
+                rL <- initialL
+                case rL of
+                    Done _ -> Done <$> finalR sR
+                    Partial sL -> return $ Partial (sL, sR)
+                    Continue sL -> return $ Partial (sL, sR)
             Done b -> return $ Done b
 
     -- XXX should use Tuple'
@@ -1655,18 +1733,35 @@ scanWith isMany
                         -- this recursion, assuming it won't return Done.
                         then runStep initialL sR1
                         else Done <$> finalR sR1
+                    Continue sR1 ->
+                        if isMany
+                        -- XXX recursive call. If initialL returns Done then it
+                        -- will not terminate. In that case we should return
+                        -- error in the beginning itself. And we should remove
+                        -- this recursion, assuming it won't return Done.
+                        then runStep initialL sR1
+                        else Done <$> finalR sR1
                     Done bR -> return $ Done bR
             Partial sL -> do
                 !b <- extractL sL
                 rR <- stepR sR b
                 case rR of
                     Partial sR1 -> return $ Partial (sL, sR1)
+                    Continue sR1 -> return $ Partial (sL, sR1)
+                    Done bR -> finalL sL >> return (Done bR)
+            Continue sL -> do
+                !b <- extractL sL
+                rR <- stepR sR b
+                case rR of
+                    Partial sR1 -> return $ Partial (sL, sR1)
+                    Continue sR1 -> return $ Partial (sL, sR1)
                     Done bR -> finalL sL >> return (Done bR)
 
     initial = do
         r <- initialR
         case r of
             Partial sR -> runStep initialL sR
+            Continue sR -> runStep initialL sR
             Done b -> return $ Done b
 
     step (sL, sR) x = runStep (stepL sL x) sR
@@ -1719,18 +1814,35 @@ scanlWith isMany
                         -- this recursion, assuming it won't return Done.
                         then runStep initialL sR1
                         else Done <$> finalR sR1
+                    Continue sR1 ->
+                        if isMany
+                        -- XXX recursive call. If initialL returns Done then it
+                        -- will not terminate. In that case we should return
+                        -- error in the beginning itself. And we should remove
+                        -- this recursion, assuming it won't return Done.
+                        then runStep initialL sR1
+                        else Done <$> finalR sR1
                     Done bR -> return $ Done bR
             Partial sL -> do
                 !b <- extractL sL
                 rR <- stepR sR b
                 case rR of
                     Partial sR1 -> return $ Partial (sL, sR1)
+                    Continue sR1 -> return $ Partial (sL, sR1)
+                    Done bR -> finalL sL >> return (Done bR)
+            Continue sL -> do
+                !b <- extractL sL
+                rR <- stepR sR b
+                case rR of
+                    Partial sR1 -> return $ Partial (sL, sR1)
+                    Continue sR1 -> return $ Partial (sL, sR1)
                     Done bR -> finalL sL >> return (Done bR)
 
     initial = do
         r <- initialR
         case r of
             Partial sR -> runStep initialL sR
+            Continue sR -> runStep initialL sR
             Done b -> return $ Done b
 
     step (sL, sR) x = runStep (stepL sL x) sR
@@ -1948,6 +2060,12 @@ take n (Fold fstep finitial fextract ffinal) = Fold step initial extract final
                 if i1 < n
                 then return $ Partial s1
                 else Done <$> ffinal s
+            Continue s -> do
+                let i1 = i + 1
+                    s1 = Tuple'Fused i1 s
+                if i1 < n
+                then return $ Partial s1
+                else Done <$> ffinal s
             Done b -> return $ Done b
 
     initial = finitial >>= next (-1)
@@ -2020,6 +2138,7 @@ takeEndBy predicate (Fold fstep finitial fextract ffinal) =
         else do
             case res of
                 Partial s1 -> Done <$> ffinal s1
+                Continue s1 -> Done <$> ffinal s1
                 Done b -> return $ Done b
 
 -- Fusible if-then-else
@@ -2115,6 +2234,7 @@ snoclM (Fold fstep finitial fextract ffinal) action =
         res <- finitial
         case res of
             Partial fs -> action >>= fstep fs
+            Continue fs -> action >>= fstep fs
             Done b -> return $ Done b
 
 -- | Append a singleton value to the fold lazily, in other words run a single
@@ -2143,6 +2263,7 @@ snocl (Fold fstep finitial fextract ffinal) a =
         res <- finitial
         case res of
             Partial fs -> fstep fs a
+            Continue fs -> fstep fs a
             Done b -> return $ Done b
 
 -- | Append a singleton value to the fold in other words run a single step of
@@ -2159,6 +2280,7 @@ snocM (Fold step initial extract final) action = do
     res <- initial
     r <- case res of
           Partial fs -> action >>= step fs
+          Continue fs -> action >>= step fs
           Done _ -> return res
     return $ Fold step (return r) extract final
 
@@ -2183,6 +2305,7 @@ snoc (Fold step initial extract final) a = do
     res <- initial
     r <- case res of
           Partial fs -> step fs a
+          Continue fs -> step fs a
           Done _ -> return res
     return $ Fold step (return r) extract final
 
@@ -2212,6 +2335,7 @@ extractM (Fold _ initial extract _) = do
     res <- initial
     case res of
           Partial fs -> extract fs
+          Continue fs -> extract fs
           Done b -> return b
 
 -- | Finalize a fold and extract the accumulated result of the fold.
@@ -2232,6 +2356,7 @@ finalM (Fold _ initial _ final) = do
     res <- initial
     case res of
           Partial fs -> final fs
+          Continue fs -> final fs
           Done b -> return b
 
 -- | Close a fold so that it does not accept any more input.
@@ -2246,6 +2371,7 @@ close (Fold _ initial1 _ final1) =
         res <- initial1
         case res of
               Partial s -> Done <$> final1 s
+              Continue s -> Done <$> final1 s
               Done b -> return $ Done b
 
 -- Corresponds to the null check for streams.
@@ -2259,6 +2385,7 @@ isClosed (Fold _ initial _ _) = do
     res <- initial
     return $ case res of
           Partial _ -> False
+          Continue _ -> False
           Done _ -> True
 
 ------------------------------------------------------------------------------
@@ -2310,11 +2437,13 @@ many
     split f cs sres =
         case sres of
             Partial ss -> return $ Partial $ f ss cs
+            Continue ss -> return $ Partial $ f ss cs
             Done sb -> cstep cs sb >>= collect
 
     collect cres =
         case cres of
             Partial cs -> sinitial >>= split ManyFirst cs
+            Continue cs -> sinitial >>= split ManyFirst cs
             Done cb -> return $ Done cb
 
     -- A fold may terminate even without accepting a single input.  So we run
@@ -2339,6 +2468,7 @@ many
         cres <- sextract ss >>= cstep cs
         case cres of
             Partial s -> cextract s
+            Continue s -> cextract s
             Done b -> return b
 
     final (ManyFirst ss cs) = sfinal ss *> cfinal cs
@@ -2346,6 +2476,7 @@ many
         cres <- sfinal ss >>= cstep cs
         case cres of
             Partial s -> cfinal s
+            Continue s -> cfinal s
             Done b -> return b
 
 -- | Like many, but the "first" fold emits an output at the end even if no
@@ -2378,11 +2509,13 @@ manyPost
     split cs sres =
         case sres of
             Partial ss1 -> return $ Partial $ Tuple' ss1 cs
+            Continue ss1 -> return $ Partial $ Tuple' ss1 cs
             Done sb -> cstep cs sb >>= collect
 
     collect cres =
         case cres of
             Partial cs -> sinitial >>= split cs
+            Continue cs -> sinitial >>= split cs
             Done cb -> return $ Done cb
 
     initial = cinitial >>= collect
@@ -2394,12 +2527,14 @@ manyPost
         cres <- sextract ss >>= cstep cs
         case cres of
             Partial s -> cextract s
+            Continue s -> cextract s
             Done b -> return b
 
     final (Tuple' ss cs) = do
         cres <- sfinal ss >>= cstep cs
         case cres of
             Partial s -> cfinal s
+            Continue s -> cfinal s
             Done b -> return b
 
 -- | @groupsOf n split collect@ repeatedly applies the @split@ fold to chunks
@@ -2452,11 +2587,13 @@ refoldMany
     split cs f sres =
         case sres of
             Partial ss -> return $ Partial $ Tuple' cs (f ss)
+            Continue ss -> return $ Partial $ Tuple' cs (f ss)
             Done sb -> cstep cs sb >>= collect
 
     collect cres =
         case cres of
             Partial cs -> sinitial >>= split cs Left
+            Continue cs -> sinitial >>= split cs Left
             Done cb -> return $ Done cb
 
     inject x = cinject x >>= collect
@@ -2474,6 +2611,7 @@ refoldMany
         cres <- sextract ss >>= cstep cs
         case cres of
             Partial s -> cextract s
+            Continue s -> cextract s
             Done b -> return b
 
 {-# ANN type ConsumeManyState Fuse #-}
@@ -2505,11 +2643,13 @@ refoldMany1
     split x cs f sres =
         case sres of
             Partial ss -> return $ Partial $ ConsumeMany x cs (f ss)
+            Continue ss -> return $ Partial $ ConsumeMany x cs (f ss)
             Done sb -> cstep cs sb >>= collect x
 
     collect x cres =
         case cres of
             Partial cs -> sinject x >>= split x cs Left
+            Continue cs -> sinject x >>= split x cs Left
             Done cb -> return $ Done cb
 
     inject x = cinitial >>= collect x
@@ -2527,6 +2667,7 @@ refoldMany1
         cres <- sextract ss >>= cstep cs
         case cres of
             Partial s -> cextract s
+            Continue s -> cextract s
             Done b -> return b
 
 -- | Extract the output of a fold and refold it using a 'Refold'.

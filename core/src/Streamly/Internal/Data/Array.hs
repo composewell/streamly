@@ -695,6 +695,7 @@ foldBreakChunks (Fold fstep initial _ final) stream@(Stream step state) = do
     res <- initial
     case res of
         Fold.Partial fs -> go SPEC state fs
+        Fold.Continue fs -> go SPEC state fs
         Fold.Done fb -> return $! (fb, stream)
 
     where
@@ -723,6 +724,7 @@ foldBreakChunks (Fold fstep initial _ final) stream@(Stream step state) = do
                 let arr = Array contents next end
                 return $! (b, D.cons arr (D.Stream step st))
             Fold.Partial fs1 -> goArray SPEC st fp next fs1
+            Fold.Continue fs1 -> goArray SPEC st fp next fs1
 
 -- This may be more robust wrt fusion compared to unfoldMany?
 
@@ -759,6 +761,7 @@ foldBreak (Fold fstep initial _ final) stream = do
     res <- initial
     case res of
         Fold.Partial fs -> go fs stream
+        Fold.Continue fs -> go fs stream
         Fold.Done fb -> return (fb, stream)
 
     where
@@ -784,6 +787,7 @@ foldBreak (Fold fstep initial _ final) stream = do
                 let arr = Array contents next end
                 return $! (b, StreamK.cons arr st)
             Fold.Partial fs1 -> goArray fs1 st fp next
+            Fold.Continue fs1 -> goArray fs1 st fp next
 
 RENAME(foldBreakChunksK,foldBreak)
 

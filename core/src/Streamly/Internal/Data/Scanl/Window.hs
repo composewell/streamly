@@ -147,6 +147,7 @@ incrScanWith n (Scanl step1 initial1 extract1 final1) =
             return $
                 case r of
                     Partial s -> Partial $ SWArray arr (0 :: Int) s
+                    Continue s -> Partial $ SWArray arr (0 :: Int) s
                     Done b -> Done b
 
     step (SWArray arr i st) a = do
@@ -159,6 +160,11 @@ incrScanWith n (Scanl step1 initial1 extract1 final1) =
                 in if i1 < n
                    then Partial $ SWArray arr1 i1 s
                    else Partial $ SWRing (RingArray.unsafeCastMutArray arr1) s
+            Continue s ->
+                let i1 = i + 1
+                in if i1 < n
+                   then Partial $ SWArray arr1 i1 s
+                   else Partial $ SWRing (RingArray.unsafeCastMutArray arr1) s
             Done b -> Done b
 
     step (SWRing rb st) a = do
@@ -167,6 +173,7 @@ incrScanWith n (Scanl step1 initial1 extract1 final1) =
         return $
             case r of
                 Partial s -> Partial $ SWRing rb1 s
+                Continue s -> Partial $ SWRing rb1 s
                 Done b -> Done b
 
     extract (SWArray _ _ st) = extract1 st

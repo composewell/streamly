@@ -226,6 +226,7 @@ fold (Fold fstep initial _ final) (Unfold ustep inject) a = do
     res <- initial
     case res of
         FL.Partial x -> inject a >>= go SPEC x
+        FL.Continue x -> inject a >>= go SPEC x
         FL.Done b -> return b
 
     where
@@ -238,6 +239,7 @@ fold (Fold fstep initial _ final) (Unfold ustep inject) a = do
                 res <- fstep fs x
                 case res of
                     FL.Partial fs1 -> go SPEC fs1 s
+                    FL.Continue fs1 -> go SPEC fs1 s
                     FL.Done c -> return c
             Skip s -> go SPEC fs s
             Stop -> final fs
@@ -272,6 +274,7 @@ foldMany (Fold fstep initial _ final) (Unfold ustep inject1) =
             $ case res of
                   FL.Done b -> FoldManyYield b (FoldManyStart s)
                   FL.Partial ps -> FoldManyLoop s ps
+                  FL.Continue ps -> FoldManyLoop s ps
 
     {-# INLINE_LATE step #-}
     step (FoldManyStart st) = do
@@ -281,6 +284,7 @@ foldMany (Fold fstep initial _ final) (Unfold ustep inject1) =
             $ case r of
                   FL.Done b -> FoldManyYield b (FoldManyStart st)
                   FL.Partial fs -> FoldManyFirst fs st
+                  FL.Continue fs -> FoldManyFirst fs st
     step (FoldManyFirst fs st) = do
         r <- ustep st
         case r of
@@ -344,6 +348,7 @@ postscanl (Scanl stepF initial extract final) (Unfold stepU injectU) =
         r <- initial
         case r of
             FL.Partial fs -> Just . (fs,) <$> injectU a
+            FL.Continue fs -> Just . (fs,) <$> injectU a
             FL.Done _ -> return Nothing
 
     {-# INLINE_LATE step #-}
@@ -355,6 +360,9 @@ postscanl (Scanl stepF initial extract final) (Unfold stepU injectU) =
                 case rf of
                     FL.Done v -> return $ Yield v Nothing
                     FL.Partial fs1 -> do
+                        v <- extract fs1
+                        return $ Yield v (Just (fs1, s))
+                    FL.Continue fs1 -> do
                         v <- extract fs1
                         return $ Yield v (Just (fs1, s))
             Skip s -> return $ Skip (Just (fs, s))
@@ -384,6 +392,9 @@ scanWith restart (Scanl fstep initial extract final) (Unfold stepU injectU) =
         r <- action
         case r of
             FL.Partial fs -> do
+                !b <- extract fs
+                return $ Yield b (ScanDo us fs)
+            FL.Continue fs -> do
                 !b <- extract fs
                 return $ Yield b (ScanDo us fs)
             FL.Done b ->

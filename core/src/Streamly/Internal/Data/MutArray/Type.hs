@@ -3998,6 +3998,10 @@ lCompactGeAs ps minElems (Fold step1 initial1 _ final1) =
                         _ <- final1 s
                         res <- initial1
                         return $ first (Tuple' Nothing) res
+                    FL.Continue s -> do
+                        _ <- final1 s
+                        res <- initial1
+                        return $ first (Tuple' Nothing) res
             else return $ FL.Partial $ Tuple' (Just buf) acc
 
     step (Tuple' Nothing r1) arr =
@@ -4026,6 +4030,7 @@ lCompactGeAs ps minElems (Fold step1 initial1 _ final1) =
         r <- step1 r1 buf
         case r of
             FL.Partial rr -> final1 rr
+            FL.Continue rr -> final1 rr
             FL.Done _ -> return ()
 
 -- | Like 'compactGE' but for transforming folds instead of stream.

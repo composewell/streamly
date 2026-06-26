@@ -296,6 +296,30 @@ demuxGeneric getKey getFold =
                             return
                                 $ Tuple'
                                     (IsMap.mapInsert k fld kv) (Just (k, b))
+                        Continue ss -> do
+                            b <- extract1 ss
+                            let fld = Scanl step1 (return res1) extract1 final1
+                            return
+                                $ Tuple'
+                                    (IsMap.mapInsert k fld kv) (Just (k, b))
+                        Done b ->
+                            return
+                                $ Tuple' (IsMap.mapDelete k kv) (Just (k, b))
+            Continue s -> do
+                res1 <- step1 s a
+                case res1 of
+                        Partial ss -> do
+                            b <- extract1 ss
+                            let fld = Scanl step1 (return res1) extract1 final1
+                            return
+                                $ Tuple'
+                                    (IsMap.mapInsert k fld kv) (Just (k, b))
+                        Continue ss -> do
+                            b <- extract1 ss
+                            let fld = Scanl step1 (return res1) extract1 final1
+                            return
+                                $ Tuple'
+                                    (IsMap.mapInsert k fld kv) (Just (k, b))
                         Done b ->
                             return
                                 $ Tuple' (IsMap.mapDelete k kv) (Just (k, b))
@@ -407,6 +431,37 @@ demuxGenericIO getKey getFold =
                         b <- extract1 ss
                         return
                             $ Tuple' (IsMap.mapInsert k ref kv) (Just (k, b))
+                    Continue ss -> do
+                        -- XXX Instead of using a Fold type here use a custom
+                        -- type with an IORef (possibly unboxed) for the
+                        -- accumulator. That will reduce the allocations.
+                        let fld = Scanl step1 (return res1) extract1 final1
+                        ref <- liftIO $ newIORef fld
+                        b <- extract1 ss
+                        return
+                            $ Tuple' (IsMap.mapInsert k ref kv) (Just (k, b))
+                    Done b -> return $ Tuple' kv (Just (k, b))
+            Continue s -> do
+                res1 <- step1 s a
+                case res1 of
+                    Partial ss -> do
+                        -- XXX Instead of using a Fold type here use a custom
+                        -- type with an IORef (possibly unboxed) for the
+                        -- accumulator. That will reduce the allocations.
+                        let fld = Scanl step1 (return res1) extract1 final1
+                        ref <- liftIO $ newIORef fld
+                        b <- extract1 ss
+                        return
+                            $ Tuple' (IsMap.mapInsert k ref kv) (Just (k, b))
+                    Continue ss -> do
+                        -- XXX Instead of using a Fold type here use a custom
+                        -- type with an IORef (possibly unboxed) for the
+                        -- accumulator. That will reduce the allocations.
+                        let fld = Scanl step1 (return res1) extract1 final1
+                        ref <- liftIO $ newIORef fld
+                        b <- extract1 ss
+                        return
+                            $ Tuple' (IsMap.mapInsert k ref kv) (Just (k, b))
                     Done b -> return $ Tuple' kv (Just (k, b))
             Done b -> return $ Tuple' kv (Just (k, b))
 
@@ -418,6 +473,27 @@ demuxGenericIO getKey getFold =
                 res1 <- step1 s a
                 case res1 of
                         Partial ss -> do
+                            let fld = Scanl step1 (return res1) extract1 final1
+                            liftIO $ writeIORef ref fld
+                            b <- extract1 ss
+                            return $ Tuple' kv (Just (k, b))
+                        Continue ss -> do
+                            let fld = Scanl step1 (return res1) extract1 final1
+                            liftIO $ writeIORef ref fld
+                            b <- extract1 ss
+                            return $ Tuple' kv (Just (k, b))
+                        Done b ->
+                            let kv1 = IsMap.mapDelete k kv
+                             in return $ Tuple' kv1 (Just (k, b))
+            Continue s -> do
+                res1 <- step1 s a
+                case res1 of
+                        Partial ss -> do
+                            let fld = Scanl step1 (return res1) extract1 final1
+                            liftIO $ writeIORef ref fld
+                            b <- extract1 ss
+                            return $ Tuple' kv (Just (k, b))
+                        Continue ss -> do
                             let fld = Scanl step1 (return res1) extract1 final1
                             liftIO $ writeIORef ref fld
                             b <- extract1 ss
@@ -599,6 +675,23 @@ classifyGeneric f (Scanl step1 initial1 extract1 final1) =
                     b <- extract1 s1
                     return
                         $ Tuple3' (IsMap.mapInsert k s1 kv) set (Just (k, b))
+                  Continue s1 -> do
+                    b <- extract1 s1
+                    return
+                        $ Tuple3' (IsMap.mapInsert k s1 kv) set (Just (k, b))
+                  Done b ->
+                    return $ Tuple3' kv set (Just (k, b))
+              Continue s -> do
+                r <- step1 s a
+                case r of
+                  Partial s1 -> do
+                    b <- extract1 s1
+                    return
+                        $ Tuple3' (IsMap.mapInsert k s1 kv) set (Just (k, b))
+                  Continue s1 -> do
+                    b <- extract1 s1
+                    return
+                        $ Tuple3' (IsMap.mapInsert k s1 kv) set (Just (k, b))
                   Done b ->
                     return $ Tuple3' kv set (Just (k, b))
               Done b -> return (Tuple3' kv (Set.insert k set) (Just (k, b)))
@@ -614,6 +707,9 @@ classifyGeneric f (Scanl step1 initial1 extract1 final1) =
                 r <- step1 s a
                 case r of
                   Partial s1 -> do
+                    b <- extract1 s1
+                    return $ Tuple3' (IsMap.mapInsert k s1 kv) set (Just (k,b))
+                  Continue s1 -> do
                     b <- extract1 s1
                     return $ Tuple3' (IsMap.mapInsert k s1 kv) set (Just (k,b))
                   Done b ->
@@ -684,6 +780,29 @@ classifyGenericIO f (Scanl step1 initial1 extract1 final1) =
                         return
                             $ Tuple3'
                                 (IsMap.mapInsert k ref kv) set (Just (k, b))
+                      Continue s1 -> do
+                        ref <- liftIO $ newIORef s1
+                        b <- extract1 s1
+                        return
+                            $ Tuple3'
+                                (IsMap.mapInsert k ref kv) set (Just (k, b))
+                      Done b ->
+                        return $ Tuple3' kv set (Just (k, b))
+              Continue s -> do
+                r <- step1 s a
+                case r of
+                      Partial s1 -> do
+                        ref <- liftIO $ newIORef s1
+                        b <- extract1 s1
+                        return
+                            $ Tuple3'
+                                (IsMap.mapInsert k ref kv) set (Just (k, b))
+                      Continue s1 -> do
+                        ref <- liftIO $ newIORef s1
+                        b <- extract1 s1
+                        return
+                            $ Tuple3'
+                                (IsMap.mapInsert k ref kv) set (Just (k, b))
                       Done b ->
                         return $ Tuple3' kv set (Just (k, b))
               Done b -> return (Tuple3' kv (Set.insert k set) (Just (k, b)))
@@ -700,6 +819,10 @@ classifyGenericIO f (Scanl step1 initial1 extract1 final1) =
                 r <- step1 s a
                 case r of
                       Partial s1 -> do
+                        liftIO $ writeIORef ref s1
+                        b <- extract1 s1
+                        return $ Tuple3' kv set (Just (k, b))
+                      Continue s1 -> do
                         liftIO $ writeIORef ref s1
                         b <- extract1 s1
                         return $ Tuple3' kv set (Just (k, b))

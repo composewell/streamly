@@ -10,10 +10,12 @@
 --
 -- Scanl vs Pipe:
 --
--- A scanl is a simpler version of pipes. A scan always produces an output and
--- may or may not consume an input. It can consume at most one input on one
--- output. Whereas a pipe may consume input even without producing anything or
--- it can consume multiple inputs on a single output. Scans are simpler
+-- A scanl is a simpler version of pipes. A scan consumes at most one input to
+-- produce at most one output. It usually produces an output on each input, but
+-- using the 'Continue' step it may consume an input without producing an output
+-- (e.g. 'filter'), so a scan's output stream can be shorter than the input or
+-- even empty. Whereas a pipe may consume input even without producing anything
+-- or it can consume multiple inputs on a single output. Scans are simpler
 -- abstractions to think about and easier for the compiler to optimize.
 --
 -- Returning a stream on "extract":
@@ -1038,17 +1040,27 @@ teeWith f
     runBoth actionL actionR = do
         resL <- actionL
         resR <- actionR
+        -- 'Done' on either side terminates, finalizing the other side (whether
+        -- it is Partial or Continue). Otherwise both sides are ongoing: we emit
+        -- 'Partial' only when both have produced a value, else 'Continue' (we
+        -- cannot zip until both sides have a value).
         case resL of
-            Partial sl -> do
-                case resR of
-                    Partial sr -> return $ Partial $ Tuple' sl sr
-                    Done br -> Done . (`f` br) <$> finalL sl
-
-            Done bl -> do
+            Done bl ->
                 Done . f bl <$>
                     case resR of
                         Partial sr -> finalR sr
+                        Continue sr -> finalR sr
                         Done br -> return br
+            Partial sl ->
+                case resR of
+                    Done br -> Done . (`f` br) <$> finalL sl
+                    Partial sr -> return $ Partial $ Tuple' sl sr
+                    Continue sr -> return $ Continue $ Tuple' sl sr
+            Continue sl ->
+                case resR of
+                    Done br -> Done . (`f` br) <$> finalL sl
+                    Partial sr -> return $ Continue $ Tuple' sl sr
+                    Continue sr -> return $ Continue $ Tuple' sl sr
 
     initial = runBoth initialL initialR
 
@@ -1297,12 +1309,21 @@ postscanl
                 rR <- stepR sR bL
                 case rR of
                     Partial sR1 -> Done <$> finalR sR1
+                    Continue sR1 -> Done <$> finalR sR1
                     Done bR -> return $ Done bR
             Partial sL -> do
                 !b <- extractL sL
                 rR <- stepR sR b
                 case rR of
                     Partial sR1 -> return $ Partial (sL, sR1)
+                    Continue sR1 -> return $ Partial (sL, sR1)
+                    Done bR -> finalL sL >> return (Done bR)
+            Continue sL -> do
+                !b <- extractL sL
+                rR <- stepR sR b
+                case rR of
+                    Partial sR1 -> return $ Partial (sL, sR1)
+                    Continue sR1 -> return $ Partial (sL, sR1)
                     Done bR -> finalL sL >> return (Done bR)
 
     initial = do
@@ -1313,6 +1334,13 @@ postscanl
                 case rL of
                     Done _ -> Done <$> finalR sR
                     Partial sL -> return $ Partial (sL, sR)
+                    Continue sL -> return $ Partial (sL, sR)
+            Continue sR -> do
+                rL <- initialL
+                case rL of
+                    Done _ -> Done <$> finalR sR
+                    Partial sL -> return $ Partial (sL, sR)
+                    Continue sL -> return $ Partial (sL, sR)
             Done b -> return $ Done b
 
     -- XXX should use Tuple'
@@ -1341,7 +1369,8 @@ catMaybes (Scanl step initial extract final) =
 
     step1 s a =
         case a of
-            Nothing -> return $ Partial s
+            -- Emit no output for a 'Nothing'; the scan state is unchanged.
+            Nothing -> return $ Continue s
             Just x -> step s x
 
 -- | Scan using a 'Maybe' returning scan, filter out 'Nothing' values.
@@ -1365,8 +1394,11 @@ filtering f = scanl' step Nothing
 
 -- | Include only those elements that pass a predicate.
 --
+-- A filtered-out element produces no output (the scan emits nothing for it),
+-- so the output stream is shorter than the input:
+--
 -- >>> Stream.toList $ Stream.scanl (Scanl.filter (> 5) Scanl.sum) $ Stream.fromList [1..10]
--- [0,0,0,0,0,0,6,13,21,30,40]
+-- [0,6,13,21,30,40]
 --
 -- >>> filter p = Scanl.postscanlMaybe (Scanl.filtering p)
 -- >>> filter p = Scanl.filterM (return . p)
@@ -1377,7 +1409,8 @@ filter :: Monad m => (a -> Bool) -> Scanl m a r -> Scanl m a r
 -- filter p = postscanlMaybe (filtering p)
 filter f (Scanl step begin extract final) = Scanl step' begin extract final
     where
-    step' x a = if f a then step x a else return $ Partial x
+    -- Emit no output for a filtered-out element; the scan state is unchanged.
+    step' x a = if f a then step x a else return $ Continue x
 
 -- | Like 'filter' but with a monadic predicate.
 --
@@ -1390,7 +1423,7 @@ filterM f (Scanl step begin extract final) = Scanl step' begin extract final
     where
     step' x a = do
       use <- f a
-      if use then step x a else return $ Partial x
+      if use then step x a else return $ Continue x
 
 ------------------------------------------------------------------------------
 -- Either streams
@@ -1488,6 +1521,12 @@ take n (Scanl fstep finitial fextract ffinal) = Scanl step initial extract final
                 if i1 < n
                 then return $ Partial s1
                 else Done <$> ffinal s
+            Continue s -> do
+                let i1 = i + 1
+                    s1 = Tuple'Fused i1 s
+                if i1 < n
+                then return $ Partial s1
+                else Done <$> ffinal s
             Done b -> return $ Done b
 
     initial = finitial >>= next (-1)
@@ -1554,6 +1593,7 @@ takeEndBy predicate (Scanl fstep finitial fextract ffinal) =
         else do
             case res of
                 Partial s1 -> Done <$> ffinal s1
+                Continue s1 -> Done <$> ffinal s1
                 Done b -> return $ Done b
 
 ------------------------------------------------------------------------------

@@ -44,9 +44,10 @@ import Test.QuickCheck (Property, forAll)
 --
 -- In every shared test the @expected@ value is the *inclusive prescan list*
 -- (Prelude.scanl f z), i.e. exactly what Stream.scanl emits: the leading
--- initial value followed by one output per input (filtering scans emit the
--- unchanged accumulator for filtered elements; terminating scans truncate at,
--- and including, the terminating step). From this list:
+-- initial value followed by one output per input (filtering scans emit no
+-- output for filtered elements, so their @expected@ list is built from the
+-- elements that pass; terminating scans truncate at, and including, the
+-- terminating step). From this list:
 --   * the Fold includer checks the final value  (Prelude.last expected)
 --   * the Scanl includer checks the full Stream.scanl output (== expected) and
 --     the Stream.postscanl output (== drop 1 expected, the initial omitted)

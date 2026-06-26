@@ -290,6 +290,20 @@ demuxGeneric getKey getFold =
                         Partial _ ->
                             let fld = Fold step1 (return res1) extract1 final1
                              in Tuple' (IsMap.mapInsert k fld kv) Nothing
+                        Continue _ ->
+                            let fld = Fold step1 (return res1) extract1 final1
+                             in Tuple' (IsMap.mapInsert k fld kv) Nothing
+                        Done b -> Tuple' (IsMap.mapDelete k kv) (Just (k, b))
+            Continue s -> do
+                res1 <- step1 s a
+                return
+                    $ case res1 of
+                        Partial _ ->
+                            let fld = Fold step1 (return res1) extract1 final1
+                             in Tuple' (IsMap.mapInsert k fld kv) Nothing
+                        Continue _ ->
+                            let fld = Fold step1 (return res1) extract1 final1
+                             in Tuple' (IsMap.mapInsert k fld kv) Nothing
                         Done b -> Tuple' (IsMap.mapDelete k kv) (Just (k, b))
             Done b ->
                 -- Done in "initial" is possible only for the very first time
@@ -356,6 +370,23 @@ demuxerToContainer getKey getFold =
                         Partial _ ->
                             let fld = Fold step1 (return res1) undefined final1
                              in Tuple' (IsMap.mapInsert k fld kv) kv1
+                        Continue _ ->
+                            let fld = Fold step1 (return res1) undefined final1
+                             in Tuple' (IsMap.mapInsert k fld kv) kv1
+                        Done b ->
+                            Tuple'
+                                (IsMap.mapDelete k kv)
+                                (IsMap.mapInsert k b kv1)
+            Continue s -> do
+                res1 <- step1 s a
+                return
+                    $ case res1 of
+                        Partial _ ->
+                            let fld = Fold step1 (return res1) undefined final1
+                             in Tuple' (IsMap.mapInsert k fld kv) kv1
+                        Continue _ ->
+                            let fld = Fold step1 (return res1) undefined final1
+                             in Tuple' (IsMap.mapInsert k fld kv) kv1
                         Done b ->
                             Tuple'
                                 (IsMap.mapDelete k kv)
@@ -410,6 +441,20 @@ demuxScanGeneric getKey getFold =
                 return
                     $ case res1 of
                         Partial _ ->
+                            let fld = Fold step1 (return res1) extract1 final1
+                             in Tuple' (IsMap.mapInsert k fld kv) Nothing
+                        Continue _ ->
+                            let fld = Fold step1 (return res1) extract1 final1
+                             in Tuple' (IsMap.mapInsert k fld kv) Nothing
+                        Done b -> Tuple' (IsMap.mapDelete k kv) (Just (k, b))
+            Continue s -> do
+                res1 <- step1 s a
+                return
+                    $ case res1 of
+                        Partial _ ->
+                            let fld = Fold step1 (return res1) extract1 final1
+                             in Tuple' (IsMap.mapInsert k fld kv) Nothing
+                        Continue _ ->
                             let fld = Fold step1 (return res1) extract1 final1
                              in Tuple' (IsMap.mapInsert k fld kv) Nothing
                         Done b -> Tuple' (IsMap.mapDelete k kv) (Just (k, b))
@@ -531,6 +576,31 @@ demuxGenericIO getKey getFold =
                         let fld = Fold step1 (return res1) extract1 final1
                         ref <- liftIO $ newIORef fld
                         return $ Tuple' (IsMap.mapInsert k ref kv) Nothing
+                    Continue _ -> do
+                        -- XXX Instead of using a Fold type here use a custom
+                        -- type with an IORef (possibly unboxed) for the
+                        -- accumulator. That will reduce the allocations.
+                        let fld = Fold step1 (return res1) extract1 final1
+                        ref <- liftIO $ newIORef fld
+                        return $ Tuple' (IsMap.mapInsert k ref kv) Nothing
+                    Done b -> return $ Tuple' kv (Just (k, b))
+            Continue s -> do
+                res1 <- step1 s a
+                case res1 of
+                    Partial _ -> do
+                        -- XXX Instead of using a Fold type here use a custom
+                        -- type with an IORef (possibly unboxed) for the
+                        -- accumulator. That will reduce the allocations.
+                        let fld = Fold step1 (return res1) extract1 final1
+                        ref <- liftIO $ newIORef fld
+                        return $ Tuple' (IsMap.mapInsert k ref kv) Nothing
+                    Continue _ -> do
+                        -- XXX Instead of using a Fold type here use a custom
+                        -- type with an IORef (possibly unboxed) for the
+                        -- accumulator. That will reduce the allocations.
+                        let fld = Fold step1 (return res1) extract1 final1
+                        ref <- liftIO $ newIORef fld
+                        return $ Tuple' (IsMap.mapInsert k ref kv) Nothing
                     Done b -> return $ Tuple' kv (Just (k, b))
             Done b -> return $ Tuple' kv (Just (k, b))
 
@@ -542,6 +612,24 @@ demuxGenericIO getKey getFold =
                 res1 <- step1 s a
                 case res1 of
                         Partial _ -> do
+                            let fld = Fold step1 (return res1) extract1 final1
+                            liftIO $ writeIORef ref fld
+                            return $ Tuple' kv Nothing
+                        Continue _ -> do
+                            let fld = Fold step1 (return res1) extract1 final1
+                            liftIO $ writeIORef ref fld
+                            return $ Tuple' kv Nothing
+                        Done b ->
+                            let kv1 = IsMap.mapDelete k kv
+                             in return $ Tuple' kv1 (Just (k, b))
+            Continue s -> do
+                res1 <- step1 s a
+                case res1 of
+                        Partial _ -> do
+                            let fld = Fold step1 (return res1) extract1 final1
+                            liftIO $ writeIORef ref fld
+                            return $ Tuple' kv Nothing
+                        Continue _ -> do
                             let fld = Fold step1 (return res1) extract1 final1
                             liftIO $ writeIORef ref fld
                             return $ Tuple' kv Nothing
@@ -610,6 +698,31 @@ demuxerToContainerIO getKey getFold =
                         let fld = Fold step1 (return res1) undefined final1
                         ref <- liftIO $ newIORef fld
                         return $ Tuple' (IsMap.mapInsert k ref kv) kv1
+                    Continue _ -> do
+                        -- XXX Instead of using a Fold type here use a custom
+                        -- type with an IORef (possibly unboxed) for the
+                        -- accumulator. That will reduce the allocations.
+                        let fld = Fold step1 (return res1) undefined final1
+                        ref <- liftIO $ newIORef fld
+                        return $ Tuple' (IsMap.mapInsert k ref kv) kv1
+                    Done b -> return $ Tuple' kv (IsMap.mapInsert k b kv1)
+            Continue s -> do
+                res1 <- step1 s a
+                case res1 of
+                    Partial _ -> do
+                        -- XXX Instead of using a Fold type here use a custom
+                        -- type with an IORef (possibly unboxed) for the
+                        -- accumulator. That will reduce the allocations.
+                        let fld = Fold step1 (return res1) undefined final1
+                        ref <- liftIO $ newIORef fld
+                        return $ Tuple' (IsMap.mapInsert k ref kv) kv1
+                    Continue _ -> do
+                        -- XXX Instead of using a Fold type here use a custom
+                        -- type with an IORef (possibly unboxed) for the
+                        -- accumulator. That will reduce the allocations.
+                        let fld = Fold step1 (return res1) undefined final1
+                        ref <- liftIO $ newIORef fld
+                        return $ Tuple' (IsMap.mapInsert k ref kv) kv1
                     Done b -> return $ Tuple' kv (IsMap.mapInsert k b kv1)
             Done b -> return $ Tuple' kv (IsMap.mapInsert k b kv1)
 
@@ -621,6 +734,24 @@ demuxerToContainerIO getKey getFold =
                 res1 <- step1 s a
                 case res1 of
                         Partial _ -> do
+                            let fld = Fold step1 (return res1) undefined final1
+                            liftIO $ writeIORef ref fld
+                            return $ Tuple' kv kv1
+                        Continue _ -> do
+                            let fld = Fold step1 (return res1) undefined final1
+                            liftIO $ writeIORef ref fld
+                            return $ Tuple' kv kv1
+                        Done b ->
+                            let r = IsMap.mapDelete k kv
+                             in return $ Tuple' r (IsMap.mapInsert k b kv1)
+            Continue s -> do
+                res1 <- step1 s a
+                case res1 of
+                        Partial _ -> do
+                            let fld = Fold step1 (return res1) undefined final1
+                            liftIO $ writeIORef ref fld
+                            return $ Tuple' kv kv1
+                        Continue _ -> do
                             let fld = Fold step1 (return res1) undefined final1
                             liftIO $ writeIORef ref fld
                             return $ Tuple' kv kv1
@@ -686,6 +817,31 @@ demuxScanGenericIO getKey getFold =
                         let fld = Fold step1 (return res1) extract1 final1
                         ref <- liftIO $ newIORef fld
                         return $ Tuple' (IsMap.mapInsert k ref kv) Nothing
+                    Continue _ -> do
+                        -- XXX Instead of using a Fold type here use a custom
+                        -- type with an IORef (possibly unboxed) for the
+                        -- accumulator. That will reduce the allocations.
+                        let fld = Fold step1 (return res1) extract1 final1
+                        ref <- liftIO $ newIORef fld
+                        return $ Tuple' (IsMap.mapInsert k ref kv) Nothing
+                    Done b -> return $ Tuple' kv (Just (k, b))
+            Continue s -> do
+                res1 <- step1 s a
+                case res1 of
+                    Partial _ -> do
+                        -- XXX Instead of using a Fold type here use a custom
+                        -- type with an IORef (possibly unboxed) for the
+                        -- accumulator. That will reduce the allocations.
+                        let fld = Fold step1 (return res1) extract1 final1
+                        ref <- liftIO $ newIORef fld
+                        return $ Tuple' (IsMap.mapInsert k ref kv) Nothing
+                    Continue _ -> do
+                        -- XXX Instead of using a Fold type here use a custom
+                        -- type with an IORef (possibly unboxed) for the
+                        -- accumulator. That will reduce the allocations.
+                        let fld = Fold step1 (return res1) extract1 final1
+                        ref <- liftIO $ newIORef fld
+                        return $ Tuple' (IsMap.mapInsert k ref kv) Nothing
                     Done b -> return $ Tuple' kv (Just (k, b))
             Done b -> return $ Tuple' kv (Just (k, b))
 
@@ -697,6 +853,24 @@ demuxScanGenericIO getKey getFold =
                 res1 <- step1 s a
                 case res1 of
                         Partial _ -> do
+                            let fld = Fold step1 (return res1) extract1 final1
+                            liftIO $ writeIORef ref fld
+                            return $ Tuple' kv Nothing
+                        Continue _ -> do
+                            let fld = Fold step1 (return res1) extract1 final1
+                            liftIO $ writeIORef ref fld
+                            return $ Tuple' kv Nothing
+                        Done b ->
+                            let kv1 = IsMap.mapDelete k kv
+                             in return $ Tuple' kv1 (Just (k, b))
+            Continue s -> do
+                res1 <- step1 s a
+                case res1 of
+                        Partial _ -> do
+                            let fld = Fold step1 (return res1) extract1 final1
+                            liftIO $ writeIORef ref fld
+                            return $ Tuple' kv Nothing
+                        Continue _ -> do
                             let fld = Fold step1 (return res1) extract1 final1
                             liftIO $ writeIORef ref fld
                             return $ Tuple' kv Nothing
@@ -928,6 +1102,18 @@ classifyGeneric f (Fold step1 initial1 extract1 final1) =
                     $ case r of
                           Partial s1 ->
                             Tuple3' (IsMap.mapInsert k s1 kv) set Nothing
+                          Continue s1 ->
+                            Tuple3' (IsMap.mapInsert k s1 kv) set Nothing
+                          Done b ->
+                            Tuple3' kv set (Just (k, b))
+              Continue s -> do
+                r <- step1 s a
+                return
+                    $ case r of
+                          Partial s1 ->
+                            Tuple3' (IsMap.mapInsert k s1 kv) set Nothing
+                          Continue s1 ->
+                            Tuple3' (IsMap.mapInsert k s1 kv) set Nothing
                           Done b ->
                             Tuple3' kv set (Just (k, b))
               Done b -> return (Tuple3' kv (Set.insert k set) (Just (k, b)))
@@ -944,6 +1130,8 @@ classifyGeneric f (Fold step1 initial1 extract1 final1) =
                 return
                     $ case r of
                           Partial s1 ->
+                            Tuple3' (IsMap.mapInsert k s1 kv) set Nothing
+                          Continue s1 ->
                             Tuple3' (IsMap.mapInsert k s1 kv) set Nothing
                           Done b ->
                             let kv1 = IsMap.mapDelete k kv
@@ -982,6 +1170,18 @@ toContainer f (Fold step1 initial1 _ final1) =
                     $ case r of
                           Partial s1 ->
                             Tuple' (IsMap.mapInsert k s1 kv) kv1
+                          Continue s1 ->
+                            Tuple' (IsMap.mapInsert k s1 kv) kv1
+                          Done b ->
+                            Tuple' kv (IsMap.mapInsert k b kv1)
+              Continue s -> do
+                r <- step1 s a
+                return
+                    $ case r of
+                          Partial s1 ->
+                            Tuple' (IsMap.mapInsert k s1 kv) kv1
+                          Continue s1 ->
+                            Tuple' (IsMap.mapInsert k s1 kv) kv1
                           Done b ->
                             Tuple' kv (IsMap.mapInsert k b kv1)
               Done b -> return (Tuple' kv (IsMap.mapInsert k b kv1))
@@ -998,6 +1198,8 @@ toContainer f (Fold step1 initial1 _ final1) =
                 return
                     $ case r of
                           Partial s1 ->
+                            Tuple' (IsMap.mapInsert k s1 kv) kv1
+                          Continue s1 ->
                             Tuple' (IsMap.mapInsert k s1 kv) kv1
                           Done b ->
                             let res = IsMap.mapDelete k kv
@@ -1033,6 +1235,18 @@ classifyScanGeneric f (Fold step1 initial1 extract1 final1) =
                     $ case r of
                           Partial s1 ->
                             Tuple3' (IsMap.mapInsert k s1 kv) set Nothing
+                          Continue s1 ->
+                            Tuple3' (IsMap.mapInsert k s1 kv) set Nothing
+                          Done b ->
+                            Tuple3' kv set (Just (k, b))
+              Continue s -> do
+                r <- step1 s a
+                return
+                    $ case r of
+                          Partial s1 ->
+                            Tuple3' (IsMap.mapInsert k s1 kv) set Nothing
+                          Continue s1 ->
+                            Tuple3' (IsMap.mapInsert k s1 kv) set Nothing
                           Done b ->
                             Tuple3' kv set (Just (k, b))
               Done b -> return (Tuple3' kv (Set.insert k set) (Just (k, b)))
@@ -1049,6 +1263,8 @@ classifyScanGeneric f (Fold step1 initial1 extract1 final1) =
                 return
                     $ case r of
                           Partial s1 ->
+                            Tuple3' (IsMap.mapInsert k s1 kv) set Nothing
+                          Continue s1 ->
                             Tuple3' (IsMap.mapInsert k s1 kv) set Nothing
                           Done b ->
                             let kv1 = IsMap.mapDelete k kv
@@ -1123,6 +1339,20 @@ classifyGenericIO f (Fold step1 initial1 extract1 final1) =
                       Partial s1 -> do
                         ref <- liftIO $ newIORef s1
                         return $ Tuple3' (IsMap.mapInsert k ref kv) set Nothing
+                      Continue s1 -> do
+                        ref <- liftIO $ newIORef s1
+                        return $ Tuple3' (IsMap.mapInsert k ref kv) set Nothing
+                      Done b ->
+                        return $ Tuple3' kv set (Just (k, b))
+              Continue s -> do
+                r <- step1 s a
+                case r of
+                      Partial s1 -> do
+                        ref <- liftIO $ newIORef s1
+                        return $ Tuple3' (IsMap.mapInsert k ref kv) set Nothing
+                      Continue s1 -> do
+                        ref <- liftIO $ newIORef s1
+                        return $ Tuple3' (IsMap.mapInsert k ref kv) set Nothing
                       Done b ->
                         return $ Tuple3' kv set (Just (k, b))
               Done b -> return (Tuple3' kv (Set.insert k set) (Just (k, b)))
@@ -1139,6 +1369,9 @@ classifyGenericIO f (Fold step1 initial1 extract1 final1) =
                 r <- step1 s a
                 case r of
                       Partial s1 -> do
+                        liftIO $ writeIORef ref s1
+                        return $ Tuple3' kv set Nothing
+                      Continue s1 -> do
                         liftIO $ writeIORef ref s1
                         return $ Tuple3' kv set Nothing
                       Done b ->
@@ -1186,6 +1419,20 @@ toContainerIO f (Fold step1 initial1 _ final1) =
                       Partial s1 -> do
                         ref <- liftIO $ newIORef s1
                         return $ Tuple' (IsMap.mapInsert k ref kv) kv1
+                      Continue s1 -> do
+                        ref <- liftIO $ newIORef s1
+                        return $ Tuple' (IsMap.mapInsert k ref kv) kv1
+                      Done b ->
+                        return $ Tuple' kv (IsMap.mapInsert k b kv1)
+              Continue s -> do
+                r <- step1 s a
+                case r of
+                      Partial s1 -> do
+                        ref <- liftIO $ newIORef s1
+                        return $ Tuple' (IsMap.mapInsert k ref kv) kv1
+                      Continue s1 -> do
+                        ref <- liftIO $ newIORef s1
+                        return $ Tuple' (IsMap.mapInsert k ref kv) kv1
                       Done b ->
                         return $ Tuple' kv (IsMap.mapInsert k b kv1)
               Done b -> return (Tuple' kv (IsMap.mapInsert k b kv1))
@@ -1202,6 +1449,9 @@ toContainerIO f (Fold step1 initial1 _ final1) =
                 r <- step1 s a
                 case r of
                       Partial s1 -> do
+                        liftIO $ writeIORef ref s1
+                        return $ Tuple' kv kv1
+                      Continue s1 -> do
                         liftIO $ writeIORef ref s1
                         return $ Tuple' kv kv1
                       Done b ->
@@ -1239,6 +1489,20 @@ classifyScanGenericIO f (Fold step1 initial1 extract1 final1) =
                       Partial s1 -> do
                         ref <- liftIO $ newIORef s1
                         return $ Tuple3' (IsMap.mapInsert k ref kv) set Nothing
+                      Continue s1 -> do
+                        ref <- liftIO $ newIORef s1
+                        return $ Tuple3' (IsMap.mapInsert k ref kv) set Nothing
+                      Done b ->
+                        return $ Tuple3' kv set (Just (k, b))
+              Continue s -> do
+                r <- step1 s a
+                case r of
+                      Partial s1 -> do
+                        ref <- liftIO $ newIORef s1
+                        return $ Tuple3' (IsMap.mapInsert k ref kv) set Nothing
+                      Continue s1 -> do
+                        ref <- liftIO $ newIORef s1
+                        return $ Tuple3' (IsMap.mapInsert k ref kv) set Nothing
                       Done b ->
                         return $ Tuple3' kv set (Just (k, b))
               Done b -> return (Tuple3' kv (Set.insert k set) (Just (k, b)))
@@ -1255,6 +1519,9 @@ classifyScanGenericIO f (Fold step1 initial1 extract1 final1) =
                 r <- step1 s a
                 case r of
                       Partial s1 -> do
+                        liftIO $ writeIORef ref s1
+                        return $ Tuple3' kv set Nothing
+                      Continue s1 -> do
                         liftIO $ writeIORef ref s1
                         return $ Tuple3' kv set Nothing
                       Done b ->

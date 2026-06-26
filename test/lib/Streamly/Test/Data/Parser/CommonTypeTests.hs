@@ -63,6 +63,7 @@ takeWhileFailD predicate (Fold fstep finitial _ ffinal) =
         res <- finitial
         return $ case res of
             FL.Partial s -> IPartial s
+            FL.Continue s -> IPartial s
             FL.Done b -> IDone b
 
     step s a =
@@ -72,6 +73,7 @@ takeWhileFailD predicate (Fold fstep finitial _ ffinal) =
             return
                 $ case fres of
                       FL.Partial s1 -> SContinue 1 s1
+                      FL.Continue s1 -> SContinue 1 s1
                       FL.Done b -> SDone 1 b
         else return $ SError "fail"
 

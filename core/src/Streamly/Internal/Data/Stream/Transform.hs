@@ -422,6 +422,7 @@ tap (Fold fstep initial _ final) (Stream step state) = Stream step' TapInit
             $ Skip
             $ case res of
                   FL.Partial s -> Tapping s state
+                  FL.Continue s -> Tapping s state
                   FL.Done _ -> TapDone state
     step' gst (Tapping acc st) = do
         r <- step gst st
@@ -432,6 +433,7 @@ tap (Fold fstep initial _ final) (Stream step state) = Stream step' TapInit
                     $ Yield x
                     $ case res of
                           FL.Partial fs -> Tapping fs s
+                          FL.Continue fs -> Tapping fs s
                           FL.Done _ -> TapDone s
             Skip s -> return $ Skip (Tapping acc s)
             Stop -> do
@@ -466,6 +468,7 @@ tapOffsetEvery offset n (Fold fstep initial _ final) (Stream step state) =
             $ Skip
             $ case res of
                   FL.Partial s -> TapOffTapping s state (offset `mod` n)
+                  FL.Continue s -> TapOffTapping s state (offset `mod` n)
                   FL.Done _ -> TapOffDone state
     step' gst (TapOffTapping acc st count) = do
         r <- step gst st
@@ -478,6 +481,8 @@ tapOffsetEvery offset n (Fold fstep initial _ final) (Stream step state) =
                         return
                             $ case res of
                                   FL.Partial sres ->
+                                    TapOffTapping sres s (n - 1)
+                                  FL.Continue sres ->
                                     TapOffTapping sres s (n - 1)
                                   FL.Done _ -> TapOffDone s
                     else return $ TapOffTapping acc s (count - 1)
@@ -582,6 +587,9 @@ postscanl (Scanl fstep initial extract final) (Stream sstep state) =
         return
             $ case res of
                   FL.Partial fs -> Skip $ ScanDo st fs
+                  -- 'Continue' at the initial step is like 'Partial' here: the
+                  -- initial output is dropped by a postscan anyway.
+                  FL.Continue fs -> Skip $ ScanDo st fs
                   -- A scan that is Done at the initial step has consumed no
                   -- input, so a postscan (one output per consumed input) emits
                   -- nothing. This keeps the invariant
@@ -597,6 +605,9 @@ postscanl (Scanl fstep initial extract final) (Stream sstep state) =
                     FL.Partial fs1 -> do
                         !b <- extract fs1
                         return $ Yield b $ ScanDo s fs1
+                    -- 'Continue': advance the state but emit no output for this
+                    -- input. Do not call extract.
+                    FL.Continue fs1 -> return $ Skip $ ScanDo s fs1
                     FL.Done b -> return $ Yield b ScanDone
             Skip s -> return $ Skip $ ScanDo s fs
             Stop -> final fs >> return Stop
@@ -623,6 +634,10 @@ scanlWith restart (Scanl fstep initial extract final) (Stream sstep state) =
             FL.Partial fs -> do
                 !b <- extract fs
                 return $ Yield b $ ScanDo st fs
+            -- 'Continue': advance the state but emit no output. This produces an
+            -- empty output prefix when 'initial' is 'Continue', and suppresses
+            -- the output on a 'Continue' step. Do not call extract.
+            FL.Continue fs -> return $ Skip $ ScanDo st fs
             FL.Done b ->
                 let next = if restart then ScanInit st else ScanDone
                  in return $ Yield b next
@@ -2402,6 +2417,7 @@ splitSepBy_ predicate (Fold fstep initial _ final) (Stream step1 state1) =
             $ case fres of
                   FL.Done b -> SplitSepByYield b (SplitSepByInit st)
                   FL.Partial fs -> SplitSepByInitFold1 st fs
+                  FL.Continue fs -> SplitSepByInitFold1 st fs
 
     step _ (SplitSepByInitFold0 st) = do
         fres <- initial
@@ -2410,6 +2426,7 @@ splitSepBy_ predicate (Fold fstep initial _ final) (Stream step1 state1) =
             $ case fres of
                   FL.Done b -> SplitSepByYield b (SplitSepByInitFold0 st)
                   FL.Partial fs -> SplitSepByNext st fs
+                  FL.Continue fs -> SplitSepByNext st fs
 
     step gst (SplitSepByInitFold1 st fs) = do
         r <- step1 (adaptState gst) st
@@ -2430,6 +2447,7 @@ splitSepBy_ predicate (Fold fstep initial _ final) (Stream step1 state1) =
                 $ case fres of
                       FL.Done b -> SplitSepByYield b (SplitSepByInitFold0 st)
                       FL.Partial fs1 -> SplitSepByNext st fs1
+                      FL.Continue fs1 -> SplitSepByNext st fs1
 
     step gst (SplitSepByNext st fs) = do
         r <- step1 (adaptState gst) st

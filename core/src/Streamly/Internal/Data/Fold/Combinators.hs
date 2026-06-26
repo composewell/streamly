@@ -460,6 +460,7 @@ pipe (Pipe consume produce pinitial) (Fold fstep finitial fextract ffinal) =
             return
                 $ case acc1 of
                       Partial s -> Partial $ Tuple' cs1 s
+                      Continue s -> Partial $ Tuple' cs1 s
                       Done b1 -> Done b1
         -- XXX this case is recursive may cause fusion issues.
         -- To remove recursion we will need a produce mode in folds which makes
@@ -470,6 +471,7 @@ pipe (Pipe consume produce pinitial) (Fold fstep finitial fextract ffinal) =
             r <- produce ps1
             case acc1 of
                 Partial s -> go s r
+                Continue s -> go s r
                 Done b1 -> return $ Done b1
         go acc (Pipe.SkipC cs1) =
             return $ Partial $ Tuple' cs1 acc
@@ -1390,6 +1392,21 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
                     (MutArray mba _ _ _) :: MutArray a <-
                         liftIO $ MA.emptyOf patLen
                     return $ Partial $ SplitOnSeqKR acc 0 mba
+            Continue acc
+                | patLen == 0 ->
+                    -- XXX Should we match nothing or everything on empty
+                    -- pattern?
+                    -- Done <$> ffinal acc
+                    return $ Partial $ SplitOnSeqEmpty acc
+                | patLen == 1 -> do
+                    pat <- liftIO $ Array.unsafeGetIndexIO 0 patArr
+                    return $ Partial $ SplitOnSeqSingle acc pat
+                | SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word) ->
+                    return $ Partial $ SplitOnSeqWord acc 0 0
+                | otherwise -> do
+                    (MutArray mba _ _ _) :: MutArray a <-
+                        liftIO $ MA.emptyOf patLen
+                    return $ Partial $ SplitOnSeqKR acc 0 mba
             Done b -> return $ Done b
 
     -- Word pattern related
@@ -1423,11 +1440,15 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
         res <- fstep s x
         case res of
             Partial s1 -> return $ Partial $ SplitOnSeqEmpty s1
+            Continue s1 -> return $ Partial $ SplitOnSeqEmpty s1
             Done b -> return $ Done b
     step (SplitOnSeqSingle s pat) x = do
         res <- fstep s x
         case res of
             Partial s1
+                | pat /= x -> return $ Partial $ SplitOnSeqSingle s1 pat
+                | otherwise -> Done <$> ffinal s1
+            Continue s1
                 | pat /= x -> return $ Partial $ SplitOnSeqSingle s1 pat
                 | otherwise -> Done <$> ffinal s1
             Done b -> return $ Done b
@@ -1442,12 +1463,24 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
                     else return $ Partial $ SplitOnSeqWordLoop s1 wrd1
                 | otherwise ->
                     return $ Partial $ SplitOnSeqWord s1 (idx + 1) wrd1
+            Continue s1
+                | idx == maxIndex -> do
+                    if wrd1 .&. wordMask == wordPat
+                    then Done <$> ffinal s1
+                    else return $ Partial $ SplitOnSeqWordLoop s1 wrd1
+                | otherwise ->
+                    return $ Partial $ SplitOnSeqWord s1 (idx + 1) wrd1
             Done b -> return $ Done b
     step (SplitOnSeqWordLoop s wrd) x = do
         res <- fstep s x
         let wrd1 = addToWord wrd x
         case res of
             Partial s1
+                | wrd1 .&. wordMask == wordPat ->
+                    Done <$> ffinal s1
+                | otherwise ->
+                    return $ Partial $ SplitOnSeqWordLoop s1 wrd1
+            Continue s1
                 | wrd1 .&. wordMask == wordPat ->
                     Done <$> ffinal s1
                 | otherwise ->
@@ -1471,11 +1504,42 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
                     else return $ Partial $ SplitOnSeqKRLoop s1 ringHash mba 0
                 else
                     return $ Partial $ SplitOnSeqKR s1 (offset + SIZE_OF(a)) mba
+            Continue s1 -> do
+                liftIO $ pokeAt offset mba x
+                if offset == maxOffset
+                then do
+                    let arr :: Array a = Array
+                                { arrContents = mba
+                                , arrStart = 0
+                                , arrEnd = patBytes
+                                }
+                    let ringHash = Array.foldl' addCksum 0 arr
+                    if ringHash == patHash && Array.byteEq arr patArr
+                    then Done <$> ffinal s1
+                    else return $ Partial $ SplitOnSeqKRLoop s1 ringHash mba 0
+                else
+                    return $ Partial $ SplitOnSeqKR s1 (offset + SIZE_OF(a)) mba
             Done b -> return $ Done b
     step (SplitOnSeqKRLoop s cksum mba offset) x = do
         res <- fstep s x
         case res of
             Partial s1 -> do
+                let rb = RingArray
+                        { ringContents = mba
+                        , ringSize = patBytes
+                        , ringHead = offset
+                        }
+                (rb1, old :: a) <- liftIO (RingArray.replace rb x)
+                let ringHash = deltaCksum cksum old x
+                let rh1 = ringHead rb1
+                matches <-
+                    if ringHash == patHash
+                    then liftIO $ RingArray.eqArray rb1 patArr
+                    else return False
+                if matches
+                then Done <$> ffinal s1
+                else return $ Partial $ SplitOnSeqKRLoop s1 ringHash mba rh1
+            Continue s1 -> do
                 let rb = RingArray
                         { ringContents = mba
                         , ringSize = patBytes
@@ -1557,6 +1621,22 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
                     (MutArray mba _ _ _) :: MutArray a <-
                         liftIO $ MA.emptyOf patLen
                     return $ Partial $ SplitOnSeqKR acc 0 mba
+            Continue acc
+                | patLen == 0 ->
+                    -- XXX Should we match nothing or everything on empty
+                    -- pattern?
+                    -- Done <$> ffinal acc
+                    return $ Partial $ SplitOnSeqEmpty acc
+                | patLen == 1 -> do
+                    pat <- liftIO $ Array.unsafeGetIndexIO 0 patArr
+                    return $ Partial $ SplitOnSeqSingle acc pat
+                -- XXX Need to add tests for this case
+                | SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word) ->
+                    return $ Partial $ SplitOnSeqWord acc 0 0
+                | otherwise -> do
+                    (MutArray mba _ _ _) :: MutArray a <-
+                        liftIO $ MA.emptyOf patLen
+                    return $ Partial $ SplitOnSeqKR acc 0 mba
             Done b -> return $ Done b
 
     -- Word pattern related
@@ -1593,6 +1673,7 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
         res <- fstep s x
         case res of
             Partial s1 -> return $ Partial $ SplitOnSeqEmpty s1
+            Continue s1 -> return $ Partial $ SplitOnSeqEmpty s1
             Done b -> return $ Done b
     step (SplitOnSeqSingle s pat) x = do
         if pat /= x
@@ -1600,6 +1681,7 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
             res <- fstep s x
             case res of
                 Partial s1 -> return $ Partial $ SplitOnSeqSingle s1 pat
+                Continue s1 -> return $ Partial $ SplitOnSeqSingle s1 pat
                 Done b -> return $ Done b
         else Done <$> ffinal s
     step (SplitOnSeqWord s idx wrd) x = do
@@ -1617,6 +1699,11 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
         res <- fstep s (toEnum $ fromIntegral old)
         case res of
             Partial s1
+                | wrd1 .&. wordMask == wordPat ->
+                    Done <$> ffinal s1
+                | otherwise ->
+                    return $ Partial $ SplitOnSeqWordLoop s1 wrd1
+            Continue s1
                 | wrd1 .&. wordMask == wordPat ->
                     Done <$> ffinal s1
                 | otherwise ->
@@ -1655,6 +1742,16 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
                 if matches
                 then Done <$> ffinal s1
                 else return $ Partial $ SplitOnSeqKRLoop s1 ringHash mba rh1
+            Continue s1 -> do
+                let ringHash = deltaCksum cksum old x
+                let rh1 = ringHead rb1
+                matches <-
+                    if ringHash == patHash
+                    then liftIO $ RingArray.eqArray rb1 patArr
+                    else return False
+                if matches
+                then Done <$> ffinal s1
+                else return $ Partial $ SplitOnSeqKRLoop s1 ringHash mba rh1
             Done b -> return $ Done b
 
     -- XXX extract should return backtrack count as well. If the fold
@@ -1670,6 +1767,7 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
                     r <- fstep s (toEnum $ fromIntegral old)
                     case r of
                         Partial s1 -> consumeWord s1 (n - 1) wrd
+                        Continue s1 -> consumeWord s1 (n - 1) wrd
                         Done b -> return b
 
         let consumeArray s end mba offset =
@@ -1680,6 +1778,8 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
                     r <- fstep s old
                     case r of
                         Partial s1 ->
+                            consumeArray s1 end mba (offset + SIZE_OF(a))
+                        Continue s1 ->
                             consumeArray s1 end mba (offset + SIZE_OF(a))
                         Done b -> return b
 
@@ -1694,6 +1794,11 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
                 r <- fstep s old
                 case r of
                     Partial s1 ->
+                        let rh = ringHead rb1
+                         in if rh == orig
+                            then fex s1
+                            else consumeRing s1 orig mba rh
+                    Continue s1 ->
                         let rh = ringHead rb1
                          in if rh == orig
                             then fex s1
@@ -1793,6 +1898,9 @@ distributeScan getFolds = Scanl consume initial extract final
         res <- init
         case res of
             Partial fs -> do
+              r <- step fs a
+              run (Tuple' (Fold step (return r) extr fin : ys) zs) xs a
+            Continue fs -> do
               r <- step fs a
               run (Tuple' (Fold step (return r) extr fin : ys) zs) xs a
             Done b -> do
@@ -2216,6 +2324,7 @@ unfoldEach (Unfold ustep inject) (Fold fstep initial extract final) =
                 fres <- fstep fs b
                 case fres of
                     Partial fs1 -> produce fs1 us1
+                    Continue fs1 -> produce fs1 us1
                     -- XXX What to do with the remaining stream?
                     Done c -> return $ Done c
             StreamD.Skip us1 -> produce fs us1
@@ -2321,6 +2430,8 @@ intersperseWithQuotes
         case resL of
             Partial sL ->
                 return $ Partial $ mkState sL
+            Continue sL ->
+                return $ Partial $ mkState sL
             Done _ ->
                 errMsg "content" "succeed"
 
@@ -2328,6 +2439,7 @@ intersperseWithQuotes
         res <- initialR
         case res of
             Partial sR -> initL (IntersperseQUnquoted sR)
+            Continue sR -> initL (IntersperseQUnquoted sR)
             Done b -> return $ Done b
 
     {-# INLINE collect #-}
@@ -2336,6 +2448,8 @@ intersperseWithQuotes
         case res of
             Partial s ->
                 initL (nextS s)
+            Continue s ->
+                initL (nextS s)
             Done c -> return (Done c)
 
     {-# INLINE process #-}
@@ -2343,6 +2457,7 @@ intersperseWithQuotes
         r <- stepL sL a
         case r of
             Partial s -> return $ Partial (nextState sR s)
+            Continue s -> return $ Partial (nextState sR s)
             Done b -> collect nextState sR b
 
     {-# INLINE processQuoted #-}
@@ -2350,6 +2465,7 @@ intersperseWithQuotes
         r <- stepL sL a
         case r of
             Partial s -> return $ Partial (nextState sR s)
+            Continue s -> return $ Partial (nextState sR s)
             Done _ -> do
                 _ <- finalR sR
                 error "Collecting fold finished inside quote"
