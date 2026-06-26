@@ -556,6 +556,8 @@ readEitherFold confMod alldirs (Fold fstep finitial _ ffinal) =
                 return $ Yield (Right b) (ChunkFoldStart xs dirs ndirs)
             Fold.Partial fs ->
                 return $ Skip (ChunkFoldNext xs dirs ndirs fs False)
+            Fold.Continue fs ->
+                return $ Skip (ChunkFoldNext xs dirs ndirs fs False)
 
     step _ (ChunkFoldLoopReinit curdir xs dirp dirs ndirs) = do
         r <- finitial
@@ -564,6 +566,8 @@ readEitherFold confMod alldirs (Fold fstep finitial _ ffinal) =
                 return $ Yield (Right b)
                     (ChunkFoldLoopReinit curdir xs dirp dirs ndirs)
             Fold.Partial fs ->
+                return $ Skip (ChunkFoldLoop curdir xs dirp dirs ndirs fs False)
+            Fold.Continue fs ->
                 return $ Skip (ChunkFoldLoop curdir xs dirp dirs ndirs fs False)
 
     step _ (ChunkFoldNext (x:xs) dirs ndirs fs nonEmpty) = do
@@ -614,6 +618,14 @@ readEitherFold confMod alldirs (Fold fstep finitial _ ffinal) =
                             else return $ Skip
                                 (ChunkFoldLoop
                                     curdir xs dirp dirs1 ndirs1 fs1 True)
+                        Fold.Continue fs1 ->
+                            if ndirs1 >= dirMax
+                            then return $ Yield (Left dirs1)
+                                (ChunkFoldLoop
+                                    curdir xs dirp [] 0 fs1 True)
+                            else return $ Skip
+                                (ChunkFoldLoop
+                                    curdir xs dirp dirs1 ndirs1 fs1 True)
                 EntryIsNotDir -> do
                     path <- liftIO $ Path.appendCString curdir dname
                     r <- fstep fs path
@@ -623,6 +635,10 @@ readEitherFold confMod alldirs (Fold fstep finitial _ ffinal) =
                                 (ChunkFoldLoopReinit
                                     curdir xs dirp dirs ndirs)
                         Fold.Partial fs1 ->
+                            return $ Skip
+                                (ChunkFoldLoop
+                                    curdir xs dirp dirs ndirs fs1 True)
+                        Fold.Continue fs1 ->
                             return $ Skip
                                 (ChunkFoldLoop
                                     curdir xs dirp dirs ndirs fs1 True)

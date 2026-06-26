@@ -372,7 +372,7 @@ mapMaybeM f = lmapM f . catMaybes
 -- >>> f x = if even x then Just x else Nothing
 -- >>> scn = Scanl.mapMaybe f Scanl.toList
 -- >>> Stream.toList $ Stream.scanl scn (Stream.enumerateFromTo 1 10)
--- [[],[],[2],[2],[2,4],[2,4],[2,4,6],[2,4,6],[2,4,6,8],[2,4,6,8],[2,4,6,8,10]]
+-- [[],[2],[2,4],[2,4,6],[2,4,6,8],[2,4,6,8,10]]
 --
 {-# INLINE mapMaybe #-}
 mapMaybe :: Monad m => (a -> Maybe b) -> Scanl m b r -> Scanl m a r
