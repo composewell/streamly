@@ -531,12 +531,12 @@ scanRingsOf n = Scanl step initial extract extract
         then error "scanRingsOf: window size must be > 0"
         else do
             mba <- liftIO $ MutByteArray.new rSize
-            return $ Partial $ Tuple3Fused' mba 0 0
+            return $ Fold.Partial $ Tuple3Fused' mba 0 0
 
     step (Tuple3Fused' mba rh offset) a = do
         RingArray _ _ rh1 <- replace_ (RingArray mba rSize rh) a
         let offset1 = offset + SIZE_OF(a)
-        return $ Partial $ Tuple3Fused' mba rh1 offset1
+        return $ Scanl.Partial $ Tuple3Fused' mba rh1 offset1
 
     -- XXX exitify optimization causes a problem here when modular folds are
     -- used. Sometimes inlining "extract" is helpful.

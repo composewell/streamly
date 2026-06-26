@@ -375,6 +375,7 @@ module Streamly.Internal.Data.Fold.Type
     -- XXX Do refold ops belong to Scanl or Fold?
     , fromRefold
     , fromScanl
+    , fromFold
     , drain
     , toList
     , toListRev
@@ -625,8 +626,26 @@ rmapM f (Fold step initial extract final) =
 
 -- | Convert a left scan to a fold.
 {-# INLINE fromScanl #-}
-fromScanl :: Scanl m a b -> Fold m a b
-fromScanl (Scanl step initial extract final) = Fold step initial extract final
+fromScanl :: Functor m => Scanl m a b -> Fold m a b
+fromScanl (Scanl step initial extract final) =
+    Fold (\s a -> fmap Scanl.toFoldStep (step s a))
+         initial
+         extract
+         final
+
+-- XXX This belongs in a Scanl module. It lives here for now only because
+-- 'Fold.Type' imports 'Scanl.Type' (Folds are built on top of scans); move it
+-- once that dependency is inverted. We should move fromScanl as well to the
+-- Scanl module and rename it to "toFold".
+
+-- | Convert a fold to a left scan.
+{-# INLINE fromFold #-}
+fromFold :: Functor m => Fold m a b -> Scanl m a b
+fromFold (Fold step initial extract final) =
+    Scanl (\s a -> fmap Scanl.fromFoldStep (step s a))
+          initial
+          extract
+          final
 
 -- | Make a fold from a left fold style pure step function and initial value of
 -- the accumulator.
@@ -793,7 +812,12 @@ foldrM' g = fromScanl . Scanl.mkScanrM g
 --
 {-# INLINE foldt' #-}
 foldt' :: Monad m => (s -> a -> Step s b) -> Step s b -> (s -> b) -> Fold m a b
-foldt' step initial = fromScanl . Scanl.scant' step initial
+foldt' step initial extract =
+    Fold
+        (\s a -> pure $ step s a)
+        (pure initial)
+        (pure . extract)
+        (pure . extract)
 
 -- | Make a terminating fold with an effectful step function and initial state,
 -- and a state extraction function.
@@ -1595,17 +1619,18 @@ postscanl
     runStep actionL sR = do
         rL <- actionL
         case rL of
-            Done bL -> do
+            Scanl.Done bL -> do
                 rR <- stepR sR bL
                 case rR of
                     Partial sR1 -> Done <$> finalR sR1
                     Done bR -> return $ Done bR
-            Partial sL -> do
+            Scanl.Partial sL -> do
                 !b <- extractL sL
                 rR <- stepR sR b
                 case rR of
                     Partial sR1 -> return $ Partial (sL, sR1)
                     Done bR -> finalL sL >> return (Done bR)
+            Scanl.Continue sL -> return $ Partial (sL, sR)
 
     initial = do
         rR <- initialR
@@ -1704,11 +1729,13 @@ scanlWith isMany
 
     where
 
+    initialL_ = Scanl.fromFoldStep <$> initialL
+
     {-# INLINE runStep #-}
     runStep actionL sR = do
         rL <- actionL
         case rL of
-            Done bL -> do
+            Scanl.Done bL -> do
                 rR <- stepR sR bL
                 case rR of
                     Partial sR1 ->
@@ -1717,20 +1744,21 @@ scanlWith isMany
                         -- will not terminate. In that case we should return
                         -- error in the beginning itself. And we should remove
                         -- this recursion, assuming it won't return Done.
-                        then runStep initialL sR1
+                        then runStep initialL_ sR1
                         else Done <$> finalR sR1
                     Done bR -> return $ Done bR
-            Partial sL -> do
+            Scanl.Partial sL -> do
                 !b <- extractL sL
                 rR <- stepR sR b
                 case rR of
                     Partial sR1 -> return $ Partial (sL, sR1)
                     Done bR -> finalL sL >> return (Done bR)
+            Scanl.Continue sL -> return $ Partial (sL, sR)
 
     initial = do
         r <- initialR
         case r of
-            Partial sR -> runStep initialL sR
+            Partial sR -> runStep initialL_ sR
             Done b -> return $ Done b
 
     step (sL, sR) x = runStep (stepL sL x) sR

@@ -60,6 +60,88 @@ demuxGenericIOS =
                     (IO (Map.Map String Int), Maybe (String, Int))))
         demuxInput demuxExpected
 
+-------------------------------------------------------------------------------
+-- 'Continue' handling.
+--
+-- The inner scan below filters out odd values and sums the even ones. A
+-- filtered-out (odd) input makes the inner scan emit 'Continue': the scan
+-- state must advance but NO output must be emitted for that input. The
+-- demux/classify driver must translate this 'Continue' into 'Nothing' rather
+-- than re-emitting the last valid value.
+--
+-- The earlier tests used @take 2 sum@ as the inner scan, which only ever emits
+-- 'Partial'/'Done' and never 'Continue', so the 'Continue' branch of the
+-- driver was never exercised. With the buggy driver, the odd inputs below
+-- would wrongly produce @Just (key, lastSum)@ (e.g. @Just ("A", 2)@ and
+-- @Just ("B", 0)@) instead of 'Nothing'.
+-------------------------------------------------------------------------------
+
+filterInput :: [(String, Int)]
+filterInput = [("A", 2), ("A", 1), ("A", 4), ("B", 3), ("B", 6)]
+
+filterExpected :: [Maybe (String, Int)]
+filterExpected =
+    [Just ("A", 2), Nothing, Just ("A", 6), Nothing, Just ("B", 6)]
+
+filterInner :: F.Scanl IO (String, Int) Int
+filterInner = F.lmap snd (F.filter even F.sum)
+
+demuxFilterGetScanl :: String -> IO (Maybe (F.Scanl IO (String, Int) Int))
+demuxFilterGetScanl _ = return (Just filterInner)
+
+demuxFilterS :: Expectation
+demuxFilterS =
+    checkPostscanl (F.demux fst demuxFilterGetScanl) filterInput filterExpected
+
+demuxFilterIOS :: Expectation
+demuxFilterIOS =
+    checkPostscanl
+        (F.demuxIO fst demuxFilterGetScanl) filterInput filterExpected
+
+demuxGenericFilterS :: Expectation
+demuxGenericFilterS =
+    checkPostscanl
+        (fmap snd
+            (F.demuxGeneric fst demuxFilterGetScanl
+                :: F.Scanl IO (String, Int)
+                    (IO (Map.Map String Int), Maybe (String, Int))))
+        filterInput filterExpected
+
+demuxGenericFilterIOS :: Expectation
+demuxGenericFilterIOS =
+    checkPostscanl
+        (fmap snd
+            (F.demuxGenericIO fst demuxFilterGetScanl
+                :: F.Scanl IO (String, Int)
+                    (IO (Map.Map String Int), Maybe (String, Int))))
+        filterInput filterExpected
+
+classifyFilterS :: Expectation
+classifyFilterS =
+    checkPostscanl (F.classify fst filterInner) filterInput filterExpected
+
+classifyFilterIOS :: Expectation
+classifyFilterIOS =
+    checkPostscanl (F.classifyIO fst filterInner) filterInput filterExpected
+
+classifyGenericFilterS :: Expectation
+classifyGenericFilterS =
+    checkPostscanl
+        (fmap snd
+            (F.classifyGeneric fst filterInner
+                :: F.Scanl IO (String, Int)
+                    (IO (Map.Map String Int), Maybe (String, Int))))
+        filterInput filterExpected
+
+classifyGenericFilterIOS :: Expectation
+classifyGenericFilterIOS =
+    checkPostscanl
+        (fmap snd
+            (F.classifyGenericIO fst filterInner
+                :: F.Scanl IO (String, Int)
+                    (IO (Map.Map String Int), Maybe (String, Int))))
+        filterInput filterExpected
+
 classifyInput :: [(String, Int)]
 classifyInput = [("ONE", 1), ("TWO", 2), ("ONE", 3), ("TWO", 4), ("ONE", 5)]
 
@@ -106,11 +188,23 @@ main = hspec $
 
         -- Before adding any tests here consider if it can be added to the
         -- common tests above.
+
+        -- demux
         it "demux" demuxS
+        it "demux: filter" demuxFilterS
         it "demuxIO" demuxIOS
+        it "demuxIO: filter" demuxFilterIOS
         it "demuxGeneric" demuxGenericS
+        it "demuxGeneric: filter" demuxGenericFilterS
         it "demuxGenericIO" demuxGenericIOS
+        it "demuxGenericIO: filter" demuxGenericFilterIOS
+
+        -- classify
         it "classify" classifyS
+        it "classify: filter" classifyFilterS
         it "classifyIO" classifyIOS
+        it "classifyIO: filter" classifyFilterIOS
         it "classifyGeneric" classifyGenericS
+        it "classifyGeneric: filter" classifyGenericFilterS
         it "classifyGenericIO" classifyGenericIOS
+        it "classifyGenericIO: filter" classifyGenericFilterIOS

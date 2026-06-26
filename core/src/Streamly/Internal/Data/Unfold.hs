@@ -353,10 +353,11 @@ postscanl (Scanl stepF initial extract final) (Unfold stepU injectU) =
             Yield x s -> do
                 rf <- stepF fs x
                 case rf of
-                    FL.Done v -> return $ Yield v Nothing
-                    FL.Partial fs1 -> do
+                    Scanl.Done v -> return $ Yield v Nothing
+                    Scanl.Partial fs1 -> do
                         v <- extract fs1
                         return $ Yield v (Just (fs1, s))
+                    Scanl.Continue fs1 -> return $ Skip (Just (fs1, s))
             Skip s -> return $ Skip (Just (fs, s))
             Stop -> final fs >> return Stop
 
@@ -366,7 +367,7 @@ postscanl (Scanl stepF initial extract final) (Unfold stepU injectU) =
 {-# DEPRECATED postscan "Please use postscanl instead" #-}
 {-# INLINE_NORMAL postscan #-}
 postscan :: Monad m => Fold m b c -> Unfold m a b -> Unfold m a c
-postscan (Fold s i e f) = postscanl (Scanl s i e f)
+postscan = postscanl . FL.fromFold
 
 data ScanState s f = ScanInit s | ScanDo s !f | ScanDone
 
@@ -383,15 +384,24 @@ scanWith restart (Scanl fstep initial extract final) (Unfold stepU injectU) =
     runStep us action = do
         r <- action
         case r of
+            Scanl.Partial fs -> do
+                !b <- extract fs
+                return $ Yield b (ScanDo us fs)
+            Scanl.Continue fs -> return $ Skip (ScanDo us fs)
+            Scanl.Done b ->
+                let next = if restart then ScanInit us else ScanDone
+                 in return $ Yield b next
+
+    {-# INLINE_LATE step #-}
+    step (ScanInit us) = do
+        r <- initial
+        case r of
             FL.Partial fs -> do
                 !b <- extract fs
                 return $ Yield b (ScanDo us fs)
             FL.Done b ->
                 let next = if restart then ScanInit us else ScanDone
                  in return $ Yield b next
-
-    {-# INLINE_LATE step #-}
-    step (ScanInit us) = runStep us initial
     step (ScanDo us fs) = do
         res <- stepU us
         case res of
@@ -416,7 +426,7 @@ scanlMany = scanWith True
 {-# DEPRECATED scanMany "Please use scanlMany instead" #-}
 {-# INLINE_NORMAL scanMany #-}
 scanMany :: Monad m => Fold m b c -> Unfold m a b -> Unfold m a c
-scanMany (Fold s i e f) = scanWith True (Scanl s i e f)
+scanMany = scanWith True . FL.fromFold
 
 -- scan2 :: Monad m => Refold m a b c -> Unfold m a b -> Unfold m a c
 
@@ -436,7 +446,7 @@ scanl = scanWith False
 {-# DEPRECATED scan "Please use scanl instead" #-}
 {-# INLINE_NORMAL scan #-}
 scan :: Monad m => Fold m b c -> Unfold m a b -> Unfold m a c
-scan (Fold s i e f) = scanWith False (Scanl s i e f)
+scan = scanWith False . FL.fromFold
 
 {-# DEPRECATED postscanlM' "Please use \"postscanl (Scanl.scanlM' f z)\" instead" #-}
 {-# INLINE_NORMAL postscanlM' #-}

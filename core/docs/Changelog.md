@@ -2,19 +2,41 @@
 
 ## Unreleased
 
+### Enhancements
+
+* Filtering support for `Scanl`.
+* FileSystem.Path now does not treat paths with leading "./" as rooted paths.
+
+### Bug Fixes
+
 * Fixed `Stream.postscanl` to omit the output of a scan that terminates without
   consuming any input (e.g. `Scanl.take 0`).
-* Breaking: In `FileSystem.Path` module the default for `eqPath` changed
+
+### Breaking changes
+
+* In Scanl module, `filter` and any other filtering operations like
+  `filterM`, `catMaybes`, `catLefts` etc. used to emit the previous
+  value of accumulator for filtered-out elements, now they do not emit
+  any output for those.
+* `Scanl.incrScanWith` now provides the ring array reflecting the
+  state of the window /before/ the incoming element is inserted.
+* In `FileSystem.Path` module the default for `eqPath` changed
   on Windows to case-sensitive comparison.
-* Breaking: A leading "." component (e.g. "." or "./x") is no longer
+* A leading "." component (e.g. "." or "./x") is no longer
   treated as a rooted path, making the behavior more in line with
   intuitive expectation.
-* Breaking: In `FileSystem.Path` module the default for `eqPath` changed
+* In `FileSystem.Path` module the default for `eqPath` changed
   on both Posix and Windows so that `allowRelativeEquality` is `True` by
   default. Literally identical relative paths (e.g. `./x` and `./x`, or
   `c:` and `c:` on Windows) now compare equal. Pass
   `allowRelativeEquality False` to restore the previous strict behaviour.
-* Internal: Removed deprecated module `Streamly.Internal.Data.Stream.StreamD`.
+
+### Internal changes
+
+* `Scanl`'s Step type is now different from Fold's `Step` type
+  with an additional `Continue` constructor, this change enables proper
+  filtering in scans.
+* Removed deprecated module `Streamly.Internal.Data.Stream.StreamD`.
   Use `Streamly.Internal.Data.Stream` instead.
 
 ## 0.3.1 (May 2026)

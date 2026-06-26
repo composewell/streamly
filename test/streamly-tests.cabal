@@ -193,6 +193,7 @@ library
     hs-source-dirs: lib
     exposed-modules:
         Streamly.Test.Common
+        Streamly.Test.Data.Scanl.Common
         Streamly.Test.Data.Parser.CommonUtilities
         Streamly.Test.Data.Parser.CommonTestDriver
         Streamly.Test.Data.Parser.CommonTypeTests

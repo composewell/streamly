@@ -229,6 +229,7 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import qualified Prelude
 import qualified Streamly.Internal.Data.MutArray.Type as MA
 -- import qualified Streamly.Internal.Data.Array.Type as Array
+import qualified Streamly.Internal.Data.Fold.Step as Fold
 import qualified Streamly.Internal.Data.Scanl.Window as Scanl
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 -- import qualified Streamly.Internal.Data.RingArray as RingArray
@@ -372,7 +373,7 @@ mapMaybeM f = lmapM f . catMaybes
 -- >>> f x = if even x then Just x else Nothing
 -- >>> scn = Scanl.mapMaybe f Scanl.toList
 -- >>> Stream.toList $ Stream.scanl scn (Stream.enumerateFromTo 1 10)
--- [[],[],[2],[2],[2,4],[2,4],[2,4,6],[2,4,6],[2,4,6,8],[2,4,6,8],[2,4,6,8,10]]
+-- [[],[2],[2,4],[2,4,6],[2,4,6,8],[2,4,6,8,10]]
 --
 {-# INLINE mapMaybe #-}
 mapMaybe :: Monad m => (a -> Maybe b) -> Scanl m b r -> Scanl m a r
@@ -411,6 +412,7 @@ pipe (Pipe consume produce pinitial) (Scanl fstep finitial fextract ffinal) =
             return
                 $ case acc1 of
                       Partial s -> Partial $ Tuple' cs1 s
+                      Continue s -> Continue $ Tuple' cs1 s
                       Done b1 -> Done b1
         -- XXX this case is recursive may cause fusion issues.
         -- To remove recursion we will need a produce mode in scans which makes
@@ -421,6 +423,7 @@ pipe (Pipe consume produce pinitial) (Scanl fstep finitial fextract ffinal) =
             r <- produce ps1
             case acc1 of
                 Partial s -> go s r
+                Continue s -> go s r
                 Done b1 -> return $ Done b1
         go acc (Pipe.SkipC cs1) =
             return $ Partial $ Tuple' cs1 acc
@@ -492,6 +495,8 @@ scanWith isMany
 
     where
 
+    initialL_ = fromFoldStep <$> initialL
+
     {-# INLINE runStep #-}
     runStep actionL sR = do
         rL <- actionL
@@ -505,7 +510,11 @@ scanWith isMany
                         -- will not terminate. In that case we should return
                         -- error in the beginning itself. And we should remove
                         -- this recursion, assuming it won't return Done.
-                        then runStep initialL sR1
+                        then runStep initialL_ sR1
+                        else Done <$> finalR sR1
+                    Continue sR1 ->
+                        if isMany
+                        then runStep initialL_ sR1
                         else Done <$> finalR sR1
                     Done bR -> return $ Done bR
             Partial sL -> do
@@ -513,13 +522,15 @@ scanWith isMany
                 rR <- stepR sR b
                 case rR of
                     Partial sR1 -> return $ Partial (sL, sR1)
+                    Continue sR1 -> return $ Continue (sL, sR1)
                     Done bR -> finalL sL >> return (Done bR)
+            Continue sL -> return $ Continue (sL, sR)
 
     initial = do
         r <- initialR
         case r of
-            Partial sR -> runStep initialL sR
-            Done b -> return $ Done b
+            Fold.Partial sR -> toFoldStep <$> runStep initialL_ sR
+            Fold.Done b -> return $ Fold.Done b
 
     step (sL, sR) x = runStep (stepL sL x) sR
 
@@ -614,7 +625,7 @@ rollingMapM f = Scanl step initial extract extract
 
     -- XXX We need just a postscan. We do not need an initial result here.
     -- Or we can supply a default initial result as an argument to rollingMapM.
-    initial = return $ Partial (Nothing, error "Empty stream")
+    initial = return $ Fold.Partial (Nothing, error "Empty stream")
 
     step (prev, _) cur = do
         x <- f prev cur
@@ -723,7 +734,7 @@ the = scant' step initial id
 
     where
 
-    initial = Partial Nothing
+    initial = Fold.Partial Nothing
 
     step Nothing x = Partial (Just x)
     step old@(Just x0) x =
@@ -760,7 +771,7 @@ sum = Scanl.cumulativeScan Scanl.incrSum
 --
 {-# INLINE product #-}
 product :: (Monad m, Num a, Eq a) => Scanl m a a
-product =  scant' step (Partial 1) id
+product =  scant' step (Fold.Partial 1) id
 
     where
 
@@ -1311,7 +1322,7 @@ takingEndByM p = Scanl step initial extract extract
 
     where
 
-    initial = return $ Partial Nothing'
+    initial = return $ Fold.Partial Nothing'
 
     step _ a = do
         r <- p a
@@ -1336,7 +1347,7 @@ takingEndByM_ p = Scanl step initial extract extract
 
     where
 
-    initial = return $ Partial Nothing'
+    initial = return $ Fold.Partial Nothing'
 
     step _ a = do
         r <- p a
@@ -1361,7 +1372,7 @@ droppingWhileM p = Scanl step initial extract extract
 
     where
 
-    initial = return $ Partial Nothing'
+    initial = return $ Fold.Partial Nothing'
 
     step Nothing' a = do
         r <- p a
@@ -1848,11 +1859,11 @@ partitionByM f
         resR <- initialR
         return
             $ case resL of
-                  Done bl -> Done bl
-                  Partial sl ->
+                  Fold.Done bl -> Fold.Done bl
+                  Fold.Partial sl ->
                       case resR of
-                            Partial sr -> Partial $ PartLeft sl sr
-                            Done br -> Done br
+                            Fold.Partial sr -> Fold.Partial $ PartLeft sl sr
+                            Fold.Done br -> Fold.Done br
 
     runBoth sL sR a = do
         pRes <- f a
@@ -1861,11 +1872,13 @@ partitionByM f
                 resL <- stepL sL b
                 case resL of
                     Partial s -> return $ Partial $ PartLeft s sR
+                    Continue s -> return $ Continue $ PartLeft s sR
                     Done x -> return $ Done x
             Right c -> do
                 resR <- stepR sR c
                 case resR of
                     Partial s -> return $ Partial $ PartRight sL s
+                    Continue s -> return $ Continue $ PartRight sL s
                     Done x -> return $ Done x
 
     step (PartLeft sL sR) = runBoth sL sR
@@ -2207,6 +2220,7 @@ unfoldEach (Unfold ustep inject) (Scanl fstep initial extract final) =
                 fres <- fstep fs b
                 case fres of
                     Partial fs1 -> produce fs1 us1
+                    Continue fs1 -> produce fs1 us1
                     -- XXX What to do with the remaining stream?
                     Done c -> return $ Done c
             StreamD.Skip us1 -> produce fs us1
@@ -2234,8 +2248,8 @@ bottomBy cmp n = Scanl step initial extract extract
     initial = do
         arr <- MA.emptyOf' n
         if n <= 0
-        then return $ Done arr
-        else return $ Partial (arr, 0)
+        then return $ Fold.Done arr
+        else return $ Fold.Partial (arr, 0)
 
     step (arr, i) x =
         if i < n
