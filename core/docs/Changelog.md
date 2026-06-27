@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+* Breaking: `Scanl.filter`, `Scanl.filterM` and `Scanl.catMaybes` now emit no
+  output for a filtered-out (or `Nothing`) element instead of re-emitting the
+  previous output. When used for scanning (`Stream.scanl`/`Stream.postscanl`)
+  the resulting output stream is therefore shorter and may even be empty. The
+  corresponding `Fold` combinators (`Fold.filter`, `Fold.filterM`,
+  `Fold.catMaybes`) are unaffected, because a fold always runs to its `final`
+  step and yields a value.
+  Migration: if you relied on the previous "re-emit the previous value on a
+  filtered element" behaviour, hold the last value explicitly downstream (e.g.
+  using `Scanl.latest`) rather than relying on `filter`.
+* Internal: `Scanl` now has its own `Step` type
+  (`Streamly.Internal.Data.Scanl.Step`) with a `Continue` constructor, meaning
+  "advance the scan state but emit no output". The `Fold` `Step`
+  (`Streamly.Internal.Data.Fold.Step`) continues to have only `Partial` and
+  `Done`. Converting a `Scanl` to a `Fold` (e.g. via `Fold.fromScanl`) maps
+  `Continue` to `Partial`.
 * Fixed `Stream.postscanl` to omit the output of a scan that terminates without
   consuming any input (e.g. `Scanl.take 0`).
 * Breaking: In `FileSystem.Path` module the default for `eqPath` changed

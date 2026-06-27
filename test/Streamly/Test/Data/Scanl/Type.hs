@@ -11,6 +11,7 @@ module Streamly.Test.Data.Scanl.Type
     (main, check, checkApprox, checkPostscanl) where
 
 import Data.Functor.Identity (Identity, runIdentity)
+import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Refold.Type as Refold
 import qualified Streamly.Internal.Data.Scanl as F
 import qualified Streamly.Internal.Data.Stream as Stream
@@ -44,9 +45,10 @@ import Test.QuickCheck (Property, forAll)
 --
 -- In every shared test the @expected@ value is the *inclusive prescan list*
 -- (Prelude.scanl f z), i.e. exactly what Stream.scanl emits: the leading
--- initial value followed by one output per input (filtering scans emit the
--- unchanged accumulator for filtered elements; terminating scans truncate at,
--- and including, the terminating step). From this list:
+-- initial value followed by one output per input (filtering scans emit no
+-- output for filtered elements, so their @expected@ list is built from the
+-- elements that pass; terminating scans truncate at, and including, the
+-- terminating step). From this list:
 --   * the Fold includer checks the final value  (Prelude.last expected)
 --   * the Scanl includer checks the full Stream.scanl output (== expected) and
 --     the Stream.postscanl output (== drop 1 expected, the initial omitted)
@@ -198,8 +200,8 @@ functionMS =
 sumRefold :: Monad m => Refold.Refold m Int Int Int
 sumRefold =
     Refold.Refold
-        (\s a -> return (F.Partial (s + a)))
-        (\c -> return (F.Partial c))
+        (\s a -> return (Fold.Partial (s + a)))
+        (\c -> return (Fold.Partial c))
         return
 
 fromRefoldS :: Expectation

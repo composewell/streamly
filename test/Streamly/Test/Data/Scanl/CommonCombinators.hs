@@ -126,12 +126,13 @@ meanS =
 -- Filtering / mapping
 -------------------------------------------------------------------------------
 
+-- A filtered-out (Nothing) element emits no output.
 mapMaybeS :: [Int] -> Expectation
 mapMaybeS ls =
     check
         (F.mapMaybe (\x -> if even x then Just x else Nothing) F.toList)
         ls
-        (Prelude.scanl (\acc x -> if even x then acc ++ [x] else acc) [] ls)
+        (Prelude.scanl (\acc x -> acc ++ [x]) [] (Prelude.filter even ls))
 
 drainMapMS :: [Int] -> Expectation
 drainMapMS ls = check (F.drainMapM return) ls (Prelude.scanl (\_ _ -> ()) () ls)

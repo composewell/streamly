@@ -372,7 +372,7 @@ mapMaybeM f = lmapM f . catMaybes
 -- >>> f x = if even x then Just x else Nothing
 -- >>> scn = Scanl.mapMaybe f Scanl.toList
 -- >>> Stream.toList $ Stream.scanl scn (Stream.enumerateFromTo 1 10)
--- [[],[],[2],[2],[2,4],[2,4],[2,4,6],[2,4,6],[2,4,6,8],[2,4,6,8],[2,4,6,8,10]]
+-- [[],[2],[2,4],[2,4,6],[2,4,6,8],[2,4,6,8,10]]
 --
 {-# INLINE mapMaybe #-}
 mapMaybe :: Monad m => (a -> Maybe b) -> Scanl m b r -> Scanl m a r
@@ -411,6 +411,7 @@ pipe (Pipe consume produce pinitial) (Scanl fstep finitial fextract ffinal) =
             return
                 $ case acc1 of
                       Partial s -> Partial $ Tuple' cs1 s
+                      Continue s -> Partial $ Tuple' cs1 s
                       Done b1 -> Done b1
         -- XXX this case is recursive may cause fusion issues.
         -- To remove recursion we will need a produce mode in scans which makes
@@ -421,6 +422,7 @@ pipe (Pipe consume produce pinitial) (Scanl fstep finitial fextract ffinal) =
             r <- produce ps1
             case acc1 of
                 Partial s -> go s r
+                Continue s -> go s r
                 Done b1 -> return $ Done b1
         go acc (Pipe.SkipC cs1) =
             return $ Partial $ Tuple' cs1 acc
@@ -507,18 +509,35 @@ scanWith isMany
                         -- this recursion, assuming it won't return Done.
                         then runStep initialL sR1
                         else Done <$> finalR sR1
+                    Continue sR1 ->
+                        if isMany
+                        -- XXX recursive call. If initialL returns Done then it
+                        -- will not terminate. In that case we should return
+                        -- error in the beginning itself. And we should remove
+                        -- this recursion, assuming it won't return Done.
+                        then runStep initialL sR1
+                        else Done <$> finalR sR1
                     Done bR -> return $ Done bR
             Partial sL -> do
                 !b <- extractL sL
                 rR <- stepR sR b
                 case rR of
                     Partial sR1 -> return $ Partial (sL, sR1)
+                    Continue sR1 -> return $ Partial (sL, sR1)
+                    Done bR -> finalL sL >> return (Done bR)
+            Continue sL -> do
+                !b <- extractL sL
+                rR <- stepR sR b
+                case rR of
+                    Partial sR1 -> return $ Partial (sL, sR1)
+                    Continue sR1 -> return $ Partial (sL, sR1)
                     Done bR -> finalL sL >> return (Done bR)
 
     initial = do
         r <- initialR
         case r of
             Partial sR -> runStep initialL sR
+            Continue sR -> runStep initialL sR
             Done b -> return $ Done b
 
     step (sL, sR) x = runStep (stepL sL x) sR
@@ -1852,6 +1871,12 @@ partitionByM f
                   Partial sl ->
                       case resR of
                             Partial sr -> Partial $ PartLeft sl sr
+                            Continue sr -> Partial $ PartLeft sl sr
+                            Done br -> Done br
+                  Continue sl ->
+                      case resR of
+                            Partial sr -> Partial $ PartLeft sl sr
+                            Continue sr -> Partial $ PartLeft sl sr
                             Done br -> Done br
 
     runBoth sL sR a = do
@@ -1861,11 +1886,13 @@ partitionByM f
                 resL <- stepL sL b
                 case resL of
                     Partial s -> return $ Partial $ PartLeft s sR
+                    Continue s -> return $ Partial $ PartLeft s sR
                     Done x -> return $ Done x
             Right c -> do
                 resR <- stepR sR c
                 case resR of
                     Partial s -> return $ Partial $ PartRight sL s
+                    Continue s -> return $ Partial $ PartRight sL s
                     Done x -> return $ Done x
 
     step (PartLeft sL sR) = runBoth sL sR
@@ -2207,6 +2234,7 @@ unfoldEach (Unfold ustep inject) (Scanl fstep initial extract final) =
                 fres <- fstep fs b
                 case fres of
                     Partial fs1 -> produce fs1 us1
+                    Continue fs1 -> produce fs1 us1
                     -- XXX What to do with the remaining stream?
                     Done c -> return $ Done c
             StreamD.Skip us1 -> produce fs us1

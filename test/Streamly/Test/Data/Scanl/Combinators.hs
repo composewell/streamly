@@ -50,7 +50,9 @@ composeManyS =
 
 -- 'with' adapts a stateful combinator (here 'indexed') so that the supplied
 -- predicate also sees the state (the index). This keeps elements at even
--- indices.
+-- indices. Note: 'indexed' is 'postscanlMaybe', a scan composition that treats
+-- a filtered ('Continue') step like 'Partial', so a filtered element re-emits
+-- the previous accumulator rather than emitting nothing.
 withS :: Expectation
 withS =
     check (F.with F.indexed F.filter (even . fst) F.toList) "abcde"
@@ -92,10 +94,11 @@ takingEndByUS =
 
 mapMaybeMS :: Expectation
 mapMaybeMS =
+    -- A filtered-out (Nothing) element emits no output.
     check
         (F.mapMaybeM (\x -> return (if even x then Just x else Nothing)) F.toList)
         ([1, 2, 3, 4] :: [Int])
-        [[], [], [2], [2], [2, 4]]
+        [[], [2], [2, 4]]
 
 -- An Unfold that streams the elements of an input list.
 unfoldList :: Monad m => Unfold.Unfold m [a] a

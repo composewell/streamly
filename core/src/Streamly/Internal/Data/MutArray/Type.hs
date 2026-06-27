@@ -550,6 +550,7 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (arrayPayloadSize, defaultChunkSize)
 
 import qualified Streamly.Internal.Data.Fold.Type as FL
+import qualified Streamly.Internal.Data.Scanl.Type as Scanl
 import qualified Streamly.Internal.Data.MutByteArray.Type as Unboxed
 import qualified Streamly.Internal.Data.Parser.Type as Parser
 -- import qualified Streamly.Internal.Data.Fold.Type as Fold
@@ -4068,14 +4069,14 @@ scanCompactMinAs ps minElems =
             error $ functionName ++ ": the size of arrays ["
                 ++ show minElems ++ "] must be a natural number"
 
-        return $ FL.Partial CompactMinInit
+        return $ Scanl.Partial CompactMinInit
 
     {-# INLINE runInner #-}
     runInner len buf =
             if len >= minBytes
             then do
-                return $ FL.Partial $ CompactMinComplete buf
-            else return $ FL.Partial $ CompactMinIncomplete buf
+                return $ Scanl.Partial $ CompactMinComplete buf
+            else return $ Scanl.Partial $ CompactMinIncomplete buf
 
     step CompactMinInit arr =
          runInner (byteLength arr) arr

@@ -1786,9 +1786,9 @@ distributeScan getFolds = Scanl consume initial extract final
 
     where
 
-    initial = return $ Partial (Tuple' [] [])
+    initial = return $ Scanl.Partial (Tuple' [] [])
 
-    run st [] _ = return $ Partial st
+    run st [] _ = return $ Scanl.Partial st
     run (Tuple' ys zs) (Fold step init extr fin : xs) a = do
         res <- init
         case res of

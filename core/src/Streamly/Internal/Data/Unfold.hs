@@ -343,8 +343,9 @@ postscanl (Scanl stepF initial extract final) (Unfold stepU injectU) =
     inject a =  do
         r <- initial
         case r of
-            FL.Partial fs -> Just . (fs,) <$> injectU a
-            FL.Done _ -> return Nothing
+            Scanl.Partial fs -> Just . (fs,) <$> injectU a
+            Scanl.Continue fs -> Just . (fs,) <$> injectU a
+            Scanl.Done _ -> return Nothing
 
     {-# INLINE_LATE step #-}
     step (Just (fs, us)) = do
@@ -353,20 +354,34 @@ postscanl (Scanl stepF initial extract final) (Unfold stepU injectU) =
             Yield x s -> do
                 rf <- stepF fs x
                 case rf of
-                    FL.Done v -> return $ Yield v Nothing
-                    FL.Partial fs1 -> do
+                    Scanl.Done v -> return $ Yield v Nothing
+                    Scanl.Partial fs1 -> do
                         v <- extract fs1
                         return $ Yield v (Just (fs1, s))
+                    -- 'Continue': advance the state but emit no output.
+                    Scanl.Continue fs1 -> return $ Skip (Just (fs1, s))
             Skip s -> return $ Skip (Just (fs, s))
             Stop -> final fs >> return Stop
 
     step Nothing = return Stop
 
+-- | Convert a fold to a left scan. A fold emits on every step so the resulting
+-- scan never returns 'Continue'.
+{-# INLINE scanlFromFold #-}
+scanlFromFold :: Functor m => Fold m a b -> Scanl m a b
+scanlFromFold (Fold s i e f) =
+    Scanl (\st a -> fmap toScanlStep (s st a)) (fmap toScanlStep i) e f
+
+    where
+
+    toScanlStep (FL.Partial st) = Scanl.Partial st
+    toScanlStep (FL.Done b) = Scanl.Done b
+
 -- When we remove extract from Fold this function should be removed.
 {-# DEPRECATED postscan "Please use postscanl instead" #-}
 {-# INLINE_NORMAL postscan #-}
 postscan :: Monad m => Fold m b c -> Unfold m a b -> Unfold m a c
-postscan (Fold s i e f) = postscanl (Scanl s i e f)
+postscan = postscanl . scanlFromFold
 
 data ScanState s f = ScanInit s | ScanDo s !f | ScanDone
 
@@ -383,10 +398,12 @@ scanWith restart (Scanl fstep initial extract final) (Unfold stepU injectU) =
     runStep us action = do
         r <- action
         case r of
-            FL.Partial fs -> do
+            Scanl.Partial fs -> do
                 !b <- extract fs
                 return $ Yield b (ScanDo us fs)
-            FL.Done b ->
+            -- 'Continue': advance the state but emit no output.
+            Scanl.Continue fs -> return $ Skip (ScanDo us fs)
+            Scanl.Done b ->
                 let next = if restart then ScanInit us else ScanDone
                  in return $ Yield b next
 
@@ -416,7 +433,7 @@ scanlMany = scanWith True
 {-# DEPRECATED scanMany "Please use scanlMany instead" #-}
 {-# INLINE_NORMAL scanMany #-}
 scanMany :: Monad m => Fold m b c -> Unfold m a b -> Unfold m a c
-scanMany (Fold s i e f) = scanWith True (Scanl s i e f)
+scanMany = scanWith True . scanlFromFold
 
 -- scan2 :: Monad m => Refold m a b c -> Unfold m a b -> Unfold m a c
 
@@ -436,7 +453,7 @@ scanl = scanWith False
 {-# DEPRECATED scan "Please use scanl instead" #-}
 {-# INLINE_NORMAL scan #-}
 scan :: Monad m => Fold m b c -> Unfold m a b -> Unfold m a c
-scan (Fold s i e f) = scanWith False (Scanl s i e f)
+scan = scanWith False . scanlFromFold
 
 {-# DEPRECATED postscanlM' "Please use \"postscanl (Scanl.scanlM' f z)\" instead" #-}
 {-# INLINE_NORMAL postscanlM' #-}

@@ -625,8 +625,20 @@ rmapM f (Fold step initial extract final) =
 
 -- | Convert a left scan to a fold.
 {-# INLINE fromScanl #-}
-fromScanl :: Scanl m a b -> Fold m a b
-fromScanl (Scanl step initial extract final) = Fold step initial extract final
+fromScanl :: Functor m => Scanl m a b -> Fold m a b
+fromScanl (Scanl step initial extract final) =
+    Fold (\s a -> fmap fromScanlStep (step s a))
+         (fmap fromScanlStep initial)
+         extract
+         final
+
+    where
+
+    -- A 'Scanl' may return 'Continue' to suppress output for a step; for a
+    -- 'Fold' this is the same as 'Partial'.
+    fromScanlStep (Scanl.Partial s) = Partial s
+    fromScanlStep (Scanl.Continue s) = Partial s
+    fromScanlStep (Scanl.Done b) = Done b
 
 -- | Make a fold from a left fold style pure step function and initial value of
 -- the accumulator.
@@ -793,7 +805,12 @@ foldrM' g = fromScanl . Scanl.mkScanrM g
 --
 {-# INLINE foldt' #-}
 foldt' :: Monad m => (s -> a -> Step s b) -> Step s b -> (s -> b) -> Fold m a b
-foldt' step initial = fromScanl . Scanl.scant' step initial
+foldt' step initial extract =
+    Fold
+        (\s a -> return $ step s a)
+        (return initial)
+        (return . extract)
+        (return . extract)
 
 -- | Make a terminating fold with an effectful step function and initial state,
 -- and a state extraction function.
@@ -1595,12 +1612,19 @@ postscanl
     runStep actionL sR = do
         rL <- actionL
         case rL of
-            Done bL -> do
+            Scanl.Done bL -> do
                 rR <- stepR sR bL
                 case rR of
                     Partial sR1 -> Done <$> finalR sR1
                     Done bR -> return $ Done bR
-            Partial sL -> do
+            Scanl.Partial sL -> do
+                !b <- extractL sL
+                rR <- stepR sR b
+                case rR of
+                    Partial sR1 -> return $ Partial (sL, sR1)
+                    Done bR -> finalL sL >> return (Done bR)
+            -- 'Continue' from the scanner is like 'Partial' here.
+            Scanl.Continue sL -> do
                 !b <- extractL sL
                 rR <- stepR sR b
                 case rR of
@@ -1613,8 +1637,9 @@ postscanl
             Partial sR -> do
                 rL <- initialL
                 case rL of
-                    Done _ -> Done <$> finalR sR
-                    Partial sL -> return $ Partial (sL, sR)
+                    Scanl.Done _ -> Done <$> finalR sR
+                    Scanl.Partial sL -> return $ Partial (sL, sR)
+                    Scanl.Continue sL -> return $ Partial (sL, sR)
             Done b -> return $ Done b
 
     -- XXX should use Tuple'
@@ -1708,7 +1733,7 @@ scanlWith isMany
     runStep actionL sR = do
         rL <- actionL
         case rL of
-            Done bL -> do
+            Scanl.Done bL -> do
                 rR <- stepR sR bL
                 case rR of
                     Partial sR1 ->
@@ -1720,7 +1745,14 @@ scanlWith isMany
                         then runStep initialL sR1
                         else Done <$> finalR sR1
                     Done bR -> return $ Done bR
-            Partial sL -> do
+            Scanl.Partial sL -> do
+                !b <- extractL sL
+                rR <- stepR sR b
+                case rR of
+                    Partial sR1 -> return $ Partial (sL, sR1)
+                    Done bR -> finalL sL >> return (Done bR)
+            -- 'Continue' from the scanner is like 'Partial' here.
+            Scanl.Continue sL -> do
                 !b <- extractL sL
                 rR <- stepR sR b
                 case rR of
