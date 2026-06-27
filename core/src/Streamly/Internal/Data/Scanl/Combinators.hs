@@ -195,11 +195,9 @@ module Streamly.Internal.Data.Scanl.Combinators
     -- , intersperseWithQuotes
 
     -- ** Nesting
-    , unfoldEach
     -- , concatSequence
 
     -- * Deprecated
-    , unfoldMany
     , scanl
     , scanlMany
     )
@@ -224,7 +222,6 @@ import Streamly.Internal.Data.Pipe.Type (Pipe (..))
 -- import Streamly.Internal.Data.Scan (Scan (..))
 import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
-import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
 import qualified Prelude
 import qualified Streamly.Internal.Data.MutArray.Type as MA
@@ -2194,45 +2191,6 @@ toStream = fmap StreamD.fromList toList
 {-# INLINE toStreamRev #-}
 toStreamRev :: (Monad m, Monad n) => Scanl m a (Stream n a)
 toStreamRev = fmap StreamD.fromList toListRev
-
--- XXX This does not fuse. It contains a recursive step function. We will need
--- a Skip input constructor in the fold type to make it fuse.
-
--- | Unfold and flatten the input stream of a scan.
---
--- @
--- Stream.scanl (unfoldEach u f) == Stream.scanl f . Stream.unfoldEach u
--- @
---
--- /Pre-release/
-{-# INLINE unfoldEach #-}
-unfoldEach :: Monad m => Unfold m a b -> Scanl m b c -> Scanl m a c
-unfoldEach (Unfold ustep inject) (Scanl fstep initial extract final) =
-    Scanl consume initial extract final
-
-    where
-
-    {-# INLINE produce #-}
-    produce fs us = do
-        ures <- ustep us
-        case ures of
-            StreamD.Yield b us1 -> do
-                fres <- fstep fs b
-                case fres of
-                    Partial fs1 -> produce fs1 us1
-                    Continue fs1 -> produce fs1 us1
-                    -- XXX What to do with the remaining stream?
-                    Done c -> return $ Done c
-            StreamD.Skip us1 -> produce fs us1
-            StreamD.Stop -> return $ Partial fs
-
-    {-# INLINE_LATE consume #-}
-    consume s a = inject a >>= produce s
-
--- {-# DEPRECATED unfoldMany "Use unfoldEach instead." #-}
-{-# INLINE unfoldMany #-}
-unfoldMany :: Monad m => Unfold m a b -> Scanl m b c -> Scanl m a c
-unfoldMany = unfoldEach
 
 -- | Get the bottom most @n@ elements using the supplied comparison function.
 --

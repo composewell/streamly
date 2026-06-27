@@ -35,7 +35,6 @@ import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Pipe as Pipe
 import qualified Streamly.Internal.Data.Scanl as Scanl
 import qualified Streamly.Internal.Data.Stream as Stream
-import qualified Streamly.Internal.Data.Unfold as Unfold
 
 import Streamly.Benchmark.Common
 import Test.Tasty.Bench
@@ -563,17 +562,6 @@ inspect $ 'partition `hasNoType` ''SPEC
 #endif
 
 -------------------------------------------------------------------------------
--- Nesting
--------------------------------------------------------------------------------
-
-{-# INLINE unfoldEach #-}
-unfoldEach :: Int -> IO ()
-unfoldEach n =
-    Stream.fold FL.drain
-        $ Stream.postscanl (Scanl.unfoldEach Unfold.replicateM Scanl.drain)
-        $ Stream.fromPure (n, randomRIO (1, 1 :: Int))
-
--------------------------------------------------------------------------------
 -- O(n) heap: building structures
 -------------------------------------------------------------------------------
 
@@ -662,7 +650,6 @@ benchmarks value =
         , benchIO "partitionByM (sum, length)" partitionByM value
         , benchIO "partitionBy (sum, length)" partitionBy value
         , benchIO "partition (sum, length)" partition value
-        , benchIO "unfoldEach" unfoldEach value
         ]
     ++ fmap (HeapO_n,)
         [ benchIO "toListRev" toListRev value

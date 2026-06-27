@@ -210,22 +210,6 @@ mapMaybeMS =
         ([1, 2, 3, 4] :: [Int])
         [[], [2], [2, 4]]
 
--- An Unfold that streams the elements of an input list.
-unfoldList :: Monad m => Unfold.Unfold m [a] a
-unfoldList =
-    Unfold.unfoldrM
-        (\xs -> return (case xs of { [] -> Nothing; (y:ys) -> Just (y, ys) }))
-
-unfoldEachS :: Expectation
-unfoldEachS =
-    check (F.unfoldEach unfoldList F.toList) ([[1, 2], [3], [4, 5]] :: [[Int]])
-        [[], [1, 2], [1, 2, 3], [1, 2, 3, 4, 5]]
-
-unfoldManyS :: Expectation
-unfoldManyS =
-    check (F.unfoldMany unfoldList F.toList) ([[1, 2], [3], [4, 5]] :: [[Int]])
-        [[], [1, 2], [1, 2, 3], [1, 2, 3, 4, 5]]
-
 -- 'defaultSalt' is the default salt used by 'rollingHash'. It is part of the
 -- output contract, so the test duplicates the constant rather than importing it.
 defaultSaltS :: Expectation
@@ -327,8 +311,6 @@ main = hspec $
 
         it "takingEndBy_" takingEndByUS
         it "mapMaybeM" mapMaybeMS
-        it "unfoldEach" unfoldEachS
-        it "unfoldMany" unfoldManyS
         it "defaultSalt" defaultSaltS
 
         -- deprecated combinators
