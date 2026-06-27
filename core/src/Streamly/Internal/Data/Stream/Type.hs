@@ -475,7 +475,6 @@ foldBreakEither (Fold fstep begin done final) (UnStream step state) = do
     res <- begin
     case res of
         FL.Partial fs -> go SPEC fs state
-        FL.Continue fs -> go SPEC fs state
         FL.Done fb -> return $! Right (fb, Stream step state)
 
     where
@@ -489,7 +488,6 @@ foldBreakEither (Fold fstep begin done final) (UnStream step state) = do
                 case res of
                     FL.Done b -> return $! Right (b, Stream step s)
                     FL.Partial fs1 -> go SPEC fs1 s
-                    FL.Continue fs1 -> go SPEC fs1 s
             Skip s -> go SPEC fs s
             Stop ->
                 let f = Fold fstep (return $ FL.Partial fs) done final
@@ -513,9 +511,6 @@ foldBreak fld strm = do
             case res of
                 FL.Done _ -> error "foldBreak: unreachable state"
                 FL.Partial s -> do
-                    b <- final s
-                    return (b, nil)
-                FL.Continue s -> do
                     b <- final s
                     return (b, nil)
 
@@ -568,7 +563,6 @@ foldAddLazy (Fold fstep finitial fextract ffinal) (Stream sstep state) =
         res <- finitial
         case res of
             FL.Partial fs -> go SPEC fs state
-            FL.Continue fs -> go SPEC fs state
             FL.Done fb -> return $ FL.Done fb
 
     {-# INLINE go #-}
@@ -580,7 +574,6 @@ foldAddLazy (Fold fstep finitial fextract ffinal) (Stream sstep state) =
                 case res of
                     FL.Done b -> return $ FL.Done b
                     FL.Partial fs1 -> go SPEC fs1 s
-                    FL.Continue fs1 -> go SPEC fs1 s
             Skip s -> go SPEC fs s
             Stop -> return $ FL.Partial fs
 
@@ -2273,7 +2266,6 @@ foldManyPost (Fold fstep initial _ final) (Stream step state) =
             $ case res of
                   FL.Done b -> FoldManyPostYield b (FoldManyPostStart s)
                   FL.Partial ps -> FoldManyPostLoop s ps
-                  FL.Continue ps -> FoldManyPostLoop s ps
 
     {-# INLINE_LATE step' #-}
     step' _ (FoldManyPostStart st) = do
@@ -2283,7 +2275,6 @@ foldManyPost (Fold fstep initial _ final) (Stream step state) =
             $ case r of
                   FL.Done b -> FoldManyPostYield b (FoldManyPostStart st)
                   FL.Partial fs -> FoldManyPostLoop st fs
-                  FL.Continue fs -> FoldManyPostLoop st fs
     step' gst (FoldManyPostLoop st fs) = do
         r <- step (adaptState gst) st
         case r of
@@ -2361,7 +2352,6 @@ foldMany (Fold fstep initial _ final) (Stream step state) =
             $ case res of
                   FL.Done b -> FoldManyYield b (FoldManyStart s)
                   FL.Partial ps -> FoldManyLoop s ps
-                  FL.Continue ps -> FoldManyLoop s ps
 
     {-# INLINE_LATE step' #-}
     step' _ (FoldManyStart st) = do
@@ -2371,7 +2361,6 @@ foldMany (Fold fstep initial _ final) (Stream step state) =
             $ case r of
                   FL.Done b -> FoldManyYield b (FoldManyStart st)
                   FL.Partial fs -> FoldManyFirst fs st
-                  FL.Continue fs -> FoldManyFirst fs st
     step' gst (FoldManyFirst fs st) = do
         r <- step (adaptState gst) st
         case r of
@@ -2429,7 +2418,6 @@ refoldMany (Refold fstep inject extract) action (Stream step state) =
             $ case res of
                   FL.Done b -> FoldManyYield b (FoldManyStart s)
                   FL.Partial ps -> FoldManyLoop s ps
-                  FL.Continue ps -> FoldManyLoop s ps
 
     {-# INLINE_LATE step' #-}
     step' _ (FoldManyStart st) = do
@@ -2439,7 +2427,6 @@ refoldMany (Refold fstep inject extract) action (Stream step state) =
             $ case r of
                   FL.Done b -> FoldManyYield b (FoldManyStart st)
                   FL.Partial fs -> FoldManyFirst fs st
-                  FL.Continue fs -> FoldManyFirst fs st
     step' gst (FoldManyFirst fs st) = do
         r <- step (adaptState gst) st
         case r of
@@ -2483,7 +2470,6 @@ refoldIterateM (Refold fstep finject fextract) initial (Stream step state) =
             $ Skip
             $ case res of
                   FL.Partial fs -> CIterConsume st fs False
-                  FL.Continue fs -> CIterConsume st fs False
                   FL.Done fb -> CIterYield fb $ CIterInit st (return fb)
 
     {-# INLINE_LATE stepOuter #-}
@@ -2496,7 +2482,6 @@ refoldIterateM (Refold fstep finject fextract) initial (Stream step state) =
                 res <- fstep fs x
                 return $ Skip $ case res of
                     FL.Partial fs1 -> CIterConsume s fs1 True
-                    FL.Continue fs1 -> CIterConsume s fs1 True
                     FL.Done fb -> CIterYield fb $ CIterInit s (return fb)
             Skip s -> return $ Skip $ CIterConsume s fs consumed
             Stop ->
@@ -2523,14 +2508,12 @@ indexerBy (Fold step1 initial1 extract1 _final) n =
         r <- initial1
         return $ case r of
             FL.Partial s -> FL.Partial $ Tuple' (i + len + n) s
-            FL.Continue s -> FL.Partial $ Tuple' (i + len + n) s
             FL.Done l -> FL.Done (i, l)
 
     step (Tuple' i s) x = do
         r <- step1 s x
         return $ case r of
             FL.Partial s1 -> FL.Partial $ Tuple' i s1
-            FL.Continue s1 -> FL.Partial $ Tuple' i s1
             FL.Done len -> FL.Done (i, len)
 
     extract (Tuple' i s) = (i,) <$> extract1 s

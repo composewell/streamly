@@ -649,16 +649,12 @@ scanFold (Fold fstep finitial fextract _) =
         r <- finitial
         return $ case r of
             Fold.Partial s -> SkipP (FoldProduceInit s x)
-            Fold.Continue s -> SkipP (FoldProduceInit s x)
             Fold.Done b -> YieldP FoldProduceStop b
 
     consume (FoldConsumeGo st) a = do
         r <- fstep st a
         case r of
             Fold.Partial s -> do
-                b <- fextract s
-                return $ YieldC (FoldConsumeGo s) b
-            Fold.Continue s -> do
                 b <- fextract s
                 return $ YieldC (FoldConsumeGo s) b
             Fold.Done b -> return $ YieldP FoldProduceStop b
@@ -689,14 +685,12 @@ fromFold (Fold fstep finitial _ _) =
         r <- finitial
         return $ case r of
             Fold.Partial s -> SkipP (FoldProduceInit s x)
-            Fold.Continue s -> SkipP (FoldProduceInit s x)
             Fold.Done b -> YieldP FoldProduceStop b
 
     consume (FoldConsumeGo st) a = do
         r <- fstep st a
         return $ case r of
             Fold.Partial s -> SkipC (FoldConsumeGo s)
-            Fold.Continue s -> SkipC (FoldConsumeGo s)
             Fold.Done b -> YieldP FoldProduceStop b
 
     produce (FoldProduceInit st x) = consume (FoldConsumeGo st) x

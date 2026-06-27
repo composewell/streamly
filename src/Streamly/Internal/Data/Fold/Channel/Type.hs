@@ -54,6 +54,7 @@ import Streamly.Internal.Data.Channel.Worker (sendEvent)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 
 import qualified Streamly.Internal.Data.Fold as Fold
+import qualified Streamly.Internal.Data.Scanl as Scanl
 import qualified Streamly.Internal.Data.Stream as D
 
 import Streamly.Internal.Data.Channel.Types
@@ -444,22 +445,26 @@ scanToChannel chan (Scanl step initial extract final) =
     initial1 = do
         r <- initial
         case r of
-            Fold.Partial s -> do
+            Scanl.Partial s -> do
                 b <- extract s
                 void $ sendPartialToDriver chan b
                 return $ Fold.Partial s
-            Fold.Done b -> do
+            -- 'Continue': advance the state but emit no output.
+            Scanl.Continue s -> return $ Fold.Partial s
+            Scanl.Done b -> do
                 sendYieldToDriver chan b
                 return $ Fold.Done True
 
     step1 st x = do
         r <- step st x
         case r of
-            Fold.Partial s -> do
+            Scanl.Partial s -> do
                 b <- extract s
                 void $ sendPartialToDriver chan b
                 return $ Fold.Partial s
-            Fold.Done b -> do
+            -- 'Continue': advance the state but emit no output.
+            Scanl.Continue s -> return $ Fold.Partial s
+            Scanl.Done b -> do
                 sendYieldToDriver chan b
                 return $ Fold.Done True
 

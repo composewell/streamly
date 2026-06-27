@@ -550,6 +550,7 @@ import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.System.IO (arrayPayloadSize, defaultChunkSize)
 
 import qualified Streamly.Internal.Data.Fold.Type as FL
+import qualified Streamly.Internal.Data.Scanl.Step as ScanlStep
 import qualified Streamly.Internal.Data.MutByteArray.Type as Unboxed
 import qualified Streamly.Internal.Data.Parser.Type as Parser
 -- import qualified Streamly.Internal.Data.Fold.Type as Fold
@@ -3998,10 +3999,6 @@ lCompactGeAs ps minElems (Fold step1 initial1 _ final1) =
                         _ <- final1 s
                         res <- initial1
                         return $ first (Tuple' Nothing) res
-                    FL.Continue s -> do
-                        _ <- final1 s
-                        res <- initial1
-                        return $ first (Tuple' Nothing) res
             else return $ FL.Partial $ Tuple' (Just buf) acc
 
     step (Tuple' Nothing r1) arr =
@@ -4030,7 +4027,6 @@ lCompactGeAs ps minElems (Fold step1 initial1 _ final1) =
         r <- step1 r1 buf
         case r of
             FL.Partial rr -> final1 rr
-            FL.Continue rr -> final1 rr
             FL.Done _ -> return ()
 
 -- | Like 'compactGE' but for transforming folds instead of stream.
@@ -4073,14 +4069,14 @@ scanCompactMinAs ps minElems =
             error $ functionName ++ ": the size of arrays ["
                 ++ show minElems ++ "] must be a natural number"
 
-        return $ FL.Partial CompactMinInit
+        return $ ScanlStep.Partial CompactMinInit
 
     {-# INLINE runInner #-}
     runInner len buf =
             if len >= minBytes
             then do
-                return $ FL.Partial $ CompactMinComplete buf
-            else return $ FL.Partial $ CompactMinIncomplete buf
+                return $ ScanlStep.Partial $ CompactMinComplete buf
+            else return $ ScanlStep.Partial $ CompactMinIncomplete buf
 
     step CompactMinInit arr =
          runInner (byteLength arr) arr

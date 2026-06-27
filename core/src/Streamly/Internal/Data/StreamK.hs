@@ -325,7 +325,6 @@ fold (FL.Fold step begin _ final) m = do
     res <- begin
     case res of
         FL.Partial fs -> go fs m
-        FL.Continue fs -> go fs m
         FL.Done fb -> return fb
 
     where
@@ -334,12 +333,10 @@ fold (FL.Fold step begin _ final) m = do
             single a = step acc a
               >>= \case
                         FL.Partial s -> final s
-                        FL.Continue s -> final s
                         FL.Done b1 -> return b1
             yieldk a r = step acc a
               >>= \case
                         FL.Partial s -> go s r
-                        FL.Continue s -> go s r
                         FL.Done b1 -> return b1
          in foldStream defState yieldk single stop m1
 
@@ -357,7 +354,6 @@ foldEither (FL.Fold step begin done final) m = do
     res <- begin
     case res of
         FL.Partial fs -> go fs m
-        FL.Continue fs -> go fs m
         FL.Done fb -> return $ Right (fb, m)
 
     where
@@ -372,15 +368,11 @@ foldEither (FL.Fold step begin done final) m = do
                     FL.Partial s ->
                         let f = Fold step (return $ FL.Partial s) done final
                          in return $ Left f
-                    FL.Continue s ->
-                        let f = Fold step (return $ FL.Partial s) done final
-                         in return $ Left f
                     FL.Done b1 -> return $ Right (b1, nil)
             yieldk a r =
                 step acc a
                   >>= \case
                     FL.Partial s -> go s r
-                    FL.Continue s -> go s r
                     FL.Done b1 -> return $ Right (b1, r)
          in foldStream defState yieldk single stop m1
 
@@ -398,9 +390,6 @@ foldBreak fld strm = do
             case res of
                 FL.Done _ -> error "foldBreak: unreachable state"
                 FL.Partial s -> do
-                    b <- final s
-                    return (b, nil)
-                FL.Continue s -> do
                     b <- final s
                     return (b, nil)
 

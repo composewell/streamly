@@ -173,12 +173,10 @@ append (Refold step1 inject1 extract1) (Refold step2 inject2 extract2) =
     goLeft r = do
         case r of
             Partial s -> return $ Partial $ Left s
-            Continue s -> return $ Partial $ Left s
             Done b -> do
                 r1 <- inject2 b
                 return $ case r1 of
                     Partial s -> Partial $ Right s
-                    Continue s -> Partial $ Right s
                     Done b1 -> Done b1
 
     inject x = inject1 x >>= goLeft
@@ -189,7 +187,6 @@ append (Refold step1 inject1 extract1) (Refold step2 inject2 extract2) =
         r <- step2 s a
         case r of
             Partial s1 -> return $ Partial (Right s1)
-            Continue s1 -> return $ Partial (Right s1)
             Done b -> return $ Done b
 
     extract (Left s) = extract1 s
@@ -208,7 +205,6 @@ iterate (Refold step1 inject1 extract1) =
     go r =
         case r of
             Partial s -> return $ Partial s
-            Continue s -> return $ Partial s
             Done b -> inject b
 
     inject x = inject1 x >>= go
@@ -240,22 +236,12 @@ take n (Refold fstep finject fextract) = Refold step inject extract
                 if n > 0
                 then return $ Partial $ Tuple'Fused 0 s
                 else Done <$> fextract s
-            Continue s ->
-                if n > 0
-                then return $ Partial $ Tuple'Fused 0 s
-                else Done <$> fextract s
             Done b -> return $ Done b
 
     step (Tuple'Fused i r) a = do
         res <- fstep r a
         case res of
             Partial sres -> do
-                let i1 = i + 1
-                    s1 = Tuple'Fused i1 sres
-                if i1 < n
-                then return $ Partial s1
-                else Done <$> fextract sres
-            Continue sres -> do
                 let i1 = i + 1
                     s1 = Tuple'Fused i1 sres
                 if i1 < n

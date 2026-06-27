@@ -233,6 +233,7 @@ import Streamly.Internal.System.IO (defaultChunkSize)
 -- import qualified Data.List as List
 import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.Fold.Type as FL
+import qualified Streamly.Internal.Data.Scanl.Step as Scanl
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 import qualified Streamly.Internal.Data.StreamK.Type as K
 import qualified Streamly.Internal.Data.Producer as Producer
@@ -422,7 +423,6 @@ tap (Fold fstep initial _ final) (Stream step state) = Stream step' TapInit
             $ Skip
             $ case res of
                   FL.Partial s -> Tapping s state
-                  FL.Continue s -> Tapping s state
                   FL.Done _ -> TapDone state
     step' gst (Tapping acc st) = do
         r <- step gst st
@@ -433,7 +433,6 @@ tap (Fold fstep initial _ final) (Stream step state) = Stream step' TapInit
                     $ Yield x
                     $ case res of
                           FL.Partial fs -> Tapping fs s
-                          FL.Continue fs -> Tapping fs s
                           FL.Done _ -> TapDone s
             Skip s -> return $ Skip (Tapping acc s)
             Stop -> do
@@ -468,7 +467,6 @@ tapOffsetEvery offset n (Fold fstep initial _ final) (Stream step state) =
             $ Skip
             $ case res of
                   FL.Partial s -> TapOffTapping s state (offset `mod` n)
-                  FL.Continue s -> TapOffTapping s state (offset `mod` n)
                   FL.Done _ -> TapOffDone state
     step' gst (TapOffTapping acc st count) = do
         r <- step gst st
@@ -481,8 +479,6 @@ tapOffsetEvery offset n (Fold fstep initial _ final) (Stream step state) =
                         return
                             $ case res of
                                   FL.Partial sres ->
-                                    TapOffTapping sres s (n - 1)
-                                  FL.Continue sres ->
                                     TapOffTapping sres s (n - 1)
                                   FL.Done _ -> TapOffDone s
                     else return $ TapOffTapping acc s (count - 1)
@@ -586,29 +582,26 @@ postscanl (Scanl fstep initial extract final) (Stream sstep state) =
         res <- initial
         return
             $ case res of
-                  FL.Partial fs -> Skip $ ScanDo st fs
-                  -- 'Continue' at the initial step is like 'Partial' here: the
-                  -- initial output is dropped by a postscan anyway.
-                  FL.Continue fs -> Skip $ ScanDo st fs
+                  Scanl.Partial fs -> Skip $ ScanDo st fs
+                  Scanl.Continue fs -> Skip $ ScanDo st fs
                   -- A scan that is Done at the initial step has consumed no
                   -- input, so a postscan (one output per consumed input) emits
                   -- nothing. This keeps the invariant
                   -- @postscanl s = drop 1 . scanl s@: the initial value is
                   -- always dropped, whether it comes from a Partial or a Done.
-                  FL.Done _ -> Stop
+                  Scanl.Done _ -> Stop
     step gst (ScanDo st fs) = do
         res <- sstep (adaptState gst) st
         case res of
             Yield x s -> do
                 r <- fstep fs x
                 case r of
-                    FL.Partial fs1 -> do
+                    Scanl.Partial fs1 -> do
                         !b <- extract fs1
                         return $ Yield b $ ScanDo s fs1
-                    -- 'Continue': advance the state but emit no output for this
-                    -- input. Do not call extract.
-                    FL.Continue fs1 -> return $ Skip $ ScanDo s fs1
-                    FL.Done b -> return $ Yield b ScanDone
+                    -- 'Continue': advance the state but emit no output.
+                    Scanl.Continue fs1 -> return $ Skip $ ScanDo s fs1
+                    Scanl.Done b -> return $ Yield b ScanDone
             Skip s -> return $ Skip $ ScanDo s fs
             Stop -> final fs >> return Stop
     step _ ScanDone = return Stop
@@ -616,8 +609,7 @@ postscanl (Scanl fstep initial extract final) (Stream sstep state) =
 {-# DEPRECATED postscan "Please use postscanl instead" #-}
 {-# INLINE_NORMAL postscan #-}
 postscan :: Monad m => FL.Fold m a b -> Stream m a -> Stream m b
-postscan (FL.Fold fstep initial extract final) =
-    postscanl (Scanl fstep initial extract final)
+postscan = postscanl . scanlFromFold
 
 {-# INLINE scanlWith #-}
 scanlWith :: Monad m
@@ -631,14 +623,12 @@ scanlWith restart (Scanl fstep initial extract final) (Stream sstep state) =
     runStep st action = do
         res <- action
         case res of
-            FL.Partial fs -> do
+            Scanl.Partial fs -> do
                 !b <- extract fs
                 return $ Yield b $ ScanDo st fs
-            -- 'Continue': advance the state but emit no output. This produces an
-            -- empty output prefix when 'initial' is 'Continue', and suppresses
-            -- the output on a 'Continue' step. Do not call extract.
-            FL.Continue fs -> return $ Skip $ ScanDo st fs
-            FL.Done b ->
+            -- 'Continue': advance the state but emit no output.
+            Scanl.Continue fs -> return $ Skip $ ScanDo st fs
+            Scanl.Done b ->
                 let next = if restart then ScanInit st else ScanDone
                  in return $ Yield b next
 
@@ -652,12 +642,23 @@ scanlWith restart (Scanl fstep initial extract final) (Stream sstep state) =
             Stop -> final fs >> return Stop
     step _ ScanDone = return Stop
 
+-- | Convert a fold to a left scan. A fold emits on every step so the resulting
+-- scan never returns 'Continue'.
+{-# INLINE scanlFromFold #-}
+scanlFromFold :: Monad m => Fold m a b -> Scanl m a b
+scanlFromFold (Fold s i e f) =
+    Scanl (\st a -> fmap toScanlStep (s st a)) (fmap toScanlStep i) e f
+
+    where
+
+    toScanlStep (FL.Partial st) = Scanl.Partial st
+    toScanlStep (FL.Done b) = Scanl.Done b
+
 {-# DEPRECATED scanWith "Please use scanlWith instead" #-}
 {-# INLINE scanWith #-}
 scanWith :: Monad m
     => Bool -> Fold m a b -> Stream m a -> Stream m b
-scanWith restart (Fold fstep initial extract final) =
-    scanlWith restart (Scanl fstep initial extract final)
+scanWith restart = scanlWith restart . scanlFromFold
 
 -- XXX It may be useful to have a version of scan where we can keep the
 -- accumulator independent of the value emitted. So that we do not necessarily
@@ -2417,7 +2418,6 @@ splitSepBy_ predicate (Fold fstep initial _ final) (Stream step1 state1) =
             $ case fres of
                   FL.Done b -> SplitSepByYield b (SplitSepByInit st)
                   FL.Partial fs -> SplitSepByInitFold1 st fs
-                  FL.Continue fs -> SplitSepByInitFold1 st fs
 
     step _ (SplitSepByInitFold0 st) = do
         fres <- initial
@@ -2426,7 +2426,6 @@ splitSepBy_ predicate (Fold fstep initial _ final) (Stream step1 state1) =
             $ case fres of
                   FL.Done b -> SplitSepByYield b (SplitSepByInitFold0 st)
                   FL.Partial fs -> SplitSepByNext st fs
-                  FL.Continue fs -> SplitSepByNext st fs
 
     step gst (SplitSepByInitFold1 st fs) = do
         r <- step1 (adaptState gst) st
@@ -2447,7 +2446,6 @@ splitSepBy_ predicate (Fold fstep initial _ final) (Stream step1 state1) =
                 $ case fres of
                       FL.Done b -> SplitSepByYield b (SplitSepByInitFold0 st)
                       FL.Partial fs1 -> SplitSepByNext st fs1
-                      FL.Continue fs1 -> SplitSepByNext st fs1
 
     step gst (SplitSepByNext st fs) = do
         r <- step1 (adaptState gst) st

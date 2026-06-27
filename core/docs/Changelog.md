@@ -12,13 +12,12 @@
   Migration: if you relied on the previous "re-emit the previous value on a
   filtered element" behaviour, hold the last value explicitly downstream (e.g.
   using `Scanl.latest`) rather than relying on `filter`.
-* Internal: Added a `Continue` constructor to `Step`
-  (`Streamly.Internal.Data.Fold.Step`), meaning "advance the scan state but emit
-  no output". The `Step` type is shared by `Fold` and `Scanl`; for a `Fold`
-  (driven to `final`) `Continue` behaves exactly like `Partial`. Code
-  pattern-matching on `Step` must handle the new `Continue` case (treat it like
-  `Partial`, unless the code specifically drives scan output, where `Continue`
-  should suppress the per-input output like a `Skip`).
+* Internal: `Scanl` now has its own `Step` type
+  (`Streamly.Internal.Data.Scanl.Step`) with a `Continue` constructor, meaning
+  "advance the scan state but emit no output". The `Fold` `Step`
+  (`Streamly.Internal.Data.Fold.Step`) continues to have only `Partial` and
+  `Done`. Converting a `Scanl` to a `Fold` (e.g. via `Fold.fromScanl`) maps
+  `Continue` to `Partial`.
 * Fixed `Stream.postscanl` to omit the output of a scan that terminates without
   consuming any input (e.g. `Scanl.take 0`).
 * Breaking: In `FileSystem.Path` module the default for `eqPath` changed

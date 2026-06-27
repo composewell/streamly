@@ -130,9 +130,6 @@ bracketIO bef aft bet = Fold step initial extract final
                     Partial s -> do
                         let fld1 = Fold step1 (pure (Partial s)) extract1 final1
                         pure $ Partial $ Tuple' ref fld1
-                    Continue s -> do
-                        let fld1 = Fold step1 (pure (Partial s)) extract1 final1
-                        pure $ Partial $ Tuple' ref fld1
                     Done b -> do
                         liftIO $ runIOFinalizer ref
                         pure $ Done b
@@ -144,10 +141,6 @@ bracketIO bef aft bet = Fold step initial extract final
                 s1 <- step1 s a `MC.onException` liftIO (runIOFinalizer ref)
                 let fld1 = Fold step1 (pure s1) extract1 final1
                 pure $ Partial $ Tuple' ref fld1
-            Continue s -> do
-                s1 <- step1 s a `MC.onException` liftIO (runIOFinalizer ref)
-                let fld1 = Fold step1 (pure s1) extract1 final1
-                pure $ Partial $ Tuple' ref fld1
             Done b -> do
                 liftIO $ runIOFinalizer ref
                 pure $ Done b
@@ -156,17 +149,12 @@ bracketIO bef aft bet = Fold step initial extract final
         res <- initial1
         case res of
             Partial s -> extract1 s `MC.onException` liftIO (runIOFinalizer ref)
-            Continue s -> extract1 s `MC.onException` liftIO (runIOFinalizer ref)
             Done b -> pure b
 
     final (Tuple' ref (Fold _ initial1 _ final1)) = do
         res <- initial1
         case res of
             Partial s -> do
-                val <- final1 s `MC.onException` liftIO (runIOFinalizer ref)
-                runIOFinalizer ref
-                pure val
-            Continue s -> do
                 val <- final1 s `MC.onException` liftIO (runIOFinalizer ref)
                 runIOFinalizer ref
                 pure val
@@ -188,14 +176,12 @@ finallyIO aft (Fold step1 initial1 extract1 final1) =
         pure $ case res of
             Done b -> Done b
             Partial s -> Partial $ Tuple' ref s
-            Continue s -> Partial $ Tuple' ref s
 
     step (Tuple' ref s) a = do
         res <- step1 s a `MC.onException` liftIO (runIOFinalizer ref)
         pure $ case res of
             Done b -> Done b
             Partial s1 -> Partial $ Tuple' ref s1
-            Continue s1 -> Partial $ Tuple' ref s1
 
     extract (Tuple' ref s) =
         extract1 s `MC.onException` liftIO (runIOFinalizer ref)

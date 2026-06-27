@@ -74,7 +74,7 @@
 --
 module Streamly.Internal.Data.Scanl.Type
     (
-      module Streamly.Internal.Data.Fold.Step
+      module Streamly.Internal.Data.Scanl.Step
 
     -- * Scanl Type
     , Scanl (..)
@@ -211,13 +211,15 @@ import Streamly.Internal.Data.Refold.Type (Refold(..))
 -- import Streamly.Internal.Data.Scan (Scan(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
+import qualified Streamly.Internal.Data.Fold.Step as Fold
+
 --import qualified Streamly.Internal.Data.Stream.Step as Stream
 import qualified Streamly.Internal.Data.StreamK.Type as K
 
 import Prelude hiding (Foldable(..), concatMap, filter, map, take, const)
 
 -- Entire module is exported, do not import selectively
-import Streamly.Internal.Data.Fold.Step
+import Streamly.Internal.Data.Scanl.Step
 
 #include "DocTestDataScanl.hs"
 
@@ -521,9 +523,18 @@ scantM' step initial extract = Scanl step initial extract extract
 -- | Make a scan from a consumer.
 --
 -- /Internal/
-fromRefold :: Refold m c a b -> c -> Scanl m a b
+fromRefold :: Functor m => Refold m c a b -> c -> Scanl m a b
 fromRefold (Refold step inject extract) c =
-    Scanl step (inject c) extract extract
+    Scanl
+        (\s a -> fmap fromFoldStep (step s a))
+        (fmap fromFoldStep (inject c))
+        extract
+        extract
+
+    where
+
+    fromFoldStep (Fold.Partial s) = Partial s
+    fromFoldStep (Fold.Done b) = Done b
 
 ------------------------------------------------------------------------------
 -- Basic Scans

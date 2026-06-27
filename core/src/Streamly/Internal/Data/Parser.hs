@@ -350,7 +350,6 @@ fromFold (Fold fstep finitial _ ffinal) = Parser step initial extract
         return
             $ case res of
                   FL.Partial s1 -> IPartial s1
-                  FL.Continue s1 -> IPartial s1
                   FL.Done b -> IDone b
 
     step s a = do
@@ -358,7 +357,6 @@ fromFold (Fold fstep finitial _ ffinal) = Parser step initial extract
         return
             $ case res of
                   FL.Partial s1 -> SPartial 1 s1
-                  FL.Continue s1 -> SPartial 1 s1
                   FL.Done b -> SDone 1 b
 
     extract = fmap (FDone 0) . ffinal
@@ -381,7 +379,6 @@ fromFoldMaybe errMsg (Fold fstep finitial _ ffinal) =
         return
             $ case res of
                   FL.Partial s1 -> IPartial s1
-                  FL.Continue s1 -> IPartial s1
                   FL.Done b ->
                         case b of
                             Just x -> IDone x
@@ -392,7 +389,6 @@ fromFoldMaybe errMsg (Fold fstep finitial _ ffinal) =
         return
             $ case res of
                   FL.Partial s1 -> SPartial 1 s1
-                  FL.Continue s1 -> SPartial 1 s1
                   FL.Done b ->
                         case b of
                             Just x -> SDone 1 x
@@ -680,12 +676,6 @@ takeBetween low high (Fold fstep finitial _ ffinal) =
                 -- XXX ideally this should be a Continue instead
                 then return $ IPartial s1
                 else iextract foldErr s1
-            FL.Continue s -> do
-                let s1 = Tuple'Fused i1 s
-                if i1 < high
-                -- XXX ideally this should be a Continue instead
-                then return $ IPartial s1
-                else iextract foldErr s1
             FL.Done b ->
                 return
                     $ if i1 >= low
@@ -708,13 +698,6 @@ takeBetween low high (Fold fstep finitial _ ffinal) =
         let i1 = i + 1
         in case res of
             FL.Partial s -> do
-                let s1 = Tuple'Fused i1 s
-                if i1 < low
-                then return $ SContinue 1 s1
-                else if i1 < high
-                then return $ SPartial 1 s1
-                else fmap (SDone 1) (ffinal s)
-            FL.Continue s -> do
                 let s1 = Tuple'Fused i1 s
                 if i1 < low
                 then return $ SContinue 1 s1
@@ -763,10 +746,6 @@ takeEQ n (Fold fstep finitial _ ffinal) = Parser step initial extract
                 if n > 0
                 then return $ IPartial $ Tuple'Fused 1 s
                 else fmap IDone (ffinal s)
-            FL.Continue s ->
-                if n > 0
-                then return $ IPartial $ Tuple'Fused 1 s
-                else fmap IDone (ffinal s)
             FL.Done b -> return $
                 if n > 0
                 then IError
@@ -782,7 +761,6 @@ takeEQ n (Fold fstep finitial _ ffinal) = Parser step initial extract
             return
                 $ case res of
                     FL.Partial s -> SContinue 1 $ Tuple'Fused (i1 + 1) s
-                    FL.Continue s -> SContinue 1 $ Tuple'Fused (i1 + 1) s
                     FL.Done _ ->
                         SError
                             $ "takeEQ: Expecting exactly " ++ show n
@@ -792,7 +770,6 @@ takeEQ n (Fold fstep finitial _ ffinal) = Parser step initial extract
             SDone 1
                 <$> case res of
                         FL.Partial s -> ffinal s
-                        FL.Continue s -> ffinal s
                         FL.Done b -> return b
 
     extract (Tuple'Fused i _) =
@@ -835,10 +812,6 @@ takeGE n (Fold fstep finitial _ ffinal) = Parser step initial extract
                 if n > 0
                 then return $ IPartial $ TakeGELT 1 s
                 else return $ IPartial $ TakeGEGE s
-            FL.Continue s ->
-                if n > 0
-                then return $ IPartial $ TakeGELT 1 s
-                else return $ IPartial $ TakeGEGE s
             FL.Done b -> return $
                 if n > 0
                 then IError
@@ -854,7 +827,6 @@ takeGE n (Fold fstep finitial _ ffinal) = Parser step initial extract
             return
                 $ case res of
                       FL.Partial s -> SContinue 1 $ TakeGELT (i1 + 1) s
-                      FL.Continue s -> SContinue 1 $ TakeGELT (i1 + 1) s
                       FL.Done _ ->
                         SError
                             $ "takeGE: Expecting at least " ++ show n
@@ -864,14 +836,12 @@ takeGE n (Fold fstep finitial _ ffinal) = Parser step initial extract
             return
                 $ case res of
                       FL.Partial s -> SPartial 1 $ TakeGEGE s
-                      FL.Continue s -> SPartial 1 $ TakeGEGE s
                       FL.Done b -> SDone 1 b
     step (TakeGEGE r) a = do
         res <- fstep r a
         return
             $ case res of
                   FL.Partial s -> SPartial 1 $ TakeGEGE s
-                  FL.Continue s -> SPartial 1 $ TakeGEGE s
                   FL.Done b -> SDone 1 b
 
     extract (TakeGELT i _) =
@@ -949,7 +919,6 @@ takeWhile predicate (Fold fstep finitial _ ffinal) =
         res <- finitial
         return $ case res of
             FL.Partial s -> IPartial s
-            FL.Continue s -> IPartial s
             FL.Done b -> IDone b
 
     step s a =
@@ -959,7 +928,6 @@ takeWhile predicate (Fold fstep finitial _ ffinal) =
             return
                 $ case fres of
                       FL.Partial s1 -> SPartial 1 s1
-                      FL.Continue s1 -> SPartial 1 s1
                       FL.Done b -> SDone 1 b
         else SDone 0 <$> ffinal s
 
@@ -992,7 +960,6 @@ takeWhile1 predicate (Fold fstep finitial _ ffinal) =
         res <- finitial
         return $ case res of
             FL.Partial s -> IPartial (Left' s)
-            FL.Continue s -> IPartial (Left' s)
             FL.Done _ ->
                 IError
                     $ "takeWhile1: fold terminated without consuming:"
@@ -1004,7 +971,6 @@ takeWhile1 predicate (Fold fstep finitial _ ffinal) =
         return
             $ case res of
                   FL.Partial s1 -> SPartial 1 (Right' s1)
-                  FL.Continue s1 -> SPartial 1 (Right' s1)
                   FL.Done b -> SDone 1 b
 
     step (Left' s) a =
@@ -1059,7 +1025,6 @@ takeFramedByGeneric esc begin end (Fold fstep finitial _ ffinal) =
         return $
             case res of
                 FL.Partial s -> IPartial (FrameEscInit s)
-                FL.Continue s -> IPartial (FrameEscInit s)
                 FL.Done _ ->
                     error "takeFramedByGeneric: fold done without input"
 
@@ -1069,7 +1034,6 @@ takeFramedByGeneric esc begin end (Fold fstep finitial _ ffinal) =
         return
             $ case res of
                 FL.Partial s1 -> SContinue 1 (FrameEscGo s1 n)
-                FL.Continue s1 -> SContinue 1 (FrameEscGo s1 n)
                 FL.Done b -> SDone 1 b
 
     {-# INLINE processNoEsc #-}
@@ -1184,7 +1148,6 @@ blockWithQuotes isEsc isQuote bopen bclose
         return $
             case res of
                 FL.Partial s -> IPartial (BlockInit s)
-                FL.Continue s -> IPartial (BlockInit s)
                 FL.Done _ ->
                     error "blockWithQuotes: fold finished without input"
 
@@ -1194,7 +1157,6 @@ blockWithQuotes isEsc isQuote bopen bclose
         return
             $ case res of
                 FL.Partial s1 -> SContinue 1 (nextState s1)
-                FL.Continue s1 -> SContinue 1 (nextState s1)
                 FL.Done b -> SDone 1 b
 
     step (BlockInit s) a =
@@ -1395,7 +1357,6 @@ takeBeginBy cond (Fold fstep finitial _ ffinal) =
         return $
             case res of
                 FL.Partial s -> IPartial (Left' s)
-                FL.Continue s -> IPartial (Left' s)
                 FL.Done _ -> IError "takeBeginBy: fold done without input"
 
     {-# INLINE process #-}
@@ -1404,7 +1365,6 @@ takeBeginBy cond (Fold fstep finitial _ ffinal) =
         return
             $ case res of
                 FL.Partial s1 -> SPartial 1 (Right' s1)
-                FL.Continue s1 -> SPartial 1 (Right' s1)
                 FL.Done b -> SDone 1 b
 
     step (Left' s) a =
@@ -1469,7 +1429,6 @@ takeFramedByEsc_ isEsc isBegin isEnd (Fold fstep finitial _ ffinal ) =
         return $
             case res of
                 FL.Partial s -> IPartial (FrameEscInit s)
-                FL.Continue s -> IPartial (FrameEscInit s)
                 FL.Done _ ->
                     error "takeFramedByEsc_: fold done without input"
 
@@ -1479,7 +1438,6 @@ takeFramedByEsc_ isEsc isBegin isEnd (Fold fstep finitial _ ffinal ) =
         return
             $ case res of
                 FL.Partial s1 -> SContinue 1 (FrameEscGo s1 n)
-                FL.Continue s1 -> SContinue 1 (FrameEscGo s1 n)
                 FL.Done b -> SDone 1 b
 
     step (FrameEscInit s) a =
@@ -1529,7 +1487,6 @@ takeFramedBy_ isBegin isEnd (Fold fstep finitial _ ffinal) =
         return $
             case res of
                 FL.Partial s -> IPartial (FrameInit s)
-                FL.Continue s -> IPartial (FrameInit s)
                 FL.Done _ ->
                     error "takeFramedBy_: fold done without input"
 
@@ -1539,7 +1496,6 @@ takeFramedBy_ isBegin isEnd (Fold fstep finitial _ ffinal) =
         return
             $ case res of
                 FL.Partial s1 -> SContinue 1 (FrameGo s1 n)
-                FL.Continue s1 -> SContinue 1 (FrameGo s1 n)
                 FL.Done b -> SDone 1 b
 
     step (FrameInit s) a =
@@ -1595,7 +1551,6 @@ wordBy predicate (Fold fstep finitial _ ffinal) = Parser step initial extract
         return
             $ case res of
                   FL.Partial s1 -> SPartial 1 $ WBWord s1
-                  FL.Continue s1 -> SPartial 1 $ WBWord s1
                   FL.Done b -> SDone 1 b
 
     initial = do
@@ -1603,7 +1558,6 @@ wordBy predicate (Fold fstep finitial _ ffinal) = Parser step initial extract
         return
             $ case res of
                   FL.Partial s -> IPartial $ WBLeft s
-                  FL.Continue s -> IPartial $ WBLeft s
                   FL.Done b -> IDone b
 
     step (WBLeft s) a =
@@ -1670,7 +1624,6 @@ wordFramedBy isEsc isBegin isEnd isSep
         return $
             case res of
                 FL.Partial s -> IPartial (WordFramedSkipPre s)
-                FL.Continue s -> IPartial (WordFramedSkipPre s)
                 FL.Done _ ->
                     error "wordFramedBy: fold done without input"
 
@@ -1680,7 +1633,6 @@ wordFramedBy isEsc isBegin isEnd isSep
         return
             $ case res of
                 FL.Partial s1 -> SContinue 1 (WordFramedWord s1 n)
-                FL.Continue s1 -> SContinue 1 (WordFramedWord s1 n)
                 FL.Done b -> SDone 1 b
 
     step (WordFramedSkipPre s) a
@@ -1832,7 +1784,6 @@ wordWithQuotes keepQuotes tr escChar toRight isSep
         return $
             case res of
                 FL.Partial s -> IPartial (WordQuotedSkipPre s)
-                FL.Continue s -> IPartial (WordQuotedSkipPre s)
                 FL.Done _ ->
                     error "wordWithQuotes: fold done without input"
 
@@ -1842,7 +1793,6 @@ wordWithQuotes keepQuotes tr escChar toRight isSep
         return
             $ case res of
                 FL.Partial s1 -> SContinue 1 (WordQuotedWord s1 n ql qr)
-                FL.Continue s1 -> SContinue 1 (WordQuotedWord s1 n ql qr)
                 FL.Done b -> SDone 1 b
 
     {-# INLINE processUnquoted #-}
@@ -1851,7 +1801,6 @@ wordWithQuotes keepQuotes tr escChar toRight isSep
         return
             $ case res of
                 FL.Partial s1 -> SContinue 1 (WordUnquotedWord s1)
-                FL.Continue s1 -> SContinue 1 (WordUnquotedWord s1)
                 FL.Done b -> SDone 1 b
 
     {-# INLINE checkRightQuoteAndProcess #-}
@@ -1909,7 +1858,6 @@ wordWithQuotes keepQuotes tr escChar toRight isSep
                 res <- fstep s escChar
                 case res of
                     FL.Partial s1 -> checkRightQuoteAndProcess s1 a n ql qr
-                    FL.Continue s1 -> checkRightQuoteAndProcess s1 a n ql qr
                     FL.Done b -> return $ SDone 1 b
             Just x -> processQuoted s x n ql qr
     step (WordQuotedSkipPost b) a =
@@ -2013,14 +1961,12 @@ groupBy eq (Fold fstep finitial _ ffinal) = Parser step initial extract
             $ case res of
                   FL.Done b -> SDone 1 b
                   FL.Partial s1 -> SPartial 1 (GroupByGrouping a0 s1)
-                  FL.Continue s1 -> SPartial 1 (GroupByGrouping a0 s1)
 
     initial = do
         res <- finitial
         return
             $ case res of
                   FL.Partial s -> IPartial $ GroupByInit s
-                  FL.Continue s -> IPartial $ GroupByInit s
                   FL.Done b -> IDone b
 
     step (GroupByInit s) a = grouper s a a
@@ -2075,14 +2021,12 @@ groupByRolling eq (Fold fstep finitial _ ffinal) = Parser step initial extract
             $ case res of
                   FL.Done b -> SDone 1 b
                   FL.Partial s1 -> SPartial 1 (GroupByGrouping a s1)
-                  FL.Continue s1 -> SPartial 1 (GroupByGrouping a s1)
 
     initial = do
         res <- finitial
         return
             $ case res of
                   FL.Partial s -> IPartial $ GroupByInit s
-                  FL.Continue s -> IPartial $ GroupByInit s
                   FL.Done b -> IDone b
 
     step (GroupByInit s) a = grouper s a
@@ -2132,7 +2076,6 @@ groupByRollingEither
             $ case res of
                 FL.Done b -> SDone 1 (Left b)
                 FL.Partial s11 -> SPartial 1 (GroupByGroupingPairL a s11 s2)
-                FL.Continue s11 -> SPartial 1 (GroupByGroupingPairL a s11 s2)
 
     {-# INLINE grouperL #-}
     grouperL s1 s2 a0 a = do
@@ -2140,7 +2083,6 @@ groupByRollingEither
         case res of
             FL.Done b -> return $ SDone 1 (Left b)
             FL.Partial s11 -> grouperL2 s11 s2 a
-            FL.Continue s11 -> grouperL2 s11 s2 a
 
     {-# INLINE grouperR2 #-}
     grouperR2 s1 s2 a = do
@@ -2149,7 +2091,6 @@ groupByRollingEither
             $ case res of
                 FL.Done b -> SDone 1 (Right b)
                 FL.Partial s21 -> SPartial 1 (GroupByGroupingPairR a s1 s21)
-                FL.Continue s21 -> SPartial 1 (GroupByGroupingPairR a s1 s21)
 
     {-# INLINE grouperR #-}
     grouperR s1 s2 a0 a = do
@@ -2157,7 +2098,6 @@ groupByRollingEither
         case res of
             FL.Done b -> return $ SDone 1 (Right b)
             FL.Partial s21 -> grouperR2 s1 s21 a
-            FL.Continue s21 -> grouperR2 s1 s21 a
 
     initial = do
         res1 <- finitial1
@@ -2167,12 +2107,6 @@ groupByRollingEither
                 FL.Partial s1 ->
                     case res2 of
                         FL.Partial s2 -> IPartial $ GroupByInitPair s1 s2
-                        FL.Continue s2 -> IPartial $ GroupByInitPair s1 s2
-                        FL.Done b -> IDone (Right b)
-                FL.Continue s1 ->
-                    case res2 of
-                        FL.Partial s2 -> IPartial $ GroupByInitPair s1 s2
-                        FL.Continue s2 -> IPartial $ GroupByInitPair s1 s2
                         FL.Done b -> IDone (Right b)
                 FL.Done b -> IDone (Left b)
 
@@ -2201,7 +2135,6 @@ groupByRollingEither
                 case res of
                     FL.Done b -> return $ FDone 0 (Left b)
                     FL.Partial s11 -> FDone 0 . Left <$> ffinal1 s11
-                    FL.Continue s11 -> FDone 0 . Left <$> ffinal1 s11
 
 -- XXX custom combinator for matching, array as well?
 
@@ -2373,15 +2306,6 @@ zipWithM zf (D.Stream sstep state) (Fold fstep finitial _ ffinal) =
                         return $ IDone x
                     -- Need Skip/Continue in initial to loop right here
                     D.Skip s -> return $ IPartial (Nothing', s, fs)
-            FL.Continue fs -> do
-                r <- sstep defState state
-                case r of
-                    D.Yield x s -> return $ IPartial (Just' x, s, fs)
-                    D.Stop -> do
-                        x <- ffinal fs
-                        return $ IDone x
-                    -- Need Skip/Continue in initial to loop right here
-                    D.Skip s -> return $ IPartial (Nothing', s, fs)
             FL.Done x -> return $ IDone x
 
     step (Just' a, st, fs) b = do
@@ -2389,14 +2313,6 @@ zipWithM zf (D.Stream sstep state) (Fold fstep finitial _ ffinal) =
         fres <- fstep fs c
         case fres of
             FL.Partial fs1 -> do
-                r <- sstep defState st
-                case r of
-                    D.Yield x1 s -> return $ SContinue 1 (Just' x1, s, fs1)
-                    D.Stop -> do
-                        x <- ffinal fs1
-                        return $ SDone 1 x
-                    D.Skip s -> return $ SContinue 0 (Nothing', s, fs1)
-            FL.Continue fs1 -> do
                 r <- sstep defState st
                 case r of
                     D.Yield x1 s -> return $ SContinue 1 (Just' x1, s, fs1)
@@ -2413,8 +2329,6 @@ zipWithM zf (D.Stream sstep state) (Fold fstep finitial _ ffinal) =
                     fres <- fstep fs c
                     case fres of
                         FL.Partial fs1 ->
-                            return $ SContinue 1 (Nothing', s, fs1)
-                        FL.Continue fs1 ->
                             return $ SContinue 1 (Nothing', s, fs1)
                         FL.Done x -> return $ SDone 1 x
                 D.Stop -> do
@@ -2713,7 +2627,6 @@ deintercalateAll
         res <- finitial
         case res of
             FL.Partial fs -> return $ IPartial $ DeintercalateAllInitL fs
-            FL.Continue fs -> return $ IPartial $ DeintercalateAllInitL fs
             FL.Done c -> return $ IDone c
 
     {-# INLINE processL #-}
@@ -2721,7 +2634,6 @@ deintercalateAll
         fres <- foldAction
         case fres of
             FL.Partial fs1 -> return $ SPartial n (nextState fs1)
-            FL.Continue fs1 -> return $ SPartial n (nextState fs1)
             FL.Done c -> return $ SDone n c
 
     {-# INLINE runStepL #-}
@@ -2739,12 +2651,6 @@ deintercalateAll
         fres <- foldAction
         case fres of
             FL.Partial fs1 -> do
-                res <- initialL
-                case res of
-                    IPartial ps -> return $ SPartial n (DeintercalateAllL fs1 ps)
-                    IDone _ -> errMsg "left" "succeed"
-                    IError _ -> errMsg "left" "fail"
-            FL.Continue fs1 -> do
                 res <- initialL
                 case res of
                     IPartial ps -> return $ SPartial n (DeintercalateAllL fs1 ps)
@@ -2781,7 +2687,6 @@ deintercalateAll
         res <- fstep fs r
         case res of
             FL.Partial fs1 -> fmap (FDone n) $ ffinal fs1
-            FL.Continue fs1 -> fmap (FDone n) $ ffinal fs1
             FL.Done c -> return (FDone n c)
     extract (DeintercalateAllInitL fs) = fmap (FDone 0) $ ffinal fs
     extract (DeintercalateAllL fs sL) = do
@@ -2847,7 +2752,6 @@ deintercalate
         res <- finitial
         case res of
             FL.Partial fs -> return $ IPartial $ DeintercalateInitL fs
-            FL.Continue fs -> return $ IPartial $ DeintercalateInitL fs
             FL.Done c -> return $ IDone c
 
     {-# INLINE processL #-}
@@ -2855,7 +2759,6 @@ deintercalate
         fres <- foldAction
         case fres of
             FL.Partial fs1 -> return $ SPartial n (nextState fs1)
-            FL.Continue fs1 -> return $ SPartial n (nextState fs1)
             FL.Done c -> return $ SDone n c
 
     {-# INLINE runStepL #-}
@@ -2918,16 +2821,6 @@ deintercalate
                         case fres of
                             FL.Partial fs2 ->
                                 return $ SPartial n (DeintercalateInitR fs2)
-                            FL.Continue fs2 ->
-                                return $ SPartial n (DeintercalateInitR fs2)
-                            FL.Done c -> return $ SDone n c
-                    FL.Continue fs1 -> do
-                        fres <- fstep fs1 (Left bL)
-                        case fres of
-                            FL.Partial fs2 ->
-                                return $ SPartial n (DeintercalateInitR fs2)
-                            FL.Continue fs2 ->
-                                return $ SPartial n (DeintercalateInitR fs2)
                             FL.Done c -> return $ SDone n c
                     -- XXX We could have the fold accept pairs of (bR, bL)
                     FL.Done _ -> error "Fold terminated consuming partial input"
@@ -2940,7 +2833,6 @@ deintercalate
         res <- fstep fs r
         case res of
             FL.Partial fs1 -> fmap (FDone n) $ ffinal fs1
-            FL.Continue fs1 -> fmap (FDone n) $ ffinal fs1
             FL.Done c -> return (FDone n c)
 
     extract (DeintercalateInitL fs) = fmap (FDone 0) $ ffinal fs
@@ -2961,7 +2853,6 @@ deintercalate
                 res <- fstep fs (Right bR)
                 case res of
                     FL.Partial fs1 -> extractResult n fs1 (Left bL)
-                    FL.Continue fs1 -> extractResult n fs1 (Left bL)
                     FL.Done _ -> error "Fold terminated consuming partial input"
             FContinue n s -> return $ FContinue n (DeintercalateRL (cnt + n) bR fs s)
             FError _ -> do
@@ -3019,12 +2910,6 @@ deintercalate1
                     IPartial s -> return $ IPartial $ Deintercalate1InitL 0 fs s
                     IDone _ -> errMsg "left" "succeed"
                     IError _ -> errMsg "left" "fail"
-            FL.Continue fs -> do
-                pres <- initialL
-                case pres of
-                    IPartial s -> return $ IPartial $ Deintercalate1InitL 0 fs s
-                    IDone _ -> errMsg "left" "succeed"
-                    IError _ -> errMsg "left" "fail"
             FL.Done c -> return $ IDone c
 
     {-# INLINE processL #-}
@@ -3032,7 +2917,6 @@ deintercalate1
         fres <- foldAction
         case fres of
             FL.Partial fs1 -> return $ SPartial n (nextState fs1)
-            FL.Continue fs1 -> return $ SPartial n (nextState fs1)
             FL.Done c -> return $ SDone n c
 
     {-# INLINE runStepInitL #-}
@@ -3085,16 +2969,6 @@ deintercalate1
                         case fres of
                             FL.Partial fs2 ->
                                 return $ SPartial n (Deintercalate1InitR fs2)
-                            FL.Continue fs2 ->
-                                return $ SPartial n (Deintercalate1InitR fs2)
-                            FL.Done c -> return $ SDone n c
-                    FL.Continue fs1 -> do
-                        fres <- fstep fs1 (Left bL)
-                        case fres of
-                            FL.Partial fs2 ->
-                                return $ SPartial n (Deintercalate1InitR fs2)
-                            FL.Continue fs2 ->
-                                return $ SPartial n (Deintercalate1InitR fs2)
                             FL.Done c -> return $ SDone n c
                     -- XXX We could have the fold accept pairs of (bR, bL)
                     FL.Done _ -> error "Fold terminated consuming partial input"
@@ -3107,7 +2981,6 @@ deintercalate1
         res <- fstep fs r
         case res of
             FL.Partial fs1 -> fmap (FDone n) $ ffinal fs1
-            FL.Continue fs1 -> fmap (FDone n) $ ffinal fs1
             FL.Done c -> return (FDone n c)
 
     extract (Deintercalate1InitL cnt fs sL) = do
@@ -3125,7 +2998,6 @@ deintercalate1
                 res <- fstep fs (Right bR)
                 case res of
                     FL.Partial fs1 -> extractResult n fs1 (Left bL)
-                    FL.Continue fs1 -> extractResult n fs1 (Left bL)
                     FL.Done _ -> error "Fold terminated consuming partial input"
             FContinue n s -> return $ FContinue n (Deintercalate1RL (cnt + n) bR fs s)
             FError _ -> do
@@ -3184,7 +3056,6 @@ sepBy
         res <- finitial
         case res of
             FL.Partial fs -> return $ IPartial $ SepByInitL fs
-            FL.Continue fs -> return $ IPartial $ SepByInitL fs
             FL.Done c -> return $ IDone c
 
     {-# INLINE processL #-}
@@ -3192,7 +3063,6 @@ sepBy
         fres <- foldAction
         case fres of
             FL.Partial fs1 -> return $ SPartial n (nextState fs1)
-            FL.Continue fs1 -> return $ SPartial n (nextState fs1)
             FL.Done c -> return $ SDone n c
 
     {-# INLINE runStepL #-}
@@ -3246,7 +3116,6 @@ sepBy
         res <- fstep fs r
         case res of
             FL.Partial fs1 -> fmap (FDone n) $ ffinal fs1
-            FL.Continue fs1 -> fmap (FDone n) $ ffinal fs1
             FL.Done c -> return (FDone n c)
 
     extract (SepByInitL fs) = fmap (FDone 0) $ ffinal fs
@@ -3331,12 +3200,6 @@ sepBy1
                     IPartial s -> return $ IPartial $ SepBy1InitL 0 fs s
                     IDone _ -> errMsg "left" "succeed"
                     IError _ -> errMsg "left" "fail"
-            FL.Continue fs -> do
-                pres <- initialL
-                case pres of
-                    IPartial s -> return $ IPartial $ SepBy1InitL 0 fs s
-                    IDone _ -> errMsg "left" "succeed"
-                    IError _ -> errMsg "left" "fail"
             FL.Done c -> return $ IDone c
 
     {-# INLINE processL #-}
@@ -3344,7 +3207,6 @@ sepBy1
         fres <- foldAction
         case fres of
             FL.Partial fs1 -> return $ SPartial n (nextState fs1)
-            FL.Continue fs1 -> return $ SPartial n (nextState fs1)
             FL.Done c -> return $ SDone n c
 
     {-# INLINE runStepInitL #-}
@@ -3404,7 +3266,6 @@ sepBy1
         res <- fstep fs r
         case res of
             FL.Partial fs1 -> fmap (FDone n) $ ffinal fs1
-            FL.Continue fs1 -> fmap (FDone n) $ ffinal fs1
             FL.Done c -> return (FDone n c)
 
     extract (SepBy1InitL cnt fs sL) = do
@@ -3461,7 +3322,6 @@ sequence (D.Stream sstep sstate) (Fold fstep finitial _ ffinal) =
         fres <- finitial
         case fres of
             FL.Partial fs -> return $ IPartial (Nothing', sstate, fs)
-            FL.Continue fs -> return $ IPartial (Nothing', sstate, fs)
             FL.Done c -> return $ IDone c
 
     -- state does not contain any parser
@@ -3497,16 +3357,12 @@ sequence (D.Stream sstep sstate) (Fold fstep finitial _ ffinal) =
                         case fres of
                             FL.Partial fs1 ->
                                 return $ SPartial n (Nothing', ss, fs1)
-                            FL.Continue fs1 ->
-                                return $ SPartial n (Nothing', ss, fs1)
                             FL.Done c -> return $ SDone n c
                     SError msg -> return $ SError msg
             IDone b -> do
                 fres <- fstep fs b
                 case fres of
                     FL.Partial fs1 ->
-                        return $ SPartial 0 (Nothing', ss, fs1)
-                    FL.Continue fs1 ->
                         return $ SPartial 0 (Nothing', ss, fs1)
                     FL.Done c -> return $ SDone 0 c
             IError err -> return $ SError err
@@ -3522,7 +3378,6 @@ sequence (D.Stream sstep sstate) (Fold fstep finitial _ ffinal) =
                         res <- fstep fs b
                         case res of
                             FL.Partial fs1 -> fmap (FDone n) $ ffinal fs1
-                            FL.Continue fs1 -> fmap (FDone n) $ ffinal fs1
                             FL.Done c -> return (FDone n c)
                     FError err -> return $ FError err
                     FContinue n s -> return $ FContinue n (Just' (Parser pstep (return (IPartial s)) pextr), ss, fs)
@@ -3530,7 +3385,6 @@ sequence (D.Stream sstep sstate) (Fold fstep finitial _ ffinal) =
                 fres <- fstep fs b
                 case fres of
                     FL.Partial fs1 -> fmap (FDone 0) $ ffinal fs1
-                    FL.Continue fs1 -> fmap (FDone 0) $ ffinal fs1
                     FL.Done c -> return (FDone 0 c)
             IError err -> return $ FError err
 
@@ -3680,7 +3534,6 @@ manyTill (Parser stepL initialL extractL)
                 fr <- fstep fs bl
                 case fr of
                     FL.Partial fs1 -> scrutR fs1 p c d e
-                    FL.Continue fs1 -> scrutR fs1 p c d e
                     FL.Done fb -> return $ d fb
             IError err -> return $ e err
 
@@ -3695,7 +3548,6 @@ manyTill (Parser stepL initialL extractL)
         res <- finitial
         case res of
             FL.Partial fs -> scrutR fs IPartial IPartial IDone IError
-            FL.Continue fs -> scrutR fs IPartial IPartial IDone IError
             FL.Done b -> return $ IDone b
 
     step (ManyTillR cnt fs st) a = do
@@ -3724,13 +3576,6 @@ manyTill (Parser stepL initialL extractL)
                                     (SContinue (-cnt))
                                     (SDone (-cnt))
                                     SError
-                            FL.Continue fs1 ->
-                                scrutR
-                                    fs1
-                                    (SPartial (-cnt))
-                                    (SContinue (-cnt))
-                                    (SDone (-cnt))
-                                    SError
                             FL.Done fb -> return $ SDone (-cnt) fb
                     IError err -> return $ SError err
     step (ManyTillL fs st) a = do
@@ -3743,8 +3588,6 @@ manyTill (Parser stepL initialL extractL)
                 case fs1 of
                     FL.Partial s ->
                         scrutR s (SPartial n) (SContinue n) (SDone n) SError
-                    FL.Continue s ->
-                        scrutR s (SPartial n) (SContinue n) (SDone n) SError
                     FL.Done b1 -> return $ SDone n b1
             SError err -> return $ SError err
 
@@ -3755,7 +3598,6 @@ manyTill (Parser stepL initialL extractL)
                 r <- fstep fs b
                 case r of
                     FL.Partial fs1 -> fmap (FDone n) $ ffinal fs1
-                    FL.Continue fs1 -> fmap (FDone n) $ ffinal fs1
                     FL.Done c -> return (FDone n c)
             FError err -> return $ FError err
             FContinue n s -> return $ FContinue n (ManyTillL fs s)

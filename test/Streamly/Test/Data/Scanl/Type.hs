@@ -11,6 +11,7 @@ module Streamly.Test.Data.Scanl.Type
     (main, check, checkApprox, checkPostscanl) where
 
 import Data.Functor.Identity (Identity, runIdentity)
+import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Refold.Type as Refold
 import qualified Streamly.Internal.Data.Scanl as F
 import qualified Streamly.Internal.Data.Stream as Stream
@@ -199,8 +200,8 @@ functionMS =
 sumRefold :: Monad m => Refold.Refold m Int Int Int
 sumRefold =
     Refold.Refold
-        (\s a -> return (F.Partial (s + a)))
-        (\c -> return (F.Partial c))
+        (\s a -> return (Fold.Partial (s + a)))
+        (\c -> return (Fold.Partial c))
         return
 
 fromRefoldS :: Expectation

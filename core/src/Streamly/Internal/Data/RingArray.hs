@@ -531,12 +531,12 @@ scanRingsOf n = Scanl step initial extract extract
         then error "scanRingsOf: window size must be > 0"
         else do
             mba <- liftIO $ MutByteArray.new rSize
-            return $ Partial $ Tuple3Fused' mba 0 0
+            return $ Scanl.Partial $ Tuple3Fused' mba 0 0
 
     step (Tuple3Fused' mba rh offset) a = do
         RingArray _ _ rh1 <- replace_ (RingArray mba rSize rh) a
         let offset1 = offset + SIZE_OF(a)
-        return $ Partial $ Tuple3Fused' mba rh1 offset1
+        return $ Scanl.Partial $ Tuple3Fused' mba rh1 offset1
 
     -- XXX exitify optimization causes a problem here when modular folds are
     -- used. Sometimes inlining "extract" is helpful.
@@ -708,7 +708,6 @@ fold (Fold step initial _ final) rb = do
     res <- initial
     case res of
         Fold.Partial fs -> go SPEC rh fs
-        Fold.Continue fs -> go SPEC rh fs
         Fold.Done b -> return b
 
     where
@@ -724,11 +723,6 @@ fold (Fold step initial _ final) rb = do
         case r of
             Fold.Done b -> return b
             Fold.Partial s -> do
-                let next = incrHeadByOffset index (ringSize rb) (SIZE_OF(a))
-                if next == rh
-                then final s
-                else go SPEC next s
-            Fold.Continue s -> do
                 let next = incrHeadByOffset index (ringSize rb) (SIZE_OF(a))
                 if next == rh
                 then final s
@@ -924,8 +918,6 @@ slidingWindowWith n (Fold step1 initial1 extract1 final1) =
                 case r of
                     Partial s -> Partial
                         $ SWArray (MutArray.arrContents arr) 0 s (n - 1)
-                    Continue s -> Partial
-                        $ SWArray (MutArray.arrContents arr) 0 s (n - 1)
                     Done b -> Done b
 
     step (SWArray mba rh st i) a = do
@@ -938,10 +930,6 @@ slidingWindowWith n (Fold step1 initial1 extract1 final1) =
                     if i > 0
                     then Partial $ SWArray mba rh1 s (i - 1)
                     else Partial $ SWRing mba rh1 s
-                Continue s ->
-                    if i > 0
-                    then Partial $ SWArray mba rh1 s (i - 1)
-                    else Partial $ SWRing mba rh1 s
                 Done b -> Done b
 
     step (SWRing mba rh st) a = do
@@ -951,7 +939,6 @@ slidingWindowWith n (Fold step1 initial1 extract1 final1) =
         return $
             case r of
                 Partial s -> Partial $ SWRing mba rh1 s
-                Continue s -> Partial $ SWRing mba rh1 s
                 Done b -> Done b
 
     extract (SWArray _ _ st _) = extract1 st

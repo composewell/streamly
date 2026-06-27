@@ -422,7 +422,6 @@ writeChunks path = Fold step initial extract final
         res <- initial1
         case res of
             FL.Partial fs -> final1 fs
-            FL.Continue fs -> final1 fs
             FL.Done () -> return ()
 
 -- | @writeWith chunkSize handle@ writes the input stream to @handle@.

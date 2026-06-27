@@ -1063,13 +1063,6 @@ splitMany (Parser step1 initial1 extract1) (Fold fstep finitial _ ffinal) =
                     IDone pb ->
                         runCollectorWith (handleCollect partial done) fs pb
                     IError _ -> done <$> ffinal fs
-            FL.Continue fs -> do
-                pres <- initial1
-                case pres of
-                    IPartial ps -> return $ partial $ Fused3 ps 0 fs
-                    IDone pb ->
-                        runCollectorWith (handleCollect partial done) fs pb
-                    IError _ -> done <$> ffinal fs
             FL.Done fb -> return $ done fb
 
     runCollectorWith cont fs pb = fstep fs pb >>= cont
@@ -1106,7 +1099,6 @@ splitMany (Parser step1 initial1 extract1) (Fold fstep finitial _ ffinal) =
                 fs1 <- fstep fs b
                 case fs1 of
                     FL.Partial s1 -> fmap (FDone n) (ffinal s1)
-                    FL.Continue s1 -> fmap (FDone n) (ffinal s1)
                     FL.Done b1 -> return (FDone n b1)
             FContinue n s1 -> do
                 assertM((- n) == cnt)
@@ -1130,13 +1122,6 @@ splitManyPost (Parser step1 initial1 extract1) (Fold fstep finitial _ ffinal) =
     handleCollect partial done fres =
         case fres of
             FL.Partial fs -> do
-                pres <- initial1
-                case pres of
-                    IPartial ps -> return $ partial $ Fused3 ps 0 fs
-                    IDone pb ->
-                        runCollectorWith (handleCollect partial done) fs pb
-                    IError _ -> done <$> ffinal fs
-            FL.Continue fs -> do
                 pres <- initial1
                 case pres of
                     IPartial ps -> return $ partial $ Fused3 ps 0 fs
@@ -1175,7 +1160,6 @@ splitManyPost (Parser step1 initial1 extract1) (Fold fstep finitial _ ffinal) =
                 fs1 <- fstep fs b
                 case fs1 of
                     FL.Partial s1 -> fmap (FDone n) (ffinal s1)
-                    FL.Continue s1 -> fmap (FDone n) (ffinal s1)
                     FL.Done b1 -> return (FDone n b1)
             FContinue n s1 -> do
                 assertM((- n) == cnt)
@@ -1204,13 +1188,6 @@ splitSome (Parser step1 initial1 extract1) (Fold fstep finitial _ ffinal) =
                     IDone pb ->
                         runCollectorWith (handleCollect partial done) fs pb
                     IError _ -> done <$> ffinal fs
-            FL.Continue fs -> do
-                pres <- initial1
-                case pres of
-                    IPartial ps -> return $ partial $ Fused3 ps 0 $ Right fs
-                    IDone pb ->
-                        runCollectorWith (handleCollect partial done) fs pb
-                    IError _ -> done <$> ffinal fs
             FL.Done fb -> return $ done fb
 
     runCollectorWith cont fs pb = fstep fs pb >>= cont
@@ -1219,13 +1196,6 @@ splitSome (Parser step1 initial1 extract1) (Fold fstep finitial _ ffinal) =
         fres <- finitial
         case fres of
             FL.Partial fs -> do
-                pres <- initial1
-                case pres of
-                    IPartial ps -> return $ IPartial $ Fused3 ps 0 $ Left fs
-                    IDone pb ->
-                        runCollectorWith (handleCollect IPartial IDone) fs pb
-                    IError err -> return $ IError err
-            FL.Continue fs -> do
                 pres <- initial1
                 case pres of
                     IPartial ps -> return $ IPartial $ Fused3 ps 0 $ Left fs
@@ -1276,7 +1246,6 @@ splitSome (Parser step1 initial1 extract1) (Fold fstep finitial _ ffinal) =
                 fs1 <- fstep fs b
                 case fs1 of
                     FL.Partial s1 -> fmap (FDone n) (ffinal s1)
-                    FL.Continue s1 -> fmap (FDone n) (ffinal s1)
                     FL.Done b1 -> return (FDone n b1)
             FContinue n s1 -> do
                 assertM((- n) == cnt)
@@ -1290,7 +1259,6 @@ splitSome (Parser step1 initial1 extract1) (Fold fstep finitial _ ffinal) =
                 fs1 <- fstep fs b
                 case fs1 of
                     FL.Partial s1 -> fmap (FDone n) (ffinal s1)
-                    FL.Continue s1 -> fmap (FDone n) (ffinal s1)
                     FL.Done b1 -> return (FDone n b1)
             FContinue n s1 -> do
                 assertM((- n) == cnt)
