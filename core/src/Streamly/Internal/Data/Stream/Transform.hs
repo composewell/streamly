@@ -233,7 +233,7 @@ import Streamly.Internal.System.IO (defaultChunkSize)
 -- import qualified Data.List as List
 import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.Fold.Type as FL
-import qualified Streamly.Internal.Data.Scanl.Step as Scanl
+import qualified Streamly.Internal.Data.Scanl.Type as Scanl
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 import qualified Streamly.Internal.Data.StreamK.Type as K
 import qualified Streamly.Internal.Data.Producer as Producer

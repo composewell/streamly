@@ -122,7 +122,7 @@ import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import qualified Data.Set as Set
 import qualified Streamly.Internal.Data.IsMap as IsMap
 import qualified Streamly.Internal.Data.Scanl.Container as Scanl
-import qualified Streamly.Internal.Data.Scanl.Step as ScanlStep
+import qualified Streamly.Internal.Data.Scanl.Type as Scanl
 
 import Prelude hiding (Foldable(..))
 import Streamly.Internal.Data.Fold.Type
@@ -396,7 +396,11 @@ demuxScanGeneric :: (Monad m, IsMap f, Traversable f) =>
     -> (Key f -> m (Maybe (Fold m a b)))
     -> Scanl m a (m (f b), Maybe (Key f, b))
 demuxScanGeneric getKey getFold =
-    Scanl (\s a -> ScanlStep.Partial <$> step s a) (ScanlStep.Partial <$> initial) extract final
+    Scanl
+        (\s a -> Scanl.Partial <$> step s a)
+        (Scanl.Partial <$> initial)
+        extract
+        final
 
     where
 
@@ -667,7 +671,11 @@ demuxScanGenericIO :: (MonadIO m, IsMap f, Traversable f) =>
     -> (Key f -> m (Maybe (Fold m a b)))
     -> Scanl m a (m (f b), Maybe (Key f, b))
 demuxScanGenericIO getKey getFold =
-    Scanl (\s a -> ScanlStep.Partial <$> step s a) (ScanlStep.Partial <$> initial) extract final
+    Scanl
+        (\s a -> Scanl.Partial <$> step s a)
+        (Scanl.Partial <$> initial)
+        extract
+        final
 
     where
 
@@ -1018,7 +1026,11 @@ classifyScanGeneric :: (Monad m, IsMap f, Traversable f, Ord (Key f)) =>
     -- that the downstream consumers can choose to process or discard it.
     (a -> Key f) -> Fold m a b -> Scanl m a (m (f b), Maybe (Key f, b))
 classifyScanGeneric f (Fold step1 initial1 extract1 final1) =
-    Scanl (\s a -> ScanlStep.Partial <$> step s a) (ScanlStep.Partial <$> initial) extract final
+    Scanl
+        (\s a -> Scanl.Partial <$> step s a)
+        (Scanl.Partial <$> initial)
+        extract
+        final
 
     where
 
@@ -1224,7 +1236,11 @@ toContainerIO f (Fold step1 initial1 _ final1) =
 classifyScanGenericIO :: (MonadIO m, IsMap f, Traversable f, Ord (Key f)) =>
     (a -> Key f) -> Fold m a b -> Scanl m a (m (f b), Maybe (Key f, b))
 classifyScanGenericIO f (Fold step1 initial1 extract1 final1) =
-    Scanl (\s a -> ScanlStep.Partial <$> step s a) (ScanlStep.Partial <$> initial) extract final
+    Scanl
+        (\s a -> Scanl.Partial <$> step s a)
+        (Scanl.Partial <$> initial)
+        extract
+        final
 
     where
 
