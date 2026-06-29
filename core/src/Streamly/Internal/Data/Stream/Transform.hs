@@ -642,6 +642,7 @@ scanlWith restart (Scanl fstep initial extract final) (Stream sstep state) =
     step gst (ScanDo st fs) = do
         res <- sstep (adaptState gst) st
         case res of
+            -- XXX should we skip to another state here for better fusion?
             Yield x s -> runStep s (fstep fs x)
             Skip s -> return $ Skip $ ScanDo s fs
             Stop -> final fs >> return Stop
