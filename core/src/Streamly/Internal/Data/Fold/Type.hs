@@ -1729,8 +1729,6 @@ scanlWith isMany
 
     where
 
-    initialL_ = Scanl.fromFoldStep <$> initialL
-
     {-# INLINE runStep #-}
     runStep actionL sR = do
         rL <- actionL
@@ -1740,11 +1738,7 @@ scanlWith isMany
                 case rR of
                     Partial sR1 ->
                         if isMany
-                        -- XXX recursive call. If initialL returns Done then it
-                        -- will not terminate. In that case we should return
-                        -- error in the beginning itself. And we should remove
-                        -- this recursion, assuming it won't return Done.
-                        then runStep initialL_ sR1
+                        then runInitialL sR1
                         else Done <$> finalR sR1
                     Done bR -> return $ Done bR
             Scanl.Partial sL -> do
@@ -1755,10 +1749,29 @@ scanlWith isMany
                     Done bR -> finalL sL >> return (Done bR)
             Scanl.Continue sL -> return $ Partial (sL, sR)
 
+    -- Recursive when isMany is true, cannot be inlined
+    runInitialL sR = do
+        rL <- initialL
+        case rL of
+            Done bL -> do
+                rR <- stepR sR bL
+                case rR of
+                    Partial sR1 ->
+                        if isMany
+                        then runInitialL sR1
+                        else Done <$> finalR sR1
+                    Done bR -> return $ Done bR
+            Partial sL -> do
+                !b <- extractL sL
+                rR <- stepR sR b
+                case rR of
+                    Partial sR1 -> return $ Partial (sL, sR1)
+                    Done bR -> finalL sL >> return (Done bR)
+
     initial = do
         r <- initialR
         case r of
-            Partial sR -> runStep initialL_ sR
+            Partial sR -> runInitialL sR
             Done b -> return $ Done b
 
     step (sL, sR) x = runStep (stepL sL x) sR
