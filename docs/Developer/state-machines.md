@@ -328,156 +328,244 @@ push-through transducers, to consumers (folds):
 
 ### Producers
 
-Stream Step:
-    data Step s a = Yield a s | Skip s | Stop
+```haskell
+data Step s a
+    = Yield a s
+    | Skip s
+    | Stop
+```
 
-Producer:
-    Produces a stream of `a` from a seed `s`.
-    one-to-many function style.
-    composes on output side (covariant)
-    newtype Producer s m a = Producer (s -> m (Step s a))
+**`Step`**
 
-Unfold:
-    Produces a stream of `b` from a seed `a`.
-    More composable than producer due to state abstraction.
-    one-to-many function style.
-    data Unfold m a b = forall s. Unfold (Producer s m b) (a -> m s)
+Represents a single step in stream evaluation.
 
-Stream:
-    More composable than unfold due to seed abstraction.
-    data Stream m b = forall s. Stream (Producer s m b) s
+---
+
+```haskell
+newtype Producer s m a =
+    Producer (s -> m (Step s a))
+```
+
+**`Producer`**
+
+Produces a stream of `a` from a seed `s`.
+
+- One-to-many function style.
+- Composes on the output side (covariant).
+
+---
+
+```haskell
+data Unfold m a b =
+    forall s. Unfold (Producer s m b) (a -> m s)
+```
+
+**`Unfold`**
+
+Produces a stream of `b` from a seed `a`.
+
+- More composable than `Producer` due to state abstraction.
+- One-to-many function style.
+
+---
+
+```haskell
+data Stream m b =
+    forall s. Stream (Producer s m b) s
+```
+
+**`Stream`**
+
+More composable than `Unfold` due to seed abstraction.
 
 ### Stream (pull-through) Transducers
 
-In all these types Step is the Stream Step.
+In all of the following types, `Step` refers to the **Stream Step**.
 
-Stream Transducer:
-    Mealy style transducer
-    Same as Consumer type except that this is mealy style.
-    newtype Transducer s m a b =
-        Transducer (s -> a -> m (Step s b))
+```haskell
+newtype Transducer s m a b =
+    Transducer (s -> a -> m (Step s b))
+```
 
-Stream Mapper:
-    Mealy Transducer with state abstraction.
-    More composable than Transducer.
-    Simpler version of StreamScan.
-    Transformation: with empty to empty possibility.
-    Similar to mapAccum.
-    data Mapper m a b = forall s. Mapper (Transducer s m a b) s
+**`Stream Transducer`**
 
--- XXX Need a separate Step type for this with a Stop b
-StreamScan:
-    A Mealy style state machine.
-    Always produces a result.
-    Transformation: Empty to non-empty.
-    Similar to mapAccumL.
-    Name is PullScan or StreamScan and Scanl as FoldScan?
-    This can nest production.
-    The extract function of Moore is performed by Yield in this.
-    data MealyScan m a b = forall s.
-        MealyScan
-            (s -> a -> m (Step s b)) -- transducer step
-            s -- initial
-            (s -> m (Step s b)) -- final/drain
+- Mealy-style transducer.
+- Same as `Consumer`, except it is Mealy-style.
+
+---
+
+```haskell
+data Mapper m a b =
+    forall s. Mapper (Transducer s m a b) s
+```
+
+**`Stream Mapper`**
+
+- Mealy transducer with state abstraction.
+- More composable than `Transducer`.
+- Simpler version of `StreamScan`.
+- Transformation: empty to empty is possible.
+- Similar to `mapAccum`.
+
+---
+
+> **Note:** `MealyScan` ideally requires a separate `Step` type with a `Stop b` constructor.
+
+```haskell
+data StreamScan m a b =
+    forall s.
+    StreamScan
+        (s -> a -> m (Step s b)) -- transducer step
+        s                        -- initial
+        (s -> m (Step s b))      -- final/drain
+```
+
+**`StreamScan`**
+
+- Mealy-style state machine.
+- Always produces a result.
+- Transformation: empty to non-empty.
+- Similar to `mapAccumL`.
+- Also referred to as `PullScan` or `StreamScan`; `Scanl` as `FoldScan`.
+- Can nest production.
+- The Moore machine's extract function is performed via `Yield`.
 
 ### Fold (push-through) Transducers
 
-In all these Step is the Scanl Step:
-    data Step s b =
-          Partial s -- emit an output
-        | Continue s -- do not emit an output
-        | Done b
+In all of the following types, `Step` refers to the **Scanl Step**.
 
-FoldScan (Scanl):
-    A Moore style state machine.
-    A push style scan.
-    Mapper with an initializer.
-    A reducing or folding tool.
-    Always produces a result.
-    Empty to non-empty transformation.
-    Similar to the scanl operation.
-    This can nest consumption.
-    Can do resource allocation and cleanup.
-    data Scanl m a b =
-      forall s. Scanl
+```haskell
+data Step s b
+    = Partial s
+    | Continue s
+    | Done b
+```
+
+---
+
+```haskell
+data Scanl m a b =
+    forall s. Scanl
         (s -> a -> m (Step s b)) -- consumer/reducer step
-        (m (Step s b)) -- initial
-        (s -> m b) -- extract
-        (s -> m ()) -- cleanup if source terminates
+        (m (Step s b))           -- initial
+        (s -> m b)               -- extract
+        (s -> m ())              -- cleanup if source terminates
+```
 
-Fold Mapper:
-    Moore style transducer.
-    More composable than Consumer because of state abstraction.
-    Scanl with non-monadic initial, and no cleanup
-    data FoldMapper m a b = forall s.
-        FoldMapper
-            (s -> a -> m (Step s b)) -- step
-            s -- initial
-            (s -> m b) -- extract
+**`Scanl` (`FoldScan`)**
 
-Fold Transducer (Consumer):
-    Moore style transducer.
-    Produces a final value `b` from a stream of `a`.
-    many-to-one function style.
-    composes on input side (contravariant)
-    Same as transducer type except with a Fold style Step.
-    The Moore style transducer requires an extract to derive output from state.
-    newtype Consumer s a m b =
-        Consumer
-            (s -> a -> m (Step s b))
-            (s -> m b)
+- Moore-style state machine.
+- Push-style scan.
+- Mapper with an initializer.
+- A reducing/folding tool.
+- Always produces a result.
+- Transformation: empty to non-empty.
+- Similar to `scanl`.
+- Can nest consumption.
+- Supports resource allocation and cleanup.
+
+---
+
+```haskell
+data FoldMapper m a b =
+    forall s.
+    FoldMapper
+        (s -> a -> m (Step s b)) -- step
+        s                        -- initial
+        (s -> m b)               -- extract
+```
+
+**`FoldMapper`**
+
+- Moore-style transducer.
+- More composable than `Consumer` due to state abstraction.
+- `Scanl` with a non-monadic initial state and no cleanup.
+
+---
+
+```haskell
+newtype Consumer s a m b =
+    Consumer
+        (s -> a -> m (Step s b))
+        (s -> m b)
+```
+
+**`Consumer` (Fold Transducer)**
+
+- Moore-style transducer.
+- Produces a final value `b` from a stream of `a`.
+- Many-to-one function style.
+- Composes on the input side (contravariant).
+- Same as `Transducer`, but uses the fold-style `Step`.
+- Requires an extract function to derive the output from the state.
 
 ### Consumers
 
-In all these Step is the Scanl Step:
+In all of the following types, `Step` refers to the **Scanl Step**.
 
-Fold: Scanl with only the final output
-    More composable than Refold due to accumulator abstraction.
-    Scanl, keeping only the last value.
-    data Fold m a b =
-      -- | @Fold@ @step@ @initial@ @final@
-      forall s. Fold
+```haskell
+data Fold m a b =
+    forall s. Fold
         (s -> a -> m (Step s b))
         (m (Step s b))
         (s -> m b)
+```
 
-Refold:
-    Produces a final value `b` from a stream of `a`.
-    More composable than Consumer due to state abstraction.
-    many-to-one function style.
-    Uses a starting value of the accumulator.
-    data Refold m c a b =
-      -- | @Fold @ @ step @ @ inject @ @ extract@
-      forall s. Refold
+**`Fold`**
+
+- `Scanl` retaining only the final output.
+- More composable than `Refold` due to accumulator abstraction.
+
+---
+
+```haskell
+data Refold m c a b =
+    forall s. Refold
         (s -> a -> m (Step s b))
         (c -> m (Step s b))
         (s -> m b)
+```
+
+**`Refold`**
+
+- Produces a final value `b` from a stream of `a`.
+- More composable than `Consumer` due to state abstraction.
+- Many-to-one function style.
+- Uses an injected initial accumulator.
 
 ### Parsers
 
-Parser: An augmentation of the Fold type with error and backtracking info.
+**`Parser`** augments `Fold` with error reporting and backtracking information.
 
+```haskell
 data Initial s b
     = IPartial !s
     | IDone !b
     | IError !String
+```
 
-data Step s b =
-      SPartial !Int !s
+```haskell
+data Step s b
+    = SPartial !Int !s
     | SContinue !Int !s
     | SDone !Int !b
     | SError !String
+```
 
+```haskell
 data Final s b
     = FDone !Int !b
     | FContinue !Int !s
     | FError !String
+```
 
-    data Parser a m b =
-        forall s. Parser
-            (s -> a -> m (Step s b))
-            (m (Initial s b))
-            (s -> m (Final s b))
+```haskell
+data Parser a m b =
+    forall s. Parser
+        (s -> a -> m (Step s b))
+        (m (Initial s b))
+        (s -> m (Final s b))
+```
 
 ## Symmetric Transducers
 
