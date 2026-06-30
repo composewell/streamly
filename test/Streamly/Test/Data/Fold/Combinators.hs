@@ -26,7 +26,8 @@ import Prelude hiding
     , maybe
     )
 import Streamly.Test.Common (chooseInt, withNumTests)
-import Streamly.Test.Data.Fold.Type (check, checkApprox, checkPostscanl)
+import Streamly.Test.Data.Fold.Type
+    (check, checkApprox, checkPostscanl, checkNoLaw)
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck

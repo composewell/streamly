@@ -8,9 +8,11 @@
 -- Portability : GHC
 
 module Streamly.Test.Data.Fold.Type
-    (main, check, checkApprox, checkPostscanl) where
+    (main, check, checkApprox, checkPostscanl, checkNoLaw) where
 
+import Control.Exception (SomeException, evaluate, try)
 import Data.Functor.Identity (Identity(..), runIdentity)
+import Data.IORef (newIORef, readIORef, modifyIORef')
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Fold as F
 import qualified Streamly.Internal.Data.Scanl as Scanl
@@ -34,9 +36,54 @@ import Test.QuickCheck.Monadic (monadicIO, assert, run)
 -- element.
 type Op = F.Fold
 
-check :: (Eq b, Show b) => Op IO a b -> [a] -> [b] -> Expectation
-check cons xs expected =
+check :: (Eq b, Show b, Show a) => Op IO a b -> [a] -> [b] -> Expectation
+check cons xs expected = do
     Stream.fold cons (Stream.fromList xs) `shouldReturn` Prelude.last expected
+    filterLaw cons xs
+
+-- | Same as 'check' but does NOT apply the filter law. Use this only for the
+-- few tests that pass bottom (e.g. 'error') input elements to verify early
+-- termination -- the law would force those elements.
+checkNoLaw :: (Eq b, Show b) => Op IO a b -> [a] -> [b] -> Expectation
+checkNoLaw cons xs expected =
+    Stream.fold cons (Stream.fromList xs) `shouldReturn` Prelude.last expected
+
+-- | The filter law (an independent, black-box oracle): wrapping a fold in
+-- 'Fold.filter' must produce the same result as folding the pre-filtered input:
+--
+--     fold (Fold.filter p s) xs === fold s (filter p xs)
+--
+-- This holds for EVERY fold because both sides feed the fold the identical
+-- accepted subsequence. (A 'Fold' has no 'Continue'; 'Fold.filter' keeps the
+-- accumulator unchanged for rejected inputs, which is the Fold counterpart of a
+-- scan's 'Continue'.) Folded into 'check'/'checkPostscanl' so it applies to
+-- every shared and Fold-specific test.
+filterLawPred :: Show a => a -> Bool
+filterLawPred x = even (Prelude.length (Prelude.show x))
+
+-- Some scans driven as folds (the postscan-only ones, e.g. 'rollingMap',
+-- 'uniq') are partial: their 'extract' on the initial state errors ("Empty
+-- stream"). The filter law can reduce the input to empty, so we compare the two
+-- sides exception-tolerantly: both sides throwing means the law still holds
+-- (they fail identically); only one side throwing is a genuine violation.
+-- | Run an action, returning 'Left' if it (or its result) throws. Fixes the
+-- exception type so the law below needs no inline type annotations.
+tryEval :: IO c -> IO (Either SomeException c)
+tryEval act = try (act >>= evaluate)
+
+filterLaw :: (Eq b, Show b, Show a) => Op IO a b -> [a] -> Expectation
+filterLaw cons xs = do
+    lhs <- tryEval
+        (Stream.fold (F.filter filterLawPred cons) (Stream.fromList xs))
+    rhs <- tryEval
+        (Stream.fold cons (Stream.fromList (Prelude.filter filterLawPred xs)))
+    case (lhs, rhs) of
+        (Right l, Right r) -> l `shouldBe` r
+        (Left _, Left _) -> return ()
+        _ ->
+            expectationFailure
+                $ "filter law violated (one side failed): "
+                    ++ show lhs ++ " vs " ++ show rhs
 
 -- | Epsilon-equality counterpart of 'check' for Fractional results whose
 -- floating-point output is only approximately equal to the reference (e.g.
@@ -50,9 +97,10 @@ checkApprox cons xs expected = do
 
 -- | Postscan-only counterpart of 'check' (for combinators whose scanl initial
 -- is undefined). The fold result equals the last postscanl output.
-checkPostscanl :: (Eq b, Show b) => Op IO a b -> [a] -> [b] -> Expectation
-checkPostscanl cons xs expected =
+checkPostscanl :: (Eq b, Show b, Show a) => Op IO a b -> [a] -> [b] -> Expectation
+checkPostscanl cons xs expected = do
     Stream.fold cons (Stream.fromList xs) `shouldReturn` Prelude.last expected
+    filterLaw cons xs
 
 #include "Streamly/Test/Data/Scanl/CommonType.hs"
 
@@ -141,6 +189,54 @@ fromScanl :: [Int] -> Expectation
 fromScanl ls =
     Stream.fold (Fold.fromScanl (Scanl.scanl' (+) 0)) (Stream.fromList ls)
         `shouldReturn` Prelude.sum ls
+
+-- | A scanner that emits its input only when it is even, returning 'Continue'
+-- (no output) for odd inputs. Per the 'Scanl' contract, the driver must not
+-- call @extract@ on a 'Continue' step (extract is effectful and reserved for
+-- output steps) and must not feed any value to the collector. We track every
+-- @extract@ call to assert it happens only on emitting steps.
+--
+-- This catches a bug where @postscanl@ extracted and emitted on 'Continue',
+-- which both leaked filtered elements and called @extract@ spuriously.
+postscanlFilter :: Expectation
+postscanlFilter = do
+    ref <- newIORef []
+    let scanner = Scanl.Scanl step initial extract final
+
+        initial = return (Fold.Partial (0 :: Int))
+        step s a =
+            return $ if even a then Scanl.Partial a else Scanl.Continue s
+        extract s = modifyIORef' ref (s :) >> return s
+        final = return
+
+    result <-
+        Stream.fold
+            (Fold.postscanl scanner Fold.toList)
+            (Stream.fromList [1 .. 6 :: Int])
+    extractCalls <- Prelude.reverse <$> readIORef ref
+
+    -- Only the even inputs are emitted to the collector.
+    result `shouldBe` [2, 4, 6]
+    -- 'extract' is called only on the emitting (even) steps, never on 'Continue'.
+    extractCalls `shouldBe` [2, 4, 6]
+
+-- | The Continue filter law for Fold compositions: wrapping the scanner in
+-- 'Scanl.filter' (which emits Continue for rejected inputs) must give the same
+-- final fold result as running the fold on the pre-filtered input:
+--
+--     fold (f (Scanl.filter p scanner) collector) xs
+--         === fold (f scanner collector) (filter p xs)
+--
+-- Parameterised by a context 'ctx' that combines a scanner with a collector.
+foldFilterLaw ::
+       Eq c
+    => (Scanl.Scanl IO Int Int -> F.Fold IO Int c)
+    -> [Int]
+    -> Property
+foldFilterLaw ctx xs = monadicIO $ do
+    v1 <- run $ Stream.fold (ctx (Scanl.filter even Scanl.sum)) (Stream.fromList xs)
+    v2 <- run $ Stream.fold (ctx Scanl.sum) (Stream.fromList (Prelude.filter even xs))
+    assert (v1 == v2)
 
 toStreamK :: [Int] -> Expectation
 toStreamK ls = do
@@ -566,6 +662,10 @@ main = hspec $ do
         it "fromPure" fromPure
         it "fromEffect" fromEffect
         prop "fromScanl" fromScanl
+        it "postscanl filter" postscanlFilter
+        prop "filter law: Fold.postscanl" $ foldFilterLaw (\h -> Fold.postscanl h Fold.toList)
+        prop "filter law: Fold.scanl" $ foldFilterLaw (\h -> Fold.scanl h Fold.toList)
+        prop "filter law: Fold.scanlMany" $ foldFilterLaw (\h -> Fold.scanlMany h Fold.toList)
         prop "toStreamK" toStreamK
         prop "toStreamKRev" toStreamKRev
         prop "last" last

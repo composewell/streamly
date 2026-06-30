@@ -233,6 +233,7 @@ import Streamly.Internal.System.IO (defaultChunkSize)
 -- import qualified Data.List as List
 import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.Fold.Type as FL
+import qualified Streamly.Internal.Data.Scanl.Type as Scanl
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 import qualified Streamly.Internal.Data.StreamK.Type as K
 import qualified Streamly.Internal.Data.Producer as Producer
@@ -594,10 +595,11 @@ postscanl (Scanl fstep initial extract final) (Stream sstep state) =
             Yield x s -> do
                 r <- fstep fs x
                 case r of
-                    FL.Partial fs1 -> do
+                    Scanl.Partial fs1 -> do
                         !b <- extract fs1
                         return $ Yield b $ ScanDo s fs1
-                    FL.Done b -> return $ Yield b ScanDone
+                    Scanl.Continue fs1 -> return $ Skip $ ScanDo s fs1
+                    Scanl.Done b -> return $ Yield b ScanDone
             Skip s -> return $ Skip $ ScanDo s fs
             Stop -> final fs >> return Stop
     step _ ScanDone = return Stop
@@ -605,8 +607,7 @@ postscanl (Scanl fstep initial extract final) (Stream sstep state) =
 {-# DEPRECATED postscan "Please use postscanl instead" #-}
 {-# INLINE_NORMAL postscan #-}
 postscan :: Monad m => FL.Fold m a b -> Stream m a -> Stream m b
-postscan (FL.Fold fstep initial extract final) =
-    postscanl (Scanl fstep initial extract final)
+postscan = postscanl . FL.fromFold
 
 {-# INLINE scanlWith #-}
 scanlWith :: Monad m
@@ -620,18 +621,28 @@ scanlWith restart (Scanl fstep initial extract final) (Stream sstep state) =
     runStep st action = do
         res <- action
         case res of
+            Scanl.Partial fs -> do
+                !b <- extract fs
+                return $ Yield b $ ScanDo st fs
+            Scanl.Continue fs -> return $ Skip $ ScanDo st fs
+            Scanl.Done b ->
+                let next = if restart then ScanInit st else ScanDone
+                 in return $ Yield b next
+
+    {-# INLINE_LATE step #-}
+    step _ (ScanInit st) = do
+        res <- initial
+        case res of
             FL.Partial fs -> do
                 !b <- extract fs
                 return $ Yield b $ ScanDo st fs
             FL.Done b ->
                 let next = if restart then ScanInit st else ScanDone
                  in return $ Yield b next
-
-    {-# INLINE_LATE step #-}
-    step _ (ScanInit st) = runStep st initial
     step gst (ScanDo st fs) = do
         res <- sstep (adaptState gst) st
         case res of
+            -- XXX should we skip to another state here for better fusion?
             Yield x s -> runStep s (fstep fs x)
             Skip s -> return $ Skip $ ScanDo s fs
             Stop -> final fs >> return Stop
@@ -641,8 +652,7 @@ scanlWith restart (Scanl fstep initial extract final) (Stream sstep state) =
 {-# INLINE scanWith #-}
 scanWith :: Monad m
     => Bool -> Fold m a b -> Stream m a -> Stream m b
-scanWith restart (Fold fstep initial extract final) =
-    scanlWith restart (Scanl fstep initial extract final)
+scanWith restart = scanlWith restart . FL.fromFold
 
 -- XXX It may be useful to have a version of scan where we can keep the
 -- accumulator independent of the value emitted. So that we do not necessarily

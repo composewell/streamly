@@ -26,13 +26,12 @@ import Data.IORef (newIORef, readIORef, atomicModifyIORef)
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS)
-import Streamly.Internal.Data.Fold (Step (..))
-import Streamly.Internal.Data.Scanl (Scanl(..))
+import Streamly.Internal.Data.Scanl (Scanl(..), Step (..))
 import Streamly.Internal.Data.Stream (Stream(..), Step(..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
-
 import qualified Data.Map.Strict as Map
+import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream as Stream
 
 import Streamly.Internal.Data.Fold.Channel.Type
@@ -43,6 +42,8 @@ import Streamly.Internal.Data.Channel.Types
 -------------------------------------------------------------------------------
 -- Concurrent scans
 -------------------------------------------------------------------------------
+
+data Response b = RespDone b | RespPartial b | RespContinue
 
 -- | Execute both the scans in a tee concurrently.
 --
@@ -67,6 +68,7 @@ parTeeWith cfg f c1 c2 = Scanl step initial extract final
 
     where
 
+    -- Get response from ch1; ch2 is passed only for cleanup on exception.
     getResponse ch1 ch2 = do
         -- NOTE: We do not need a queue and doorbell mechanism for this, a single
         -- MVar should be enough. Also, there is only one writer and it writes
@@ -86,42 +88,65 @@ parTeeWith cfg f c1 c2 = Scanl step initial extract final
                         cleanup ch1
                         cleanup ch2
                         liftIO $ throwM ex
-                    FoldDone _tid b -> return (Left b)
-                    FoldPartial b -> return (Right b)
+                    FoldDone _tid b -> return (RespDone b)
+                    FoldPartial b   -> return (RespPartial b)
+                    FoldContinue    -> return RespContinue
                     FoldEOF _ -> error "parTeeWith: FoldEOF cannot occur here"
             _ -> error "parTeeWith: not expecting more than one msg in q"
 
-    processResponses ch1 ch2 r1 r2 =
-        return $ case r1 of
-            Left b1 -> do
-                case r2 of
-                    Left b2 -> Done (f b1 b2)
-                    Right b2 -> Done (f b1 b2)
-            Right b1 -> do
-                case r2 of
-                    Left b2 -> Done (f b1 b2)
-                    Right b2 -> Partial $ Tuple3' ch1 ch2 (f b1 b2)
+    -- Zip only when both channels produce output on the same input.
+    {-# INLINE processResponses #-}
+    processResponses ch1 ch2 prev r1 r2 =
+        return $
+            case r1 of
+                RespPartial b1 ->
+                    case r2 of
+                        RespPartial b2 -> Partial $ Tuple3' ch1 ch2 (f b1 b2)
+                        RespContinue   -> Continue $ Tuple3' ch1 ch2 prev
+                        RespDone b2    -> Done (f b1 b2)
+                RespContinue ->
+                    case r2 of
+                        RespPartial _  -> Continue $ Tuple3' ch1 ch2 prev
+                        RespContinue   -> Continue $ Tuple3' ch1 ch2 prev
+                        RespDone _     -> Done prev
+                RespDone b1 ->
+                    case r2 of
+                        RespDone b2    -> Done (f b1 b2)
+                        RespPartial b2 -> Done (f b1 b2)
+                        RespContinue   -> Done prev
 
     initial = do
         ch1 <- newScanChannel cfg c1
         ch2 <- newScanChannel cfg c2
         r1 <- getResponse ch1 ch2
         r2 <- getResponse ch2 ch1
-        processResponses ch1 ch2 r1 r2
+        return $
+            case r1 of
+                RespPartial b1 ->
+                    case r2 of
+                        RespPartial b2 -> Fold.Partial $ Tuple3' ch1 ch2 (f b1 b2)
+                        RespDone b2    -> Fold.Done (f b1 b2)
+                        _ -> error "parTeeWith initial: unexpected Continue response"
 
-    step (Tuple3' ch1 ch2 _) x = do
+                RespDone b1 ->
+                    case r2 of
+                        RespDone b2    -> Fold.Done (f b1 b2)
+                        RespPartial b2 -> Fold.Done (f b1 b2)
+                        _ -> error "parTeeWith initial: unexpected Continue response"
+                _ -> error "parTeeWith initial: unexpected Continue response"
+
+    step (Tuple3' ch1 ch2 prev) x = do
         sendToWorker_ ch1 x
         sendToWorker_ ch2 x
         r1 <- getResponse ch1 ch2
         r2 <- getResponse ch2 ch1
-        processResponses ch1 ch2 r1 r2
+        processResponses ch1 ch2 prev r1 r2
 
     extract (Tuple3' _ _ x) = return x
 
     final (Tuple3' ch1 ch2 x) = do
         finalize ch1
         finalize ch2
-        -- XXX generate the final value?
         return x
 
 -- There are two ways to implement a concurrent scan.
@@ -201,6 +226,8 @@ parDistributeScanM cfg getFolds (Stream sstep state) =
                          in processOutputs ch xs done
                     FoldPartial b ->
                          processOutputs chans xs (b:done)
+                    FoldContinue ->
+                         processOutputs chans xs done
 
     collectOutputs qref chans = do
         (_, n) <- liftIO $ readIORef qref
@@ -350,6 +377,8 @@ parDemuxScanM cfg getKey getFold (Stream sstep state) =
                          in processOutputs (Map.fromList ch) xs done
                     FoldPartial b ->
                          processOutputs keyToChan xs (b:done)
+                    FoldContinue ->
+                         processOutputs keyToChan xs done
 
     collectOutputs qref keyToChan = do
         (_, n) <- liftIO $ readIORef qref

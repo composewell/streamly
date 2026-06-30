@@ -54,6 +54,7 @@ import Streamly.Internal.Data.Channel.Worker (sendEvent)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 
 import qualified Streamly.Internal.Data.Fold as Fold
+import qualified Streamly.Internal.Data.Scanl as Scanl
 import qualified Streamly.Internal.Data.Stream as D
 
 import Streamly.Internal.Data.Channel.Types
@@ -64,11 +65,20 @@ import Streamly.Internal.Data.Channel.Types
 -- queue the accumulator and it will be picked by the next worker to accumulate
 -- the next value.
 
+-- XXX We can separate the Fold and Scan events.
+
+-- | Events used by folds and scans both.
 data OutEvent b =
       FoldException ThreadId SomeException
     | FoldPartial b
+    | FoldContinue
+    -- ^ scan filtered output, never occurs for folds.
     | FoldDone ThreadId b
+    -- ^ the fold or scan terminated on its own. Also, sent by folds when their
+    -- input stream ends.
     | FoldEOF ThreadId
+    -- ^ scan got finalized after the input was over. See 'sendEOFToDriver' for
+    -- details. This can never occur for folds.
 
 -- | The fold driver thread queues the input of the fold in the 'inputQueue'
 -- The driver rings the doorbell when the queue transitions from empty to
@@ -253,8 +263,8 @@ dumpChannel sv = do
 -- $concurrentFolds
 --
 -- To run folds concurrently, we need to decouple the fold execution from the
--- stream production. We use the SVar to do that, we have a single worker
--- pushing the stream elements to the SVar and on the consumer side a fold
+-- stream production. We use a Channel to do that, we have a single worker
+-- pushing the stream elements to the Channel and on the consumer side a fold
 -- driver pulls the values and folds them.
 --
 -- @
@@ -295,6 +305,7 @@ sendToDriver sv msg = do
     sendEvent (outputQueue sv)
                      (outputDoorBell sv) msg
 
+-- XXX should be called sendDoneToDriver
 sendYieldToDriver :: MonadIO m => Channel m a b -> b -> m ()
 sendYieldToDriver sv res = liftIO $ do
     tid <- myThreadId
@@ -304,6 +315,20 @@ sendPartialToDriver :: MonadIO m => Channel m a b -> b -> m ()
 sendPartialToDriver sv res = liftIO $ do
     void $ sendToDriver sv (FoldPartial res)
 
+sendContinueToDriver :: MonadIO m => Channel m a b -> m ()
+sendContinueToDriver sv = liftIO $ do
+    void $ sendToDriver sv FoldContinue
+
+-- | Folds never send an ouput value until the very end and they always have a
+-- final value to send when their input stream terminates and the fold is
+-- finalized.
+--
+-- However, in case of scans we may have sent the last output already on the
+-- last input or if that got filtered then even before that, when the input
+-- stream stops we need to call the scan finalizer and there is nothing to
+-- send, so when the finalizer is done we send a FoldEOF event to tell the
+-- driver we are done now and it cannot expect any more output.
+--
 sendEOFToDriver :: MonadIO m => Channel m a b -> m ()
 sendEOFToDriver sv = liftIO $ do
     tid <- myThreadId
@@ -344,7 +369,8 @@ fromInputQueue svar = D.Stream step (FromSVarRead svar)
             -- event.
             ChildYield a -> return $ D.Yield a (FromSVarLoop sv es)
             ChildStopChannel -> return D.Stop
-            _ -> undefined
+            ChildStop _ _ ->
+                error "Bug: fromInputQueue: unexpected ChildStop event"
 
 {-# INLINE readInputQChan #-}
 readInputQChan :: Channel m a b -> IO ([ChildEvent a], Int)
@@ -455,11 +481,19 @@ scanToChannel chan (Scanl step initial extract final) =
     step1 st x = do
         r <- step st x
         case r of
-            Fold.Partial s -> do
+            Scanl.Partial s -> do
                 b <- extract s
                 void $ sendPartialToDriver chan b
                 return $ Fold.Partial s
-            Fold.Done b -> do
+            -- XXX Continue is not normally required to be sent. But drivers
+            -- like parTeeWith decide whether to zip the outputs or skip based
+            -- on whether any of the scans returned Continue. We can possibly
+            -- use an option to send it or not. parTeeWith can opt-in and
+            -- others can opt-out.
+            Scanl.Continue s -> do
+                void $ sendContinueToDriver chan
+                return $ Fold.Partial s
+            Scanl.Done b -> do
                 sendYieldToDriver chan b
                 return $ Fold.Done True
 
@@ -559,6 +593,8 @@ checkFoldStatus sv = do
             FoldDone _ b -> return (Just b)
             FoldPartial _ ->
                 error "checkFoldStatus: FoldPartial can occur only for scans"
+            FoldContinue ->
+                error "checkFoldStatus: FoldContinue can occur only for scans"
             FoldEOF _ ->
                 error "checkFoldStatus: FoldEOF can occur only for scans"
 

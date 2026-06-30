@@ -22,6 +22,7 @@ import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream as D
 import qualified Streamly.Internal.Data.StreamK as K
 
+import Streamly.Test.Data.Scanl.Common (evenScanl)
 import Control.Exception (Exception, SomeException, try)
 import Control.Monad.Catch (throwM)
 import Control.Monad.Trans.State.Strict
@@ -516,6 +517,77 @@ scanlMany :: Bool
 scanlMany =
     let unf = UF.scanlMany (Scanl.take 2 Scanl.sum) UF.fromList
     in testUnfold unf ([1,2,3,4,5] :: [Int]) [0,1,3,0,3,7,0,5]
+
+-- 'UF.postscanl' must skip (no output, no extract) on a 'Continue' step.
+unfoldPostscanlFilter :: Expectation
+unfoldPostscanlFilter = do
+    ref <- newIORef []
+    out <-
+        S.toList
+            $ S.unfold (UF.postscanl (evenScanl ref) UF.fromList) [1 .. 6 :: Int]
+    calls <- Prelude.reverse <$> readIORef ref
+    out `shouldBe` [2, 4, 6]
+    calls `shouldBe` [2, 4, 6]
+
+-- 'UF.scanl' is the same but also emits the initial output.
+unfoldScanlFilter :: Expectation
+unfoldScanlFilter = do
+    ref <- newIORef []
+    out <-
+        S.toList
+            $ S.unfold (UF.scanl (evenScanl ref) UF.fromList) [1 .. 6 :: Int]
+    calls <- Prelude.reverse <$> readIORef ref
+    out `shouldBe` [0, 2, 4, 6]
+    calls `shouldBe` [0, 2, 4, 6]
+
+-- 'UF.scanlMany' restarts the scan on 'Done'; a filtered ('Continue') step
+-- must not be confused with termination -- the scan must NOT restart on
+-- 'Continue', only on 'Done'.
+unfoldScanlManyFilter :: Expectation
+unfoldScanlManyFilter = do
+    ref <- newIORef []
+    out <-
+        S.toList
+            $ S.unfold (UF.scanlMany (evenScanl ref) UF.fromList) [1 .. 6 :: Int]
+    calls <- Prelude.reverse <$> readIORef ref
+    out `shouldBe` [0, 2, 4, 6]
+    calls `shouldBe` [0, 2, 4, 6]
+
+-- Filter law for 'UF.postscanl': filtering the scanner's input via
+-- 'Scanl.filter' is equivalent to filtering the unfold's output before the
+-- scanner sees it:
+--
+--   unfold (postscanl (Scanl.filter p s) uf) seed
+--     === postscanl s (filter p (unfold uf seed))
+unfoldPostscanlFilterLaw :: [Int] -> Property
+unfoldPostscanlFilterLaw seed = ioProperty $ do
+    outL <- S.toList
+        $ S.unfold (UF.postscanl (Scanl.filter even Scanl.sum) UF.fromList) seed
+    outR <- S.toList
+        $ S.postscanl Scanl.sum
+        $ S.filter even
+        $ S.unfold UF.fromList seed
+    return $ counterexample (show outL ++ " /= " ++ show outR) (outL == outR)
+
+unfoldScanlFilterLaw :: [Int] -> Property
+unfoldScanlFilterLaw seed = ioProperty $ do
+    outL <- S.toList
+        $ S.unfold (UF.scanl (Scanl.filter even Scanl.sum) UF.fromList) seed
+    outR <- S.toList
+        $ S.scanl Scanl.sum
+        $ S.filter even
+        $ S.unfold UF.fromList seed
+    return $ counterexample (show outL ++ " /= " ++ show outR) (outL == outR)
+
+unfoldScanlManyFilterLaw :: [Int] -> Property
+unfoldScanlManyFilterLaw seed = ioProperty $ do
+    outL <- S.toList
+        $ S.unfold (UF.scanlMany (Scanl.filter even Scanl.sum) UF.fromList) seed
+    outR <- S.toList
+        $ S.scanlMany Scanl.sum
+        $ S.filter even
+        $ S.unfold UF.fromList seed
+    return $ counterexample (show outL ++ " /= " ++ show outR) (outL == outR)
 
 foldMany :: Bool
 foldMany =
@@ -1014,6 +1086,12 @@ testTransformation =
             prop "scanl" scanl
             prop "scanl done-at-init" scanlDoneAtInit
             prop "scanlMany" scanlMany
+            it "postscanl filter" unfoldPostscanlFilter
+            it "scanl filter" unfoldScanlFilter
+            it "scanlMany filter" unfoldScanlManyFilter
+            prop "filter law: postscanl" unfoldPostscanlFilterLaw
+            prop "filter law: scanl" unfoldScanlFilterLaw
+            prop "filter law: scanlMany" unfoldScanlManyFilterLaw
             prop "foldMany" foldMany
             prop "either" either
             prop "mapM" mapM

@@ -126,8 +126,6 @@ module Streamly.Internal.Data.Scanl.Combinators
     -- , slide2
 
     -- ** Scanning Input
-    , compose
-    , composeMany
     -- , runScan
     , pipe
     , indexed
@@ -195,13 +193,7 @@ module Streamly.Internal.Data.Scanl.Combinators
     -- , intersperseWithQuotes
 
     -- ** Nesting
-    , unfoldEach
     -- , concatSequence
-
-    -- * Deprecated
-    , unfoldMany
-    , scanl
-    , scanlMany
     )
 where
 
@@ -224,11 +216,11 @@ import Streamly.Internal.Data.Pipe.Type (Pipe (..))
 -- import Streamly.Internal.Data.Scan (Scan (..))
 import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
-import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 
 import qualified Prelude
 import qualified Streamly.Internal.Data.MutArray.Type as MA
 -- import qualified Streamly.Internal.Data.Array.Type as Array
+import qualified Streamly.Internal.Data.Fold.Step as Fold
 import qualified Streamly.Internal.Data.Scanl.Window as Scanl
 import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 -- import qualified Streamly.Internal.Data.RingArray as RingArray
@@ -372,7 +364,7 @@ mapMaybeM f = lmapM f . catMaybes
 -- >>> f x = if even x then Just x else Nothing
 -- >>> scn = Scanl.mapMaybe f Scanl.toList
 -- >>> Stream.toList $ Stream.scanl scn (Stream.enumerateFromTo 1 10)
--- [[],[],[2],[2],[2,4],[2,4],[2,4,6],[2,4,6],[2,4,6,8],[2,4,6,8],[2,4,6,8,10]]
+-- [[],[2],[2,4],[2,4,6],[2,4,6,8],[2,4,6,8,10]]
 --
 {-# INLINE mapMaybe #-}
 mapMaybe :: Monad m => (a -> Maybe b) -> Scanl m b r -> Scanl m a r
@@ -411,6 +403,7 @@ pipe (Pipe consume produce pinitial) (Scanl fstep finitial fextract ffinal) =
             return
                 $ case acc1 of
                       Partial s -> Partial $ Tuple' cs1 s
+                      Continue s -> Continue $ Tuple' cs1 s
                       Done b1 -> Done b1
         -- XXX this case is recursive may cause fusion issues.
         -- To remove recursion we will need a produce mode in scans which makes
@@ -421,6 +414,7 @@ pipe (Pipe consume produce pinitial) (Scanl fstep finitial fextract ffinal) =
             r <- produce ps1
             case acc1 of
                 Partial s -> go s r
+                Continue s -> go s r
                 Done b1 -> return $ Done b1
         go acc (Pipe.SkipC cs1) =
             return $ Partial $ Tuple' cs1 acc
@@ -482,70 +476,6 @@ runScanWith isMany
 runScan :: Monad m => Scan m a b -> Fold m b c -> Scanl m a c
 runScan = runScanWith False
 -}
-
-{-# INLINE scanWith #-}
-scanWith :: Monad m => Bool -> Scanl m a b -> Scanl m b c -> Scanl m a c
-scanWith isMany
-    (Scanl stepL initialL extractL finalL)
-    (Scanl stepR initialR extractR finalR) =
-    Scanl step initial extract final
-
-    where
-
-    {-# INLINE runStep #-}
-    runStep actionL sR = do
-        rL <- actionL
-        case rL of
-            Done bL -> do
-                rR <- stepR sR bL
-                case rR of
-                    Partial sR1 ->
-                        if isMany
-                        -- XXX recursive call. If initialL returns Done then it
-                        -- will not terminate. In that case we should return
-                        -- error in the beginning itself. And we should remove
-                        -- this recursion, assuming it won't return Done.
-                        then runStep initialL sR1
-                        else Done <$> finalR sR1
-                    Done bR -> return $ Done bR
-            Partial sL -> do
-                !b <- extractL sL
-                rR <- stepR sR b
-                case rR of
-                    Partial sR1 -> return $ Partial (sL, sR1)
-                    Done bR -> finalL sL >> return (Done bR)
-
-    initial = do
-        r <- initialR
-        case r of
-            Partial sR -> runStep initialL sR
-            Done b -> return $ Done b
-
-    step (sL, sR) x = runStep (stepL sL x) sR
-
-    extract = extractR . snd
-
-    final (sL, sR) = finalL sL *> finalR sR
-
--- | Scan the input of a 'Scanl' to change it in a stateful manner using
--- another 'Scanl'. The scan stops as soon as any of the scans terminates.
---
--- This is basically an append operation.
---
--- /Pre-release/
-{-# INLINE compose #-}
-compose, scanl :: Monad m => Scanl m a b -> Scanl m b c -> Scanl m a c
-compose = scanWith False
-
--- XXX This does not fuse beacuse of the recursive step. Need to investigate.
-
--- | Scan the input of a 'Scanl' to change it in a stateful manner using
--- another 'Scanl'. The scan restarts with a fresh state if it terminates.
---
--- /Pre-release/
-{-# INLINE composeMany #-}
-composeMany, scanlMany :: Monad m => Scanl m a b -> Scanl m b c -> Scanl m a c
-composeMany = scanWith True
 
 ------------------------------------------------------------------------------
 -- Filters
@@ -614,7 +544,7 @@ rollingMapM f = Scanl step initial extract extract
 
     -- XXX We need just a postscan. We do not need an initial result here.
     -- Or we can supply a default initial result as an argument to rollingMapM.
-    initial = return $ Partial (Nothing, error "Empty stream")
+    initial = return $ Fold.Partial (Nothing, error "Empty stream")
 
     step (prev, _) cur = do
         x <- f prev cur
@@ -723,7 +653,7 @@ the = scant' step initial id
 
     where
 
-    initial = Partial Nothing
+    initial = Fold.Partial Nothing
 
     step Nothing x = Partial (Just x)
     step old@(Just x0) x =
@@ -760,7 +690,7 @@ sum = Scanl.cumulativeScan Scanl.incrSum
 --
 {-# INLINE product #-}
 product :: (Monad m, Num a, Eq a) => Scanl m a a
-product =  scant' step (Partial 1) id
+product =  scant' step (Fold.Partial 1) id
 
     where
 
@@ -1311,7 +1241,7 @@ takingEndByM p = Scanl step initial extract extract
 
     where
 
-    initial = return $ Partial Nothing'
+    initial = return $ Fold.Partial Nothing'
 
     step _ a = do
         r <- p a
@@ -1336,7 +1266,7 @@ takingEndByM_ p = Scanl step initial extract extract
 
     where
 
-    initial = return $ Partial Nothing'
+    initial = return $ Fold.Partial Nothing'
 
     step _ a = do
         r <- p a
@@ -1361,7 +1291,7 @@ droppingWhileM p = Scanl step initial extract extract
 
     where
 
-    initial = return $ Partial Nothing'
+    initial = return $ Fold.Partial Nothing'
 
     step Nothing' a = do
         r <- p a
@@ -1848,11 +1778,11 @@ partitionByM f
         resR <- initialR
         return
             $ case resL of
-                  Done bl -> Done bl
-                  Partial sl ->
+                  Fold.Done bl -> Fold.Done bl
+                  Fold.Partial sl ->
                       case resR of
-                            Partial sr -> Partial $ PartLeft sl sr
-                            Done br -> Done br
+                            Fold.Partial sr -> Fold.Partial $ PartLeft sl sr
+                            Fold.Done br -> Fold.Done br
 
     runBoth sL sR a = do
         pRes <- f a
@@ -1861,11 +1791,13 @@ partitionByM f
                 resL <- stepL sL b
                 case resL of
                     Partial s -> return $ Partial $ PartLeft s sR
+                    Continue s -> return $ Continue $ PartLeft s sR
                     Done x -> return $ Done x
             Right c -> do
                 resR <- stepR sR c
                 case resR of
                     Partial s -> return $ Partial $ PartRight sL s
+                    Continue s -> return $ Continue $ PartRight sL s
                     Done x -> return $ Done x
 
     step (PartLeft sL sR) = runBoth sL sR
@@ -2182,44 +2114,6 @@ toStream = fmap StreamD.fromList toList
 toStreamRev :: (Monad m, Monad n) => Scanl m a (Stream n a)
 toStreamRev = fmap StreamD.fromList toListRev
 
--- XXX This does not fuse. It contains a recursive step function. We will need
--- a Skip input constructor in the fold type to make it fuse.
-
--- | Unfold and flatten the input stream of a scan.
---
--- @
--- Stream.scanl (unfoldEach u f) == Stream.scanl f . Stream.unfoldEach u
--- @
---
--- /Pre-release/
-{-# INLINE unfoldEach #-}
-unfoldEach :: Monad m => Unfold m a b -> Scanl m b c -> Scanl m a c
-unfoldEach (Unfold ustep inject) (Scanl fstep initial extract final) =
-    Scanl consume initial extract final
-
-    where
-
-    {-# INLINE produce #-}
-    produce fs us = do
-        ures <- ustep us
-        case ures of
-            StreamD.Yield b us1 -> do
-                fres <- fstep fs b
-                case fres of
-                    Partial fs1 -> produce fs1 us1
-                    -- XXX What to do with the remaining stream?
-                    Done c -> return $ Done c
-            StreamD.Skip us1 -> produce fs us1
-            StreamD.Stop -> return $ Partial fs
-
-    {-# INLINE_LATE consume #-}
-    consume s a = inject a >>= produce s
-
--- {-# DEPRECATED unfoldMany "Use unfoldEach instead." #-}
-{-# INLINE unfoldMany #-}
-unfoldMany :: Monad m => Unfold m a b -> Scanl m b c -> Scanl m a c
-unfoldMany = unfoldEach
-
 -- | Get the bottom most @n@ elements using the supplied comparison function.
 --
 {-# INLINE bottomBy #-}
@@ -2234,8 +2128,8 @@ bottomBy cmp n = Scanl step initial extract extract
     initial = do
         arr <- MA.emptyOf' n
         if n <= 0
-        then return $ Done arr
-        else return $ Partial (arr, 0)
+        then return $ Fold.Done arr
+        else return $ Fold.Partial (arr, 0)
 
     step (arr, i) x =
         if i < n
@@ -2402,10 +2296,3 @@ intersperseWithQuotes
         _ <- finalL sL
         error "intersperseWithQuotes: finished inside quote, at escape char"
 -}
-
-------------------------------------------------------------------------------
--- Deprecated
-------------------------------------------------------------------------------
-
-RENAME(scanl,compose)
-RENAME(scanlMany,composeMany)

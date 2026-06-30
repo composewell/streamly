@@ -12,10 +12,12 @@ module Streamly.Test.Data.Scanl.Concurrent (main) where
 import Control.Concurrent (threadDelay)
 import Control.Exception (ErrorCall(..), try)
 import Data.Function ( (&) )
-import Data.IORef (newIORef, atomicModifyIORef')
+import Data.IORef (atomicModifyIORef', newIORef, readIORef)
 import Data.List (sort)
 import Streamly.Data.Scanl (Scanl)
+import Streamly.Test.Data.Scanl.Common (evenScanl, filterLawScan)
 import Test.Hspec as H
+import Test.Hspec.QuickCheck (prop)
 
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Data.Stream as Stream
@@ -135,6 +137,30 @@ parDemuxScan_WorkerException concOpts = do
         Right _ -> expectationFailure
             "Expected ErrorCall exception but stream completed successfully"
 
+parTeeWithFilter :: IO ()
+parTeeWithFilter = do
+    ref <- newIORef []
+    out <-
+        Stream.toList
+            $ Stream.postscanl
+                (Scanl.parTeeWith id (,) (evenScanl ref) (Scanl.scanl' (\_ x -> x) 0))
+                (Stream.fromList [1 .. 4 :: Int])
+    calls <- reverse <$> readIORef ref
+    out `shouldBe` [(2, 2), (4, 4)]
+    calls `shouldBe` [0, 2, 4]
+
+parTeeWithRightFilter :: IO ()
+parTeeWithRightFilter = do
+    ref <- newIORef []
+    out <-
+        Stream.toList
+            $ Stream.postscanl
+                (Scanl.parTeeWith id (,) (Scanl.scanl' (\_ x -> x) 0) (evenScanl ref))
+                (Stream.fromList [1 .. 4 :: Int])
+    calls <- reverse <$> readIORef ref
+    out `shouldBe` [(2, 2), (4, 4)]
+    calls `shouldBe` [0, 2, 4]
+
 main :: IO ()
 main = hspec
   $ H.parallel
@@ -152,3 +178,7 @@ main = hspec
             $ parDemuxScan_ScanEnd (Scanl.maxBuffer 1)
         it "parDemuxScanM (worker exception) (maxBuffer 1)"
             $ parDemuxScan_WorkerException (Scanl.maxBuffer 1)
+        it "parTeeWith filter" parTeeWithFilter
+        it "parTeeWith right filter" parTeeWithRightFilter
+        prop "parTeeWith filter law"
+            $ filterLawScan (Scanl.parTeeWith id (,) Scanl.sum Scanl.sum)
