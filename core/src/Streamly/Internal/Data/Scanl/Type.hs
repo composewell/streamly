@@ -121,7 +121,10 @@ module Streamly.Internal.Data.Scanl.Type
     -- ** Mapping Input
     , lmap
     , lmapM
+    , compose
+    , composeMany
     , postscanl
+    , postscanlMany
 
     -- ** Filtering
     , catMaybes
@@ -192,6 +195,8 @@ module Streamly.Internal.Data.Scanl.Type
     , mkScanl1M
     , mkScant
     , mkScantM
+    , scanl
+    , scanlMany
     )
 where
 
@@ -217,7 +222,8 @@ import qualified Streamly.Internal.Data.Fold.Step as Fold
 --import qualified Streamly.Internal.Data.Stream.Step as Stream
 import qualified Streamly.Internal.Data.StreamK.Type as K
 
-import Prelude hiding (Foldable(..), concatMap, filter, map, take, const)
+import Prelude
+    hiding (Foldable(..), concatMap, filter, map, take, const, scanl)
 
 -- Entire module is exported, do not import selectively
 import Streamly.Internal.Data.Scanl.Step
@@ -1306,13 +1312,9 @@ lmapM f (Scanl step begin done final) = Scanl step' begin done final
     where
     step' x a = f a >>= step x
 
--- | Postscan the input of a 'Scanl' to change it in a stateful manner using
--- another 'Scanl'.
---
--- /Pre-release/
-{-# INLINE postscanl #-}
-postscanl :: Monad m => Scanl m a b -> Scanl m b c -> Scanl m a c
-postscanl
+{-# INLINE scanWith #-}
+scanWith :: Monad m => Bool -> Scanl m a b -> Scanl m b c -> Scanl m a c
+scanWith isMany
     (Scanl stepL initialL extractL finalL)
     (Scanl stepR initialR extractR finalR) =
     Scanl step initial extract final
@@ -1326,8 +1328,14 @@ postscanl
             Done bL -> do
                 rR <- stepR sR bL
                 case rR of
-                    Partial sR1 -> Done <$> finalR sR1
-                    Continue sR1 -> Done <$> finalR sR1
+                    Partial sR1 ->
+                        if isMany
+                        then fromFoldStep <$> runInitialL sR1
+                        else Done <$> finalR sR1
+                    Continue sR1 ->
+                        if isMany
+                        then fromFoldStep <$> runInitialL sR1
+                        else Done <$> finalR sR1
                     Done bR -> return $ Done bR
             Partial sL -> do
                 !b <- extractL sL
@@ -1338,14 +1346,94 @@ postscanl
                     Done bR -> finalL sL >> return (Done bR)
             Continue sL -> return $ Continue (sL, sR)
 
+    -- Recursive when isMany is true, cannot be inlined
+    -- XXX We need to fix the two problematic cases in this after we change the
+    -- initial return type to Scanl.Step.
+    runInitialL sR = do
+        rL <- initialL
+        case rL of
+            Fold.Done bL -> do
+                rR <- stepR sR bL
+                case rR of
+                    Partial sR1 ->
+                        if isMany
+                        -- NOTE: this may lead to infinite loop unless at some
+                        -- point initialL stops returning Done.
+                        then runInitialL sR1
+                        else Fold.Done <$> finalR sR1
+                    Continue sR1 ->
+                        if isMany
+                        then runInitialL sR1
+                        -- XXX this should terminate without result
+                        else Fold.Done <$> finalR sR1
+                    Done bR -> return $ Fold.Done bR
+            Fold.Partial sL -> do
+                !b <- extractL sL
+                rR <- stepR sR b
+                case rR of
+                    Partial sR1 -> return $ Fold.Partial (sL, sR1)
+                    Continue sR1 ->
+                        -- XXX this should be Continue
+                        return $ Fold.Partial (sL, sR1)
+                    Done bR -> finalL sL >> return (Fold.Done bR)
+
+    initial = do
+        r <- initialR
+        case r of
+            Fold.Partial sR -> runInitialL sR
+            Fold.Done b -> return $ Fold.Done b
+
+    step (sL, sR) x = runStep (stepL sL x) sR
+
+    extract = extractR . snd
+
+    final (sL, sR) = finalL sL *> finalR sR
+
+{-# INLINE postscanlWith #-}
+postscanlWith :: Monad m => Bool -> Scanl m a b -> Scanl m b c -> Scanl m a c
+postscanlWith
+    isMany
+    (Scanl stepL initialL extractL finalL)
+    (Scanl stepR initialR extractR finalR) =
+    Scanl step initial extract final
+
+    where
+
+    {-# INLINE runStep #-}
+    runStep actionL sR = do
+        rL <- actionL
+        case rL of
+            Done bL -> do
+                rR <- stepR sR bL
+                case rR of
+                    Partial sR1 ->
+                        if isMany
+                        then fromFoldStep <$> runInitialL sR1
+                        else Done <$> finalR sR1
+                    Continue sR1 ->
+                        if isMany
+                        then fromFoldStep <$> runInitialL sR1
+                        else Done <$> finalR sR1
+                    Done bR -> return $ Done bR
+            Partial sL -> do
+                !b <- extractL sL
+                rR <- stepR sR b
+                case rR of
+                    Partial sR1 -> return $ Partial (sL, sR1)
+                    Continue sR1 -> return $ Continue (sL, sR1)
+                    Done bR -> finalL sL >> return (Done bR)
+            Continue sL -> return $ Continue (sL, sR)
+
+    runInitialL sR = do
+        rL <- initialL
+        case rL of
+            Fold.Done _ -> Fold.Done <$> finalR sR
+            Fold.Partial sL -> return $ Fold.Partial (sL, sR)
+
     initial = do
         rR <- initialR
         case rR of
-            Fold.Partial sR -> do
-                rL <- initialL
-                case rL of
-                    Fold.Done _ -> Fold.Done <$> finalR sR
-                    Fold.Partial sL -> return $ Fold.Partial (sL, sR)
+            Fold.Partial sR -> runInitialL sR
             Fold.Done b -> return $ Fold.Done b
 
     -- XXX should use Tuple'
@@ -1354,6 +1442,38 @@ postscanl
     extract = extractR . snd
 
     final (sL, sR) = finalL sL *> finalR sR
+
+-- | Postscan the input of a 'Scanl' to change it in a stateful manner using
+-- another 'Scanl'.
+--
+-- /Pre-release/
+{-# INLINE postscanl #-}
+postscanl :: Monad m => Scanl m a b -> Scanl m b c -> Scanl m a c
+postscanl = postscanlWith False
+
+{-# INLINE postscanlMany #-}
+postscanlMany :: Monad m => Scanl m a b -> Scanl m b c -> Scanl m a c
+postscanlMany = postscanlWith True
+
+-- | Scan the input of a 'Scanl' to change it in a stateful manner using
+-- another 'Scanl'. The scan stops as soon as any of the scans terminates.
+--
+-- The composition of the scans works in postscan style i.e. the initial value
+-- of the accumulator of the first scan does not drive the second scan.
+--
+{-# INLINE compose #-}
+compose, scanl :: Monad m => Scanl m a b -> Scanl m b c -> Scanl m a c
+compose = scanWith False
+
+-- | Like 'compose' but the second scan restarts if it terminates.
+--
+-- /Pre-release/
+{-# INLINE composeMany #-}
+composeMany, scanlMany :: Monad m => Scanl m a b -> Scanl m b c -> Scanl m a c
+composeMany = scanWith True
+
+RENAME(scanl,compose)
+RENAME(scanlMany,composeMany)
 
 ------------------------------------------------------------------------------
 -- Filtering
