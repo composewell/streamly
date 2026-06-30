@@ -9,7 +9,7 @@ Scan operations:
 * sink terminates before source
 * ability to stop without output (empty stream output)
 * ability to give output without input (empty stream input)
-* perform running "sum" operation
+* perform sum-so-far or running "sum" operation
 
 Pipe operations:
 * perform output filtering? consume without producing.
@@ -18,197 +18,228 @@ Pipe operations:
   i.e. consume without producing and produce without consuming. Similary, emit
   sorted groups of k items.
 
-## Scanl (Consumer Scan)
+## Moore scans (scanl)
 
-### Moore Style Scan
-
-foldl and scanl combinators in Streamly Stream module are Moore machine style
-representations:
+A Moore machine emits the states of the machine, the output is solely a
+function of the state. foldl and scanl combinators in Streamly Stream
+module are Moore machine style representations:
 ```
 foldl :: (b -> a -> b) -> b -> Stream m a -> m b
 scanl :: (s -> a -> s) -> s -> Stream m a -> Stream m s
 ```
 
-A Moore machine emits the states of the machine, the output is solely a
-function of the state. scanl emits the initial value of the accumulator
-followed by one value per input, the next state of the machine. If the input
-stream size is n the output stream size is n + 1.
+### scanl and postscan
 
-The Scanl type in streamly is a data representation of strict left
-scan. The Fold type is a data representation of strict left fold.
+The `scanl` operation emits the initial value of the accumulator
+followed by one value per input, the next state of the machine. If the
+input stream size is n the output stream size is `n + 1`.  A postscan
+does not emit the initial value of the accumulator and is therefore a
+n-to-n transformation.
 
-### Scanl Type
+## Reified Transducer
 
-Scanl is just a reification of the Moore style `scanl` operation above.
+data MooreTransducer s m a b =
+    MooreTransducer (s -> a -> m s) (s -> b)
 
-Scanl emits an initial value extracted from the initial state. The extract
-function extracts the output from the state, it can be called after every
-`Partial` step to get the output.
+newtype MealyTransducer s m a b =
+    MealyTransducer (s -> a -> m (s, b))
 
-It also has a finalizer action, which is called only when the scan is
-terminated externally, rather than completing on its own (via Done). In that
-case `final` can be used to perform any resource finalization, it does not
-return any output, just an effect, and should be called only once.
+## Transducers with abstract state
 
-It supports resource bracketing by resource allocation in initial state and
-release in the final. However always emitting a  value in the initial step can
-make implementation of operations like map and filter more complicated than
-they need to be. Separate types can be used for different use cases which would
-be less ergonomic but can be optimized better.
+data MooreTransducer m a b =
+    forall s. MooreTransducer (s -> a -> m s) (s -> b) s
 
+newtype MealyTransducer m a b =
+    forall s. MealyTransducer (s -> a -> m (s, b)) s
+
+## Fold Scan
+
+We call the push-through transducer a fold scan as it attaches naturally
+to a fold.  The Scanl type in streamly is a fold scan. It is simply an
+extension of the Fold type and a reification of the Moore style `scanl`
+operation above. Read the fold design doc to get the basics from where
+we are going to start in this section.
+
+A Fold with extraction of intermediate states.
 ```
-data Step s b = Partial !s | Done !b
+data Step s b = Partial s | Done b
 
-data Scanl m a b =
-  -- | @Scanl@ @step@ @initial@ @extract@ @final@
-  forall s. Scanl (s -> a -> m (Step s b)) (m (Step s b)) (s -> m b) (s -> m ())
+data FoldScan m a b =
+    FoldScan
+        (s -> a -> m (Step s b))
+        (m (Step s b))
+        (s -> m b) -- extract
 ```
 
-We require the general Scanl type for resource bracketing.  For fusion
-optimizations, a postscan (no initial emission) type may be helpful for the
-case when no resource bracketing is required.
+RULES:
+* `extract` can be called any time on `s` to get the latest value.
+* `extract` should be called at most once on "s" as it is effectful.
 
-### Scanl-fold relationship
+## Resource Cleanup
 
-Folds are a special case of Scanl and the relationship must follow a
-strict law -- a fold can always be obtained by keeping the last element
-of a Scanl.
+Now that extract can be called after every step, it can no longer act as
+a finalizer, as was the case in folds. So we need a separate finalizer
+which would be called if the input stream ends. If the scan terminates
+on its own, returning a `Done`, it will cleanup before terminating.
+```
+data FoldScan m a b =
+    FoldScan
+        (s -> a -> m (Step s b))
+        (m (Step s b))
+        (s -> m b) -- extract
+        (s -> m ()) -- final
+```
 
-This relatiohship necessitates that we always extract and emit a final
-value in a Scanl when the stream stops. This means that if the scan stops
-voluntarily then the output has n+1 elements if the input has n elements.
-However, if the scan is force extracted when the stream stops then the output
-will have n+2 elements, the additional element corresponds to the missing
-transitions that never occurred because of early abort of the stream. In many
-cases the additional element may be the same as the element before it, that
-happens when the scan has nothing buffered in the state and there was nothing
-additional to do if the stream stops at any point.
-
-Now the question is - should we keep this as the default and only
-behavior of the scan or should we provide this as on option? Can this
-duplicate element emission on abort cause issues for certain consumers
-of scan?
-
-So the type must be:
-data Scanl m a b =
-  -- | @Scanl@ @step@ @initial@ @extract@ @final@
-  forall s. Scanl (s -> a -> m (Step s b)) (m (Step s b)) (s -> m b) (s -> m b)
-
-### Buffering in Scans
+## Drain phase in the end?
 
 Let's say we implement a delay-by-k scan i.e. we buffer k elements and keep
 emitting one if the buffer is full. In such a case when the input stops or the
 scan is done we need to flush more than one element. So the final extract
 should look like a producer step i.e. `s -> m (Step s b)`.
 
-### Skipping input
+### Adding final drain phase to scan
 
-Another example is sort in groups of k, so we need to buffer k and then emit
-them all k in a sorted order. To implement such scans we need to be able to
-skip inputs and act as producer for some time and then start accepting input
-but not produce output. So in general we need both input and output skipping.
-
-## Moore-Mealy vs Producer-Consumer
-
-The Moore vs Mealy representation dimension is orthogonal to the Producer vs
-Consumer dimension. We can use Moore representation in both consumer or
-producer or Mealy representation in both. However Moore is more suitable (and
-efficient) for consumers and Mealy is more suitable for producers.
-
-One point to note is that Moore and Mealy become the same if we remove the
-initial or final step. So if that step is not important both of them degenerate
-to the same representation.
-
-Operations like map and filter where only transitions are important, and
-empty stream does not require any special processing are efficiently
-expressible by Mealy style without extraction or Moore without an
-initial step. On the other hand operations like sum where empty stream
-sums to 0 are more convenient in Moore style or Mealy with a final
-extraction step.
-
-## MapAccum (Producer Scan)
-
-Alternate name Mapping or Mapper. Scanl is Reducer.
-
-### Mealy Style mapAccum
-
-mapAccum is a Mealy machine style representation:
+The "final" callback returns a stream:
 ```
-mapAccum :: (s -> a -> (s, b)) -> s -> Stream m a -> Stream m b
-mapAccumM :: (s -> a -> m (s, b)) -> m s -> Stream m a -> Stream m b
-mapAccumEnd :: (s -> a -> (s, b)) -> s -> (s -> b) -> Stream m a -> Stream m b
-mapAccumEndM :: (s -> a -> m (s, b)) -> m s -> (s -> m b) -> Stream m a -> Stream m b
+final :: s -> m (Stream.Step s b)
 ```
 
-Here, the state and the output are separate, each input generates the next
-state and an output. Notice, the step function has the same shape as mapAccumL,
-but mapAccumL returns the final accumulator separately while the mapAccumEnd
-implementation above emits a final value into the stream. mapAccum emits values
-only on inputs, it does not emit an initial value.  However, the extraction
-function (s -> b) in mapAccumEnd generates an additional terminal value.  While
-in Moore we have an additional initial value, in Mealy we have an additional
-final value.
+We cannot use Fold.Step here because we may have to finish with a possible
+empty stream and there is no way to represent that using Fold.Step.
 
-`mapAccumEnd` emits one output per input (from the step's b), followed by one
-terminal value (from extract).  If the input stream size is n the output
-stream size is n + 1.
+When a driver is driving a scan and the input stream is finished, it has to
+drain the "final" stream of the scan in a loop emitting one value at a time in
+the output stream. When two scans are composed, there are two cases:
 
-mapAccumEnd (Mealy) and scanl (Moore) can be interconverted.
+1) If the second scan finishes first then there is nothing to drive, the first
+scan can just cleanup itself and return Done.
 
-### The MapAccum type
+2) If the first scan finishes first it will feed the result into the second
+scan and then second scans result is to be extracted by the driver. However,
+since first scan is finished, afterwards we also have to drain the second scan
+without consuming further input. But there is no way to do that.
 
-This is a reification of mapAccum operation. The Step here is the Stream/Step:
-data Step s a = Yield a s | Skip s | Stop
+So for a scan to be composable without SkipInput feature, it has to be
+one-input one-output, and "final" can only be of type "final :: s -> m ()" only
+a resource cleanup op not a draining one.
 
-data MapAccum m a b =
-  -- | @MapAccum@ @step@ @initial@
-  forall s. MapAccum (s -> a -> m (Step s b)) s
+Very few scans require this draining capability especially the classify and
+demux scans, but everyone needs to handle this. Should we use the pipe type
+for drainable scans? Or solve that problem differently?
 
-Naming: StreamScan for MapAccum and FoldScan for Scanl is another choice .
-Scanp/Scanc is another choice. MealyScan and MooreScan is another choice but
-the name Moore and Mealy are orthogonal to the producer/consumer dimension
-which is the critical distinction of these two. Moore/Mealy encoding can be
-changed.
+### Why two scan types?
 
-### Stream-MapAccum relationship
+Note: scanl1 is naturally expressed as a MealyScan. If we express it
+using Scanl, then we have to have the return type as "Maybe a" because
+scanl has to emit an output and that would be Nothing in case of empty
+stream. In other words MealyScan is natural when there is no initial
+value e.g. the "latest/last" scan using mealy is a possibly empty stream
+whereas using Scanl it would be a "Maybe a" stream. However, we can
+use "catMaybes" on the resulting stream from Scanl to get the same
+effect. Scanl always gives you a non-empty stream which would be forced
+to be a Maybe if we have an empty stream input.
 
-If we drive this scan with input () we can derive a stream producer from it.
-But it is still fundamentally different as a stream is self driving and the
-scan needs to be driven by an input.
+The other real reason for two types — probably the one that actually pays rent
+— is fusion-side matching. A Mealy scan's bundled step :: s -> a -> Step s b
+has the same shape as the stream's own producer step, so it fuses into a stream
+pipeline with no impedance. A Moore scan's separate extract has Fold's shape,
+so it fuses into the consumer side. Two types let each fuse cleanly into the
+side it's used on instead of paying for an adapter. That's concrete and
+measurable, unlike the expressiveness story.
 
-### Limitations
+classifyScan, demuxScan etc have something to drain at the end. Such scans
+cannot drain the buffer in the end in the push scan implementations. Push scans
+are driven by pushers, if there is nothing to push, they cannot produce
+anything. On the other hand pull scans are driven by a puller, as long as there
+someone to pull it will keep unraveling. Scans which have something to drain at
+the end therefore are easily representable using the pull scans. Therefore push
+and pull are the real divisions between types rather than Moore or MEaly. Pull
++ pull types fuse well and do not have a dead end, similarly push + push works
+well. Interleaved push and pull require a more intricate driver which is what
+we implement in a pipe. Without a pipe we can still express a lot of problems
+if we take care of composing pull-pull or push-push or nest push inside pull.
+The stream side types use a pull protocol by using "Yield s b" and "Stop", the
+fold side types use a push protocol by using "Partial s" and "Done b". And we
+cannot really unify these unless we create a more complicated pipe type for
+interleaving push and pull.
 
-What it can do?
-* it gets a Category instance, because it can represent "identity" and that is
-  because it does not have to produce output without input thus "MapAccum m a
-  a" is implementable, if we can produce an output without input then
-  "MapAccum m a a" will have to manufacture a value of type "a" on empty
-  input.
-* With Category it gets the Arrow instance as well using unzip/teeWith.
-* It can implement scanl1, but not scanl .
-* Can do: map, filter, stateful scanl1-style scans, take/drop/takeWhile, and
-  tee/unzip/fork via Arrow.
+I think the critical point here is push vs pull rather than Moore vs Mealy,
+those are just representations. The problem is we cannot embed a pull inside
+push, because there is nobody to drive it. However if we embed a pull inside
+pull, the pulling driver will always pull whatever is there in it.
 
-What we cannot do with a MapAccum?
+So the library conclusion is forced and simple: a scan that can drain must
+expose a pull protocol, and scans compose-with-drain only in pull form. Push
+scans are the strictly-input-clocked subset — fine, fuse well, compose cheaply,
+but no drain past end-of-input, and crucially no drain at an interior
+end-of-input either, which is what kills push-composition of buffering stages.
+Keep both because they're different protocols with different powers, not
+because they're different encodings. And the dividing capability has a one-line
+statement now: can a stage produce when nothing is feeding it? Pull yes, push
+no — because production-without-feed is a pull, and a pull is only ever driven
+by a puller.
 
-* It can produce at most one output element for each input element.
-  So this type maps, filters, scans, takes/drops -- but it cannot expand
-  (concatMap, unfoldMany, replicate-each, intersperse-multiples).
-* It cannot fold. It cannot yield an output on an empty stream e.g. sum fold
-  returning 0 on empty input stream, so folds are not possible. Adding an
-  extraction on input stream termination i.e. `final :: s -> m (Maybe b)` can
-  solve that, but then we will Category instance.
-* It cannot split streams in chunks. Without a "Done b", Stop will have to be
-  emitted on the subsequent input, in which case the next input is lost. So
-  without "Done b" it cannot be used to fold streams in chunks without losing
-  elements.
+### StreamScan vs FoldScan
 
-So all it can do it is fork/unzip streams into parallel streams and process
-different parts in different branches e.g. tee and unzip operations. It cannot
-split streams in chunks. So this is a transformation arrow, not really a
-consumer.
+Mapper/Transducer is strictly a transformation arrow because it does not have
+an initialization or finalization.
 
-## MapAccum vs Scanl
+MealyScan has no way to emit an output before the first input, therefore, the
+type restricts it to a Mealy style scan. That is the reason the initial is "s"
+and not (Stream.Step s b), and because of that Mealy cannot stop without input
+which is a distinguishing feature compared to Moore which can stop without
+input. So Mealy has to consume one input, and Moore has to produce one output.
+
+If we use Step type for "initial" then we will be able to implement Moore or
+Mealy with the MealyScan type and we can stop without input as well which will
+put this type at parity with the "Scanl" type. And if we have a requirement for
+some resource allocation in the beginning then we will have to make "initial"
+monadic.
+
+The Scanl type is more general than a strict Moore machine. Because the initial
+type is a Step we have all possibilities, it can emit at initial or it can Skip
+using Continue. If we do not include Continue in the "initial" result type then
+we can restrict this from acting as Mealy. Note that if we make the "initial"
+of MealyScan as Stream.Step then we can implement Moore as well with that type.
+So the only crucial difference between these two types in that case is
+"extract" vs "Yield" mechanism and "Stop" vs "Done b" for termination. Note
+that the "final" in Mealy is a machine required feature as well as an
+abort/finalization mechanism. Whereas in Scanl it is only an abort/finalization
+mechanism.
+
+So essentially these two types are equivalent. However there may be some
+operational differences due to fusion characteristics of the two when composed
+with other types. However, if we have Step type in "initial" and "final" both
+then that line also gets blurred because that requires introduction of an
+additional state in both cases. We need to check practically (GHC core) if
+there is a difference due to different representations.
+
+Note that we can restrict the Mealy from being used as Moore and vice versa by
+choosing a restricted type in the "initial" action instead of the general
+"Step" type, the way we do it in the Parser type.
+
+Scanl can be used as a transformation if we use it with postscan which discards
+the initial result, but we have to be careful with implementation in presence
+of filtering with Continue, postscan should drop the first state transition
+irrespective of whether it is Continue or Partial. Similarly, MealyScan can be
+used as a transformation by dropping the last element, however, for that to
+hold we need to make sure that we use a custom "Final" type (or singleton
+action s -> m b) so that it emits only a single element in the drain phase.
+
+The Mapper type is simpler than Scanl or MealyScan unless we add
+initialization/finalization to it but we do not need to do that because that is
+what makes this type distinct. So Mapper can perhaps give better fusion with
+the Stream type.
+
+-----
+
+Stream scan can partition and distribute the stream but it cannot chunk it. For
+chunking we need a push style scan because there is nobody to pull there. On
+the other hand FoldScan can be used for both partitioning as well as chunking.
+However, stream scan can be used to drain buffered data, while FoldScan cannot
+be used for that.
+
+## StreamScan vs FoldScan
 
 The fundamental difference between MapAccum and Scanl is not Moore/Mealy
 encoding, that does not matter from the point of view of the functionality. The
@@ -244,7 +275,184 @@ sometimes not, which makes it more error prone when using.
 
 Better than building this we can just use the full Pipe type.
 
-## SkipInput in Scanl?
+## Adding filtering
+
+Like streams can filter output, filtering should be a first class feature of
+scans as well. In case of scans filtering means we do not allow certain inputs
+to pass through the scan. If an input is not allowed to go through then we
+should also not emit an output corresponding to that input.
+
+To support this we add a "Continue" constructor to Step result:
+```
+data Initial s b = IPartial s | IDone b
+data Step s b = Partial s | Continue s | Done b
+
+data FoldScan m a b =
+    FoldScan
+        (s -> a -> m (Step s b))
+        (m (Initial s b))
+        (s -> m b) -- extract
+        (s -> m ()) -- final
+```
+
+We have kept the return type of initial the same as before and only
+added "Continue" to the return type of `Step`.  If step returns
+"Continue" the driver does not call extract and does not emit the
+output.
+
+## teeWith when filtering
+
+Both the branches of a tee can independently filter, how do we zip
+the results?  Zipping makes sense only when we zip the corresponding
+elements of both the branches. There are multiple ways to do that:
+
+1) innerJoin: zip only when both values are available, filter out the rest
+2) outerJoin: we can add a combinator to convert "Continue" constructor
+   to Nothing and "Partial" to Just and then zip normally, this will
+   convert the original streams to Maybe streams where Nothing means
+   filtered, and then we can zip.
+
+We can think of using the the last available value, a last available
+value is always possible if "initial" cannot result in "Continue".
+
+## teeMerge with filtering
+
+Filtering occurs in both the branches independently and the output
+gets combined into a single stream, this is straightforward with easy
+semantics.
+
+## Category Composition
+
+```
+compose :: Scanl m a b -> Scanl m a b -> Scanl m a
+```
+
+There are two types of composition possible, postscan style and scanl style.
+postscan style composition is straightforward. Composed "initial" initialize
+both the scans but the initial value is not used. If right initial returns
+"Done" the composed initial returns "Done". If left initial returns "Done" that
+means the input to right scan is over and we extract it and return Done.
+Similarly, step composition is straightforward with no issues.
+
+However, we run into a problem if we use "scanl" style composition of two
+scans. In this case, in the composed "initial", the initial value of the left
+scan is to be fed to the step of the right scan. But step now has a "Continue"
+so it can possibly return "Continue" and filter out the output, and since we
+are in "initial" we have no way to express "Continue" in initial.
+
+Before we solve this porblem we need to ask -- is "scanl" style composition
+useful?
+
+## scanl composition use case
+
+Use case for composing in a scanl style instead of postscanl.
+
+s1 = Scanl.const initialBalance (some business-default starting balance), s2
+= running total scan. Eager composition says: "the composed scan's very
+first reported output is the running total as if the initial balance had
+already been deposited -- before the first real transaction arrives." That's
+actually a coherent and plausibly desired behavior: you want the composed
+scan, when driven, to report initialBalance as output zero, then
+initialBalance + tx1 as output one, etc. A postscan-composed version would
+instead report nothing until the first real transaction, then 0 + tx1
+(missing the seed entirely, because stage 2 never got seeded with stage 1's
+default at all) -- which is a real, observable difference in behavior, not
+just an extra/missing element: postscan composition here silently drops the
+seed value's contribution, because stage 2 only ever sees real inputs, never
+stage 1's eager default.
+
+This looks like a real use case and it would be nice to support this style of
+composition.
+
+### Continue in initial
+
+Let's address the use case of "scanl" style category composition by adding the
+"Continue" result type in "initial" as well. Now initial can filter out the
+result and we can express our previously impossible case by emitting "Continue"
+from initial.
+
+### Possibly Empty output
+
+But if "initial" as well as step both can emit "Continue" then it is possible
+that the scan goes without emitting anything, so empty scan output is now
+possible, a scan no longer emits at least one value. If all the outputs are
+filtered and even the last one, when the scan terminates, is to be filtered out
+then how do we express scan termination because the only way we can terminate
+is with a value "Done b".
+
+Another case for the same is category composition in "scanl" style -- if the
+left scan returns "Done" in initial and the right scan returns "Continue" then
+what should the composed "initial" return? The only possibility is a "Stop"
+without a return value.
+
+The key point is that when filtering is a possiblity, it is always possible
+that everything got filtered and there is nothing to return on termination in
+which case we need a way to terminate without return value. Therefore, we need
+another constructor e.g. "Stop" or "Halt" to express that.
+
+So our final type becomes:
+```
+data Step s b = Partial s | Continue s | Done b | Halt
+
+data FoldScan m a b =
+    FoldScan
+        (s -> a -> m (Step s b))
+        (m (Step s b))
+        (s -> m b) -- extract
+        (s -> m ()) -- final
+```
+
+Rename as a subset of pipe terminology:
+* Partial => YieldAwait, Next
+* Continue => Await, Skip, Omit, SkipOutput
+* Halt => Stop
+* Rename "Done" => StopWith, DoneWith, Return
+
+Now "scanl" style composition is possible and the composed scan will emit an
+initial value on "scanl" only if all the downstream scans in the pipeline emit
+a "Partial" in their initial as well as in the first step, even if one of them
+emits a "Continue" then the composed "initial" cannot emit a concrete value, it
+has to emit "Continue" i.e. it becomes a postscan.  Whether the composed scan
+emits an initial value or not is a dynamic decision depending on the states of
+the scans downstream in the pipeline. In fact, with Continue possible in
+initial, now any scan may choose to omit the initial value.
+
+Supporting this is not cheap as all initial compositions will now have to
+handle the "Continue" and "Done" cases as well even though those are corner
+cases.
+
+### scanl or postscanl drivers
+
+Whether the initial value is emitted or not is decided by what type of scan
+driver it is -- scanl or postscanl. This is not a choice of the scan it is a
+choice of the driver. However, if a scan returns "Continue" then the driver
+cannot emit it, it means that this scan does not support emission of initial
+value, therefore even "scanl" behavior becomes like postscanl. Now "scanl"
+becomes a best-effort, the scan author overrides it.
+
+## Filtering via extract (Alternate Design)
+
+One way to support filtering would be to change to change the signature
+of extract to `extract :: s -> m (Maybe b)`. This will have the
+benefit that now we do not need a Continue constructor in initial or
+step.  However, this would be more costly because now we will have to
+remember the filtering persistently in the state.  Instead of emitting
+a "Continue" and forgetting about it, we will have to mutate the state
+to say that currently we are in a output skip state. This may have a
+significant impact on performance. And the state is now always wrapped
+in a Maybe, so we always have to deconstruct that wrapper first in every
+call. So does not look like a winning design.
+
+## Skipping input
+
+See the pipe document for skip input discssion.
+
+Another example is sort in groups of k, so we need to buffer k and then emit
+them all k in a sorted order. To implement such scans we need to be able to
+skip inputs and act as producer for some time and then start accepting input
+but not produce output. So in general we need both input and output skipping.
+
+### SkipInput in Scanl?
 
 Should we add SkipInput to the Scanl type -- does it have duality with the
 SkipOutput on MapAccum side? Cardinality change is the transformation axis not
@@ -267,15 +475,130 @@ more complicated to implement, in addition to changing the Step type we also
 have to add a producer and consumer step. Which perhaps indicates that this is
 not the right abstraction.
 
-Also we need to perhaps look more carefully what is dual to filtering?
+The "Skip" on the stream side performs a dual role, (1) filtering the output,
+(2) local looping. Note that these are two independent functionality but
+because of the producer being a covariant type they can be achieved by the same
+constructor. However, on the fold side these two functionality become
+independent, (1) filtering requires the Continue constructor, (2) local looping
+requires a "Loop" constructor and a producer step, the complexity makes us
+defer the looping functionality to the pipe type. In streams we got that
+looping for free.
 
----
+### Why Moore style emission in Scanl?
 
-The two step consume/produce solution nicely solves the "unfoldMany" fusion use
-case. It can also be used for stateful expansion using concatScan. or rather
-concatMapAccum using a MapAccum with two steps. Perhaps the concatMapAccum is
-the producer side mirror use case of the unfoldMany use case on the consumer
-side?
+Why not use  "Partial s b" in Scanl? This will fix the problem of extracting on
+"Continue", and multiple extractions. However there are a number of problems
+with that:
+* parseMany etc, need to cache the output instead
+* the output is not lazily extracted, it has to be strictly available extracted
+  even if not demanded.
+* After Partial the output should remain extractable all the time from the last
+  Partial, that's the contract. So if the last emission was a "Continue" we
+  should be able to extract the output if the stream ends right after that or
+  in the "Partial s b" case we will have to cache it, which is a performance
+  hit.
+
+### Scan-fold relationship
+
+Folds are a special case of Scanl. Scans may or may not produce an
+output.  Folds aways produce an output. Folds can always be converted
+to a scan by extracting the intermediate states of the fold. However,
+we may not always be able to covert a scan to a fold because it may
+not produce a value. However, if we know that a scan is guaranteed to
+produce a value it can be cast into a fold by retaining the last value
+of the scan.
+
+Note that if a filtered fold is converted to a scan we will observe the
+outputs corresponding to the filtered elements as well unless we add a
+"Continue" constructor to folds too. If you do not want that then
+convert it to a scan before filtering.
+
+NOTE: do we need Fold and Scanl both, now that we have Continue in the step
+type? Now extract in folds will not result in error as long as the fold is
+written correctly to return Continue when extraction is not possible.
+Similarly, do we need Refold and OpenReducer both?
+
+## StreamScan (Producer Scan)
+
+Alternate name Mapping or Mapper. Scanl is Reducer.
+
+### Mealy Style mapAccum
+
+mapAccum is a Mealy machine style representation:
+```
+mapAccum :: (s -> a -> (s, b)) -> s -> Stream m a -> Stream m b
+mapAccumM :: (s -> a -> m (s, b)) -> m s -> Stream m a -> Stream m b
+mapAccumEnd :: (s -> a -> (s, b)) -> s -> (s -> b) -> Stream m a -> Stream m b
+mapAccumEndM :: (s -> a -> m (s, b)) -> m s -> (s -> m b) -> Stream m a -> Stream m b
+```
+
+Here, the state and the output are separate, each input generates the next
+state and an output. Notice, the step function has the same shape as mapAccumL,
+but mapAccumL returns the final accumulator separately while the mapAccumEnd
+implementation above emits a final value into the stream. mapAccum emits values
+only on inputs, it does not emit an initial value.  However, the extraction
+function (s -> b) in mapAccumEnd generates an additional terminal value.  While
+in Moore we have an additional initial value, in Mealy we have an additional
+final value.
+
+`mapAccumEnd` emits one output per input (from the step's b), followed by one
+terminal value (from extract).  If the input stream size is n the output
+stream size is n + 1.
+
+mapAccumEnd (Mealy) and scanl (Moore) can be interconverted.
+
+### The StreamScan type
+
+This is a reification of mapAccum operation. The Step here is the Stream/Step:
+data Step s a = Yield a s | Skip s | Stop
+
+data StreamScan m a b =
+  -- | @MapAccum@ @step@ @initial@
+  forall s. MapAccum (s -> a -> m (Step s b)) s
+
+Naming: StreamScan for MapAccum and FoldScan for Scanl is another choice .
+Scanp/Scanc is another choice. MealyScan and MooreScan is another choice but
+the name Moore and Mealy are orthogonal to the producer/consumer dimension
+which is the critical distinction of these two. Moore/Mealy encoding can be
+changed.
+
+### Stream-StreamScan relationship
+
+If we drive a StreamScan with input () we can derive a stream producer
+from it.  But it is still fundamentally different than a stream as a
+stream is self driving and the scan needs to be driven by an input.
+
+### Limitations
+
+What it can do?
+* it gets a Category instance, because it can represent "identity" and that is
+  because it does not have to produce output without input thus "MapAccum m a
+  a" is implementable, if we can produce an output without input then
+  "MapAccum m a a" will have to manufacture a value of type "a" on empty
+  input.
+* With Category it gets the Arrow instance as well using unzip/teeWith.
+* It can implement scanl1, but not scanl .
+* Can do: map, filter, stateful scanl1-style scans, take/drop/takeWhile, and
+  tee/unzip/fork via Arrow.
+
+What we cannot do with a MapAccum?
+
+* It can produce at most one output element for each input element.
+  So this type maps, filters, scans, takes/drops -- but it cannot expand
+  (concatMap, unfoldMany, replicate-each, intersperse-multiples).
+* It cannot fold. It cannot yield an output on an empty stream e.g. sum fold
+  returning 0 on empty input stream, so folds are not possible. Adding an
+  extraction on input stream termination i.e. `final :: s -> m (Maybe b)` can
+  solve that, but then we will Category instance.
+* It cannot split streams in chunks. Without a "Done b", Stop will have to be
+  emitted on the subsequent input, in which case the next input is lost. So
+  without "Done b" it cannot be used to fold streams in chunks without losing
+  elements.
+
+So all it can do it is fork/unzip streams into parallel streams and process
+different parts in different branches e.g. tee and unzip operations. It cannot
+split streams in chunks. So this is a transformation arrow, not really a
+consumer.
 
 ## Implementation Optimizations
 
@@ -394,7 +717,7 @@ operation rather than using `scanl`. The restart-on-termination variant
 is fully freed. And `scanlMaybe` to `composeMaybe`.
 
 * Scanl.scanl -> compose
-* Scanl.scanlMany -> composeMany
+* Scanl.scanlMany -> composeMany -> composeRepeat
 * Scanl.postscanl -> postcompose
 * Scanl.postscanlMany -> postcomposeMany
 

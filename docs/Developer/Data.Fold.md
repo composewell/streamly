@@ -1,79 +1,147 @@
 ## Consumer Functions
 
-The simplest consumer:
+## Folds
+
+Folds are consumers that consume a stream and produce a single final result.
+These are the simplest of the consumers.
 ```
-consume :: (s -> a -> m s) -> (s -> b) -> m s -> Stream m a -> m b
+consume :: (s -> a -> s) -> (s -> b) -> s -> [a] -> b
+consumeM :: (s -> a -> m s) -> (s -> b) -> s -> Stream m a -> m b
 ```
 
-With termination support:
-```
-data Outcome s = Yield s | Stop
-data Consumer s a m b =
-    Consumer
-        (s -> a -> m (Outcome s b))
+## Reified Consumer
+
+data Consumer a m s =
+    Consumer (s -> a -> m s)
+
+## Consumer with abstract state
+
+data Refold s a m b =
+    Refold
+        (s -> a -> m s) -- step
+        s -- initial
         (s -> b) -- final extract
-```
 
-With input skip support:
-```
-data Outcome s = Yield s | Skip s | Stop
-data Consumer s a m b =
-    Consumer
-        (s -> a -> m (Outcome s b)) -- Yield continuation
-        (s -> m (Outcome s b)) -- Skip continuation
+## Fold
+
+A Moore style state machine where output is a function of state.
+
+data Fold m a b =
+    Fold
+        (s -> a -> m s) -- step
+        s -- initial
         (s -> b) -- final extract
+
+Add rmapM support requires a monadic extract:
+data Fold m a b =
+    Fold
+        (s -> a -> m s)
+        s
+        (s -> m b)
+
+With local resource allocation or monadic initialization (e.g. time dependent
+initial state or initial state derived from network or DB):
+data Fold m a b =
+    Fold
+        (s -> a -> m s)
+        (m s)
+        (s -> m b)
+
+The final extraction function doubles up as resource finalization function as
+well, therefore, it should be called only once at the end.
+
+## Consumers with termination
+
+With termination support (e.g. take 5):
+```
+data Step s = Partial s | Done s
+
+data Fold m a b =
+    Fold
+        (s -> a -> m (Step s))
+        (m s)
+        (s -> m b)
 ```
 
-Another alternative is the driver can pass "Maybe a" in the input of the
-continuation. But that has a problem, the driver can pass Nothing or Maybe a
-arbitrarily without any check. Even using separate continuations have the same
-problem. Returning an inject function solves that problem. the driver is forced
-to use the inject function or pass the state as is.
+With termination in initial (e.g. take 0):
 ```
-data Outcome s = Yield s | Skip s | Stop
-data Consumer s a m b =
-    Consumer
-        (s -> Maybe a -> m (Outcome s b)) -- Yield continuation
-        (s -> b) -- final extract
+data Fold m a b =
+    Fold
+        (s -> a -> m (Step s))
+        (m (Step s))
+        (s -> m b)
 ```
 
-Another possiblity is to use two separate state types, "s1" and "s2". When it
-skips input it will return "s2", therefore, you have to call skip continuation,
-there is no other choice.
+## Auto finish vs input end
 
-Instead of using a separate continuation we can return an inject function
-instead (a -> s).
+There are two ways in which a fold can finish:
+* It decided to stop by itself while the input is still remaining
+* The input stream ended and we now need the fold to finish up
 
-Thus the type becomes:
+First case the fold returns "Done s", and in the second case we need to call
+the "final" function to extract the value.
+
+We can simplify the type to make it safer, so that we do not return the state
+if the fold returns "Done":
 ```
-data Outcome s a b = Yield (a -> s) | Skip s | Stop b
-data Consumer s a m b =
-    Consumer
-        (s -> m (Outcome s a b))
-        (s -> m b) -- final extract, when forced to stop
+data Step s b = Partial s | Done b
+
+data Fold m a b =
+    Fold
+        (s -> a -> m (Step s b))
+        (m (Step s b))
+        (s -> m b)
 ```
 
-The initial state type can be pure "s". In that case the driver will
-have to always start without an input, if the consumer requires an input then
-it will immediately ask for input. This is sort of an initialization state.
+Now if the fold returns "Done b" it has to ensure that any resource
+finalization is done because the driver has no way to do that. If the
+stream ends any resources are finalized by the final extract function.
 
-An alternative design is to use an initial continuation of type "m (Outcome s a
-b)". This is what we do today. We need the "Outcome" type rather than simple
-"s" because the consumer may stop immediately or may skip the input. The
-initial action can be executed in the underlying monad, like in case of unfold.
-What are the advantages/disadvantages of these two alternatives? Will adding an
-initial state in each fold be more overhead because most of the time folds will
-start with an input, so they will need an empty skip state in the beginning?
+## Why not Mealy style?
 
-Also, if we do not have the input skipping functionality e.g. in the simplest
-Fold type, then we need a separate "initial" step anyway so that it can return
-"Stop b" even without an input.
+Why not yield output at each step?
+```
+data Step s b = Partial s b | Done b
+```
 
-We do not need a Skip loop when we extract? therefore the extract type is
-simple "s -> m b". Otherwise we will need it to return "Skip s | Stop b".
+## Input Skipping Support
 
-if we yield "a -> s" will it be able to fuse? This is a dynamic function as it
-has the current state of the fold baked in.
+Combinators like unfoldEach on the input of a fold cannot be supported without
+input skipping. Draining at the end of a fold can be supported without input
+skipping but draining at the end of a scan requires input skipping.
+
+Input skipping essentially supports a local loop inside a fold without
+consuming input and with fusion. This introduces a producer phase inside the
+fold.
+
+Input skipping makes the type more complex and this feature therefore comes
+under the pipe type. See the pipe design doc for this.
+
+## Fold as Scan
+
+See the scan design doc.
+
+Note filtering can be supported by the fold type as it is. However, if we use
+the fold as a scan by adding a per input extract function, then we encounter a
+problem due to filtering and we need a richer type for proper filtering.
+Therefore, we need to lift folds into a richer type for scanning.
+
+### Stream vs Fold Step Types
+
+NOTE: Extract + Partial == Yield. The most crucial difference in Stream.Step
+and Fold.Step is that the producer terminal carries no value (Stop) while the
+consumer terminal does (Done b). That's the covariant/contravariant polarity
+showing up structurally -- it lives entirely in the terminal constructor.
+
+NOTE: To distinguish the difference in types we use Yield, Skip, Stop for
+Stream and Partial, Continue and Done for folds.
+
+Note: Continue and Skip correspond to each other. Continue says there is no
+output in this turn, do not extract. Similarly, Skip says there is no output to
+feed to the next computation, just loop around. However, there is one glitch,
+the "do not extract" is not enforced by types, the driver may still try to
+extract. We can use "Partial s b" to solve this issue but that causes
+performance issues.
 
 ## Why `Fold m` and `Unfold m` do not have `Profunctor` instances
 
@@ -106,8 +174,3 @@ scenario of passing `Unfold` as an abstract `p` rarely arises in practice.
 
 The instances are therefore omitted to avoid implying an integration with
 profunctor optics that does not exist in practice.
-
-## Fold's Monadic extract
-
-Like the Unfold's lmapM requires a monadic inject, the same way the
-fold's rmapM requires a monadic extract.

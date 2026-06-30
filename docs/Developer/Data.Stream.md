@@ -558,30 +558,24 @@ processing function of the state machine without the state.
 
 ## Unfold vs Stream Usage
 
-We should not use "unfold" to generate stream, rather we should use
-stream functions directly. Streams use pure state and do not need
-simplification of the additional state complications introduced by the
-monadic injection function. "unfold" should be rarely used. Similary, we
-should not use functions like "fromStream" create unfolds.  They uncons
-the stream which is inherently non-fusible operation.
-
-## Unfold vs Stream Usage
-
 Prefer direct stream combinators over `unfold` for generating
 streams. An Unfold carries an explicit monadic injection step that
 adds complexity without benefit when an equivalent stream generation
-combinator already exists.
+combinator already exists. Except that tiny bit, generation of streams
+from unfolds is extremely efficient in general, but why use unfolds for
+this task when in theory streams are better and in practice they are
+more convenient to use.
 
-Similarly, avoid `fromStream` and related functions that construct an
-Unfold by unconsing a Stream. Unconsing is inherently non-fusible: it
-breaks the loop structure that makes Unfold composition efficient. If
-you find yourself reaching for `fromStream`, the right tool is likely a
-stream combinator instead.
+Going from Unfold to Stream is very efficient by design but going in
+the other direction from Stream to Unfold is bad. As an example, avoid
+`Unfold.fromStream` and related functions that construct an Unfold by
+unconsing a Stream. Unconsing is inherently non-fusible: it breaks the
+Stream one element at a time boxing the tail in each step.  If you find
+yourself reaching for `fromStream`, the right tool is likely a stream
+combinator instead.
 
 As a rule of thumb: Use Unfold when flattening nested streams; use Stream
-combinators to construct and transform streams directly.Use Unfold when
-flattening nested streams; use Stream combinators to construct and
-transform streams directly.
+combinators to construct and transform streams directly.
 
 ## Type Summary
 
@@ -592,10 +586,9 @@ data Unfold m a b = forall s. Unfold (Producer m s b) (a -> m s)
 data Stream m b = forall s. Stream (Producer m s b) s
 ```
 
-## Naming
+## Profunctor instance for Unfold?
 
-Other alternatives for Yield, Emit.
-Alternatives for Outcome, StepResult.
+See the Fold design doc.
 
 ## Stream Configuration
 

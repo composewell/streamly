@@ -91,6 +91,11 @@ A plain `Fold` nails its initial down as `m s`, throwing that freedom
 away — which is exactly why it pairs with `Stream`, whose seed is likewise
 fixed inside the existential.
 
+## Fold and Unfold
+
+Like the Unfold's lmapM requires a monadic inject, the same way the
+fold's rmapM requires a monadic extract.
+
 # Generalized Stream Type
 
 We can generalize the stream type to "Source m a r", "Source a m r" or "Source
