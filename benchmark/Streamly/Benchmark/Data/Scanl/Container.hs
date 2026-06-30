@@ -73,16 +73,6 @@ getKey buckets = (`mod` buckets)
 limitedSum :: Int -> Scanl IO Int Int
 limitedSum n = Scanl.take n Scanl.sum
 
-{-# INLINE afterDone #-}
-afterDone :: IO () -> Scanl IO a b -> Scanl IO a b
-afterDone action (Scanl step i e f) = Scanl step1 i e f
-    where
-    step1 x a = do
-        res <- step x a
-        case res of
-            Scanl.Partial s1 -> pure $ Scanl.Partial s1
-            Scanl.Done b -> action >> pure (Scanl.Done b)
-
 {-# NOINLINE ref #-}
 ref :: IORef (Set.Set Int)
 ref = unsafePerformIO $ newIORef Set.empty
@@ -93,9 +83,9 @@ getScanl k = do
     set <- readIORef ref
     if Set.member k set
     then pure Nothing
-    else pure
-             $ Just
-             $ afterDone (modifyIORef ref (Set.insert k)) (limitedSum 100)
+    else do
+        modifyIORef ref (Set.insert k)
+        pure $ Just (limitedSum 100)
 
 -------------------------------------------------------------------------------
 -- Set operations
