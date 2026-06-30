@@ -23,7 +23,7 @@ Pipe operations:
 A Moore machine emits the states of the machine, the output is solely a
 function of the state. foldl and scanl combinators in Streamly Stream
 module are Moore machine style representations:
-```
+```haskell
 foldl :: (b -> a -> b) -> b -> Stream m a -> m b
 scanl :: (s -> a -> s) -> s -> Stream m a -> Stream m s
 ```
@@ -38,19 +38,23 @@ n-to-n transformation.
 
 ## Reified Transducer
 
+```haskell
 data MooreTransducer s m a b =
     MooreTransducer (s -> a -> m s) (s -> b)
 
 newtype MealyTransducer s m a b =
     MealyTransducer (s -> a -> m (s, b))
+```
 
 ## Transducers with abstract state
 
+```haskell
 data MooreTransducer m a b =
     forall s. MooreTransducer (s -> a -> m s) (s -> b) s
 
 newtype MealyTransducer m a b =
     forall s. MealyTransducer (s -> a -> m (s, b)) s
+```
 
 ## Fold Scan
 
@@ -61,7 +65,7 @@ operation above. Read the fold design doc to get the basics from where
 we are going to start in this section.
 
 A Fold with extraction of intermediate states.
-```
+```haskell
 data Step s b = Partial s | Done b
 
 data FoldScan m a b =
@@ -81,7 +85,7 @@ Now that extract can be called after every step, it can no longer act as
 a finalizer, as was the case in folds. So we need a separate finalizer
 which would be called if the input stream ends. If the scan terminates
 on its own, returning a `Done`, it will cleanup before terminating.
-```
+```haskell
 data FoldScan m a b =
     FoldScan
         (s -> a -> m (Step s b))
@@ -249,7 +253,7 @@ difference, the rest is mostly superficial. The "map" in MapAccum indicates it
 is a transformation.
 
 Can we unify MapAccum and Scanl:
-```
+```haskell
 data Step s b = Partial s | SkipOutput s | Done b | Stop
 
 data Scanl m a b =
@@ -283,7 +287,7 @@ to pass through the scan. If an input is not allowed to go through then we
 should also not emit an output corresponding to that input.
 
 To support this we add a "Continue" constructor to Step result:
-```
+```haskell
 data Initial s b = IPartial s | IDone b
 data Step s b = Partial s | Continue s | Done b
 
@@ -323,7 +327,7 @@ semantics.
 
 ## Category Composition
 
-```
+```haskell
 compose :: Scanl m a b -> Scanl m a b -> Scanl m a
 ```
 
@@ -391,7 +395,7 @@ which case we need a way to terminate without return value. Therefore, we need
 another constructor e.g. "Stop" or "Halt" to express that.
 
 So our final type becomes:
-```
+```haskell
 data Step s b = Partial s | Continue s | Done b | Halt
 
 data FoldScan m a b =
@@ -525,7 +529,7 @@ Alternate name Mapping or Mapper. Scanl is Reducer.
 ### Mealy Style mapAccum
 
 mapAccum is a Mealy machine style representation:
-```
+```haskell
 mapAccum :: (s -> a -> (s, b)) -> s -> Stream m a -> Stream m b
 mapAccumM :: (s -> a -> m (s, b)) -> m s -> Stream m a -> Stream m b
 mapAccumEnd :: (s -> a -> (s, b)) -> s -> (s -> b) -> Stream m a -> Stream m b
@@ -552,9 +556,11 @@ mapAccumEnd (Mealy) and scanl (Moore) can be interconverted.
 This is a reification of mapAccum operation. The Step here is the Stream/Step:
 data Step s a = Yield a s | Skip s | Stop
 
+```haskell
 data StreamScan m a b =
   -- | @MapAccum@ @step@ @initial@
   forall s. MapAccum (s -> a -> m (Step s b)) s
+```
 
 Naming: StreamScan for MapAccum and FoldScan for Scanl is another choice .
 Scanp/Scanc is another choice. MealyScan and MooreScan is another choice but
@@ -620,7 +626,7 @@ entering the main state machine.
 
 Here is a snippet from real postscan code:
 
-```
+```haskell
     step _ (ScanInit st) = do
         res <- initial
         return
@@ -650,7 +656,9 @@ state extraction.
 The Mealy formulation generalizes to concatMapAccum, without a final state
 emission:
 
-    concatMapAccumM :: (s -> a -> m (s, Stream m b)) -> m s -> Stream m a -> Stream m b
+```haskell
+concatMapAccumM :: (s -> a -> m (s, Stream m b)) -> m s -> Stream m a -> Stream m b
+```
 
 This is essentially a nested state machine, a state machine composed of many
 state machines.
@@ -658,14 +666,18 @@ state machines.
 The Moore style formulation of the same would require an extract function, the
 extract function is called once per input as the state advances:
 
-    concatScanlM :: (s -> a -> m s) -> s -> (s -> Stream m b) -> Stream m a -> Stream m b
+```haskell
+concatScanlM :: (s -> a -> m s) -> s -> (s -> Stream m b) -> Stream m a -> Stream m b
+```
 
 This represents a more structured pipe. It runs a consumer loop and after
 consuming each element it runs a producer loop. Each consumed element can be
 expanded into 0 or more output elements statefully.
 
 We can also write fusible alternatives of the above as:
-    concatMapAccumM :: Producer s m a b -> m s -> Stream m a -> Stream m b
+```haskell
+concatMapAccumM :: Producer s m a b -> m s -> Stream m a -> Stream m b
+```
 
 ## Scan Variants
 
@@ -702,9 +714,9 @@ scanScan, scanUnfold etc.
 
 Scanl type runners:
 
-    Stream.scanl: running a Scanl type
-    Stream.postscanl: running a Scanl type dropping the initial value
-        (equivalent to Scanl.toScan followed by Stream.scan)
+* Stream.scanl: running a Scanl type
+* Stream.postscanl: running a Scanl type dropping the initial value
+    (equivalent to Scanl.toScan followed by Stream.scan)
 
 Note these are the Stream runners and remain unchanged. Separately, in the
 Scanl module the combinator to scan the input of a scan (the operation
@@ -722,9 +734,11 @@ is fully freed. And `scanlMaybe` to `composeMaybe`.
 * Scanl.postscanlMany -> postcomposeMany
 
 Directly running a scan using a step function
+```
     Stream.scanl'
     Stream.postscanl'
     ...
+```
 
 The proposal is to not expose these and just suggest using the Scanl
 constructors, for the following reasons, (1) there is no performance advantage,
@@ -735,8 +749,9 @@ constructors with exact same names as the Data.List APIs therefore
 discoverability of traditional APIs should not be a problem.
 
 Directly running a mapAccum using a step function
-
+```
     Stream.mapAccum(M)
+```
 
 The reified type for mapAccum is the `Scan` type. Similar to the above
 operations we should not expose these direct operations, rather we should use
@@ -745,9 +760,10 @@ constructors named `mapAccum` and variants of that, also constructors named
 `postscanl'` and variants make sense for the `Scan` type.
 
 Directly running a concatMapAccum using a step function
-
+```
     Stream.unfoldAccum(M)
     Stream.concatMapAccum(M)
+```
 
 These are stateful 1-to-n transformations. unfoldAccum is the fused version and
 concatMapAccum is the unfused version because of the existential type in the
@@ -757,10 +773,11 @@ transformations and 1-to-n as well i.e. it can fold and produce. There is no
 reified type corresponding to concatMapAccum.
 
 Scanl constructors:
-
+```
     Scanl.mkScanl
     Scanl.mkScanl1
     ...
+```
 
 The proposal is to change these names to "scanl'", "scanl1'" etc for the
 following reasons, (1) consistency with the Fold module constructors, (2) once
@@ -782,19 +799,18 @@ machine without emitting an initial or terminal value. This can be thought of
 as the mapAccum type reified.
 
 Scan type runners:
-
-    Stream.scan: running a Scan type
+* Stream.scan: running a Scan type
 
 Scan type constructors:
-    Scan.postscanl': constructor using Moore style step function
-    Scan.postscanlM': monadic version of postscanl'
-    Scan.mapAccum: constructor using Mealy style step function
-    Scan.mapAccumM: monadic version of mapAccum
+* Scan.postscanl': constructor using Moore style step function
+* Scan.postscanlM': monadic version of postscanl'
+* Scan.mapAccum: constructor using Mealy style step function
+* Scan.mapAccumM: monadic version of mapAccum
 
 Scan type adapters:
-    Scanl.toScan: convert Scanl to Scan
-    Scanl.fromScan: convert Scan to Scanl
-    Fold.fromScan: convert Scan to Fold
+* Scanl.toScan: convert Scanl to Scan
+* Scanl.fromScan: convert Scan to Scanl
+* Fold.fromScan: convert Scan to Fold
 
 ## Constructor Naming in Data.Scanl
 
