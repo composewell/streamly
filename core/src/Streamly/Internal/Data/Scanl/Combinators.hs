@@ -126,8 +126,6 @@ module Streamly.Internal.Data.Scanl.Combinators
     -- , slide2
 
     -- ** Scanning Input
-    , compose
-    , composeMany
     -- , runScan
     , pipe
     , indexed
@@ -196,10 +194,6 @@ module Streamly.Internal.Data.Scanl.Combinators
 
     -- ** Nesting
     -- , concatSequence
-
-    -- * Deprecated
-    , scanl
-    , scanlMany
     )
 where
 
@@ -482,78 +476,6 @@ runScanWith isMany
 runScan :: Monad m => Scan m a b -> Fold m b c -> Scanl m a c
 runScan = runScanWith False
 -}
-
-{-# INLINE scanWith #-}
-scanWith :: Monad m => Bool -> Scanl m a b -> Scanl m b c -> Scanl m a c
-scanWith isMany
-    (Scanl stepL initialL extractL finalL)
-    (Scanl stepR initialR extractR finalR) =
-    Scanl step initial extract final
-
-    where
-
-    initialL_ = fromFoldStep <$> initialL
-
-    {-# INLINE runStep #-}
-    runStep actionL sR = do
-        rL <- actionL
-        case rL of
-            Done bL -> do
-                rR <- stepR sR bL
-                case rR of
-                    Partial sR1 ->
-                        if isMany
-                        -- XXX recursive call. If initialL returns Done then it
-                        -- will not terminate. In that case we should return
-                        -- error in the beginning itself. And we should remove
-                        -- this recursion, assuming it won't return Done.
-                        then runStep initialL_ sR1
-                        else Done <$> finalR sR1
-                    Continue sR1 ->
-                        if isMany
-                        then runStep initialL_ sR1
-                        else Done <$> finalR sR1
-                    Done bR -> return $ Done bR
-            Partial sL -> do
-                !b <- extractL sL
-                rR <- stepR sR b
-                case rR of
-                    Partial sR1 -> return $ Partial (sL, sR1)
-                    Continue sR1 -> return $ Continue (sL, sR1)
-                    Done bR -> finalL sL >> return (Done bR)
-            Continue sL -> return $ Continue (sL, sR)
-
-    initial = do
-        r <- initialR
-        case r of
-            Fold.Partial sR -> toFoldStep <$> runStep initialL_ sR
-            Fold.Done b -> return $ Fold.Done b
-
-    step (sL, sR) x = runStep (stepL sL x) sR
-
-    extract = extractR . snd
-
-    final (sL, sR) = finalL sL *> finalR sR
-
--- | Scan the input of a 'Scanl' to change it in a stateful manner using
--- another 'Scanl'. The scan stops as soon as any of the scans terminates.
---
--- This is basically an append operation.
---
--- /Pre-release/
-{-# INLINE compose #-}
-compose, scanl :: Monad m => Scanl m a b -> Scanl m b c -> Scanl m a c
-compose = scanWith False
-
--- XXX This does not fuse beacuse of the recursive step. Need to investigate.
-
--- | Scan the input of a 'Scanl' to change it in a stateful manner using
--- another 'Scanl'. The scan restarts with a fresh state if it terminates.
---
--- /Pre-release/
-{-# INLINE composeMany #-}
-composeMany, scanlMany :: Monad m => Scanl m a b -> Scanl m b c -> Scanl m a c
-composeMany = scanWith True
 
 ------------------------------------------------------------------------------
 -- Filters
@@ -2374,10 +2296,3 @@ intersperseWithQuotes
         _ <- finalL sL
         error "intersperseWithQuotes: finished inside quote, at escape char"
 -}
-
-------------------------------------------------------------------------------
--- Deprecated
-------------------------------------------------------------------------------
-
-RENAME(scanl,compose)
-RENAME(scanlMany,composeMany)
