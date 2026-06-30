@@ -1,3 +1,16 @@
+-- |
+-- Module      : Scanl.Type
+-- Copyright   : (c) 2024 Composewell
+--
+-- License     : MIT
+-- Maintainer  : streamly@composewell.com
+
+#undef FUSION_CHECK
+#ifdef FUSION_CHECK
+{-# OPTIONS_GHC -fplugin-opt=Fusion.Plugin:verbose=2 #-}
+{-# OPTIONS_GHC -ddump-simpl -ddump-to-file -dsuppress-all #-}
+#endif
+
 module Scanl.Window (benchmarks) where
 
 import Streamly.Internal.Data.Scanl (Scanl)

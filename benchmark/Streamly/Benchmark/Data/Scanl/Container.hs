@@ -5,6 +5,12 @@
 -- License     : MIT
 -- Maintainer  : streamly@composewell.com
 
+#undef FUSION_CHECK
+#ifdef FUSION_CHECK
+{-# OPTIONS_GHC -fplugin-opt=Fusion.Plugin:verbose=2 #-}
+{-# OPTIONS_GHC -ddump-simpl -ddump-to-file -dsuppress-all #-}
+#endif
+
 #ifdef __HADDOCK_VERSION__
 #undef INSPECTION
 #endif
@@ -91,27 +97,27 @@ getScanl k = do
 -- Set operations
 -------------------------------------------------------------------------------
 
-{-# INLINE toSet #-}
+{-# NOINLINE toSet #-}
 toSet :: Int -> IO ()
 toSet n = withPostscanl n Scanl.toSet
 
-{-# INLINE toIntSet #-}
+{-# NOINLINE toIntSet #-}
 toIntSet :: Int -> IO ()
 toIntSet n = withPostscanl n Scanl.toIntSet
 
-{-# INLINE countDistinct #-}
+{-# NOINLINE countDistinct #-}
 countDistinct :: Int -> IO ()
 countDistinct n = withPostscanl n Scanl.countDistinct
 
-{-# INLINE countDistinctInt #-}
+{-# NOINLINE countDistinctInt #-}
 countDistinctInt :: Int -> IO ()
 countDistinctInt n = withPostscanl n Scanl.countDistinctInt
 
-{-# INLINE nub #-}
+{-# NOINLINE nub #-}
 nub :: Int -> IO ()
 nub n = withPostscanl n Scanl.nub
 
-{-# INLINE nubInt #-}
+{-# NOINLINE nubInt #-}
 nubInt :: Int -> IO ()
 nubInt n = withPostscanl n Scanl.nubInt
 
@@ -119,14 +125,14 @@ nubInt n = withPostscanl n Scanl.nubInt
 -- Demultiplexing
 -------------------------------------------------------------------------------
 
-{-# INLINE demuxIOOneShot #-}
+{-# NOINLINE demuxIOOneShot #-}
 demuxIOOneShot :: Int -> IO ()
 demuxIOOneShot len =
     withStream len $
         Stream.fold FL.drain
         . Stream.postscanl (Scanl.demuxIO (getKey 64) getScanl)
 
-{-# INLINE demuxIOSum #-}
+{-# NOINLINE demuxIOSum #-}
 demuxIOSum :: Int -> IO ()
 demuxIOSum len =
     withStream len $
@@ -138,7 +144,7 @@ demuxIOSum len =
 inspect $ 'demuxIOSum `hasNoType` ''SPEC
 #endif
 
-{-# INLINE demuxSum #-}
+{-# NOINLINE demuxSum #-}
 demuxSum :: Int -> IO ()
 demuxSum len =
     withStream len $
@@ -146,7 +152,7 @@ demuxSum len =
         . Stream.postscanl
             (Scanl.demux (getKey 64) (const (pure (Just Scanl.sum))))
 
-{-# INLINE demuxGenericSum #-}
+{-# NOINLINE demuxGenericSum #-}
 demuxGenericSum :: Int -> IO ()
 demuxGenericSum len =
     withStream len $
@@ -155,7 +161,7 @@ demuxGenericSum len =
             (Scanl.demuxGeneric (getKey 64) (const (pure (Just Scanl.sum)))
                 :: Scanl IO Int (IO (Map Int Int), Maybe (Int, Int)))
 
-{-# INLINE demuxGenericIOSum #-}
+{-# NOINLINE demuxGenericIOSum #-}
 demuxGenericIOSum :: Int -> IO ()
 demuxGenericIOSum len =
     withStream len $
@@ -168,7 +174,7 @@ demuxGenericIOSum len =
 -- Classifying
 -------------------------------------------------------------------------------
 
-{-# INLINE classifyLimitedSum #-}
+{-# NOINLINE classifyLimitedSum #-}
 classifyLimitedSum :: Int -> IO ()
 classifyLimitedSum len =
     withStream len $
@@ -180,7 +186,7 @@ inspect $ 'classifyLimitedSum `hasNoType` ''FL.Step
 inspect $ 'classifyLimitedSum `hasNoType` ''SPEC
 #endif
 
-{-# INLINE classifyIOSum #-}
+{-# NOINLINE classifyIOSum #-}
 classifyIOSum :: Int -> IO ()
 classifyIOSum len =
     withStream len $
@@ -192,14 +198,14 @@ inspect $ 'classifyIOSum `hasNoType` ''FL.Step
 inspect $ 'classifyIOSum `hasNoType` ''SPEC
 #endif
 
-{-# INLINE classifySum #-}
+{-# NOINLINE classifySum #-}
 classifySum :: Int -> IO ()
 classifySum len =
     withStream len $
         Stream.fold FL.drain
         . Stream.postscanl (Scanl.classify (getKey 64) Scanl.sum)
 
-{-# INLINE classifyGenericSum #-}
+{-# NOINLINE classifyGenericSum #-}
 classifyGenericSum :: Int -> IO ()
 classifyGenericSum len =
     withStream len $
@@ -208,7 +214,7 @@ classifyGenericSum len =
             (Scanl.classifyGeneric (getKey 64) Scanl.sum
                 :: Scanl IO Int (IO (Map Int Int), Maybe (Int, Int)))
 
-{-# INLINE classifyGenericIOSum #-}
+{-# NOINLINE classifyGenericIOSum #-}
 classifyGenericIOSum :: Int -> IO ()
 classifyGenericIOSum len =
     withStream len $

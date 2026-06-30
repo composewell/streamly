@@ -7,6 +7,7 @@
 
 #undef FUSION_CHECK
 #ifdef FUSION_CHECK
+{-# OPTIONS_GHC -fplugin-opt=Fusion.Plugin:verbose=2 #-}
 {-# OPTIONS_GHC -ddump-simpl -ddump-to-file -dsuppress-all #-}
 #endif
 
@@ -84,7 +85,7 @@ oddEven x = if odd x then Left x else Right x
 -- Semigroups and monoids
 -------------------------------------------------------------------------------
 
-{-# INLINE sconcat #-}
+{-# NOINLINE sconcat #-}
 sconcat :: Int -> IO ()
 sconcat n = withPostscanlMap n Sum (Scanl.sconcat (Sum 0))
 
@@ -94,7 +95,7 @@ inspect $ 'sconcat `hasNoType` ''FL.Step
 inspect $ 'sconcat `hasNoType` ''SPEC
 #endif
 
-{-# INLINE mconcat #-}
+{-# NOINLINE mconcat #-}
 mconcat :: Int -> IO ()
 mconcat n = withPostscanlMap n Sum Scanl.mconcat
 
@@ -104,7 +105,7 @@ inspect $ 'mconcat `hasNoType` ''FL.Step
 inspect $ 'mconcat `hasNoType` ''SPEC
 #endif
 
-{-# INLINE foldMap #-}
+{-# NOINLINE foldMap #-}
 foldMap :: Int -> IO ()
 foldMap n = withPostscanl n (Scanl.foldMap Sum)
 
@@ -114,7 +115,7 @@ inspect $ 'foldMap `hasNoType` ''FL.Step
 inspect $ 'foldMap `hasNoType` ''SPEC
 #endif
 
-{-# INLINE foldMapM #-}
+{-# NOINLINE foldMapM #-}
 foldMapM :: Int -> IO ()
 foldMapM n = withPostscanl n (Scanl.foldMapM (return . Sum))
 
@@ -128,7 +129,7 @@ inspect $ 'foldMapM `hasNoType` ''SPEC
 -- Reducers
 -------------------------------------------------------------------------------
 
-{-# INLINE drainMapM #-}
+{-# NOINLINE drainMapM #-}
 drainMapM :: Int -> IO ()
 drainMapM n = withPostscanl n (Scanl.drainMapM return)
 
@@ -138,7 +139,7 @@ inspect $ 'drainMapM `hasNoType` ''FL.Step
 inspect $ 'drainMapM `hasNoType` ''SPEC
 #endif
 
-{-# INLINE the #-}
+{-# NOINLINE the #-}
 the :: Int -> IO ()
 the n = withPostscanlMap n (const (1 :: Int)) Scanl.the
 
@@ -148,7 +149,7 @@ inspect $ 'the `hasNoType` ''FL.Step
 inspect $ 'the `hasNoType` ''SPEC
 #endif
 
-{-# INLINE mean #-}
+{-# NOINLINE mean #-}
 mean :: Int -> IO ()
 mean n = withPostscanlMap n (fromIntegral :: Int -> Double) Scanl.mean
 
@@ -158,7 +159,7 @@ inspect $ 'mean `hasNoType` ''FL.Step
 inspect $ 'mean `hasNoType` ''SPEC
 #endif
 
-{-# INLINE rollingHash #-}
+{-# NOINLINE rollingHash #-}
 rollingHash :: Int -> IO ()
 rollingHash n = withPostscanl n Scanl.rollingHash
 
@@ -168,7 +169,7 @@ inspect $ 'rollingHash `hasNoType` ''FL.Step
 inspect $ 'rollingHash `hasNoType` ''SPEC
 #endif
 
-{-# INLINE rollingHashWithSalt #-}
+{-# NOINLINE rollingHashWithSalt #-}
 rollingHashWithSalt :: Int -> IO ()
 rollingHashWithSalt n = withPostscanl n (Scanl.rollingHashWithSalt Scanl.defaultSalt)
 
@@ -178,7 +179,7 @@ inspect $ 'rollingHashWithSalt `hasNoType` ''FL.Step
 inspect $ 'rollingHashWithSalt `hasNoType` ''SPEC
 #endif
 
-{-# INLINE rollingHashFirstN #-}
+{-# NOINLINE rollingHashFirstN #-}
 rollingHashFirstN :: Int -> IO ()
 rollingHashFirstN n = withPostscanl n (Scanl.rollingHashFirstN n)
 
@@ -187,7 +188,7 @@ inspect $ 'rollingHashFirstN `hasNoType` ''Step
 inspect $ 'rollingHashFirstN `hasNoType` ''SPEC
 #endif
 
-{-# INLINE sum #-}
+{-# NOINLINE sum #-}
 sum :: Int -> IO ()
 sum n = withPostscanl n Scanl.sum
 
@@ -197,7 +198,7 @@ inspect $ 'sum `hasNoType` ''FL.Step
 inspect $ 'sum `hasNoType` ''SPEC
 #endif
 
-{-# INLINE product #-}
+{-# NOINLINE product #-}
 product :: Int -> IO ()
 product n = withPostscanl n Scanl.product
 
@@ -211,7 +212,7 @@ inspect $ 'product `hasNoType` ''SPEC
 -- Scanners
 -------------------------------------------------------------------------------
 
-{-# INLINE indexingWith #-}
+{-# NOINLINE indexingWith #-}
 indexingWith :: Int -> IO ()
 indexingWith n = withPostscanl n (Scanl.indexingWith 0 (+ 1))
 
@@ -221,7 +222,7 @@ inspect $ 'indexingWith `hasNoType` ''FL.Step
 inspect $ 'indexingWith `hasNoType` ''SPEC
 #endif
 
-{-# INLINE indexing #-}
+{-# NOINLINE indexing #-}
 indexing :: Int -> IO ()
 indexing n = withPostscanl n Scanl.indexing
 
@@ -231,7 +232,7 @@ inspect $ 'indexing `hasNoType` ''FL.Step
 inspect $ 'indexing `hasNoType` ''SPEC
 #endif
 
-{-# INLINE indexingRev #-}
+{-# NOINLINE indexingRev #-}
 indexingRev :: Int -> IO ()
 indexingRev n = withPostscanl n (Scanl.indexingRev n)
 
@@ -241,7 +242,7 @@ inspect $ 'indexingRev `hasNoType` ''FL.Step
 inspect $ 'indexingRev `hasNoType` ''SPEC
 #endif
 
-{-# INLINE rollingMap #-}
+{-# NOINLINE rollingMap #-}
 rollingMap :: Int -> IO ()
 rollingMap n = withPostscanl n (Scanl.rollingMap (\_ x -> x))
 
@@ -251,7 +252,7 @@ inspect $ 'rollingMap `hasNoType` ''FL.Step
 inspect $ 'rollingMap `hasNoType` ''SPEC
 #endif
 
-{-# INLINE rollingMapM #-}
+{-# NOINLINE rollingMapM #-}
 rollingMapM :: Int -> IO ()
 rollingMapM n = withPostscanl n (Scanl.rollingMapM (\_ x -> return x))
 
@@ -265,7 +266,7 @@ inspect $ 'rollingMapM `hasNoType` ''SPEC
 -- Filters
 -------------------------------------------------------------------------------
 
-{-# INLINE deleteBy #-}
+{-# NOINLINE deleteBy #-}
 deleteBy :: Int -> IO ()
 deleteBy n = withPostscanl n (Scanl.deleteBy (==) 0)
 
@@ -275,7 +276,7 @@ inspect $ 'deleteBy `hasNoType` ''FL.Step
 inspect $ 'deleteBy `hasNoType` ''SPEC
 #endif
 
-{-# INLINE uniqBy #-}
+{-# NOINLINE uniqBy #-}
 uniqBy :: Int -> IO ()
 uniqBy n = withPostscanl n (Scanl.uniqBy (==))
 
@@ -285,7 +286,7 @@ inspect $ 'uniqBy `hasNoType` ''FL.Step
 inspect $ 'uniqBy `hasNoType` ''SPEC
 #endif
 
-{-# INLINE uniq #-}
+{-# NOINLINE uniq #-}
 uniq :: Int -> IO ()
 uniq n = withPostscanl n Scanl.uniq
 
@@ -295,7 +296,7 @@ inspect $ 'uniq `hasNoType` ''FL.Step
 inspect $ 'uniq `hasNoType` ''SPEC
 #endif
 
-{-# INLINE findIndices #-}
+{-# NOINLINE findIndices #-}
 findIndices :: Int -> IO ()
 findIndices n = withPostscanl n (Scanl.findIndices (== n))
 
@@ -305,7 +306,7 @@ inspect $ 'findIndices `hasNoType` ''FL.Step
 inspect $ 'findIndices `hasNoType` ''SPEC
 #endif
 
-{-# INLINE elemIndices #-}
+{-# NOINLINE elemIndices #-}
 elemIndices :: Int -> IO ()
 elemIndices n = withPostscanl n (Scanl.elemIndices n)
 
@@ -319,7 +320,7 @@ inspect $ 'elemIndices `hasNoType` ''SPEC
 -- Multi-element scans
 -------------------------------------------------------------------------------
 
-{-# INLINE drainN #-}
+{-# NOINLINE drainN #-}
 drainN :: Int -> IO ()
 drainN n = withPostscanl n (Scanl.drainN n)
 
@@ -333,7 +334,7 @@ inspect $ 'drainN `hasNoType` ''SPEC
 -- Trimmers
 -------------------------------------------------------------------------------
 
-{-# INLINE takingEndByM #-}
+{-# NOINLINE takingEndByM #-}
 takingEndByM :: Int -> IO ()
 takingEndByM n = withPostscanl n (Scanl.takingEndByM (return . (>= n)))
 
@@ -343,7 +344,7 @@ inspect $ 'takingEndByM `hasNoType` ''FL.Step
 inspect $ 'takingEndByM `hasNoType` ''SPEC
 #endif
 
-{-# INLINE takingEndBy #-}
+{-# NOINLINE takingEndBy #-}
 takingEndBy :: Int -> IO ()
 takingEndBy n = withPostscanl n (Scanl.takingEndBy (>= n))
 
@@ -353,7 +354,7 @@ inspect $ 'takingEndBy `hasNoType` ''FL.Step
 inspect $ 'takingEndBy `hasNoType` ''SPEC
 #endif
 
-{-# INLINE takingEndByM_ #-}
+{-# NOINLINE takingEndByM_ #-}
 takingEndByM_ :: Int -> IO ()
 takingEndByM_ n = withPostscanl n (Scanl.takingEndByM_ (return . (>= n)))
 
@@ -363,7 +364,7 @@ inspect $ 'takingEndByM_ `hasNoType` ''FL.Step
 inspect $ 'takingEndByM_ `hasNoType` ''SPEC
 #endif
 
-{-# INLINE takingEndBy_ #-}
+{-# NOINLINE takingEndBy_ #-}
 takingEndBy_ :: Int -> IO ()
 takingEndBy_ n = withPostscanl n (Scanl.takingEndBy_ (>= n))
 
@@ -373,7 +374,7 @@ inspect $ 'takingEndBy_ `hasNoType` ''FL.Step
 inspect $ 'takingEndBy_ `hasNoType` ''SPEC
 #endif
 
-{-# INLINE droppingWhileM #-}
+{-# NOINLINE droppingWhileM #-}
 droppingWhileM :: Int -> IO ()
 droppingWhileM n = withPostscanl n (Scanl.droppingWhileM (return . (<= n)))
 
@@ -383,7 +384,7 @@ inspect $ 'droppingWhileM `hasNoType` ''FL.Step
 inspect $ 'droppingWhileM `hasNoType` ''SPEC
 #endif
 
-{-# INLINE droppingWhile #-}
+{-# NOINLINE droppingWhile #-}
 droppingWhile :: Int -> IO ()
 droppingWhile n = withPostscanl n (Scanl.droppingWhile (<= n))
 
@@ -397,7 +398,7 @@ inspect $ 'droppingWhile `hasNoType` ''SPEC
 -- Scanning input
 -------------------------------------------------------------------------------
 
-{-# INLINE compose #-}
+{-# NOINLINE compose #-}
 compose :: Int -> IO ()
 compose n = withPostscanl n (Scanl.compose Scanl.sum Scanl.drain)
 
@@ -406,7 +407,7 @@ inspect $ 'compose `hasNoType` ''Step
 inspect $ 'compose `hasNoType` ''SPEC
 #endif
 
-{-# INLINE composeMany #-}
+{-# NOINLINE composeMany #-}
 composeMany :: Int -> IO ()
 composeMany n = withPostscanl n (Scanl.composeMany (Scanl.take 2 Scanl.sum) Scanl.drain)
 
@@ -415,7 +416,7 @@ inspect $ 'composeMany `hasNoType` ''Step
 inspect $ 'composeMany `hasNoType` ''SPEC
 #endif
 
-{-# INLINE pipe #-}
+{-# NOINLINE pipe #-}
 pipe :: Int -> IO ()
 pipe n = withPostscanl n (Scanl.pipe (Pipe.mapM (\x -> return (x + 1))) Scanl.drain)
 
@@ -425,7 +426,7 @@ inspect $ 'pipe `hasNoType` ''FL.Step
 inspect $ 'pipe `hasNoType` ''SPEC
 #endif
 
-{-# INLINE indexed #-}
+{-# NOINLINE indexed #-}
 indexed :: Int -> IO ()
 indexed n = withPostscanl n (Scanl.indexed Scanl.length)
 
@@ -438,7 +439,7 @@ inspect $ 'indexed `hasNoType` ''SPEC
 -- Filtering input
 -------------------------------------------------------------------------------
 
-{-# INLINE mapMaybeM #-}
+{-# NOINLINE mapMaybeM #-}
 mapMaybeM :: Int -> IO ()
 mapMaybeM n =
     withPostscanl n
@@ -452,7 +453,7 @@ inspect $ 'mapMaybeM `hasNoType` ''FL.Step
 inspect $ 'mapMaybeM `hasNoType` ''SPEC
 #endif
 
-{-# INLINE mapMaybe #-}
+{-# NOINLINE mapMaybe #-}
 mapMaybe :: Int -> IO ()
 mapMaybe n =
     withPostscanl n
@@ -464,7 +465,7 @@ inspect $ 'mapMaybe `hasNoType` ''FL.Step
 inspect $ 'mapMaybe `hasNoType` ''SPEC
 #endif
 
-{-# INLINE sampleFromthen #-}
+{-# NOINLINE sampleFromthen #-}
 sampleFromthen :: Int -> IO ()
 sampleFromthen n = withPostscanl n (Scanl.sampleFromthen 0 2 Scanl.drain)
 
@@ -477,7 +478,7 @@ inspect $ 'sampleFromthen `hasNoType` ''SPEC
 -- Parallel distribution
 -------------------------------------------------------------------------------
 
-{-# INLINE tee #-}
+{-# NOINLINE tee #-}
 tee :: Int -> IO ()
 tee n = withPostscanl n (Scanl.tee Scanl.sum Scanl.length)
 
@@ -487,7 +488,7 @@ inspect $ 'tee `hasNoType` ''FL.Step
 inspect $ 'tee `hasNoType` ''SPEC
 #endif
 
-{-# INLINE distribute #-}
+{-# NOINLINE distribute #-}
 distribute :: Int -> IO ()
 distribute n = withPostscanl n (Scanl.distribute [Scanl.sum, Scanl.length])
 
@@ -495,7 +496,7 @@ distribute n = withPostscanl n (Scanl.distribute [Scanl.sum, Scanl.length])
 -- Unzipping
 -------------------------------------------------------------------------------
 
-{-# INLINE unzip #-}
+{-# NOINLINE unzip #-}
 unzip :: Int -> IO ()
 unzip n = withPostscanlMap n (\a -> (a, a)) (Scanl.unzip Scanl.sum Scanl.length)
 
@@ -505,7 +506,7 @@ inspect $ 'unzip `hasNoType` ''FL.Step
 inspect $ 'unzip `hasNoType` ''SPEC
 #endif
 
-{-# INLINE unzipWith #-}
+{-# NOINLINE unzipWith #-}
 unzipWith :: Int -> IO ()
 unzipWith n = withPostscanl n (Scanl.unzipWith (\a -> (a, a)) Scanl.sum Scanl.length)
 
@@ -515,7 +516,7 @@ inspect $ 'unzipWith `hasNoType` ''FL.Step
 inspect $ 'unzipWith `hasNoType` ''SPEC
 #endif
 
-{-# INLINE unzipWithM #-}
+{-# NOINLINE unzipWithM #-}
 unzipWithM :: Int -> IO ()
 unzipWithM n =
     withPostscanl n (Scanl.unzipWithM (\a -> return (a, a)) Scanl.sum Scanl.length)
@@ -530,7 +531,7 @@ inspect $ 'unzipWithM `hasNoType` ''SPEC
 -- Partitioning
 -------------------------------------------------------------------------------
 
-{-# INLINE partitionByM #-}
+{-# NOINLINE partitionByM #-}
 partitionByM :: Int -> IO ()
 partitionByM n =
     withPostscanl n (Scanl.partitionByM (return . oddEven) Scanl.sum Scanl.length)
@@ -541,7 +542,7 @@ inspect $ 'partitionByM `hasNoType` ''FL.Step
 inspect $ 'partitionByM `hasNoType` ''SPEC
 #endif
 
-{-# INLINE partitionBy #-}
+{-# NOINLINE partitionBy #-}
 partitionBy :: Int -> IO ()
 partitionBy n = withPostscanl n (Scanl.partitionBy oddEven Scanl.sum Scanl.length)
 
@@ -551,7 +552,7 @@ inspect $ 'partitionBy `hasNoType` ''FL.Step
 inspect $ 'partitionBy `hasNoType` ''SPEC
 #endif
 
-{-# INLINE partition #-}
+{-# NOINLINE partition #-}
 partition :: Int -> IO ()
 partition n = withPostscanlMap n oddEven (Scanl.partition Scanl.sum Scanl.length)
 
@@ -565,37 +566,37 @@ inspect $ 'partition `hasNoType` ''SPEC
 -- O(n) heap: building structures
 -------------------------------------------------------------------------------
 
-{-# INLINE toListRev #-}
+{-# NOINLINE toListRev #-}
 toListRev :: Int -> IO ()
 toListRev n = withPostscanl n Scanl.toListRev
 
-{-# INLINE toStream #-}
+{-# NOINLINE toStream #-}
 toStream :: Int -> IO ()
 toStream n =
     withStream n
         $ Stream.fold FL.drain
         . Stream.postscanl (Scanl.toStream :: Scanl IO Int (Stream IO Int))
 
-{-# INLINE toStreamRev #-}
+{-# NOINLINE toStreamRev #-}
 toStreamRev :: Int -> IO ()
 toStreamRev n =
     withStream n
         $ Stream.fold FL.drain
         . Stream.postscanl (Scanl.toStreamRev :: Scanl IO Int (Stream IO Int))
 
-{-# INLINE topBy #-}
+{-# NOINLINE topBy #-}
 topBy :: Int -> IO ()
 topBy n = withPostscanl n (Scanl.topBy compare 10)
 
-{-# INLINE top #-}
+{-# NOINLINE top #-}
 top :: Int -> IO ()
 top n = withPostscanl n (Scanl.top 10)
 
-{-# INLINE bottomBy #-}
+{-# NOINLINE bottomBy #-}
 bottomBy :: Int -> IO ()
 bottomBy n = withPostscanl n (Scanl.bottomBy compare 10)
 
-{-# INLINE bottom #-}
+{-# NOINLINE bottom #-}
 bottom :: Int -> IO ()
 bottom n = withPostscanl n (Scanl.bottom 10)
 
