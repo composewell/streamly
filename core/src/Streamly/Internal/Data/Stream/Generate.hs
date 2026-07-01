@@ -28,7 +28,10 @@ module Streamly.Internal.Data.Stream.Generate
     , replicate
     , replicateM
 
-    -- * Enumeration
+    -- NOTE: We enumerate up variants only, we can add enumerateDown* variants
+    -- as well, to enumerate downwards to the final value. Currently that is
+    -- achieved by enumerateFromThen variants.
+
     -- ** Enumerating 'Num' Types
     , enumerateFromStepNum
     , enumerateFromNum
@@ -359,60 +362,12 @@ enumerateFromThenNum from next = enumerateFromStepNum from (next - from)
 ------------------------------------------------------------------------------
 
 #ifndef USE_UNFOLDS_EVERYWHERE
-data EnumState a = EnumInit | EnumYield a a a | EnumStop
-
-{-# INLINE_NORMAL enumerateFromThenToIntegralUp #-}
-enumerateFromThenToIntegralUp
-    :: (Monad m, Integral a)
-    => a -> a -> a -> Stream m a
-enumerateFromThenToIntegralUp from next to = Stream step EnumInit
-    where
-    {-# INLINE_LATE step #-}
-    step _ EnumInit =
-        return $
-            if to < next
-            then if to < from
-                 then Stop
-                 else Yield from EnumStop
-            else -- from <= next <= to
-                let stride = next - from
-                in Skip $ EnumYield from stride (to - stride)
-
-    step _ (EnumYield x stride toMinus) =
-        return $
-            if x > toMinus
-            then Yield x EnumStop
-            else Yield x $ EnumYield (x + stride) stride toMinus
-
-    step _ EnumStop = return Stop
-
-{-# INLINE_NORMAL enumerateFromThenToIntegralDn #-}
-enumerateFromThenToIntegralDn
-    :: (Monad m, Integral a)
-    => a -> a -> a -> Stream m a
-enumerateFromThenToIntegralDn from next to = Stream step EnumInit
-    where
-    {-# INLINE_LATE step #-}
-    step _ EnumInit =
-        return $ if to > next
-            then if to > from
-                 then Stop
-                 else Yield from EnumStop
-            else -- from >= next >= to
-                let stride = next - from
-                in Skip $ EnumYield from stride (to - stride)
-
-    step _ (EnumYield x stride toMinus) =
-        return $
-            if x < toMinus
-            then Yield x EnumStop
-            else Yield x $ EnumYield (x + stride) stride toMinus
-
-    step _ EnumStop = return Stop
+data EnumState a =
+      EnumInit
+    | EnumYieldUpward a a a
+    | EnumYieldDownward a a a
+    | EnumStop
 #endif
-
--- XXX This can perhaps be simplified and written in terms of
--- enumeratFromStepIntegral as we have done in unfolds.
 
 -- | Enumerate an 'Integral' type in steps up to a given limit.
 -- @enumerateFromThenToIntegral from then to@ generates a finite stream whose
@@ -433,9 +388,40 @@ enumerateFromThenToIntegral
 enumerateFromThenToIntegral from next to =
     unfold Unfold.enumerateFromThenToIntegral (from, next, to)
 #else
-enumerateFromThenToIntegral from next to
-    | next >= from = enumerateFromThenToIntegralUp from next to
-    | otherwise    = enumerateFromThenToIntegralDn from next to
+enumerateFromThenToIntegral from next to = Stream step EnumInit
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step _ EnumInit =
+        return $
+            if next >= from
+            then
+                if to < next
+                then if to < from then Stop else Yield from EnumStop
+                else -- from <= next <= to
+                    let stride = next - from
+                    in Skip $ EnumYieldUpward from stride (to - stride)
+            else
+                if to > next
+                then if to > from then Stop else Yield from EnumStop
+                else -- from >= next >= to
+                    let stride = next - from
+                    in Skip $ EnumYieldDownward from stride (to - stride)
+
+    step _ (EnumYieldUpward x stride toMinus) =
+        return $
+            if x > toMinus
+            then Yield x EnumStop
+            else Yield x $ EnumYieldUpward (x + stride) stride toMinus
+
+    step _ (EnumYieldDownward x stride toMinus) =
+        return $
+            if x < toMinus
+            then Yield x EnumStop
+            else Yield x $ EnumYieldDownward (x + stride) stride toMinus
+
+    step _ EnumStop = return Stop
 #endif
 
 -- | Enumerate an 'Integral' type in steps. @enumerateFromThenIntegral from
@@ -458,9 +444,8 @@ enumerateFromThenIntegral from next =
     unfold Unfold.enumerateFromThenIntegralBounded (from, next)
 #else
 enumerateFromThenIntegral from next =
-    if next > from
-    then enumerateFromThenToIntegralUp from next maxBound
-    else enumerateFromThenToIntegralDn from next minBound
+    enumerateFromThenToIntegral
+        from next (if next >= from then maxBound else minBound)
 #endif
 
 -- | @enumerateFromStepIntegral from step@ generates an infinite stream whose
