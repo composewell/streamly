@@ -10,6 +10,7 @@
 module Streamly.Test.Data.Stream.Generate (main) where
 
 import Data.IORef (newIORef, readIORef, writeIORef)
+import Data.Int (Int8)
 import Data.Word (Word8, Word16)
 import Foreign.Marshal.Alloc (alloca)
 import Foreign.Marshal.Array (withArray)
@@ -235,6 +236,45 @@ testEnumerateFromToFractional =
         `shouldReturn` [1.1, 2.1, 3.1, 4.1]
 
 -------------------------------------------------------------------------------
+-- Overflow at the bound of a fixed-size Integral type
+--
+-- All of these are guarded with 'Stream.take' so a regression
+-- that reintroduces unbounded wraparound fails instead of hanging.
+-------------------------------------------------------------------------------
+
+testEnumerateFromToIntegralOverflow :: Expectation
+testEnumerateFromToIntegralOverflow =
+    toList (Stream.take 10 (Stream.enumerateFromToIntegral (253 :: Word8) 255))
+        `shouldReturn` [253, 254, 255]
+
+testEnumerateFromIntegralOverflow :: Expectation
+testEnumerateFromIntegralOverflow =
+    toList (Stream.take 10 (Stream.enumerateFromIntegral (253 :: Word8)))
+        `shouldReturn` [253, 254, 255]
+
+testEnumerateFromThenIntegralOverflowUp :: Expectation
+testEnumerateFromThenIntegralOverflowUp =
+    toList (Stream.take 10 (Stream.enumerateFromThenIntegral (250 :: Word8) 252))
+        `shouldReturn` [250, 252, 254]
+
+testEnumerateFromThenIntegralOverflowDn :: Expectation
+testEnumerateFromThenIntegralOverflowDn =
+    toList (Stream.take 10 (Stream.enumerateFromThenIntegral (-124 :: Int8) (-126)))
+        `shouldReturn` [-124, -126, -128]
+
+testEnumerateFromThenToIntegralOverflowUp :: Expectation
+testEnumerateFromThenToIntegralOverflowUp =
+    toList (Stream.take 10 (Stream.enumerateFromThenToIntegral (250 :: Word8) 252 255))
+        `shouldReturn` [250, 252, 254]
+
+testEnumerateFromThenToIntegralOverflowDn :: Expectation
+testEnumerateFromThenToIntegralOverflowDn =
+    toList
+        (Stream.take 10
+            (Stream.enumerateFromThenToIntegral (-124 :: Int8) (-126) (-128)))
+        `shouldReturn` [-124, -126, -128]
+
+-------------------------------------------------------------------------------
 -- Time Enumeration (smoke tests - verify elements are produced)
 -------------------------------------------------------------------------------
 
@@ -321,6 +361,18 @@ main = hspec $ describe moduleName $ do
         it "enumerateFromThenToSmall" testEnumerateFromThenToSmall
         it "enumerateFromFractional" testEnumerateFromFractional
         it "enumerateFromToFractional" testEnumerateFromToFractional
+
+    describe "Enumeration overflow at type bound" $ do
+        it "enumerateFromToIntegral overflow" testEnumerateFromToIntegralOverflow
+        it "enumerateFromIntegral overflow" testEnumerateFromIntegralOverflow
+        it "enumerateFromThenIntegral overflow up"
+            testEnumerateFromThenIntegralOverflowUp
+        it "enumerateFromThenIntegral overflow dn"
+            testEnumerateFromThenIntegralOverflowDn
+        it "enumerateFromThenToIntegral overflow up"
+            testEnumerateFromThenToIntegralOverflowUp
+        it "enumerateFromThenToIntegral overflow dn"
+            testEnumerateFromThenToIntegralOverflowDn
 
     describe "Time Enumeration" $ do
         it "timesWith produces elements" testTimesWith

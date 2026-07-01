@@ -27,7 +27,9 @@ import Control.Exception (Exception, SomeException, try)
 import Control.Monad.Catch (throwM)
 import Control.Monad.Trans.State.Strict
 import Data.Functor.Identity
+import Data.Int (Int8)
 import Data.IORef (newIORef, readIORef, writeIORef)
+import Data.Word (Word8)
 import Foreign.Marshal.Array (withArray)
 import Prelude hiding (const, take, drop, concat, mapM, either, filter, dropWhile, repeat, scanl)
 import Test.Hspec as H
@@ -480,6 +482,69 @@ enumerateFromToFractional =
         $ \f t ->
                 let unf = UF.enumerateFromToFractional
                 in testUnfold unf (f :: Double, t) [f..(t :: Double)]
+
+-------------------------------------------------------------------------------
+-- Overflow at the bound of a fixed-size Integral type
+--
+-- All of these are guarded with 'UF.take' so a regression that
+-- reintroduces unbounded wraparound fails instead of hanging.
+-------------------------------------------------------------------------------
+
+enumerateFromToIntegralOverflow :: Expectation
+enumerateFromToIntegralOverflow =
+    testUnfold
+        (UF.take 10 UF.enumerateFromToIntegral)
+        (253 :: Word8, 255)
+        [253, 254, 255]
+        `shouldBe` True
+
+enumerateFromThenToIntegralOverflowUp :: Expectation
+enumerateFromThenToIntegralOverflowUp =
+    testUnfold
+        (UF.take 10 UF.enumerateFromThenToIntegral)
+        (250 :: Word8, 252, 255)
+        [250, 252, 254]
+        `shouldBe` True
+
+enumerateFromThenToIntegralOverflowDn :: Expectation
+enumerateFromThenToIntegralOverflowDn =
+    testUnfold
+        (UF.take 10 UF.enumerateFromThenToIntegral)
+        (-124 :: Int8, -126, -128)
+        [-124, -126, -128]
+        `shouldBe` True
+
+enumerateFromIntegralBoundedOverflow :: Expectation
+enumerateFromIntegralBoundedOverflow =
+    testUnfold
+        (UF.take 10 UF.enumerateFromIntegralBounded)
+        (253 :: Word8)
+        [253, 254, 255]
+        `shouldBe` True
+
+enumerateFromThenIntegralBoundedOverflow :: Expectation
+enumerateFromThenIntegralBoundedOverflow =
+    testUnfold
+        (UF.take 10 UF.enumerateFromThenIntegralBounded)
+        (250 :: Word8, 252)
+        [250, 252, 254]
+        `shouldBe` True
+
+enumerateFromToIntegralBoundedOverflow :: Expectation
+enumerateFromToIntegralBoundedOverflow =
+    testUnfold
+        (UF.take 10 UF.enumerateFromToIntegralBounded)
+        (253 :: Word8, 255)
+        [253, 254, 255]
+        `shouldBe` True
+
+enumerateFromThenToIntegralBoundedOverflow :: Expectation
+enumerateFromThenToIntegralBoundedOverflow =
+    testUnfold
+        (UF.take 10 UF.enumerateFromThenToIntegralBounded)
+        (250 :: Word8, 252, 255)
+        [250, 252, 254]
+        `shouldBe` True
 
 -------------------------------------------------------------------------------
 -- Stream transformation
@@ -1049,6 +1114,20 @@ testGeneration =
             prop "enumerateFromThenIntegralBounded" enumerateFromThenIntegralBounded
             prop "enumerateFromToIntegralBounded" enumerateFromToIntegralBounded
             prop "enumerateFromThenToIntegralBounded" enumerateFromThenToIntegralBounded
+            ----------- Overflow at the bound of a fixed-size Integral type ----
+            it "enumerateFromToIntegral overflow" enumerateFromToIntegralOverflow
+            it "enumerateFromThenToIntegral overflow up"
+                enumerateFromThenToIntegralOverflowUp
+            it "enumerateFromThenToIntegral overflow dn"
+                enumerateFromThenToIntegralOverflowDn
+            it "enumerateFromIntegralBounded overflow"
+                enumerateFromIntegralBoundedOverflow
+            it "enumerateFromThenIntegralBounded overflow"
+                enumerateFromThenIntegralBoundedOverflow
+            it "enumerateFromToIntegralBounded overflow"
+                enumerateFromToIntegralBoundedOverflow
+            it "enumerateFromThenToIntegralBounded overflow"
+                enumerateFromThenToIntegralBoundedOverflow
             ----------- Enumerate from Small Integral -------------------------
             prop "enumerateFromSmallBounded" enumerateFromSmallBounded
             prop "enumerateFromThenSmallBounded" enumerateFromThenSmallBounded
