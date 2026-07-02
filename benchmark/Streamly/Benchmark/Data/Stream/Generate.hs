@@ -24,6 +24,7 @@ module Stream.Generate (benchmarks) where
 import GHC.Types (SPEC(..))
 import Test.Inspection
 import qualified Streamly.Internal.Data.Fold as Fold
+import qualified Streamly.Internal.Data.Producer as Producer
 #endif
 
 import Control.Monad.IO.Class (MonadIO)
@@ -89,7 +90,7 @@ sourceIntFromThenTo value = withDrain $ \n ->
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'sourceIntFromThenTo
 inspect $ 'sourceIntFromThenTo `hasNoType` ''Stream.Step
-inspect $ 'sourceIntFromThenTo `hasNoType` ''Stream.EnumState
+inspect $ 'sourceIntFromThenTo `hasNoType` ''Producer.EnumState
 inspect $ 'sourceIntFromThenTo `hasNoType` ''Fold.Step
 inspect $ 'sourceIntFromThenTo `hasNoType` ''SPEC
 #endif

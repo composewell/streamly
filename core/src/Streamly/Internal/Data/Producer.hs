@@ -17,6 +17,7 @@ module Streamly.Internal.Data.Producer
     , CrossState(..)
     , FairCrossState(..)
     , TupleState(..)
+    , EnumState(..)
     , ConcatState(..)
     , InterleaveState(..)
     , InterleaveEachState(..)
@@ -45,6 +46,7 @@ module Streamly.Internal.Data.Producer
     , unfoldrM
     , enumerateFromStepNum
     , enumerateFromStepIntegral
+    , enumerateFromThenToIntegral
     )
 where
 
@@ -571,3 +573,48 @@ enumerateFromStepNum (from, stride, i) =
 {-# INLINE_LATE enumerateFromStepIntegral #-}
 enumerateFromStepIntegral :: (Applicative m, Integral a) => Producer m (a, a) a
 enumerateFromStepIntegral (x, stride) = pure $ Yield x $! (x + stride, stride)
+
+-- | State for 'enumerateFromThenToIntegral'. @EnumInit from next to@ is the
+-- starting state carrying the arguments; it transitions to 'EnumYieldUpward'
+-- or 'EnumYieldDownward', which carry the current value, the stride and
+-- @to - stride@ (checked against before incrementing, so that the increment
+-- itself cannot overflow past the bound).
+data EnumState a =
+      EnumInit a a a
+    | EnumYieldUpward a a a
+    | EnumYieldDownward a a a
+    | EnumStop
+
+-- | 'Producer' for enumerating an 'Integral' type in steps up to a given
+-- limit. @EnumInit from next to@ generates a finite stream whose first
+-- element is @from@, the second element is @next@ and the successive
+-- elements are in increments of @next - from@ up to @to@.
+{-# INLINE_LATE enumerateFromThenToIntegral #-}
+enumerateFromThenToIntegral ::
+    (Applicative m, Integral a) => Producer m (EnumState a) a
+enumerateFromThenToIntegral (EnumInit from next to) =
+    pure $
+        if next >= from
+        then
+            if to < next
+            then if to < from then Stop else Yield from EnumStop
+            else -- from <= next <= to
+                let stride = next - from
+                in Skip $ EnumYieldUpward from stride (to - stride)
+        else
+            if to > next
+            then if to > from then Stop else Yield from EnumStop
+            else -- from >= next >= to
+                let stride = next - from
+                in Skip $ EnumYieldDownward from stride (to - stride)
+enumerateFromThenToIntegral (EnumYieldUpward x stride toMinus) =
+    pure $
+        if x > toMinus
+        then Yield x EnumStop
+        else Yield x $ EnumYieldUpward (x + stride) stride toMinus
+enumerateFromThenToIntegral (EnumYieldDownward x stride toMinus) =
+    pure $
+        if x < toMinus
+        then Yield x EnumStop
+        else Yield x $ EnumYieldDownward (x + stride) stride toMinus
+enumerateFromThenToIntegral EnumStop = pure Stop

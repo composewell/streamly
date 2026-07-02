@@ -204,17 +204,11 @@ enumerateFromToIntegral =
 {-# INLINE enumerateFromThenToIntegral #-}
 enumerateFromThenToIntegral :: (Monad m, Integral a) => Unfold m (a, a, a) a
 enumerateFromThenToIntegral =
-    takeWhileMWithInput cond $ lmap toFromStep enumerateFromStepIntegral
+    Unfold Producer.enumerateFromThenToIntegral inject
 
     where
 
-    toFromStep (from, next, _) = (from, next - from)
-
-    cond (from, next, to) b =
-        return
-            $ if next >= from
-              then b <= to
-              else b >= to
+    inject (from, next, to) = return (Producer.EnumInit from next to)
 
 -- Enumerate Bounded Integrals ------------------------------------------------
 {-# INLINE enumerateFromIntegralBounded #-}
