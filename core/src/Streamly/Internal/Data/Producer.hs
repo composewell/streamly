@@ -43,6 +43,7 @@ module Streamly.Internal.Data.Producer
     , mapM
     , mapMaybeM
     , takeWhileM
+    , takeEndByM
     , unfoldrM
     , enumerateFromStepNum
     , enumerateFromStepIntegral
@@ -543,6 +544,26 @@ takeWhileM f step1 st = do
             return $ if b then Yield x s else Stop
         Skip s -> return (Skip s)
         Stop   -> return Stop
+
+-- | Like 'takeWhileM' but takes and includes the element on which the
+-- predicate succeeds, then stops on the following step. The @Maybe s@ state
+-- is 'Nothing' once the matching element has been yielded, so that the next
+-- step can stop the producer.
+{-# INLINE_LATE takeEndByM #-}
+takeEndByM :: Monad m
+    => (b -> m Bool) -> Producer m s b -> Producer m (Maybe s) b
+takeEndByM f step1 (Just st) = do
+    r <- step1 st
+    case r of
+        Yield x s -> do
+            b <- f x
+            return $
+                if not b
+                then Yield x (Just s)
+                else Yield x Nothing
+        Skip s -> return $ Skip (Just s)
+        Stop   -> return Stop
+takeEndByM _ _ Nothing = return Stop
 
 -- | Build a 'Producer' from a /monadic/ step function that generates the next
 -- element and the next seed value from the current seed value. It is invoked

@@ -1177,22 +1177,12 @@ takeWhile f = takeWhileM (return . f)
 
 {-# INLINE_NORMAL takeEndByM #-}
 takeEndByM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
-takeEndByM f (Stream step state) = Stream step' (Just state)
-  where
-    {-# INLINE_LATE step' #-}
-    step' gst (Just st) = do
-        r <- step gst st
-        case r of
-            Yield x s -> do
-                b <- f x
-                return $
-                    if not b
-                    then Yield x (Just s)
-                    else Yield x Nothing
-            Skip s -> return $ Skip (Just s)
-            Stop   -> return Stop
+takeEndByM f (Stream step1 state1) = Stream step (Just state1)
 
-    step' _ Nothing = return Stop
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst st = Producer.takeEndByM f (step1 gst) st
 
 {-# INLINE takeEndBy #-}
 takeEndBy :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
