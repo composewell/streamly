@@ -201,11 +201,26 @@ enumerateFromThenIntegral :: (Monad m, Integral a ) => Unfold m (a, a) a
 enumerateFromThenIntegral =
     lmap (\(from, next) -> (from, next - from)) enumerateFromStepIntegral
 
-{-# INLINE enumerateFromToIntegral #-}
+data EnumToState a = EnumToYield !a !a | EnumToStop
+
+-- Stops after yielding "to" instead of computing "to + 1", which overflows
+-- when "to" is maxBound.
+{-# INLINE_NORMAL enumerateFromToIntegral #-}
 enumerateFromToIntegral :: (Monad m, Integral a) => Unfold m (a, a) a
-enumerateFromToIntegral =
-    takeWhileMWithInput (\(_, to) b -> return $ b <= to)
-        $ lmap (\(from, _) -> (from, 1)) enumerateFromStepIntegral
+enumerateFromToIntegral = Unfold step inject
+
+    where
+
+    inject (from, to) =
+        return $ if from > to then EnumToStop else EnumToYield from to
+
+    {-# INLINE_LATE step #-}
+    step (EnumToYield x to) =
+        return
+            $ if x == to
+              then Yield x EnumToStop
+              else Yield x (EnumToYield (x + 1) to)
+    step EnumToStop = return Stop
 
 {-# INLINE enumerateFromThenToIntegral #-}
 enumerateFromThenToIntegral :: (Monad m, Integral a) => Unfold m (a, a, a) a
