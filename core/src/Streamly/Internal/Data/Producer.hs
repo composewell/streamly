@@ -43,6 +43,7 @@ module Streamly.Internal.Data.Producer
     , mapMaybeM
     , takeWhileM
     , unfoldrM
+    , enumerateFromStepNum
     )
 where
 
@@ -549,3 +550,16 @@ unfoldrM next a =
     next a <&> \case
         Just (b, a1) -> Yield b a1
         Nothing -> Stop
+
+-- | 'Producer' for enumerating starting from @from@, incrementing by
+-- @stride@ every time. The state @(from, stride, i)@ carries the counter
+-- @i@ used to compute @from + i * stride@ on each step; @from@ and @stride@
+-- are threaded through unchanged.
+{-# INLINE_LATE enumerateFromStepNum #-}
+enumerateFromStepNum :: (Applicative m, Num a) => Producer m (a, a, a) a
+enumerateFromStepNum (from, stride, i) =
+    -- Note that the counter "i" is the same type as the type being enumerated.
+    -- It may overflow, for example, if we are enumerating Word8, after 255 the
+    -- counter will become 0, but the overflow does not affect the enumeration
+    -- behavior.
+    pure $ (Yield $! (from + i * stride)) $! (from, stride, i + 1)

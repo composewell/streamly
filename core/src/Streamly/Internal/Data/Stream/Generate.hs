@@ -343,10 +343,8 @@ enumerateFromStepNum :: (Monad m, Num a) => a -> a -> Stream m a
 enumerateFromStepNum from stride =
     unfold Unfold.enumerateFromStepNum (from, stride)
 #else
-enumerateFromStepNum from stride = Stream step 0
-    where
-    {-# INLINE_LATE step #-}
-    step _ !i = return $ (Yield $! (from + i * stride)) $! (i + 1)
+enumerateFromStepNum !from !stride =
+    Stream (const Producer.enumerateFromStepNum) (from, stride, 0)
 #endif
 
 {-# INLINE_NORMAL enumerateFromNum #-}

@@ -66,6 +66,7 @@ import Data.Word
 import Numeric.Natural
 import Data.Functor.Identity (Identity(..))
 import Streamly.Internal.Data.Unfold.Type hiding (takeWhileMWithInput)
+import qualified Streamly.Internal.Data.Producer as Producer
 import Prelude
        hiding (map, mapM, takeWhile, take, filter, const, zipWith
               , drop, dropWhile)
@@ -100,20 +101,11 @@ import Prelude
 --
 {-# INLINE enumerateFromStepNum #-}
 enumerateFromStepNum :: (Monad m, Num a) => Unfold m (a, a) a
-enumerateFromStepNum = Unfold step inject
+enumerateFromStepNum = Unfold Producer.enumerateFromStepNum inject
 
     where
 
     inject (!from, !stride) = return (from, stride, 0)
-
-    -- Note that the counter "i" is the same type as the type being enumerated.
-    -- It may overflow, for example, if we are enumerating Word8, after 255 the
-    -- counter will become 0, but the overflow does not affect the enumeration
-    -- behavior.
-    {-# INLINE_LATE step #-}
-    step (from, stride, i) =
-        return $
-            (Yield $! (from + i * stride)) $! (from, stride, i + 1)
 
 -- | Same as 'enumerateFromStepNum (from, next)' using a stride of @next - from@:
 --
