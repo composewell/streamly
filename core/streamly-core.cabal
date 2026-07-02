@@ -510,6 +510,7 @@ library
 
                     , Streamly.Internal.Data.Stream.Container
                     , Streamly.Internal.Data.Stream.Eliminate
+                    , Streamly.Internal.Data.Stream.Enumeration
                     , Streamly.Internal.Data.Stream.Exception
                     , Streamly.Internal.Data.Stream.Generate
                     , Streamly.Internal.Data.Stream.Lift

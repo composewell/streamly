@@ -205,7 +205,7 @@ import Streamly.Internal.Data.SVar.Type (adaptState)
 
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Stream.Type as D
-import qualified Streamly.Internal.Data.Stream.Generate as D
+import qualified Streamly.Internal.Data.Stream.Enumeration as D
 import qualified Streamly.Internal.Data.Stream.Lift as D
 import qualified Streamly.Internal.Data.StreamK.Type as K
 

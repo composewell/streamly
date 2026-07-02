@@ -18,6 +18,7 @@ module Streamly.Internal.Data.Stream
     (
       module Streamly.Internal.Data.Stream.Type
     , module Streamly.Internal.Data.Stream.Generate
+    , module Streamly.Internal.Data.Stream.Enumeration
     , module Streamly.Internal.Data.Stream.Eliminate
     , module Streamly.Internal.Data.Stream.Exception
     , module Streamly.Internal.Data.Stream.Lift
@@ -32,6 +33,7 @@ where
 
 import Streamly.Internal.Data.Stream.Type
 import Streamly.Internal.Data.Stream.Generate
+import Streamly.Internal.Data.Stream.Enumeration
 import Streamly.Internal.Data.Stream.Eliminate
 import Streamly.Internal.Data.Stream.Exception
 import Streamly.Internal.Data.Stream.Lift

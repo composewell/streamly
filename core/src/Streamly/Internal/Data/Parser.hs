@@ -268,7 +268,7 @@ import Streamly.Internal.Data.Stream.Type (Stream)
 import qualified Data.Foldable as Foldable
 import qualified Streamly.Internal.Data.Fold.Type as FL
 import qualified Streamly.Internal.Data.Stream.Type as D
-import qualified Streamly.Internal.Data.Stream.Generate as D
+import qualified Streamly.Internal.Data.Stream.Enumeration as D
 
 import Streamly.Internal.Data.Parser.Type
 --import Streamly.Internal.Data.Parser.Tee -- It's empty

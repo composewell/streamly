@@ -89,6 +89,7 @@ import qualified Streamly.Internal.Data.Parser.Type as ParserD
 import qualified Streamly.Internal.Data.ParserK.Type as ParserK
 import qualified Streamly.Internal.Data.RingArray.Generic as RB
 import qualified Streamly.Internal.Data.Stream.Type as D
+import qualified Streamly.Internal.Data.Stream.Enumeration as D
 import qualified Streamly.Internal.Data.Stream.Generate as D
 import qualified Streamly.Internal.Data.Unfold.Type as Unfold
 import qualified Text.ParserCombinators.ReadPrec as ReadPrec
