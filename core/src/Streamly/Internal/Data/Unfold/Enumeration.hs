@@ -223,40 +223,24 @@ enumerateFromIntegralBounded = supplySecond maxBound enumerateFromToIntegral
 enumerateFromThenIntegralBounded :: (Monad m, Integral a, Bounded a ) =>
     Unfold m (a, a) a
 enumerateFromThenIntegralBounded =
-    takeWhileMWithInput cond $ lmap toFromStep enumerateFromStepIntegral
+    lmap toFromThenTo enumerateFromThenToIntegral
 
     where
 
-    toFromStep (from, next) = (from, next - from)
+    toFromThenTo (from, next) =
+        (from, next, if next >= from then maxBound else minBound)
 
-    cond (from, next) b =
-        return
-            $ if next >= from
-              then b <= maxBound
-              else b >= minBound
-
+{-# DEPRECATED enumerateFromToIntegralBounded "Use enumerateFromToIntegral instead." #-}
 {-# INLINE enumerateFromToIntegralBounded #-}
-enumerateFromToIntegralBounded :: (Monad m, Integral a, Bounded a) =>
+enumerateFromToIntegralBounded :: (Monad m, Integral a) =>
     Unfold m (a, a) a
-enumerateFromToIntegralBounded =
-    takeWhileMWithInput (\(_, to) b -> return $ b <= to)
-        $ lmap fst enumerateFromIntegralBounded
+enumerateFromToIntegralBounded = enumerateFromToIntegral
 
+{-# DEPRECATED enumerateFromThenToIntegralBounded "Use enumerateFromThenToIntegral instead." #-}
 {-# INLINE enumerateFromThenToIntegralBounded #-}
-enumerateFromThenToIntegralBounded :: (Monad m, Integral a, Bounded a) =>
+enumerateFromThenToIntegralBounded :: (Monad m, Integral a) =>
     Unfold m (a, a, a) a
-enumerateFromThenToIntegralBounded =
-    takeWhileMWithInput cond $ lmap toFromThen enumerateFromThenIntegralBounded
-
-    where
-
-    toFromThen (from, next, _) = (from, next)
-
-    cond (from, next, to) b =
-        return
-            $ if next >= from
-              then b <= to
-              else b >= to
+enumerateFromThenToIntegralBounded = enumerateFromThenToIntegral
 
 ------------------------------------------------------------------------------
 -- Enumeration of Fractionals
@@ -469,9 +453,9 @@ instance Enumerable INTEGRAL_TYPE where {                   \
     {-# INLINE enumerateFromThen #-};                       \
     enumerateFromThen = enumerateFromThenIntegralBounded;   \
     {-# INLINE enumerateFromTo #-};                         \
-    enumerateFromTo = enumerateFromToIntegralBounded;       \
+    enumerateFromTo = enumerateFromToIntegral;              \
     {-# INLINE enumerateFromThenTo #-};                     \
-    enumerateFromThenTo = enumerateFromThenToIntegralBounded }
+    enumerateFromThenTo = enumerateFromThenToIntegral }
 
 ENUMERABLE_BOUNDED_INTEGRAL(Int)
 ENUMERABLE_BOUNDED_INTEGRAL(Int8)
