@@ -6,6 +6,9 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
+-- NOTE: keep this module in sync with the
+-- Streamly.Internal.Data.Stream.Enumeration.hs module.
+--
 -- The functions defined in this module should be rarely needed for direct use,
 -- try to use the operations from the 'Enumerable' type class
 -- instances instead.
@@ -21,43 +24,56 @@
 --
 module Streamly.Internal.Data.Unfold.Enumeration
     (
+    -- ** Enumerable Type Class
       Enumerable (..)
 
-    -- ** Enumerating 'Num' Types
+    -- ** 'Num' Type class Types
+    -- | Most general operations via the 'Num' type class. All other
+    -- enumeraitons can be expressed in terms of these. These are numerically
+    -- stable for floating precision numbers. For that reason these may be
+    -- slightly less efficient than intergal operations.
     , enumerateFromStepNum
     , enumerateFromNum
     , enumerateFromThenNum
 
-    -- ** Enumerating unbounded 'Integral' Types
+    -- ** 'Integral' Type class Types (Unbounded Enumeration)
+    -- | More efficient than 'Num' based operations for 'Integral' types.
     , enumerateFromStepIntegral
     , enumerateFromIntegral
     , enumerateFromThenIntegral
     , enumerateFromToIntegral
     , enumerateFromThenToIntegral
 
-    -- ** Enumerating 'Bounded' 'Integral' Types
+    -- ** 'Integral' Types (Bounded Enumeration)
+    -- | These are implemented in terms of integral operations using maxBound
+    -- or minBound as the terminating codition.
     , enumerateFromIntegralBounded
     , enumerateFromThenIntegralBounded
-    , enumerateFromToIntegralBounded
-    , enumerateFromThenToIntegralBounded
 
-    -- ** Enumerating small 'Integral' Types
-    -- | Small types are always bounded.
-    , enumerateFromSmallBounded
-    , enumerateFromThenSmallBounded
+    -- ** 'Enum' Types not larger than 'Int'
+    -- | These are implemented by converting Enum to Int and using integral
+    -- operations.
     , enumerateFromToSmall
     , enumerateFromThenToSmall
+    , enumerateFromSmallBounded
+    , enumerateFromThenSmallBounded
 
-    -- ** Enumerating 'Fractional' Types
-    -- | Enumeration of 'Num' specialized to 'Fractional' types.
+    -- ** 'Fractional' Types
+    -- | These are simply specialization of Num based operations to Fractional
+    -- types.
     , enumerateFromFractional
-    , enumerateFromThenFractional
     , enumerateFromToFractional
+    , enumerateFromThenFractional
     , enumerateFromThenToFractional
+
+    -- * Deprecated
+    , enumerateFromToIntegralBounded
+    , enumerateFromThenToIntegralBounded
     )
 where
 
 #include "inline.hs"
+
 import Data.Fixed
 import Data.Bifunctor (bimap)
 import Data.Int
@@ -67,9 +83,7 @@ import Numeric.Natural
 import Data.Functor.Identity (Identity(..))
 import Streamly.Internal.Data.Unfold.Type hiding (takeWhileMWithInput)
 import qualified Streamly.Internal.Data.Producer as Producer
-import Prelude
-       hiding (map, mapM, takeWhile, take, filter, const, zipWith
-              , drop, dropWhile)
+import Prelude hiding (map, takeWhile, zipWith)
 
 -- $setup
 -- >>> :m
@@ -185,25 +199,6 @@ enumerateFromStepIntegral = Unfold Producer.enumerateFromStepIntegral inject
 
     inject (from, stride) = from `seq` stride `seq` return (from, stride)
 
--- Enumerate Unbounded Integrals ----------------------------------------------
-{-# INLINE enumerateFromIntegral #-}
-enumerateFromIntegral :: (Monad m, Integral a) => Unfold m a a
-enumerateFromIntegral = lmap (\from -> (from, 1)) enumerateFromStepIntegral
-
-{-# INLINE enumerateFromThenIntegral #-}
-enumerateFromThenIntegral :: (Monad m, Integral a ) => Unfold m (a, a) a
-enumerateFromThenIntegral =
-    lmap (\(from, next) -> (from, next - from)) enumerateFromStepIntegral
-
-{-# INLINE enumerateFromToIntegral #-}
-enumerateFromToIntegral :: (Monad m, Integral a) => Unfold m (a, a) a
-enumerateFromToIntegral =
-    map snd
-        $ takeWhile (\((_, to), b) -> b <= to)
-        $ takeEndBy (\((_, to), b) -> b == to)
-        $ carryInput
-        $ lmap (\(from, _) -> (from, 1)) enumerateFromStepIntegral
-
 {-# INLINE enumerateFromThenToIntegral #-}
 enumerateFromThenToIntegral :: (Monad m, Integral a) => Unfold m (a, a, a) a
 enumerateFromThenToIntegral =
@@ -212,12 +207,6 @@ enumerateFromThenToIntegral =
     where
 
     inject (from, next, to) = return (Producer.EnumInit from next to)
-
--- Enumerate Bounded Integrals ------------------------------------------------
-{-# INLINE enumerateFromIntegralBounded #-}
-enumerateFromIntegralBounded :: (Monad m, Integral a, Bounded a) =>
-    Unfold m a a
-enumerateFromIntegralBounded = supplySecond maxBound enumerateFromToIntegral
 
 {-# INLINE enumerateFromThenIntegralBounded #-}
 enumerateFromThenIntegralBounded :: (Monad m, Integral a, Bounded a ) =>
@@ -229,6 +218,29 @@ enumerateFromThenIntegralBounded =
 
     toFromThenTo (from, next) =
         (from, next, if next >= from then maxBound else minBound)
+
+{-# INLINE enumerateFromToIntegral #-}
+enumerateFromToIntegral :: (Monad m, Integral a) => Unfold m (a, a) a
+enumerateFromToIntegral =
+    map snd
+        $ takeWhile (\((_, to), b) -> b <= to)
+        $ takeEndBy (\((_, to), b) -> b == to)
+        $ carryInput
+        $ lmap (\(from, _) -> (from, 1)) enumerateFromStepIntegral
+
+{-# INLINE enumerateFromIntegralBounded #-}
+enumerateFromIntegralBounded :: (Monad m, Integral a, Bounded a) =>
+    Unfold m a a
+enumerateFromIntegralBounded = supplySecond maxBound enumerateFromToIntegral
+
+{-# INLINE enumerateFromIntegral #-}
+enumerateFromIntegral :: (Monad m, Integral a) => Unfold m a a
+enumerateFromIntegral = lmap (\from -> (from, 1)) enumerateFromStepIntegral
+
+{-# INLINE enumerateFromThenIntegral #-}
+enumerateFromThenIntegral :: (Monad m, Integral a ) => Unfold m (a, a) a
+enumerateFromThenIntegral =
+    lmap (\(from, next) -> (from, next - from)) enumerateFromStepIntegral
 
 {-# DEPRECATED enumerateFromToIntegralBounded "Use enumerateFromToIntegral instead." #-}
 {-# INLINE enumerateFromToIntegralBounded #-}
@@ -356,7 +368,6 @@ enumerateFromThenSmallBounded =
 -- generate a stream instead of a list. Use the functions in
 -- "Streamly.Internal.Data.Unfold.Enumeration" module to define new instances.
 --
--- /Pre-release/
 class Enum a => Enumerable a where
 
     -- | Unfolds @from@ generating a stream starting with the element
@@ -371,8 +382,6 @@ class Enum a => Enumerable a where
     --
     -- >>> Stream.toList $ Stream.take 4 $ Stream.unfold Unfold.enumerateFrom 1.1
     -- [1.1,2.1,3.1,4.1]
-    --
-    -- /Pre-release/
     --
     enumerateFrom :: Monad m => Unfold m a a
 
@@ -392,7 +401,6 @@ class Enum a => Enumerable a where
     -- >>> Stream.toList $ Stream.unfold Unfold.enumerateFromTo (1.1, 4.6)
     -- [1.1,2.1,3.1,4.1,5.1]
     --
-    -- /Pre-release/
     enumerateFromTo :: Monad m => Unfold m (a, a) a
 
     -- | Unfolds @(from, then)@ generating a stream whose first element is
@@ -407,7 +415,6 @@ class Enum a => Enumerable a where
     -- >>> Stream.toList $ Stream.take 4 $ Stream.unfold Unfold.enumerateFromThen (0,(-2))
     -- [0,-2,-4,-6]
     --
-    -- /Pre-release/
     enumerateFromThen :: Monad m => Unfold m (a, a) a
 
     -- | Unfolds @(from, then, to)@ generating a finite stream whose first element
@@ -421,7 +428,6 @@ class Enum a => Enumerable a where
     -- >>> Stream.toList $ Stream.unfold Unfold.enumerateFromThenTo (0, (-2), (-6))
     -- [0,-2,-4,-6]
     --
-    -- /Pre-release/
     enumerateFromThenTo :: Monad m => Unfold m (a, a, a) a
 
 -------------------------------------------------------------------------------
