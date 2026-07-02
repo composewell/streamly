@@ -94,6 +94,26 @@ inspect $ 'serial4 `hasNoType` ''Fold.Step
 #endif
 
 -------------------------------------------------------------------------------
+-- Branching
+-------------------------------------------------------------------------------
+
+ifThenElse2 :: Int -> IO ()
+ifThenElse2 count = withRandomIntIO $ \n ->
+    drain $
+        S.ifThenElse
+            (return True)
+            (sourceUnfoldrM count n)
+            (sourceUnfoldrM count (n + 1))
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'ifThenElse2
+inspect $ 'ifThenElse2 `hasNoType` ''SPEC
+inspect $ 'ifThenElse2 `hasNoType` ''S.IfThenElseState
+inspect $ 'ifThenElse2 `hasNoType` ''S.Step
+inspect $ 'ifThenElse2 `hasNoType` ''Fold.Step
+#endif
+
+-------------------------------------------------------------------------------
 -- Zipping
 -------------------------------------------------------------------------------
 
@@ -183,6 +203,17 @@ concatMapM outer inner = withRandomIntIO $ \n ->
     drain $ S.concatMapM
         (return . sourceUnfoldrM inner)
         (sourceUnfoldrM outer n)
+
+concatEffect :: Int -> IO ()
+concatEffect count = withRandomIntIO $ \n ->
+    drain $ S.concatEffect $ return $ sourceUnfoldrM count n
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'concatEffect
+inspect $ 'concatEffect `hasNoType` ''SPEC
+-- inspect $ 'concatEffect `hasNoType` ''S.Step
+inspect $ 'concatEffect `hasNoType` ''Fold.Step
+#endif
 
 -- concatMap Streams
 
@@ -376,8 +407,10 @@ benchmarks size =
     -- Multi-stream (concatMap/foldMany)
     [ (SpaceO_1, benchIO "serial" $ serial2 (size `div` 2))
     , (SpaceO_1, benchIO "serial (2,2,x/4)" $ serial4 (size `div` 4))
+    , (SpaceO_1, benchIO "ifThenElse" $ ifThenElse2 (size `div` 2))
     , (SpaceO_1, benchIO "zipWith" $ zipWith size)
     , (SpaceO_1, benchIO "zipWithM" $ zipWithM size)
+    , (SpaceO_1, benchIO "concatEffect" $ concatEffect size)
     , (SpaceO_1, benchIO "concatMap" $ concatMap 2 (size `div` 2))
     , (SpaceO_1, benchIO "concatMap unfoldr outer=Max inner=1" $
           concatMapPure size 1)

@@ -99,6 +99,8 @@ module Streamly.Internal.Data.Stream.Type
     -- is equivalent to @concatMap id@. Append is equivalent to @mergeBy fst@.
     , AppendState(..)
     , append
+    , IfThenElseState (..)
+    , ifThenElse
 
     -- ** Zipping
     -- | Zip corresponding elements of two streams.
@@ -1253,6 +1255,53 @@ append (Stream step1 state1) (Stream step2 state2) =
             Stop -> Stop
 
 ------------------------------------------------------------------------------
+-- Branching
+------------------------------------------------------------------------------
+
+{-# ANN type IfThenElseState Fuse #-}
+data IfThenElseState s1 s2 =
+      IfThenElseInit
+    | IfThenElseThen s1
+    | IfThenElseElse s2
+
+-- | Run the predicate action, then run the "then" stream if it returns
+-- 'True', otherwise run the "else" stream.
+--
+-- >>> Stream.toList $ Stream.ifThenElse (pure True) (Stream.fromList [1,2 :: Int]) (Stream.fromList [3,4])
+-- [1,2]
+-- >>> Stream.toList $ Stream.ifThenElse (pure False) (Stream.fromList [1,2 :: Int]) (Stream.fromList [3,4])
+-- [3,4]
+--
+{-# INLINE_NORMAL ifThenElse #-}
+ifThenElse :: Monad m => m Bool -> Stream m a -> Stream m a -> Stream m a
+ifThenElse predicate (Stream step1 state1) (Stream step2 state2) =
+    Stream step IfThenElseInit
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step _ IfThenElseInit = do
+        r <- predicate
+        return $
+            if r
+            then Skip (IfThenElseThen state1)
+            else Skip (IfThenElseElse state2)
+
+    step gst (IfThenElseThen st) =
+        (\case
+            Yield x s -> Yield x (IfThenElseThen s)
+            Skip s    -> Skip (IfThenElseThen s)
+            Stop      -> Stop
+        ) <$> step1 gst st
+
+    step gst (IfThenElseElse st) =
+        (\case
+            Yield x s -> Yield x (IfThenElseElse s)
+            Skip s    -> Skip (IfThenElseElse s)
+            Stop      -> Stop
+        ) <$> step2 gst st
+
+------------------------------------------------------------------------------
 -- Zipping
 ------------------------------------------------------------------------------
 
@@ -1827,6 +1876,14 @@ concat = concatMap id
 -- >>> concatEffect eff = Stream.concatMapM (\() -> eff) (Stream.fromPure ())
 --
 -- See also: 'concat', 'sequence'
+--
+-- Note: When the stream being generated is composed of statically known
+-- streams, prefer composing them using a fused operation instead of
+-- 'concatEffect', as fusion avoids the overhead of going through the
+-- stream-of-streams machinery. For example, prefer
+-- 'Streamly.Internal.Data.Stream.Nesting.ifThenElse' over using
+-- 'concatEffect' to compose two statically known streams based on a monadic
+-- predicate.
 --
 {-# INLINE concatEffect #-}
 concatEffect :: Monad m => m (Stream m a) -> Stream m a
