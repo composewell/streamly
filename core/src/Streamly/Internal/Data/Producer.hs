@@ -44,6 +44,7 @@ module Streamly.Internal.Data.Producer
     , takeWhileM
     , unfoldrM
     , enumerateFromStepNum
+    , enumerateFromStepIntegral
     )
 where
 
@@ -563,3 +564,10 @@ enumerateFromStepNum (from, stride, i) =
     -- counter will become 0, but the overflow does not affect the enumeration
     -- behavior.
     pure $ (Yield $! (from + i * stride)) $! (from, stride, i + 1)
+
+-- | 'Producer' for enumerating integrals starting from @x@, incrementing by
+-- a constant @stride@ every time. The state @(x, stride)@ carries the
+-- current value and the stride, which is threaded through unchanged.
+{-# INLINE_LATE enumerateFromStepIntegral #-}
+enumerateFromStepIntegral :: (Applicative m, Integral a) => Producer m (a, a) a
+enumerateFromStepIntegral (x, stride) = pure $ Yield x $! (x + stride, stride)

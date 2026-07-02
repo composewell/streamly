@@ -179,14 +179,11 @@ takeWhileMWithInput f = map snd . takeWhileM (uncurry f) . carryInput
 -- /Internal/
 {-# INLINE_NORMAL enumerateFromStepIntegral #-}
 enumerateFromStepIntegral :: (Monad m, Integral a) => Unfold m (a, a) a
-enumerateFromStepIntegral = Unfold step inject
+enumerateFromStepIntegral = Unfold Producer.enumerateFromStepIntegral inject
 
     where
 
     inject (from, stride) = from `seq` stride `seq` return (from, stride)
-
-    {-# INLINE_LATE step #-}
-    step (x, stride) = return $ Yield x $! (x + stride, stride)
 
 -- Enumerate Unbounded Integrals ----------------------------------------------
 {-# INLINE enumerateFromIntegral #-}

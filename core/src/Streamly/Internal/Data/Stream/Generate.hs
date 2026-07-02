@@ -466,10 +466,8 @@ enumerateFromStepIntegral from stride =
     unfold Unfold.enumerateFromStepIntegral (from, stride)
 #else
 enumerateFromStepIntegral from stride =
-    from `seq` stride `seq` Stream step from
-    where
-        {-# INLINE_LATE step #-}
-        step _ !x = return $ Yield x $! (x + stride)
+    from `seq` stride `seq`
+        Stream (const Producer.enumerateFromStepIntegral) (from, stride)
 #endif
 
 -- | Enumerate an 'Integral' type up to a given limit.
