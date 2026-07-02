@@ -514,7 +514,7 @@ instance Enumerable a => Enumerable (Identity a) where
         map Identity $ lmap (bimap runIdentity runIdentity) enumerateFromThen
     {-# INLINE enumerateFromTo #-}
     enumerateFromTo  =
-        map Identity $ lmap (bimap runIdentity runIdentity) enumerateFromThen
+        map Identity $ lmap (bimap runIdentity runIdentity) enumerateFromTo
     {-# INLINE enumerateFromThenTo #-}
     enumerateFromThenTo  =
         map Identity $

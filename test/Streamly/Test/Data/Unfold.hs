@@ -497,6 +497,108 @@ enumerateFromToFractional =
                 in testUnfold unf (f :: Double, t) [f..(t :: Double)]
 
 -------------------------------------------------------------------------------
+-- Enumerable type class dispatch
+--
+-- The tests above exercise the concrete per-type functions (e.g.
+-- UF.enumerateFromToIntegral) directly. The tests below instead go through
+-- the polymorphic 'Enumerable' class methods (UF.enumerateFrom,
+-- UF.enumerateFromTo, UF.enumerateFromThen, UF.enumerateFromThenTo) so that
+-- a bug in how a particular instance wires the class methods to the
+-- underlying functions (e.g. enumerateFromTo accidentally calling
+-- enumerateFromThen) is actually caught. The 'Identity' instance is
+-- hand-written rather than macro generated and is therefore particularly
+-- prone to such copy-paste mistakes.
+-------------------------------------------------------------------------------
+
+enumerableFromInt :: Property
+enumerableFromInt =
+    property
+        $ \f ->
+                let unf = UF.take 50 UF.enumerateFrom
+                in testUnfold unf (f :: Int) $
+                    Prelude.take 50 $ Prelude.enumFrom f
+
+enumerableFromToInt :: Property
+enumerableFromToInt =
+    property
+        $ \f to ->
+                let unf = UF.take 50 UF.enumerateFromTo
+                in testUnfold unf (f :: Int, to) $
+                    Prelude.take 50 $ Prelude.enumFromTo f to
+
+enumerableFromThenInt :: Property
+enumerableFromThenInt =
+    property
+        $ \f th ->
+                let unf = UF.take 50 UF.enumerateFromThen
+                in testUnfold unf (f :: Int, th) $
+                    Prelude.take 50 $ Prelude.enumFromThen f th
+
+enumerableFromThenToInt :: Property
+enumerableFromThenToInt =
+    property
+        $ \f th to ->
+                let unf = UF.take 50 UF.enumerateFromThenTo
+                in testUnfold unf (f :: Int, th, to) $
+                    Prelude.take 50 $ Prelude.enumFromThenTo f th to
+
+enumerableFromToChar :: Property
+enumerableFromToChar =
+    property
+        $ \f to ->
+                let unf = UF.take 50 UF.enumerateFromTo
+                in testUnfold unf (f :: Char, to) $
+                    Prelude.take 50 $ Prelude.enumFromTo f to
+
+enumerableFromToDouble :: Property
+enumerableFromToDouble =
+    property
+        $ \f to ->
+                let unf = UF.take 50 UF.enumerateFromTo
+                in testUnfold unf (f :: Double, to) $
+                    Prelude.take 50 $ Prelude.enumFromTo f to
+
+-- Regression test: the Identity Enumerable instance's enumerateFromTo was
+-- once wired to enumerateFromThen instead of enumerateFromTo, so this would
+-- have failed (or hung, since enumerateFromThen never stops at "to").
+enumerableFromIdentity :: Property
+enumerableFromIdentity =
+    property
+        $ \f ->
+                let unf = UF.take 50 UF.enumerateFrom
+                in testUnfold unf (Identity (f :: Int)) $
+                    Prelude.map Identity $ Prelude.take 50 $ Prelude.enumFrom f
+
+enumerableFromToIdentity :: Property
+enumerableFromToIdentity =
+    property
+        $ \f to ->
+                let unf = UF.take 50 UF.enumerateFromTo
+                in testUnfold unf (Identity (f :: Int), Identity to) $
+                    Prelude.map Identity $
+                        Prelude.take 50 $ Prelude.enumFromTo f to
+
+enumerableFromThenIdentity :: Property
+enumerableFromThenIdentity =
+    property
+        $ \f th ->
+                let unf = UF.take 50 UF.enumerateFromThen
+                in testUnfold unf (Identity (f :: Int), Identity th) $
+                    Prelude.map Identity $
+                        Prelude.take 50 $ Prelude.enumFromThen f th
+
+enumerableFromThenToIdentity :: Property
+enumerableFromThenToIdentity =
+    property
+        $ \f th to ->
+                let unf = UF.take 50 UF.enumerateFromThenTo
+                in testUnfold
+                        unf
+                        (Identity (f :: Int), Identity th, Identity to) $
+                    Prelude.map Identity $
+                        Prelude.take 50 $ Prelude.enumFromThenTo f th to
+
+-------------------------------------------------------------------------------
 -- Overflow at the bound of a fixed-size Integral type
 --
 -- All of these are guarded with 'UF.take' so a regression that
@@ -1168,6 +1270,17 @@ testGeneration =
             prop "enumerateFromThenFractional" enumerateFromThenFractional
             prop "enumerateFromToFractional" enumerateFromToFractional
             prop "enumerateFromThenToFractional" enumerateFromThenToFractional
+            ----------- Enumerable type class dispatch -------------------------
+            prop "enumerableFromInt" enumerableFromInt
+            prop "enumerableFromToInt" enumerableFromToInt
+            prop "enumerableFromThenInt" enumerableFromThenInt
+            prop "enumerableFromThenToInt" enumerableFromThenToInt
+            prop "enumerableFromToChar" enumerableFromToChar
+            prop "enumerableFromToDouble" enumerableFromToDouble
+            prop "enumerableFromIdentity" enumerableFromIdentity
+            prop "enumerableFromToIdentity" enumerableFromToIdentity
+            prop "enumerableFromThenIdentity" enumerableFromThenIdentity
+            prop "enumerableFromThenToIdentity" enumerableFromThenToIdentity
 
 testTransformation :: Spec
 testTransformation =

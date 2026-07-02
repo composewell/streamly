@@ -13,6 +13,8 @@
   consuming any input (e.g. `Scanl.take 0`).
 * Fix overflow in enumerateFrom and enumerateFromTo variants in Stream and
   Unfold modules.
+* Fix `Unfold.enumerateFromTo` for the `Identity` type, it was incorrectly
+  calling `enumerateFromThen` instead of `enumerateFromTo`.
 
 ### Breaking changes
 

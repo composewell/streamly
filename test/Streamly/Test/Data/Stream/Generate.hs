@@ -9,6 +9,7 @@
 
 module Streamly.Test.Data.Stream.Generate (main) where
 
+import Data.Functor.Identity (Identity(..))
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Int (Int8)
 import Data.Word (Word8, Word16)
@@ -244,6 +245,78 @@ testEnumerateFromToFractional =
         `shouldReturn` [1.1, 2.1, 3.1, 4.1]
 
 -------------------------------------------------------------------------------
+-- Enumerable type class dispatch
+--
+-- The tests above exercise the concrete per-type functions (e.g.
+-- Stream.enumerateFromToIntegral) directly. The tests below instead go
+-- through the polymorphic 'Enumerable' class methods (Stream.enumerateFrom,
+-- Stream.enumerateFromTo, Stream.enumerateFromThen,
+-- Stream.enumerateFromThenTo) so that a bug in how a particular instance
+-- wires the class methods to the underlying functions (e.g. enumerateFromTo
+-- accidentally calling enumerateFromThen) is actually caught. The
+-- 'Identity' instance is hand-written rather than macro generated and is
+-- therefore particularly prone to such copy-paste mistakes.
+-------------------------------------------------------------------------------
+
+testEnumerableFromInt :: Expectation
+testEnumerableFromInt =
+    toList (Stream.take 5 (Stream.enumerateFrom (0 :: Int)))
+        `shouldReturn` [0, 1, 2, 3, 4]
+
+testEnumerableFromToInt :: Expectation
+testEnumerableFromToInt =
+    toList (Stream.enumerateFromTo (0 :: Int) 4)
+        `shouldReturn` [0, 1, 2, 3, 4]
+
+testEnumerableFromThenInt :: Expectation
+testEnumerableFromThenInt =
+    toList (Stream.take 4 (Stream.enumerateFromThen (0 :: Int) 2))
+        `shouldReturn` [0, 2, 4, 6]
+
+testEnumerableFromThenToInt :: Expectation
+testEnumerableFromThenToInt =
+    toList (Stream.enumerateFromThenTo (0 :: Int) 2 6)
+        `shouldReturn` [0, 2, 4, 6]
+
+testEnumerableFromToChar :: Expectation
+testEnumerableFromToChar =
+    toList (Stream.enumerateFromTo 'a' 'e')
+        `shouldReturn` "abcde"
+
+testEnumerableFromToDouble :: Expectation
+testEnumerableFromToDouble =
+    toList (Stream.enumerateFromTo (1.1 :: Double) 4.0)
+        `shouldReturn` [1.1, 2.1, 3.1, 4.1]
+
+-- Regression test: the Identity Enumerable instance's enumerateFromTo in
+-- the Unfold.Enumeration module was once wired to enumerateFromThen instead
+-- of enumerateFromTo. Stream.Enumeration's instance was not affected, but
+-- we test it here too so both modules stay covered symmetrically.
+testEnumerableFromIdentity :: Expectation
+testEnumerableFromIdentity =
+    toList (Stream.take 4 (Stream.enumerateFrom (Identity (0 :: Int))))
+        `shouldReturn` fmap Identity [0, 1, 2, 3]
+
+testEnumerableFromToIdentity :: Expectation
+testEnumerableFromToIdentity =
+    toList (Stream.enumerateFromTo (Identity (0 :: Int)) (Identity 4))
+        `shouldReturn` fmap Identity [0, 1, 2, 3, 4]
+
+testEnumerableFromThenIdentity :: Expectation
+testEnumerableFromThenIdentity =
+    toList
+        (Stream.take 4
+            (Stream.enumerateFromThen (Identity (0 :: Int)) (Identity 2)))
+        `shouldReturn` fmap Identity [0, 2, 4, 6]
+
+testEnumerableFromThenToIdentity :: Expectation
+testEnumerableFromThenToIdentity =
+    toList
+        (Stream.enumerateFromThenTo
+            (Identity (0 :: Int)) (Identity 2) (Identity 6))
+        `shouldReturn` fmap Identity [0, 2, 4, 6]
+
+-------------------------------------------------------------------------------
 -- Overflow at the bound of a fixed-size Integral type
 --
 -- All of these are guarded with 'Stream.take' so a regression
@@ -369,6 +442,18 @@ main = hspec $ describe moduleName $ do
         it "enumerateFromThenToSmall" testEnumerateFromThenToSmall
         it "enumerateFromFractional" testEnumerateFromFractional
         it "enumerateFromToFractional" testEnumerateFromToFractional
+
+    describe "Enumerable type class dispatch" $ do
+        it "enumerateFrom Int" testEnumerableFromInt
+        it "enumerateFromTo Int" testEnumerableFromToInt
+        it "enumerateFromThen Int" testEnumerableFromThenInt
+        it "enumerateFromThenTo Int" testEnumerableFromThenToInt
+        it "enumerateFromTo Char" testEnumerableFromToChar
+        it "enumerateFromTo Double" testEnumerableFromToDouble
+        it "enumerateFrom Identity" testEnumerableFromIdentity
+        it "enumerateFromTo Identity" testEnumerableFromToIdentity
+        it "enumerateFromThen Identity" testEnumerableFromThenIdentity
+        it "enumerateFromThenTo Identity" testEnumerableFromThenToIdentity
 
     describe "Enumeration overflow at type bound" $ do
         it "enumerateFromToIntegral overflow" testEnumerateFromToIntegralOverflow
