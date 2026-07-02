@@ -157,11 +157,6 @@ testFromW16CStringEmpty =
 -- Enumeration primitives
 -------------------------------------------------------------------------------
 
-testEnumerateFromBounded :: Expectation
-testEnumerateFromBounded =
-    toList (Stream.take 5 (Stream.enumerateFromBounded (0 :: Int)))
-        `shouldReturn` [0, 1, 2, 3, 4]
-
 testEnumerateFromIntegral :: Expectation
 testEnumerateFromIntegral =
     toList (Stream.take 5 (Stream.enumerateFromIntegral (0 :: Int)))
@@ -177,9 +172,10 @@ testEnumerateFromStepNum =
     toList (Stream.take 5 (Stream.enumerateFromStepNum (0 :: Int) 3))
         `shouldReturn` [0, 3, 6, 9, 12]
 
-testEnumerateFromStepIntegral :: Expectation
-testEnumerateFromStepIntegral =
-    toList (Stream.take 5 (Stream.enumerateFromStepIntegral (0 :: Int) 2))
+testEnumerateFromStepIntegralUnbounded :: Expectation
+testEnumerateFromStepIntegralUnbounded =
+    toList
+        (Stream.take 5 (Stream.enumerateFromStepIntegralUnbounded (0 :: Int) 2))
         `shouldReturn` [0, 2, 4, 6, 8]
 
 testEnumerateFromThenNum :: Expectation
@@ -219,9 +215,9 @@ testEnumerateFromThenToFractional =
     toList (Stream.enumerateFromThenToFractional (0.1 :: Double) 2.0 6.0)
         `shouldReturn` [0.1, 2.0, 3.9, 5.799999999999999]
 
-testEnumerateFromThenSmallBounded :: Expectation
-testEnumerateFromThenSmallBounded =
-    toList (Stream.take 4 (Stream.enumerateFromThenSmallBounded 'a' 'c'))
+testEnumerateFromThenSmall :: Expectation
+testEnumerateFromThenSmall =
+    toList (Stream.take 4 (Stream.enumerateFromThenSmall 'a' 'c'))
         `shouldReturn` "aceg"
 
 testEnumerateFromToSmall :: Expectation
@@ -427,17 +423,16 @@ main = hspec $ describe moduleName $ do
         it "fromW16CString# empty" testFromW16CStringEmpty
 
     describe "Enumeration Primitives" $ do
-        it "enumerateFromBounded" testEnumerateFromBounded
         it "enumerateFromIntegral" testEnumerateFromIntegral
         it "enumerateFromNum" testEnumerateFromNum
         it "enumerateFromStepNum" testEnumerateFromStepNum
-        it "enumerateFromStepIntegral" testEnumerateFromStepIntegral
+        it "enumerateFromStepIntegralUnbounded" testEnumerateFromStepIntegralUnbounded
         it "enumerateFromThenNum" testEnumerateFromThenNum
         it "enumerateFromThenIntegral" testEnumerateFromThenIntegral
         it "enumerateFromThenFractional" testEnumerateFromThenFractional
         it "enumerateFromThenToIntegral" testEnumerateFromThenToIntegral
         it "enumerateFromThenToFractional" testEnumerateFromThenToFractional
-        it "enumerateFromThenSmallBounded" testEnumerateFromThenSmallBounded
+        it "enumerateFromThenSmall" testEnumerateFromThenSmall
         it "enumerateFromToSmall" testEnumerateFromToSmall
         it "enumerateFromThenToSmall" testEnumerateFromThenToSmall
         it "enumerateFromFractional" testEnumerateFromFractional

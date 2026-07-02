@@ -2351,7 +2351,7 @@ zip = zipWithM (curry return)
 -- /Pre-release/
 {-# INLINE indexed #-}
 indexed :: forall m a b. Monad m => Fold m (Int, a) b -> Parser a m b
-indexed = zip (D.enumerateFromIntegralBounded 0 :: D.Stream m Int)
+indexed = zip (D.enumerateFromIntegral 0 :: D.Stream m Int)
 
 -- | @makeIndexFilter indexer filter predicate@ generates a fold filtering
 -- function using a fold indexing function that attaches an index to each input
