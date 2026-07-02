@@ -291,6 +291,19 @@ enumerateFromToIntegral =
                 in testUnfold unf (f :: Integer, to) $
                     Prelude.take 50 $ Prelude.enumFromTo f to
 
+-- Regression test, matches [from, then .. to] from the Prelude.
+-- Large stride with "then" included.
+enumerateFromThenToIntegralLargeStride :: Expectation
+enumerateFromThenToIntegralLargeStride =
+    testUnfold
+        UF.enumerateFromThenToIntegral
+        ( -7537527385297985025 :: Int
+        , 5092559113693760989
+        , 6977257977275108264
+        )
+        [-7537527385297985025, 5092559113693760989]
+        `shouldBe` True
+
 enumerateFromIntegralBounded :: Property
 enumerateFromIntegralBounded =
     property
@@ -1109,6 +1122,8 @@ testGeneration =
             prop "enumerateFromThenIntegral" enumerateFromThenIntegral
             prop "enumerateFromToIntegral" enumerateFromToIntegral
             prop "enumerateFromThenToIntegral" enumerateFromThenToIntegral
+            it "enumerateFromThenToIntegral large stride"
+                enumerateFromThenToIntegralLargeStride
 
             prop "enumerateFromIntegralBounded" enumerateFromIntegralBounded
             prop "enumerateFromThenIntegralBounded" enumerateFromThenIntegralBounded

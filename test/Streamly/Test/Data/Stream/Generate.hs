@@ -204,6 +204,14 @@ testEnumerateFromThenToIntegral = do
         `shouldReturn` [0, 2, 4, 6]
     toList (Stream.enumerateFromThenToIntegral (0 :: Int) (-2) (-6))
         `shouldReturn` [0, -2, -4, -6]
+    -- Regression test, matches [from, then .. to] from the Prelude.
+    -- Large stride with "then" included.
+    toList
+        (Stream.enumerateFromThenToIntegral
+            (-7537527385297985025)
+            5092559113693760989
+            (6977257977275108264 :: Int))
+        `shouldReturn` [-7537527385297985025, 5092559113693760989]
 
 testEnumerateFromThenToFractional :: Expectation
 testEnumerateFromThenToFractional =
