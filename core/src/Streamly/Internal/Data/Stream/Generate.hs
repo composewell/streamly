@@ -485,7 +485,7 @@ enumerateFromStepIntegral from stride =
 {-# INLINE enumerateFromToIntegral #-}
 enumerateFromToIntegral :: (Monad m, Integral a) => a -> a -> Stream m a
 enumerateFromToIntegral from to =
-    takeWhile (<= to) $ enumerateFromStepIntegral from 1
+    takeWhile (<= to) $ takeEndBy (== to) $ enumerateFromStepIntegral from 1
 
 -- | Enumerate an 'Integral' type. @enumerateFromIntegral from@ generates a
 -- stream whose first element is @from@ and the successive elements are in

@@ -11,6 +11,8 @@
 
 * Fixed `Stream.postscanl` to omit the output of a scan that terminates without
   consuming any input (e.g. `Scanl.take 0`).
+* Fix overflow in enumerateFrom and enumerateFromTo variants in Stream and
+  Unfold modules.
 
 ### Breaking changes
 
