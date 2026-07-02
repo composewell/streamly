@@ -198,7 +198,10 @@ enumerateFromThenIntegral =
 {-# INLINE enumerateFromToIntegral #-}
 enumerateFromToIntegral :: (Monad m, Integral a) => Unfold m (a, a) a
 enumerateFromToIntegral =
-    takeWhileMWithInput (\(_, to) b -> return $ b <= to)
+    map snd
+        $ takeWhile (\((_, to), b) -> b <= to)
+        $ takeEndBy (\((_, to), b) -> b == to)
+        $ carryInput
         $ lmap (\(from, _) -> (from, 1)) enumerateFromStepIntegral
 
 {-# INLINE enumerateFromThenToIntegral #-}
