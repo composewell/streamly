@@ -259,19 +259,19 @@ enumerateFromThenNum =
 -------------------------------------------------------------------------------
 -- Test for Integral type
 -------------------------------------------------------------------------------
-enumerateFromIntegral :: Property
-enumerateFromIntegral =
+enumerateFromIntegralUnbounded :: Property
+enumerateFromIntegralUnbounded =
     property
         $ \f ->
-                let unf = UF.take 50 UF.enumerateFromIntegral
+                let unf = UF.take 50 UF.enumerateFromIntegralUnbounded
                 in testUnfold unf (f :: Integer) $
                     Prelude.take 50 $ Prelude.enumFrom f
 
-enumerateFromThenIntegral :: Property
-enumerateFromThenIntegral =
+enumerateFromThenIntegralUnbounded :: Property
+enumerateFromThenIntegralUnbounded =
     property
         $ \f th ->
-                let unf = UF.take 50 UF.enumerateFromThenIntegral
+                let unf = UF.take 50 UF.enumerateFromThenIntegralUnbounded
                 in testUnfold unf (f :: Integer, th) $
                     Prelude.take 50 $ Prelude.enumFromThen f th
 
@@ -304,19 +304,19 @@ enumerateFromThenToIntegralLargeStride =
         [-7537527385297985025, 5092559113693760989]
         `shouldBe` True
 
-enumerateFromIntegralBounded :: Property
-enumerateFromIntegralBounded =
+enumerateFromIntegral :: Property
+enumerateFromIntegral =
     property
         $ \f ->
-                let unf = UF.take 50 UF.enumerateFromIntegralBounded
+                let unf = UF.take 50 UF.enumerateFromIntegral
                 in testUnfold unf (f :: Int) $
                     Prelude.take 50 $ Prelude.enumFrom f
 
-enumerateFromThenIntegralBounded :: Property
-enumerateFromThenIntegralBounded =
+enumerateFromThenIntegral :: Property
+enumerateFromThenIntegral =
     property
         $ \f th ->
-                let unf = UF.take 50 UF.enumerateFromThenIntegralBounded
+                let unf = UF.take 50 UF.enumerateFromThenIntegral
                 in testUnfold unf (f :: Int, th) $
                     Prelude.take 50 $ Prelude.enumFromThen f th
 
@@ -336,19 +336,19 @@ enumerateFromThenToIntegralBounded =
                 in testUnfold unf (f :: Int, th, to) $
                     Prelude.take 50 $ Prelude.enumFromThenTo f th to
 
-enumerateFromSmallBounded :: Property
-enumerateFromSmallBounded =
+enumerateFromSmall :: Property
+enumerateFromSmall =
     property
         $ \f ->
-                let unf = UF.take 50 UF.enumerateFromSmallBounded
+                let unf = UF.take 50 UF.enumerateFromSmall
                 in testUnfold unf (f :: Char) $
                     Prelude.take 50 $ Prelude.enumFrom f
 
-enumerateFromThenSmallBounded :: Property
-enumerateFromThenSmallBounded =
+enumerateFromThenSmall :: Property
+enumerateFromThenSmall =
     property
         $ \f th ->
-                let unf = UF.take 50 UF.enumerateFromThenSmallBounded
+                let unf = UF.take 50 UF.enumerateFromThenSmall
                 in testUnfold unf (f :: Char, th) $
                     Prelude.take 50 $ Prelude.enumFromThen f th
 
@@ -368,19 +368,19 @@ enumerateFromThenToSmall =
                 in testUnfold unf (f :: Char, th, to) $
                     Prelude.take 50 $ Prelude.enumFromThenTo f th to
 
-enumerateFromSmallBoundedOrd :: Property
-enumerateFromSmallBoundedOrd =
+enumerateFromSmallOrd :: Property
+enumerateFromSmallOrd =
     property
         $ \f ->
-                let unf = UF.take 3 UF.enumerateFromSmallBounded
+                let unf = UF.take 3 UF.enumerateFromSmall
                 in testUnfold unf (f :: Ordering) $
                     Prelude.take 3 $ Prelude.enumFrom f
 
-enumerateFromThenSmallBoundedOrd :: Property
-enumerateFromThenSmallBoundedOrd =
+enumerateFromThenSmallOrd :: Property
+enumerateFromThenSmallOrd =
     property
         $ \f th  ->
-                let unf = UF.take 3 UF.enumerateFromThenSmallBounded
+                let unf = UF.take 3 UF.enumerateFromThenSmall
                 in testUnfold unf (f :: Ordering, th) $
                     Prelude.take 3 $ Prelude.enumFromThen f th
 
@@ -401,19 +401,19 @@ enumerateFromThenToSmallOrd =
                     Prelude.take 3 $ Prelude.enumFromThenTo f th to
 
 -------------------------------------------------------------------------------
-enumerateFromSmallBoundedBool :: Property
-enumerateFromSmallBoundedBool =
+enumerateFromSmallBool :: Property
+enumerateFromSmallBool =
     property
         $ \f ->
-                let unf = UF.take 2 UF.enumerateFromSmallBounded
+                let unf = UF.take 2 UF.enumerateFromSmall
                 in testUnfold unf (f :: Bool) $
                     Prelude.take 2 $ Prelude.enumFrom f
 
-enumerateFromThenSmallBoundedBool :: Property
-enumerateFromThenSmallBoundedBool =
+enumerateFromThenSmallBool :: Property
+enumerateFromThenSmallBool =
     property
         $ \f th  ->
-                let unf = UF.take 2 UF.enumerateFromThenSmallBounded
+                let unf = UF.take 2 UF.enumerateFromThenSmall
                 in testUnfold unf (f :: Bool, th) $
                     Prelude.take 2 $ Prelude.enumFromThen f th
 
@@ -433,19 +433,19 @@ enumerateFromThenToSmallBool =
                 in testUnfold unf (f :: Bool, th, to) $
                     Prelude.take 2 $ Prelude.enumFromThenTo f th to
 -------------------------------------------------------------------------------
-enumerateFromSmallBoundedUnit :: Property
-enumerateFromSmallBoundedUnit =
+enumerateFromSmallUnit :: Property
+enumerateFromSmallUnit =
     property
         $ \f ->
-                let unf = UF.take 1 UF.enumerateFromSmallBounded
+                let unf = UF.take 1 UF.enumerateFromSmall
                 in testUnfold unf (f :: ()) $
                     Prelude.take 1 $ Prelude.enumFrom f
 
-enumerateFromThenSmallBoundedUnit :: Property
-enumerateFromThenSmallBoundedUnit =
+enumerateFromThenSmallUnit :: Property
+enumerateFromThenSmallUnit =
     property
         $ \f th  ->
-                let unf = UF.take 1 UF.enumerateFromThenSmallBounded
+                let unf = UF.take 1 UF.enumerateFromThenSmall
                 in testUnfold unf (f :: (), th) $
                     Prelude.take 1 $ Prelude.enumFromThen f th
 
@@ -629,18 +629,18 @@ enumerateFromThenToIntegralOverflowDn =
         [-124, -126, -128]
         `shouldBe` True
 
-enumerateFromIntegralBoundedOverflow :: Expectation
-enumerateFromIntegralBoundedOverflow =
+enumerateFromIntegralOverflow :: Expectation
+enumerateFromIntegralOverflow =
     testUnfold
-        (UF.take 10 UF.enumerateFromIntegralBounded)
+        (UF.take 10 UF.enumerateFromIntegral)
         (253 :: Word8)
         [253, 254, 255]
         `shouldBe` True
 
-enumerateFromThenIntegralBoundedOverflow :: Expectation
-enumerateFromThenIntegralBoundedOverflow =
+enumerateFromThenIntegralOverflow :: Expectation
+enumerateFromThenIntegralOverflow =
     testUnfold
-        (UF.take 10 UF.enumerateFromThenIntegralBounded)
+        (UF.take 10 UF.enumerateFromThenIntegral)
         (250 :: Word8, 252)
         [250, 252, 254]
         `shouldBe` True
@@ -1220,15 +1220,15 @@ testGeneration =
             prop "enumerateFromNum" enumerateFromNum
             prop "enumerateFromThenNum" enumerateFromThenNum
             ----------- Enumerate from Integral -------------------------------
-            prop "enumerateFromIntegral" enumerateFromIntegral
-            prop "enumerateFromThenIntegral" enumerateFromThenIntegral
+            prop "enumerateFromIntegralUnbounded" enumerateFromIntegralUnbounded
+            prop "enumerateFromThenIntegralUnbounded" enumerateFromThenIntegralUnbounded
             prop "enumerateFromToIntegral" enumerateFromToIntegral
             prop "enumerateFromThenToIntegral" enumerateFromThenToIntegral
             it "enumerateFromThenToIntegral large stride"
                 enumerateFromThenToIntegralLargeStride
 
-            prop "enumerateFromIntegralBounded" enumerateFromIntegralBounded
-            prop "enumerateFromThenIntegralBounded" enumerateFromThenIntegralBounded
+            prop "enumerateFromIntegral" enumerateFromIntegral
+            prop "enumerateFromThenIntegral" enumerateFromThenIntegral
             prop "enumerateFromToIntegralBounded" enumerateFromToIntegralBounded
             prop "enumerateFromThenToIntegralBounded" enumerateFromThenToIntegralBounded
             ----------- Overflow at the bound of a fixed-size Integral type ----
@@ -1237,32 +1237,32 @@ testGeneration =
                 enumerateFromThenToIntegralOverflowUp
             it "enumerateFromThenToIntegral overflow dn"
                 enumerateFromThenToIntegralOverflowDn
-            it "enumerateFromIntegralBounded overflow"
-                enumerateFromIntegralBoundedOverflow
-            it "enumerateFromThenIntegralBounded overflow"
-                enumerateFromThenIntegralBoundedOverflow
+            it "enumerateFromIntegral overflow"
+                enumerateFromIntegralOverflow
+            it "enumerateFromThenIntegral overflow"
+                enumerateFromThenIntegralOverflow
             it "enumerateFromToIntegralBounded overflow"
                 enumerateFromToIntegralBoundedOverflow
             it "enumerateFromThenToIntegralBounded overflow"
                 enumerateFromThenToIntegralBoundedOverflow
             ----------- Enumerate from Small Integral -------------------------
-            prop "enumerateFromSmallBounded" enumerateFromSmallBounded
-            prop "enumerateFromThenSmallBounded" enumerateFromThenSmallBounded
+            prop "enumerateFromSmall" enumerateFromSmall
+            prop "enumerateFromThenSmall" enumerateFromThenSmall
             prop "enumerateFromToSmall" enumerateFromToSmall
             prop "enumerateFromThenToSmall" enumerateFromThenToSmall
             --
-            prop "enumerateFromSmallBoundedOrd" enumerateFromSmallBoundedOrd
-            prop "enumerateFromThenSmallBoundedOrd" enumerateFromThenSmallBoundedOrd
+            prop "enumerateFromSmallOrd" enumerateFromSmallOrd
+            prop "enumerateFromThenSmallOrd" enumerateFromThenSmallOrd
             prop "enumerateFromToSmallOrd" enumerateFromToSmallOrd
             prop "enumerateFromThenToSmallOrd" enumerateFromThenToSmallOrd
 
-            prop "enumerateFromSmallBoundedUnit" enumerateFromSmallBoundedUnit
-            prop "enumerateFromThenSmallBoundedUnit" enumerateFromThenSmallBoundedUnit
+            prop "enumerateFromSmallUnit" enumerateFromSmallUnit
+            prop "enumerateFromThenSmallUnit" enumerateFromThenSmallUnit
             prop "enumerateFromToSmallUnit" enumerateFromToSmallUnit
             prop "enumerateFromThenToSmallUnit" enumerateFromThenToSmallUnit
 
-            prop "enumerateFromSmallBoundedUnit" enumerateFromSmallBoundedBool
-            prop "enumerateFromThenSmallBoundedBool" enumerateFromThenSmallBoundedBool
+            prop "enumerateFromSmallBool" enumerateFromSmallBool
+            prop "enumerateFromThenSmallBool" enumerateFromThenSmallBool
             prop "enumerateFromToSmallBool" enumerateFromToSmallBool
             prop "enumerateFromThenToSmallBool" enumerateFromThenToSmallBool
 

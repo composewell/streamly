@@ -32,31 +32,40 @@ module Streamly.Internal.Data.Unfold.Enumeration
     -- enumeraitons can be expressed in terms of these. These are numerically
     -- stable for floating precision numbers. For that reason these may be
     -- slightly less efficient than intergal operations.
+    --
+    -- These are unbounded, can overflow, there are no bounds possible for
+    -- 'Num'.
     , enumerateFromStepNum
     , enumerateFromNum
     , enumerateFromThenNum
 
     -- ** 'Integral' Type class Types (Unbounded Enumeration)
     -- | More efficient than 'Num' based operations for 'Integral' types.
-    , enumerateFromStepIntegral
-    , enumerateFromIntegral
-    , enumerateFromThenIntegral
-    , enumerateFromToIntegral
-    , enumerateFromThenToIntegral
+    , enumerateFromStepIntegralUnbounded
+    , enumerateFromIntegralUnbounded
+    , enumerateFromThenIntegralUnbounded
 
     -- ** 'Integral' Types (Bounded Enumeration)
     -- | These are implemented in terms of integral operations using maxBound
-    -- or minBound as the terminating codition.
-    , enumerateFromIntegralBounded
-    , enumerateFromThenIntegralBounded
+    -- or minBound as the terminating codition. This is the default behavior
+    -- for 'Integral' enumeration, used when no 'Unbounded' suffix is
+    -- specified; use the explicit 'Unbounded' suffixed operations above for
+    -- faster, unchecked enumeration.
+    , enumerateFromToIntegral
+    , enumerateFromThenToIntegral
+
+    -- XXX For these two the behavior changed from unbounded to bounded but
+    -- that is a safe direction.
+    , enumerateFromIntegral
+    , enumerateFromThenIntegral
 
     -- ** 'Enum' Types not larger than 'Int'
     -- | These are implemented by converting Enum to Int and using integral
     -- operations.
+    , enumerateFromSmall
     , enumerateFromToSmall
+    , enumerateFromThenSmall
     , enumerateFromThenToSmall
-    , enumerateFromSmallBounded
-    , enumerateFromThenSmallBounded
 
     -- ** 'Fractional' Types
     -- | These are simply specialization of Num based operations to Fractional
@@ -67,12 +76,18 @@ module Streamly.Internal.Data.Unfold.Enumeration
     , enumerateFromThenToFractional
 
     -- * Deprecated
+    , enumerateFromStepIntegral
+    , enumerateFromIntegralBounded
+    , enumerateFromThenIntegralBounded
+    , enumerateFromSmallBounded
+    , enumerateFromThenSmallBounded
     , enumerateFromToIntegralBounded
     , enumerateFromThenToIntegralBounded
     )
 where
 
 #include "inline.hs"
+#include "deprecation.h"
 
 import Data.Fixed
 import Data.Bifunctor (bimap)
@@ -109,7 +124,7 @@ import Prelude hiding (map, takeWhile, zipWith)
 --
 -- The implementation is numerically stable for floating point values.
 --
--- Note 'enumerateFromStepIntegral' is faster for integrals.
+-- Note 'enumerateFromStepIntegralUnbounded' is faster for integrals.
 --
 -- /Internal/
 --
@@ -137,7 +152,7 @@ enumerateFromStepNum = Unfold Producer.enumerateFromStepNum inject
 --
 -- The implementation is numerically stable for floating point values.
 --
--- Note that 'enumerateFromThenIntegral' is faster for integrals.
+-- Note that 'enumerateFromThenIntegralUnbounded' is faster for integrals.
 --
 -- Note that in the strange world of floating point numbers, using
 -- @enumerateFromThenNum (from, from + 1)@ is almost exactly the same as
@@ -191,16 +206,21 @@ takeWhileMWithInput f = map snd . takeWhileM (uncurry f) . carryInput
 -- overflow or underflow for bounded integrals.
 --
 -- /Internal/
-{-# INLINE_NORMAL enumerateFromStepIntegral #-}
-enumerateFromStepIntegral :: (Monad m, Integral a) => Unfold m (a, a) a
-enumerateFromStepIntegral = Unfold Producer.enumerateFromStepIntegral inject
+{-# INLINE_NORMAL enumerateFromStepIntegralUnbounded #-}
+enumerateFromStepIntegralUnbounded, enumerateFromStepIntegral ::
+    (Monad m, Integral a) => Unfold m (a, a) a
+enumerateFromStepIntegralUnbounded =
+    Unfold Producer.enumerateFromStepIntegral inject
 
     where
 
     inject (from, stride) = from `seq` stride `seq` return (from, stride)
 
+RENAME(enumerateFromStepIntegral,enumerateFromStepIntegralUnbounded)
+
 {-# INLINE enumerateFromThenToIntegral #-}
-enumerateFromThenToIntegral :: (Monad m, Integral a) => Unfold m (a, a, a) a
+enumerateFromThenToIntegral, enumerateFromThenToIntegralBounded ::
+    (Monad m, Integral a) => Unfold m (a, a, a) a
 enumerateFromThenToIntegral =
     Unfold Producer.enumerateFromThenToIntegral inject
 
@@ -208,10 +228,12 @@ enumerateFromThenToIntegral =
 
     inject (from, next, to) = return (Producer.EnumInit from next to)
 
-{-# INLINE enumerateFromThenIntegralBounded #-}
-enumerateFromThenIntegralBounded :: (Monad m, Integral a, Bounded a ) =>
-    Unfold m (a, a) a
-enumerateFromThenIntegralBounded =
+RENAME(enumerateFromThenToIntegralBounded,enumerateFromThenToIntegral)
+
+{-# INLINE enumerateFromThenIntegral #-}
+enumerateFromThenIntegral, enumerateFromThenIntegralBounded ::
+    (Monad m, Integral a, Bounded a) => Unfold m (a, a) a
+enumerateFromThenIntegral =
     lmap toFromThenTo enumerateFromThenToIntegral
 
     where
@@ -219,40 +241,38 @@ enumerateFromThenIntegralBounded =
     toFromThenTo (from, next) =
         (from, next, if next >= from then maxBound else minBound)
 
+RENAME(enumerateFromThenIntegralBounded,enumerateFromThenIntegral)
+
+{-# INLINE enumerateFromThenIntegralUnbounded #-}
+enumerateFromThenIntegralUnbounded :: (Monad m, Integral a) => Unfold m (a, a) a
+enumerateFromThenIntegralUnbounded =
+    lmap
+        (\(from, next) -> (from, next - from))
+        enumerateFromStepIntegralUnbounded
+
 {-# INLINE enumerateFromToIntegral #-}
-enumerateFromToIntegral :: (Monad m, Integral a) => Unfold m (a, a) a
+enumerateFromToIntegral, enumerateFromToIntegralBounded ::
+    (Monad m, Integral a) => Unfold m (a, a) a
 enumerateFromToIntegral =
     map snd
         $ takeWhile (\((_, to), b) -> b <= to)
         $ takeEndBy (\((_, to), b) -> b == to)
         $ carryInput
-        $ lmap (\(from, _) -> (from, 1)) enumerateFromStepIntegral
+        $ lmap (\(from, _) -> (from, 1)) enumerateFromStepIntegralUnbounded
 
-{-# INLINE enumerateFromIntegralBounded #-}
-enumerateFromIntegralBounded :: (Monad m, Integral a, Bounded a) =>
-    Unfold m a a
-enumerateFromIntegralBounded = supplySecond maxBound enumerateFromToIntegral
+RENAME(enumerateFromToIntegralBounded,enumerateFromToIntegral)
 
 {-# INLINE enumerateFromIntegral #-}
-enumerateFromIntegral :: (Monad m, Integral a) => Unfold m a a
-enumerateFromIntegral = lmap (\from -> (from, 1)) enumerateFromStepIntegral
+enumerateFromIntegral, enumerateFromIntegralBounded ::
+    (Monad m, Integral a, Bounded a) => Unfold m a a
+enumerateFromIntegral = supplySecond maxBound enumerateFromToIntegral
 
-{-# INLINE enumerateFromThenIntegral #-}
-enumerateFromThenIntegral :: (Monad m, Integral a ) => Unfold m (a, a) a
-enumerateFromThenIntegral =
-    lmap (\(from, next) -> (from, next - from)) enumerateFromStepIntegral
+RENAME(enumerateFromIntegralBounded,enumerateFromIntegral)
 
-{-# DEPRECATED enumerateFromToIntegralBounded "Use enumerateFromToIntegral instead." #-}
-{-# INLINE enumerateFromToIntegralBounded #-}
-enumerateFromToIntegralBounded :: (Monad m, Integral a) =>
-    Unfold m (a, a) a
-enumerateFromToIntegralBounded = enumerateFromToIntegral
-
-{-# DEPRECATED enumerateFromThenToIntegralBounded "Use enumerateFromThenToIntegral instead." #-}
-{-# INLINE enumerateFromThenToIntegralBounded #-}
-enumerateFromThenToIntegralBounded :: (Monad m, Integral a) =>
-    Unfold m (a, a, a) a
-enumerateFromThenToIntegralBounded = enumerateFromThenToIntegral
+{-# INLINE enumerateFromIntegralUnbounded #-}
+enumerateFromIntegralUnbounded :: (Monad m, Integral a) => Unfold m a a
+enumerateFromIntegralUnbounded =
+    lmap (\from -> (from, 1)) enumerateFromStepIntegralUnbounded
 
 ------------------------------------------------------------------------------
 -- Enumeration of Fractionals
@@ -336,19 +356,23 @@ enumerateFromThenToSmall =
 --
 -- /Internal/
 --
-{-# INLINE enumerateFromSmallBounded #-}
-enumerateFromSmallBounded :: (Monad m, Enum a, Bounded a) => Unfold m a a
-enumerateFromSmallBounded = supplySecond maxBound enumerateFromToSmall
+{-# INLINE enumerateFromSmall #-}
+enumerateFromSmall, enumerateFromSmallBounded ::
+    (Monad m, Enum a, Bounded a) => Unfold m a a
+enumerateFromSmall = supplySecond maxBound enumerateFromToSmall
+
+RENAME(enumerateFromSmallBounded,enumerateFromSmall)
 
 -- | Enumerate from given starting Enum value 'from' and next Enum value 'next'
 -- with stride of (fromEnum next - fromEnum from) till maxBound.
 --
 -- /Internal/
 --
-{-# INLINE enumerateFromThenSmallBounded #-}
-enumerateFromThenSmallBounded :: forall m a. (Monad m, Enum a, Bounded a) =>
+{-# INLINE enumerateFromThenSmall #-}
+enumerateFromThenSmall, enumerateFromThenSmallBounded
+    :: forall m a. (Monad m, Enum a, Bounded a) =>
     Unfold m (a, a) a
-enumerateFromThenSmallBounded =
+enumerateFromThenSmall =
     let adapt (from, next) =
             let frm = fromEnum from
                 nxt = fromEnum next
@@ -358,6 +382,8 @@ enumerateFromThenSmallBounded =
                      else fromEnum (minBound :: a)
              in (frm, nxt, to)
      in fmap toEnum (lmap adapt enumerateFromThenToIntegral)
+
+RENAME(enumerateFromThenSmallBounded,enumerateFromThenSmall)
 
 -------------------------------------------------------------------------------
 -- Enumerable type class
@@ -438,9 +464,9 @@ class Enum a => Enumerable a where
 #define ENUMERABLE_BOUNDED_SMALL(SMALL_TYPE)           \
 instance Enumerable SMALL_TYPE where {                 \
     {-# INLINE enumerateFrom #-};                      \
-    enumerateFrom = enumerateFromSmallBounded;         \
+    enumerateFrom = enumerateFromSmall;                \
     {-# INLINE enumerateFromThen #-};                  \
-    enumerateFromThen = enumerateFromThenSmallBounded; \
+    enumerateFromThen = enumerateFromThenSmall;        \
     {-# INLINE enumerateFromTo #-};                    \
     enumerateFromTo = enumerateFromToSmall;            \
     {-# INLINE enumerateFromThenTo #-};                \
@@ -455,9 +481,9 @@ ENUMERABLE_BOUNDED_SMALL(Char)
 #define ENUMERABLE_BOUNDED_INTEGRAL(INTEGRAL_TYPE)          \
 instance Enumerable INTEGRAL_TYPE where {                   \
     {-# INLINE enumerateFrom #-};                           \
-    enumerateFrom = enumerateFromIntegralBounded;           \
+    enumerateFrom = enumerateFromIntegral;                  \
     {-# INLINE enumerateFromThen #-};                       \
-    enumerateFromThen = enumerateFromThenIntegralBounded;   \
+    enumerateFromThen = enumerateFromThenIntegral;          \
     {-# INLINE enumerateFromTo #-};                         \
     enumerateFromTo = enumerateFromToIntegral;              \
     {-# INLINE enumerateFromThenTo #-};                     \
@@ -478,9 +504,9 @@ ENUMERABLE_BOUNDED_INTEGRAL(Word64)
 #define ENUMERABLE_UNBOUNDED_INTEGRAL(INTEGRAL_TYPE)              \
 instance Enumerable INTEGRAL_TYPE where {                         \
     {-# INLINE enumerateFrom #-};                                 \
-    enumerateFrom = enumerateFromIntegral;                        \
+    enumerateFrom = enumerateFromIntegralUnbounded;               \
     {-# INLINE enumerateFromThen #-};                             \
-    enumerateFromThen = enumerateFromThenIntegral;                \
+    enumerateFromThen = enumerateFromThenIntegralUnbounded;       \
     {-# INLINE enumerateFromTo #-};                               \
     enumerateFromTo = enumerateFromToIntegral;                    \
     {-# INLINE enumerateFromThenTo #-};                           \

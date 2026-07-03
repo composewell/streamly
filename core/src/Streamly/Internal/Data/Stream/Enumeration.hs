@@ -148,7 +148,7 @@ enumerateFromNum from = enumerateFromStepNum from 1
 enumerateFromStepIntegralUnbounded :: (Integral a, Monad m) => a -> a -> Stream m a
 #ifdef USE_UNFOLDS_EVERYWHERE
 enumerateFromStepIntegralUnbounded from stride =
-    unfold Unfold.enumerateFromStepIntegral (from, stride)
+    unfold Unfold.enumerateFromStepIntegralUnbounded (from, stride)
 #else
 enumerateFromStepIntegralUnbounded from stride =
     from `seq` stride `seq`
@@ -201,7 +201,7 @@ enumerateFromThenIntegral :: (Monad m, Integral a, Bounded a)
     => a -> a -> Stream m a
 #ifdef USE_UNFOLDS_EVERYWHERE
 enumerateFromThenIntegral from next =
-    unfold Unfold.enumerateFromThenIntegralBounded (from, next)
+    unfold Unfold.enumerateFromThenIntegral (from, next)
 #else
 enumerateFromThenIntegral from next =
     enumerateFromThenToIntegral
