@@ -155,7 +155,7 @@ common optimization-options
       ghc-options: -fno-ignore-asserts
 
     if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
-      ghc-options: -fplugin Fusion.Plugin
+      ghc-options: -fplugin Fusion.Plugin -ddump-simpl -ddump-to-file -dsuppress-all
   else
     ghc-options: -O0
 
@@ -194,6 +194,7 @@ common bench-depends
   if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
     build-depends:
         fusion-plugin     >= 0.2   && < 0.3
+      , fusion-plugin-types >= 0.1 && < 0.2
   if flag(inspection)
     build-depends:
         template-haskell   >= 2.14 && < 2.25
