@@ -607,7 +607,10 @@ enumerateFromStepIntegral (x, stride) = pure $ Yield x $! (x + stride, stride)
 data EnumState a =
       EnumInit a a a
     | EnumYieldUpward a a a
+    | EnumNextUpward a a a
     | EnumYieldDownward a a a
+    | EnumNextDownward a a a
+    | EnumSingle a
     | EnumStop
 
 -- | 'Producer' for enumerating an 'Integral' type in steps up to a given
@@ -622,26 +625,37 @@ enumerateFromThenToIntegral (EnumInit from next to) =
         if next >= from
         then
             if to < next
-            then if to < from then Stop else Yield from EnumStop
+            then
+                if to < from
+                then Stop
+                else Skip (EnumSingle from)
             else -- from <= next <= to
                 let stride = next - from
                 in Skip $ EnumYieldUpward from stride (to - stride)
         else
             if to > next
-            then if to > from then Stop else Yield from EnumStop
+            then
+                if to > from
+                then Stop
+                else Skip (EnumSingle from)
             else -- from >= next >= to
                 let stride = next - from
                 in Skip $ EnumYieldDownward from stride (to - stride)
 enumerateFromThenToIntegral (EnumYieldUpward x stride toMinus) =
+    pure $ Yield x (EnumNextUpward x stride toMinus)
+enumerateFromThenToIntegral (EnumNextUpward x stride toMinus) =
     pure $
         if x > toMinus
-        then Yield x EnumStop
-        else Yield x $ EnumYieldUpward (x + stride) stride toMinus
+        then Stop
+        else Skip $ EnumYieldUpward (x + stride) stride toMinus
 enumerateFromThenToIntegral (EnumYieldDownward x stride toMinus) =
+    pure $ Yield x (EnumNextDownward x stride toMinus)
+enumerateFromThenToIntegral (EnumNextDownward x stride toMinus) =
     pure $
         if x < toMinus
-        then Yield x EnumStop
-        else Yield x $ EnumYieldDownward (x + stride) stride toMinus
+        then Stop
+        else Skip $ EnumYieldDownward (x + stride) stride toMinus
+enumerateFromThenToIntegral (EnumSingle x) = pure $ Yield x EnumStop
 enumerateFromThenToIntegral EnumStop = pure Stop
 
 -- | State for 'enumerateFromThenUpToIntegral'. Same as 'EnumState' but
