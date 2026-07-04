@@ -149,13 +149,84 @@ Step function of a stream or unfold:
   (e.g. `Stream (const Producer.fromList)`) are unaffected because returning a
   top-level function reference does not allocate.
 
-Multiple yield points or single?:
+Minimize the number of yield points and try to keep a single `Yield` point per
+state. In Scanl benchmarks we observed that the following state machine code
+does not fuse:
+```
+enumerateFromThenUpToIntegral ::
+    (Applicative m, Integral a) => Producer m (EnumStateUp a) a
+enumerateFromThenUpToIntegral (EnumUpInit from next to) =
+    pure $
+        if to < next
+        then if to < from then Stop else Yield from EnumUpStop
+        else
+            let stride = next - from
+            in Skip $ EnumUpYield from stride (to - stride)
+enumerateFromThenUpToIntegral (EnumUpYield x stride toMinus) =
+    pure $
+        if x > toMinus
+        then Yield x EnumUpStop
+        else Yield x $ EnumUpYield (x + stride) stride toMinus
+enumerateFromThenUpToIntegral EnumUpStop = pure Stop
+```
 
-* A single yield point is usually desirable, however, not always necessary.
-  In some cases multiple yield points may in fact be needed for fusion,
-  see `splitOnSeq` for an example. Or maybe its fusing because of a
-  direct yield instead of going through an indirect common yielding
-  state.
+However the following variation fuses quickly:
+```
+enumerateFromThenUpToIntegral (EnumUpYield x stride toMinus) =
+        if x > toMinus
+        then Yield x Stop
+        else Yield x $ EnumUpYield (x + stride) stride toMinus
+```
+
+If we use a single yield point to transfer control to the next state machine
+then the state machine is likely to fuse better. For example, this works
+absolutely fine:
+```
+enumerateFromThenUpToIntegral ::
+    (Applicative m, Integral a) => Producer m (EnumStateUp a) a
+enumerateFromThenUpToIntegral (EnumUpInit from next to) =
+    pure $
+        if to < next
+        then if to < from then Stop else Yield from EnumUpStop
+        else -- from <= next <= to
+            let stride = next - from
+            in Skip $ EnumUpYield from stride (to - stride)
+enumerateFromThenUpToIntegral (EnumUpYield x stride toMinus) =
+    pure $ Yield x (EnumUpNext x stride toMinus)
+enumerateFromThenUpToIntegral (EnumUpNext x stride toMinus) =
+    pure $
+        if x > toMinus
+        then Stop
+        else Skip $ EnumUpYield (x + stride) stride toMinus
+enumerateFromThenUpToIntegral EnumUpStop = pure Stop
+```
+
+A Skip ties a loop into the current, local state machine, a Yield however
+stitches this state machine with another state machine, the control is
+transferred to another loop, and if there are multiple such points to stitch
+one state machine loop with a different state machines then the compiler is
+less likely to be able to tie them up into a single closed large loop. So try
+to keep the state machine as simple as possible and try to keep a common yield
+point. Also, do not introduce unnecessary states because a Skip translates to a
+jump instruction which can cause some performance hit if it is not necessary
+for fusion.
+
+Usually multiple yield points are problematic for fusion, but perhaps only if
+we are looping further, for a terminal yield it is in fact better to yield here
+rather than skipping to another state. In the following code we used to skip to
+another state here and because of that equations/unfoldCross benchmark could
+not fuse, by moving the yield here it fused perfectly. We should investigate
+this and make a precise guideline:
+
+```
+enumerateFromTo (EnumToYield from to) =
+    pure $
+        if to > from
+        then Yield from (EnumToYield (from + 1) to)
+        else Yield from EnumToStop
+```
+
+Also see `splitOnSeq` for a fusing example with multiple yield points.
 
 Recursion in step function:
 
@@ -164,14 +235,14 @@ Recursion in step function:
   introduce optimization barriers that are harder to remove by the GHC
   simplifier.
 
-  However, in some cases it may be better to have a local recursive
-  loop. A recursive loop can help us avoid threading around some large
-  state values every time. Values that do not change across a loop can
-  be factored in the scope outside the loop (static argument transform),
-  this way we can create a local loop which is more efficient than
-  threading around the state in a larger loop.  See the `splitOnSeq`
-  combinator as an example where we use a local recursive loop, it fuses
-  and is significantly efficient compared to using `Skip`.
+  However, in some cases it may be better to have a local recursive loop (when
+  it is not spanning multiple state constructors). A recursive loop can help us
+  avoid threading around some large state values every time. Values that do not
+  change across a loop can be factored in the scope outside the loop (static
+  argument transform), this way we can create a local loop which is more
+  efficient than threading around the state in a larger loop.  See the
+  `splitOnSeq` combinator as an example where we use a local recursive loop, it
+  fuses and is significantly efficient compared to using `Skip`.
 
   In a local recursive loop use SPEC and annotate even the rest of the
   loop arguments as strict where needed. We have observed that when the
