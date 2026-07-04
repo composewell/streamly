@@ -18,6 +18,7 @@ module Streamly.Internal.Data.Producer
     , FairCrossState(..)
     , TupleState(..)
     , EnumState(..)
+    , EnumStateUp(..)
     , ConcatState(..)
     , InterleaveState(..)
     , InterleaveEachState(..)
@@ -48,12 +49,14 @@ module Streamly.Internal.Data.Producer
     , enumerateFromStepNum
     , enumerateFromStepIntegral
     , enumerateFromThenToIntegral
+    , enumerateFromThenUpToIntegral
     )
 where
 
 #include "inline.hs"
 
 import Data.Functor ((<&>))
+import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Stream.Step (Step(..))
 
 import Prelude hiding (mapM)
@@ -639,3 +642,43 @@ enumerateFromThenToIntegral (EnumYieldDownward x stride toMinus) =
         then Yield x EnumStop
         else Yield x $ EnumYieldDownward (x + stride) stride toMinus
 enumerateFromThenToIntegral EnumStop = pure Stop
+
+-- | State for 'enumerateFromThenUpToIntegral'. Same as 'EnumState' but
+-- without the downward direction, since the function only ever moves
+-- upward.
+{-# ANN type EnumStateUp Fuse #-}
+data EnumStateUp a =
+      EnumUpInit a a a
+    | EnumUpYield a a a
+    | EnumUpNext a a a
+    | EnumUpStop
+
+-- | Like 'enumerateFromThenToIntegral' but a simplified version that only
+-- works in the upward direction i.e. it assumes @next >= from@. The
+-- generated stream's first element is @from@, the second element is @next@
+-- and the successive elements are in increments of @next - from@ up to
+-- @to@.
+{-# INLINE_LATE enumerateFromThenUpToIntegral #-}
+enumerateFromThenUpToIntegral ::
+    (Applicative m, Integral a) => Producer m (EnumStateUp a) a
+enumerateFromThenUpToIntegral (EnumUpInit from next to) =
+    pure $
+        if next < from
+        then Stop
+        else
+            if to < next
+            then
+                if to < from
+                then Stop
+                else Yield from EnumUpStop
+            else -- from <= next <= to
+                let stride = next - from
+                in Skip $ EnumUpYield from stride (to - stride)
+enumerateFromThenUpToIntegral (EnumUpYield x stride toMinus) =
+    pure $ Yield x (EnumUpNext x stride toMinus)
+enumerateFromThenUpToIntegral (EnumUpNext x stride toMinus) =
+    pure $
+        if x > toMinus
+        then Stop
+        else Skip $ EnumUpYield (x + stride) stride toMinus
+enumerateFromThenUpToIntegral EnumUpStop = pure Stop

@@ -47,6 +47,7 @@ module Streamly.Internal.Data.Stream.Enumeration
     , enumerateFromToIntegral
     , enumerateFromThenIntegral
     , enumerateFromThenToIntegral
+    , enumerateFromThenUpToIntegral
 
     -- ** 'Enum' Types not larger than 'Int'
     -- | These are implemented by converting Enum to Int and using integral
@@ -184,6 +185,21 @@ enumerateFromThenToIntegral from next to =
         (const Producer.enumerateFromThenToIntegral)
         (Producer.EnumInit from next to)
 #endif
+
+-- | Like 'enumerateFromThenToIntegral' but a simplified version that only
+-- works in the upward direction i.e. return empty stream if @then < from@.
+--
+-- >>> Stream.toList $ Stream.enumerateFromThenUpToIntegral 0 2 6
+-- [0,2,4,6]
+--
+{-# INLINE_NORMAL enumerateFromThenUpToIntegral #-}
+enumerateFromThenUpToIntegral
+    :: (Monad m, Integral a)
+    => a -> a -> a -> Stream m a
+enumerateFromThenUpToIntegral from next to =
+    Stream
+        (const Producer.enumerateFromThenUpToIntegral)
+        (Producer.EnumUpInit from next to)
 
 -- | Enumerate an 'Integral' type in steps. @enumerateFromThenIntegral from
 -- then@ generates a stream whose first element is @from@, the second element
