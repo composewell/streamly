@@ -259,22 +259,6 @@ enumerateFromThenNum =
 -------------------------------------------------------------------------------
 -- Test for Integral type
 -------------------------------------------------------------------------------
-enumerateFromIntegralUnbounded :: Property
-enumerateFromIntegralUnbounded =
-    property
-        $ \f ->
-                let unf = UF.take 50 UF.enumerateFromIntegralUnbounded
-                in testUnfold unf (f :: Integer) $
-                    Prelude.take 50 $ Prelude.enumFrom f
-
-enumerateFromThenIntegralUnbounded :: Property
-enumerateFromThenIntegralUnbounded =
-    property
-        $ \f th ->
-                let unf = UF.take 50 UF.enumerateFromThenIntegralUnbounded
-                in testUnfold unf (f :: Integer, th) $
-                    Prelude.take 50 $ Prelude.enumFromThen f th
-
 enumerateFromThenToIntegral :: Property
 enumerateFromThenToIntegral =
     property
@@ -302,6 +286,43 @@ enumerateFromThenToIntegralLargeStride =
         , 6977257977275108264
         )
         [-7537527385297985025, 5092559113693760989]
+        `shouldBe` True
+
+-- Regression test: enumerateFromToNum used to pass a literal 1 instead of
+-- (from + 1) as the "then" element to enumerateFromThenToNum, so whenever
+-- from > 1 the "then < from" check took the downward branch and produced an
+-- empty stream instead of [from..to].
+enumerateFromToIntegralNonZeroFrom :: Expectation
+enumerateFromToIntegralNonZeroFrom =
+    testUnfold
+        UF.enumerateFromToIntegral
+        (5 :: Int, 10)
+        [5, 6, 7, 8, 9, 10]
+        `shouldBe` True
+
+enumerateDownFromThenToNum :: Expectation
+enumerateDownFromThenToNum = do
+    testUnfold
+        UF.enumerateDownFromThenToNum (6 :: Int, 4, 0) [6, 4, 2, 0]
+        `shouldBe` True
+    -- stride does not evenly divide (from - to)
+    testUnfold
+        UF.enumerateDownFromThenToNum (7 :: Int, 5, 0) [7, 5, 3, 1]
+        `shouldBe` True
+    -- then > from returns an empty stream
+    testUnfold
+        UF.enumerateDownFromThenToNum (0 :: Int, 4, -6) []
+        `shouldBe` True
+    -- to is above then (but at or below from) returns just the single
+    -- "from" element
+    testUnfold
+        UF.enumerateDownFromThenToNum (6 :: Int, 0, 3) [6]
+        `shouldBe` True
+    -- matches [from, then .. to] from the Prelude
+    testUnfold
+        UF.enumerateDownFromThenToNum
+        (6 :: Int, 4, -1)
+        (Prelude.takeWhile (>= (-1)) [6, 4 ..])
         `shouldBe` True
 
 enumerateFromIntegral :: Property
@@ -469,7 +490,7 @@ enumerateFromFractional :: Property
 enumerateFromFractional =
     property
         $ \f ->
-                let unf = UF.take 50 UF.enumerateFromFractional
+                let unf = UF.take 50 UF.enumerateFromRealFloat
                 in testUnfold unf (f :: Double) $
                     Prelude.take 50 $ Prelude.enumFrom f
 
@@ -477,7 +498,7 @@ enumerateFromThenFractional :: Property
 enumerateFromThenFractional =
     property
         $ \f th ->
-                let unf = UF.take 50 UF.enumerateFromThenFractional
+                let unf = UF.take 50 UF.enumerateFromThenRealFloat
                 in testUnfold unf (f :: Double, th) $
                     Prelude.take 50 $ Prelude.enumFromThen f th
 
@@ -485,7 +506,7 @@ enumerateFromThenToFractional :: Property
 enumerateFromThenToFractional =
     property
         $ \f th to ->
-                let unf = UF.take 50 UF.enumerateFromThenToFractional
+                let unf = UF.take 50 UF.enumerateFromThenToRealFloat
                 in testUnfold  unf (f :: Double, th, to) $
                     Prelude.take 50 $ Prelude.enumFromThenTo f th to
 
@@ -493,7 +514,7 @@ enumerateFromToFractional :: Property
 enumerateFromToFractional =
     property
         $ \f t ->
-                let unf = UF.enumerateFromToFractional
+                let unf = UF.enumerateFromToRealFloat
                 in testUnfold unf (f :: Double, t) [f..(t :: Double)]
 
 -------------------------------------------------------------------------------
@@ -629,18 +650,18 @@ enumerateFromThenToIntegralOverflowDn =
         [-124, -126, -128]
         `shouldBe` True
 
-enumerateFromIntegralOverflow :: Expectation
-enumerateFromIntegralOverflow =
+enumerateFromIntegralBoundedOverflow :: Expectation
+enumerateFromIntegralBoundedOverflow =
     testUnfold
-        (UF.take 10 UF.enumerateFromIntegral)
+        (UF.take 10 UF.enumerateFromIntegralBounded)
         (253 :: Word8)
         [253, 254, 255]
         `shouldBe` True
 
-enumerateFromThenIntegralOverflow :: Expectation
-enumerateFromThenIntegralOverflow =
+enumerateFromThenIntegralBoundedOverflow :: Expectation
+enumerateFromThenIntegralBoundedOverflow =
     testUnfold
-        (UF.take 10 UF.enumerateFromThenIntegral)
+        (UF.take 10 UF.enumerateFromThenIntegralBounded)
         (250 :: Word8, 252)
         [250, 252, 254]
         `shouldBe` True
@@ -1220,12 +1241,13 @@ testGeneration =
             prop "enumerateFromNum" enumerateFromNum
             prop "enumerateFromThenNum" enumerateFromThenNum
             ----------- Enumerate from Integral -------------------------------
-            prop "enumerateFromIntegralUnbounded" enumerateFromIntegralUnbounded
-            prop "enumerateFromThenIntegralUnbounded" enumerateFromThenIntegralUnbounded
             prop "enumerateFromToIntegral" enumerateFromToIntegral
+            it "enumerateFromToIntegral non-zero from"
+                enumerateFromToIntegralNonZeroFrom
             prop "enumerateFromThenToIntegral" enumerateFromThenToIntegral
             it "enumerateFromThenToIntegral large stride"
                 enumerateFromThenToIntegralLargeStride
+            it "enumerateDownFromThenToNum" enumerateDownFromThenToNum
 
             prop "enumerateFromIntegral" enumerateFromIntegral
             prop "enumerateFromThenIntegral" enumerateFromThenIntegral
@@ -1237,10 +1259,10 @@ testGeneration =
                 enumerateFromThenToIntegralOverflowUp
             it "enumerateFromThenToIntegral overflow dn"
                 enumerateFromThenToIntegralOverflowDn
-            it "enumerateFromIntegral overflow"
-                enumerateFromIntegralOverflow
-            it "enumerateFromThenIntegral overflow"
-                enumerateFromThenIntegralOverflow
+            it "enumerateFromIntegralBounded overflow"
+                enumerateFromIntegralBoundedOverflow
+            it "enumerateFromThenIntegralBounded overflow"
+                enumerateFromThenIntegralBoundedOverflow
             it "enumerateFromToIntegralBounded overflow"
                 enumerateFromToIntegralBoundedOverflow
             it "enumerateFromThenToIntegralBounded overflow"

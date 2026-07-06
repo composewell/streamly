@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
 -- |
 -- Module      : Streamly.Test.Data.Stream.Generate
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -172,12 +173,6 @@ testEnumerateFromStepNum =
     toList (Stream.take 5 (Stream.enumerateFromStepNum (0 :: Int) 3))
         `shouldReturn` [0, 3, 6, 9, 12]
 
-testEnumerateFromStepIntegralUnbounded :: Expectation
-testEnumerateFromStepIntegralUnbounded =
-    toList
-        (Stream.take 5 (Stream.enumerateFromStepIntegralUnbounded (0 :: Int) 2))
-        `shouldReturn` [0, 2, 4, 6, 8]
-
 testEnumerateFromThenNum :: Expectation
 testEnumerateFromThenNum =
     toList (Stream.take 5 (Stream.enumerateFromThenNum (0 :: Int) 3))
@@ -214,6 +209,24 @@ testEnumerateFromThenToFractional :: Expectation
 testEnumerateFromThenToFractional =
     toList (Stream.enumerateFromThenToFractional (0.1 :: Double) 2.0 6.0)
         `shouldReturn` [0.1, 2.0, 3.9, 5.799999999999999]
+
+testEnumerateFromThenDownToNum :: Expectation
+testEnumerateFromThenDownToNum = do
+    toList (Stream.enumerateDownFromThenToNum (6 :: Int) 4 0)
+        `shouldReturn` [6, 4, 2, 0]
+    -- stride does not evenly divide (from - to)
+    toList (Stream.enumerateDownFromThenToNum (7 :: Int) 5 0)
+        `shouldReturn` [7, 5, 3, 1]
+    -- then > from returns an empty stream
+    toList (Stream.enumerateDownFromThenToNum (0 :: Int) 4 (-6))
+        `shouldReturn` []
+    -- to is above then (but at or below from) returns just the single
+    -- "from" element
+    toList (Stream.enumerateDownFromThenToNum (6 :: Int) 0 3)
+        `shouldReturn` [6]
+    -- matches [from, then .. to] from the Prelude
+    toList (Stream.enumerateDownFromThenToNum (6 :: Int) 4 (-1))
+        `shouldReturn` Prelude.takeWhile (>= (-1)) [6, 4 ..]
 
 testEnumerateFromThenSmall :: Expectation
 testEnumerateFromThenSmall =
@@ -422,16 +435,19 @@ main = hspec $ describe moduleName $ do
         it "fromW16CString#" testFromW16CString
         it "fromW16CString# empty" testFromW16CStringEmpty
 
+    -- TODO: Use the Down functor in the up direction versions and check if
+    -- that gives correct results in the down direction. If so update the
+    -- general documentation in the Stream/Unfold modules.
     describe "Enumeration Primitives" $ do
         it "enumerateFromIntegral" testEnumerateFromIntegral
         it "enumerateFromNum" testEnumerateFromNum
         it "enumerateFromStepNum" testEnumerateFromStepNum
-        it "enumerateFromStepIntegralUnbounded" testEnumerateFromStepIntegralUnbounded
         it "enumerateFromThenNum" testEnumerateFromThenNum
         it "enumerateFromThenIntegral" testEnumerateFromThenIntegral
         it "enumerateFromThenFractional" testEnumerateFromThenFractional
         it "enumerateFromThenToIntegral" testEnumerateFromThenToIntegral
         it "enumerateFromThenToFractional" testEnumerateFromThenToFractional
+        it "enumerateDownFromThenToNum" testEnumerateFromThenDownToNum
         it "enumerateFromThenSmall" testEnumerateFromThenSmall
         it "enumerateFromToSmall" testEnumerateFromToSmall
         it "enumerateFromThenToSmall" testEnumerateFromThenToSmall

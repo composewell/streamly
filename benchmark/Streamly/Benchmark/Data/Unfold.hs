@@ -68,7 +68,7 @@ benchIO name f = bench name $ nfIO $ randomRIO (1,1) >>= f
 -- generate numbers up to the argument value
 {-# INLINE source #-}
 source :: Monad m => Int -> Unfold m Int Int
-source n = UF.supplySecond n UF.enumerateFromToIntegral
+source n = UF.supplySecond n UF.enumerateFromToNum
 
 -------------------------------------------------------------------------------
 -- Benchmark helpers
@@ -87,7 +87,7 @@ drainTransformation unf f seed = drainGeneration (f unf) seed
 drainTransformationDefault ::
        Monad m => Int -> (Unfold m Int Int -> Unfold m c d) -> c -> m ()
 drainTransformationDefault to =
-    drainTransformation (UF.supplySecond to UF.enumerateFromToIntegral)
+    drainTransformation (UF.supplySecond to UF.enumerateFromToNum)
 
 -------------------------------------------------------------------------------
 -- Operations on input
@@ -550,7 +550,7 @@ afterIO :: Int -> Int -> IO ()
 afterIO size start =
     UF.fold FL.drain
         (UF.afterIO (\_ -> return ())
-            (UF.supplySecond (size + start) UF.enumerateFromToIntegral))
+            (UF.supplySecond (size + start) UF.enumerateFromToNum))
         start
 
 #ifdef INSPECTION
@@ -564,7 +564,7 @@ finallyIO :: Int -> Int -> IO ()
 finallyIO size start =
     UF.fold FL.drain
         (UF.finallyIO (\_ -> return ())
-            (UF.supplySecond (size + start) UF.enumerateFromToIntegral))
+            (UF.supplySecond (size + start) UF.enumerateFromToNum))
         start
 
 -- 'finallyIO' and 'bracketIO' wrap the step function in exception handlers,
@@ -580,7 +580,7 @@ bracketIO :: Int -> Int -> IO ()
 bracketIO size start =
     UF.fold FL.drain
         (UF.bracketIO return (\_ -> return ())
-            (UF.supplySecond (size + start) UF.enumerateFromToIntegral))
+            (UF.supplySecond (size + start) UF.enumerateFromToNum))
         start
 
 #ifdef INSPECTION

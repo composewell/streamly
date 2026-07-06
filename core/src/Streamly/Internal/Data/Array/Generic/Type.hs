@@ -227,13 +227,13 @@ toList arr = loop 0
 {-# INLINE_NORMAL read #-}
 read :: Monad m => Array a -> Stream m a
 read arr =
-    D.map (`unsafeGetIndex` arr) $ D.enumerateFromToIntegral 0 (length arr - 1)
+    D.map (`unsafeGetIndex` arr) $ D.enumerateFromToNum 0 (length arr - 1)
 
 {-# INLINE_NORMAL readRev #-}
 readRev :: Monad m => Array a -> Stream m a
 readRev arr =
     D.map (`unsafeGetIndex` arr)
-        $ D.enumerateFromThenToIntegral (arrLen - 1) (arrLen - 2) 0
+        $ D.enumerateFromThenToNum (arrLen - 1) (arrLen - 2) 0
     where
     arrLen = length arr
 

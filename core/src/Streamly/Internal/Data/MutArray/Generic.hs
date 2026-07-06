@@ -586,7 +586,7 @@ toList arr = mapM (`unsafeGetIndex` arr) [0 .. (length arr - 1)]
 {-# INLINE_NORMAL read #-}
 read :: MonadIO m => MutArray a -> D.Stream m a
 read arr =
-    D.mapM (`unsafeGetIndex` arr) $ D.enumerateFromToIntegral 0 (length arr - 1)
+    D.mapM (`unsafeGetIndex` arr) $ D.enumerateFromToNum 0 (length arr - 1)
 
 -- Check equivalence with StreamK.fromStream . toStreamD and remove
 {-# INLINE toStreamK #-}
@@ -606,7 +606,7 @@ toStreamK arr = K.unfoldrM step 0
 readRev :: MonadIO m => MutArray a -> D.Stream m a
 readRev arr =
     D.mapM (`unsafeGetIndex` arr)
-        $ D.enumerateFromThenToIntegral (arrLen - 1) (arrLen - 2) 0
+        $ D.enumerateFromThenToNum (arrLen - 1) (arrLen - 2) 0
     where
     arrLen = length arr
 

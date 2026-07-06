@@ -46,16 +46,18 @@ module Streamly.Internal.Data.Producer
     , takeWhileM
     , takeEndByM
     , unfoldrM
-    , enumerateFromStepNum
-    , enumerateFromStepIntegral
-    , enumerateFromThenToIntegral
-    , enumerateFromThenUpToIntegral
+    , enumerateFromStepRealFloat
+    , enumerateFromStep
+    , enumerateFromThenTo
+    , enumerateUpFromThenTo
+    , enumerateDownFromThenTo
     )
 where
 
 #include "inline.hs"
 
 import Data.Functor ((<&>))
+import Data.Ord (Down(..))
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Stream.Step (Step(..))
 
@@ -582,9 +584,24 @@ unfoldrM next a =
 -- @stride@ every time. The state @(from, stride, i)@ carries the counter
 -- @i@ used to compute @from + i * stride@ on each step; @from@ and @stride@
 -- are threaded through unchanged.
-{-# INLINE_LATE enumerateFromStepNum #-}
-enumerateFromStepNum :: (Applicative m, Num a) => Producer m (a, a, a) a
-enumerateFromStepNum (from, stride, i) =
+--
+-- For floating point numbers if the increment is less than the precision then
+-- it just gets lost. Therefore we cannot always increment it correctly by just
+-- repeated addition.
+-- 9007199254740992 + 1 + 1 :: Double => 9.007199254740992e15
+-- 9007199254740992 + 2     :: Double => 9.007199254740994e15
+--
+-- Instead we accumulate the increment counter and compute the increment
+-- every time before adding it to the starting number.
+--
+-- This is numerically stable, for that it enumertaes using multiplication
+-- instead of repeated addition, therefore, it is slower than it needs to be
+-- for non-floating precision types.
+--
+-- This is not overflow safe.
+{-# INLINE_LATE enumerateFromStepRealFloat #-}
+enumerateFromStepRealFloat :: (Applicative m, RealFloat a) => Producer m (a, a, a) a
+enumerateFromStepRealFloat (from, stride, i) =
     -- Note that the counter "i" is the same type as the type being enumerated.
     -- It may overflow, for example, if we are enumerating Word8, after 255 the
     -- counter will become 0, but the overflow does not affect the enumeration
@@ -594,9 +611,15 @@ enumerateFromStepNum (from, stride, i) =
 -- | 'Producer' for enumerating integrals starting from @x@, incrementing by
 -- a constant @stride@ every time. The state @(x, stride)@ carries the
 -- current value and the stride, which is threaded through unchanged.
-{-# INLINE_LATE enumerateFromStepIntegral #-}
-enumerateFromStepIntegral :: (Applicative m, Integral a) => Producer m (a, a) a
-enumerateFromStepIntegral (x, stride) = pure $ Yield x $! (x + stride, stride)
+--
+-- This is faster than the stable version because we do not need to worry about
+-- numerical stability, therefore, can do it by repeated addition. Do not use
+-- this for floating point types if numerical stability is required.
+--
+-- This is not overflow safe.
+{-# INLINE_LATE enumerateFromStep #-}
+enumerateFromStep :: (Applicative m, Num a) => Producer m (a, a) a
+enumerateFromStep (x, stride) = pure $ Yield x $! (x + stride, stride)
 
 -- | State for 'enumerateFromThenToIntegral'. @EnumInit from next to@ is the
 -- starting state carrying the arguments; it transitions to 'EnumYieldUpward'
@@ -617,10 +640,15 @@ data EnumState a =
 -- limit. @EnumInit from next to@ generates a finite stream whose first
 -- element is @from@, the second element is @next@ and the successive
 -- elements are in increments of @next - from@ up to @to@.
-{-# INLINE_LATE enumerateFromThenToIntegral #-}
-enumerateFromThenToIntegral ::
-    (Applicative m, Integral a) => Producer m (EnumState a) a
-enumerateFromThenToIntegral (EnumInit from next to) =
+--
+-- This is not numerically stable for floating point numbers as it enumerates
+-- by repeated addition.
+--
+-- This is overflow safe.
+{-# INLINE_LATE enumerateFromThenTo #-}
+enumerateFromThenTo ::
+    (Applicative m, Num a, Ord a) => Producer m (EnumState a) a
+enumerateFromThenTo (EnumInit from next to) =
     pure $
         if next >= from
         then
@@ -641,24 +669,24 @@ enumerateFromThenToIntegral (EnumInit from next to) =
             else -- from >= next >= to
                 let stride = next - from
                 in Skip $ EnumYieldDownward from stride (to - stride)
-enumerateFromThenToIntegral (EnumYieldUpward x stride toMinus) =
+enumerateFromThenTo (EnumYieldUpward x stride toMinus) =
     pure $ Yield x (EnumNextUpward x stride toMinus)
-enumerateFromThenToIntegral (EnumNextUpward x stride toMinus) =
+enumerateFromThenTo (EnumNextUpward x stride toMinus) =
     pure $
         if x > toMinus
         then Stop
         else Skip $ EnumYieldUpward (x + stride) stride toMinus
-enumerateFromThenToIntegral (EnumYieldDownward x stride toMinus) =
+enumerateFromThenTo (EnumYieldDownward x stride toMinus) =
     pure $ Yield x (EnumNextDownward x stride toMinus)
-enumerateFromThenToIntegral (EnumNextDownward x stride toMinus) =
+enumerateFromThenTo (EnumNextDownward x stride toMinus) =
     pure $
         if x < toMinus
         then Stop
         else Skip $ EnumYieldDownward (x + stride) stride toMinus
-enumerateFromThenToIntegral (EnumSingle x) = pure $ Yield x EnumStop
-enumerateFromThenToIntegral EnumStop = pure Stop
+enumerateFromThenTo (EnumSingle x) = pure $ Yield x EnumStop
+enumerateFromThenTo EnumStop = pure Stop
 
--- | State for 'enumerateFromThenUpToIntegral'. Same as 'EnumState' but
+-- | State for 'enumerateUpFromThenToIntegral'. Same as 'EnumState' but
 -- without the downward direction, since the function only ever moves
 -- upward.
 {-# ANN type EnumStateUp Fuse #-}
@@ -668,15 +696,15 @@ data EnumStateUp a =
     | EnumUpNext a a a
     | EnumUpStop
 
--- | Like 'enumerateFromThenToIntegral' but a simplified version that only
+-- | Like 'enumerateFromThenTo' but a simplified version that only
 -- works in the upward direction i.e. it assumes @next >= from@. The
 -- generated stream's first element is @from@, the second element is @next@
 -- and the successive elements are in increments of @next - from@ up to
 -- @to@.
-{-# INLINE_LATE enumerateFromThenUpToIntegral #-}
-enumerateFromThenUpToIntegral ::
-    (Applicative m, Integral a) => Producer m (EnumStateUp a) a
-enumerateFromThenUpToIntegral (EnumUpInit from next to) =
+{-# INLINE_LATE enumerateUpFromThenTo #-}
+enumerateUpFromThenTo ::
+    (Applicative m, Num a, Ord a) => Producer m (EnumStateUp a) a
+enumerateUpFromThenTo (EnumUpInit from next to) =
     pure $
         if next < from
         then Stop
@@ -689,11 +717,20 @@ enumerateFromThenUpToIntegral (EnumUpInit from next to) =
             else -- from <= next <= to
                 let stride = next - from
                 in Skip $ EnumUpYield from stride (to - stride)
-enumerateFromThenUpToIntegral (EnumUpYield x stride toMinus) =
+enumerateUpFromThenTo (EnumUpYield x stride toMinus) =
     pure $ Yield x (EnumUpNext x stride toMinus)
-enumerateFromThenUpToIntegral (EnumUpNext x stride toMinus) =
+enumerateUpFromThenTo (EnumUpNext x stride toMinus) =
     pure $
         if x > toMinus
         then Stop
         else Skip $ EnumUpYield (x + stride) stride toMinus
-enumerateFromThenUpToIntegral EnumUpStop = pure Stop
+enumerateUpFromThenTo EnumUpStop = pure Stop
+
+-- | Like 'enumerateDownFromThenTo' but enumerates in decreasing order.
+--
+-- If this works correctly then it is a proof that enumerateUpFromThenTo is
+-- mathematically correct.
+enumerateDownFromThenTo ::
+    (Applicative m, Num a, Ord a)
+    => Producer m (EnumStateUp (Down a)) a
+enumerateDownFromThenTo s = fmap (fmap getDown) (enumerateUpFromThenTo s)

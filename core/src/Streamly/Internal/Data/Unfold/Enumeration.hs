@@ -22,6 +22,10 @@
 -- in this module can be used to define them. Alternatively, these functions
 -- can be used directly.
 --
+-- XXX Will it be better to design the API around "stride" e.g.
+-- enumerateFromStrideTo? If "stride" is specified as an argument then there is
+-- no issue of overflow of stride itself.
+--
 module Streamly.Internal.Data.Unfold.Enumeration
     (
     -- ** Enumerable Type Class
@@ -29,60 +33,66 @@ module Streamly.Internal.Data.Unfold.Enumeration
 
     -- ** 'Num' Type class Types
     -- | Most general operations via the 'Num' type class. All other
-    -- enumeraitons can be expressed in terms of these. These are numerically
-    -- stable for floating precision numbers. For that reason these may be
-    -- slightly less efficient than intergal operations.
+    -- enumeraitons can be expressed in terms of these.
     --
-    -- These are unbounded, can overflow, there are no bounds possible for
-    -- 'Num'.
+    -- These are numerically unstable for floating precision numbers. Use the
+    -- RealFloat specific operations for numerical stability.
+    --
+    -- The "To" vesions are overflow protected, others can overflow and wrap
+    -- around for bounded types. Use the "To" versions with max or min bound to
+    -- stop at the bound or use the bounded versions.
     , enumerateFromStepNum
     , enumerateFromNum
+    , enumerateDownFromNum
     , enumerateFromThenNum
+    , enumerateFromToNum
+    , enumerateDownFromToNum
+    , enumerateFromThenToNum
+    , enumerateUpFromThenToNum
+    , enumerateDownFromThenToNum
 
-    -- ** 'Integral' Type class Types (Unbounded Enumeration)
-    -- | More efficient than 'Num' based operations for 'Integral' types.
-    , enumerateFromStepIntegralUnbounded
-    , enumerateFromIntegralUnbounded
-    , enumerateFromThenIntegralUnbounded
-
-    -- ** 'Integral' Types (Bounded Enumeration)
-    -- | These are implemented in terms of integral operations using maxBound
-    -- or minBound as the terminating codition. This is the default behavior
-    -- for 'Integral' enumeration, used when no 'Unbounded' suffix is
-    -- specified; use the explicit 'Unbounded' suffixed operations above for
-    -- faster, unchecked enumeration.
-    , enumerateFromToIntegral
-    , enumerateFromThenToIntegral
-
-    -- XXX For these two the behavior changed from unbounded to bounded but
-    -- that is a safe direction.
-    , enumerateFromIntegral
-    , enumerateFromThenIntegral
+    -- ** Bounded Num Types
+    , enumerateFromBoundedNum
+    , enumerateFromThenBoundedNum
+    , enumerateDownFromBoundedNum
 
     -- ** 'Enum' Types not larger than 'Int'
     -- | These are implemented by converting Enum to Int and using integral
-    -- operations.
+    -- operations. Note small Enum types are always bounded though they may not
+    -- have a Bounded instance.
     , enumerateFromSmall
     , enumerateFromToSmall
     , enumerateFromThenSmall
     , enumerateFromThenToSmall
 
-    -- ** 'Fractional' Types
-    -- | These are simply specialization of Num based operations to Fractional
-    -- types.
-    , enumerateFromFractional
-    , enumerateFromToFractional
-    , enumerateFromThenFractional
-    , enumerateFromThenToFractional
+    -- ** 'RealFloat' Types
+    -- | For floating point numbers if the increment is less than the
+    -- precision then it just gets lost. Therefore we cannot always increment
+    -- it correctly by just repeated addition. Instead we accumulate the
+    -- increment counter and compute the increment every time before adding
+    -- it to the starting number. This is numerically stable but slower than
+    -- the 'Num' based operations.
+    , enumerateFromRealFloat
+    , enumerateFromToRealFloat
+    , enumerateFromThenRealFloat
+    , enumerateFromThenToRealFloat
 
     -- * Deprecated
     , enumerateFromStepIntegral
+    , enumerateFromIntegral
+    , enumerateFromThenIntegral
+    , enumerateFromToIntegral
+    , enumerateFromThenToIntegral
     , enumerateFromIntegralBounded
     , enumerateFromThenIntegralBounded
-    , enumerateFromSmallBounded
-    , enumerateFromThenSmallBounded
     , enumerateFromToIntegralBounded
     , enumerateFromThenToIntegralBounded
+    , enumerateFromSmallBounded
+    , enumerateFromThenSmallBounded
+    , enumerateFromFractional
+    , enumerateFromThenFractional
+    , enumerateFromToFractional
+    , enumerateFromThenToFractional
     )
 where
 
@@ -92,6 +102,7 @@ where
 import Data.Fixed
 import Data.Bifunctor (bimap)
 import Data.Int
+import Data.Ord (Down(..))
 import Data.Ratio
 import Data.Word
 import Numeric.Natural
@@ -122,19 +133,21 @@ import Prelude hiding (map, takeWhile, zipWith)
 --
 -- @
 --
--- The implementation is numerically stable for floating point values.
+-- CAUTION: This is NOT NUMERICALLY STABLE for floating point numbers. Use
+-- 'enumerateFromStepRealFloat' for numerical stability.
 --
--- Note 'enumerateFromStepIntegralUnbounded' is faster for integrals.
+-- CAUTION: This will overflow or underflow and wrap around for bounded
+-- types.
 --
 -- /Internal/
 --
 {-# INLINE enumerateFromStepNum #-}
-enumerateFromStepNum :: (Monad m, Num a) => Unfold m (a, a) a
-enumerateFromStepNum = Unfold Producer.enumerateFromStepNum inject
+enumerateFromStepNum :: (Applicative m, Num a) => Unfold m (a, a) a
+enumerateFromStepNum = Unfold Producer.enumerateFromStep inject
 
     where
 
-    inject (!from, !stride) = return (from, stride, 0)
+    inject (!from, !stride) = pure (from, stride)
 
 -- | Same as 'enumerateFromStepNum (from, next)' using a stride of @next - from@:
 --
@@ -150,21 +163,15 @@ enumerateFromStepNum = Unfold Producer.enumerateFromStepNum inject
 --
 -- @
 --
--- The implementation is numerically stable for floating point values.
+-- CAUTION: This is NOT NUMERICALLY STABLE for floating point numbers.
 --
--- Note that 'enumerateFromThenIntegralUnbounded' is faster for integrals.
---
--- Note that in the strange world of floating point numbers, using
--- @enumerateFromThenNum (from, from + 1)@ is almost exactly the same as
--- @enumerateFromStepNum (from, 1) but not precisely the same. Because @(from +
--- 1) - from@ is not exactly 1, it may lose some precision, the loss may also
--- be aggregated in each step, if you want that precision then use
--- 'enumerateFromStepNum' instead.
+-- CAUTION: This will overflow or underflow and wrap around for bounded
+-- types.
 --
 -- /Internal/
 --
 {-# INLINE enumerateFromThenNum #-}
-enumerateFromThenNum :: (Monad m, Num a) => Unfold m (a, a) a
+enumerateFromThenNum :: (Applicative m, Num a) => Unfold m (a, a) a
 enumerateFromThenNum =
     lmap (\(from, next) -> (from, next - from)) enumerateFromStepNum
 
@@ -177,24 +184,121 @@ enumerateFromThenNum =
 --
 -- @
 --
--- Also, same as 'enumerateFromThenNum' using a stride of 1 but see the note in
--- 'enumerateFromThenNum' about the loss of precision:
---
--- @
--- >>> enumerateFromNum = lmap (\from -> (from, from + 1)) Unfold.enumerateFromThenNum
--- >>> Stream.toList $ Stream.take 6 $ Stream.unfold enumerateFromNum (0.9)
--- [0.9,1.9,2.9,3.8999999999999995,4.8999999999999995,5.8999999999999995]
---
--- @
---
 -- /Internal/
 --
 {-# INLINE enumerateFromNum #-}
-enumerateFromNum :: (Monad m, Num a) => Unfold m a a
+enumerateFromNum :: (Applicative m, Num a) => Unfold m a a
 enumerateFromNum = lmap (\from -> (from, 1)) enumerateFromStepNum
 
+{-# INLINE enumerateDownFromNum #-}
+enumerateDownFromNum :: (Applicative m, Num a) => Unfold m a a
+enumerateDownFromNum = lmap (\from -> (from, -1)) enumerateFromStepNum
+
+-- | Unfolds @(from, next, to)@ generating a finite stream whose first
+-- element is @from@, the second element is @next@ and the successive
+-- elements are in increments of @next - from@ up to @to@.
+--
+-- This is overflow safe.
+--
+{-# INLINE enumerateFromThenToNum #-}
+enumerateFromThenToNum :: (Applicative m, Num a, Ord a) => Unfold m (a, a, a) a
+enumerateFromThenToNum = Unfold Producer.enumerateFromThenTo inject
+
+    where
+
+    inject (from, next, to) = pure (Producer.EnumInit from next to)
+
+-- | Like 'enumerateFromThenToNum' but a simplified version that only works
+-- in the upward direction. It returns an empty stream if @then < from@.
+--
+{-# INLINE enumerateUpFromThenToNum #-}
+enumerateUpFromThenToNum :: (Applicative m, Num a, Ord a) => Unfold m (a, a, a) a
+enumerateUpFromThenToNum = Unfold Producer.enumerateUpFromThenTo inject
+
+    where
+
+    inject (from, next, to) = pure (Producer.EnumUpInit from next to)
+
+-- | Like 'enumerateUpFromThenToNum' but a simplified version that only
+-- works in the downward direction. It returns an empty stream if
+-- @then > from@.
+--
+{-# INLINE enumerateDownFromThenToNum #-}
+enumerateDownFromThenToNum ::
+    (Applicative m, Num a, Ord a) => Unfold m (a, a, a) a
+enumerateDownFromThenToNum = Unfold Producer.enumerateDownFromThenTo inject
+
+    where
+
+    inject (from, next, to) =
+        pure (Producer.EnumUpInit (Down from) (Down next) (Down to))
+
+-- | Unfolds @(from, to)@ generating a finite stream whose first element is
+-- @from@ and successive elements are in increments of @1@ up to @to@.
+--
+{-# INLINE enumerateFromToNum #-}
+enumerateFromToNum :: (Monad m, Num a, Ord a) => Unfold m (a, a) a
+enumerateFromToNum =
+    -- XXX this causes a large allocation regression in the
+    -- equations/unfoldCross bench
+    -- lmap (\(from, to) -> (from, from + 1, to)) enumerateUpFromThenToNum
+    map snd
+        $ takeWhile (\((_, to), b) -> b <= to)
+        $ takeEndBy (\((_, to), b) -> b == to)
+        $ carryInput
+        $ lmap (\(from, _) -> (from, 1)) enumerateFromStepNum
+
+-- NOTE: we can use the Down functor to implement this.
+{-# INLINE enumerateDownFromToNum #-}
+enumerateDownFromToNum :: (Monad m, Num a, Ord a) => Unfold m (a, a) a
+enumerateDownFromToNum =
+    -- See note in enumerateFromToNum, we switched to the alternate
+    -- implementation for this one too as a caution.
+    -- lmap (\(from, to) -> (from, from - 1, to)) enumerateDownFromThenToNum
+    map snd
+        $ takeWhile (\((_, to), b) -> b >= to)
+        $ takeEndBy (\((_, to), b) -> b == to)
+        $ carryInput
+        $ lmap (\(from, _) -> (from, -1)) enumerateFromStepNum
+
 ------------------------------------------------------------------------------
--- Enumeration of Integrals
+-- Enumeration of Bounded Num
+------------------------------------------------------------------------------
+
+-- | Unfolds @(from, then)@ generating a stream whose first element is
+-- @from@, the second element is @then@ and the successive elements are in
+-- increments of @then - from@. The stream is bounded by the size of the
+-- 'Integral' type.
+--
+-- /Internal/
+--
+{-# INLINE enumerateFromThenBoundedNum #-}
+enumerateFromThenBoundedNum ::
+    (Applicative m, Num a, Ord a, Bounded a) => Unfold m (a, a) a
+enumerateFromThenBoundedNum = lmap adapt enumerateFromThenToNum
+
+    where
+
+    adapt (from, next) =
+        (from, next, if next >= from then maxBound else minBound)
+
+-- | Unfolds @from@ generating a stream whose first element is @from@ and
+-- the successive elements are in increments of @1@. The stream is bounded
+-- by the size of the type.
+--
+-- /Internal/
+--
+{-# INLINE enumerateFromBoundedNum #-}
+enumerateFromBoundedNum :: (Monad m, Num a, Ord a, Bounded a) => Unfold m a a
+enumerateFromBoundedNum = supplySecond maxBound enumerateFromToNum
+
+{-# INLINE enumerateDownFromBoundedNum #-}
+enumerateDownFromBoundedNum ::
+    (Monad m, Num a, Ord a, Bounded a) => Unfold m a a
+enumerateDownFromBoundedNum = supplySecond minBound enumerateDownFromToNum
+
+------------------------------------------------------------------------------
+-- Enumeration of Integrals (Bounded)
 ------------------------------------------------------------------------------
 
 {-# INLINE takeWhileMWithInput #-}
@@ -202,113 +306,153 @@ takeWhileMWithInput :: Monad m =>
     (a -> b -> m Bool) -> Unfold m a b -> Unfold m a b
 takeWhileMWithInput f = map snd . takeWhileM (uncurry f) . carryInput
 
--- | Can be used to enumerate unbounded integrals. This does not check for
--- overflow or underflow for bounded integrals.
---
--- /Internal/
-{-# INLINE_NORMAL enumerateFromStepIntegralUnbounded #-}
-enumerateFromStepIntegralUnbounded, enumerateFromStepIntegral ::
-    (Monad m, Integral a) => Unfold m (a, a) a
-enumerateFromStepIntegralUnbounded =
-    Unfold Producer.enumerateFromStepIntegral inject
+{-# DEPRECATED enumerateFromStepIntegral "Please use enumerateFromStepNum instead." #-}
+{-# INLINE enumerateFromStepIntegral #-}
+enumerateFromStepIntegral :: (Monad m, Integral a) => Unfold m (a, a) a
+enumerateFromStepIntegral = enumerateFromStepNum
 
-    where
-
-    inject (from, stride) = from `seq` stride `seq` return (from, stride)
-
-RENAME(enumerateFromStepIntegral,enumerateFromStepIntegralUnbounded)
-
+{-# DEPRECATED enumerateFromThenToIntegral "Please use enumerateFromThenToNum instead." #-}
 {-# INLINE enumerateFromThenToIntegral #-}
 enumerateFromThenToIntegral, enumerateFromThenToIntegralBounded ::
     (Monad m, Integral a) => Unfold m (a, a, a) a
-enumerateFromThenToIntegral =
-    Unfold Producer.enumerateFromThenToIntegral inject
-
-    where
-
-    inject (from, next, to) = return (Producer.EnumInit from next to)
+enumerateFromThenToIntegral = enumerateFromThenToNum
 
 RENAME(enumerateFromThenToIntegralBounded,enumerateFromThenToIntegral)
 
+{-# DEPRECATED enumerateFromThenIntegral "Please use enumerateFromThenNum instead." #-}
 {-# INLINE enumerateFromThenIntegral #-}
-enumerateFromThenIntegral, enumerateFromThenIntegralBounded ::
+enumerateFromThenIntegral :: (Monad m, Integral a) => Unfold m (a, a) a
+enumerateFromThenIntegral = enumerateFromThenNum
+
+{-# DEPRECATED enumerateFromThenIntegralBounded "Please use enumerateFromThenBoundedNum instead." #-}
+{-# INLINE enumerateFromThenIntegralBounded #-}
+enumerateFromThenIntegralBounded ::
     (Monad m, Integral a, Bounded a) => Unfold m (a, a) a
-enumerateFromThenIntegral =
-    lmap toFromThenTo enumerateFromThenToIntegral
+enumerateFromThenIntegralBounded = enumerateFromThenBoundedNum
 
-    where
-
-    toFromThenTo (from, next) =
-        (from, next, if next >= from then maxBound else minBound)
-
-RENAME(enumerateFromThenIntegralBounded,enumerateFromThenIntegral)
-
-{-# INLINE enumerateFromThenIntegralUnbounded #-}
-enumerateFromThenIntegralUnbounded :: (Monad m, Integral a) => Unfold m (a, a) a
-enumerateFromThenIntegralUnbounded =
-    lmap
-        (\(from, next) -> (from, next - from))
-        enumerateFromStepIntegralUnbounded
-
+{-# DEPRECATED enumerateFromToIntegral "Please use enumerateFromToNum instead." #-}
 {-# INLINE enumerateFromToIntegral #-}
 enumerateFromToIntegral, enumerateFromToIntegralBounded ::
     (Monad m, Integral a) => Unfold m (a, a) a
-enumerateFromToIntegral =
-    map snd
-        $ takeWhile (\((_, to), b) -> b <= to)
-        $ takeEndBy (\((_, to), b) -> b == to)
-        $ carryInput
-        $ lmap (\(from, _) -> (from, 1)) enumerateFromStepIntegralUnbounded
+enumerateFromToIntegral = enumerateFromToNum
 
 RENAME(enumerateFromToIntegralBounded,enumerateFromToIntegral)
 
+{-# DEPRECATED enumerateFromIntegral "Please use enumerateFromNum instead." #-}
 {-# INLINE enumerateFromIntegral #-}
-enumerateFromIntegral, enumerateFromIntegralBounded ::
-    (Monad m, Integral a, Bounded a) => Unfold m a a
-enumerateFromIntegral = supplySecond maxBound enumerateFromToIntegral
+enumerateFromIntegral :: (Monad m, Integral a) => Unfold m a a
+enumerateFromIntegral = enumerateFromNum
 
-RENAME(enumerateFromIntegralBounded,enumerateFromIntegral)
-
-{-# INLINE enumerateFromIntegralUnbounded #-}
-enumerateFromIntegralUnbounded :: (Monad m, Integral a) => Unfold m a a
-enumerateFromIntegralUnbounded =
-    lmap (\from -> (from, 1)) enumerateFromStepIntegralUnbounded
+{-# DEPRECATED enumerateFromIntegralBounded "Please use enumerateFromBoundedNum instead." #-}
+{-# INLINE enumerateFromIntegralBounded #-}
+enumerateFromIntegralBounded :: (Monad m, Integral a, Bounded a) => Unfold m a a
+enumerateFromIntegralBounded = enumerateFromBoundedNum
 
 ------------------------------------------------------------------------------
--- Enumeration of Fractionals
+-- Enumeration of RealFloat
 ------------------------------------------------------------------------------
 
-{-# INLINE_NORMAL enumerateFromFractional #-}
-enumerateFromFractional :: (Monad m, Fractional a) => Unfold m a a
-enumerateFromFractional = enumerateFromNum
+-- | For floating point numbers if the increment is less than the precision
+-- then it just gets lost. Therefore we cannot always increment it correctly
+-- by just repeated addition.
+--
+-- Instead we accumulate the increment counter and compute the increment
+-- every time before adding it to the starting number. This is numerically
+-- stable but slower than 'enumerateFromStepNum'.
+--
+-- /Internal/
+--
+{-# INLINE enumerateFromStepRealFloat #-}
+enumerateFromStepRealFloat :: (Applicative m, RealFloat a) => Unfold m (a, a) a
+enumerateFromStepRealFloat = Unfold Producer.enumerateFromStepRealFloat inject
 
-{-# INLINE_NORMAL enumerateFromThenFractional #-}
-enumerateFromThenFractional :: (Monad m, Fractional a) => Unfold m (a, a) a
-enumerateFromThenFractional = enumerateFromThenNum
+    where
 
--- | Same as 'enumerateFromStepNum' with a step of 1 and enumerating up to the
--- specified upper limit rounded to the nearest integral value:
+    inject (!from, !stride) = pure (from, stride, 0)
+
+{-# INLINE enumerateFromRealFloat #-}
+enumerateFromRealFloat :: (Applicative m, RealFloat a) => Unfold m a a
+enumerateFromRealFloat = lmap (\from -> (from, 1)) enumerateFromStepRealFloat
+
+{-# INLINE enumerateFromThenRealFloat #-}
+enumerateFromThenRealFloat :: (Applicative m, RealFloat a) => Unfold m (a, a) a
+enumerateFromThenRealFloat =
+    lmap (\(from, next) -> (from, next - from)) enumerateFromStepRealFloat
+
+-- | Same as 'enumerateFromStepRealFloat' with a step of 1 and enumerating up
+-- to the specified upper limit rounded to the nearest integral value:
 --
 -- @
--- >>> Stream.toList $ Stream.unfold Unfold.enumerateFromToFractional (0.1, 6.3)
+-- >>> Stream.toList $ Stream.unfold Unfold.enumerateFromToRealFloat (0.1, 6.3)
 -- [0.1,1.1,2.1,3.1,4.1,5.1,6.1]
 --
 -- @
 --
 -- /Internal/
 --
+{-# INLINE enumerateFromToRealFloat #-}
+enumerateFromToRealFloat :: (Monad m, RealFloat a) => Unfold m (a, a) a
+enumerateFromToRealFloat =
+    takeWhileMWithInput (\(_, to) b -> return $ b <= to + 1 / 2)
+        $ lmap (\(from, _) -> (from, 1)) enumerateFromStepRealFloat
+
+{-# INLINE enumerateFromThenToRealFloat #-}
+enumerateFromThenToRealFloat :: (Monad m, RealFloat a) => Unfold m (a, a, a) a
+enumerateFromThenToRealFloat =
+    takeWhileMWithInput cond $ lmap toFromStep enumerateFromStepRealFloat
+
+    where
+
+    toFromStep (from, next, _) = (from, next - from)
+
+    cond (from, next, to) b =
+        let stride = next - from
+         in return
+                $ if next >= from
+                  then b <= to + stride / 2
+                  else b >= to + stride / 2
+
+------------------------------------------------------------------------------
+-- Enumeration of Fractionals (Deprecated)
+------------------------------------------------------------------------------
+
+{-# INLINE enumerateFromStepFractional #-}
+enumerateFromStepFractional :: (Monad m, Fractional a) => Unfold m (a, a) a
+enumerateFromStepFractional = Unfold step inject
+
+    where
+
+    inject (!from, !stride) = return (from, stride, 0)
+
+    step (from, stride, i) =
+        return $ Yield (from + i * stride) (from, stride, i + 1)
+
+{-# DEPRECATED enumerateFromFractional "Please use enumerateFromRealFloat instead." #-}
+{-# INLINE_NORMAL enumerateFromFractional #-}
+enumerateFromFractional :: (Monad m, Fractional a) => Unfold m a a
+enumerateFromFractional =
+    lmap (\from -> (from, 1)) enumerateFromStepFractional
+
+{-# DEPRECATED enumerateFromThenFractional "Please use enumerateFromThenRealFloat instead." #-}
+{-# INLINE_NORMAL enumerateFromThenFractional #-}
+enumerateFromThenFractional :: (Monad m, Fractional a) => Unfold m (a, a) a
+enumerateFromThenFractional =
+    lmap (\(from, next) -> (from, next - from)) enumerateFromStepFractional
+
+{-# DEPRECATED enumerateFromToFractional "Please use enumerateFromToRealFloat instead." #-}
 {-# INLINE_NORMAL enumerateFromToFractional #-}
 enumerateFromToFractional :: (Monad m, Fractional a, Ord a) =>
     Unfold m (a, a) a
 enumerateFromToFractional =
     takeWhileMWithInput (\(_, to) b -> return $ b <= to + 1 / 2)
-        $ lmap (\(from, _) -> (from, 1)) enumerateFromStepNum
+        $ lmap (\(from, _) -> (from, 1)) enumerateFromStepFractional
 
+{-# DEPRECATED enumerateFromThenToFractional "Please use enumerateFromThenToRealFloat instead." #-}
 {-# INLINE enumerateFromThenToFractional #-}
 enumerateFromThenToFractional :: (Monad m, Fractional a, Ord a) =>
     Unfold m (a, a, a) a
 enumerateFromThenToFractional =
-    takeWhileMWithInput cond $ lmap toFromStep enumerateFromStepNum
+    takeWhileMWithInput cond $ lmap toFromStep enumerateFromStepFractional
 
     where
 
@@ -333,7 +477,7 @@ enumerateFromThenToFractional =
 {-# INLINE enumerateFromToSmall #-}
 enumerateFromToSmall :: (Monad m, Enum a) => Unfold m (a, a) a
 enumerateFromToSmall =
-    fmap toEnum (lmap (bimap fromEnum fromEnum) enumerateFromToIntegral)
+    fmap toEnum (lmap (bimap fromEnum fromEnum) enumerateFromToNum)
 
 -- | Enumerate from given starting Enum value 'from' and then Enum value 'next'
 -- and to Enum value 'to' with stride of (fromEnum next - fromEnum from)
@@ -342,10 +486,10 @@ enumerateFromToSmall =
 -- /Internal/
 --
 {-# INLINE enumerateFromThenToSmall #-}
-enumerateFromThenToSmall :: (Monad m, Enum a) => Unfold m (a, a, a) a
+enumerateFromThenToSmall :: (Applicative m, Enum a) => Unfold m (a, a, a) a
 enumerateFromThenToSmall =
     let toInts (x, y, z) = (fromEnum x, fromEnum y, fromEnum z)
-     in fmap toEnum (lmap toInts enumerateFromThenToIntegral)
+     in fmap toEnum (lmap toInts enumerateFromThenToNum)
 
 -------------------------------------------------------------------------------
 -- Bounded Enumeration of Enum types not larger than Int
@@ -370,7 +514,7 @@ RENAME(enumerateFromSmallBounded,enumerateFromSmall)
 --
 {-# INLINE enumerateFromThenSmall #-}
 enumerateFromThenSmall, enumerateFromThenSmallBounded
-    :: forall m a. (Monad m, Enum a, Bounded a) =>
+    :: forall m a. (Applicative m, Enum a, Bounded a) =>
     Unfold m (a, a) a
 enumerateFromThenSmall =
     let adapt (from, next) =
@@ -381,7 +525,7 @@ enumerateFromThenSmall =
                      then fromEnum (maxBound :: a)
                      else fromEnum (minBound :: a)
              in (frm, nxt, to)
-     in fmap toEnum (lmap adapt enumerateFromThenToIntegral)
+     in fmap toEnum (lmap adapt enumerateFromThenToNum)
 
 RENAME(enumerateFromThenSmallBounded,enumerateFromThenSmall)
 
@@ -394,7 +538,7 @@ RENAME(enumerateFromThenSmallBounded,enumerateFromThenSmall)
 -- generate a stream instead of a list. Use the functions in
 -- "Streamly.Internal.Data.Unfold.Enumeration" module to define new instances.
 --
-class Enum a => Enumerable a where
+class Enumerable a where
 
     -- | Unfolds @from@ generating a stream starting with the element
     -- @from@, enumerating up to 'maxBound' when the type is 'Bounded' or
@@ -477,59 +621,63 @@ ENUMERABLE_BOUNDED_SMALL(Bool)
 ENUMERABLE_BOUNDED_SMALL(Ordering)
 ENUMERABLE_BOUNDED_SMALL(Char)
 
--- For bounded Integral Enum types, may be larger than Int.
-#define ENUMERABLE_BOUNDED_INTEGRAL(INTEGRAL_TYPE)          \
-instance Enumerable INTEGRAL_TYPE where {                   \
+-- For bounded Integral Enum types, may be larger than Int. 'enumerateFrom'
+-- and 'enumerateFromThen' use the bounded Num functions so that they stop at
+-- 'maxBound'/'minBound' instead of overflowing and wrapping around.
+#define ENUMERABLE_BOUNDED_NUM(TYPE_NAME)                   \
+instance Enumerable TYPE_NAME where {                       \
     {-# INLINE enumerateFrom #-};                           \
-    enumerateFrom = enumerateFromIntegral;                  \
+    enumerateFrom = enumerateFromBoundedNum;                \
     {-# INLINE enumerateFromThen #-};                       \
-    enumerateFromThen = enumerateFromThenIntegral;          \
+    enumerateFromThen = enumerateFromThenBoundedNum;        \
     {-# INLINE enumerateFromTo #-};                         \
-    enumerateFromTo = enumerateFromToIntegral;              \
+    enumerateFromTo = enumerateFromToNum;                   \
     {-# INLINE enumerateFromThenTo #-};                     \
-    enumerateFromThenTo = enumerateFromThenToIntegral }
+    enumerateFromThenTo = enumerateFromThenToNum }
 
-ENUMERABLE_BOUNDED_INTEGRAL(Int)
-ENUMERABLE_BOUNDED_INTEGRAL(Int8)
-ENUMERABLE_BOUNDED_INTEGRAL(Int16)
-ENUMERABLE_BOUNDED_INTEGRAL(Int32)
-ENUMERABLE_BOUNDED_INTEGRAL(Int64)
-ENUMERABLE_BOUNDED_INTEGRAL(Word)
-ENUMERABLE_BOUNDED_INTEGRAL(Word8)
-ENUMERABLE_BOUNDED_INTEGRAL(Word16)
-ENUMERABLE_BOUNDED_INTEGRAL(Word32)
-ENUMERABLE_BOUNDED_INTEGRAL(Word64)
+ENUMERABLE_BOUNDED_NUM(Int)
+ENUMERABLE_BOUNDED_NUM(Int8)
+ENUMERABLE_BOUNDED_NUM(Int16)
+ENUMERABLE_BOUNDED_NUM(Int32)
+ENUMERABLE_BOUNDED_NUM(Int64)
+ENUMERABLE_BOUNDED_NUM(Word)
+ENUMERABLE_BOUNDED_NUM(Word8)
+ENUMERABLE_BOUNDED_NUM(Word16)
+ENUMERABLE_BOUNDED_NUM(Word32)
+ENUMERABLE_BOUNDED_NUM(Word64)
 
--- For unbounded Integral Enum types.
-#define ENUMERABLE_UNBOUNDED_INTEGRAL(INTEGRAL_TYPE)              \
-instance Enumerable INTEGRAL_TYPE where {                         \
+-- For unbounded 'Num' types that are not 'RealFloat' (no numerical
+-- stability concerns since these are either exact integrals or exact
+-- rational/fixed-precision types).
+#define ENUMERABLE_UNBOUNDED_NUM(TYPE_NAME,CONSTRAINT)      \
+instance (CONSTRAINT) => Enumerable TYPE_NAME where {       \
+    {-# INLINE enumerateFrom #-};                           \
+    enumerateFrom = enumerateFromNum;                       \
+    {-# INLINE enumerateFromThen #-};                       \
+    enumerateFromThen = enumerateFromThenNum;               \
+    {-# INLINE enumerateFromTo #-};                         \
+    enumerateFromTo = enumerateFromToNum;                   \
+    {-# INLINE enumerateFromThenTo #-};                     \
+    enumerateFromThenTo = enumerateFromThenToNum }
+
+ENUMERABLE_UNBOUNDED_NUM(Integer,)
+ENUMERABLE_UNBOUNDED_NUM(Natural,)
+ENUMERABLE_UNBOUNDED_NUM((Fixed a),HasResolution a)
+ENUMERABLE_UNBOUNDED_NUM((Ratio a),Integral a)
+
+#define ENUMERABLE_REAL_FLOAT(REALFLOAT_TYPE)                     \
+instance Enumerable REALFLOAT_TYPE where {                        \
     {-# INLINE enumerateFrom #-};                                 \
-    enumerateFrom = enumerateFromIntegralUnbounded;               \
+    enumerateFrom = enumerateFromRealFloat;                       \
     {-# INLINE enumerateFromThen #-};                             \
-    enumerateFromThen = enumerateFromThenIntegralUnbounded;       \
-    {-# INLINE enumerateFromTo #-};                               \
-    enumerateFromTo = enumerateFromToIntegral;                    \
-    {-# INLINE enumerateFromThenTo #-};                           \
-    enumerateFromThenTo = enumerateFromThenToIntegral }
+    enumerateFromThen = enumerateFromThenRealFloat;                \
+    {-# INLINE enumerateFromTo #-};                                \
+    enumerateFromTo = enumerateFromToRealFloat;                    \
+    {-# INLINE enumerateFromThenTo #-};                            \
+    enumerateFromThenTo = enumerateFromThenToRealFloat }
 
-ENUMERABLE_UNBOUNDED_INTEGRAL(Integer)
-ENUMERABLE_UNBOUNDED_INTEGRAL(Natural)
-
-#define ENUMERABLE_FRACTIONAL(FRACTIONAL_TYPE,CONSTRAINT)         \
-instance (CONSTRAINT) => Enumerable FRACTIONAL_TYPE where {       \
-    {-# INLINE enumerateFrom #-};                                 \
-    enumerateFrom = enumerateFromFractional;                      \
-    {-# INLINE enumerateFromThen #-};                             \
-    enumerateFromThen = enumerateFromThenFractional;              \
-    {-# INLINE enumerateFromTo #-};                               \
-    enumerateFromTo = enumerateFromToFractional;                  \
-    {-# INLINE enumerateFromThenTo #-};                           \
-    enumerateFromThenTo = enumerateFromThenToFractional }
-
-ENUMERABLE_FRACTIONAL(Float,)
-ENUMERABLE_FRACTIONAL(Double,)
-ENUMERABLE_FRACTIONAL((Fixed a),HasResolution a)
-ENUMERABLE_FRACTIONAL((Ratio a),Integral a)
+ENUMERABLE_REAL_FLOAT(Float)
+ENUMERABLE_REAL_FLOAT(Double)
 
 instance Enumerable a => Enumerable (Identity a) where
     {-# INLINE enumerateFrom #-}

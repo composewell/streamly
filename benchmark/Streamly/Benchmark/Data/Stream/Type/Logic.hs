@@ -39,21 +39,21 @@ boundedInts :: Monad m => Int -> Int -> Stream m Int
 boundedInts n _ =
     Stream.interleave
         (Stream.enumerateFromTo (0 :: Int) n)
-        (Stream.enumerateFromThenTo (-1) (-2) (-n))
+        (Stream.enumerateDownFromToNum (-1) (-n))
 
 {-# INLINE infiniteInts #-}
 infiniteInts :: Monad m => Int -> Int -> Stream m Int
 infiniteInts _ _ =
     Stream.interleave
         (Stream.enumerateFrom (0 :: Int))
-        (Stream.enumerateFromThen (-1) (-2))
+        (Stream.enumerateDownFromNum (-1))
 
 {-# INLINE boundedIntsUnfold #-}
 boundedIntsUnfold :: Monad m => Int -> Int -> Unfold m ((), ()) Int
 boundedIntsUnfold n _ =
     Unfold.interleave
         (Unfold.supply (0 :: Int, n) Unfold.enumerateFromTo)
-        (Unfold.supply (-1, -2, -n) Unfold.enumerateFromThenTo)
+        (Unfold.supply (-1, -n) Unfold.enumerateDownFromToNum)
 
 {-# INLINE checkStream #-}
 checkStream :: Applicative m =>

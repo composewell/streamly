@@ -32,7 +32,7 @@ infiniteIntsUnfold :: Monad m => Int -> Int -> Unfold m ((), ()) Int
 infiniteIntsUnfold _ _ =
     Unfold.interleave
         (Unfold.supply (0 :: Int) Unfold.enumerateFrom)
-        (Unfold.supply (-1, -2) Unfold.enumerateFromThen)
+        (Unfold.supply (-1) Unfold.enumerateDownFromNum)
 
 {-# INLINE unfoldCrossEqn #-}
 unfoldCrossEqn :: Monad m => Int -> Unfold m ((), ()) Int -> m ()

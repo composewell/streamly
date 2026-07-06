@@ -301,7 +301,7 @@ testAltBfsUnfoldEach :: Expectation
 testAltBfsUnfoldEach = do
     result <- fmap sort $ Stream.toList $
         Stream.altBfsUnfoldEach
-            (Unfold.lmap (\n -> (1, n)) Unfold.enumerateFromToIntegral)
+            (Unfold.lmap (\n -> (1, n)) Unfold.enumerateFromToNum)
             (Stream.fromList [2, 3 :: Int])
     result `shouldBe` sort [1, 2, 1, 2, 3]
 

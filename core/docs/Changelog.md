@@ -42,6 +42,8 @@
   filtering in scans.
 * Removed deprecated module `Streamly.Internal.Data.Stream.StreamD`.
   Use `Streamly.Internal.Data.Stream` instead.
+* enumerateFrom*Num are not numerically stable any more, use
+  enumerateFrom*RealFloat for that.
 
 ## 0.3.1 (May 2026)
 

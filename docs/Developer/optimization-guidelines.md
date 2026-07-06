@@ -153,26 +153,26 @@ Minimize the number of yield points and try to keep a single `Yield` point per
 state. In Scanl benchmarks we observed that the following state machine code
 does not fuse:
 ```
-enumerateFromThenUpToIntegral ::
+enumerateUpFromThenToIntegral ::
     (Applicative m, Integral a) => Producer m (EnumStateUp a) a
-enumerateFromThenUpToIntegral (EnumUpInit from next to) =
+enumerateUpFromThenToIntegral (EnumUpInit from next to) =
     pure $
         if to < next
         then if to < from then Stop else Yield from EnumUpStop
         else
             let stride = next - from
             in Skip $ EnumUpYield from stride (to - stride)
-enumerateFromThenUpToIntegral (EnumUpYield x stride toMinus) =
+enumerateUpFromThenToIntegral (EnumUpYield x stride toMinus) =
     pure $
         if x > toMinus
         then Yield x EnumUpStop
         else Yield x $ EnumUpYield (x + stride) stride toMinus
-enumerateFromThenUpToIntegral EnumUpStop = pure Stop
+enumerateUpFromThenToIntegral EnumUpStop = pure Stop
 ```
 
 However the following variation fuses quickly:
 ```
-enumerateFromThenUpToIntegral (EnumUpYield x stride toMinus) =
+enumerateUpFromThenToIntegral (EnumUpYield x stride toMinus) =
         if x > toMinus
         then Yield x Stop
         else Yield x $ EnumUpYield (x + stride) stride toMinus
@@ -182,23 +182,23 @@ If we use a single yield point to transfer control to the next state machine
 then the state machine is likely to fuse better. For example, this works
 absolutely fine:
 ```
-enumerateFromThenUpToIntegral ::
+enumerateUpFromThenToIntegral ::
     (Applicative m, Integral a) => Producer m (EnumStateUp a) a
-enumerateFromThenUpToIntegral (EnumUpInit from next to) =
+enumerateUpFromThenToIntegral (EnumUpInit from next to) =
     pure $
         if to < next
         then if to < from then Stop else Yield from EnumUpStop
         else -- from <= next <= to
             let stride = next - from
             in Skip $ EnumUpYield from stride (to - stride)
-enumerateFromThenUpToIntegral (EnumUpYield x stride toMinus) =
+enumerateUpFromThenToIntegral (EnumUpYield x stride toMinus) =
     pure $ Yield x (EnumUpNext x stride toMinus)
-enumerateFromThenUpToIntegral (EnumUpNext x stride toMinus) =
+enumerateUpFromThenToIntegral (EnumUpNext x stride toMinus) =
     pure $
         if x > toMinus
         then Stop
         else Skip $ EnumUpYield (x + stride) stride toMinus
-enumerateFromThenUpToIntegral EnumUpStop = pure Stop
+enumerateUpFromThenToIntegral EnumUpStop = pure Stop
 ```
 
 A Skip ties a loop into the current, local state machine, a Yield however

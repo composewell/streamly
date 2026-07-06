@@ -57,7 +57,7 @@ drainGeneration = UF.fold FL.drain
 {-# INLINE enumerateFromThenIntegral #-}
 enumerateFromThenIntegral :: Int -> Int -> IO ()
 enumerateFromThenIntegral size start =
-    drainGeneration (UF.take size UF.enumerateFromThenIntegral) (start, 1)
+    drainGeneration (UF.take size UF.enumerateFromThenNum) (start, 1)
 
 #ifdef INSPECTION
 inspect $ 'enumerateFromThenIntegral `hasNoType` ''S.Step
@@ -71,7 +71,7 @@ enumerateFromToIntegral size start =
     drainGeneration
     ( UF.supplySecond
       (size + start)
-      UF.enumerateFromToIntegral
+      UF.enumerateFromToNum
     ) start
 
 #ifdef INSPECTION
@@ -83,7 +83,7 @@ inspect $ 'enumerateFromToIntegral `hasNoType` ''SPEC
 {-# INLINE enumerateFromIntegral #-}
 enumerateFromIntegral :: Int -> Int -> IO ()
 enumerateFromIntegral size =
-    drainGeneration (UF.take size UF.enumerateFromIntegral)
+    drainGeneration (UF.take size UF.enumerateFromNum)
 
 #ifdef INSPECTION
 inspect $ 'enumerateFromIntegral `hasNoType` ''S.Step
@@ -119,7 +119,7 @@ enumerateFromToFractional size start =
      in drainGeneration
             ( UF.supplySecond
               (intToDouble $ start + size)
-              UF.enumerateFromToFractional
+              UF.enumerateFromToRealFloat
             )
             (intToDouble start)
 

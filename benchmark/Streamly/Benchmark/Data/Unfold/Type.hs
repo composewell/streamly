@@ -56,7 +56,7 @@ benchIO name f = bench name $ nfIO $ randomRIO (1,1) >>= f
 -- generate numbers up to the argument value
 {-# INLINE source #-}
 source :: Monad m => Int -> Unfold m Int Int
-source n = UF.supplySecond n UF.enumerateFromToIntegral
+source n = UF.supplySecond n UF.enumerateFromToNum
 
 -------------------------------------------------------------------------------
 -- Benchmark helpers
@@ -75,7 +75,7 @@ drainTransformation unf f = drainGeneration (f unf)
 drainTransformationDefault ::
        Monad m => Int -> (Unfold m Int Int -> Unfold m c d) -> c -> m ()
 drainTransformationDefault to =
-    drainTransformation (UF.supplySecond to UF.enumerateFromToIntegral)
+    drainTransformation (UF.supplySecond to UF.enumerateFromToNum)
 
 {-# INLINE drainProduct #-}
 drainProduct ::
@@ -98,7 +98,7 @@ drainProductDefault to = drainProduct src src
 
     where
 
-    src = UF.supplySecond to UF.enumerateFromToIntegral
+    src = UF.supplySecond to UF.enumerateFromToNum
 
 -------------------------------------------------------------------------------
 -- Operations on input
@@ -141,7 +141,7 @@ inspect $ 'both `hasNoType` ''SPEC
 first :: Int -> Int -> IO ()
 first size start =
     drainTransformation
-        (UF.take size UF.enumerateFromThenIntegral)
+        (UF.take size UF.enumerateFromThenNum)
         (UF.supplyFirst start)
         1
 
@@ -155,7 +155,7 @@ inspect $ 'first `hasNoType` ''SPEC
 second :: Int -> Int -> IO ()
 second size =
     drainTransformation
-        (UF.take size UF.enumerateFromThenIntegral)
+        (UF.take size UF.enumerateFromThenNum)
         (UF.supplySecond 1)
 
 #ifdef INSPECTION
@@ -192,7 +192,7 @@ inspect $ 'consInputWith `hasNoType` ''UF.ConsInputState
 swap :: Int -> Int -> IO ()
 swap size start =
     drainTransformation
-        (UF.take size UF.enumerateFromThenIntegral)
+        (UF.take size UF.enumerateFromThenNum)
         (UF.lmap Tuple.swap)
         (1, start)
 
@@ -657,8 +657,8 @@ concatMapM inner outer start =
 
     where
 
-    unfoldInGen i = return (UF.supplySecond (i + inner) UF.enumerateFromToIntegral)
-    unfoldOut = UF.supplySecond (start + outer) UF.enumerateFromToIntegral
+    unfoldInGen i = return (UF.supplySecond (i + inner) UF.enumerateFromToNum)
+    unfoldOut = UF.supplySecond (start + outer) UF.enumerateFromToNum
 
 -- The 'bind'-based benchmarks use the Unfold monad ('UF.bind'), which is a
 -- concatMap and does not fuse, so the 'Step' constructors remain.
@@ -920,8 +920,8 @@ concatMapPure inner outer start =
 
     where
 
-    unfoldInGen i = UF.supplySecond (i + inner) UF.enumerateFromToIntegral
-    unfoldOut = UF.supplySecond (start + outer) UF.enumerateFromToIntegral
+    unfoldInGen i = UF.supplySecond (i + inner) UF.enumerateFromToNum
+    unfoldOut = UF.supplySecond (start + outer) UF.enumerateFromToNum
 
 #ifdef INSPECTION
 -- inspect $ 'concatMapPure `hasNoType` ''S.Step
