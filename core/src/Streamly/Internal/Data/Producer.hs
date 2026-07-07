@@ -603,6 +603,7 @@ enumerateFromStepIntegral (x, stride) = pure $ Yield x $! (x + stride, stride)
 -- or 'EnumYieldDownward', which carry the current value, the stride and
 -- @to - stride@ (checked against before incrementing, so that the increment
 -- itself cannot overflow past the bound).
+{-# ANN type EnumState Fuse #-}
 data EnumState a =
       EnumInit a a a
     | EnumYieldUpward a a a
