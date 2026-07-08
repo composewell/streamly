@@ -95,14 +95,11 @@ import Data.Int
 import Data.Ord (Down(..))
 import Data.Ratio
 import Data.Word
+-- import Fusion.Plugin.Types (Fuse(..))
 import Numeric.Natural
 import Streamly.Internal.Data.Stream.Type
 
-#ifdef USE_UNFOLDS_EVERYWHERE
-import qualified Streamly.Internal.Data.Unfold as Unfold
-#else
-import qualified Streamly.Internal.Data.Producer as Producer
-#endif
+-- import qualified Streamly.Internal.Data.Producer as Producer
 import Prelude hiding (takeWhile)
 
 #include "DocTestDataStream.hs"
@@ -125,8 +122,16 @@ import Prelude hiding (takeWhile)
 -- CAUTION: This will overflow or underflow and wrap around for bounded types.
 {-# INLINE_NORMAL enumerateFromStepNum #-}
 enumerateFromStepNum :: (Applicative m, Num a) => a -> a -> Stream m a
+-- NOTE: Moving this to Producer causes regressions in many Stream benchmarks
+{-
 enumerateFromStepNum !from !stride =
     Stream (const Producer.enumerateFromStep) (from, stride)
+-}
+enumerateFromStepNum !from !stride = Stream step from
+
+    where
+
+    step _ x = pure $ Yield x $! (x + stride)
 
 -- | @enumerateFromThenNum from then@ generates a stream whose first element is
 -- @from@, the second element is @then@ and the successive elements are in
@@ -158,6 +163,16 @@ enumerateFromNum from = enumerateFromStepNum from 1
 enumerateDownFromNum :: (Applicative m, Num a) => a -> Stream m a
 enumerateDownFromNum from = enumerateFromStepNum from (-1)
 
+-- {-# ANN type EnumState Fuse #-}
+data EnumState a =
+      EnumInit
+    | EnumYieldUpward a a a
+    | EnumNextUpward a a a
+    | EnumYieldDownward a a a
+    | EnumNextDownward a a a
+    | EnumSingle a
+    | EnumStop
+
 -- | @enumerateFromThenToNum from then to@ generates a finite stream whose
 -- first element is @from@, the second element is @then@ and the successive
 -- elements are in increments of @then - from@ up to @to@.
@@ -172,10 +187,69 @@ enumerateDownFromNum from = enumerateFromStepNum from (-1)
 enumerateFromThenToNum
     :: (Applicative m, Num a, Ord a)
     => a -> a -> a -> Stream m a
+{-
+-- This blows up build time memory consumption and compilation time of
+-- Stream.Type.Logic benchmarks.
 enumerateFromThenToNum from next to =
     Stream
         (const Producer.enumerateFromThenTo)
         (Producer.EnumInit from next to)
+-}
+enumerateFromThenToNum from next to = Stream step EnumInit
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step _ EnumInit =
+        pure $
+            if next >= from
+            then
+                if to < next
+                then
+                    if to < from
+                    then Stop
+                    else Skip (EnumSingle from)
+                else -- from <= next <= to
+                    let stride = next - from
+                    in Skip $ EnumYieldUpward from stride (to - stride)
+            else
+                if to > next
+                then
+                    if to > from
+                    then Stop
+                    else Skip (EnumSingle from)
+                else -- from >= next >= to
+                    let stride = next - from
+                    in Skip $ EnumYieldDownward from stride (to - stride)
+
+    step _ (EnumYieldUpward x stride toMinus) =
+        pure $ Yield x (EnumNextUpward x stride toMinus)
+
+    step _ (EnumNextUpward x stride toMinus) =
+        pure $
+            if x > toMinus
+            then Stop
+            else Skip $ EnumYieldUpward (x + stride) stride toMinus
+
+    step _ (EnumYieldDownward x stride toMinus) =
+        pure $ Yield x (EnumNextDownward x stride toMinus)
+
+    step _ (EnumNextDownward x stride toMinus) =
+        pure $
+            if x < toMinus
+            then Stop
+            else Skip $ EnumYieldDownward (x + stride) stride toMinus
+
+    step _ (EnumSingle x) = pure $ Yield x EnumStop
+
+    step _ EnumStop = pure Stop
+
+-- {-# ANN type EnumStateUp Fuse #-}
+data EnumStateUp a =
+      EnumUpInit
+    | EnumUpYield a a a
+    | EnumUpNext a a a
+    | EnumUpStop
 
 -- | Like 'enumerateFromThenToNum' but a simplified version that only works in
 -- the upward direction. It returns an empty stream if @then < from@.
@@ -186,10 +260,41 @@ enumerateFromThenToNum from next to =
 {-# INLINE_NORMAL enumerateUpFromThenToNum #-}
 enumerateUpFromThenToNum
     :: (Applicative m, Num a, Ord a) => a -> a -> a -> Stream m a
+{-
 enumerateUpFromThenToNum from next to =
     Stream
         (const Producer.enumerateUpFromThenTo)
         (Producer.EnumUpInit from next to)
+-}
+enumerateUpFromThenToNum from next to = Stream step EnumUpInit
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step _ EnumUpInit =
+        pure $
+            if next < from
+            then Stop
+            else
+                if to < next
+                then
+                    if to < from
+                    then Stop
+                    else Yield from EnumUpStop
+                else -- from <= next <= to
+                    let stride = next - from
+                    in Skip $ EnumUpYield from stride (to - stride)
+
+    step _ (EnumUpYield x stride toMinus) =
+        pure $ Yield x (EnumUpNext x stride toMinus)
+
+    step _ (EnumUpNext x stride toMinus) =
+        pure $
+            if x > toMinus
+            then Stop
+            else Skip $ EnumUpYield (x + stride) stride toMinus
+
+    step _ EnumUpStop = pure Stop
 
 -- | Like 'enumerateFromThenToNum' but a simplified version that only works in
 -- the downward direction. It returns an empty stream if @then > from@.
@@ -199,11 +304,9 @@ enumerateUpFromThenToNum from next to =
 --
 {-# INLINE_NORMAL enumerateDownFromThenToNum #-}
 enumerateDownFromThenToNum
-    :: (Applicative m, Num a, Ord a) => a -> a -> a -> Stream m a
+    :: (Monad m, Num a, Ord a) => a -> a -> a -> Stream m a
 enumerateDownFromThenToNum from next to =
-    Stream
-        (const Producer.enumerateDownFromThenTo)
-        (Producer.EnumUpInit (Down from) (Down next) (Down to))
+    fmap getDown $ enumerateUpFromThenToNum (Down from) (Down next) (Down to)
 
 -- | @enumerateFromToNum from to@ generates a finite stream whose first element
 -- is @from@ and successive elements are in increments of @1@ up to @to@.
@@ -326,8 +429,15 @@ enumerateFromIntegral = enumerateFromBoundedNum
 --
 {-# INLINE_NORMAL enumerateFromStepRealFloat #-}
 enumerateFromStepRealFloat :: (Applicative m, RealFloat a) => a -> a -> Stream m a
+{-
 enumerateFromStepRealFloat !from !stride =
     Stream (const Producer.enumerateFromStepRealFloat) (from, stride, 0)
+-}
+enumerateFromStepRealFloat !from !stride = Stream step 0
+
+    where
+
+    step _ i = pure $ (Yield $! (from + i * stride)) $! (i + 1)
 
 -- | Numerically stable enumeration from a 'Fractional' number in steps of size
 -- @1@. @enumerateFromRealFloat from@ generates a stream whose first element
