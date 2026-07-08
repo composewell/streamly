@@ -147,7 +147,7 @@ inspect $ 'fromStreamK `hasNoType` ''SPEC
 {-# INLINE fromStreamD #-}
 fromStreamD :: Int -> Int -> IO ()
 fromStreamD size start =
-    drainGeneration UF.fromStreamD (S.replicate size start)
+    drainGeneration UF.fromStream (S.replicate size start)
 
 #ifdef INSPECTION
 -- inspect $ 'fromStreamD `hasNoType` ''S.Step
