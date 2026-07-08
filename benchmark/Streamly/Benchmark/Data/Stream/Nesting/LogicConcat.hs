@@ -78,22 +78,27 @@ _schedForEqn maxVal input =
               Stream.schedForM input $ \y -> do
                 return $ Type.checkStream maxVal x y
 
+{-# NOINLINE fairConcatForBounded #-}
 fairConcatForBounded :: Int -> IO ()
 fairConcatForBounded maxVal = withRandomIntIO $ \n ->
     fairConcatForEqn maxVal (Type.boundedInts maxVal n)
 
+{-# NOINLINE fairConcatForKBounded #-}
 fairConcatForKBounded :: Int -> IO ()
 fairConcatForKBounded maxVal = withRandomIntIO $ \n ->
     fairConcatForEqnK maxVal (Type.boundedInts maxVal n)
 
+{-# NOINLINE fairConcatForInfinite #-}
 fairConcatForInfinite :: Int -> IO ()
 fairConcatForInfinite maxVal = withRandomIntIO $ \n ->
     fairConcatForEqn maxVal (Type.infiniteInts maxVal n)
 
+{-# NOINLINE fairSchedForBounded #-}
 fairSchedForBounded :: Int -> IO ()
 fairSchedForBounded maxVal = withRandomIntIO $ \n ->
     fairSchedForEqn maxVal (Type.boundedInts maxVal n)
 
+{-# NOINLINE fairSchedForInfinite #-}
 fairSchedForInfinite :: Int -> IO ()
 fairSchedForInfinite maxVal = withRandomIntIO $ \n ->
     fairSchedForEqn maxVal (Type.infiniteInts maxVal n)

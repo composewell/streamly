@@ -45,6 +45,7 @@ import Prelude hiding (concatMap, zipWith)
 -- Appending
 -------------------------------------------------------------------------------
 
+{-# NOINLINE interleave2 #-}
 interleave2 :: Int -> IO ()
 interleave2 count = withRandomIntIO $ \n ->
     drain $
@@ -60,6 +61,7 @@ inspect $ 'interleave2 `hasNoType` ''S.Step
 inspect $ 'interleave2 `hasNoType` ''Fold.Step
 #endif
 
+{-# NOINLINE roundRobin2 #-}
 roundRobin2 :: Int -> IO ()
 roundRobin2 count = withRandomIntIO $ \n ->
     S.drain $
@@ -79,6 +81,7 @@ inspect $ 'roundRobin2 `hasNoType` ''Fold.Step
 -- Merging
 -------------------------------------------------------------------------------
 
+{-# NOINLINE mergeBy #-}
 mergeBy :: Int -> IO ()
 mergeBy count = withRandomIntIO $ \n ->
     Stream.drain
@@ -94,6 +97,7 @@ inspect $ 'mergeBy `hasNoType` ''SPEC
 inspect $ 'mergeBy `hasNoType` ''Fold.Step
 #endif
 
+{-# NOINLINE mergeByM #-}
 mergeByM :: Int -> IO ()
 mergeByM count = withRandomIntIO $ \n ->
     Stream.drain
@@ -128,6 +132,7 @@ sourceUnfoldrMUF count = UF.unfoldrM step
             then Nothing
             else Just (cnt, (cnt + 1, start))
 
+{-# NOINLINE bfsUnfoldEach #-}
 bfsUnfoldEach :: Int -> Int -> IO ()
 bfsUnfoldEach outer inner = withRandomIntIO $ \n ->
     S.drain $ S.bfsUnfoldEach
@@ -142,6 +147,7 @@ inspect $ 'bfsUnfoldEach `hasNoType` ''Fold.Step
 inspect $ 'bfsUnfoldEach `hasNoType` ''SPEC
 #endif
 
+{-# NOINLINE altBfsUnfoldEach #-}
 altBfsUnfoldEach :: Int -> Int -> IO ()
 altBfsUnfoldEach outer inner = withRandomIntIO $ \n ->
     S.drain $ S.altBfsUnfoldEach
@@ -156,6 +162,7 @@ inspect $ 'altBfsUnfoldEach `hasNoType` ''Fold.Step
 -- inspect $ 'altBfsUnfoldEach `hasNoType` ''SPEC
 #endif
 
+{-# NOINLINE unfoldSched #-}
 unfoldSched :: Int -> Int -> IO ()
 unfoldSched outer inner = withRandomIntIO $ \n ->
     S.drain $ S.unfoldSched

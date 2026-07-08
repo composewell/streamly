@@ -113,22 +113,27 @@ unfoldEachEqn maxVal input ints =
         $ Stream.mapM (checkPair maxVal)
         $ Stream.unfoldEach intu ints
 
+{-# NOINLINE concatForBounded #-}
 concatForBounded :: Int -> IO ()
 concatForBounded maxVal = withRandomIntIO $ \n ->
     concatForEqn maxVal (boundedInts maxVal n)
 
+{-# NOINLINE streamCrossBounded #-}
 streamCrossBounded :: Int -> IO ()
 streamCrossBounded maxVal = withRandomIntIO $ \n ->
     streamCrossEqn maxVal (boundedInts maxVal n)
 
+{-# NOINLINE fairStreamCrossBounded #-}
 fairStreamCrossBounded :: Int -> IO ()
 fairStreamCrossBounded maxVal = withRandomIntIO $ \n ->
     fairStreamCrossEqn maxVal (boundedInts maxVal n)
 
+{-# NOINLINE fairStreamCrossInfinite #-}
 fairStreamCrossInfinite :: Int -> IO ()
 fairStreamCrossInfinite maxVal = withRandomIntIO $ \n ->
     fairStreamCrossEqn maxVal (infiniteInts maxVal n)
 
+{-# NOINLINE unfoldEachBounded #-}
 unfoldEachBounded :: Int -> IO ()
 unfoldEachBounded maxVal = withRandomIntIO $ \n ->
     unfoldEachEqn maxVal (boundedIntsUnfold maxVal 0) (boundedInts maxVal n)

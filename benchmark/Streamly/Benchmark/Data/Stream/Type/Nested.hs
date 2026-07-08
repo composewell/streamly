@@ -36,7 +36,7 @@ unCross = Stream.unNested
 -------------------------------------------------------------------------------
 
 {-# INLINE toNullApPure #-}
-toNullApPure :: MonadAsync m => Int -> Int -> m ()
+toNullApPure :: Int -> Int -> IO ()
 toNullApPure linearCount start = drain $ unCross $
     (+) <$> mkCross (sourceUnfoldr nestedCount2 start)
         <*> mkCross (sourceUnfoldr nestedCount2 start)
@@ -46,7 +46,7 @@ toNullApPure linearCount start = drain $ unCross $
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
 {-# INLINE toNullMPure #-}
-toNullMPure :: MonadAsync m => Int -> Int -> m ()
+toNullMPure :: Int -> Int -> IO ()
 toNullMPure linearCount start = drain $ unCross $ do
     x <- mkCross (sourceUnfoldr nestedCount2 start)
     y <- mkCross (sourceUnfoldr nestedCount2 start)
@@ -57,7 +57,7 @@ toNullMPure linearCount start = drain $ unCross $ do
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
 {-# INLINE toNullM3Pure #-}
-toNullM3Pure :: MonadAsync m => Int -> Int -> m ()
+toNullM3Pure :: Int -> Int -> IO ()
 toNullM3Pure linearCount start = drain $ unCross $ do
     x <- mkCross (sourceUnfoldr nestedCount3 start)
     y <- mkCross (sourceUnfoldr nestedCount3 start)
@@ -69,7 +69,7 @@ toNullM3Pure linearCount start = drain $ unCross $ do
     nestedCount3 = round (fromIntegral linearCount**(1/3::Double))
 
 {-# INLINE filterAllOutMPure #-}
-filterAllOutMPure :: MonadAsync m => Int -> Int -> m ()
+filterAllOutMPure :: Int -> Int -> IO ()
 filterAllOutMPure linearCount start = drain $ unCross $ do
     x <- mkCross (sourceUnfoldr nestedCount2 start)
     y <- mkCross (sourceUnfoldr nestedCount2 start)
@@ -83,7 +83,7 @@ filterAllOutMPure linearCount start = drain $ unCross $ do
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
 {-# INLINE filterAllInMPure #-}
-filterAllInMPure :: MonadAsync m => Int -> Int -> m ()
+filterAllInMPure :: Int -> Int -> IO ()
 filterAllInMPure linearCount start = drain $ unCross $ do
     x <- mkCross (sourceUnfoldr nestedCount2 start)
     y <- mkCross (sourceUnfoldr nestedCount2 start)
@@ -96,6 +96,7 @@ filterAllInMPure linearCount start = drain $ unCross $ do
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
+{-# NOINLINE cross2 #-}
 cross2 :: Int -> IO ()
 cross2 linearCount = withRandomIntIO $ \start -> drain $
     Stream.crossWith (+)
@@ -106,6 +107,7 @@ cross2 linearCount = withRandomIntIO $ \start -> drain $
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
+{-# NOINLINE crossApply #-}
 crossApply :: Int -> IO ()
 crossApply linearCount = withRandomIntIO $ \start -> drain $
     Stream.crossApply
@@ -116,6 +118,7 @@ crossApply linearCount = withRandomIntIO $ \start -> drain $
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
+{-# NOINLINE crossApplyFst #-}
 crossApplyFst :: Int -> IO ()
 crossApplyFst linearCount = withRandomIntIO $ \start -> drain $
     Stream.crossApplyFst
@@ -126,6 +129,7 @@ crossApplyFst linearCount = withRandomIntIO $ \start -> drain $
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
+{-# NOINLINE crossApplySnd #-}
 crossApplySnd :: Int -> IO ()
 crossApplySnd linearCount = withRandomIntIO $ \start -> drain $
     Stream.crossApplySnd
@@ -140,11 +144,13 @@ crossApplySnd linearCount = withRandomIntIO $ \start -> drain $
 -- Monad
 -------------------------------------------------------------------------------
 
+{-# NOINLINE drainConcatFor1 #-}
 drainConcatFor1 :: Int -> IO ()
 drainConcatFor1 count = withStream count $ \s ->
     drain $ Stream.concatFor s $ \x ->
         Stream.fromPure $ x + 1
 
+{-# NOINLINE drainConcatFor #-}
 drainConcatFor :: Int -> IO ()
 drainConcatFor count = withStream count $ \s ->
     drain $ do
@@ -152,6 +158,7 @@ drainConcatFor count = withStream count $ \s ->
             Stream.concatFor s $ \y ->
                 Stream.fromPure $ x + y
 
+{-# NOINLINE drainConcatForM #-}
 drainConcatForM :: Int -> IO ()
 drainConcatForM count = withStream count $ \s ->
     drain $ do
@@ -159,6 +166,7 @@ drainConcatForM count = withStream count $ \s ->
             pure $ Stream.concatForM s $ \y ->
                 pure $ Stream.fromPure $ x + y
 
+{-# NOINLINE drainConcatFor3 #-}
 drainConcatFor3 :: Int -> IO ()
 drainConcatFor3 count = withStream count $ \s ->
     drain $ do
@@ -167,6 +175,7 @@ drainConcatFor3 count = withStream count $ \s ->
                 Stream.concatFor s $ \z ->
                     Stream.fromPure $ x + y + z
 
+{-# NOINLINE drainConcatFor4 #-}
 drainConcatFor4 :: Int -> IO ()
 drainConcatFor4 count = withStream count $ \s ->
     drain $ do
@@ -176,6 +185,7 @@ drainConcatFor4 count = withStream count $ \s ->
                     Stream.concatFor s $ \w ->
                         Stream.fromPure $ x + y + z + w
 
+{-# NOINLINE drainConcatFor5 #-}
 drainConcatFor5 :: Int -> IO ()
 drainConcatFor5 count = withStream count $ \s ->
     drain $ do
@@ -186,6 +196,7 @@ drainConcatFor5 count = withStream count $ \s ->
                         Stream.concatFor s $ \u ->
                             Stream.fromPure $ x + y + z + w + u
 
+{-# NOINLINE drainConcatFor3M #-}
 drainConcatFor3M :: Int -> IO ()
 drainConcatFor3M count = withStream count $ \s ->
     drain $ do
@@ -194,6 +205,7 @@ drainConcatFor3M count = withStream count $ \s ->
                 pure $ Stream.concatForM s $ \z ->
                     pure $ Stream.fromPure $ x + y + z
 
+{-# NOINLINE filterAllInConcatFor #-}
 filterAllInConcatFor :: Int -> IO ()
 filterAllInConcatFor count = withStream count $ \s ->
     drain $ do
@@ -204,6 +216,7 @@ filterAllInConcatFor count = withStream count $ \s ->
                     then Stream.fromPure s1
                     else Stream.nil
 
+{-# NOINLINE filterAllOutConcatFor #-}
 filterAllOutConcatFor :: Int -> IO ()
 filterAllOutConcatFor count = withStream count $ \s ->
     drain $ do

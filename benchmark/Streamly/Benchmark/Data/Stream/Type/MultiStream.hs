@@ -57,6 +57,7 @@ import Prelude hiding (concatMap, zipWith)
 -- Appending
 -------------------------------------------------------------------------------
 
+{-# NOINLINE serial2 #-}
 serial2 :: Int -> IO ()
 serial2 count = withRandomIntIO $ \n ->
     drain $
@@ -72,6 +73,7 @@ inspect $ 'serial2 `hasNoType` ''S.Step
 inspect $ 'serial2 `hasNoType` ''Fold.Step
 #endif
 
+{-# NOINLINE serial4 #-}
 serial4 :: Int -> IO ()
 serial4 count = withRandomIntIO $ \n ->
     drain $
@@ -95,6 +97,7 @@ inspect $ 'serial4 `hasNoType` ''Fold.Step
 -- Zipping
 -------------------------------------------------------------------------------
 
+{-# NOINLINE zipWith #-}
 zipWith :: Int -> IO ()
 zipWith value = withRandomIntIO $ \n ->
     let src = sourceUnfoldrM value n
@@ -106,6 +109,7 @@ inspect $ 'zipWith `hasNoType` ''SPEC
 inspect $ 'zipWith `hasNoType` ''Fold.Step
 #endif
 
+{-# NOINLINE zipWithM #-}
 zipWithM :: Int -> IO ()
 zipWithM value = withRandomIntIO $ \n ->
     let src = sourceUnfoldrM value n
@@ -131,6 +135,7 @@ sourceConcatMapStreams :: Monad m => Int -> Int -> Int -> Stream m (Stream m Int
 sourceConcatMapStreams outer inner start =
     fmap (sourceUnfoldr inner) $ sourceUnfoldr outer start
 
+{-# NOINLINE concatMap #-}
 concatMap :: Int -> Int -> IO ()
 concatMap outer inner = withRandomIntIO $ \n ->
     drain $ S.concatMap
@@ -144,6 +149,7 @@ inspect $ 'concatMap `hasNoType` ''SPEC
 inspect $ 'concatMap `hasNoType` ''Fold.Step
 #endif
 
+{-# NOINLINE concatMapM2 #-}
 concatMapM2 :: Int -> IO ()
 concatMapM2 value = withStream value $ \s ->
     drain $ do
@@ -151,6 +157,7 @@ concatMapM2 value = withStream value $ \s ->
             pure $ Stream.concatMapM (\y ->
                 pure $ Stream.fromPure $ x + y) s) s
 
+{-# NOINLINE concatMapM3 #-}
 concatMapM3 :: Int -> IO ()
 concatMapM3 value = withStream value $ \s ->
     drain $ do
@@ -159,6 +166,7 @@ concatMapM3 value = withStream value $ \s ->
                 pure $ Stream.concatMapM (\z ->
                     pure $ Stream.fromPure $ x + y + z) s) s) s
 
+{-# NOINLINE concatMapViaUnfoldEach #-}
 concatMapViaUnfoldEach :: Int -> Int -> IO ()
 concatMapViaUnfoldEach outer inner = withRandomIntIO $ \n ->
     drain $ cmap
@@ -169,6 +177,7 @@ concatMapViaUnfoldEach outer inner = withRandomIntIO $ \n ->
 
     cmap f = Stream.unfoldEach (UF.lmap f UF.fromStream)
 
+{-# NOINLINE concatMapM #-}
 concatMapM :: Int -> Int -> IO ()
 concatMapM outer inner = withRandomIntIO $ \n ->
     drain $ S.concatMapM
@@ -177,16 +186,19 @@ concatMapM outer inner = withRandomIntIO $ \n ->
 
 -- concatMap Streams
 
+{-# NOINLINE concatMapSingletonStreams #-}
 concatMapSingletonStreams :: Int -> IO ()
 concatMapSingletonStreams value =
     withRandomIntIO (drain . S.concatMap id . sourceConcatMapSingletonStreams value)
 
+{-# NOINLINE concatMapStreams #-}
 concatMapStreams :: Int -> Int -> IO ()
 concatMapStreams outer inner =
     withRandomIntIO (S.drain . S.concatMap id . sourceConcatMapStreams outer inner)
 
 -- concatMap unfoldr/unfoldr
 
+{-# NOINLINE concatMapPure #-}
 concatMapPure :: Int -> Int -> IO ()
 concatMapPure outer inner = withRandomIntIO $ \n ->
     drain $ S.concatMap
@@ -216,6 +228,7 @@ sourceUnfoldrMUnfold size start = UF.unfoldrM step
               then Just (i, i + 1)
               else Nothing
 
+{-# NOINLINE unfoldEach #-}
 unfoldEach :: Int -> Int -> IO ()
 unfoldEach outer inner = withRandomIntIO $ \start -> drain $
      S.unfoldEach (sourceUnfoldrMUnfold inner start)
@@ -229,6 +242,7 @@ inspect $ 'unfoldEach `hasNoType` ''S.Step
 inspect $ 'unfoldEach `hasNoType` ''Fold.Step
 #endif
 
+{-# NOINLINE unfoldEach2 #-}
 unfoldEach2 :: Int -> Int -> IO ()
 unfoldEach2 outer inner = withRandomIntIO $ \start -> drain $
      S.unfoldEach (UF.carryInput (sourceUnfoldrMUnfold inner start))
@@ -242,6 +256,7 @@ inspect $ 'unfoldEach2 `hasNoType` ''Fold.Step
 inspect $ 'unfoldEach2 `hasNoType` ''SPEC
 #endif
 
+{-# NOINLINE unfoldEach3 #-}
 unfoldEach3 :: Int -> IO ()
 unfoldEach3 linearCount = withRandomIntIO $ \start -> drain $ do
     S.unfoldEach (UF.carryInput (UF.lmap snd (sourceUnfoldrMUnfold nestedCount3 start)))
@@ -259,6 +274,7 @@ inspect $ 'unfoldEach3 `hasNoType` ''Fold.Step
 inspect $ 'unfoldEach3 `hasNoType` ''SPEC
 #endif
 
+{-# NOINLINE unfoldCross #-}
 unfoldCross :: Int -> Int -> IO ()
 unfoldCross outer inner = withRandomIntIO $ \start -> drain $
     Stream.unfoldCross
@@ -279,6 +295,7 @@ inspect $ 'unfoldCross `hasNoType` ''SPEC
 -- Fold Many
 -------------------------------------------------------------------------------
 
+{-# NOINLINE foldMany #-}
 foldMany :: Int -> IO ()
 foldMany value =
     withStream value $
@@ -295,6 +312,7 @@ inspect $ 'foldMany `hasNoType` ''FL.Step
 inspect $ 'foldMany `hasNoType` ''SPEC
 #endif
 
+{-# NOINLINE foldMany1 #-}
 foldMany1 :: Int -> IO ()
 foldMany1 value =
     withStream value $
@@ -311,6 +329,7 @@ inspect $ 'foldMany1 `hasNoType` ''FL.Step
 inspect $ 'foldMany1 `hasNoType` ''SPEC
 #endif
 
+{-# NOINLINE refoldMany #-}
 refoldMany :: Int -> IO ()
 refoldMany value =
     withStream value $
@@ -328,6 +347,7 @@ inspect $ 'refoldMany `hasNoType` ''SPEC
 #endif
 
 -- {-# INLINE refoldIterateM #-}
+{-# NOINLINE refoldIterateM #-}
 refoldIterateM :: Int -> IO ()
 refoldIterateM value =
     withStream value $

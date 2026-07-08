@@ -44,6 +44,7 @@ import Prelude hiding (repeat, replicate, iterate)
 fromListM :: Monad m => [m a] -> Stream m a
 fromListM = Stream.sequence . Stream.fromList
 
+{-# NOINLINE sourceFromListM #-}
 sourceFromListM :: Int -> IO ()
 sourceFromListM value = withDrain $ \n -> fromListM (fmap return [n..n+value])
 
@@ -54,6 +55,7 @@ inspect $ 'sourceFromListM `hasNoType` ''Fold.Step
 inspect $ 'sourceFromListM `hasNoType` ''SPEC
 #endif
 
+{-# NOINLINE replicate #-}
 replicate :: Int -> IO ()
 replicate value = withDrain (Stream.replicate value)
 
@@ -68,6 +70,7 @@ inspect $ 'replicate `hasNoType` ''SPEC
 -- enumerate
 -------------------------------------------------------------------------------
 
+{-# NOINLINE sourceIntFromTo #-}
 sourceIntFromTo :: Int -> IO ()
 sourceIntFromTo value = withDrain $ \n -> Stream.enumerateFromTo n (n + value)
 
@@ -78,6 +81,7 @@ inspect $ 'sourceIntFromTo `hasNoType` ''Fold.Step
 inspect $ 'sourceIntFromTo `hasNoType` ''SPEC
 #endif
 
+{-# NOINLINE sourceIntFromThenTo #-}
 sourceIntFromThenTo :: Int -> IO ()
 sourceIntFromThenTo value = withDrain $ \n ->
     Stream.enumerateFromThenTo n (n + 1) (n + value)
@@ -90,6 +94,7 @@ inspect $ 'sourceIntFromThenTo `hasNoType` ''Fold.Step
 inspect $ 'sourceIntFromThenTo `hasNoType` ''SPEC
 #endif
 
+{-# NOINLINE sourceFracFromTo #-}
 sourceFracFromTo :: Int -> IO ()
 sourceFracFromTo value = withDrain $ \n ->
     Stream.enumerateFromTo (fromIntegral n :: Double) (fromIntegral (n + value))
@@ -101,6 +106,7 @@ inspect $ 'sourceFracFromTo `hasNoType` ''Fold.Step
 inspect $ 'sourceFracFromTo `hasNoType` ''SPEC
 #endif
 
+{-# NOINLINE sourceFracFromThenTo #-}
 sourceFracFromThenTo :: Int -> IO ()
 sourceFracFromThenTo value = withDrain $ \n ->
     Stream.enumerateFromThenTo
@@ -113,6 +119,7 @@ inspect $ 'sourceFracFromThenTo `hasNoType` ''Fold.Step
 inspect $ 'sourceFracFromThenTo `hasNoType` ''SPEC
 #endif
 
+{-# NOINLINE sourceIntegerFromStep #-}
 sourceIntegerFromStep :: Int -> IO ()
 sourceIntegerFromStep value = withDrain $ \n ->
     Stream.take value
@@ -125,6 +132,7 @@ inspect $ 'sourceIntegerFromStep `hasNoType` ''Fold.Step
 inspect $ 'sourceIntegerFromStep `hasNoType` ''SPEC
 #endif
 
+{-# NOINLINE enumerateFrom #-}
 enumerateFrom :: Int -> IO ()
 enumerateFrom count = withDrain (Stream.take count . Stream.enumerateFrom)
 
@@ -135,11 +143,13 @@ inspect $ 'enumerateFrom `hasNoType` ''Fold.Step
 inspect $ 'enumerateFrom `hasNoType` ''SPEC
 #endif
 
+{-# NOINLINE enumerateFromTo #-}
 enumerateFromTo :: Int -> IO ()
 enumerateFromTo = sourceIntFromTo
 
 -- 'enumerateFromTo' is an alias for 'sourceIntFromTo', already covered above.
 
+{-# NOINLINE enumerateFromThen #-}
 enumerateFromThen :: Int -> IO ()
 enumerateFromThen count = withDrain $ \n ->
     Stream.take count $ Stream.enumerateFromThen n (n + 1)
@@ -151,12 +161,14 @@ inspect $ 'enumerateFromThen `hasNoType` ''Fold.Step
 inspect $ 'enumerateFromThen `hasNoType` ''SPEC
 #endif
 
+{-# NOINLINE enumerateFromThenTo #-}
 enumerateFromThenTo :: Int -> IO ()
 enumerateFromThenTo = sourceIntFromThenTo
 
 -- 'enumerateFromThenTo' is an alias for 'sourceIntFromThenTo', already covered above.
 
 -- n ~ 1
+{-# NOINLINE enumerate #-}
 enumerate :: Int -> IO ()
 enumerate count = withDrain $ \n ->
     Stream.take (count + n) Stream.enumerate :: Stream IO Int
@@ -169,6 +181,7 @@ inspect $ 'enumerate `hasNoType` ''SPEC
 #endif
 
 -- n ~ 1
+{-# NOINLINE enumerateTo #-}
 enumerateTo :: Int -> IO ()
 enumerateTo count = withDrain $ \n -> Stream.enumerateTo (minBound + count + n)
 
@@ -179,6 +192,7 @@ inspect $ 'enumerateTo `hasNoType` ''Fold.Step
 inspect $ 'enumerateTo `hasNoType` ''SPEC
 #endif
 
+{-# NOINLINE iterate #-}
 iterate :: Int -> IO ()
 iterate count = withDrain (Stream.take count . Stream.iterate (+1))
 
@@ -189,6 +203,7 @@ inspect $ 'iterate `hasNoType` ''Fold.Step
 inspect $ 'iterate `hasNoType` ''SPEC
 #endif
 
+{-# NOINLINE iterateM #-}
 iterateM :: Int -> IO ()
 iterateM count =
     withDrain (Stream.take count . Stream.iterateM (return . (+1)) . return)
@@ -200,6 +215,7 @@ inspect $ 'iterateM `hasNoType` ''Fold.Step
 inspect $ 'iterateM `hasNoType` ''SPEC
 #endif
 
+{-# NOINLINE repeatM #-}
 repeatM :: Int -> IO ()
 repeatM count = withDrain (Stream.take count . Stream.repeatM . return)
 
@@ -210,6 +226,7 @@ inspect $ 'repeatM `hasNoType` ''Fold.Step
 inspect $ 'repeatM `hasNoType` ''SPEC
 #endif
 
+{-# NOINLINE replicateM #-}
 replicateM :: Int -> IO ()
 replicateM count = withDrain (Stream.replicateM count . return)
 
@@ -220,6 +237,7 @@ inspect $ 'replicateM `hasNoType` ''Fold.Step
 inspect $ 'replicateM `hasNoType` ''SPEC
 #endif
 
+{-# NOINLINE fromIndices #-}
 fromIndices :: Int -> IO ()
 fromIndices value = withDrain $ \n -> Stream.take value $ Stream.fromIndices (+ n)
 
@@ -230,6 +248,7 @@ inspect $ 'fromIndices `hasNoType` ''Fold.Step
 inspect $ 'fromIndices `hasNoType` ''SPEC
 #endif
 
+{-# NOINLINE fromIndicesM #-}
 fromIndicesM :: Int -> IO ()
 fromIndicesM value = withDrain $ \n ->
     Stream.take value $ Stream.fromIndicesM (return <$> (+ n))

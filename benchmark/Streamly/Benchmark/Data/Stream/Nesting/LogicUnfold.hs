@@ -75,28 +75,35 @@ fairUnfoldSchedEqn maxVal input ints =
 unfoldCrossBounded :: Int -> IO ()
 unfoldCrossBounded maxVal = unfoldCrossEqn maxVal (Type.boundedIntsUnfold maxVal 0)
 
+{-# NOINLINE fairUnfoldCrossBounded #-}
 fairUnfoldCrossBounded :: Int -> IO ()
 fairUnfoldCrossBounded maxVal = fairUnfoldCrossEqn maxVal (Type.boundedIntsUnfold maxVal 0)
 
+{-# NOINLINE fairUnfoldCrossInfinite #-}
 fairUnfoldCrossInfinite :: Int -> IO ()
 fairUnfoldCrossInfinite maxVal = fairUnfoldCrossEqn maxVal (infiniteIntsUnfold maxVal 0)
 
+{-# NOINLINE fairUnfoldEachBounded #-}
 fairUnfoldEachBounded :: Int -> IO ()
 fairUnfoldEachBounded maxVal = withRandomIntIO $ \n ->
     fairUnfoldEachEqn maxVal (Type.boundedIntsUnfold maxVal 0) (Type.boundedInts maxVal n)
 
+{-# NOINLINE fairUnfoldEachInfinite #-}
 fairUnfoldEachInfinite :: Int -> IO ()
 fairUnfoldEachInfinite maxVal = withRandomIntIO $ \n ->
     fairUnfoldEachEqn maxVal (infiniteIntsUnfold maxVal 0) (Type.infiniteInts maxVal n)
 
+{-# NOINLINE unfoldSchedBounded #-}
 unfoldSchedBounded :: Int -> IO ()
 unfoldSchedBounded maxVal = withRandomIntIO $ \n ->
     unfoldSchedEqn maxVal (Type.boundedIntsUnfold maxVal 0) (Type.boundedInts maxVal n)
 
+{-# NOINLINE fairUnfoldSchedBounded #-}
 fairUnfoldSchedBounded :: Int -> IO ()
 fairUnfoldSchedBounded maxVal = withRandomIntIO $ \n ->
     fairUnfoldSchedEqn maxVal (Type.boundedIntsUnfold maxVal 0) (Type.boundedInts maxVal n)
 
+{-# NOINLINE fairUnfoldSchedInfinite #-}
 fairUnfoldSchedInfinite :: Int -> IO ()
 fairUnfoldSchedInfinite maxVal = withRandomIntIO $ \n ->
     fairUnfoldSchedEqn maxVal (infiniteIntsUnfold maxVal 0) (Type.infiniteInts maxVal n)

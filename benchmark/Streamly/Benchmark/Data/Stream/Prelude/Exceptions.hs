@@ -21,13 +21,15 @@
 
 module Main (main) where
 
+import Control.DeepSeq (NFData)
 import Control.Exception (Exception, throwIO)
 import Data.HashMap.Strict (HashMap)
 import Data.Proxy (Proxy(..))
-import Stream.Common (drain, benchIOSink)
+import Stream.Common (drain)
 import Streamly.Internal.Data.IsMap.HashMap ()
 import Streamly.Internal.Data.Stream (Stream)
 import System.IO (Handle, hClose, hPutChar)
+import System.Random (randomRIO)
 
 import qualified Data.IORef as Ref
 import qualified Data.Map.Strict as Map
@@ -60,6 +62,7 @@ data BenchException
 
 instance Exception BenchException
 
+{-# NOINLINE retryNoneSimple #-}
 retryNoneSimple :: Int -> Int -> IO ()
 retryNoneSimple length from =
     drain
@@ -72,6 +75,7 @@ retryNoneSimple length from =
 
     source = Stream.enumerateFromTo from (from + length)
 
+{-# NOINLINE retryNone #-}
 retryNone :: Int -> Int -> IO ()
 retryNone length from = do
     ref <- Ref.newIORef (0 :: Int)
@@ -85,6 +89,7 @@ retryNone length from = do
         Stream.replicateM (from + length)
             $ Ref.modifyIORef' ref (+ 1) >> Ref.readIORef ref
 
+{-# NOINLINE retryAll #-}
 retryAll :: Int -> Int -> IO ()
 retryAll length from = do
     ref <- Ref.newIORef 0
@@ -104,6 +109,7 @@ retryAll length from = do
                 then return length
                 else throwIO BenchException1
 
+{-# NOINLINE retryUnknown #-}
 retryUnknown :: Int -> Int -> IO ()
 retryUnknown length from = do
     drain
@@ -129,17 +135,20 @@ o_1_space_serial_exceptions length =
 -- copy stream exceptions
 -------------------------------------------------------------------------------
 
+{-# NOINLINE readWriteFinallyStream #-}
 readWriteFinallyStream :: Handle -> Handle -> IO ()
 readWriteFinallyStream inh devNull =
     let readEx = Stream.finally (hClose inh) (Stream.unfold FH.reader inh)
     in Stream.fold (FH.write devNull) readEx
 
+{-# NOINLINE fromToBytesBracketStream #-}
 fromToBytesBracketStream :: Handle -> Handle -> IO ()
 fromToBytesBracketStream inh devNull =
     let readEx = Stream.bracket (return ()) (\_ -> hClose inh)
                     (\_ -> IFH.read inh)
     in IFH.putBytes devNull readEx
 
+{-# NOINLINE readWriteBeforeAfterStream #-}
 readWriteBeforeAfterStream :: Handle -> Handle -> IO ()
 readWriteBeforeAfterStream inh devNull =
     let readEx =
@@ -151,6 +160,7 @@ readWriteBeforeAfterStream inh devNull =
 inspect $ 'readWriteBeforeAfterStream `hasNoType` ''Stream.Step
 #endif
 
+{-# NOINLINE readWriteAfterStream #-}
 readWriteAfterStream :: Handle -> Handle -> IO ()
 readWriteAfterStream inh devNull =
     let readEx = Stream.after (hClose inh) (Stream.unfold FH.reader inh)
@@ -176,6 +186,7 @@ o_1_space_copy_stream_exceptions env =
 -- Exceptions toChunks
 -------------------------------------------------------------------------------
 
+{-# NOINLINE toChunksBracket #-}
 toChunksBracket :: Handle -> Handle -> IO ()
 toChunksBracket inh devNull =
     let readEx = Stream.bracket
@@ -199,17 +210,25 @@ excBenchmarks env size =
         ]
     ]
 
-{-# INLINE pollCounts #-}
-pollCounts :: Stream IO Int -> IO ()
-pollCounts = drain . Stream.parTapCount (const True) f
+{-# INLINE benchIO #-}
+benchIO :: NFData b => String -> IO b -> Benchmark
+benchIO name = bench name . nfIO
+
+{-# INLINE withStream #-}
+withStream :: Int -> (Stream IO Int -> IO b) -> IO b
+withStream value f = randomRIO (1, 1 :: Int) >>= f . Common.sourceUnfoldrM value
+
+{-# NOINLINE pollCounts #-}
+pollCounts :: Int -> IO ()
+pollCounts value = withStream value $ drain . Stream.parTapCount (const True) f
 
     where
 
     f = Stream.drain . Stream.rollingMap2 (-) . Stream.delayPost 1
 
-{-# INLINE takeInterval #-}
-takeInterval :: Double -> Stream IO Int -> IO ()
-takeInterval i = drain . Stream.takeInterval i
+{-# NOINLINE takeInterval #-}
+takeInterval :: Double -> Int -> IO ()
+takeInterval i value = withStream value $ drain . Stream.takeInterval i
 
 -- Inspection testing is disabled for takeInterval
 -- Enable it when looking at it throughly
@@ -219,9 +238,9 @@ takeInterval i = drain . Stream.takeInterval i
 -- inspect $ 'takeInterval `hasNoType` ''D.Step
 #endif
 
-{-# INLINE dropInterval #-}
-dropInterval :: Double -> Stream IO Int -> IO ()
-dropInterval i = drain . Stream.dropInterval i
+{-# NOINLINE dropInterval #-}
+dropInterval :: Double -> Int -> IO ()
+dropInterval i value = withStream value $ drain . Stream.dropInterval i
 
 -- Inspection testing is disabled for dropInterval
 -- Enable it when looking at it throughly
@@ -237,52 +256,66 @@ _intervalsOfSum i = drain . Stream.intervalsOf i Fold.sum
 
 timeBenchmarks :: BenchEnv -> Int -> [Benchmark]
 timeBenchmarks _env size =
-    [ benchIOSink size "parTapCount 1 second" pollCounts
-    , benchIOSink size "takeInterval-all" (takeInterval 10000)
-    , benchIOSink size "dropInterval-all" (dropInterval 10000)
+    [ benchIO "parTapCount 1 second" (pollCounts size)
+    , benchIO "takeInterval-all" (takeInterval 10000 size)
+    , benchIO "dropInterval-all" (dropInterval 10000 size)
     ]
 
 -------------------------------------------------------------------------------
 -- Grouping/Splitting
 -------------------------------------------------------------------------------
 
+{-# INLINE getKey #-}
+getKey :: Int -> Int -> Int
+getKey n = (`mod` n)
+
 {-# INLINE classifySessionsOf #-}
-classifySessionsOf :: Stream.MonadAsync m => (Int -> Int) -> Stream m Int -> m ()
-classifySessionsOf getKey =
+classifySessionsOf :: (Int -> Int) -> Int -> IO ()
+classifySessionsOf getKeyF value = withStream value $
       Common.drain
     . Stream.classifySessionsOf
         (const (return False)) 3 (Fold.take 10 Fold.sum)
     . Stream.timestamped
-    . fmap (\x -> (getKey x, x))
+    . fmap (\x -> (getKeyF x, x))
+
+{-# NOINLINE classifySessionsOf10k #-}
+classifySessionsOf10k :: Int -> IO ()
+classifySessionsOf10k = classifySessionsOf (getKey 10000)
+
+{-# NOINLINE classifySessionsOf64 #-}
+classifySessionsOf64 :: Int -> IO ()
+classifySessionsOf64 = classifySessionsOf (getKey 64)
 
 {-# INLINE classifySessionsOfHash #-}
-classifySessionsOfHash :: Stream.MonadAsync m =>
-    (Int -> Int) -> Stream m Int -> m ()
-classifySessionsOfHash getKey =
+classifySessionsOfHash :: (Int -> Int) -> Int -> IO ()
+classifySessionsOfHash getKeyF value = withStream value $
       Common.drain
     . Stream.classifySessionsByGeneric
         (Proxy :: Proxy (HashMap k))
         1 False (const (return False)) 3 (Fold.take 10 Fold.sum)
     . Stream.timestamped
-    . fmap (\x -> (getKey x, x))
+    . fmap (\x -> (getKeyF x, x))
+
+{-# NOINLINE classifySessionsOfHash10k #-}
+classifySessionsOfHash10k :: Int -> IO ()
+classifySessionsOfHash10k = classifySessionsOfHash (getKey 10000)
+
+{-# NOINLINE classifySessionsOfHash64 #-}
+classifySessionsOfHash64 :: Int -> IO ()
+classifySessionsOfHash64 = classifySessionsOfHash (getKey 64)
 
 o_1_space_grouping :: BenchEnv -> Int -> [Benchmark]
 o_1_space_grouping _env value =
     -- Buffering operations using heap proportional to group/window sizes.
-    [ benchIOSink value "classifySessionsOf (10000 buckets)"
-        (classifySessionsOf (getKey 10000))
-    , benchIOSink value "classifySessionsOf (64 buckets)"
-        (classifySessionsOf (getKey 64))
-    , benchIOSink value "classifySessionsOfHash (10000 buckets)"
-        (classifySessionsOfHash (getKey 10000))
-    , benchIOSink value "classifySessionsOfHash (64 buckets)"
-        (classifySessionsOfHash (getKey 64))
+    [ benchIO "classifySessionsOf (10000 buckets)"
+        (classifySessionsOf10k value)
+    , benchIO "classifySessionsOf (64 buckets)"
+        (classifySessionsOf64 value)
+    , benchIO "classifySessionsOfHash (10000 buckets)"
+        (classifySessionsOfHash10k value)
+    , benchIO "classifySessionsOfHash (64 buckets)"
+        (classifySessionsOfHash64 value)
     ]
-
-    where
-
-    getKey :: Int -> Int -> Int
-    getKey n = (`mod` n)
 
 moduleName :: String
 moduleName = "Data.Stream.Prelude"
