@@ -155,7 +155,12 @@ common optimization-options
       ghc-options: -fno-ignore-asserts
 
     if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
-      ghc-options: -fplugin Fusion.Plugin -ddump-simpl -ddump-to-file -dsuppress-all
+      ghc-options:
+         -fplugin Fusion.Plugin
+         -fplugin-opt=Fusion.Plugin:werror
+         -ddump-simpl
+         -ddump-to-file
+         -dsuppress-all
   else
     ghc-options: -O0
 
