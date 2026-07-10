@@ -325,6 +325,42 @@ enumerateDownFromThenToNum = do
         (Prelude.takeWhile (>= (-1)) [6, 4 ..])
         `shouldBe` True
 
+enumerateDownFromNum :: Property
+enumerateDownFromNum =
+    property
+        $ \f ->
+                let unf = UF.take 50 UF.enumerateDownFromNum
+                in testUnfold unf (f :: Int) $
+                    Prelude.take 50 $ Prelude.enumFromThen f (f - 1)
+
+enumerateDownFromToNum :: Property
+enumerateDownFromToNum =
+    property
+        $ \f to ->
+                let unf = UF.take 50 UF.enumerateDownFromToNum
+                in testUnfold unf (f :: Integer, to) $
+                    Prelude.take 50 $ Prelude.enumFromThenTo f (f - 1) to
+
+enumerateDownFromBoundedNum :: Expectation
+enumerateDownFromBoundedNum = do
+    testUnfold
+        UF.enumerateDownFromBoundedNum
+        (-124 :: Int8)
+        [-124, -125, -126, -127, -128]
+        `shouldBe` True
+    -- from == minBound returns just the single element
+    testUnfold
+        UF.enumerateDownFromBoundedNum
+        (minBound :: Int8)
+        [minBound]
+        `shouldBe` True
+    -- unsigned type enumerates down to 0
+    testUnfold
+        UF.enumerateDownFromBoundedNum
+        (3 :: Word8)
+        [3, 2, 1, 0]
+        `shouldBe` True
+
 enumerateFromIntegral :: Property
 enumerateFromIntegral =
     property
@@ -1248,6 +1284,9 @@ testGeneration =
             it "enumerateFromThenToIntegral large stride"
                 enumerateFromThenToIntegralLargeStride
             it "enumerateDownFromThenToNum" enumerateDownFromThenToNum
+            prop "enumerateDownFromNum" enumerateDownFromNum
+            prop "enumerateDownFromToNum" enumerateDownFromToNum
+            it "enumerateDownFromBoundedNum" enumerateDownFromBoundedNum
 
             prop "enumerateFromIntegral" enumerateFromIntegral
             prop "enumerateFromThenIntegral" enumerateFromThenIntegral

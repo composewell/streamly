@@ -150,7 +150,7 @@ enumerateFromStepNum !from !stride = Stream step from
 -- CAUTION: This will overflow or underflow and wrap around for bounded types.
 {-# INLINE_NORMAL enumerateFromThenNum #-}
 enumerateFromThenNum :: (Applicative m, Num a) => a -> a -> Stream m a
-enumerateFromThenNum from next = enumerateFromStepNum from (next - from)
+enumerateFromThenNum from next = enumerateFromStepNum from $! (next - from)
 
 -- | Same as:
 --
@@ -168,9 +168,7 @@ enumerateDownFromNum from = enumerateFromStepNum from (-1)
 data EnumState a =
       EnumInit
     | EnumYieldUpward a a a
-    | EnumNextUpward a a a
     | EnumYieldDownward a a a
-    | EnumNextDownward a a a
     | EnumSingle a
     | EnumStop
 
@@ -211,7 +209,7 @@ enumerateFromThenToNum from next to = Stream step EnumInit
                     then Stop
                     else Skip (EnumSingle from)
                 else -- from <= next <= to
-                    let stride = next - from
+                    let !stride = next - from
                     in Skip $ EnumYieldUpward from stride (to - stride)
             else
                 if to > next
@@ -220,30 +218,24 @@ enumerateFromThenToNum from next to = Stream step EnumInit
                     then Stop
                     else Skip (EnumSingle from)
                 else -- from >= next >= to
-                    let stride = next - from
+                    let !stride = next - from
                     in Skip $ EnumYieldDownward from stride (to - stride)
 
     step _ (EnumYieldUpward x stride toMinus) =
-        pure $ Yield x (EnumNextUpward x stride toMinus)
-
-    step _ (EnumNextUpward x stride toMinus) =
         pure $
-            if x > toMinus
-            then Stop
-            else
+            if x <= toMinus
+            then
                 let !nxt = x + stride
-                 in Skip $ EnumYieldUpward nxt stride toMinus
+                 in Yield x $ EnumYieldUpward nxt stride toMinus
+            else Skip (EnumSingle x)
 
     step _ (EnumYieldDownward x stride toMinus) =
-        pure $ Yield x (EnumNextDownward x stride toMinus)
-
-    step _ (EnumNextDownward x stride toMinus) =
         pure $
-            if x < toMinus
-            then Stop
-            else
+            if x >= toMinus
+            then
                 let !nxt = x + stride
-                 in Skip $ EnumYieldDownward nxt stride toMinus
+                 in Yield x $ EnumYieldDownward nxt stride toMinus
+            else Skip (EnumSingle x)
 
     step _ (EnumSingle x) = pure $ Yield x EnumStop
 
@@ -253,7 +245,6 @@ enumerateFromThenToNum from next to = Stream step EnumInit
 data EnumStateUp a =
       EnumUpInit
     | EnumUpYield a a a
-    | EnumUpNext a a a
     | EnumUpStop
 
 -- | Like 'enumerateFromThenToNum' but a simplified version that only works in
@@ -287,19 +278,16 @@ enumerateUpFromThenToNum from next to = Stream step EnumUpInit
                     then Stop
                     else Yield from EnumUpStop
                 else -- from <= next <= to
-                    let stride = next - from
+                    let !stride = next - from
                     in Skip $ EnumUpYield from stride (to - stride)
 
     step _ (EnumUpYield x stride toMinus) =
-        pure $ Yield x (EnumUpNext x stride toMinus)
-
-    step _ (EnumUpNext x stride toMinus) =
         pure $
-            if x > toMinus
-            then Stop
-            else
+            if x <= toMinus
+            then
                 let !nxt = x + stride
-                 in Skip $ EnumUpYield nxt stride toMinus
+                 in Yield x $ EnumUpYield nxt stride toMinus
+            else Yield x EnumUpStop
 
     step _ EnumUpStop = pure Stop
 
@@ -315,28 +303,62 @@ enumerateDownFromThenToNum
 enumerateDownFromThenToNum from next to =
     fmap getDown $ enumerateUpFromThenToNum (Down from) (Down next) (Down to)
 
+-- {-# ANN type EnumToState Fuse #-}
+data EnumToState a =
+      EnumToInit
+    | EnumToYield !a
+    | EnumToStop
+
 -- | @enumerateFromToNum from to@ generates a finite stream whose first element
 -- is @from@ and successive elements are in increments of @1@ up to @to@.
 --
 -- >>> Stream.toList $ Stream.enumerateFromToNum (254 :: Word8) 255
 -- [254,255]
 --
+-- Equivalent to the following but with better fusion:
+--
+-- >> enumerateUpFromThenToNum from (from + 1) to
+--
 {-# INLINE enumerateFromToNum #-}
 enumerateFromToNum :: (Monad m, Num a, Ord a) => a -> a -> Stream m a
-enumerateFromToNum from to =
-    -- See the perf note in the Unfold impl of this. the alternate
-    -- takeWhile based implementation looks better.
-    -- enumerateUpFromThenToNum from (from + 1) to
-    takeWhile (<= to)
-        $ takeEndBy (== to) $ enumerateFromStepNum from 1
+enumerateFromToNum from to = Stream step EnumToInit
+
+    where
+
+    -- Equivalent to the following but with better fusion:
+    -- takeWhile (<= to) $ takeEndBy (== to) $ enumerateFromStepNum from 1
+
+    {-# INLINE_LATE step #-}
+    step _ EnumToInit =
+        pure $
+            if to < from
+            then Stop
+            else Skip $ EnumToYield from
+    step _ (EnumToYield x) =
+        pure $
+            if to > x
+            then Yield x (EnumToYield (x + 1))
+            else Yield x EnumToStop
+    step _ EnumToStop = pure Stop
 
 {-# INLINE enumerateDownFromToNum #-}
 enumerateDownFromToNum :: (Monad m, Num a, Ord a) => a -> a -> Stream m a
-enumerateDownFromToNum from to =
-    -- See the perf note in the Unfold impl of this. the alternate
-    -- takeWhile based implementation looks better.
-    takeWhile (>= to)
-        $ takeEndBy (== to) $ enumerateFromStepNum from (-1)
+enumerateDownFromToNum from to = Stream step EnumToInit
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step _ EnumToInit =
+        pure $
+            if to > from
+            then Stop
+            else Skip $ EnumToYield from
+    step _ (EnumToYield x) =
+        pure $
+            if to < x
+            then Yield x (EnumToYield (x - 1))
+            else Yield x EnumToStop
+    step _ EnumToStop = pure Stop
 
 ------------------------------------------------------------------------------
 -- Enumeration of Bounded Num
@@ -378,7 +400,7 @@ enumerateFromBoundedNum from =
 enumerateDownFromBoundedNum ::
     (Monad m, Num a, Ord a, Bounded a) => a -> Stream m a
 enumerateDownFromBoundedNum from =
-    enumerateDownFromToNum from maxBound
+    enumerateDownFromToNum from minBound
 
 ------------------------------------------------------------------------------
 -- Enumeration of Integrals
@@ -480,7 +502,7 @@ enumerateFromThenRealFloat
     :: (Applicative m, RealFloat a)
     => a -> a -> Stream m a
 enumerateFromThenRealFloat from next =
-    enumerateFromStepRealFloat from (next - from)
+    enumerateFromStepRealFloat from $! (next - from)
 
 -- | Numerically stable enumeration from a 'RealFloat' number to a given
 -- limit.  @enumerateFromToRealFloat from to@ generates a finite stream whose
@@ -526,7 +548,9 @@ enumerateFromThenToRealFloat
     => a -> a -> a -> Stream m a
 enumerateFromThenToRealFloat from next to =
     takeWhile predicate $ enumerateFromThenRealFloat from next
+
     where
+
     mid = (next - from) / 2
     predicate | next >= from  = (<= to + mid)
               | otherwise     = (>= to + mid)

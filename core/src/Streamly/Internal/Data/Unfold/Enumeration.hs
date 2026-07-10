@@ -238,28 +238,20 @@ enumerateDownFromThenToNum = Unfold Producer.enumerateDownFromThenTo inject
 --
 {-# INLINE enumerateFromToNum #-}
 enumerateFromToNum :: (Monad m, Num a, Ord a) => Unfold m (a, a) a
-enumerateFromToNum =
-    -- XXX this causes a large allocation regression in the
-    -- equations/unfoldCross bench
-    -- lmap (\(from, to) -> (from, from + 1, to)) enumerateUpFromThenToNum
-    map snd
-        $ takeWhile (\((_, to), b) -> b <= to)
-        $ takeEndBy (\((_, to), b) -> b == to)
-        $ carryInput
-        $ lmap (\(from, _) -> (from, 1)) enumerateFromStepNum
+enumerateFromToNum = Unfold Producer.enumerateFromTo inject
+
+    where
+
+    inject (from, to) = pure (Producer.EnumToInit from to)
 
 -- NOTE: we can use the Down functor to implement this.
 {-# INLINE enumerateDownFromToNum #-}
 enumerateDownFromToNum :: (Monad m, Num a, Ord a) => Unfold m (a, a) a
-enumerateDownFromToNum =
-    -- See note in enumerateFromToNum, we switched to the alternate
-    -- implementation for this one too as a caution.
-    -- lmap (\(from, to) -> (from, from - 1, to)) enumerateDownFromThenToNum
-    map snd
-        $ takeWhile (\((_, to), b) -> b >= to)
-        $ takeEndBy (\((_, to), b) -> b == to)
-        $ carryInput
-        $ lmap (\(from, _) -> (from, -1)) enumerateFromStepNum
+enumerateDownFromToNum = Unfold Producer.enumerateDownFromTo inject
+
+    where
+
+    inject (from, to) = pure (Producer.EnumToInit from to)
 
 ------------------------------------------------------------------------------
 -- Enumeration of Bounded Num

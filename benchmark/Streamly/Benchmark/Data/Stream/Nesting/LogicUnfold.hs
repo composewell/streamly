@@ -22,6 +22,7 @@ import Stream.Type (benchIO, withRandomIntIO)
 import Streamly.Benchmark.Common
 import qualified Stream.Type as Type
 import Prelude hiding (concatMap, zipWith)
+-- import Fusion.Plugin.Types
 
 -------------------------------------------------------------------------------
 -- Monad
@@ -72,6 +73,11 @@ fairUnfoldSchedEqn maxVal input ints =
         $ Stream.mapM (Type.checkPair maxVal)
         $ Stream.fairUnfoldSched intu ints
 
+-- {-# ANN unfoldCrossBounded (PermitTypes []) #-}
+-- {-# ANN unfoldCrossBounded (PermitTypeClasses []) #-}
+-- {-# ANN unfoldCrossBounded (MaxCoreSize 1000) #-}
+-- {-# ANN unfoldCrossBounded DumpCore #-}
+{-# NOINLINE unfoldCrossBounded #-}
 unfoldCrossBounded :: Int -> IO ()
 unfoldCrossBounded maxVal = unfoldCrossEqn maxVal (Type.boundedIntsUnfold maxVal 0)
 

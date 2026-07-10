@@ -228,6 +228,33 @@ testEnumerateFromThenDownToNum = do
     toList (Stream.enumerateDownFromThenToNum (6 :: Int) 4 (-1))
         `shouldReturn` Prelude.takeWhile (>= (-1)) [6, 4 ..]
 
+testEnumerateDownFromNum :: Expectation
+testEnumerateDownFromNum =
+    toList (Stream.take 4 (Stream.enumerateDownFromNum (6 :: Int)))
+        `shouldReturn` [6, 5, 4, 3]
+
+testEnumerateDownFromToNum :: Expectation
+testEnumerateDownFromToNum = do
+    toList (Stream.enumerateDownFromToNum (6 :: Int) 2)
+        `shouldReturn` [6, 5, 4, 3, 2]
+    -- to == from returns just the single element
+    toList (Stream.enumerateDownFromToNum (6 :: Int) 6)
+        `shouldReturn` [6]
+    -- to > from returns an empty stream
+    toList (Stream.enumerateDownFromToNum (2 :: Int) 6)
+        `shouldReturn` []
+
+testEnumerateDownFromBoundedNum :: Expectation
+testEnumerateDownFromBoundedNum = do
+    toList (Stream.enumerateDownFromBoundedNum (-124 :: Int8))
+        `shouldReturn` [-124, -125, -126, -127, -128]
+    -- from == minBound returns just the single element
+    toList (Stream.enumerateDownFromBoundedNum (minBound :: Int8))
+        `shouldReturn` [minBound]
+    -- unsigned type enumerates down to 0
+    toList (Stream.enumerateDownFromBoundedNum (3 :: Word8))
+        `shouldReturn` [3, 2, 1, 0]
+
 testEnumerateFromThenSmall :: Expectation
 testEnumerateFromThenSmall =
     toList (Stream.take 4 (Stream.enumerateFromThenSmall 'a' 'c'))
@@ -448,6 +475,9 @@ main = hspec $ describe moduleName $ do
         it "enumerateFromThenToIntegral" testEnumerateFromThenToIntegral
         it "enumerateFromThenToFractional" testEnumerateFromThenToFractional
         it "enumerateDownFromThenToNum" testEnumerateFromThenDownToNum
+        it "enumerateDownFromNum" testEnumerateDownFromNum
+        it "enumerateDownFromToNum" testEnumerateDownFromToNum
+        it "enumerateDownFromBoundedNum" testEnumerateDownFromBoundedNum
         it "enumerateFromThenSmall" testEnumerateFromThenSmall
         it "enumerateFromToSmall" testEnumerateFromToSmall
         it "enumerateFromThenToSmall" testEnumerateFromThenToSmall

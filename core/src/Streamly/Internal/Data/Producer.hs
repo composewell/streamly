@@ -50,6 +50,9 @@ module Streamly.Internal.Data.Producer
     , enumerateFromStep
     , enumerateFromThenTo
     , enumerateUpFromThenTo
+    , EnumToState(..)
+    , enumerateFromTo
+    , enumerateDownFromTo
     , enumerateDownFromThenTo
     )
 where
@@ -634,9 +637,7 @@ enumerateFromStep (x, stride) =
 data EnumState a =
       EnumInit a a a
     | EnumYieldUpward a a a
-    | EnumNextUpward a a a
     | EnumYieldDownward a a a
-    | EnumNextDownward a a a
     | EnumSingle a
     | EnumStop
 
@@ -662,7 +663,7 @@ enumerateFromThenTo (EnumInit from next to) =
                 then Stop
                 else Skip (EnumSingle from)
             else -- from <= next <= to
-                let stride = next - from
+                let !stride = next - from
                 in Skip $ EnumYieldUpward from stride (to - stride)
         else
             if to > next
@@ -671,26 +672,22 @@ enumerateFromThenTo (EnumInit from next to) =
                 then Stop
                 else Skip (EnumSingle from)
             else -- from >= next >= to
-                let stride = next - from
+                let !stride = next - from
                 in Skip $ EnumYieldDownward from stride (to - stride)
 enumerateFromThenTo (EnumYieldUpward x stride toMinus) =
-    pure $ Yield x (EnumNextUpward x stride toMinus)
-enumerateFromThenTo (EnumNextUpward x stride toMinus) =
     pure $
-        if x > toMinus
-        then Stop
-        else
+        if x <= toMinus
+        then
             let !next = x + stride
-             in Skip $ EnumYieldUpward next stride toMinus
+             in Yield x $ EnumYieldUpward next stride toMinus
+        else Skip (EnumSingle x)
 enumerateFromThenTo (EnumYieldDownward x stride toMinus) =
-    pure $ Yield x (EnumNextDownward x stride toMinus)
-enumerateFromThenTo (EnumNextDownward x stride toMinus) =
     pure $
-        if x < toMinus
-        then Stop
-        else
+        if x >= toMinus
+        then
             let !next = x + stride
-             in Skip $ EnumYieldDownward next stride toMinus
+             in Yield x $ EnumYieldDownward next stride toMinus
+        else Skip (EnumSingle x)
 enumerateFromThenTo (EnumSingle x) = pure $ Yield x EnumStop
 enumerateFromThenTo EnumStop = pure Stop
 
@@ -701,7 +698,6 @@ enumerateFromThenTo EnumStop = pure Stop
 data EnumStateUp a =
       EnumUpInit a a a
     | EnumUpYield a a a
-    | EnumUpNext a a a
     | EnumUpStop
 
 -- | Like 'enumerateFromThenTo' but a simplified version that only
@@ -723,17 +719,15 @@ enumerateUpFromThenTo (EnumUpInit from next to) =
                 then Stop
                 else Yield from EnumUpStop
             else -- from <= next <= to
-                let stride = next - from
+                let !stride = next - from
                 in Skip $ EnumUpYield from stride (to - stride)
 enumerateUpFromThenTo (EnumUpYield x stride toMinus) =
-    pure $ Yield x (EnumUpNext x stride toMinus)
-enumerateUpFromThenTo (EnumUpNext x stride toMinus) =
     pure $
-        if x > toMinus
-        then Stop
-        else
+        if x <= toMinus
+        then
             let !next = x + stride
-             in Skip $ EnumUpYield next stride toMinus
+             in Yield x $ EnumUpYield next stride toMinus
+        else Yield x EnumUpStop
 enumerateUpFromThenTo EnumUpStop = pure Stop
 
 -- | Like 'enumerateDownFromThenTo' but enumerates in decreasing order.
@@ -744,3 +738,47 @@ enumerateDownFromThenTo ::
     (Applicative m, Num a, Ord a)
     => Producer m (EnumStateUp (Down a)) a
 enumerateDownFromThenTo s = fmap (fmap getDown) (enumerateUpFromThenTo s)
+
+-- This has one less item to thread around in the state compared to fromThenTo
+{-# ANN type EnumToState Fuse #-}
+data EnumToState a =
+      EnumToInit a a
+    | EnumToYield !a a
+    | EnumToStop
+
+{-# INLINE_LATE enumerateFromTo #-}
+enumerateFromTo ::
+    (Applicative m, Num a, Ord a) => Producer m (EnumToState a) a
+enumerateFromTo (EnumToInit from to) =
+    pure $
+        if to < from
+        then Stop
+        else Skip $ EnumToYield from to
+enumerateFromTo (EnumToYield from to) =
+    pure $
+        if to > from
+        then Yield from (EnumToYield (from + 1) to)
+        -- Note: Usually multiple yields are problematic for fusion, but only
+        -- if we are looping further, for a terminal yield it is in fact better
+        -- to yield here rather than skipping to another state. We used to skip
+        -- to another state here and because of that equations/unfoldCross
+        -- benchmark could not fuse, by moving the yield here it fused
+        -- perfectly. It would be nice to investigate the root cause and make a
+        -- guideline from that.
+        else Yield from EnumToStop
+enumerateFromTo EnumToStop = pure Stop
+
+{-# INLINE_LATE enumerateDownFromTo #-}
+enumerateDownFromTo ::
+    (Applicative m, Num a, Ord a) => Producer m (EnumToState a) a
+enumerateDownFromTo (EnumToInit from to) =
+    pure $
+        if to > from
+        then Stop
+        else Skip $ EnumToYield from to
+enumerateDownFromTo (EnumToYield from to) =
+    pure $
+        if to < from
+        then Yield from (EnumToYield (from - 1) to)
+        else Yield from EnumToStop
+enumerateDownFromTo EnumToStop = pure Stop
