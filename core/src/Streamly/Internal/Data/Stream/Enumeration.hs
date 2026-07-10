@@ -123,6 +123,7 @@ import Prelude hiding (takeWhile)
 {-# INLINE_NORMAL enumerateFromStepNum #-}
 enumerateFromStepNum :: (Applicative m, Num a) => a -> a -> Stream m a
 -- NOTE: Moving this to Producer causes regressions in many Stream benchmarks
+-- I guess the problem was tuple not being reduced which is resolved now
 {-
 enumerateFromStepNum !from !stride =
     Stream (const Producer.enumerateFromStep) (from, stride)
@@ -229,7 +230,9 @@ enumerateFromThenToNum from next to = Stream step EnumInit
         pure $
             if x > toMinus
             then Stop
-            else Skip $ EnumYieldUpward (x + stride) stride toMinus
+            else
+                let !nxt = x + stride
+                 in Skip $ EnumYieldUpward nxt stride toMinus
 
     step _ (EnumYieldDownward x stride toMinus) =
         pure $ Yield x (EnumNextDownward x stride toMinus)
@@ -238,7 +241,9 @@ enumerateFromThenToNum from next to = Stream step EnumInit
         pure $
             if x < toMinus
             then Stop
-            else Skip $ EnumYieldDownward (x + stride) stride toMinus
+            else
+                let !nxt = x + stride
+                 in Skip $ EnumYieldDownward nxt stride toMinus
 
     step _ (EnumSingle x) = pure $ Yield x EnumStop
 
@@ -292,7 +297,9 @@ enumerateUpFromThenToNum from next to = Stream step EnumUpInit
         pure $
             if x > toMinus
             then Stop
-            else Skip $ EnumUpYield (x + stride) stride toMinus
+            else
+                let !nxt = x + stride
+                 in Skip $ EnumUpYield nxt stride toMinus
 
     step _ EnumUpStop = pure Stop
 

@@ -606,7 +606,9 @@ enumerateFromStepRealFloat (from, stride, i) =
     -- It may overflow, for example, if we are enumerating Word8, after 255 the
     -- counter will become 0, but the overflow does not affect the enumeration
     -- behavior.
-    pure $ (Yield $! (from + i * stride)) $! (from, stride, i + 1)
+    let !next = from + i * stride
+        !i1 = i + 1
+     in pure $ Yield next (from, stride, i1)
 
 -- | 'Producer' for enumerating integrals starting from @x@, incrementing by
 -- a constant @stride@ every time. The state @(x, stride)@ carries the
@@ -619,7 +621,9 @@ enumerateFromStepRealFloat (from, stride, i) =
 -- This is not overflow safe.
 {-# INLINE_LATE enumerateFromStep #-}
 enumerateFromStep :: (Applicative m, Num a) => Producer m (a, a) a
-enumerateFromStep (x, stride) = pure $ Yield x $! (x + stride, stride)
+enumerateFromStep (x, stride) =
+    let !next = x + stride
+     in pure $ Yield x (next, stride)
 
 -- | State for 'enumerateFromThenToIntegral'. @EnumInit from next to@ is the
 -- starting state carrying the arguments; it transitions to 'EnumYieldUpward'
@@ -675,14 +679,18 @@ enumerateFromThenTo (EnumNextUpward x stride toMinus) =
     pure $
         if x > toMinus
         then Stop
-        else Skip $ EnumYieldUpward (x + stride) stride toMinus
+        else
+            let !next = x + stride
+             in Skip $ EnumYieldUpward next stride toMinus
 enumerateFromThenTo (EnumYieldDownward x stride toMinus) =
     pure $ Yield x (EnumNextDownward x stride toMinus)
 enumerateFromThenTo (EnumNextDownward x stride toMinus) =
     pure $
         if x < toMinus
         then Stop
-        else Skip $ EnumYieldDownward (x + stride) stride toMinus
+        else
+            let !next = x + stride
+             in Skip $ EnumYieldDownward next stride toMinus
 enumerateFromThenTo (EnumSingle x) = pure $ Yield x EnumStop
 enumerateFromThenTo EnumStop = pure Stop
 
@@ -723,7 +731,9 @@ enumerateUpFromThenTo (EnumUpNext x stride toMinus) =
     pure $
         if x > toMinus
         then Stop
-        else Skip $ EnumUpYield (x + stride) stride toMinus
+        else
+            let !next = x + stride
+             in Skip $ EnumUpYield next stride toMinus
 enumerateUpFromThenTo EnumUpStop = pure Stop
 
 -- | Like 'enumerateDownFromThenTo' but enumerates in decreasing order.
