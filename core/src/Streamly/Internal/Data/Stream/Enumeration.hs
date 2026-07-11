@@ -95,7 +95,7 @@ import Data.Int
 import Data.Ord (Down(..))
 import Data.Ratio
 import Data.Word
--- import Fusion.Plugin.Types (Fuse(..))
+import Fusion.Plugin.Types (Fuse(..))
 import Numeric.Natural
 import Streamly.Internal.Data.Stream.Type
 
@@ -164,7 +164,7 @@ enumerateFromNum from = enumerateFromStepNum from 1
 enumerateDownFromNum :: (Applicative m, Num a) => a -> Stream m a
 enumerateDownFromNum from = enumerateFromStepNum from (-1)
 
--- {-# ANN type EnumState Fuse #-}
+{-# ANN type EnumState Fuse #-}
 data EnumState a =
       EnumInit
     | EnumYieldUpward a a a
@@ -241,7 +241,7 @@ enumerateFromThenToNum from next to = Stream step EnumInit
 
     step _ EnumStop = pure Stop
 
--- {-# ANN type EnumStateUp Fuse #-}
+{-# ANN type EnumStateUp Fuse #-}
 data EnumStateUp a =
       EnumUpInit
     | EnumUpYield a a a
@@ -303,7 +303,7 @@ enumerateDownFromThenToNum
 enumerateDownFromThenToNum from next to =
     fmap getDown $ enumerateUpFromThenToNum (Down from) (Down next) (Down to)
 
--- {-# ANN type EnumToState Fuse #-}
+{-# ANN type EnumToState Fuse #-}
 data EnumToState a =
       EnumToInit
     | EnumToYield !a
