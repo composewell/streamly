@@ -137,6 +137,7 @@ module Streamly.Internal.Data.Scanl.Type
     , catEithers
 
     -- ** Trimming
+    , Tuple'Fused(..)
     , take
     , taking
     , takeEndBy_

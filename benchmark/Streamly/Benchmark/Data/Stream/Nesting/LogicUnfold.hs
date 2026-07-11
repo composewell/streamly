@@ -6,11 +6,13 @@
 
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskellQuotes #-}
 
 module Stream.Nesting.LogicUnfold (benchmarks) where
 
+import Streamly.Internal.Data.Producer (InterleaveState(..))
 import Streamly.Data.Stream (Stream)
 import Streamly.Data.Unfold (Unfold)
 
@@ -22,7 +24,7 @@ import Stream.Type (benchIO, withRandomIntIO)
 import Streamly.Benchmark.Common
 import qualified Stream.Type as Type
 import Prelude hiding (concatMap, zipWith)
--- import Fusion.Plugin.Types
+import Fusion.Plugin.Types
 
 -------------------------------------------------------------------------------
 -- Monad
@@ -73,10 +75,10 @@ fairUnfoldSchedEqn maxVal input ints =
         $ Stream.mapM (Type.checkPair maxVal)
         $ Stream.fairUnfoldSched intu ints
 
--- {-# ANN unfoldCrossBounded (PermitTypes []) #-}
--- {-# ANN unfoldCrossBounded (PermitTypeClasses []) #-}
--- {-# ANN unfoldCrossBounded (MaxCoreSize 1000) #-}
--- {-# ANN unfoldCrossBounded DumpCore #-}
+-- GHC 9.14.1 cannot fuse InterleaveState, though 9.10 can
+{-# ANN unfoldCrossBounded (PermitTypes [''Int,''Maybe,''InterleaveState]) #-}
+{-# ANN unfoldCrossBounded (PermitTypeClasses []) #-}
+{-# ANN unfoldCrossBounded (MaxCoreSize 20000) #-}
 {-# NOINLINE unfoldCrossBounded #-}
 unfoldCrossBounded :: Int -> IO ()
 unfoldCrossBounded maxVal = unfoldCrossEqn maxVal (Type.boundedIntsUnfold maxVal 0)
