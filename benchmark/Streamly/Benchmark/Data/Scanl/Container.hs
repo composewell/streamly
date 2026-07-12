@@ -111,14 +111,31 @@ countDistinct n = withPostscanl n Scanl.countDistinct
 countDistinctInt :: Int -> IO ()
 countDistinctInt n = withPostscanl n Scanl.countDistinctInt
 
-{-# ANN nub (PermitTypes [''Int,''STRef,''Set,''Maybe,''Tuple',''(,)]) #-}
+{-# ANN nub (PermitTypes
+   [ ''Int
+   , ''STRef
+   , ''Set
+   , ''Maybe
+   , ''Tuple'
+   , ''(,)
+   -- For GHC-9.14
+   , ''Scanl.Step
+   ]) #-}
 {-# ANN nub (PermitTypeClasses []) #-}
 {-# ANN nub (MaxCoreSize 1000) #-}
 {-# NOINLINE nub #-}
 nub :: Int -> IO ()
 nub n = withPostscanl n Scanl.nub
 
-{-# ANN nubInt (PermitTypes [''Int,''STRef,''IntSet,''(,)]) #-}
+{-# ANN nubInt (PermitTypes
+   [ ''Int
+   , ''STRef
+   , ''IntSet
+   , ''(,)
+   -- For GHC-9.14
+   , ''Tuple'
+   , ''Scanl.Step
+   ]) #-}
 {-# ANN nubInt (PermitTypeClasses []) #-}
 {-# ANN nubInt (MaxCoreSize 1000) #-}
 {-# NOINLINE nubInt #-}
@@ -129,8 +146,19 @@ nubInt n = withPostscanl n Scanl.nubInt
 -- Demultiplexing
 -------------------------------------------------------------------------------
 
-{-# ANN demuxIOOneShot (PermitTypes [''Int,''STRef,''IORef,''Map,''Scanl,
-   ''FL.Step, ''Scanl.Step,''(,)]) #-}
+{-# ANN demuxIOOneShot (PermitTypes
+   [ ''Int
+   , ''STRef
+   , ''IORef
+   , ''Map
+   , ''Scanl
+   , ''FL.Step
+   , ''Scanl.Step
+   , ''(,)
+   -- For GHC-9.14
+   , ''Tuple'
+   , ''Maybe
+   ]) #-}
 {-# ANN demuxIOOneShot (PermitTypeClasses []) #-}
 {-# ANN demuxIOOneShot (MaxCoreSize 2000) #-}
 {-# NOINLINE demuxIOOneShot #-}
@@ -141,7 +169,18 @@ demuxIOOneShot len =
         . Stream.postscanl (Scanl.demuxIO (getKey 64) getScanl)
 
 {-# ANN demuxIOSum (PermitTypes
-   [''Int,''STRef,''IORef,''Map,''Scanl,''FL.Step,''Scanl.Step,''(,)]) #-}
+   [ ''Int
+   , ''STRef
+   , ''IORef
+   , ''Map
+   , ''Scanl
+   , ''FL.Step
+   , ''Scanl.Step
+   , ''(,)
+   -- For GHC-9.14
+   , ''Tuple'
+   , ''Maybe
+   ]) #-}
 {-# ANN demuxIOSum (PermitTypeClasses []) #-}
 {-# ANN demuxIOSum (MaxCoreSize 2000) #-}
 {-# NOINLINE demuxIOSum #-}
@@ -152,7 +191,19 @@ demuxIOSum len =
         . Stream.postscanl
             (Scanl.demuxIO (getKey 64) (const (pure (Just Scanl.sum))))
 
-{-# ANN demuxSum (PermitTypes [''Int,''STRef,''IO,''Map,''Scanl,''FL.Step,''Scanl.Step,''(,)]) #-}
+{-# ANN demuxSum (PermitTypes
+   [ ''Int
+   , ''STRef
+   , ''IO
+   , ''Map
+   , ''Scanl
+   , ''FL.Step
+   , ''Scanl.Step
+   , ''(,)
+   -- For GHC-9.14
+   , ''Tuple'
+   , ''Maybe
+   ]) #-}
 {-# ANN demuxSum (PermitTypeClasses []) #-}
 {-# ANN demuxSum (MaxCoreSize 2000) #-}
 {-# NOINLINE demuxSum #-}
@@ -194,7 +245,19 @@ demuxGenericIOSum len =
 -------------------------------------------------------------------------------
 
 {-# ANN classifyLimitedSum (PermitTypes
-   [''Int,''STRef,''IORef,''Map,''Set,''Tuple',''Tuple'Fused,''(,)]) #-}
+   [ ''Int
+   , ''STRef
+   , ''IORef
+   , ''Map
+   , ''Set
+   , ''Tuple'
+   , ''Tuple'Fused
+   , ''(,)
+   -- For GHC-9.14
+   , ''Tuple3'
+   , ''Scanl.Step
+   , ''Maybe
+   ]) #-}
 {-# ANN classifyLimitedSum (PermitTypeClasses []) #-}
 {-# ANN classifyLimitedSum (MaxCoreSize 2000) #-}
 {-# NOINLINE classifyLimitedSum #-}
@@ -204,7 +267,19 @@ classifyLimitedSum len =
         Stream.fold FL.drain
         . Stream.postscanl (Scanl.classifyIO (getKey 64) (limitedSum 100))
 
-{-# ANN classifyIOSum (PermitTypes [''Int,''STRef,''IORef,''Map,''Tuple',''(,)]) #-}
+{-# ANN classifyIOSum (PermitTypes
+   [ ''Int
+   , ''STRef
+   , ''IORef
+   , ''Map
+   , ''Tuple'
+   , ''(,)
+   -- For GHC-9.14
+   , ''Set
+   , ''Tuple3'
+   , ''Scanl.Step
+   , ''Maybe
+   ]) #-}
 {-# ANN classifyIOSum (PermitTypeClasses []) #-}
 {-# ANN classifyIOSum (MaxCoreSize 1000) #-}
 {-# NOINLINE classifyIOSum #-}
@@ -214,7 +289,18 @@ classifyIOSum len =
         Stream.fold FL.drain
         . Stream.postscanl (Scanl.classifyIO (getKey 64) Scanl.sum)
 
-{-# ANN classifySum (PermitTypes [''Int,''STRef,''Map,''Tuple',''(,)]) #-}
+{-# ANN classifySum (PermitTypes
+   [ ''Int
+   , ''STRef
+   , ''Map
+   , ''Tuple'
+   , ''(,)
+   -- For GHC-9.14
+   , ''Set
+   , ''Tuple3'
+   , ''Scanl.Step
+   , ''Maybe
+   ]) #-}
 {-# ANN classifySum (PermitTypeClasses []) #-}
 {-# ANN classifySum (MaxCoreSize 1000) #-}
 {-# NOINLINE classifySum #-}
