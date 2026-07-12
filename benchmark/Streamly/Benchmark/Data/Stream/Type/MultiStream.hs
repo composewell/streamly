@@ -26,12 +26,12 @@ module Stream.Type.MultiStream
     ) where
 
 #ifdef INSPECTION
-import GHC.Types (SPEC(..))
 import Test.Inspection
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Producer as Producer
 #endif
 
+import GHC.Types (SPEC(..))
 import Data.Monoid (Sum(..))
 import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Data.Unfold (Unfold)
@@ -45,8 +45,10 @@ import qualified Streamly.Internal.Data.Unfold as UF
 import Test.Tasty.Bench
 import qualified Stream.Common as Common
 import Stream.Common hiding (benchIO)
-import Stream.Type.Basic (benchIO, withRandomIntIO, withStream)
+import Stream.Type.Basic (benchIO, withStream)
 import Streamly.Benchmark.Common
+import Fusion.Plugin.Types
+import qualified Streamly.Internal.Data.SVar.Type as SVar
 import Prelude hiding (concatMap, zipWith)
 
 -------------------------------------------------------------------------------
@@ -57,9 +59,12 @@ import Prelude hiding (concatMap, zipWith)
 -- Appending
 -------------------------------------------------------------------------------
 
+{-# ANN serial2 (PermitPatternMatches [''Int]) #-}
+{-# ANN serial2 (PermitConstructions [''()]) #-}
+{-# ANN serial2 (PermitTypeClasses []) #-}
 {-# NOINLINE serial2 #-}
-serial2 :: Int -> IO ()
-serial2 count = withRandomIntIO $ \n ->
+serial2 :: Int -> Int -> IO ()
+serial2 count n =
     drain $
         Common.append
             (sourceUnfoldrM count n)
@@ -73,9 +78,12 @@ inspect $ 'serial2 `hasNoType` ''S.Step
 inspect $ 'serial2 `hasNoType` ''Fold.Step
 #endif
 
+{-# ANN serial4 (PermitPatternMatches [''Int]) #-}
+{-# ANN serial4 (PermitConstructions [''()]) #-}
+{-# ANN serial4 (PermitTypeClasses []) #-}
 {-# NOINLINE serial4 #-}
-serial4 :: Int -> IO ()
-serial4 count = withRandomIntIO $ \n ->
+serial4 :: Int -> Int -> IO ()
+serial4 count n =
     drain $
     Common.append
         (Common.append
@@ -97,8 +105,8 @@ inspect $ 'serial4 `hasNoType` ''Fold.Step
 -- Branching
 -------------------------------------------------------------------------------
 
-ifThenElse2 :: Int -> IO ()
-ifThenElse2 count = withRandomIntIO $ \n ->
+ifThenElse2 :: Int -> Int -> IO ()
+ifThenElse2 count n =
     drain $
         S.ifThenElse
             (return True)
@@ -117,9 +125,12 @@ inspect $ 'ifThenElse2 `hasNoType` ''Fold.Step
 -- Zipping
 -------------------------------------------------------------------------------
 
+{-# ANN zipWith (PermitPatternMatches [''Int]) #-}
+{-# ANN zipWith (PermitConstructions [''()]) #-}
+{-# ANN zipWith (PermitTypeClasses []) #-}
 {-# NOINLINE zipWith #-}
-zipWith :: Int -> IO ()
-zipWith value = withRandomIntIO $ \n ->
+zipWith :: Int -> Int -> IO ()
+zipWith value n =
     let src = sourceUnfoldrM value n
     in drain $ S.zipWith (,) src src
 
@@ -129,9 +140,12 @@ inspect $ 'zipWith `hasNoType` ''SPEC
 inspect $ 'zipWith `hasNoType` ''Fold.Step
 #endif
 
+{-# ANN zipWithM (PermitPatternMatches [''Int]) #-}
+{-# ANN zipWithM (PermitConstructions [''()]) #-}
+{-# ANN zipWithM (PermitTypeClasses []) #-}
 {-# NOINLINE zipWithM #-}
-zipWithM :: Int -> IO ()
-zipWithM value = withRandomIntIO $ \n ->
+zipWithM :: Int -> Int -> IO ()
+zipWithM value n =
     let src = sourceUnfoldrM value n
     in drain $ S.zipWithM (curry return) src src
 
@@ -155,9 +169,12 @@ sourceConcatMapStreams :: Monad m => Int -> Int -> Int -> Stream m (Stream m Int
 sourceConcatMapStreams outer inner start =
     fmap (sourceUnfoldr inner) $ sourceUnfoldr outer start
 
+{-# ANN concatMap (PermitPatternMatches [''Int,''Stream.Step]) #-}
+{-# ANN concatMap (PermitConstructions [''Int,''SVar.State,''Maybe,''Stream.Step,''(),''Bool]) #-}
+{-# ANN concatMap (PermitTypeClasses []) #-}
 {-# NOINLINE concatMap #-}
-concatMap :: Int -> Int -> IO ()
-concatMap outer inner = withRandomIntIO $ \n ->
+concatMap :: Int -> Int -> Int -> IO ()
+concatMap outer inner n =
     drain $ S.concatMap
         (sourceUnfoldrM inner)
         (sourceUnfoldrM outer n)
@@ -169,16 +186,22 @@ inspect $ 'concatMap `hasNoType` ''SPEC
 inspect $ 'concatMap `hasNoType` ''Fold.Step
 #endif
 
+{-# ANN concatMapM2 (PermitPatternMatches [''Either,''(,),''Bool,''Int,''Stream.Step,''Stream]) #-}
+{-# ANN concatMapM2 (PermitConstructions [''Int,''Stream.Step,''Either,''SVar.State,''Maybe,''(,),''Stream,''Bool]) #-}
+{-# ANN concatMapM2 (PermitTypeClasses []) #-}
 {-# NOINLINE concatMapM2 #-}
-concatMapM2 :: Int -> IO ()
+concatMapM2 :: Int -> Int -> IO ()
 concatMapM2 value = withStream value $ \s ->
     drain $ do
         Stream.concatMapM (\x ->
             pure $ Stream.concatMapM (\y ->
                 pure $ Stream.fromPure $ x + y) s) s
 
+{-# ANN concatMapM3 (PermitPatternMatches [''Either,''(,),''Bool,''Int,''Stream.Step,''Stream]) #-}
+{-# ANN concatMapM3 (PermitConstructions [''Int,''Stream.Step,''Either,''Stream,''SVar.State,''Maybe,''(,),''Bool]) #-}
+{-# ANN concatMapM3 (PermitTypeClasses []) #-}
 {-# NOINLINE concatMapM3 #-}
-concatMapM3 :: Int -> IO ()
+concatMapM3 :: Int -> Int -> IO ()
 concatMapM3 value = withStream value $ \s ->
     drain $ do
         Stream.concatMapM (\x ->
@@ -186,9 +209,12 @@ concatMapM3 value = withStream value $ \s ->
                 pure $ Stream.concatMapM (\z ->
                     pure $ Stream.fromPure $ x + y + z) s) s) s
 
+{-# ANN concatMapViaUnfoldEach (PermitPatternMatches [''Int,''Stream.Step]) #-}
+{-# ANN concatMapViaUnfoldEach (PermitConstructions [''Int,''Stream.Step]) #-}
+{-# ANN concatMapViaUnfoldEach (PermitTypeClasses []) #-}
 {-# NOINLINE concatMapViaUnfoldEach #-}
-concatMapViaUnfoldEach :: Int -> Int -> IO ()
-concatMapViaUnfoldEach outer inner = withRandomIntIO $ \n ->
+concatMapViaUnfoldEach :: Int -> Int -> Int -> IO ()
+concatMapViaUnfoldEach outer inner n =
     drain $ cmap
         (sourceUnfoldrM inner)
         (sourceUnfoldrM outer n)
@@ -197,15 +223,18 @@ concatMapViaUnfoldEach outer inner = withRandomIntIO $ \n ->
 
     cmap f = Stream.unfoldEach (UF.lmap f UF.fromStream)
 
+{-# ANN concatMapM (PermitPatternMatches [''Int,''Stream.Step]) #-}
+{-# ANN concatMapM (PermitConstructions [''Int,''SVar.State,''Maybe,''Stream.Step,''Bool]) #-}
+{-# ANN concatMapM (PermitTypeClasses []) #-}
 {-# NOINLINE concatMapM #-}
-concatMapM :: Int -> Int -> IO ()
-concatMapM outer inner = withRandomIntIO $ \n ->
+concatMapM :: Int -> Int -> Int -> IO ()
+concatMapM outer inner n =
     drain $ S.concatMapM
         (return . sourceUnfoldrM inner)
         (sourceUnfoldrM outer n)
 
-concatEffect :: Int -> IO ()
-concatEffect count = withRandomIntIO $ \n ->
+concatEffect :: Int -> Int -> IO ()
+concatEffect count n =
     drain $ S.concatEffect $ return $ sourceUnfoldrM count n
 
 #ifdef INSPECTION
@@ -217,21 +246,30 @@ inspect $ 'concatEffect `hasNoType` ''Fold.Step
 
 -- concatMap Streams
 
+{-# ANN concatMapSingletonStreams (PermitPatternMatches [''Bool,''Int,''Stream.Step]) #-}
+{-# ANN concatMapSingletonStreams (PermitConstructions [''Int,''Stream.Step,''SVar.State,''Maybe,''Bool]) #-}
+{-# ANN concatMapSingletonStreams (PermitTypeClasses []) #-}
 {-# NOINLINE concatMapSingletonStreams #-}
-concatMapSingletonStreams :: Int -> IO ()
+concatMapSingletonStreams :: Int -> Int -> IO ()
 concatMapSingletonStreams value =
-    withRandomIntIO (drain . S.concatMap id . sourceConcatMapSingletonStreams value)
+    (drain . S.concatMap id . sourceConcatMapSingletonStreams value)
 
+{-# ANN concatMapStreams (PermitPatternMatches [''Int,''Stream.Step]) #-}
+{-# ANN concatMapStreams (PermitConstructions [''Int,''SVar.State,''Maybe,''Stream.Step,''Bool]) #-}
+{-# ANN concatMapStreams (PermitTypeClasses []) #-}
 {-# NOINLINE concatMapStreams #-}
-concatMapStreams :: Int -> Int -> IO ()
+concatMapStreams :: Int -> Int -> Int -> IO ()
 concatMapStreams outer inner =
-    withRandomIntIO (S.drain . S.concatMap id . sourceConcatMapStreams outer inner)
+    (S.drain . S.concatMap id . sourceConcatMapStreams outer inner)
 
 -- concatMap unfoldr/unfoldr
 
+{-# ANN concatMapPure (PermitPatternMatches [''Int,''Stream.Step]) #-}
+{-# ANN concatMapPure (PermitConstructions [''Int,''SVar.State,''Maybe,''Stream.Step,''(),''Bool]) #-}
+{-# ANN concatMapPure (PermitTypeClasses []) #-}
 {-# NOINLINE concatMapPure #-}
-concatMapPure :: Int -> Int -> IO ()
-concatMapPure outer inner = withRandomIntIO $ \n ->
+concatMapPure :: Int -> Int -> Int -> IO ()
+concatMapPure outer inner n =
     drain $ S.concatMap
         (sourceUnfoldr inner)
         (sourceUnfoldr outer n)
@@ -259,9 +297,12 @@ sourceUnfoldrMUnfold size start = UF.unfoldrM step
               then Just (i, i + 1)
               else Nothing
 
+{-# ANN unfoldEach (PermitPatternMatches [''Int]) #-}
+{-# ANN unfoldEach (PermitConstructions [''Int,''()]) #-}
+{-# ANN unfoldEach (PermitTypeClasses []) #-}
 {-# NOINLINE unfoldEach #-}
-unfoldEach :: Int -> Int -> IO ()
-unfoldEach outer inner = withRandomIntIO $ \start -> drain $
+unfoldEach :: Int -> Int -> Int -> IO ()
+unfoldEach outer inner start = drain $
      S.unfoldEach (sourceUnfoldrMUnfold inner start)
         $ sourceUnfoldrM outer start
 
@@ -273,9 +314,12 @@ inspect $ 'unfoldEach `hasNoType` ''S.Step
 inspect $ 'unfoldEach `hasNoType` ''Fold.Step
 #endif
 
+{-# ANN unfoldEach2 (PermitPatternMatches [''Int]) #-}
+{-# ANN unfoldEach2 (PermitConstructions [''Int,''()]) #-}
+{-# ANN unfoldEach2 (PermitTypeClasses []) #-}
 {-# NOINLINE unfoldEach2 #-}
-unfoldEach2 :: Int -> Int -> IO ()
-unfoldEach2 outer inner = withRandomIntIO $ \start -> drain $
+unfoldEach2 :: Int -> Int -> Int -> IO ()
+unfoldEach2 outer inner start = drain $
      S.unfoldEach (UF.carryInput (sourceUnfoldrMUnfold inner start))
         $ sourceUnfoldrM outer start
 
@@ -287,9 +331,12 @@ inspect $ 'unfoldEach2 `hasNoType` ''Fold.Step
 inspect $ 'unfoldEach2 `hasNoType` ''SPEC
 #endif
 
+{-# ANN unfoldEach3 (PermitPatternMatches [''Int]) #-}
+{-# ANN unfoldEach3 (PermitConstructions [''Int,''()]) #-}
+{-# ANN unfoldEach3 (PermitTypeClasses []) #-}
 {-# NOINLINE unfoldEach3 #-}
-unfoldEach3 :: Int -> IO ()
-unfoldEach3 linearCount = withRandomIntIO $ \start -> drain $ do
+unfoldEach3 :: Int -> Int -> IO ()
+unfoldEach3 linearCount start = drain $ do
     S.unfoldEach (UF.carryInput (UF.lmap snd (sourceUnfoldrMUnfold nestedCount3 start)))
          $ S.unfoldEach (UF.carryInput (sourceUnfoldrMUnfold nestedCount3 start))
             $ sourceUnfoldrM nestedCount3 start
@@ -305,9 +352,12 @@ inspect $ 'unfoldEach3 `hasNoType` ''Fold.Step
 inspect $ 'unfoldEach3 `hasNoType` ''SPEC
 #endif
 
+{-# ANN unfoldCross (PermitPatternMatches [''Int]) #-}
+{-# ANN unfoldCross (PermitConstructions [''()]) #-}
+{-# ANN unfoldCross (PermitTypeClasses []) #-}
 {-# NOINLINE unfoldCross #-}
-unfoldCross :: Int -> Int -> IO ()
-unfoldCross outer inner = withRandomIntIO $ \start -> drain $
+unfoldCross :: Int -> Int -> Int -> IO ()
+unfoldCross outer inner start = drain $
     Stream.unfoldCross
         UF.identity
         (sourceUnfoldrM outer start)
@@ -326,8 +376,11 @@ inspect $ 'unfoldCross `hasNoType` ''SPEC
 -- Fold Many
 -------------------------------------------------------------------------------
 
+{-# ANN foldMany (PermitPatternMatches [''Int]) #-}
+{-# ANN foldMany (PermitConstructions [''()]) #-}
+{-# ANN foldMany (PermitTypeClasses []) #-}
 {-# NOINLINE foldMany #-}
-foldMany :: Int -> IO ()
+foldMany :: Int -> Int -> IO ()
 foldMany value =
     withStream value $
           Common.drain
@@ -343,8 +396,11 @@ inspect $ 'foldMany `hasNoType` ''FL.Step
 inspect $ 'foldMany `hasNoType` ''SPEC
 #endif
 
+{-# ANN foldMany1 (PermitPatternMatches [''Int]) #-}
+{-# ANN foldMany1 (PermitConstructions [''()]) #-}
+{-# ANN foldMany1 (PermitTypeClasses []) #-}
 {-# NOINLINE foldMany1 #-}
-foldMany1 :: Int -> IO ()
+foldMany1 :: Int -> Int -> IO ()
 foldMany1 value =
     withStream value $
           Common.drain
@@ -360,8 +416,11 @@ inspect $ 'foldMany1 `hasNoType` ''FL.Step
 inspect $ 'foldMany1 `hasNoType` ''SPEC
 #endif
 
+{-# ANN refoldMany (PermitPatternMatches [''Int]) #-}
+{-# ANN refoldMany (PermitConstructions [''()]) #-}
+{-# ANN refoldMany (PermitTypeClasses []) #-}
 {-# NOINLINE refoldMany #-}
-refoldMany :: Int -> IO ()
+refoldMany :: Int -> Int -> IO ()
 refoldMany value =
     withStream value $
           Common.drain
@@ -377,9 +436,11 @@ inspect $ 'refoldMany `hasNoType` ''FL.Step
 inspect $ 'refoldMany `hasNoType` ''SPEC
 #endif
 
--- {-# INLINE refoldIterateM #-}
+{-# ANN refoldIterateM (PermitPatternMatches [''Int]) #-}
+{-# ANN refoldIterateM (PermitConstructions [''()]) #-}
+{-# ANN refoldIterateM (PermitTypeClasses []) #-}
 {-# NOINLINE refoldIterateM #-}
-refoldIterateM :: Int -> IO ()
+refoldIterateM :: Int -> Int -> IO ()
 refoldIterateM value =
     withStream value $
         Common.drain

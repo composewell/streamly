@@ -21,8 +21,10 @@ import qualified Streamly.Internal.Data.Stream as Stream
 
 import Test.Tasty.Bench
 import Stream.Common hiding (benchIO)
-import Stream.Type.Basic (benchIO, withRandomIntIO, withStream)
+import Stream.Type.Basic (benchIO, withStream)
 import Streamly.Benchmark.Common
+import Fusion.Plugin.Types
+import qualified Streamly.Internal.Data.SVar.Type as SVar
 import Prelude hiding (concatMap, mapM, zipWith)
 
 mkCross :: Stream m a -> Stream.Nested m a
@@ -96,9 +98,12 @@ filterAllInMPure linearCount start = drain $ unCross $ do
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
+{-# ANN cross2 (PermitPatternMatches [''Int]) #-}
+{-# ANN cross2 (PermitConstructions []) #-}
+{-# ANN cross2 (PermitTypeClasses []) #-}
 {-# NOINLINE cross2 #-}
-cross2 :: Int -> IO ()
-cross2 linearCount = withRandomIntIO $ \start -> drain $
+cross2 :: Int -> Int -> IO ()
+cross2 linearCount start = drain $
     Stream.crossWith (+)
         (sourceUnfoldr nestedCount2 start)
         (sourceUnfoldr nestedCount2 start)
@@ -107,9 +112,12 @@ cross2 linearCount = withRandomIntIO $ \start -> drain $
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
+{-# ANN crossApply (PermitPatternMatches [''Int]) #-}
+{-# ANN crossApply (PermitConstructions [''Int]) #-}
+{-# ANN crossApply (PermitTypeClasses []) #-}
 {-# NOINLINE crossApply #-}
-crossApply :: Int -> IO ()
-crossApply linearCount = withRandomIntIO $ \start -> drain $
+crossApply :: Int -> Int -> IO ()
+crossApply linearCount start = drain $
     Stream.crossApply
         ((+) <$> sourceUnfoldrM nestedCount2 start)
         (sourceUnfoldrM nestedCount2 start)
@@ -118,9 +126,12 @@ crossApply linearCount = withRandomIntIO $ \start -> drain $
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
+{-# ANN crossApplyFst (PermitPatternMatches [''Int]) #-}
+{-# ANN crossApplyFst (PermitConstructions []) #-}
+{-# ANN crossApplyFst (PermitTypeClasses []) #-}
 {-# NOINLINE crossApplyFst #-}
-crossApplyFst :: Int -> IO ()
-crossApplyFst linearCount = withRandomIntIO $ \start -> drain $
+crossApplyFst :: Int -> Int -> IO ()
+crossApplyFst linearCount start = drain $
     Stream.crossApplyFst
         (sourceUnfoldrM nestedCount2 start)
         (sourceUnfoldrM nestedCount2 start)
@@ -129,9 +140,12 @@ crossApplyFst linearCount = withRandomIntIO $ \start -> drain $
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
+{-# ANN crossApplySnd (PermitPatternMatches [''Int]) #-}
+{-# ANN crossApplySnd (PermitConstructions []) #-}
+{-# ANN crossApplySnd (PermitTypeClasses []) #-}
 {-# NOINLINE crossApplySnd #-}
-crossApplySnd :: Int -> IO ()
-crossApplySnd linearCount = withRandomIntIO $ \start -> drain $
+crossApplySnd :: Int -> Int -> IO ()
+crossApplySnd linearCount start = drain $
     Stream.crossApplySnd
         (sourceUnfoldrM nestedCount2 start)
         (sourceUnfoldrM nestedCount2 start)
@@ -144,30 +158,42 @@ crossApplySnd linearCount = withRandomIntIO $ \start -> drain $
 -- Monad
 -------------------------------------------------------------------------------
 
+{-# ANN drainConcatFor1 (PermitPatternMatches [''Bool,''Int,''Stream.Step]) #-}
+{-# ANN drainConcatFor1 (PermitConstructions [''Int,''Stream.Step,''SVar.State,''Maybe,''Bool]) #-}
+{-# ANN drainConcatFor1 (PermitTypeClasses []) #-}
 {-# NOINLINE drainConcatFor1 #-}
-drainConcatFor1 :: Int -> IO ()
+drainConcatFor1 :: Int -> Int -> IO ()
 drainConcatFor1 count = withStream count $ \s ->
     drain $ Stream.concatFor s $ \x ->
         Stream.fromPure $ x + 1
 
+{-# ANN drainConcatFor (PermitPatternMatches [''Either,''(,),''Bool,''Int,''Stream.Step,''Stream]) #-}
+{-# ANN drainConcatFor (PermitConstructions [''Int,''Stream.Step,''Either,''SVar.State,''Maybe,''(,),''Stream,''Bool]) #-}
+{-# ANN drainConcatFor (PermitTypeClasses []) #-}
 {-# NOINLINE drainConcatFor #-}
-drainConcatFor :: Int -> IO ()
+drainConcatFor :: Int -> Int -> IO ()
 drainConcatFor count = withStream count $ \s ->
     drain $ do
         Stream.concatFor s $ \x ->
             Stream.concatFor s $ \y ->
                 Stream.fromPure $ x + y
 
+{-# ANN drainConcatForM (PermitPatternMatches [''Either,''(,),''Bool,''Int,''Stream.Step,''Stream]) #-}
+{-# ANN drainConcatForM (PermitConstructions [''Int,''Stream.Step,''Either,''SVar.State,''Maybe,''(,),''Stream,''Bool]) #-}
+{-# ANN drainConcatForM (PermitTypeClasses []) #-}
 {-# NOINLINE drainConcatForM #-}
-drainConcatForM :: Int -> IO ()
+drainConcatForM :: Int -> Int -> IO ()
 drainConcatForM count = withStream count $ \s ->
     drain $ do
         Stream.concatForM s $ \x ->
             pure $ Stream.concatForM s $ \y ->
                 pure $ Stream.fromPure $ x + y
 
+{-# ANN drainConcatFor3 (PermitPatternMatches [''Either,''(,),''Bool,''Int,''Stream.Step,''Stream]) #-}
+{-# ANN drainConcatFor3 (PermitConstructions [''Int,''Stream.Step,''Either,''Stream,''SVar.State,''Maybe,''(,),''Bool]) #-}
+{-# ANN drainConcatFor3 (PermitTypeClasses []) #-}
 {-# NOINLINE drainConcatFor3 #-}
-drainConcatFor3 :: Int -> IO ()
+drainConcatFor3 :: Int -> Int -> IO ()
 drainConcatFor3 count = withStream count $ \s ->
     drain $ do
         Stream.concatFor s $ \x ->
@@ -175,8 +201,11 @@ drainConcatFor3 count = withStream count $ \s ->
                 Stream.concatFor s $ \z ->
                     Stream.fromPure $ x + y + z
 
+{-# ANN drainConcatFor4 (PermitPatternMatches [''Either,''(,),''Bool,''Int,''Stream.Step,''Stream]) #-}
+{-# ANN drainConcatFor4 (PermitConstructions [''Int,''Stream.Step,''Either,''Stream,''SVar.State,''Maybe,''(,),''Bool]) #-}
+{-# ANN drainConcatFor4 (PermitTypeClasses []) #-}
 {-# NOINLINE drainConcatFor4 #-}
-drainConcatFor4 :: Int -> IO ()
+drainConcatFor4 :: Int -> Int -> IO ()
 drainConcatFor4 count = withStream count $ \s ->
     drain $ do
         Stream.concatFor s $ \x ->
@@ -185,8 +214,11 @@ drainConcatFor4 count = withStream count $ \s ->
                     Stream.concatFor s $ \w ->
                         Stream.fromPure $ x + y + z + w
 
+{-# ANN drainConcatFor5 (PermitPatternMatches [''Either,''(,),''Bool,''Int,''Stream.Step,''Stream]) #-}
+{-# ANN drainConcatFor5 (PermitConstructions [''Int,''Stream.Step,''Either,''Stream,''SVar.State,''Maybe,''(,),''Bool]) #-}
+{-# ANN drainConcatFor5 (PermitTypeClasses []) #-}
 {-# NOINLINE drainConcatFor5 #-}
-drainConcatFor5 :: Int -> IO ()
+drainConcatFor5 :: Int -> Int -> IO ()
 drainConcatFor5 count = withStream count $ \s ->
     drain $ do
         Stream.concatFor s $ \x ->
@@ -196,8 +228,11 @@ drainConcatFor5 count = withStream count $ \s ->
                         Stream.concatFor s $ \u ->
                             Stream.fromPure $ x + y + z + w + u
 
+{-# ANN drainConcatFor3M (PermitPatternMatches [''Either,''(,),''Bool,''Int,''Stream.Step,''Stream]) #-}
+{-# ANN drainConcatFor3M (PermitConstructions [''Int,''Stream.Step,''Either,''Stream,''SVar.State,''Maybe,''(,),''Bool]) #-}
+{-# ANN drainConcatFor3M (PermitTypeClasses []) #-}
 {-# NOINLINE drainConcatFor3M #-}
-drainConcatFor3M :: Int -> IO ()
+drainConcatFor3M :: Int -> Int -> IO ()
 drainConcatFor3M count = withStream count $ \s ->
     drain $ do
         Stream.concatForM s $ \x ->
@@ -205,8 +240,11 @@ drainConcatFor3M count = withStream count $ \s ->
                 pure $ Stream.concatForM s $ \z ->
                     pure $ Stream.fromPure $ x + y + z
 
+{-# ANN filterAllInConcatFor (PermitPatternMatches [''Either,''(,),''Bool,''Int,''Stream.Step,''Stream]) #-}
+{-# ANN filterAllInConcatFor (PermitConstructions [''Stream,''Int,''Stream.Step,''Either,''SVar.State,''Maybe,''(,),''(),''Bool]) #-}
+{-# ANN filterAllInConcatFor (PermitTypeClasses []) #-}
 {-# NOINLINE filterAllInConcatFor #-}
-filterAllInConcatFor :: Int -> IO ()
+filterAllInConcatFor :: Int -> Int -> IO ()
 filterAllInConcatFor count = withStream count $ \s ->
     drain $ do
         Stream.concatFor s $ \x ->
@@ -216,8 +254,11 @@ filterAllInConcatFor count = withStream count $ \s ->
                     then Stream.fromPure s1
                     else Stream.nil
 
+{-# ANN filterAllOutConcatFor (PermitPatternMatches [''Either,''(,),''Bool,''Int,''Stream.Step,''Stream]) #-}
+{-# ANN filterAllOutConcatFor (PermitConstructions [''Stream,''Int,''Stream.Step,''Either,''SVar.State,''Maybe,''(,),''(),''Bool]) #-}
+{-# ANN filterAllOutConcatFor (PermitTypeClasses []) #-}
 {-# NOINLINE filterAllOutConcatFor #-}
-filterAllOutConcatFor :: Int -> IO ()
+filterAllOutConcatFor :: Int -> Int -> IO ()
 filterAllOutConcatFor count = withStream count $ \s ->
     drain $ do
         Stream.concatFor s $ \x ->
@@ -235,30 +276,30 @@ filterAllOutConcatFor count = withStream count $ \s ->
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
     -- Applicative
-    [ (SpaceO_1, benchIO "(*>)" $ withRandomIntIO (apDiscardFst size))
-    , (SpaceO_1, benchIO "(<*)" $ withRandomIntIO (apDiscardSnd size))
-    , (SpaceO_1, benchIO "(<*>)" $ withRandomIntIO (toNullAp size))
-    , (SpaceO_1, benchIO "liftA2" $ withRandomIntIO (apLiftA2 size))
+    [ (SpaceO_1, benchIO "(*>)" (apDiscardFst size))
+    , (SpaceO_1, benchIO "(<*)" (apDiscardSnd size))
+    , (SpaceO_1, benchIO "(<*>)" (toNullAp size))
+    , (SpaceO_1, benchIO "liftA2" (apLiftA2 size))
     , (SpaceO_1, benchIO "crossApply" $ crossApply size)
     , (SpaceO_1, benchIO "crossApplyFst" $ crossApplyFst size)
     , (SpaceO_1, benchIO "crossApplySnd" $ crossApplySnd size)
-    , (SpaceO_1, benchIO "pureDrain2" $ withRandomIntIO (toNullApPure size))
+    , (SpaceO_1, benchIO "pureDrain2" (toNullApPure size))
     , (SpaceO_1, benchIO "pureCross2" $ cross2 size)
 
     -- Monad
-    , (SpaceO_1, benchIO "then2M" $ withRandomIntIO (monadThen size))
-    , (SpaceO_1, benchIO "drain2M" $ withRandomIntIO (toNullM size))
-    , (SpaceO_1, benchIO "drain3M" $ withRandomIntIO (toNullM3 size))
-    , (SpaceO_1, benchIO "filterAllOut2M" $ withRandomIntIO (filterAllOutM size))
-    , (SpaceO_1, benchIO "filterAllIn2M" $ withRandomIntIO (filterAllInM size))
-    , (SpaceO_1, benchIO "filterSome2M" $ withRandomIntIO (filterSome size))
-    , (SpaceO_1, benchIO "breakAfterSome2M" $ withRandomIntIO (breakAfterSome size))
-    , (SpaceO_1, benchIO "pureDrain2M" $ withRandomIntIO (toNullMPure size))
-    , (SpaceO_1, benchIO "pureDrain3M" $ withRandomIntIO (toNullM3Pure size))
-    , (SpaceO_1, benchIO "pureFilterAllIn2M" $ withRandomIntIO (filterAllInMPure size))
-    , (SpaceO_1, benchIO "pureFilterAllOut2M" $ withRandomIntIO (filterAllOutMPure size))
-    , (SpaceO_n, benchIO "toList2M" $ withRandomIntIO (toListM size))
-    , (SpaceO_n, benchIO "toListSome2M" $ withRandomIntIO (toListSome size))
+    , (SpaceO_1, benchIO "then2M" (monadThen size))
+    , (SpaceO_1, benchIO "drain2M" (toNullM size))
+    , (SpaceO_1, benchIO "drain3M" (toNullM3 size))
+    , (SpaceO_1, benchIO "filterAllOut2M" (filterAllOutM size))
+    , (SpaceO_1, benchIO "filterAllIn2M" (filterAllInM size))
+    , (SpaceO_1, benchIO "filterSome2M" (filterSome size))
+    , (SpaceO_1, benchIO "breakAfterSome2M" (breakAfterSome size))
+    , (SpaceO_1, benchIO "pureDrain2M" (toNullMPure size))
+    , (SpaceO_1, benchIO "pureDrain3M" (toNullM3Pure size))
+    , (SpaceO_1, benchIO "pureFilterAllIn2M" (filterAllInMPure size))
+    , (SpaceO_1, benchIO "pureFilterAllOut2M" (filterAllOutMPure size))
+    , (SpaceO_n, benchIO "toList2M" (toListM size))
+    , (SpaceO_n, benchIO "toListSome2M" (toListSome size))
 
     -- concatFor (bind)
     , (SpaceO_1, benchIO "concatFor/drain1" $ drainConcatFor1 size)

@@ -35,7 +35,6 @@ import Streamly.Benchmark.Common
 import Streamly.Benchmark.Common.Handle
 
 #ifdef INSPECTION
-import Control.Monad.Catch (MonadCatch)
 import qualified Streamly.Internal.Data.Fold as FL
 import GHC.Types (SPEC(..))
 import Test.Inspection

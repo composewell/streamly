@@ -13,12 +13,15 @@ module Stream.Nesting.LogicConcat (benchmarks) where
 
 import Streamly.Data.Stream (Stream)
 
+import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.StreamK as StreamK
+import qualified Streamly.Internal.Data.SVar.Type as SVar
 
 import Test.Tasty.Bench
-import Stream.Type (benchIO, withRandomIntIO)
+import Stream.Type (benchIO)
 import Streamly.Benchmark.Common
+import Fusion.Plugin.Types
 import qualified Stream.Type as Type
 import Prelude hiding (concatMap, zipWith)
 
@@ -78,29 +81,44 @@ _schedForEqn maxVal input =
               Stream.schedForM input $ \y -> do
                 return $ Type.checkStream maxVal x y
 
+{-# ANN fairConcatForBounded (PermitPatternMatches [''Maybe,''Bool,''Int,''[],''Producer.InterleaveState,''Stream.EnumToState,''Stream.Step,''Stream.FairUnfoldState,''Stream]) #-}
+{-# ANN fairConcatForBounded (PermitConstructions [''Producer.InterleaveState,''Stream.EnumToState,''Int,''Maybe,''Stream.Step,''Stream,''(,),''[],''Stream.FairUnfoldState,''SVar.State,''(),''Bool]) #-}
+{-# ANN fairConcatForBounded (PermitTypeClasses []) #-}
 {-# NOINLINE fairConcatForBounded #-}
-fairConcatForBounded :: Int -> IO ()
-fairConcatForBounded maxVal = withRandomIntIO $ \n ->
+fairConcatForBounded :: Int -> Int -> IO ()
+fairConcatForBounded maxVal n =
     fairConcatForEqn maxVal (Type.boundedInts maxVal n)
 
+{-# ANN fairConcatForKBounded (PermitPatternMatches [''Maybe,''Bool,''Int,''[],''Producer.InterleaveState,''SVar.State,''Stream.EnumToState,''Stream.Step]) #-}
+{-# ANN fairConcatForKBounded (PermitConstructions [''Maybe,''[],''Producer.InterleaveState,''Int,''Stream.EnumToState,''SVar.State,''Stream.Step,''(,),''(),''Bool]) #-}
+{-# ANN fairConcatForKBounded (PermitTypeClasses []) #-}
 {-# NOINLINE fairConcatForKBounded #-}
-fairConcatForKBounded :: Int -> IO ()
-fairConcatForKBounded maxVal = withRandomIntIO $ \n ->
+fairConcatForKBounded :: Int -> Int -> IO ()
+fairConcatForKBounded maxVal n =
     fairConcatForEqnK maxVal (Type.boundedInts maxVal n)
 
+{-# ANN fairConcatForInfinite (PermitPatternMatches [''Maybe,''Bool,''Int,''[],''Producer.InterleaveState,''Stream.EnumToState,''Stream.Step,''Stream.FairUnfoldState,''Stream]) #-}
+{-# ANN fairConcatForInfinite (PermitConstructions [''Int,''Producer.InterleaveState,''Stream.EnumToState,''Maybe,''Stream.Step,''Stream,''(,),''[],''Stream.FairUnfoldState,''SVar.State,''(),''Bool]) #-}
+{-# ANN fairConcatForInfinite (PermitTypeClasses []) #-}
 {-# NOINLINE fairConcatForInfinite #-}
-fairConcatForInfinite :: Int -> IO ()
-fairConcatForInfinite maxVal = withRandomIntIO $ \n ->
+fairConcatForInfinite :: Int -> Int -> IO ()
+fairConcatForInfinite maxVal n =
     fairConcatForEqn maxVal (Type.infiniteInts maxVal n)
 
+{-# ANN fairSchedForBounded (PermitPatternMatches [''Maybe,''Bool,''Int,''[],''Producer.InterleaveState,''Stream.EnumToState,''Stream.Step,''Stream.FairUnfoldState,''Stream]) #-}
+{-# ANN fairSchedForBounded (PermitConstructions [''Producer.InterleaveState,''Stream.EnumToState,''Int,''Maybe,''Stream.Step,''Stream,''(,),''[],''Stream.FairUnfoldState,''SVar.State,''(),''Bool]) #-}
+{-# ANN fairSchedForBounded (PermitTypeClasses []) #-}
 {-# NOINLINE fairSchedForBounded #-}
-fairSchedForBounded :: Int -> IO ()
-fairSchedForBounded maxVal = withRandomIntIO $ \n ->
+fairSchedForBounded :: Int -> Int -> IO ()
+fairSchedForBounded maxVal n =
     fairSchedForEqn maxVal (Type.boundedInts maxVal n)
 
+{-# ANN fairSchedForInfinite (PermitPatternMatches [''Maybe,''Bool,''Int,''[],''Producer.InterleaveState,''Stream.EnumToState,''Stream.Step,''Stream.FairUnfoldState,''Stream]) #-}
+{-# ANN fairSchedForInfinite (PermitConstructions [''Int,''Producer.InterleaveState,''Stream.EnumToState,''Maybe,''Stream.Step,''Stream,''(,),''[],''Stream.FairUnfoldState,''SVar.State,''(),''Bool]) #-}
+{-# ANN fairSchedForInfinite (PermitTypeClasses []) #-}
 {-# NOINLINE fairSchedForInfinite #-}
-fairSchedForInfinite :: Int -> IO ()
-fairSchedForInfinite maxVal = withRandomIntIO $ \n ->
+fairSchedForInfinite :: Int -> Int -> IO ()
+fairSchedForInfinite maxVal n =
     fairSchedForEqn maxVal (Type.infiniteInts maxVal n)
 
 -------------------------------------------------------------------------------

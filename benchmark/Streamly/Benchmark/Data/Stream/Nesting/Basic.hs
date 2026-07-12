@@ -21,20 +21,23 @@
 module Stream.Nesting.Basic (benchmarks) where
 
 #ifdef INSPECTION
-import GHC.Types (SPEC(..))
 import qualified Streamly.Internal.Data.Fold as Fold
-import qualified Streamly.Internal.Data.Producer as Producer
 import Test.Inspection
 #endif
 
+import GHC.Types (SPEC(..))
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream as Stream
 
 import Test.Tasty.Bench
 import Stream.Common hiding (benchIO)
-import Stream.Type (benchIO, withRandomIntIO)
+import Stream.Type (benchIO)
 import Streamly.Benchmark.Common
+import Fusion.Plugin.Types
+import qualified Streamly.Internal.Data.Producer as Producer
+import GHC.Stack (SrcLoc, CallStack)
+import GHC.Classes (IP)
 import Prelude hiding (concatMap, zipWith)
 
 -------------------------------------------------------------------------------
@@ -45,9 +48,12 @@ import Prelude hiding (concatMap, zipWith)
 -- Appending
 -------------------------------------------------------------------------------
 
+{-# ANN interleave2 (PermitPatternMatches [''Int]) #-}
+{-# ANN interleave2 (PermitConstructions [''Int,''()]) #-}
+{-# ANN interleave2 (PermitTypeClasses []) #-}
 {-# NOINLINE interleave2 #-}
-interleave2 :: Int -> IO ()
-interleave2 count = withRandomIntIO $ \n ->
+interleave2 :: Int -> Int -> IO ()
+interleave2 count n =
     drain $
         S.interleave
             (sourceUnfoldrM count n)
@@ -61,9 +67,12 @@ inspect $ 'interleave2 `hasNoType` ''S.Step
 inspect $ 'interleave2 `hasNoType` ''Fold.Step
 #endif
 
+{-# ANN roundRobin2 (PermitPatternMatches [''Int]) #-}
+{-# ANN roundRobin2 (PermitConstructions [''Int,''()]) #-}
+{-# ANN roundRobin2 (PermitTypeClasses []) #-}
 {-# NOINLINE roundRobin2 #-}
-roundRobin2 :: Int -> IO ()
-roundRobin2 count = withRandomIntIO $ \n ->
+roundRobin2 :: Int -> Int -> IO ()
+roundRobin2 count n =
     S.drain $
     S.roundRobin
         (sourceUnfoldrM count n)
@@ -81,9 +90,12 @@ inspect $ 'roundRobin2 `hasNoType` ''Fold.Step
 -- Merging
 -------------------------------------------------------------------------------
 
+{-# ANN mergeBy (PermitPatternMatches [''Int]) #-}
+{-# ANN mergeBy (PermitConstructions [''Int,''()]) #-}
+{-# ANN mergeBy (PermitTypeClasses []) #-}
 {-# NOINLINE mergeBy #-}
-mergeBy :: Int -> IO ()
-mergeBy count = withRandomIntIO $ \n ->
+mergeBy :: Int -> Int -> IO ()
+mergeBy count n =
     Stream.drain
         $ Stream.mergeBy
             compare
@@ -97,9 +109,12 @@ inspect $ 'mergeBy `hasNoType` ''SPEC
 inspect $ 'mergeBy `hasNoType` ''Fold.Step
 #endif
 
+{-# ANN mergeByM (PermitPatternMatches [''Int]) #-}
+{-# ANN mergeByM (PermitConstructions [''Int,''()]) #-}
+{-# ANN mergeByM (PermitTypeClasses []) #-}
 {-# NOINLINE mergeByM #-}
-mergeByM :: Int -> IO ()
-mergeByM count = withRandomIntIO $ \n ->
+mergeByM :: Int -> Int -> IO ()
+mergeByM count n =
     Stream.drain
         $ Stream.mergeByM
             (\a b -> return $ compare a b)
@@ -132,9 +147,12 @@ sourceUnfoldrMUF count = UF.unfoldrM step
             then Nothing
             else Just (cnt, (cnt + 1, start))
 
+{-# ANN bfsUnfoldEach (PermitPatternMatches [''Int,''[],''(,)]) #-}
+{-# ANN bfsUnfoldEach (PermitConstructions [''Int,''[],''(,),''()]) #-}
+{-# ANN bfsUnfoldEach (PermitTypeClasses []) #-}
 {-# NOINLINE bfsUnfoldEach #-}
-bfsUnfoldEach :: Int -> Int -> IO ()
-bfsUnfoldEach outer inner = withRandomIntIO $ \n ->
+bfsUnfoldEach :: Int -> Int -> Int -> IO ()
+bfsUnfoldEach outer inner n =
     S.drain $ S.bfsUnfoldEach
         -- (UF.lmap return (UF.replicateM inner))
         (UF.lmap (\x -> (x,x)) (sourceUnfoldrMUF inner))
@@ -147,9 +165,12 @@ inspect $ 'bfsUnfoldEach `hasNoType` ''Fold.Step
 inspect $ 'bfsUnfoldEach `hasNoType` ''SPEC
 #endif
 
+{-# ANN altBfsUnfoldEach (PermitPatternMatches [''Int, ''SPEC, ''Producer.InterleaveEachState, ''[], ''IO, ''(,)]) #-}
+{-# ANN altBfsUnfoldEach (PermitConstructions [''[],''Int,''SrcLoc,''CallStack,''Producer.InterleaveEachState,''(,),''(),''SPEC]) #-}
+{-# ANN altBfsUnfoldEach (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE altBfsUnfoldEach #-}
-altBfsUnfoldEach :: Int -> Int -> IO ()
-altBfsUnfoldEach outer inner = withRandomIntIO $ \n ->
+altBfsUnfoldEach :: Int -> Int -> Int -> IO ()
+altBfsUnfoldEach outer inner n =
     S.drain $ S.altBfsUnfoldEach
         -- (UF.lmap return (UF.replicateM inner))
         (UF.lmap (\x -> (x,x)) (sourceUnfoldrMUF inner))
@@ -162,9 +183,12 @@ inspect $ 'altBfsUnfoldEach `hasNoType` ''Fold.Step
 -- inspect $ 'altBfsUnfoldEach `hasNoType` ''SPEC
 #endif
 
+{-# ANN unfoldSched (PermitPatternMatches [''(,),''Int,''[]]) #-}
+{-# ANN unfoldSched (PermitConstructions [''Int,''[],''(,),''()]) #-}
+{-# ANN unfoldSched (PermitTypeClasses []) #-}
 {-# NOINLINE unfoldSched #-}
-unfoldSched :: Int -> Int -> IO ()
-unfoldSched outer inner = withRandomIntIO $ \n ->
+unfoldSched :: Int -> Int -> Int -> IO ()
+unfoldSched outer inner n =
     S.drain $ S.unfoldSched
         -- (UF.lmap return (UF.replicateM inner))
         (UF.lmap (\x -> (x,x)) (sourceUnfoldrMUF inner))

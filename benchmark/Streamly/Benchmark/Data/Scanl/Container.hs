@@ -8,23 +8,21 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskellQuotes #-}
-
-{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- Benchmarks for operations exported from Streamly.Internal.Data.Scanl.Container.
 module Scanl.Container (benchmarks) where
 
-import Data.IntSet (IntSet)
+import GHC.Types (SPEC(..))
 import Data.IORef (IORef, newIORef, readIORef, modifyIORef)
+import Data.IntSet (IntSet)
 import Data.Map.Strict (Map)
 import Data.Set (Set)
 import Data.STRef (STRef)
-import Streamly.Internal.Data.Scanl (Scanl(..), Tuple'Fused)
-import Streamly.Internal.Data.Stream (Stream)
+import GHC.Classes (IP)
+import GHC.Stack (CallStack, SrcLoc)
+import Streamly.Internal.Data.Scanl (Scanl(..), Step, Tuple'Fused)
 import Streamly.Internal.Data.Tuple.Strict (Tuple', Tuple3')
 import System.IO.Unsafe (unsafePerformIO)
-import System.Random (randomRIO)
 
 import qualified Data.Set as Set
 import qualified Streamly.Internal.Data.Fold as FL
@@ -32,30 +30,13 @@ import qualified Streamly.Internal.Data.Scanl as Scanl
 import qualified Streamly.Internal.Data.Stream as Stream
 
 import Fusion.Plugin.Types
+import Scanl.Type (benchIO, withStream, withPostscanl)
 import Streamly.Benchmark.Common
 import Test.Tasty.Bench
 
 -------------------------------------------------------------------------------
 -- Helpers
 -------------------------------------------------------------------------------
-
-{-# INLINE source #-}
-source :: (Monad m, Num a, Stream.Enumerable a) =>
-    Int -> a -> Stream m a
-source len from =
-    Stream.enumerateFromThenTo from (from + 1) (from + fromIntegral len)
-
-{-# INLINE withStream #-}
-withStream :: Int -> (Stream IO Int -> IO b) -> IO b
-withStream len f = randomRIO (1, 1 :: Int) >>= f . source len
-
-{-# INLINE withPostscanl #-}
-withPostscanl :: Int -> Scanl IO Int b -> IO ()
-withPostscanl n s = withStream n $ Stream.fold FL.drain . Stream.postscanl s
-
-{-# INLINE benchIO #-}
-benchIO :: String -> (Int -> IO ()) -> Int -> Benchmark
-benchIO name f value = bench name $ nfIO $ f value
 
 {-# INLINE getKey #-}
 getKey :: Int -> Int -> Int
@@ -83,143 +64,89 @@ getScanl k = do
 -- Set operations
 -------------------------------------------------------------------------------
 
-{-# ANN toSet (PermitTypes [''Int,''Set,''STRef,''(,)]) #-}
+{-# ANN toSet (PermitPatternMatches [''Set,''Int]) #-}
+{-# ANN toSet (PermitConstructions [''Set,''()]) #-}
 {-# ANN toSet (PermitTypeClasses []) #-}
-{-# ANN toSet (MaxCoreSize 1000) #-}
 {-# NOINLINE toSet #-}
-toSet :: Int -> IO ()
+toSet :: Int -> Int -> IO ()
 toSet n = withPostscanl n Scanl.toSet
 
-{-# ANN toIntSet (PermitTypes [''Int,''STRef,''IntSet,''(,)]) #-}
+{-# ANN toIntSet (PermitPatternMatches [''IntSet,''Int]) #-}
+{-# ANN toIntSet (PermitConstructions [''()]) #-}
 {-# ANN toIntSet (PermitTypeClasses []) #-}
-{-# ANN toIntSet (MaxCoreSize 1000) #-}
 {-# NOINLINE toIntSet #-}
-toIntSet :: Int -> IO ()
+toIntSet :: Int -> Int -> IO ()
 toIntSet n = withPostscanl n Scanl.toIntSet
 
-{-# ANN countDistinct (PermitTypes [''Int,''STRef,''Set,''(,)]) #-}
+{-# ANN countDistinct (PermitPatternMatches [''Set,''Int]) #-}
+{-# ANN countDistinct (PermitConstructions [''Set,''()]) #-}
 {-# ANN countDistinct (PermitTypeClasses []) #-}
-{-# ANN countDistinct (MaxCoreSize 1000) #-}
 {-# NOINLINE countDistinct #-}
-countDistinct :: Int -> IO ()
+countDistinct :: Int -> Int -> IO ()
 countDistinct n = withPostscanl n Scanl.countDistinct
 
-{-# ANN countDistinctInt (PermitTypes [''Int,''STRef,''IntSet,''(,)]) #-}
+{-# ANN countDistinctInt (PermitPatternMatches [''IntSet,''Int]) #-}
+{-# ANN countDistinctInt (PermitConstructions [''()]) #-}
 {-# ANN countDistinctInt (PermitTypeClasses []) #-}
-{-# ANN countDistinctInt (MaxCoreSize 1000) #-}
 {-# NOINLINE countDistinctInt #-}
-countDistinctInt :: Int -> IO ()
+countDistinctInt :: Int -> Int -> IO ()
 countDistinctInt n = withPostscanl n Scanl.countDistinctInt
 
-{-# ANN nub (PermitTypes
-   [ ''Int
-   , ''STRef
-   , ''Set
-   , ''Maybe
-   , ''Tuple'
-   , ''(,)
-   -- For GHC-9.14
-   , ''Scanl.Step
-   ]) #-}
+{-# ANN nub (PermitPatternMatches [''Set,''Maybe,''Int,''Tuple']) #-}
+{-# ANN nub (PermitConstructions [''Int,''Set,''Maybe,''Tuple',''()]) #-}
 {-# ANN nub (PermitTypeClasses []) #-}
-{-# ANN nub (MaxCoreSize 1000) #-}
 {-# NOINLINE nub #-}
-nub :: Int -> IO ()
+nub :: Int -> Int -> IO ()
 nub n = withPostscanl n Scanl.nub
 
-{-# ANN nubInt (PermitTypes
-   [ ''Int
-   , ''STRef
-   , ''IntSet
-   , ''(,)
-   -- For GHC-9.14
-   , ''Tuple'
-   , ''Scanl.Step
-   ]) #-}
+{-# ANN nubInt (PermitPatternMatches [''IntSet,''Bool,''Int]) #-}
+{-# ANN nubInt (PermitConstructions [''()]) #-}
 {-# ANN nubInt (PermitTypeClasses []) #-}
-{-# ANN nubInt (MaxCoreSize 1000) #-}
 {-# NOINLINE nubInt #-}
-nubInt :: Int -> IO ()
+nubInt :: Int -> Int -> IO ()
 nubInt n = withPostscanl n Scanl.nubInt
 
 -------------------------------------------------------------------------------
 -- Demultiplexing
 -------------------------------------------------------------------------------
 
-{-# ANN demuxIOOneShot (PermitTypes
-   [ ''Int
-   , ''STRef
-   , ''IORef
-   , ''Map
-   , ''Scanl
-   , ''FL.Step
-   , ''Scanl.Step
-   , ''(,)
-   -- For GHC-9.14
-   , ''Tuple'
-   , ''Maybe
-   ]) #-}
-{-# ANN demuxIOOneShot (PermitTypeClasses []) #-}
-{-# ANN demuxIOOneShot (MaxCoreSize 2000) #-}
+{-# ANN demuxIOOneShot (PermitPatternMatches [''Map,''Set,''Maybe,''STRef,''Bool,''IO,''Int,''FL.Step,''Step,''Scanl,''Tuple'Fused,''Tuple']) #-}
+{-# ANN demuxIOOneShot (PermitConstructions [''Int,''Map,''Maybe,''Scanl,''Set,''SrcLoc,''CallStack,''Step,''FL.Step,''STRef,''Tuple',''Tuple'Fused,''(),''Bool]) #-}
+{-# ANN demuxIOOneShot (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE demuxIOOneShot #-}
-demuxIOOneShot :: Int -> IO ()
+demuxIOOneShot :: Int -> Int -> IO ()
 demuxIOOneShot len =
     withStream len $
         Stream.fold FL.drain
         . Stream.postscanl (Scanl.demuxIO (getKey 64) getScanl)
 
-{-# ANN demuxIOSum (PermitTypes
-   [ ''Int
-   , ''STRef
-   , ''IORef
-   , ''Map
-   , ''Scanl
-   , ''FL.Step
-   , ''Scanl.Step
-   , ''(,)
-   -- For GHC-9.14
-   , ''Tuple'
-   , ''Maybe
-   ]) #-}
-{-# ANN demuxIOSum (PermitTypeClasses []) #-}
-{-# ANN demuxIOSum (MaxCoreSize 2000) #-}
+{-# ANN demuxIOSum (PermitPatternMatches [''Map,''STRef,''IO,''Int,''FL.Step,''Step,''Scanl,''Tuple']) #-}
+{-# ANN demuxIOSum (PermitConstructions [''Int,''Map,''SrcLoc,''CallStack,''Step,''Tuple',''()]) #-}
+{-# ANN demuxIOSum (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE demuxIOSum #-}
-demuxIOSum :: Int -> IO ()
+demuxIOSum :: Int -> Int -> IO ()
 demuxIOSum len =
     withStream len $
         Stream.fold FL.drain
         . Stream.postscanl
             (Scanl.demuxIO (getKey 64) (const (pure (Just Scanl.sum))))
 
-{-# ANN demuxSum (PermitTypes
-   [ ''Int
-   , ''STRef
-   , ''IO
-   , ''Map
-   , ''Scanl
-   , ''FL.Step
-   , ''Scanl.Step
-   , ''(,)
-   -- For GHC-9.14
-   , ''Tuple'
-   , ''Maybe
-   ]) #-}
+{-# ANN demuxSum (PermitPatternMatches [''Map,''Int,''FL.Step,''Step,''Scanl,''Tuple']) #-}
+{-# ANN demuxSum (PermitConstructions [''Int,''Map,''Step,''Tuple',''()]) #-}
 {-# ANN demuxSum (PermitTypeClasses []) #-}
-{-# ANN demuxSum (MaxCoreSize 2000) #-}
 {-# NOINLINE demuxSum #-}
-demuxSum :: Int -> IO ()
+demuxSum :: Int -> Int -> IO ()
 demuxSum len =
     withStream len $
         Stream.fold FL.drain
         . Stream.postscanl
             (Scanl.demux (getKey 64) (const (pure (Just Scanl.sum))))
 
-{-# ANN demuxGenericSum (PermitTypes
-   [''Int,''STRef,''Map,''Maybe,''Scanl,''FL.Step,''Scanl.Step,''(,)]) #-}
+{-# ANN demuxGenericSum (PermitPatternMatches [''Map,''Maybe,''Int,''FL.Step,''Step,''Scanl,''Tuple']) #-}
+{-# ANN demuxGenericSum (PermitConstructions [''Int,''Map,''Maybe,''Step,''Tuple',''()]) #-}
 {-# ANN demuxGenericSum (PermitTypeClasses []) #-}
-{-# ANN demuxGenericSum (MaxCoreSize 2000) #-}
 {-# NOINLINE demuxGenericSum #-}
-demuxGenericSum :: Int -> IO ()
+demuxGenericSum :: Int -> Int -> IO ()
 demuxGenericSum len =
     withStream len $
         Stream.fold FL.drain
@@ -227,12 +154,11 @@ demuxGenericSum len =
             (Scanl.demuxGeneric (getKey 64) (const (pure (Just Scanl.sum)))
                 :: Scanl IO Int (IO (Map Int Int), Maybe (Int, Int)))
 
-{-# ANN demuxGenericIOSum (PermitTypes
-   [''Int,''STRef,''Map,''Maybe,''Scanl,''FL.Step,''Scanl.Step,''(,)]) #-}
-{-# ANN demuxGenericIOSum (PermitTypeClasses []) #-}
-{-# ANN demuxGenericIOSum (MaxCoreSize 2000) #-}
+{-# ANN demuxGenericIOSum (PermitPatternMatches [''Map,''Maybe,''STRef,''IO,''Int,''FL.Step,''Step,''Scanl,''Tuple']) #-}
+{-# ANN demuxGenericIOSum (PermitConstructions [''Int,''Map,''Maybe,''SrcLoc,''CallStack,''Step,''Tuple',''()]) #-}
+{-# ANN demuxGenericIOSum (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE demuxGenericIOSum #-}
-demuxGenericIOSum :: Int -> IO ()
+demuxGenericIOSum :: Int -> Int -> IO ()
 demuxGenericIOSum len =
     withStream len $
         Stream.fold FL.drain
@@ -244,77 +170,41 @@ demuxGenericIOSum len =
 -- Classifying
 -------------------------------------------------------------------------------
 
-{-# ANN classifyLimitedSum (PermitTypes
-   [ ''Int
-   , ''STRef
-   , ''IORef
-   , ''Map
-   , ''Set
-   , ''Tuple'
-   , ''Tuple'Fused
-   , ''(,)
-   -- For GHC-9.14
-   , ''Tuple3'
-   , ''Scanl.Step
-   , ''Maybe
-   ]) #-}
+{-# ANN classifyLimitedSum (PermitPatternMatches [''Map,''Set,''STRef,''Int,''Tuple'Fused,''Tuple']) #-}
+{-# ANN classifyLimitedSum (PermitConstructions [''Int,''Map,''Set,''()]) #-}
 {-# ANN classifyLimitedSum (PermitTypeClasses []) #-}
-{-# ANN classifyLimitedSum (MaxCoreSize 2000) #-}
 {-# NOINLINE classifyLimitedSum #-}
-classifyLimitedSum :: Int -> IO ()
+classifyLimitedSum :: Int -> Int -> IO ()
 classifyLimitedSum len =
     withStream len $
         Stream.fold FL.drain
         . Stream.postscanl (Scanl.classifyIO (getKey 64) (limitedSum 100))
 
-{-# ANN classifyIOSum (PermitTypes
-   [ ''Int
-   , ''STRef
-   , ''IORef
-   , ''Map
-   , ''Tuple'
-   , ''(,)
-   -- For GHC-9.14
-   , ''Set
-   , ''Tuple3'
-   , ''Scanl.Step
-   , ''Maybe
-   ]) #-}
+{-# ANN classifyIOSum (PermitPatternMatches [''Map,''Set,''STRef,''Int,''Tuple']) #-}
+{-# ANN classifyIOSum (PermitConstructions [''Int,''Map,''Set,''()]) #-}
 {-# ANN classifyIOSum (PermitTypeClasses []) #-}
-{-# ANN classifyIOSum (MaxCoreSize 1000) #-}
 {-# NOINLINE classifyIOSum #-}
-classifyIOSum :: Int -> IO ()
+classifyIOSum :: Int -> Int -> IO ()
 classifyIOSum len =
     withStream len $
         Stream.fold FL.drain
         . Stream.postscanl (Scanl.classifyIO (getKey 64) Scanl.sum)
 
-{-# ANN classifySum (PermitTypes
-   [ ''Int
-   , ''STRef
-   , ''Map
-   , ''Tuple'
-   , ''(,)
-   -- For GHC-9.14
-   , ''Set
-   , ''Tuple3'
-   , ''Scanl.Step
-   , ''Maybe
-   ]) #-}
+{-# ANN classifySum (PermitPatternMatches [''Map,''Set,''Int,''Tuple']) #-}
+{-# ANN classifySum (PermitConstructions [''Int,''Map,''Set,''()]) #-}
 {-# ANN classifySum (PermitTypeClasses []) #-}
-{-# ANN classifySum (MaxCoreSize 1000) #-}
 {-# NOINLINE classifySum #-}
-classifySum :: Int -> IO ()
+classifySum :: Int -> Int -> IO ()
 classifySum len =
     withStream len $
         Stream.fold FL.drain
         . Stream.postscanl (Scanl.classify (getKey 64) Scanl.sum)
 
-{-# ANN classifyGenericSum (PermitTypes [''Int,''STRef,''Map,''Maybe,''Set,''Tuple',''Tuple3',''(,)]) #-}
+{-# ANN classifyGenericSum (PermitPatternMatches [''Map,''Set,''Maybe,''Int,''Tuple',''Tuple3']) #-}
+{-# ANN classifyGenericSum (PermitConstructions [''Int,''Map,''Maybe,''Set,''Tuple3',''(,),''()]) #-}
 {-# ANN classifyGenericSum (PermitTypeClasses []) #-}
-{-# ANN classifyGenericSum (MaxCoreSize 1500) #-}
 {-# NOINLINE classifyGenericSum #-}
-classifyGenericSum :: Int -> IO ()
+classifyGenericSum :: Int -> Int -> IO ()
 classifyGenericSum len =
     withStream len $
         Stream.fold FL.drain
@@ -322,11 +212,11 @@ classifyGenericSum len =
             (Scanl.classifyGeneric (getKey 64) Scanl.sum
                 :: Scanl IO Int (IO (Map Int Int), Maybe (Int, Int)))
 
-{-# ANN classifyGenericIOSum (PermitTypes [''Int,''STRef,''Map,''Maybe,''Set,''Tuple',''Tuple3',''(,)]) #-}
+{-# ANN classifyGenericIOSum (PermitPatternMatches [''Map,''Set,''Maybe,''STRef,''Int,''Tuple',''Tuple3']) #-}
+{-# ANN classifyGenericIOSum (PermitConstructions [''Int,''Map,''Maybe,''Set,''Tuple3',''(,),''()]) #-}
 {-# ANN classifyGenericIOSum (PermitTypeClasses []) #-}
-{-# ANN classifyGenericIOSum (MaxCoreSize 1500) #-}
 {-# NOINLINE classifyGenericIOSum #-}
-classifyGenericIOSum :: Int -> IO ()
+classifyGenericIOSum :: Int -> Int -> IO ()
 classifyGenericIOSum len =
     withStream len $
         Stream.fold FL.drain

@@ -20,11 +20,12 @@
 
 module Stream.Lift (benchmarks) where
 
+import GHC.Types (SPEC(..))
 import Control.Monad.State.Strict (StateT, get, put)
 import Data.Functor.Identity (Identity(..), runIdentity)
 import Stream.Common (sourceUnfoldr, sourceUnfoldrM)
-import Stream.Type (benchIO, withPureStream, withRandomIntIO)
-import Streamly.Internal.Data.Stream (Stream)
+import Stream.Type (benchIO, withPureStream)
+import Streamly.Internal.Data.Stream (Stream, Step(..))
 
 import qualified Stream.Common as Common
 import qualified Streamly.Internal.Data.Fold as Fold
@@ -32,12 +33,11 @@ import qualified Streamly.Internal.Data.Stream as Stream
 
 import Test.Tasty.Bench
 import Streamly.Benchmark.Common
+import Fusion.Plugin.Types
 import Prelude hiding (reverse, tail)
 
 #ifdef INSPECTION
-import Streamly.Internal.Data.Stream (Step(..))
 
-import GHC.Types (SPEC(..))
 import Test.Inspection
 #endif
 
@@ -69,9 +69,12 @@ withState value n =
     Stream.evalStateT
         (return (0 :: Int)) (Stream.liftInner (sourceUnfoldrM value n))
 
+{-# ANN evalStateTIO (PermitPatternMatches [''Int]) #-}
+{-# ANN evalStateTIO (PermitConstructions [''Int,''()]) #-}
+{-# ANN evalStateTIO (PermitTypeClasses []) #-}
 {-# NOINLINE evalStateTIO #-}
-evalStateTIO :: Int -> IO ()
-evalStateTIO value = withRandomIntIO $ \n ->
+evalStateTIO :: Int -> Int -> IO ()
+evalStateTIO value n =
     Stream.fold Fold.drain (evalStateT value n :: Stream IO Int)
 
 #ifdef INSPECTION
@@ -81,9 +84,12 @@ inspect $ 'evalStateTIO `hasNoType` ''Fold.Step
 inspect $ 'evalStateTIO `hasNoType` ''SPEC
 #endif
 
+{-# ANN withStateIO (PermitPatternMatches [''Int]) #-}
+{-# ANN withStateIO (PermitConstructions [''Int,''()]) #-}
+{-# ANN withStateIO (PermitTypeClasses []) #-}
 {-# NOINLINE withStateIO #-}
-withStateIO :: Int -> IO ()
-withStateIO value = withRandomIntIO $ \n ->
+withStateIO :: Int -> Int -> IO ()
+withStateIO value n =
     Stream.fold Fold.drain (withState value n :: Stream IO Int)
 
 #ifdef INSPECTION
@@ -93,11 +99,15 @@ inspect $ 'withStateIO `hasNoType` ''Fold.Step
 inspect $ 'withStateIO `hasNoType` ''SPEC
 #endif
 
+-- NOTE: eta expansion is required to eliminate Step pattern match
+{-# ANN generalizeInner (PermitPatternMatches [''Int]) #-}
+{-# ANN generalizeInner (PermitConstructions [''Int]) #-}
+{-# ANN generalizeInner (PermitTypeClasses []) #-}
 {-# NOINLINE generalizeInner #-}
-generalizeInner :: Int -> IO Int
-generalizeInner value =
-    withPureStream value $
-        runIdentity . Stream.fold Fold.length . Stream.generalizeInner
+generalizeInner :: Int -> Int -> IO Int
+generalizeInner value n =
+    (withPureStream value $
+        runIdentity . Stream.fold Fold.length . Stream.generalizeInner) n
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'generalizeInner
@@ -106,9 +116,12 @@ inspect $ 'generalizeInner `hasNoType` ''Fold.Step
 inspect $ 'generalizeInner `hasNoType` ''SPEC
 #endif
 
+{-# ANN generalizeInnerIO (PermitPatternMatches []) #-}
+{-# ANN generalizeInnerIO (PermitConstructions [''Int]) #-}
+{-# ANN generalizeInnerIO (PermitTypeClasses []) #-}
 {-# NOINLINE generalizeInnerIO #-}
-generalizeInnerIO :: Int -> IO Int
-generalizeInnerIO value = withRandomIntIO $ \n ->
+generalizeInnerIO :: Int -> Int -> IO Int
+generalizeInnerIO value n =
     Stream.fold Fold.length
         (Stream.generalizeInner (sourceUnfoldr value n) :: Stream IO Int)
 

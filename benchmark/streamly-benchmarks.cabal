@@ -103,6 +103,7 @@ common default-extensions
         CPP
         MagicHash
         RecordWildCards
+        TemplateHaskellQuotes
 
 common compile-options
     import: default-extensions

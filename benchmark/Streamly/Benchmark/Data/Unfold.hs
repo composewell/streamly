@@ -4,30 +4,25 @@
 -- License     : MIT
 -- Maintainer  : streamly@composewell.com
 
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-
-#undef FUSION_CHECK
-#ifdef FUSION_CHECK
-{-# OPTIONS_GHC -ddump-simpl -ddump-to-file -dsuppress-all #-}
-#endif
-
-#ifdef __HADDOCK_VERSION__
-#undef INSPECTION
-#endif
-
-#ifdef INSPECTION
-{-# LANGUAGE TemplateHaskell #-}
-{-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
-#endif
 
 module Main (main) where
 
 import Control.DeepSeq (NFData(..))
-import Control.Exception (SomeException)
+import Control.Exception (Exception, SomeException)
+import Control.Monad.Catch (MonadCatch)
 import Data.Char (ord)
+import Data.STRef (STRef)
 import Data.Word (Word8)
+import GHC.Classes (IP)
+import Unsafe.Coerce (UnsafeEquality)
+import GHC.Stack (CallStack, SrcLoc)
+import Streamly.Internal.Data.Array (Array)
+import Streamly.Internal.Data.MutArray (ArrayUnsafe)
+import Streamly.Internal.Data.Producer (ConcatState, EnumToState)
+import Streamly.Internal.Data.Stream (UnfoldState)
 import Streamly.Internal.Data.Unfold (Unfold)
 import System.IO (Handle, hClose)
 import System.Random (randomRIO)
@@ -40,22 +35,16 @@ import qualified Streamly.Internal.Data.Scanl as Scanl
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.StreamK as K
+import qualified Streamly.Internal.Data.SVar.Type as SVar
 
 import qualified Unfold.Enumeration as Enumeration
 import qualified Unfold.Type as Type
 
+import Fusion.Plugin.Types
 import Test.Tasty.Bench hiding (env)
 import Prelude hiding (take, filter, zipWith, map, mapM, takeWhile, scanl, repeat, dropWhile)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Common.Handle
-
-#ifdef INSPECTION
-import Control.Monad.Catch (MonadCatch)
-import GHC.Types (SPEC(..))
-import Test.Inspection
-
-import qualified Streamly.Internal.Data.Producer as Producer
-#endif
 
 {-# INLINE benchIO #-}
 benchIO :: (NFData b) => String -> (Int -> IO b) -> Benchmark
@@ -93,104 +82,77 @@ drainTransformationDefault to =
 -- Operations on input
 -------------------------------------------------------------------------------
 
-{-# INLINE discardFirst #-}
+{-# ANN discardFirst (PermitPatternMatches [''Int]) #-}
+{-# ANN discardFirst (PermitConstructions []) #-}
+{-# ANN discardFirst (PermitTypeClasses []) #-}
+{-# NOINLINE discardFirst #-}
 discardFirst :: Int -> Int -> IO ()
 discardFirst size start =
     drainTransformationDefault (size + start) UF.discardFirst (start, start)
 
-#ifdef INSPECTION
-inspect $ 'discardFirst `hasNoType` ''S.Step
-inspect $ 'discardFirst `hasNoType` ''FL.Step
-inspect $ 'discardFirst `hasNoType` ''SPEC
-#endif
-
-{-# INLINE discardSecond #-}
+{-# ANN discardSecond (PermitPatternMatches [''Int]) #-}
+{-# ANN discardSecond (PermitConstructions []) #-}
+{-# ANN discardSecond (PermitTypeClasses []) #-}
+{-# NOINLINE discardSecond #-}
 discardSecond :: Int -> Int -> IO ()
 discardSecond size start =
     drainTransformationDefault (size + start) UF.discardSecond (start, start)
-
-#ifdef INSPECTION
-inspect $ 'discardSecond `hasNoType` ''S.Step
-inspect $ 'discardSecond `hasNoType` ''FL.Step
-inspect $ 'discardSecond `hasNoType` ''SPEC
-#endif
 
 -------------------------------------------------------------------------------
 -- Stream generation
 -------------------------------------------------------------------------------
 
-{-# INLINE fromStream #-}
+{-# ANN fromStream (PermitPatternMatches [''Int,''S.Step]) #-}
+{-# ANN fromStream (PermitConstructions [''Int,''S.Step]) #-}
+{-# ANN fromStream (PermitTypeClasses []) #-}
+{-# NOINLINE fromStream #-}
 fromStream :: Int -> Int -> IO ()
 fromStream size start =
     drainGeneration UF.fromStream (S.replicate size start :: S.Stream IO Int)
 
--- 'fromStream', 'fromStreamD' and 'consM' wrap an opaque stream/cons cell, so
--- the 'Step' is not eliminated.
-#ifdef INSPECTION
--- inspect $ 'fromStream `hasNoType` ''S.Step
-inspect $ 'fromStream `hasNoType` ''FL.Step
-inspect $ 'fromStream `hasNoType` ''SPEC
-#endif
-
 -- XXX INVESTIGATE: Although the performance of this should be equivalant to
 -- fromStream, this is considerably worse. More than 4x worse.
-{-# INLINE fromStreamK #-}
+{-# ANN fromStreamK (PermitPatternMatches [''Maybe,''(,)]) #-}
+{-# ANN fromStreamK (PermitConstructions
+   [''Maybe,''(,),''SVar.State,''Bool]) #-}
+{-# ANN fromStreamK (PermitTypeClasses []) #-}
+{-# NOINLINE fromStreamK #-}
 fromStreamK :: Int -> Int -> IO ()
 fromStreamK size start = drainGeneration UF.fromStreamK (K.replicate size start)
 
-#ifdef INSPECTION
-inspect $ 'fromStreamK `hasNoType` ''S.Step
-inspect $ 'fromStreamK `hasNoType` ''FL.Step
-inspect $ 'fromStreamK `hasNoType` ''SPEC
-#endif
-
-{-# INLINE fromStreamD #-}
+{-# ANN fromStreamD (PermitPatternMatches [''Int,''S.Step]) #-}
+{-# ANN fromStreamD (PermitConstructions [''Int,''S.Step]) #-}
+{-# ANN fromStreamD (PermitTypeClasses []) #-}
+{-# NOINLINE fromStreamD #-}
 fromStreamD :: Int -> Int -> IO ()
 fromStreamD size start =
     drainGeneration UF.fromStream (S.replicate size start)
 
-#ifdef INSPECTION
--- inspect $ 'fromStreamD `hasNoType` ''S.Step
-inspect $ 'fromStreamD `hasNoType` ''FL.Step
-inspect $ 'fromStreamD `hasNoType` ''SPEC
-#endif
-
 -- 'nilM' runs its action on the seed but yields no output, so unfold it over an
 -- outer source of value seeds to run it ~value times.
-{-# INLINE nilM #-}
+{-# ANN nilM (PermitPatternMatches [''Int]) #-}
+{-# ANN nilM (PermitConstructions []) #-}
+{-# ANN nilM (PermitTypeClasses []) #-}
+{-# NOINLINE nilM #-}
 nilM :: Int -> Int -> IO ()
 nilM value start =
     drainGeneration (UF.unfoldEach (UF.nilM return) (source (start + value))) start
 
-#ifdef INSPECTION
-inspect $ 'nilM `hasNoType` ''S.Step
-inspect $ 'nilM `hasNoType` ''FL.Step
-inspect $ 'nilM `hasNoType` ''SPEC
-inspect $ 'nilM `hasNoType` ''Producer.ConcatState
-#endif
-
-{-# INLINE nil #-}
+{-# ANN nil (PermitPatternMatches [''Int]) #-}
+{-# ANN nil (PermitConstructions []) #-}
+{-# ANN nil (PermitTypeClasses []) #-}
+{-# NOINLINE nil #-}
 nil :: Int -> Int -> IO ()
 nil value start =
     drainGeneration (UF.unfoldEach UF.nil (source (start + value))) start
 
-#ifdef INSPECTION
-inspect $ 'nil `hasNoType` ''S.Step
-inspect $ 'nil `hasNoType` ''FL.Step
-inspect $ 'nil `hasNoType` ''SPEC
-inspect $ 'nil `hasNoType` ''Producer.ConcatState
-#endif
-
-{-# INLINE consM #-}
+{-# ANN consM (PermitPatternMatches [''Int,''EnumToState,''S.Step,''UnfoldState]) #-}
+{-# ANN consM (PermitConstructions [''UnfoldState,''EnumToState,''Int,''S.Step]) #-}
+{-# ANN consM (PermitTypeClasses []) #-}
+{-# NOINLINE consM #-}
 consM :: Int -> Int -> IO ()
 consM size start =
     drainTransformationDefault (size + start) (UF.consM return) start
-
-#ifdef INSPECTION
--- inspect $ 'consM `hasNoType` ''S.Step
-inspect $ 'consM `hasNoType` ''FL.Step
-inspect $ 'consM `hasNoType` ''SPEC
-#endif
 
 {-# INLINE _fromSVar #-}
 _fromSVar :: Int -> Int -> m ()
@@ -200,132 +162,102 @@ _fromSVar = undefined
 _fromProducer :: Int -> Int -> m ()
 _fromProducer = undefined
 
-{-# INLINE fromListM #-}
+{-# ANN fromListM (PermitPatternMatches [''[]]) #-}
+{-# ANN fromListM (PermitConstructions [''Int,''[]]) #-}
+{-# ANN fromListM (PermitTypeClasses []) #-}
+{-# NOINLINE fromListM #-}
 fromListM :: Int -> Int -> IO ()
 fromListM size start =
     drainGeneration UF.fromListM (Prelude.map return [start .. start + size])
 
-#ifdef INSPECTION
-inspect $ 'fromListM `hasNoType` ''S.Step
-inspect $ 'fromListM `hasNoType` ''FL.Step
-inspect $ 'fromListM `hasNoType` ''SPEC
-#endif
-
-{-# INLINE replicateM #-}
+{-# ANN replicateM (PermitPatternMatches []) #-}
+{-# ANN replicateM (PermitConstructions []) #-}
+{-# ANN replicateM (PermitTypeClasses []) #-}
+{-# NOINLINE replicateM #-}
 replicateM :: Int -> Int -> IO ()
 replicateM size start = drainGeneration UF.replicateM (size, return start)
 
-#ifdef INSPECTION
-inspect $ 'replicateM `hasNoType` ''S.Step
-inspect $ 'replicateM `hasNoType` ''FL.Step
-inspect $ 'replicateM `hasNoType` ''SPEC
-#endif
-
-{-# INLINE repeatM #-}
+{-# ANN repeatM (PermitPatternMatches []) #-}
+{-# ANN repeatM (PermitConstructions []) #-}
+{-# ANN repeatM (PermitTypeClasses []) #-}
+{-# NOINLINE repeatM #-}
 repeatM :: Int -> Int -> IO ()
 repeatM size start = drainGeneration (UF.take size UF.repeatM) (return start)
 
-#ifdef INSPECTION
-inspect $ 'repeatM `hasNoType` ''S.Step
-inspect $ 'repeatM `hasNoType` ''FL.Step
-inspect $ 'repeatM `hasNoType` ''SPEC
-#endif
-
-{-# INLINE repeat #-}
+{-# ANN repeat (PermitPatternMatches []) #-}
+{-# ANN repeat (PermitConstructions []) #-}
+{-# ANN repeat (PermitTypeClasses []) #-}
+{-# NOINLINE repeat #-}
 repeat :: Int -> Int -> IO ()
 repeat size start = drainGeneration (UF.take size UF.repeat) start
 
-#ifdef INSPECTION
-inspect $ 'repeat `hasNoType` ''S.Step
-inspect $ 'repeat `hasNoType` ''FL.Step
-inspect $ 'repeat `hasNoType` ''SPEC
-#endif
-
-{-# INLINE iterateM #-}
+{-# ANN iterateM (PermitPatternMatches []) #-}
+{-# ANN iterateM (PermitConstructions []) #-}
+{-# ANN iterateM (PermitTypeClasses []) #-}
+{-# NOINLINE iterateM #-}
 iterateM :: Int -> Int -> IO ()
 iterateM size start =
     drainGeneration (UF.take size (UF.iterateM return)) (return start)
 
-#ifdef INSPECTION
-inspect $ 'iterateM `hasNoType` ''S.Step
-inspect $ 'iterateM `hasNoType` ''FL.Step
-inspect $ 'iterateM `hasNoType` ''SPEC
-#endif
-
-{-# INLINE fromIndicesM #-}
+{-# ANN fromIndicesM (PermitPatternMatches []) #-}
+{-# ANN fromIndicesM (PermitConstructions []) #-}
+{-# ANN fromIndicesM (PermitTypeClasses []) #-}
+{-# NOINLINE fromIndicesM #-}
 fromIndicesM :: Int -> Int -> IO ()
 fromIndicesM size start =
     drainGeneration (UF.take size (UF.fromIndicesM return)) start
-
-#ifdef INSPECTION
-inspect $ 'fromIndicesM `hasNoType` ''S.Step
-inspect $ 'fromIndicesM `hasNoType` ''FL.Step
-inspect $ 'fromIndicesM `hasNoType` ''SPEC
-#endif
 
 -------------------------------------------------------------------------------
 -- Stream transformation
 -------------------------------------------------------------------------------
 
-{-# INLINE postscan #-}
+{-# ANN postscan (PermitPatternMatches [''Int]) #-}
+{-# ANN postscan (PermitConstructions []) #-}
+{-# ANN postscan (PermitTypeClasses []) #-}
+{-# NOINLINE postscan #-}
 postscan :: Int -> Int -> IO ()
 postscan size start =
     drainTransformationDefault (size + start) (UF.postscanl Scanl.sum) start
 
-#ifdef INSPECTION
-inspect $ 'postscan `hasNoType` ''S.Step
-inspect $ 'postscan `hasNoType` ''FL.Step
-inspect $ 'postscan `hasNoType` ''SPEC
-#endif
-
-{-# INLINE scanl #-}
+{-# ANN scanl (PermitPatternMatches [''Int]) #-}
+{-# ANN scanl (PermitConstructions []) #-}
+{-# ANN scanl (PermitTypeClasses []) #-}
+{-# NOINLINE scanl #-}
 scanl :: Int -> Int -> IO ()
 scanl size start =
     drainTransformationDefault (size + start) (UF.scanl Scanl.sum) start
 
-#ifdef INSPECTION
-inspect $ 'scanl `hasNoType` ''S.Step
-inspect $ 'scanl `hasNoType` ''FL.Step
-inspect $ 'scanl `hasNoType` ''SPEC
-#endif
-
-{-# INLINE scanlMany #-}
+{-# ANN scanlMany (PermitPatternMatches [''Int]) #-}
+{-# ANN scanlMany (PermitConstructions []) #-}
+{-# ANN scanlMany (PermitTypeClasses []) #-}
+{-# NOINLINE scanlMany #-}
 scanlMany :: Int -> Int -> IO ()
 scanlMany size start =
     drainTransformationDefault (size + start) (UF.scanlMany (Scanl.take 2 Scanl.sum)) start
-
-#ifdef INSPECTION
-inspect $ 'scanlMany `hasNoType` ''S.Step
-inspect $ 'scanlMany `hasNoType` ''FL.Step
-inspect $ 'scanlMany `hasNoType` ''SPEC
-#endif
 
 -------------------------------------------------------------------------------
 -- Stream filtering
 -------------------------------------------------------------------------------
 
-{-# INLINE take #-}
+{-# ANN take (PermitPatternMatches [''Int]) #-}
+{-# ANN take (PermitConstructions []) #-}
+{-# ANN take (PermitTypeClasses []) #-}
+{-# NOINLINE take #-}
 take :: Int -> Int -> IO ()
 take size start = drainTransformationDefault (size + start) (UF.take size) start
 
-#ifdef INSPECTION
-inspect $ 'take `hasNoType` ''S.Step
-inspect $ 'take `hasNoType` ''FL.Step
-inspect $ 'take `hasNoType` ''SPEC
-#endif
-
-{-# INLINE filter #-}
+{-# ANN filter (PermitPatternMatches [''Int]) #-}
+{-# ANN filter (PermitConstructions []) #-}
+{-# ANN filter (PermitTypeClasses []) #-}
+{-# NOINLINE filter #-}
 filter :: Int -> Int -> IO ()
 filter size start =
     drainTransformationDefault (size + start) (UF.filter (\_ -> True)) start
 
-#ifdef INSPECTION
-inspect $ 'filter `hasNoType` ''S.Step
-inspect $ 'filter `hasNoType` ''FL.Step
-inspect $ 'filter `hasNoType` ''SPEC
-#endif
-
-{-# INLINE filterM #-}
+{-# ANN filterM (PermitPatternMatches [''Int]) #-}
+{-# ANN filterM (PermitConstructions []) #-}
+{-# ANN filterM (PermitTypeClasses []) #-}
+{-# NOINLINE filterM #-}
 filterM :: Int -> Int -> IO ()
 filterM size start =
     drainTransformationDefault
@@ -333,41 +265,30 @@ filterM size start =
         (UF.filterM (\_ -> (return True)))
         start
 
-#ifdef INSPECTION
-inspect $ 'filterM `hasNoType` ''S.Step
-inspect $ 'filterM `hasNoType` ''FL.Step
-inspect $ 'filterM `hasNoType` ''SPEC
-#endif
-
 -- Dropping one element from a large stream is dominated by generation, so
 -- instead exercise 'drop' ~value/2 times: generate value/2 two-element streams
 -- with 'fromTuple', 'drop' the first element of each, and flatten the rest.
-{-# INLINE dropOne #-}
+{-# ANN dropOne (PermitPatternMatches [''Int]) #-}
+{-# ANN dropOne (PermitConstructions []) #-}
+{-# ANN dropOne (PermitTypeClasses []) #-}
+{-# NOINLINE dropOne #-}
 dropOne :: Int -> Int -> IO ()
 dropOne value start =
     let outer = UF.map (\i -> (i, i)) (source (start + value `div` 2))
      in drainGeneration (UF.unfoldEach (UF.drop 1 UF.fromTuple) outer) start
 
-#ifdef INSPECTION
-inspect $ 'dropOne `hasNoType` ''S.Step
-inspect $ 'dropOne `hasNoType` ''FL.Step
-inspect $ 'dropOne `hasNoType` ''SPEC
-inspect $ 'dropOne `hasNoType` ''Producer.ConcatState
-inspect $ 'dropOne `hasNoType` ''Producer.TupleState
-#endif
-
-{-# INLINE dropAll #-}
+{-# ANN dropAll (PermitPatternMatches [''Int]) #-}
+{-# ANN dropAll (PermitConstructions []) #-}
+{-# ANN dropAll (PermitTypeClasses []) #-}
+{-# NOINLINE dropAll #-}
 dropAll :: Int -> Int -> IO ()
 dropAll size start =
     drainTransformationDefault (size + start) (UF.drop (size + 1)) start
 
-#ifdef INSPECTION
-inspect $ 'dropAll `hasNoType` ''S.Step
-inspect $ 'dropAll `hasNoType` ''FL.Step
-inspect $ 'dropAll `hasNoType` ''SPEC
-#endif
-
-{-# INLINE dropWhileTrue #-}
+{-# ANN dropWhileTrue (PermitPatternMatches [''Int]) #-}
+{-# ANN dropWhileTrue (PermitConstructions []) #-}
+{-# ANN dropWhileTrue (PermitTypeClasses []) #-}
+{-# NOINLINE dropWhileTrue #-}
 dropWhileTrue :: Int -> Int -> IO ()
 dropWhileTrue size start =
     drainTransformationDefault
@@ -375,13 +296,10 @@ dropWhileTrue size start =
         (UF.dropWhileM (\_ -> return True))
         start
 
-#ifdef INSPECTION
-inspect $ 'dropWhileTrue `hasNoType` ''S.Step
-inspect $ 'dropWhileTrue `hasNoType` ''FL.Step
-inspect $ 'dropWhileTrue `hasNoType` ''SPEC
-#endif
-
-{-# INLINE dropWhileFalse #-}
+{-# ANN dropWhileFalse (PermitPatternMatches [''Int]) #-}
+{-# ANN dropWhileFalse (PermitConstructions []) #-}
+{-# ANN dropWhileFalse (PermitTypeClasses []) #-}
+{-# NOINLINE dropWhileFalse #-}
 dropWhileFalse :: Int -> Int -> IO ()
 dropWhileFalse size start =
     drainTransformationDefault
@@ -389,13 +307,10 @@ dropWhileFalse size start =
         (UF.dropWhileM (\_ -> return False))
         start
 
-#ifdef INSPECTION
-inspect $ 'dropWhileFalse `hasNoType` ''S.Step
-inspect $ 'dropWhileFalse `hasNoType` ''FL.Step
-inspect $ 'dropWhileFalse `hasNoType` ''SPEC
-#endif
-
-{-# INLINE dropWhileMTrue #-}
+{-# ANN dropWhileMTrue (PermitPatternMatches [''Int]) #-}
+{-# ANN dropWhileMTrue (PermitConstructions []) #-}
+{-# ANN dropWhileMTrue (PermitTypeClasses []) #-}
+{-# NOINLINE dropWhileMTrue #-}
 dropWhileMTrue :: Int -> Int -> IO ()
 dropWhileMTrue size start =
     drainTransformationDefault
@@ -403,13 +318,10 @@ dropWhileMTrue size start =
         (UF.dropWhileM (\_ -> return True))
         start
 
-#ifdef INSPECTION
-inspect $ 'dropWhileMTrue `hasNoType` ''S.Step
-inspect $ 'dropWhileMTrue `hasNoType` ''FL.Step
-inspect $ 'dropWhileMTrue `hasNoType` ''SPEC
-#endif
-
-{-# INLINE dropWhileMFalse #-}
+{-# ANN dropWhileMFalse (PermitPatternMatches [''Int]) #-}
+{-# ANN dropWhileMFalse (PermitConstructions []) #-}
+{-# ANN dropWhileMFalse (PermitTypeClasses []) #-}
+{-# NOINLINE dropWhileMFalse #-}
 dropWhileMFalse :: Int -> Int -> IO ()
 dropWhileMFalse size start =
     drainTransformationDefault
@@ -417,13 +329,10 @@ dropWhileMFalse size start =
         (UF.dropWhileM (\_ -> return False))
         start
 
-#ifdef INSPECTION
-inspect $ 'dropWhileMFalse `hasNoType` ''S.Step
-inspect $ 'dropWhileMFalse `hasNoType` ''FL.Step
-inspect $ 'dropWhileMFalse `hasNoType` ''SPEC
-#endif
-
-{-# INLINE dropWhile #-}
+{-# ANN dropWhile (PermitPatternMatches [''Int]) #-}
+{-# ANN dropWhile (PermitConstructions []) #-}
+{-# ANN dropWhile (PermitTypeClasses []) #-}
+{-# NOINLINE dropWhile #-}
 dropWhile :: Int -> Int -> IO ()
 dropWhile size start =
     drainTransformationDefault
@@ -431,72 +340,51 @@ dropWhile size start =
         (UF.dropWhile (\_ -> False))
         start
 
-#ifdef INSPECTION
-inspect $ 'dropWhile `hasNoType` ''S.Step
-inspect $ 'dropWhile `hasNoType` ''FL.Step
-inspect $ 'dropWhile `hasNoType` ''SPEC
-#endif
-
-{-# INLINE mapMaybe #-}
+{-# ANN mapMaybe (PermitPatternMatches [''Int]) #-}
+{-# ANN mapMaybe (PermitConstructions []) #-}
+{-# ANN mapMaybe (PermitTypeClasses []) #-}
+{-# NOINLINE mapMaybe #-}
 mapMaybe :: Int -> Int -> IO ()
 mapMaybe size start =
     drainTransformationDefault (size + start) (UF.mapMaybe Just) start
 
-#ifdef INSPECTION
-inspect $ 'mapMaybe `hasNoType` ''S.Step
-inspect $ 'mapMaybe `hasNoType` ''FL.Step
-inspect $ 'mapMaybe `hasNoType` ''SPEC
-#endif
-
-{-# INLINE mapMaybeM #-}
+{-# ANN mapMaybeM (PermitPatternMatches [''Int]) #-}
+{-# ANN mapMaybeM (PermitConstructions []) #-}
+{-# ANN mapMaybeM (PermitTypeClasses []) #-}
+{-# NOINLINE mapMaybeM #-}
 mapMaybeM :: Int -> Int -> IO ()
 mapMaybeM size start =
     drainTransformationDefault (size + start) (UF.mapMaybeM (return . Just)) start
 
-#ifdef INSPECTION
-inspect $ 'mapMaybeM `hasNoType` ''S.Step
-inspect $ 'mapMaybeM `hasNoType` ''FL.Step
-inspect $ 'mapMaybeM `hasNoType` ''SPEC
-#endif
-
-{-# INLINE catMaybes #-}
+{-# ANN catMaybes (PermitPatternMatches [''Int]) #-}
+{-# ANN catMaybes (PermitConstructions []) #-}
+{-# ANN catMaybes (PermitTypeClasses []) #-}
+{-# NOINLINE catMaybes #-}
 catMaybes :: Int -> Int -> IO ()
 catMaybes size start =
     drainTransformationDefault (size + start) (UF.catMaybes . UF.map Just) start
-
-#ifdef INSPECTION
-inspect $ 'catMaybes `hasNoType` ''S.Step
-inspect $ 'catMaybes `hasNoType` ''FL.Step
-inspect $ 'catMaybes `hasNoType` ''SPEC
-#endif
 
 -------------------------------------------------------------------------------
 -- Stream combination
 -------------------------------------------------------------------------------
 
-{-# INLINE eitherLeft #-}
+{-# ANN eitherLeft (PermitPatternMatches [''Int]) #-}
+{-# ANN eitherLeft (PermitConstructions []) #-}
+{-# ANN eitherLeft (PermitTypeClasses []) #-}
+{-# NOINLINE eitherLeft #-}
 eitherLeft :: Int -> Int -> IO ()
 eitherLeft size start =
     drainGeneration
         (UF.either (source (size + start)) (source (size + start)))
         (Left start)
 
-#ifdef INSPECTION
-inspect $ 'eitherLeft `hasNoType` ''S.Step
-inspect $ 'eitherLeft `hasNoType` ''FL.Step
-inspect $ 'eitherLeft `hasNoType` ''SPEC
-#endif
-
-{-# INLINE zipRepeat #-}
+{-# ANN zipRepeat (PermitPatternMatches [''Int]) #-}
+{-# ANN zipRepeat (PermitConstructions []) #-}
+{-# ANN zipRepeat (PermitTypeClasses []) #-}
+{-# NOINLINE zipRepeat #-}
 zipRepeat :: Int -> Int -> IO ()
 zipRepeat size start =
     drainGeneration (UF.zipRepeat (source (size + start))) (start, start)
-
-#ifdef INSPECTION
-inspect $ 'zipRepeat `hasNoType` ''S.Step
-inspect $ 'zipRepeat `hasNoType` ''FL.Step
-inspect $ 'zipRepeat `hasNoType` ''SPEC
-#endif
 
 -------------------------------------------------------------------------------
 -- Applicative
@@ -505,47 +393,40 @@ inspect $ 'zipRepeat `hasNoType` ''SPEC
 nthRoot :: Double -> Int -> Int
 nthRoot n value = round (fromIntegral value**(1/n))
 
-{-# INLINE innerJoin #-}
+{-# ANN innerJoin (PermitPatternMatches [''Int]) #-}
+{-# ANN innerJoin (PermitConstructions [''Int]) #-}
+{-# ANN innerJoin (PermitTypeClasses []) #-}
+{-# NOINLINE innerJoin #-}
 innerJoin :: Int -> Int -> IO ()
 innerJoin value start =
     let end = start + nthRoot 2 value
         s = source end
     in UF.fold FL.drain (UF.innerJoin (==) s s) start
 
-#ifdef INSPECTION
-inspect $ 'innerJoin `hasNoType` ''S.Step
-inspect $ 'innerJoin `hasNoType` ''FL.Step
-inspect $ 'innerJoin `hasNoType` ''SPEC
-inspect $ 'innerJoin `hasNoType` ''Producer.CrossState
-#endif
-
 -------------------------------------------------------------------------------
 -- Resource management
 -------------------------------------------------------------------------------
 
-{-# INLINE before #-}
+{-# ANN before (PermitPatternMatches [''Int]) #-}
+{-# ANN before (PermitConstructions []) #-}
+{-# ANN before (PermitTypeClasses []) #-}
+{-# NOINLINE before #-}
 before :: Int -> Int -> IO ()
 before size start =
     drainTransformationDefault (size + start) (UF.before (\_ -> return ())) start
 
-#ifdef INSPECTION
-inspect $ 'before `hasNoType` ''S.Step
-inspect $ 'before `hasNoType` ''FL.Step
-inspect $ 'before `hasNoType` ''SPEC
-#endif
-
-{-# INLINE after_ #-}
+{-# ANN after_ (PermitPatternMatches [''Int]) #-}
+{-# ANN after_ (PermitConstructions []) #-}
+{-# ANN after_ (PermitTypeClasses []) #-}
+{-# NOINLINE after_ #-}
 after_ :: Int -> Int -> IO ()
 after_ size start =
     drainTransformationDefault (size + start) (UF.after_ (\_ -> return ())) start
 
-#ifdef INSPECTION
-inspect $ 'after_ `hasNoType` ''S.Step
-inspect $ 'after_ `hasNoType` ''FL.Step
-inspect $ 'after_ `hasNoType` ''SPEC
-#endif
-
-{-# INLINE afterIO #-}
+{-# ANN afterIO (PermitPatternMatches [''Maybe,''Int]) #-}
+{-# ANN afterIO (PermitConstructions [''Maybe,''()]) #-}
+{-# ANN afterIO (PermitTypeClasses []) #-}
+{-# NOINLINE afterIO #-}
 afterIO :: Int -> Int -> IO ()
 afterIO size start =
     UF.fold FL.drain
@@ -553,13 +434,10 @@ afterIO size start =
             (UF.supplySecond (size + start) UF.enumerateFromToNum))
         start
 
-#ifdef INSPECTION
-inspect $ 'afterIO `hasNoType` ''S.Step
-inspect $ 'afterIO `hasNoType` ''FL.Step
-inspect $ 'afterIO `hasNoType` ''SPEC
-#endif
-
-{-# INLINE finallyIO #-}
+{-# ANN finallyIO (PermitPatternMatches [''Maybe,''S.Step]) #-}
+{-# ANN finallyIO (PermitConstructions [''Int,''SrcLoc,''CallStack,''Maybe,''()]) #-}
+{-# ANN finallyIO (PermitTypeClasses [''IP,''MonadCatch]) #-}
+{-# NOINLINE finallyIO #-}
 finallyIO :: Int -> Int -> IO ()
 finallyIO size start =
     UF.fold FL.drain
@@ -567,15 +445,10 @@ finallyIO size start =
             (UF.supplySecond (size + start) UF.enumerateFromToNum))
         start
 
--- 'finallyIO' and 'bracketIO' wrap the step function in exception handlers,
--- so 'Step' constructors are not eliminated.
-#ifdef INSPECTION
--- inspect $ 'finallyIO `hasNoType` ''S.Step
-inspect $ 'finallyIO `hasNoType` ''FL.Step
-inspect $ 'finallyIO `hasNoType` ''SPEC
-#endif
-
-{-# INLINE bracketIO #-}
+{-# ANN bracketIO (PermitPatternMatches [''Maybe,''STRef,''(,),''S.Step]) #-}
+{-# ANN bracketIO (PermitConstructions [''Int,''SrcLoc,''CallStack,''Maybe,''()]) #-}
+{-# ANN bracketIO (PermitTypeClasses [''IP,''MonadCatch]) #-}
+{-# NOINLINE bracketIO #-}
 bracketIO :: Int -> Int -> IO ()
 bracketIO size start =
     UF.fold FL.drain
@@ -583,16 +456,14 @@ bracketIO size start =
             (UF.supplySecond (size + start) UF.enumerateFromToNum))
         start
 
-#ifdef INSPECTION
--- inspect $ 'bracketIO `hasNoType` ''S.Step
-inspect $ 'bracketIO `hasNoType` ''FL.Step
-inspect $ 'bracketIO `hasNoType` ''SPEC
-#endif
-
 lf :: Word8
 lf = fromIntegral (ord '\n')
 
 -- | Split on line feed.
+{-# ANN foldManySepBy (PermitPatternMatches [''UnsafeEquality,''IO,''Int,''[],''Array]) #-}
+{-# ANN foldManySepBy (PermitConstructions [''Int,''SrcLoc,''[],''CallStack,''Array]) #-}
+{-# ANN foldManySepBy (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE foldManySepBy #-}
 foldManySepBy :: Handle -> IO Int
 foldManySepBy =
     let u = UF.foldMany (FL.takeEndBy_ (== lf) FL.drain) FH.reader
@@ -600,11 +471,6 @@ foldManySepBy =
 
 -- Handle-based fold splitting ('FoldMany' Fuse annotation is disabled so
 -- 'Step' is not eliminated, but 'FL.Step' and 'SPEC' should still vanish.)
-#ifdef INSPECTION
--- inspect $ 'foldManySepBy `hasNoType` ''S.Step
-inspect $ 'foldManySepBy `hasNoType` ''FL.Step
-inspect $ 'foldManySepBy `hasNoType` ''SPEC
-#endif
 
 -------------------------------------------------------------------------------
 -- Benchmarks
@@ -616,91 +482,75 @@ moduleName = "Data.Unfold"
 -------------------------------------------------------------------------------
 -- Unfold Exception Benchmarks
 -------------------------------------------------------------------------------
+
 -- | Send the file contents to /dev/null with exception handling
+{-# ANN readChunksOnException (PermitPatternMatches [''UnsafeEquality,''IO,''Int,''[],''Array,''S.Step]) #-}
+{-# ANN readChunksOnException (PermitConstructions
+   [''Int,''SrcLoc,''[],''CallStack,''Array]) #-}
+{-# ANN readChunksOnException (PermitTypeClasses [''IP,''MonadCatch]) #-}
+{-# NOINLINE readChunksOnException #-}
 readChunksOnException :: Handle -> Handle -> IO ()
 readChunksOnException inh devNull =
     let readEx = UF.onException (\_ -> hClose inh) FH.chunkReader
     in UF.fold (IFH.writeChunks devNull) readEx inh
 
 -- | Send the file contents to /dev/null with exception handling
+{-# ANN readChunksBracket_ (PermitPatternMatches [''UnsafeEquality,''IO,''Int,''[],''Array,''S.Step]) #-}
+{-# ANN readChunksBracket_ (PermitConstructions
+   [''Int,''SrcLoc,''[],''CallStack,''Array]) #-}
+{-# ANN readChunksBracket_ (PermitTypeClasses [''IP,''MonadCatch]) #-}
+{-# NOINLINE readChunksBracket_ #-}
 readChunksBracket_ :: Handle -> Handle -> IO ()
 readChunksBracket_ inh devNull =
     let readEx = UF.bracket_ return (\_ -> hClose inh) FH.chunkReader
     in UF.fold (IFH.writeChunks devNull) readEx inh
 
-#ifdef INSPECTION
-#if __GLASGOW_HASKELL__ >= 906
-inspect $ hasNoTypeClassesExcept 'readChunksOnException [''MonadCatch]
-#else
-inspect $ hasNoTypeClasses 'readChunksOnException
-#endif
--- inspect $ 'readChunksOnException `hasNoType` ''S.Step
-inspect $ 'readChunksOnException `hasNoType` ''FL.Step
-inspect $ 'readChunksOnException `hasNoType` ''SPEC
-
-#if __GLASGOW_HASKELL__ >= 906
-inspect $ hasNoTypeClassesExcept 'readChunksBracket_ [''MonadCatch]
-#else
-inspect $ hasNoTypeClasses 'readChunksBracket_
-#endif
--- inspect $ 'readChunksBracket_ `hasNoType` ''S.Step
-inspect $ 'readChunksBracket_ `hasNoType` ''FL.Step
-inspect $ 'readChunksBracket_ `hasNoType` ''SPEC
-#endif
-
 -- | Send the file contents to /dev/null with exception handling
+{-# ANN readWriteOnExceptionUnfold (PermitPatternMatches [''UnsafeEquality,''Word8,''IO,''Int,''[],''Array,''ArrayUnsafe,''ConcatState,''S.Step]) #-}
+{-# ANN readWriteOnExceptionUnfold (PermitConstructions
+   [''Int,''SrcLoc,''[],''CallStack,''Array,''S.Step,''ConcatState,''ArrayUnsafe,''Word8,''()]) #-}
+{-# ANN readWriteOnExceptionUnfold
+   (PermitTypeClasses [''IP,''MonadCatch]) #-}
+{-# NOINLINE readWriteOnExceptionUnfold #-}
 readWriteOnExceptionUnfold :: Handle -> Handle -> IO ()
 readWriteOnExceptionUnfold inh devNull =
     let readEx = UF.onException (\_ -> hClose inh) FH.reader
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
-#ifdef INSPECTION
--- inspect $ hasNoTypeClasses 'readWriteOnExceptionUnfold
--- inspect $ 'readWriteOnExceptionUnfold `hasNoType` ''Step
-#endif
-
 -- | Send the file contents to /dev/null with exception handling
+{-# ANN readWriteHandleExceptionUnfold (PermitPatternMatches [''Either,''UnsafeEquality,''Word8,''IO,''Int,''[],''Array,''ArrayUnsafe,''ConcatState,''S.Step]) #-}
+{-# ANN readWriteHandleExceptionUnfold (PermitConstructions
+   [''Int,''SrcLoc,''[],''CallStack,''Array,''S.Step,''ConcatState,''ArrayUnsafe,''Word8,''()]) #-}
+{-# ANN readWriteHandleExceptionUnfold
+   (PermitTypeClasses [''IP,''MonadCatch,''Exception]) #-}
+{-# NOINLINE readWriteHandleExceptionUnfold #-}
 readWriteHandleExceptionUnfold :: Handle -> Handle -> IO ()
 readWriteHandleExceptionUnfold inh devNull =
     let handler (_e :: SomeException) = hClose inh >> return 10
         readEx = UF.handle (UF.functionM handler) FH.reader
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
-#ifdef INSPECTION
--- hasNoTypeClasses started failing in GHC 9.4.4
--- inspect $ hasNoTypeClasses 'readWriteHandleExceptionUnfold
--- inspect $ 'readWriteHandleExceptionUnfold `hasNoType` ''Step
-#endif
-
 -- | Send the file contents to /dev/null with exception handling
+{-# ANN readWriteFinally_Unfold (PermitPatternMatches [''UnsafeEquality,''Word8,''IO,''Int,''[],''Array,''ArrayUnsafe,''ConcatState,''S.Step]) #-}
+{-# ANN readWriteFinally_Unfold (PermitConstructions
+   [''Int,''SrcLoc,''[],''CallStack,''Array,''S.Step,''ConcatState,''ArrayUnsafe,''Word8,''()]) #-}
+{-# ANN readWriteFinally_Unfold (PermitTypeClasses [''IP,''MonadCatch]) #-}
+{-# NOINLINE readWriteFinally_Unfold #-}
 readWriteFinally_Unfold :: Handle -> Handle -> IO ()
 readWriteFinally_Unfold inh devNull =
     let readEx = UF.finally_ (\_ -> hClose inh) FH.reader
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
-#ifdef INSPECTION
-#if __GLASGOW_HASKELL__ >= 906
-inspect $ hasNoTypeClassesExcept 'readWriteFinally_Unfold [''MonadCatch]
-#else
-inspect $ hasNoTypeClasses 'readWriteFinally_Unfold
-#endif
--- inspect $ 'readWriteFinally_Unfold `hasNoType` ''Step
-#endif
-
 -- | Send the file contents to /dev/null with exception handling
+{-# ANN readWriteBracket_Unfold (PermitPatternMatches [''UnsafeEquality,''Word8,''IO,''Int,''[],''Array,''ArrayUnsafe,''ConcatState,''S.Step]) #-}
+{-# ANN readWriteBracket_Unfold (PermitConstructions
+   [''Int,''SrcLoc,''[],''CallStack,''Array,''S.Step,''ConcatState,''ArrayUnsafe,''Word8,''()]) #-}
+{-# ANN readWriteBracket_Unfold (PermitTypeClasses [''IP,''MonadCatch]) #-}
+{-# NOINLINE readWriteBracket_Unfold #-}
 readWriteBracket_Unfold :: Handle -> Handle -> IO ()
 readWriteBracket_Unfold inh devNull =
     let readEx = UF.bracket_ return (\_ -> hClose inh) FH.reader
     in S.fold (FH.write devNull) $ S.unfold readEx inh
-
-#ifdef INSPECTION
-#if __GLASGOW_HASKELL__ >= 906
-inspect $ hasNoTypeClassesExcept 'readWriteBracket_Unfold [''MonadCatch]
-#else
-inspect $ hasNoTypeClasses 'readWriteBracket_Unfold
-#endif
--- inspect $ 'readWriteBracket_Unfold `hasNoType` ''S.Step
-#endif
 
 benchmarks :: BenchEnv -> Int -> [(SpaceComplexity, Benchmark)]
 benchmarks env size =
@@ -776,7 +626,6 @@ benchmarks env size =
 
 main :: IO ()
 main = do
-#ifndef FUSION_CHECK
     env <- mkHandleBenchEnv
     runWithCLIOpts defaultStreamSize (allBenchmarks env)
 
@@ -794,11 +643,3 @@ main = do
         [ bgroup (o_1_space_prefix moduleName) o_1_space
         , bgroup (o_n_space_prefix moduleName) o_n_space
         ]
-#else
-    -- Enable FUSION_CHECK macro at the beginning of the file
-    -- Enable one benchmark below, and run the benchmark
-    -- Check the .dump-simpl output
-    let value = 100000
-    Type.lmapM value 0
-    return ()
-#endif

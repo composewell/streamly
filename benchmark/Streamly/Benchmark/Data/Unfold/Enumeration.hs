@@ -4,23 +4,7 @@
 -- License     : MIT
 -- Maintainer  : streamly@composewell.com
 
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-
-#undef FUSION_CHECK
-#ifdef FUSION_CHECK
-{-# OPTIONS_GHC -ddump-simpl -ddump-to-file -dsuppress-all #-}
-#endif
-
-#ifdef __HADDOCK_VERSION__
-#undef INSPECTION
-#endif
-
-#ifdef INSPECTION
-{-# LANGUAGE TemplateHaskell #-}
-{-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
-#endif
 
 module Unfold.Enumeration (benchmarks) where
 
@@ -31,16 +15,10 @@ import System.Random (randomRIO)
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as UF
 
-
+import Fusion.Plugin.Types
 import Test.Tasty.Bench hiding (env)
 import Prelude hiding (take, filter, zipWith, map, mapM, takeWhile, scanl, repeat, dropWhile)
 import Streamly.Benchmark.Common
-
-#ifdef INSPECTION
-import GHC.Types (SPEC(..))
-import Test.Inspection
-import qualified Streamly.Internal.Data.Stream as S
-#endif
 
 {-# INLINE benchIO #-}
 benchIO :: (NFData b) => String -> (Int -> IO b) -> Benchmark
@@ -54,18 +32,18 @@ drainGeneration = UF.fold FL.drain
 -- Stream generation
 -------------------------------------------------------------------------------
 
-{-# INLINE enumerateFromThenIntegral #-}
+{-# ANN enumerateFromThenIntegral (PermitPatternMatches [''Int]) #-}
+{-# ANN enumerateFromThenIntegral (PermitConstructions []) #-}
+{-# ANN enumerateFromThenIntegral (PermitTypeClasses []) #-}
+{-# NOINLINE enumerateFromThenIntegral #-}
 enumerateFromThenIntegral :: Int -> Int -> IO ()
 enumerateFromThenIntegral size start =
     drainGeneration (UF.take size UF.enumerateFromThenNum) (start, 1)
 
-#ifdef INSPECTION
-inspect $ 'enumerateFromThenIntegral `hasNoType` ''S.Step
-inspect $ 'enumerateFromThenIntegral `hasNoType` ''FL.Step
-inspect $ 'enumerateFromThenIntegral `hasNoType` ''SPEC
-#endif
-
-{-# INLINE enumerateFromToIntegral #-}
+{-# ANN enumerateFromToIntegral (PermitPatternMatches [''Int]) #-}
+{-# ANN enumerateFromToIntegral (PermitConstructions []) #-}
+{-# ANN enumerateFromToIntegral (PermitTypeClasses []) #-}
+{-# NOINLINE enumerateFromToIntegral #-}
 enumerateFromToIntegral :: Int -> Int -> IO ()
 enumerateFromToIntegral size start =
     drainGeneration
@@ -74,45 +52,33 @@ enumerateFromToIntegral size start =
       UF.enumerateFromToNum
     ) start
 
-#ifdef INSPECTION
-inspect $ 'enumerateFromToIntegral `hasNoType` ''S.Step
-inspect $ 'enumerateFromToIntegral `hasNoType` ''FL.Step
-inspect $ 'enumerateFromToIntegral `hasNoType` ''SPEC
-#endif
-
-{-# INLINE enumerateFromIntegral #-}
+{-# ANN enumerateFromIntegral (PermitPatternMatches [''Int]) #-}
+{-# ANN enumerateFromIntegral (PermitConstructions []) #-}
+{-# ANN enumerateFromIntegral (PermitTypeClasses []) #-}
+{-# NOINLINE enumerateFromIntegral #-}
 enumerateFromIntegral :: Int -> Int -> IO ()
 enumerateFromIntegral size =
     drainGeneration (UF.take size UF.enumerateFromNum)
 
-#ifdef INSPECTION
-inspect $ 'enumerateFromIntegral `hasNoType` ''S.Step
-inspect $ 'enumerateFromIntegral `hasNoType` ''FL.Step
-inspect $ 'enumerateFromIntegral `hasNoType` ''SPEC
-#endif
-
-{-# INLINE enumerateFromStepNum #-}
+{-# ANN enumerateFromStepNum (PermitPatternMatches [''Int]) #-}
+{-# ANN enumerateFromStepNum (PermitConstructions []) #-}
+{-# ANN enumerateFromStepNum (PermitTypeClasses []) #-}
+{-# NOINLINE enumerateFromStepNum #-}
 enumerateFromStepNum :: Int -> Int -> IO ()
 enumerateFromStepNum size start =
     drainGeneration (UF.take size UF.enumerateFromThenNum) (start, 1)
 
-#ifdef INSPECTION
-inspect $ 'enumerateFromStepNum `hasNoType` ''S.Step
-inspect $ 'enumerateFromStepNum `hasNoType` ''FL.Step
-inspect $ 'enumerateFromStepNum `hasNoType` ''SPEC
-#endif
-
-{-# INLINE enumerateFromNum #-}
+{-# ANN enumerateFromNum (PermitPatternMatches [''Int]) #-}
+{-# ANN enumerateFromNum (PermitConstructions []) #-}
+{-# ANN enumerateFromNum (PermitTypeClasses []) #-}
+{-# NOINLINE enumerateFromNum #-}
 enumerateFromNum :: Int -> Int -> IO ()
 enumerateFromNum size = drainGeneration (UF.take size UF.enumerateFromNum)
 
-#ifdef INSPECTION
-inspect $ 'enumerateFromNum `hasNoType` ''S.Step
-inspect $ 'enumerateFromNum `hasNoType` ''FL.Step
-inspect $ 'enumerateFromNum `hasNoType` ''SPEC
-#endif
-
-{-# INLINE enumerateFromToFractional #-}
+{-# ANN enumerateFromToFractional (PermitPatternMatches []) #-}
+{-# ANN enumerateFromToFractional (PermitConstructions []) #-}
+{-# ANN enumerateFromToFractional (PermitTypeClasses []) #-}
+{-# NOINLINE enumerateFromToFractional #-}
 enumerateFromToFractional :: Int -> Int -> IO ()
 enumerateFromToFractional size start =
     let intToDouble x = fromInteger (fromIntegral x) :: Double
@@ -122,12 +88,6 @@ enumerateFromToFractional size start =
               UF.enumerateFromToRealFloat
             )
             (intToDouble start)
-
-#ifdef INSPECTION
-inspect $ 'enumerateFromToFractional `hasNoType` ''S.Step
-inspect $ 'enumerateFromToFractional `hasNoType` ''FL.Step
-inspect $ 'enumerateFromToFractional `hasNoType` ''SPEC
-#endif
 
 -------------------------------------------------------------------------------
 -- Benchmarks
