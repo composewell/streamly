@@ -157,9 +157,10 @@ common optimization-options
     if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
       ghc-options:
          -fplugin Fusion.Plugin
-         -ddump-simpl
          -ddump-to-file
          -dsuppress-all
+         -fplugin-opt=Fusion.Plugin:dump-core-sizes
+         -fplugin-opt=Fusion.Plugin:dump-core-if-violated
 
     if flag(inspection) && flag(fusion-plugin)
       ghc-options: -fplugin-opt=Fusion.Plugin:werror
