@@ -48,42 +48,42 @@ import Prelude hiding (concatMap, zipWith)
 -- Appending
 -------------------------------------------------------------------------------
 
-{-# ANN interleave2 (PermitPatternMatches [''Int]) #-}
-{-# ANN interleave2 (PermitConstructions [''Int,''()]) #-}
-{-# ANN interleave2 (PermitTypeClasses []) #-}
-{-# NOINLINE interleave2 #-}
-interleave2 :: Int -> Int -> IO ()
-interleave2 count n =
+{-# ANN interleave (PermitPatternMatches [''Int]) #-}
+{-# ANN interleave (PermitConstructions [''Int,''()]) #-}
+{-# ANN interleave (PermitTypeClasses []) #-}
+{-# NOINLINE interleave #-}
+interleave :: Int -> Int -> IO ()
+interleave count n =
     drain $
         S.interleave
             (sourceUnfoldrM count n)
             (sourceUnfoldrM count (n + 1))
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'interleave2
-inspect $ 'interleave2 `hasNoType` ''SPEC
-inspect $ 'interleave2 `hasNoType` ''Producer.InterleaveState
-inspect $ 'interleave2 `hasNoType` ''S.Step
-inspect $ 'interleave2 `hasNoType` ''Fold.Step
+inspect $ hasNoTypeClasses 'interleave
+inspect $ 'interleave `hasNoType` ''SPEC
+inspect $ 'interleave `hasNoType` ''Producer.InterleaveState
+inspect $ 'interleave `hasNoType` ''S.Step
+inspect $ 'interleave `hasNoType` ''Fold.Step
 #endif
 
-{-# ANN roundRobin2 (PermitPatternMatches [''Int]) #-}
-{-# ANN roundRobin2 (PermitConstructions [''Int,''()]) #-}
-{-# ANN roundRobin2 (PermitTypeClasses []) #-}
-{-# NOINLINE roundRobin2 #-}
-roundRobin2 :: Int -> Int -> IO ()
-roundRobin2 count n =
+{-# ANN roundRobin (PermitPatternMatches [''Int]) #-}
+{-# ANN roundRobin (PermitConstructions [''Int,''()]) #-}
+{-# ANN roundRobin (PermitTypeClasses []) #-}
+{-# NOINLINE roundRobin #-}
+roundRobin :: Int -> Int -> IO ()
+roundRobin count n =
     S.drain $
     S.roundRobin
         (sourceUnfoldrM count n)
         (sourceUnfoldrM count (n + 1))
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'roundRobin2
-inspect $ 'roundRobin2 `hasNoType` ''SPEC
-inspect $ 'roundRobin2 `hasNoType` ''S.InterleaveState
-inspect $ 'roundRobin2 `hasNoType` ''S.Step
-inspect $ 'roundRobin2 `hasNoType` ''Fold.Step
+inspect $ hasNoTypeClasses 'roundRobin
+inspect $ 'roundRobin `hasNoType` ''SPEC
+inspect $ 'roundRobin `hasNoType` ''S.InterleaveState
+inspect $ 'roundRobin `hasNoType` ''S.Step
+inspect $ 'roundRobin `hasNoType` ''Fold.Step
 #endif
 
 -------------------------------------------------------------------------------
@@ -165,8 +165,11 @@ inspect $ 'bfsUnfoldEach `hasNoType` ''Fold.Step
 inspect $ 'bfsUnfoldEach `hasNoType` ''SPEC
 #endif
 
-{-# ANN altBfsUnfoldEach (PermitPatternMatches [''Int, ''SPEC, ''Producer.InterleaveEachState, ''[], ''IO, ''(,)]) #-}
-{-# ANN altBfsUnfoldEach (PermitConstructions [''[],''Int,''SrcLoc,''CallStack,''Producer.InterleaveEachState,''(,),''(),''SPEC]) #-}
+{-# ANN altBfsUnfoldEach (PermitPatternMatches
+    [''Int,''SPEC,''Producer.InterleaveEachState,''[],''IO,''(,)]) #-}
+{-# ANN altBfsUnfoldEach (PermitConstructions
+    [''[],''Int,''SrcLoc,''CallStack,''Producer.InterleaveEachState,''(,)
+    ,''(),''SPEC]) #-}
 {-# ANN altBfsUnfoldEach (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE altBfsUnfoldEach #-}
 altBfsUnfoldEach :: Int -> Int -> Int -> IO ()
@@ -208,22 +211,26 @@ inspect $ 'unfoldSched `hasNoType` ''SPEC
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
     -- multi-stream
-      [ (SpaceO_1, benchIO "interleave" $ interleave2 (size `div` 2))
-      , (SpaceO_1, benchIO "roundRobin" $ roundRobin2 (size `div` 2))
-      , (SpaceO_1, benchIO "mergeBy compare" $ mergeBy (size `div` 2))
-      , (SpaceO_1, benchIO "mergeByM compare" $ mergeByM (size `div` 2))
+      [ (SpaceO_1, benchIO "interleave" $ interleave (size `div` 2))
+      , (SpaceO_1, benchIO "roundRobin" $ roundRobin (size `div` 2))
+      , (SpaceO_1, benchIO "mergeBy" $ mergeBy (size `div` 2))
+      , (SpaceO_1, benchIO "mergeByM" $ mergeByM (size `div` 2))
 
       -- join 2 streams using n-ary ops
       , (SpaceO_1, benchIO "bfsUnfoldEach" $ bfsUnfoldEach 2 (size `div` 2))
-      , (SpaceO_1, benchIO "altBfsUnfoldEach" $ altBfsUnfoldEach 2 (size `div` 2))
+      , (SpaceO_1, benchIO "altBfsUnfoldEach" $
+            altBfsUnfoldEach 2 (size `div` 2))
       , (SpaceO_1, benchIO "unfoldSched" $ unfoldSched 2 (size `div` 2))
 
       , (HeapO_n, benchIO "bfsUnfoldEach (n of 1)" $ bfsUnfoldEach size 1)
-      , (HeapO_n, benchIO "bfsUnfoldEach (sqrtVal of sqrtVal)" $ bfsUnfoldEach sqrtVal sqrtVal)
+      , (HeapO_n, benchIO "bfsUnfoldEach (sqrtVal of sqrtVal)" $
+            bfsUnfoldEach sqrtVal sqrtVal)
       , (HeapO_n, benchIO "altBfsUnfoldEach (n of 1)" $ altBfsUnfoldEach size 1)
-      , (HeapO_n, benchIO "altBfsUnfoldEach (sqrtVal of sqrtVal)" $ altBfsUnfoldEach sqrtVal sqrtVal)
+      , (HeapO_n, benchIO "altBfsUnfoldEach (sqrtVal of sqrtVal)" $
+            altBfsUnfoldEach sqrtVal sqrtVal)
       , (HeapO_n, benchIO "unfoldSched (n of 1)" $ unfoldSched size 1)
-      , (HeapO_n, benchIO "unfoldSched (sqrtVal of sqrtVal)" $ unfoldSched sqrtVal sqrtVal)
+      , (HeapO_n, benchIO "unfoldSched (sqrtVal of sqrtVal)" $
+            unfoldSched sqrtVal sqrtVal)
       ]
 
     where

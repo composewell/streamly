@@ -71,7 +71,8 @@ sourceUnfoldrM value n = Stream.unfoldrM step n
 
 -- XXX We can also try other enumeration APIs here for testing those.
 {-# INLINE sourceEnumerate #-}
-sourceEnumerate :: (Monad m, Num a, Stream.Enumerable a) => Int -> a -> Stream m a
+sourceEnumerate :: (Monad m, Num a, Stream.Enumerable a) => Int -> a
+    -> Stream m a
 sourceEnumerate len from =
     Stream.enumerateFromThenTo from (from + 1) (from + fromIntegral len)
 
@@ -91,7 +92,8 @@ withStream :: Int -> (Stream IO Int -> IO b) -> Int -> IO b
 withStream n f = f . sourceUnfoldrM n
 
 {-# INLINE withDescStream #-}
-withDescStream :: (Num a, Stream.Enumerable a) => Int -> (Stream IO a -> IO b) -> Int -> IO b
+withDescStream :: (Num a, Stream.Enumerable a) => Int -> (Stream IO a -> IO b)
+    -> Int -> IO b
 withDescStream n f = f . sourceEnumerateDesc n . fromIntegral
 
 -- | Run a scan over the stream as a postscan and drain the result.
@@ -107,12 +109,14 @@ withPostscanlDouble n s =
 
 {-# INLINE withPostscanlDesc #-}
 withPostscanlDesc :: Int -> Scanl IO Int b -> Int -> IO ()
-withPostscanlDesc n s = withDescStream n $ Stream.fold FL.drain . Stream.postscanl s
+withPostscanlDesc n s =
+    withDescStream n $ Stream.fold FL.drain . Stream.postscanl s
 
 -- | Run a scan over a transformed input stream.
 {-# INLINE withPostscanlMap #-}
 withPostscanlMap :: Int -> (Int -> a) -> Scanl IO a b -> Int -> IO ()
-withPostscanlMap n f s = withStream n $ Stream.fold FL.drain . Stream.postscanl s . fmap f
+withPostscanlMap n f s =
+    withStream n $ Stream.fold FL.drain . Stream.postscanl s . fmap f
 
 {-# INLINE benchIO #-}
 benchIO :: String -> (Int -> Int -> IO ()) -> Int -> Benchmark
@@ -183,7 +187,8 @@ inspect $ 'scanl1M' `hasNoType` ''SPEC
 {-# ANN scant' (PermitTypeClasses []) #-}
 {-# NOINLINE scant' #-}
 scant' :: Int -> Int -> IO ()
-scant' n = withPostscanl n (Scanl.scant' (\s a -> Scanl.Partial (s + a)) (FL.Partial 0) id)
+scant' n = withPostscanl n
+    (Scanl.scant' (\s a -> Scanl.Partial (s + a)) (FL.Partial 0) id)
 
 #ifdef INSPECTION
 inspect $ 'scant' `hasNoType` ''Step
@@ -214,7 +219,8 @@ mkScanr n = withPostscanl n (Scanl.mkScanr (+) 0)
 
 {-# INLINE mkScanrM #-}
 mkScanrM :: Int -> Int -> IO ()
-mkScanrM n = withPostscanl n (Scanl.mkScanrM (\a b -> return (a + b)) (return 0))
+mkScanrM n =
+    withPostscanl n (Scanl.mkScanrM (\a b -> return (a + b)) (return 0))
 -}
 
 -------------------------------------------------------------------------------
@@ -441,7 +447,8 @@ inspect $ 'catMaybes `hasNoType` ''SPEC
 {-# ANN postscanlMaybe (PermitTypeClasses []) #-}
 {-# NOINLINE postscanlMaybe #-}
 postscanlMaybe :: Int -> Int -> IO ()
-postscanlMaybe n = withPostscanl n (Scanl.postscanlMaybe (Scanl.filtering even) Scanl.drain)
+postscanlMaybe n =
+    withPostscanl n (Scanl.postscanlMaybe (Scanl.filtering even) Scanl.drain)
 
 #ifdef INSPECTION
 inspect $ 'postscanlMaybe `hasNoType` ''Step
@@ -492,7 +499,8 @@ inspect $ 'filterM `hasNoType` ''SPEC
 {-# ANN catLefts (PermitTypeClasses []) #-}
 {-# NOINLINE catLefts #-}
 catLefts :: Int -> Int -> IO ()
-catLefts n = withPostscanlMap n (Left :: Int -> Either Int Int) (Scanl.catLefts Scanl.length)
+catLefts n = withPostscanlMap n (Left :: Int -> Either Int Int)
+    (Scanl.catLefts Scanl.length)
 
 #ifdef INSPECTION
 inspect $ 'catLefts `hasNoType` ''Step
@@ -504,7 +512,8 @@ inspect $ 'catLefts `hasNoType` ''SPEC
 {-# ANN catRights (PermitTypeClasses []) #-}
 {-# NOINLINE catRights #-}
 catRights :: Int -> Int -> IO ()
-catRights n = withPostscanlMap n (Right :: Int -> Either Int Int) (Scanl.catRights Scanl.length)
+catRights n = withPostscanlMap n (Right :: Int -> Either Int Int)
+    (Scanl.catRights Scanl.length)
 
 #ifdef INSPECTION
 inspect $ 'catRights `hasNoType` ''Step
@@ -632,7 +641,8 @@ toStreamK n = withPostscanl n (Scanl.toStreamK :: Scanl IO Int (StreamK IO Int))
 {-# ANN toStreamKRev (PermitTypeClasses []) #-}
 {-# NOINLINE toStreamKRev #-}
 toStreamKRev :: Int -> Int -> IO ()
-toStreamKRev n = withPostscanl n (Scanl.toStreamKRev :: Scanl IO Int (StreamK IO Int))
+toStreamKRev n = withPostscanl n
+    (Scanl.toStreamKRev :: Scanl IO Int (StreamK IO Int))
 
 -------------------------------------------------------------------------------
 -- Benchmarks
@@ -667,9 +677,9 @@ benchmarks value =
         , benchIO "postscanl" postscanl value
         , benchIO "catMaybes" catMaybes value
         , benchIO "postscanlMaybe (filtering even)" postscanlMaybe value
-        , benchIO "filter even" filter value
-        , benchIO "filtering even" filtering value
-        , benchIO "filterM even" filterM value
+        , benchIO "filter (even)" filter value
+        , benchIO "filtering (even)" filtering value
+        , benchIO "filterM (even)" filterM value
         , benchIO "catLefts" catLefts value
         , benchIO "catRights" catRights value
         , benchIO "catEithers" catEithers value

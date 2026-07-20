@@ -24,7 +24,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- Benchmarks for operations exported from Streamly.Internal.Data.Scanl.Combinators.
+-- Benchmarks for operations exported from
+-- Streamly.Internal.Data.Scanl.Combinators.
 module Scanl.Combinators (benchmarks) where
 
 import GHC.Types (SPEC(..))
@@ -176,7 +177,8 @@ inspect $ 'rollingHash `hasNoType` ''SPEC
 {-# ANN rollingHashWithSalt (PermitTypeClasses []) #-}
 {-# NOINLINE rollingHashWithSalt #-}
 rollingHashWithSalt :: Int -> Int -> IO ()
-rollingHashWithSalt n = withPostscanl n (Scanl.rollingHashWithSalt Scanl.defaultSalt)
+rollingHashWithSalt n =
+    withPostscanl n (Scanl.rollingHashWithSalt Scanl.defaultSalt)
 
 #ifdef INSPECTION
 inspect $ 'rollingHashWithSalt `hasNoType` ''Step
@@ -480,7 +482,8 @@ inspect $ 'compose `hasNoType` ''SPEC
 {-# ANN composeMany (PermitTypeClasses []) #-}
 {-# NOINLINE composeMany #-}
 composeMany :: Int -> Int -> IO ()
-composeMany n = withPostscanl n (Scanl.composeMany (Scanl.take 2 Scanl.sum) Scanl.drain)
+composeMany n =
+    withPostscanl n (Scanl.composeMany (Scanl.take 2 Scanl.sum) Scanl.drain)
 
 #ifdef INSPECTION
 inspect $ 'composeMany `hasNoType` ''Step
@@ -492,7 +495,8 @@ inspect $ 'composeMany `hasNoType` ''SPEC
 {-# ANN pipe (PermitTypeClasses []) #-}
 {-# NOINLINE pipe #-}
 pipe :: Int -> Int -> IO ()
-pipe n = withPostscanl n (Scanl.pipe (Pipe.mapM (\x -> return (x + 1))) Scanl.drain)
+pipe n =
+    withPostscanl n (Scanl.pipe (Pipe.mapM (\x -> return (x + 1))) Scanl.drain)
 
 #ifdef INSPECTION
 inspect $ 'pipe `hasNoType` ''Step
@@ -606,7 +610,8 @@ inspect $ 'unzip `hasNoType` ''SPEC
 {-# ANN unzipWith (PermitTypeClasses []) #-}
 {-# NOINLINE unzipWith #-}
 unzipWith :: Int -> Int -> IO ()
-unzipWith n = withPostscanl n (Scanl.unzipWith (\a -> (a, a)) Scanl.sum Scanl.length)
+unzipWith n =
+    withPostscanl n (Scanl.unzipWith (\a -> (a, a)) Scanl.sum Scanl.length)
 
 #ifdef INSPECTION
 inspect $ 'unzipWith `hasNoType` ''Step
@@ -620,7 +625,8 @@ inspect $ 'unzipWith `hasNoType` ''SPEC
 {-# NOINLINE unzipWithM #-}
 unzipWithM :: Int -> Int -> IO ()
 unzipWithM n =
-    withPostscanl n (Scanl.unzipWithM (\a -> return (a, a)) Scanl.sum Scanl.length)
+    withPostscanl n
+        (Scanl.unzipWithM (\a -> return (a, a)) Scanl.sum Scanl.length)
 
 #ifdef INSPECTION
 inspect $ 'unzipWithM `hasNoType` ''Step
@@ -638,7 +644,8 @@ inspect $ 'unzipWithM `hasNoType` ''SPEC
 {-# NOINLINE partitionByM #-}
 partitionByM :: Int -> Int -> IO ()
 partitionByM n =
-    withPostscanl n (Scanl.partitionByM (return . oddEven) Scanl.sum Scanl.length)
+    withPostscanl n
+        (Scanl.partitionByM (return . oddEven) Scanl.sum Scanl.length)
 
 #ifdef INSPECTION
 inspect $ 'partitionByM `hasNoType` ''Step
@@ -651,7 +658,8 @@ inspect $ 'partitionByM `hasNoType` ''SPEC
 {-# ANN partitionBy (PermitTypeClasses []) #-}
 {-# NOINLINE partitionBy #-}
 partitionBy :: Int -> Int -> IO ()
-partitionBy n = withPostscanl n (Scanl.partitionBy oddEven Scanl.sum Scanl.length)
+partitionBy n =
+    withPostscanl n (Scanl.partitionBy oddEven Scanl.sum Scanl.length)
 
 #ifdef INSPECTION
 inspect $ 'partitionBy `hasNoType` ''Step
@@ -664,7 +672,8 @@ inspect $ 'partitionBy `hasNoType` ''SPEC
 {-# ANN partition (PermitTypeClasses []) #-}
 {-# NOINLINE partition #-}
 partition :: Int -> Int -> IO ()
-partition n = withPostscanlMap n oddEven (Scanl.partition Scanl.sum Scanl.length)
+partition n =
+    withPostscanlMap n oddEven (Scanl.partition Scanl.sum Scanl.length)
 
 #ifdef INSPECTION
 inspect $ 'partition `hasNoType` ''Step
@@ -677,7 +686,8 @@ inspect $ 'partition `hasNoType` ''SPEC
 -------------------------------------------------------------------------------
 
 {-# ANN toListRev (PermitPatternMatches [''SPEC,''Int,''Stream.ScanState]) #-}
-{-# ANN toListRev (PermitConstructions [''SPEC,''Int,''Stream.ScanState,''(),''[]]) #-}
+{-# ANN toListRev (PermitConstructions
+    [''SPEC,''Int,''Stream.ScanState,''(),''[]]) #-}
 {-# ANN toListRev (PermitTypeClasses []) #-}
 {-# NOINLINE toListRev #-}
 toListRev :: Int -> Int -> IO ()
@@ -694,7 +704,8 @@ toStream n =
         . Stream.postscanl (Scanl.toStream :: Scanl IO Int (Stream IO Int))
 
 {-# ANN toStreamRev (PermitPatternMatches [''SPEC,''Int,''Stream.ScanState]) #-}
-{-# ANN toStreamRev (PermitConstructions [''SPEC,''Int,''Stream.ScanState,''(),''[]]) #-}
+{-# ANN toStreamRev (PermitConstructions
+    [''SPEC,''Int,''Stream.ScanState,''(),''[]]) #-}
 {-# ANN toStreamRev (PermitTypeClasses []) #-}
 {-# NOINLINE toStreamRev #-}
 toStreamRev :: Int -> Int -> IO ()
@@ -769,13 +780,13 @@ benchmarks value =
         , benchIO "droppingWhile" droppingWhile value
         , benchIO "compose (sum)" compose value
         , benchIO "composeMany (take 2 sum)" composeMany value
-        , benchIO "pipe-mapM" pipe value
+        , benchIO "pipe (mapM)" pipe value
         , benchIO "indexed" indexed value
         , benchIO "mapMaybeM" mapMaybeM value
         , benchIO "mapMaybe" mapMaybe value
         , benchIO "sampleFromthen" sampleFromthen value
         , benchIO "tee (sum, length)" tee value
-        , benchIO "distribute [sum, length]" distribute value
+        , benchIO "distribute (sum, length)" distribute value
         , benchIO "unzip (sum, length)" unzip value
         , benchIO "unzipWith (sum, length)" unzipWith value
         , benchIO "unzipWithM (sum, length)" unzipWithM value
@@ -787,8 +798,8 @@ benchmarks value =
         [ benchIO "toListRev" toListRev value
         , benchIO "toStream" toStream value
         , benchIO "toStreamRev" toStreamRev value
-        , benchIO "topBy 10" topBy value
-        , benchIO "top 10" top value
-        , benchIO "bottomBy 10" bottomBy value
-        , benchIO "bottom 10" bottom value
+        , benchIO "topBy (10)" topBy value
+        , benchIO "top (10)" top value
+        , benchIO "bottomBy (10)" bottomBy value
+        , benchIO "bottom (10)" bottom value
         ]

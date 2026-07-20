@@ -54,90 +54,124 @@ fairUnfoldCrossEqn maxVal input =
         $ Stream.unfold (Unfold.fairCross input input) (undefined, undefined)
 
 {-# INLINE fairUnfoldEachEqn #-}
-fairUnfoldEachEqn :: Monad m => Int -> Unfold m ((), ()) Int -> Stream m Int -> m ()
+fairUnfoldEachEqn :: Monad m => Int -> Unfold m ((), ()) Int -> Stream m Int
+    -> m ()
 fairUnfoldEachEqn maxVal input ints =
-    let intu = Unfold.carryInput $ Unfold.lmap (const (undefined, undefined)) input
+    let intu =
+            Unfold.carryInput
+                $ Unfold.lmap (const (undefined, undefined)) input
      in Type.result
         $ Stream.mapM (Type.checkPair maxVal)
         $ Stream.fairUnfoldEach intu ints
 
 {-# INLINE unfoldSchedEqn #-}
-unfoldSchedEqn :: Monad m => Int -> Unfold m ((), ()) Int -> Stream m Int -> m ()
+unfoldSchedEqn :: Monad m => Int -> Unfold m ((), ()) Int -> Stream m Int
+    -> m ()
 unfoldSchedEqn maxVal input ints =
-    let intu = Unfold.carryInput $ Unfold.lmap (const (undefined, undefined)) input
+    let intu =
+            Unfold.carryInput
+                $ Unfold.lmap (const (undefined, undefined)) input
      in Type.result
         $ Stream.mapM (Type.checkPair maxVal)
         $ Stream.unfoldSched intu ints
 
 {-# INLINE fairUnfoldSchedEqn #-}
-fairUnfoldSchedEqn :: Monad m => Int -> Unfold m ((), ()) Int -> Stream m Int -> m ()
+fairUnfoldSchedEqn :: Monad m => Int -> Unfold m ((), ()) Int -> Stream m Int
+    -> m ()
 fairUnfoldSchedEqn maxVal input ints =
-    let intu = Unfold.carryInput $ Unfold.lmap (const (undefined, undefined)) input
+    let intu =
+            Unfold.carryInput
+                $ Unfold.lmap (const (undefined, undefined)) input
      in Type.result
         $ Stream.mapM (Type.checkPair maxVal)
         $ Stream.fairUnfoldSched intu ints
 
 -- GHC 9.14.1 cannot fuse InterleaveState, though 9.10 can
-{-# ANN unfoldCrossBounded (PermitPatternMatches [''Maybe,''Int]) #-}
-{-# ANN unfoldCrossBounded (PermitConstructions [''Int,''SrcLoc,''CallStack,''Maybe,''(,),''()]) #-}
-{-# ANN unfoldCrossBounded (PermitTypeClasses [''IP]) #-}
-{-# NOINLINE unfoldCrossBounded #-}
-unfoldCrossBounded :: Int -> Int -> IO ()
-unfoldCrossBounded maxVal _ = unfoldCrossEqn maxVal (Type.boundedIntsUnfold maxVal 0)
+{-# ANN cross_Bounded_Unfold (PermitPatternMatches [''Maybe,''Int]) #-}
+{-# ANN cross_Bounded_Unfold (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''Maybe,''(,),''()]) #-}
+{-# ANN cross_Bounded_Unfold (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE cross_Bounded_Unfold #-}
+cross_Bounded_Unfold :: Int -> Int -> IO ()
+cross_Bounded_Unfold maxVal _ =
+    unfoldCrossEqn maxVal (Type.boundedIntsUnfold maxVal 0)
 
-{-# ANN fairUnfoldCrossBounded (PermitPatternMatches [''Maybe,''(,),''Int,''[],''EnumToState,''InterleaveState]) #-}
-{-# ANN fairUnfoldCrossBounded (PermitConstructions [''[],''Int,''SrcLoc,''CallStack,''EnumToState,''Maybe,''InterleaveState,''(,),''()]) #-}
-{-# ANN fairUnfoldCrossBounded (PermitTypeClasses [''IP]) #-}
-{-# NOINLINE fairUnfoldCrossBounded #-}
-fairUnfoldCrossBounded :: Int -> Int -> IO ()
-fairUnfoldCrossBounded maxVal _ = fairUnfoldCrossEqn maxVal (Type.boundedIntsUnfold maxVal 0)
+{-# ANN fairCross_Bounded_Unfold (PermitPatternMatches
+    [''Maybe,''(,),''Int,''[],''EnumToState,''InterleaveState]) #-}
+{-# ANN fairCross_Bounded_Unfold (PermitConstructions
+    [''[],''Int,''SrcLoc,''CallStack,''EnumToState,''Maybe
+    ,''InterleaveState,''(,),''()]) #-}
+{-# ANN fairCross_Bounded_Unfold (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE fairCross_Bounded_Unfold #-}
+fairCross_Bounded_Unfold :: Int -> Int -> IO ()
+fairCross_Bounded_Unfold maxVal _ =
+    fairUnfoldCrossEqn maxVal (Type.boundedIntsUnfold maxVal 0)
 
-{-# ANN fairUnfoldCrossInfinite (PermitPatternMatches [''Maybe,''(,),''Int,''[],''EnumToState,''InterleaveState]) #-}
-{-# ANN fairUnfoldCrossInfinite (PermitConstructions [''Int,''EnumToState,''(,),''[],''SrcLoc,''CallStack,''Maybe,''InterleaveState,''()]) #-}
-{-# ANN fairUnfoldCrossInfinite (PermitTypeClasses [''IP]) #-}
-{-# NOINLINE fairUnfoldCrossInfinite #-}
-fairUnfoldCrossInfinite :: Int -> Int -> IO ()
-fairUnfoldCrossInfinite maxVal _ = fairUnfoldCrossEqn maxVal (infiniteIntsUnfold maxVal 0)
+{-# ANN fairCross_Infinite_Unfold (PermitPatternMatches
+    [''Maybe,''(,),''Int,''[],''EnumToState,''InterleaveState]) #-}
+{-# ANN fairCross_Infinite_Unfold (PermitConstructions
+    [''Int,''EnumToState,''(,),''[],''SrcLoc,''CallStack,''Maybe
+    ,''InterleaveState,''()]) #-}
+{-# ANN fairCross_Infinite_Unfold (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE fairCross_Infinite_Unfold #-}
+fairCross_Infinite_Unfold :: Int -> Int -> IO ()
+fairCross_Infinite_Unfold maxVal _ =
+    fairUnfoldCrossEqn maxVal (infiniteIntsUnfold maxVal 0)
 
-{-# ANN fairUnfoldEachBounded (PermitPatternMatches [''Maybe,''(,),''Int,''[],''EnumToState,''InterleaveState]) #-}
-{-# ANN fairUnfoldEachBounded (PermitConstructions [''Maybe,''Int,''EnumToState,''InterleaveState,''(,),''[],''()]) #-}
-{-# ANN fairUnfoldEachBounded (PermitTypeClasses []) #-}
-{-# NOINLINE fairUnfoldEachBounded #-}
-fairUnfoldEachBounded :: Int -> Int -> IO ()
-fairUnfoldEachBounded maxVal n =
-    fairUnfoldEachEqn maxVal (Type.boundedIntsUnfold maxVal 0) (Type.boundedInts maxVal n)
+{-# ANN fairUnfoldEach_Bounded (PermitPatternMatches
+    [''Maybe,''(,),''Int,''[],''EnumToState,''InterleaveState]) #-}
+{-# ANN fairUnfoldEach_Bounded (PermitConstructions
+    [''Maybe,''Int,''EnumToState,''InterleaveState,''(,),''[],''()]) #-}
+{-# ANN fairUnfoldEach_Bounded (PermitTypeClasses []) #-}
+{-# NOINLINE fairUnfoldEach_Bounded #-}
+fairUnfoldEach_Bounded :: Int -> Int -> IO ()
+fairUnfoldEach_Bounded maxVal n =
+    fairUnfoldEachEqn maxVal (Type.boundedIntsUnfold maxVal 0)
+        (Type.boundedInts maxVal n)
 
-{-# ANN fairUnfoldEachInfinite (PermitPatternMatches [''Maybe,''(,),''Int,''[],''EnumToState,''InterleaveState]) #-}
-{-# ANN fairUnfoldEachInfinite (PermitConstructions [''Int,''EnumToState,''(,),''Maybe,''InterleaveState,''[],''()]) #-}
-{-# ANN fairUnfoldEachInfinite (PermitTypeClasses []) #-}
-{-# NOINLINE fairUnfoldEachInfinite #-}
-fairUnfoldEachInfinite :: Int -> Int -> IO ()
-fairUnfoldEachInfinite maxVal n =
-    fairUnfoldEachEqn maxVal (infiniteIntsUnfold maxVal 0) (Type.infiniteInts maxVal n)
+{-# ANN fairUnfoldEach_Infinite (PermitPatternMatches
+    [''Maybe,''(,),''Int,''[],''EnumToState,''InterleaveState]) #-}
+{-# ANN fairUnfoldEach_Infinite (PermitConstructions
+    [''Int,''EnumToState,''(,),''Maybe,''InterleaveState,''[],''()]) #-}
+{-# ANN fairUnfoldEach_Infinite (PermitTypeClasses []) #-}
+{-# NOINLINE fairUnfoldEach_Infinite #-}
+fairUnfoldEach_Infinite :: Int -> Int -> IO ()
+fairUnfoldEach_Infinite maxVal n =
+    fairUnfoldEachEqn maxVal (infiniteIntsUnfold maxVal 0)
+        (Type.infiniteInts maxVal n)
 
-{-# ANN unfoldSchedBounded (PermitPatternMatches [''Maybe,''(,),''Int,''[],''EnumToState,''InterleaveState]) #-}
-{-# ANN unfoldSchedBounded (PermitConstructions [''Maybe,''Int,''EnumToState,''InterleaveState,''[],''(,),''()]) #-}
-{-# ANN unfoldSchedBounded (PermitTypeClasses []) #-}
-{-# NOINLINE unfoldSchedBounded #-}
-unfoldSchedBounded :: Int -> Int -> IO ()
-unfoldSchedBounded maxVal n =
-    unfoldSchedEqn maxVal (Type.boundedIntsUnfold maxVal 0) (Type.boundedInts maxVal n)
+{-# ANN unfoldSched_Bounded (PermitPatternMatches
+    [''Maybe,''(,),''Int,''[],''EnumToState,''InterleaveState]) #-}
+{-# ANN unfoldSched_Bounded (PermitConstructions
+    [''Maybe,''Int,''EnumToState,''InterleaveState,''[],''(,),''()]) #-}
+{-# ANN unfoldSched_Bounded (PermitTypeClasses []) #-}
+{-# NOINLINE unfoldSched_Bounded #-}
+unfoldSched_Bounded :: Int -> Int -> IO ()
+unfoldSched_Bounded maxVal n =
+    unfoldSchedEqn maxVal (Type.boundedIntsUnfold maxVal 0)
+        (Type.boundedInts maxVal n)
 
-{-# ANN fairUnfoldSchedBounded (PermitPatternMatches [''Maybe,''(,),''Int,''[],''EnumToState,''InterleaveState]) #-}
-{-# ANN fairUnfoldSchedBounded (PermitConstructions [''Maybe,''Int,''EnumToState,''InterleaveState,''(,),''[],''()]) #-}
-{-# ANN fairUnfoldSchedBounded (PermitTypeClasses []) #-}
-{-# NOINLINE fairUnfoldSchedBounded #-}
-fairUnfoldSchedBounded :: Int -> Int -> IO ()
-fairUnfoldSchedBounded maxVal n =
-    fairUnfoldSchedEqn maxVal (Type.boundedIntsUnfold maxVal 0) (Type.boundedInts maxVal n)
+{-# ANN fairUnfoldSched_Bounded (PermitPatternMatches
+    [''Maybe,''(,),''Int,''[],''EnumToState,''InterleaveState]) #-}
+{-# ANN fairUnfoldSched_Bounded (PermitConstructions
+    [''Maybe,''Int,''EnumToState,''InterleaveState,''(,),''[],''()]) #-}
+{-# ANN fairUnfoldSched_Bounded (PermitTypeClasses []) #-}
+{-# NOINLINE fairUnfoldSched_Bounded #-}
+fairUnfoldSched_Bounded :: Int -> Int -> IO ()
+fairUnfoldSched_Bounded maxVal n =
+    fairUnfoldSchedEqn maxVal (Type.boundedIntsUnfold maxVal 0)
+        (Type.boundedInts maxVal n)
 
-{-# ANN fairUnfoldSchedInfinite (PermitPatternMatches [''Maybe,''(,),''Int,''[],''EnumToState,''InterleaveState]) #-}
-{-# ANN fairUnfoldSchedInfinite (PermitConstructions [''Int,''EnumToState,''(,),''Maybe,''InterleaveState,''[],''()]) #-}
-{-# ANN fairUnfoldSchedInfinite (PermitTypeClasses []) #-}
-{-# NOINLINE fairUnfoldSchedInfinite #-}
-fairUnfoldSchedInfinite :: Int -> Int -> IO ()
-fairUnfoldSchedInfinite maxVal n =
-    fairUnfoldSchedEqn maxVal (infiniteIntsUnfold maxVal 0) (Type.infiniteInts maxVal n)
+{-# ANN fairUnfoldSched_Infinite (PermitPatternMatches
+    [''Maybe,''(,),''Int,''[],''EnumToState,''InterleaveState]) #-}
+{-# ANN fairUnfoldSched_Infinite (PermitConstructions
+    [''Int,''EnumToState,''(,),''Maybe,''InterleaveState,''[],''()]) #-}
+{-# ANN fairUnfoldSched_Infinite (PermitTypeClasses []) #-}
+{-# NOINLINE fairUnfoldSched_Infinite #-}
+fairUnfoldSched_Infinite :: Int -> Int -> IO ()
+fairUnfoldSched_Infinite maxVal n =
+    fairUnfoldSchedEqn maxVal (infiniteIntsUnfold maxVal 0)
+        (Type.infiniteInts maxVal n)
 
 -------------------------------------------------------------------------------
 -- Main
@@ -147,14 +181,23 @@ benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
     -- Solve simultaneous equations by exploring all possibilities
     -- Unfold
-      [ (SpaceO_1, benchIO "equations/unfoldCross (bounded)" $ unfoldCrossBounded sqrtVal)
-      , (SpaceO_1, benchIO "equations/fairUnfoldCross (bounded)" $ fairUnfoldCrossBounded sqrtVal)
-      , (SpaceO_1, benchIO "equations/fairUnfoldCross (infinite)" $ fairUnfoldCrossInfinite sqrtVal)
-      , (SpaceO_1, benchIO "equations/fairUnfoldEach (bounded)" $ fairUnfoldEachBounded sqrtVal)
-      , (SpaceO_1, benchIO "equations/fairUnfoldEach (infinite)" $ fairUnfoldEachInfinite sqrtVal)
-      , (SpaceO_1, benchIO "equations/unfoldSched (bounded)" $ unfoldSchedBounded sqrtVal)
-      , (SpaceO_1, benchIO "equations/fairUnfoldSched (bounded)" $ fairUnfoldSchedBounded sqrtVal)
-      , (SpaceO_1, benchIO "equations/fairUnfoldSched (infinite)" $ fairUnfoldSchedInfinite sqrtVal)
+    -- XXX Move the Unfold benchmarks to the Unfold module
+      [ (SpaceO_1, benchIO "cross_Bounded_Unfold (Unfold equations)" $
+            cross_Bounded_Unfold sqrtVal)
+      , (SpaceO_1, benchIO "fairCross_Bounded_Unfold (Unfold equations)" $
+            fairCross_Bounded_Unfold sqrtVal)
+      , (SpaceO_1, benchIO "fairCross_Infinite_Unfold (Unfold equations)" $
+            fairCross_Infinite_Unfold sqrtVal)
+      , (SpaceO_1, benchIO "fairUnfoldEach_Bounded (equations)" $
+            fairUnfoldEach_Bounded sqrtVal)
+      , (SpaceO_1, benchIO "fairUnfoldEach_Infinite (equations)" $
+            fairUnfoldEach_Infinite sqrtVal)
+      , (SpaceO_1, benchIO "unfoldSched_Bounded (equations)" $
+            unfoldSched_Bounded sqrtVal)
+      , (SpaceO_1, benchIO "fairUnfoldSched_Bounded (equations)" $
+            fairUnfoldSched_Bounded sqrtVal)
+      , (SpaceO_1, benchIO "fairUnfoldSched_Infinite (equations)" $
+            fairUnfoldSched_Infinite sqrtVal)
       ]
 
     where

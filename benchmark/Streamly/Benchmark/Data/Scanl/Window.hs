@@ -13,7 +13,8 @@ import GHC.Stack (CallStack, SrcLoc)
 import qualified Streamly.Internal.Data.Scanl as Scanl
 
 import Fusion.Plugin.Types
-import Scanl.Type (benchIO, withPostscanl, withPostscanlDesc, withPostscanlDouble)
+import Scanl.Type
+    (benchIO, withPostscanl, withPostscanlDesc, withPostscanlDouble)
 import Streamly.Benchmark.Common
 import Test.Tasty.Bench
 
@@ -21,141 +22,168 @@ import Test.Tasty.Bench
 -- benchmarks
 -------------------------------------------------------------------------------
 
-{-# ANN windowMinimum (PermitPatternMatches [''Bool,''Double,''IO,''Int]) #-}
-{-# ANN windowMinimum (PermitConstructions [''Int,''SrcLoc,''CallStack,''()]) #-}
-{-# ANN windowMinimum (PermitTypeClasses [''IP]) #-}
-{-# NOINLINE windowMinimum #-}
-windowMinimum :: Int -> Int -> Int -> IO ()
-windowMinimum win n = withPostscanlDouble n (Scanl.windowMinimum win)
+{-# ANN windowMinimum_Double (PermitPatternMatches
+    [''Bool,''Double,''IO,''Int]) #-}
+{-# ANN windowMinimum_Double (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''()]) #-}
+{-# ANN windowMinimum_Double (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE windowMinimum_Double #-}
+windowMinimum_Double :: Int -> Int -> Int -> IO ()
+windowMinimum_Double win n = withPostscanlDouble n (Scanl.windowMinimum win)
 
-{-# ANN windowMinimumInt (PermitPatternMatches [''IO,''Int]) #-}
-{-# ANN windowMinimumInt (PermitConstructions [''Int,''SrcLoc,''CallStack,''()]) #-}
-{-# ANN windowMinimumInt (PermitTypeClasses [''IP]) #-}
-{-# NOINLINE windowMinimumInt #-}
-windowMinimumInt :: Int -> Int -> Int -> IO ()
-windowMinimumInt win n = withPostscanl n (Scanl.windowMinimum win)
+{-# ANN windowMinimum_Int (PermitPatternMatches [''IO,''Int]) #-}
+{-# ANN windowMinimum_Int (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''()]) #-}
+{-# ANN windowMinimum_Int (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE windowMinimum_Int #-}
+windowMinimum_Int :: Int -> Int -> Int -> IO ()
+windowMinimum_Int win n = withPostscanl n (Scanl.windowMinimum win)
 
-{-# ANN windowMinimumDesc (PermitPatternMatches [''IO,''Int]) #-}
-{-# ANN windowMinimumDesc (PermitConstructions [''Int,''SrcLoc,''CallStack,''()]) #-}
-{-# ANN windowMinimumDesc (PermitTypeClasses [''IP]) #-}
-{-# NOINLINE windowMinimumDesc #-}
-windowMinimumDesc :: Int -> Int -> Int -> IO ()
-windowMinimumDesc win n = withPostscanlDesc n (Scanl.windowMinimum win)
+{-# ANN windowMinimum_IntDesc (PermitPatternMatches [''IO,''Int]) #-}
+{-# ANN windowMinimum_IntDesc (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''()]) #-}
+{-# ANN windowMinimum_IntDesc (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE windowMinimum_IntDesc #-}
+windowMinimum_IntDesc :: Int -> Int -> Int -> IO ()
+windowMinimum_IntDesc win n = withPostscanlDesc n (Scanl.windowMinimum win)
 
-{-# ANN windowMaximum (PermitPatternMatches [''Bool,''Double,''IO,''Int]) #-}
-{-# ANN windowMaximum (PermitConstructions [''Int,''SrcLoc,''CallStack,''()]) #-}
-{-# ANN windowMaximum (PermitTypeClasses [''IP]) #-}
-{-# NOINLINE windowMaximum #-}
-windowMaximum :: Int -> Int -> Int -> IO ()
-windowMaximum win n = withPostscanlDouble n (Scanl.windowMaximum win)
+{-# ANN windowMaximum_Double (PermitPatternMatches
+    [''Bool,''Double,''IO,''Int]) #-}
+{-# ANN windowMaximum_Double (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''()]) #-}
+{-# ANN windowMaximum_Double (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE windowMaximum_Double #-}
+windowMaximum_Double :: Int -> Int -> Int -> IO ()
+windowMaximum_Double win n = withPostscanlDouble n (Scanl.windowMaximum win)
 
-{-# ANN windowMaximumDesc (PermitPatternMatches [''IO,''Int]) #-}
-{-# ANN windowMaximumDesc (PermitConstructions [''Int,''SrcLoc,''CallStack,''()]) #-}
-{-# ANN windowMaximumDesc (PermitTypeClasses [''IP]) #-}
-{-# NOINLINE windowMaximumDesc #-}
-windowMaximumDesc :: Int -> Int -> Int -> IO ()
-windowMaximumDesc win n = withPostscanlDesc n (Scanl.windowMaximum win)
+{-# ANN windowMaximum_IntDesc (PermitPatternMatches [''IO,''Int]) #-}
+{-# ANN windowMaximum_IntDesc (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''()]) #-}
+{-# ANN windowMaximum_IntDesc (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE windowMaximum_IntDesc #-}
+windowMaximum_IntDesc :: Int -> Int -> Int -> IO ()
+windowMaximum_IntDesc win n = withPostscanlDesc n (Scanl.windowMaximum win)
 
-{-# ANN windowRange (PermitPatternMatches [''Bool,''Double,''IO,''Int]) #-}
-{-# ANN windowRange (PermitConstructions [''Int,''SrcLoc,''CallStack,''()]) #-}
-{-# ANN windowRange (PermitTypeClasses [''IP]) #-}
-{-# NOINLINE windowRange #-}
-windowRange :: Int -> Int -> Int -> IO ()
-windowRange win n = withPostscanlDouble n (Scanl.windowRange win)
+{-# ANN windowRange_Double (PermitPatternMatches
+    [''Bool,''Double,''IO,''Int]) #-}
+{-# ANN windowRange_Double (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''()]) #-}
+{-# ANN windowRange_Double (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE windowRange_Double #-}
+windowRange_Double :: Int -> Int -> Int -> IO ()
+windowRange_Double win n = withPostscanlDouble n (Scanl.windowRange win)
 
-{-# ANN windowRangeDesc (PermitPatternMatches [''IO,''Int]) #-}
-{-# ANN windowRangeDesc (PermitConstructions [''Int,''SrcLoc,''CallStack,''()]) #-}
-{-# ANN windowRangeDesc (PermitTypeClasses [''IP]) #-}
-{-# NOINLINE windowRangeDesc #-}
-windowRangeDesc :: Int -> Int -> Int -> IO ()
-windowRangeDesc win n = withPostscanlDesc n (Scanl.windowRange win)
+{-# ANN windowRange_IntDesc (PermitPatternMatches [''IO,''Int]) #-}
+{-# ANN windowRange_IntDesc (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''()]) #-}
+{-# ANN windowRange_IntDesc (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE windowRange_IntDesc #-}
+windowRange_IntDesc :: Int -> Int -> Int -> IO ()
+windowRange_IntDesc win n = withPostscanlDesc n (Scanl.windowRange win)
 
-{-# ANN incrSum (PermitPatternMatches [''Bool,''Double,''IO,''Int]) #-}
-{-# ANN incrSum (PermitConstructions [''Int,''SrcLoc,''CallStack,''()]) #-}
-{-# ANN incrSum (PermitTypeClasses [''IP]) #-}
-{-# NOINLINE incrSum #-}
-incrSum :: Int -> Int -> Int -> IO ()
-incrSum win n = withPostscanlDouble n (Scanl.incrScan win Scanl.incrSum)
+{-# ANN incrSum_Double (PermitPatternMatches [''Bool,''Double,''IO,''Int]) #-}
+{-# ANN incrSum_Double (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''()]) #-}
+{-# ANN incrSum_Double (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE incrSum_Double #-}
+incrSum_Double :: Int -> Int -> Int -> IO ()
+incrSum_Double win n = withPostscanlDouble n (Scanl.incrScan win Scanl.incrSum)
 
-{-# ANN incrSumCumulative (PermitPatternMatches [''Bool,''Double,''Int]) #-}
-{-# ANN incrSumCumulative (PermitConstructions [''()]) #-}
-{-# ANN incrSumCumulative (PermitTypeClasses []) #-}
-{-# NOINLINE incrSumCumulative #-}
-incrSumCumulative :: Int -> Int -> IO ()
-incrSumCumulative n = withPostscanlDouble n (Scanl.cumulativeScan Scanl.incrSum)
+{-# ANN incrSum_Double_Cumulative (PermitPatternMatches
+    [''Bool,''Double,''Int]) #-}
+{-# ANN incrSum_Double_Cumulative (PermitConstructions [''()]) #-}
+{-# ANN incrSum_Double_Cumulative (PermitTypeClasses []) #-}
+{-# NOINLINE incrSum_Double_Cumulative #-}
+incrSum_Double_Cumulative :: Int -> Int -> IO ()
+incrSum_Double_Cumulative n =
+    withPostscanlDouble n (Scanl.cumulativeScan Scanl.incrSum)
 
-{-# ANN incrSumInt (PermitPatternMatches [''IO,''Int]) #-}
-{-# ANN incrSumInt (PermitConstructions [''Int,''SrcLoc,''CallStack,''()]) #-}
-{-# ANN incrSumInt (PermitTypeClasses [''IP]) #-}
-{-# NOINLINE incrSumInt #-}
-incrSumInt :: Int -> Int -> Int -> IO ()
-incrSumInt win n = withPostscanl n (Scanl.incrScan win Scanl.incrSumInt)
+{-# ANN incrSum_Int (PermitPatternMatches [''IO,''Int]) #-}
+{-# ANN incrSum_Int (PermitConstructions [''Int,''SrcLoc,''CallStack,''()]) #-}
+{-# ANN incrSum_Int (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE incrSum_Int #-}
+incrSum_Int :: Int -> Int -> Int -> IO ()
+incrSum_Int win n = withPostscanl n (Scanl.incrScan win Scanl.incrSumInt)
 
-{-# ANN incrMean (PermitPatternMatches [''Bool,''Double,''IO,''Int]) #-}
-{-# ANN incrMean (PermitConstructions [''Int,''SrcLoc,''CallStack,''()]) #-}
-{-# ANN incrMean (PermitTypeClasses [''IP]) #-}
-{-# NOINLINE incrMean #-}
-incrMean :: Int -> Int -> Int -> IO ()
-incrMean win n = withPostscanlDouble n (Scanl.incrScan win Scanl.incrMean)
+{-# ANN incrMean_Double (PermitPatternMatches [''Bool,''Double,''IO,''Int]) #-}
+{-# ANN incrMean_Double (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''()]) #-}
+{-# ANN incrMean_Double (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE incrMean_Double #-}
+incrMean_Double :: Int -> Int -> Int -> IO ()
+incrMean_Double win n =
+    withPostscanlDouble n (Scanl.incrScan win Scanl.incrMean)
 
-{-# ANN incrMeanCumulative (PermitPatternMatches [''Bool,''Double,''Int]) #-}
-{-# ANN incrMeanCumulative (PermitConstructions [''()]) #-}
-{-# ANN incrMeanCumulative (PermitTypeClasses []) #-}
-{-# NOINLINE incrMeanCumulative #-}
-incrMeanCumulative :: Int -> Int -> IO ()
-incrMeanCumulative n = withPostscanlDouble n (Scanl.cumulativeScan Scanl.incrMean)
+{-# ANN incrMean_Double_Cumulative (PermitPatternMatches
+    [''Bool,''Double,''Int]) #-}
+{-# ANN incrMean_Double_Cumulative (PermitConstructions [''()]) #-}
+{-# ANN incrMean_Double_Cumulative (PermitTypeClasses []) #-}
+{-# NOINLINE incrMean_Double_Cumulative #-}
+incrMean_Double_Cumulative :: Int -> Int -> IO ()
+incrMean_Double_Cumulative n =
+    withPostscanlDouble n (Scanl.cumulativeScan Scanl.incrMean)
 
-{-# ANN incrPowerSum (PermitPatternMatches [''Bool,''Double,''IO,''Int]) #-}
-{-# ANN incrPowerSum (PermitConstructions [''Int,''SrcLoc,''CallStack,''()]) #-}
-{-# ANN incrPowerSum (PermitTypeClasses [''IP]) #-}
-{-# NOINLINE incrPowerSum #-}
-incrPowerSum :: Int -> Int -> Int -> IO ()
-incrPowerSum win n = withPostscanlDouble n (Scanl.incrScan win (Scanl.incrPowerSum 2))
+{-# ANN incrPowerSum_Double (PermitPatternMatches
+    [''Bool,''Double,''IO,''Int]) #-}
+{-# ANN incrPowerSum_Double (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''()]) #-}
+{-# ANN incrPowerSum_Double (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE incrPowerSum_Double #-}
+incrPowerSum_Double :: Int -> Int -> Int -> IO ()
+incrPowerSum_Double win n =
+    withPostscanlDouble n (Scanl.incrScan win (Scanl.incrPowerSum 2))
 
-{-# ANN incrPowerSumCumulative (PermitPatternMatches [''Bool,''Double,''Int]) #-}
-{-# ANN incrPowerSumCumulative (PermitConstructions [''()]) #-}
-{-# ANN incrPowerSumCumulative (PermitTypeClasses []) #-}
-{-# NOINLINE incrPowerSumCumulative #-}
-incrPowerSumCumulative :: Int -> Int -> IO ()
-incrPowerSumCumulative n =
+{-# ANN incrPowerSum_Double_Cumulative (PermitPatternMatches
+    [''Bool,''Double,''Int]) #-}
+{-# ANN incrPowerSum_Double_Cumulative (PermitConstructions [''()]) #-}
+{-# ANN incrPowerSum_Double_Cumulative (PermitTypeClasses []) #-}
+{-# NOINLINE incrPowerSum_Double_Cumulative #-}
+incrPowerSum_Double_Cumulative :: Int -> Int -> IO ()
+incrPowerSum_Double_Cumulative n =
     withPostscanlDouble n (Scanl.cumulativeScan (Scanl.incrPowerSum 2))
 
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks numElements =
     map (SpaceO_1,)
-    [ benchIO "windowMinimum 10" (windowMinimum 10) numElements
-    , benchIO "windowMinimumInt 10" (windowMinimumInt 10) numElements
+    [ benchIO "windowMinimum_Double (10)" (windowMinimum_Double 10) numElements
+    , benchIO "windowMinimum_Int (10)" (windowMinimum_Int 10) numElements
     -- Below window size 30 the linear search based impl performs better
     -- than the dequeue based implementation.
-    , benchIO "windowMinimum 30" (windowMinimum 30) numElements
-    , benchIO "windowMinimum 1000" (windowMinimum 1000) numElements
-    , benchIO "windowMinimum 1000 descending"
-        (windowMinimumDesc 1000) numElements
+    , benchIO "windowMinimum_Double (30)" (windowMinimum_Double 30) numElements
+    , benchIO "windowMinimum_Double (1000)" (windowMinimum_Double 1000)
+        numElements
+    , benchIO "windowMinimum_IntDesc (1000)"
+        (windowMinimum_IntDesc 1000) numElements
 
-    , benchIO "windowMaximum 10" (windowMaximum 10) numElements
-    , benchIO "windowMaximum 30" (windowMaximum 30) numElements
-    , benchIO "windowMaximum 1000" (windowMaximum 1000) numElements
-    , benchIO "windowMaximum 1000 descending"
-        (windowMaximumDesc 1000) numElements
+    , benchIO "windowMaximum_Double (10)" (windowMaximum_Double 10) numElements
+    , benchIO "windowMaximum_Double (30)" (windowMaximum_Double 30) numElements
+    , benchIO "windowMaximum_Double (1000)" (windowMaximum_Double 1000)
+        numElements
+    , benchIO "windowMaximum_IntDesc (1000)"
+        (windowMaximum_IntDesc 1000) numElements
 
-    , benchIO "windowRange 10" (windowRange 10) numElements
-    , benchIO "windowRange 30" (windowRange 30) numElements
-    , benchIO "windowRange 1000" (windowRange 1000) numElements
-    , benchIO "windowRange 1000 descending"
-        (windowRangeDesc 1000) numElements
+    , benchIO "windowRange_Double (10)" (windowRange_Double 10) numElements
+    , benchIO "windowRange_Double (30)" (windowRange_Double 30) numElements
+    , benchIO "windowRange_Double (1000)" (windowRange_Double 1000) numElements
+    , benchIO "windowRange_IntDesc (1000)"
+        (windowRange_IntDesc 1000) numElements
 
-    , benchIO "incrSum 100" (incrSum 100) numElements
-    , benchIO "incrSum 1000" (incrSum 1000) numElements
-    , benchIO "incrSum cumulative" incrSumCumulative numElements
+    , benchIO "incrSum_Double (100)" (incrSum_Double 100) numElements
+    , benchIO "incrSum_Double (1000)" (incrSum_Double 1000) numElements
+    , benchIO "incrSum_Double_Cumulative" incrSum_Double_Cumulative numElements
 
-    , benchIO "incrSumInt 100" (incrSumInt 100) numElements
-    , benchIO "incrSumInt 1000" (incrSumInt 1000) numElements
+    , benchIO "incrSum_Int (100)" (incrSum_Int 100) numElements
+    , benchIO "incrSum_Int (1000)" (incrSum_Int 1000) numElements
 
-    , benchIO "incrMean 100" (incrMean 100) numElements
-    , benchIO "incrMean 1000" (incrMean 1000) numElements
-    , benchIO "incrMean cumulative" incrMeanCumulative numElements
+    , benchIO "incrMean_Double (100)" (incrMean_Double 100) numElements
+    , benchIO "incrMean_Double (1000)" (incrMean_Double 1000) numElements
+    , benchIO "incrMean_Double_Cumulative" incrMean_Double_Cumulative
+        numElements
 
-    , benchIO "incrPowerSum 2 100" (incrPowerSum 100) numElements
-    , benchIO "incrPowerSum 2 1000" (incrPowerSum 1000) numElements
-    , benchIO "incrPowerSum 2" incrPowerSumCumulative numElements
+    , benchIO "incrPowerSum_Double (2, 100)" (incrPowerSum_Double 100)
+        numElements
+    , benchIO "incrPowerSum_Double (2, 1000)" (incrPowerSum_Double 1000)
+        numElements
+    , benchIO "incrPowerSum_Double_Cumulative" incrPowerSum_Double_Cumulative
+        numElements
     ]

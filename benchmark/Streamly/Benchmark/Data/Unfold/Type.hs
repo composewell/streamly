@@ -28,7 +28,8 @@ import qualified Streamly.Internal.Data.Unfold as UF
 
 import Fusion.Plugin.Types
 import Test.Tasty.Bench hiding (env)
-import Prelude hiding (take, filter, zipWith, map, mapM, takeWhile, scanl, repeat, dropWhile)
+import Prelude hiding
+    (take, filter, zipWith, map, mapM, takeWhile, scanl, repeat, dropWhile)
 import Streamly.Benchmark.Common
 
 {-# INLINE benchIO #-}
@@ -222,7 +223,8 @@ fromPure value start =
 functionMaybeM :: Int -> Int -> IO ()
 functionMaybeM value start =
     drainGeneration
-        (UF.unfoldEach (UF.functionMaybeM (return . Just)) (source (start + value)))
+        (UF.unfoldEach
+            (UF.functionMaybeM (return . Just)) (source (start + value)))
         start
 
 -- 'fromTuple' generates two elements per seed, so unfold it over value/2 tuples
@@ -290,12 +292,12 @@ mapM :: Int -> Int -> IO ()
 mapM size start =
     drainTransformationDefault (size + start) (UF.mapM (return . (+) 1)) start
 
-{-# ANN mapM2 (PermitPatternMatches [''Int]) #-}
-{-# ANN mapM2 (PermitConstructions []) #-}
-{-# ANN mapM2 (PermitTypeClasses []) #-}
-{-# NOINLINE mapM2 #-}
-mapM2 :: Int -> Int -> IO ()
-mapM2 size =
+{-# ANN mapM_CarryInput (PermitPatternMatches [''Int]) #-}
+{-# ANN mapM_CarryInput (PermitConstructions []) #-}
+{-# ANN mapM_CarryInput (PermitTypeClasses []) #-}
+{-# NOINLINE mapM_CarryInput #-}
+mapM_CarryInput :: Int -> Int -> IO ()
+mapM_CarryInput size =
     drainTransformationDefault
         size
         (UF.mapM (\(a, b) -> return $ a + b) . UF.carryInput)
@@ -349,14 +351,6 @@ zipWithM size start =
         (UF.zipWithM (\a b -> return $ a + b))
         start
 
-{-# ANN teeZipWith (PermitPatternMatches [''Int]) #-}
-{-# ANN teeZipWith (PermitConstructions [''Int]) #-}
-{-# ANN teeZipWith (PermitTypeClasses []) #-}
-{-# NOINLINE teeZipWith #-}
-teeZipWith :: Int -> Int -> IO ()
-teeZipWith size start =
-    drainProductDefault (size + start) (UF.zipWith (+)) start
-
 {-# ANN interleave (PermitPatternMatches [''Int]) #-}
 {-# ANN interleave (PermitConstructions []) #-}
 {-# ANN interleave (PermitTypeClasses []) #-}
@@ -391,12 +385,12 @@ zipArrowWith size start =
 nthRoot :: Double -> Int -> Int
 nthRoot n value = round (fromIntegral value**(1/n))
 
-{-# ANN toNullAp (PermitPatternMatches [''Int]) #-}
-{-# ANN toNullAp (PermitConstructions [''Int]) #-}
-{-# ANN toNullAp (PermitTypeClasses []) #-}
-{-# NOINLINE toNullAp #-}
-toNullAp :: Int -> Int -> IO ()
-toNullAp value start =
+{-# ANN ap_ApplicativeInstance_x2 (PermitPatternMatches [''Int]) #-}
+{-# ANN ap_ApplicativeInstance_x2 (PermitConstructions [''Int]) #-}
+{-# ANN ap_ApplicativeInstance_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE ap_ApplicativeInstance_x2 #-}
+ap_ApplicativeInstance_x2 :: Int -> Int -> IO ()
+ap_ApplicativeInstance_x2 value start =
     let end = start + nthRoot 2 value
         s = source end
     -- in UF.fold ((+) <$> s <*> s) FL.drain start
@@ -432,8 +426,10 @@ cross value start =
         s = source end
     in UF.fold FL.drain (s `UF.cross` s) start
 
-{-# ANN fairCross (PermitPatternMatches [''(,),''Int,''[],''Producer.EnumToState]) #-}
-{-# ANN fairCross (PermitConstructions [''Int, ''(,), ''[], ''Producer.EnumToState]) #-}
+{-# ANN fairCross (PermitPatternMatches
+    [''(,),''Int,''[],''Producer.EnumToState]) #-}
+{-# ANN fairCross (PermitConstructions
+    [''Int,''(,),''[],''Producer.EnumToState]) #-}
 {-# ANN fairCross (PermitTypeClasses []) #-}
 {-# NOINLINE fairCross #-}
 fairCross :: Int -> Int -> IO ()
@@ -472,8 +468,10 @@ crossWith value start =
         s = source end
     in UF.fold FL.drain (UF.crossWith (+) s s) start
 
-{-# ANN fairCrossWithM (PermitPatternMatches [''(,),''Int,''[],''Producer.EnumToState]) #-}
-{-# ANN fairCrossWithM (PermitConstructions [''Int, ''(,), ''[], ''Producer.EnumToState]) #-}
+{-# ANN fairCrossWithM (PermitPatternMatches
+    [''(,),''Int,''[],''Producer.EnumToState]) #-}
+{-# ANN fairCrossWithM (PermitConstructions
+    [''Int,''(,),''[],''Producer.EnumToState]) #-}
 {-# ANN fairCrossWithM (PermitTypeClasses []) #-}
 {-# NOINLINE fairCrossWithM #-}
 fairCrossWithM :: Int -> Int -> IO ()
@@ -482,8 +480,10 @@ fairCrossWithM value start =
         s = source end
     in UF.fold FL.drain (UF.fairCrossWithM (\a b -> return (a + b)) s s) start
 
-{-# ANN fairCrossWith (PermitPatternMatches [''(,),''Int,''[],''Producer.EnumToState]) #-}
-{-# ANN fairCrossWith (PermitConstructions [''Int, ''(,), ''[], ''Producer.EnumToState]) #-}
+{-# ANN fairCrossWith (PermitPatternMatches
+    [''(,),''Int,''[],''Producer.EnumToState]) #-}
+{-# ANN fairCrossWith (PermitConstructions
+    [''Int,''(,),''[],''Producer.EnumToState]) #-}
 {-# ANN fairCrossWith (PermitTypeClasses []) #-}
 {-# NOINLINE fairCrossWith #-}
 fairCrossWith :: Int -> Int -> IO ()
@@ -514,12 +514,16 @@ concatMapM inner outer start =
 -- The 'bind'-based benchmarks use the Unfold monad ('UF.bind'), which is a
 -- concatMap and does not fuse, so the 'Step' constructors remain.
 
-{-# ANN toNull (PermitPatternMatches [''Bool,''Int,''Producer.ConcatMapReaderState,''Producer.EnumToState,''Stream.Step]) #-}
-{-# ANN toNull (PermitConstructions [''Int,''Stream.Step,''Producer.ConcatMapReaderState,''Producer.EnumToState,''Bool]) #-}
-{-# ANN toNull (PermitTypeClasses []) #-}
-{-# NOINLINE toNull #-}
-toNull :: Int -> Int -> IO ()
-toNull value start =
+{-# ANN bind_MonadInstance_x2 (PermitPatternMatches
+    [''Bool,''Int,''Producer.ConcatMapReaderState,''Producer.EnumToState
+    ,''Stream.Step]) #-}
+{-# ANN bind_MonadInstance_x2 (PermitConstructions
+    [''Int,''Stream.Step,''Producer.ConcatMapReaderState
+    ,''Producer.EnumToState,''Bool]) #-}
+{-# ANN bind_MonadInstance_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE bind_MonadInstance_x2 #-}
+bind_MonadInstance_x2 :: Int -> Int -> IO ()
+bind_MonadInstance_x2 value start =
     let end = start + nthRoot 2 value
         src = source end
         {-
@@ -533,12 +537,16 @@ toNull value start =
                 UF.fromPure (x + y)
      in UF.fold FL.drain u start
 
-{-# ANN toNull3 (PermitPatternMatches [''Bool,''Int,''Producer.ConcatMapReaderState,''Producer.EnumToState,''Stream.Step,''Unfold]) #-}
-{-# ANN toNull3 (PermitConstructions [''Int,''Stream.Step,''Producer.ConcatMapReaderState,''Producer.EnumToState,''Unfold,''Bool]) #-}
-{-# ANN toNull3 (PermitTypeClasses []) #-}
-{-# NOINLINE toNull3 #-}
-toNull3 :: Int -> Int -> IO ()
-toNull3 value start =
+{-# ANN bind_MonadInstance_x3 (PermitPatternMatches
+    [''Bool,''Int,''Producer.ConcatMapReaderState,''Producer.EnumToState
+    ,''Stream.Step,''Unfold]) #-}
+{-# ANN bind_MonadInstance_x3 (PermitConstructions
+    [''Int,''Stream.Step,''Producer.ConcatMapReaderState
+    ,''Producer.EnumToState,''Unfold,''Bool]) #-}
+{-# ANN bind_MonadInstance_x3 (PermitTypeClasses []) #-}
+{-# NOINLINE bind_MonadInstance_x3 #-}
+bind_MonadInstance_x3 :: Int -> Int -> IO ()
+bind_MonadInstance_x3 value start =
     let end = start + nthRoot 3 value
         src = source end
         {-
@@ -554,12 +562,16 @@ toNull3 value start =
                 UF.fromPure (x + y + z)
      in UF.fold FL.drain u start
 
-{-# ANN toNullConcatMap (PermitPatternMatches [''Bool,''Int,''Producer.ConcatMapReaderState,''Producer.EnumToState,''Stream.Step]) #-}
-{-# ANN toNullConcatMap (PermitConstructions [''Int,''Stream.Step,''Producer.ConcatMapReaderState,''Producer.EnumToState,''Bool]) #-}
-{-# ANN toNullConcatMap (PermitTypeClasses []) #-}
-{-# NOINLINE toNullConcatMap #-}
-toNullConcatMap :: Int -> Int -> IO ()
-toNullConcatMap value start =
+{-# ANN concatMap_x2 (PermitPatternMatches
+    [''Bool,''Int,''Producer.ConcatMapReaderState,''Producer.EnumToState
+    ,''Stream.Step]) #-}
+{-# ANN concatMap_x2 (PermitConstructions
+    [''Int,''Stream.Step,''Producer.ConcatMapReaderState
+    ,''Producer.EnumToState,''Bool]) #-}
+{-# ANN concatMap_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE concatMap_x2 #-}
+concatMap_x2 :: Int -> Int -> IO ()
+concatMap_x2 value start =
     let end = start + nthRoot 2 value
         src = source end
         u = UF.concatMap (\x ->
@@ -567,12 +579,16 @@ toNullConcatMap value start =
                 UF.fromPure (x + y)) src) src
      in UF.fold FL.drain u start
 
-{-# ANN toNull3ConcatMap (PermitPatternMatches [''Bool,''Int,''Producer.ConcatMapReaderState,''Producer.EnumToState,''Stream.Step,''Unfold]) #-}
-{-# ANN toNull3ConcatMap (PermitConstructions [''Int,''Stream.Step,''Producer.ConcatMapReaderState,''Producer.EnumToState,''Unfold,''Bool]) #-}
-{-# ANN toNull3ConcatMap (PermitTypeClasses []) #-}
-{-# NOINLINE toNull3ConcatMap #-}
-toNull3ConcatMap :: Int -> Int -> IO ()
-toNull3ConcatMap value start =
+{-# ANN concatMap_x3 (PermitPatternMatches
+    [''Bool,''Int,''Producer.ConcatMapReaderState,''Producer.EnumToState
+    ,''Stream.Step,''Unfold]) #-}
+{-# ANN concatMap_x3 (PermitConstructions
+    [''Int,''Stream.Step,''Producer.ConcatMapReaderState
+    ,''Producer.EnumToState,''Unfold,''Bool]) #-}
+{-# ANN concatMap_x3 (PermitTypeClasses []) #-}
+{-# NOINLINE concatMap_x3 #-}
+concatMap_x3 :: Int -> Int -> IO ()
+concatMap_x3 value start =
     let end = start + nthRoot 3 value
         src = source end
         u = UF.concatMap (\x ->
@@ -581,12 +597,16 @@ toNull3ConcatMap value start =
                 UF.fromPure (x + y + z)) src) src) src
      in UF.fold FL.drain u start
 
-{-# ANN toList (PermitPatternMatches [''Bool,''Int,''Producer.ConcatMapReaderState,''Producer.EnumToState,''Stream.Step]) #-}
-{-# ANN toList (PermitConstructions [''Int,''Stream.Step,''Producer.ConcatMapReaderState,''[],''Producer.EnumToState,''Bool]) #-}
-{-# ANN toList (PermitTypeClasses []) #-}
-{-# NOINLINE toList #-}
-toList :: Int -> Int -> IO [Int]
-toList value start = do
+{-# ANN bind_MonadInstance_ToList_x2 (PermitPatternMatches
+    [''Bool,''Int,''Producer.ConcatMapReaderState,''Producer.EnumToState
+    ,''Stream.Step]) #-}
+{-# ANN bind_MonadInstance_ToList_x2 (PermitConstructions
+    [''Int,''Stream.Step,''Producer.ConcatMapReaderState,''[]
+    ,''Producer.EnumToState,''Bool]) #-}
+{-# ANN bind_MonadInstance_ToList_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE bind_MonadInstance_ToList_x2 #-}
+bind_MonadInstance_ToList_x2 :: Int -> Int -> IO [Int]
+bind_MonadInstance_ToList_x2 value start = do
     let end = start + nthRoot 2 value
         src = source end
         {-
@@ -600,12 +620,16 @@ toList value start = do
                 UF.fromPure (x + y)
      in UF.fold FL.toList u start
 
-{-# ANN toListSome (PermitPatternMatches [''Bool,''Int,''Producer.ConcatMapReaderState,''Producer.EnumToState,''Stream.Step]) #-}
-{-# ANN toListSome (PermitConstructions [''Int,''Stream.Step,''Producer.ConcatMapReaderState,''[],''Producer.EnumToState,''Bool]) #-}
-{-# ANN toListSome (PermitTypeClasses []) #-}
-{-# NOINLINE toListSome #-}
-toListSome :: Int -> Int -> IO [Int]
-toListSome value start = do
+{-# ANN bind_MonadInstance_ToListSome_x2 (PermitPatternMatches
+    [''Bool,''Int,''Producer.ConcatMapReaderState,''Producer.EnumToState
+    ,''Stream.Step]) #-}
+{-# ANN bind_MonadInstance_ToListSome_x2 (PermitConstructions
+    [''Int,''Stream.Step,''Producer.ConcatMapReaderState,''[]
+    ,''Producer.EnumToState,''Bool]) #-}
+{-# ANN bind_MonadInstance_ToListSome_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE bind_MonadInstance_ToListSome_x2 #-}
+bind_MonadInstance_ToListSome_x2 :: Int -> Int -> IO [Int]
+bind_MonadInstance_ToListSome_x2 value start = do
     let end = start + nthRoot 2 value
         src = source end
         {-
@@ -619,12 +643,16 @@ toListSome value start = do
                 UF.fromPure (x + y)
      in UF.fold FL.toList (UF.take 1000 u) start
 
-{-# ANN filterAllOut (PermitPatternMatches [''Bool,''Int,''Producer.ConcatMapReaderState,''Producer.EnumToState,''Stream.Step]) #-}
-{-# ANN filterAllOut (PermitConstructions [''Int,''Stream.Step,''Producer.ConcatMapReaderState,''Producer.EnumToState,''Bool]) #-}
-{-# ANN filterAllOut (PermitTypeClasses []) #-}
-{-# NOINLINE filterAllOut #-}
-filterAllOut :: Int -> Int -> IO ()
-filterAllOut value start = do
+{-# ANN bind_MonadInstance_FilterAllOut_x2 (PermitPatternMatches
+    [''Bool,''Int,''Producer.ConcatMapReaderState,''Producer.EnumToState
+    ,''Stream.Step]) #-}
+{-# ANN bind_MonadInstance_FilterAllOut_x2 (PermitConstructions
+    [''Int,''Stream.Step,''Producer.ConcatMapReaderState
+    ,''Producer.EnumToState,''Bool]) #-}
+{-# ANN bind_MonadInstance_FilterAllOut_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE bind_MonadInstance_FilterAllOut_x2 #-}
+bind_MonadInstance_FilterAllOut_x2 :: Int -> Int -> IO ()
+bind_MonadInstance_FilterAllOut_x2 value start = do
     let end = start + nthRoot 2 value
         src = source end
         {-
@@ -640,12 +668,16 @@ filterAllOut value start = do
                 else UF.nilM (return . const ())
      in UF.fold FL.drain u start
 
-{-# ANN filterAllIn (PermitPatternMatches [''Bool,''Int,''Producer.ConcatMapReaderState,''Producer.EnumToState,''Stream.Step]) #-}
-{-# ANN filterAllIn (PermitConstructions [''Int,''Stream.Step,''Producer.ConcatMapReaderState,''Producer.EnumToState,''Bool]) #-}
-{-# ANN filterAllIn (PermitTypeClasses []) #-}
-{-# NOINLINE filterAllIn #-}
-filterAllIn :: Int -> Int -> IO ()
-filterAllIn value start = do
+{-# ANN bind_MonadInstance_FilterAllIn_x2 (PermitPatternMatches
+    [''Bool,''Int,''Producer.ConcatMapReaderState,''Producer.EnumToState
+    ,''Stream.Step]) #-}
+{-# ANN bind_MonadInstance_FilterAllIn_x2 (PermitConstructions
+    [''Int,''Stream.Step,''Producer.ConcatMapReaderState
+    ,''Producer.EnumToState,''Bool]) #-}
+{-# ANN bind_MonadInstance_FilterAllIn_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE bind_MonadInstance_FilterAllIn_x2 #-}
+bind_MonadInstance_FilterAllIn_x2 :: Int -> Int -> IO ()
+bind_MonadInstance_FilterAllIn_x2 value start = do
     let end = start + nthRoot 2 value
         src = source end
         {-
@@ -661,12 +693,16 @@ filterAllIn value start = do
                 else UF.nilM (return . const ())
      in UF.fold FL.drain u start
 
-{-# ANN filterSome (PermitPatternMatches [''Bool,''Int,''Producer.ConcatMapReaderState,''Producer.EnumToState,''Stream.Step]) #-}
-{-# ANN filterSome (PermitConstructions [''Int,''Stream.Step,''Producer.ConcatMapReaderState,''Producer.EnumToState,''Bool]) #-}
-{-# ANN filterSome (PermitTypeClasses []) #-}
-{-# NOINLINE filterSome #-}
-filterSome :: Int -> Int -> IO ()
-filterSome value start = do
+{-# ANN bind_MonadInstance_FilterSome_x2 (PermitPatternMatches
+    [''Bool,''Int,''Producer.ConcatMapReaderState,''Producer.EnumToState
+    ,''Stream.Step]) #-}
+{-# ANN bind_MonadInstance_FilterSome_x2 (PermitConstructions
+    [''Int,''Stream.Step,''Producer.ConcatMapReaderState
+    ,''Producer.EnumToState,''Bool]) #-}
+{-# ANN bind_MonadInstance_FilterSome_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE bind_MonadInstance_FilterSome_x2 #-}
+bind_MonadInstance_FilterSome_x2 :: Int -> Int -> IO ()
+bind_MonadInstance_FilterSome_x2 value start = do
     let end = start + nthRoot 2 value
         src = source end
         {-
@@ -682,13 +718,15 @@ filterSome value start = do
                 else UF.nilM (return . const ())
      in UF.fold FL.drain u start
 
-{-# ANN breakAfterSome (PermitPatternMatches [''SomeException,''UnsafeEquality,''Bool]) #-}
-{-# ANN breakAfterSome (PermitConstructions
-   [''Either,''Int,''SrcLoc,''CallStack]) #-}
-{-# ANN breakAfterSome (PermitTypeClasses [''Typeable,''IP,''Exception]) #-}
-{-# NOINLINE breakAfterSome #-}
-breakAfterSome :: Int -> Int -> IO ()
-breakAfterSome value start =
+{-# ANN bind_MonadInstance_BreakAfterSome_x2 (PermitPatternMatches
+    [''SomeException,''UnsafeEquality,''Bool]) #-}
+{-# ANN bind_MonadInstance_BreakAfterSome_x2 (PermitConstructions
+    [''Either,''Int,''SrcLoc,''CallStack]) #-}
+{-# ANN bind_MonadInstance_BreakAfterSome_x2 (PermitTypeClasses
+    [''Typeable,''IP,''Exception]) #-}
+{-# NOINLINE bind_MonadInstance_BreakAfterSome_x2 #-}
+bind_MonadInstance_BreakAfterSome_x2 :: Int -> Int -> IO ()
+bind_MonadInstance_BreakAfterSome_x2 value start =
     let end = start + nthRoot 2 value
         src = source end
         {-
@@ -718,14 +756,15 @@ unfoldEach :: Int -> Int -> Int -> IO ()
 unfoldEach inner outer start = do
     UF.fold
         FL.drain
-        (UF.unfoldEach (sourceUnfoldrM inner start) (sourceUnfoldrM outer start))
+        (UF.unfoldEach
+            (sourceUnfoldrM inner start) (sourceUnfoldrM outer start))
         start
 
 -- NOTE: Inlining this blows up the heap requirement to 1 GB.
 {-# ANN unfoldEachInterleave (PermitPatternMatches
-   [''Producer.InterleaveEachState,''Int,''IO,''[],''SPEC]) #-}
+    [''Producer.InterleaveEachState,''Int,''IO,''[],''SPEC]) #-}
 {-# ANN unfoldEachInterleave (PermitConstructions
-   [''Producer.InterleaveEachState,''Int,''SrcLoc,''[],''CallStack,''SPEC]) #-}
+    [''Producer.InterleaveEachState,''Int,''SrcLoc,''[],''CallStack,''SPEC]) #-}
 {-# ANN unfoldEachInterleave (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE unfoldEachInterleave #-}
 unfoldEachInterleave :: Int -> Int -> Int -> IO ()
@@ -736,12 +775,12 @@ unfoldEachInterleave inner outer start = do
             (sourceUnfoldrM inner start) (sourceUnfoldrM outer start))
         start
 
-{-# ANN concatMapPure (PermitPatternMatches [''Int,''Producer.EnumToState]) #-}
-{-# ANN concatMapPure (PermitConstructions [''Int,''Producer.EnumToState]) #-}
-{-# ANN concatMapPure (PermitTypeClasses []) #-}
-{-# NOINLINE concatMapPure #-}
-concatMapPure :: Int -> Int -> Int -> IO ()
-concatMapPure inner outer start =
+{-# ANN concatMap_Pure (PermitPatternMatches [''Int,''Producer.EnumToState]) #-}
+{-# ANN concatMap_Pure (PermitConstructions [''Int,''Producer.EnumToState]) #-}
+{-# ANN concatMap_Pure (PermitTypeClasses []) #-}
+{-# NOINLINE concatMap_Pure #-}
+concatMap_Pure :: Int -> Int -> Int -> IO ()
+concatMap_Pure inner outer start =
     drainGeneration (UF.concatMap unfoldInGen unfoldOut) start
 
     where
@@ -784,47 +823,56 @@ benchmarks size =
     , (SpaceO_1, benchIO "takeWhile" $ takeWhile size)
     -- Nesting
     , (SpaceO_1, benchIO "interleave" $ interleave size)
-    , (SpaceO_1, benchIO "unfoldEach inner=outer=(sqrt Max)" $ unfoldEach sqrtVal sqrtVal)
-    , (SpaceO_1, benchIO "unfoldEach inner=1 outer=Max" $ unfoldEach 1 size)
-    , (SpaceO_1, benchIO "unfoldEach inner=Max outer=1" $ unfoldEach size 1)
-    , (SpaceO_1, benchIO "unfoldEachInterleave inner=outer=(sqrt Max)"
+    , (SpaceO_1, benchIO "unfoldEach (inner=outer=sqrt Max)" $
+          unfoldEach sqrtVal sqrtVal)
+    , (SpaceO_1, benchIO "unfoldEach (inner=1 outer=Max)" $ unfoldEach 1 size)
+    , (SpaceO_1, benchIO "unfoldEach (inner=Max outer=1)" $ unfoldEach size 1)
+    , (SpaceO_1, benchIO "unfoldEachInterleave (inner=outer=sqrt Max)"
         $ unfoldEachInterleave sqrtVal sqrtVal)
-    , (SpaceO_1, benchIO "unfoldEachInterleave inner=1 outer=Max"
+    , (SpaceO_1, benchIO "unfoldEachInterleave (inner=1 outer=Max)"
         $ unfoldEachInterleave 1 size)
-    , (SpaceO_1, benchIO "unfoldEachInterleave inner=Max outer=1"
+    , (SpaceO_1, benchIO "unfoldEachInterleave (inner=Max outer=1)"
         $ unfoldEachInterleave size 1)
     -- Applicative
-    , (SpaceO_1, benchIO "crossApply outer=inner=(sqrt Max)" $ toNullAp size)
-    , (SpaceO_1, benchIO "crossApply2 outer=inner=(sqrt Max)" $ crossApply size)
-    , (SpaceO_1, benchIO "crossApplySnd outer=inner=(sqrt Max)" $ crossApplySnd size)
-    , (SpaceO_1, benchIO "crossApplyFst outer=inner=(sqrt Max)" $ crossApplyFst size)
-    , (SpaceO_1, benchIO "crossWithM outer=inner=(sqrt Max)" $ crossWithM size)
-    , (SpaceO_1, benchIO "crossWith outer=inner=(sqrt Max)" $ crossWith size)
-    , (SpaceO_1, benchIO "cross outer=inner=(sqrt Max)" $ cross size)
-    , (SpaceO_1, benchIO "fairCrossWithM outer=inner=(sqrt Max)" $ fairCrossWithM size)
-    , (SpaceO_1, benchIO "fairCrossWith outer=inner=(sqrt Max)" $ fairCrossWith size)
-    , (SpaceO_1, benchIO "fairCross outer=inner=(sqrt Max)" $ fairCross size)
+    , (SpaceO_1, benchIO "ap_ApplicativeInstance_x2" $
+          ap_ApplicativeInstance_x2 size)
+    , (SpaceO_1, benchIO "crossApply" $ crossApply size)
+    , (SpaceO_1, benchIO "crossApplySnd" $ crossApplySnd size)
+    , (SpaceO_1, benchIO "crossApplyFst" $ crossApplyFst size)
+    , (SpaceO_1, benchIO "crossWithM" $ crossWithM size)
+    , (SpaceO_1, benchIO "crossWith" $ crossWith size)
+    , (SpaceO_1, benchIO "cross" $ cross size)
+    , (SpaceO_1, benchIO "fairCrossWithM" $ fairCrossWithM size)
+    , (SpaceO_1, benchIO "fairCrossWith" $ fairCrossWith size)
+    , (SpaceO_1, benchIO "fairCross" $ fairCross size)
     -- Monad
-    , (SpaceO_1, benchIO "concatMapM outer=inner=(sqrt Max)" $ concatMapM sqrtVal sqrtVal)
-    , (SpaceO_1, benchIO "concatMapPure outer=inner=(sqrt Max)" $ concatMapPure sqrtVal sqrtVal)
-    , (SpaceO_1, benchIO "concatMap2" $ toNullConcatMap size)
-    , (SpaceO_1, benchIO "concatMap3" $ toNull3ConcatMap size)
-    , (SpaceO_1, benchIO "bind2" $ toNull size)
-    , (SpaceO_1, benchIO "bind3" $ toNull3 size)
-    , (SpaceO_1, benchIO "breakAfterSome2" $ breakAfterSome size)
-    , (SpaceO_1, benchIO "filterAllOut2" $ filterAllOut size)
-    , (SpaceO_1, benchIO "filterAllIn2" $ filterAllIn size)
-    , (SpaceO_1, benchIO "filterSome2" $ filterSome size)
-    , (SpaceO_n, benchIO "toList2" $ toList size)
-    , (SpaceO_n, benchIO "toListSome2" $ toListSome size)
+    , (SpaceO_1, benchIO "concatMapM (inner=outer=sqrt Max)" $
+          concatMapM sqrtVal sqrtVal)
+    , (SpaceO_1, benchIO "concatMap_Pure (inner=outer=sqrt Max)" $
+          concatMap_Pure sqrtVal sqrtVal)
+    , (SpaceO_1, benchIO "concatMap_x2" $ concatMap_x2 size)
+    , (SpaceO_1, benchIO "concatMap_x3" $ concatMap_x3 size)
+    , (SpaceO_1, benchIO "bind_MonadInstance_x2" $ bind_MonadInstance_x2 size)
+    , (SpaceO_1, benchIO "bind_MonadInstance_x3" $ bind_MonadInstance_x3 size)
+    , (SpaceO_1, benchIO "bind_MonadInstance_BreakAfterSome_x2" $
+          bind_MonadInstance_BreakAfterSome_x2 size)
+    , (SpaceO_1, benchIO "bind_MonadInstance_FilterAllOut_x2" $
+          bind_MonadInstance_FilterAllOut_x2 size)
+    , (SpaceO_1, benchIO "bind_MonadInstance_FilterAllIn_x2" $
+          bind_MonadInstance_FilterAllIn_x2 size)
+    , (SpaceO_1, benchIO "bind_MonadInstance_FilterSome_x2" $
+          bind_MonadInstance_FilterSome_x2 size)
+    , (SpaceO_n, benchIO "bind_MonadInstance_ToList_x2" $
+          bind_MonadInstance_ToList_x2 size)
+    , (SpaceO_n, benchIO "bind_MonadInstance_ToListSome_x2" $
+          bind_MonadInstance_ToListSome_x2 size)
     -- zipWith
     , (SpaceO_1, benchIO "zipArrowWithM" $ zipArrowWithM size)
     , (SpaceO_1, benchIO "zipArrowWith" $ zipArrowWith size)
     , (SpaceO_1, benchIO "zipWithM" $ zipWithM size)
     , (SpaceO_1, benchIO "zipWith" $ zipWith size)
-    , (SpaceO_1, benchIO "teeZipWith" $ teeZipWith size)
     -- Deprecated
-    , (SpaceO_1, benchIO "mapM2" $ mapM2 size)
+    , (SpaceO_1, benchIO "mapM_CarryInput" $ mapM_CarryInput size)
     ]
 
     where

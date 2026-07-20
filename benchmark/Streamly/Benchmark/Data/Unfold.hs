@@ -42,7 +42,8 @@ import qualified Unfold.Type as Type
 
 import Fusion.Plugin.Types
 import Test.Tasty.Bench hiding (env)
-import Prelude hiding (take, filter, zipWith, map, mapM, takeWhile, scanl, repeat, dropWhile)
+import Prelude hiding
+    (take, filter, zipWith, map, mapM, takeWhile, scanl, repeat, dropWhile)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Common.Handle
 
@@ -114,7 +115,7 @@ fromStream size start =
 -- fromStream, this is considerably worse. More than 4x worse.
 {-# ANN fromStreamK (PermitPatternMatches [''Maybe,''(,)]) #-}
 {-# ANN fromStreamK (PermitConstructions
-   [''Maybe,''(,),''SVar.State,''Bool]) #-}
+    [''Maybe,''(,),''SVar.State,''Bool]) #-}
 {-# ANN fromStreamK (PermitTypeClasses []) #-}
 {-# NOINLINE fromStreamK #-}
 fromStreamK :: Int -> Int -> IO ()
@@ -136,7 +137,8 @@ fromStreamD size start =
 {-# NOINLINE nilM #-}
 nilM :: Int -> Int -> IO ()
 nilM value start =
-    drainGeneration (UF.unfoldEach (UF.nilM return) (source (start + value))) start
+    drainGeneration (UF.unfoldEach (UF.nilM return) (source (start + value)))
+        start
 
 {-# ANN nil (PermitPatternMatches [''Int]) #-}
 {-# ANN nil (PermitConstructions []) #-}
@@ -146,8 +148,10 @@ nil :: Int -> Int -> IO ()
 nil value start =
     drainGeneration (UF.unfoldEach UF.nil (source (start + value))) start
 
-{-# ANN consM (PermitPatternMatches [''Int,''EnumToState,''S.Step,''UnfoldState]) #-}
-{-# ANN consM (PermitConstructions [''UnfoldState,''EnumToState,''Int,''S.Step]) #-}
+{-# ANN consM (PermitPatternMatches
+    [''Int,''EnumToState,''S.Step,''UnfoldState]) #-}
+{-# ANN consM (PermitConstructions
+    [''UnfoldState,''EnumToState,''Int,''S.Step]) #-}
 {-# ANN consM (PermitTypeClasses []) #-}
 {-# NOINLINE consM #-}
 consM :: Int -> Int -> IO ()
@@ -211,12 +215,12 @@ fromIndicesM size start =
 -- Stream transformation
 -------------------------------------------------------------------------------
 
-{-# ANN postscan (PermitPatternMatches [''Int]) #-}
-{-# ANN postscan (PermitConstructions []) #-}
-{-# ANN postscan (PermitTypeClasses []) #-}
-{-# NOINLINE postscan #-}
-postscan :: Int -> Int -> IO ()
-postscan size start =
+{-# ANN postscanl (PermitPatternMatches [''Int]) #-}
+{-# ANN postscanl (PermitConstructions []) #-}
+{-# ANN postscanl (PermitTypeClasses []) #-}
+{-# NOINLINE postscanl #-}
+postscanl :: Int -> Int -> IO ()
+postscanl size start =
     drainTransformationDefault (size + start) (UF.postscanl Scanl.sum) start
 
 {-# ANN scanl (PermitPatternMatches [''Int]) #-}
@@ -233,7 +237,8 @@ scanl size start =
 {-# NOINLINE scanlMany #-}
 scanlMany :: Int -> Int -> IO ()
 scanlMany size start =
-    drainTransformationDefault (size + start) (UF.scanlMany (Scanl.take 2 Scanl.sum)) start
+    drainTransformationDefault (size + start)
+        (UF.scanlMany (Scanl.take 2 Scanl.sum)) start
 
 -------------------------------------------------------------------------------
 -- Stream filtering
@@ -268,76 +273,65 @@ filterM size start =
 -- Dropping one element from a large stream is dominated by generation, so
 -- instead exercise 'drop' ~value/2 times: generate value/2 two-element streams
 -- with 'fromTuple', 'drop' the first element of each, and flatten the rest.
-{-# ANN dropOne (PermitPatternMatches [''Int]) #-}
-{-# ANN dropOne (PermitConstructions []) #-}
-{-# ANN dropOne (PermitTypeClasses []) #-}
-{-# NOINLINE dropOne #-}
-dropOne :: Int -> Int -> IO ()
-dropOne value start =
+{-# ANN drop_One (PermitPatternMatches [''Int]) #-}
+{-# ANN drop_One (PermitConstructions []) #-}
+{-# ANN drop_One (PermitTypeClasses []) #-}
+{-# NOINLINE drop_One #-}
+drop_One :: Int -> Int -> IO ()
+drop_One value start =
     let outer = UF.map (\i -> (i, i)) (source (start + value `div` 2))
      in drainGeneration (UF.unfoldEach (UF.drop 1 UF.fromTuple) outer) start
 
-{-# ANN dropAll (PermitPatternMatches [''Int]) #-}
-{-# ANN dropAll (PermitConstructions []) #-}
-{-# ANN dropAll (PermitTypeClasses []) #-}
-{-# NOINLINE dropAll #-}
-dropAll :: Int -> Int -> IO ()
-dropAll size start =
+{-# ANN drop_All (PermitPatternMatches [''Int]) #-}
+{-# ANN drop_All (PermitConstructions []) #-}
+{-# ANN drop_All (PermitTypeClasses []) #-}
+{-# NOINLINE drop_All #-}
+drop_All :: Int -> Int -> IO ()
+drop_All size start =
     drainTransformationDefault (size + start) (UF.drop (size + 1)) start
 
-{-# ANN dropWhileTrue (PermitPatternMatches [''Int]) #-}
-{-# ANN dropWhileTrue (PermitConstructions []) #-}
-{-# ANN dropWhileTrue (PermitTypeClasses []) #-}
-{-# NOINLINE dropWhileTrue #-}
-dropWhileTrue :: Int -> Int -> IO ()
-dropWhileTrue size start =
+{-# ANN dropWhile_True (PermitPatternMatches [''Int]) #-}
+{-# ANN dropWhile_True (PermitConstructions []) #-}
+{-# ANN dropWhile_True (PermitTypeClasses []) #-}
+{-# NOINLINE dropWhile_True #-}
+dropWhile_True :: Int -> Int -> IO ()
+dropWhile_True size start =
     drainTransformationDefault
         (size + start)
-        (UF.dropWhileM (\_ -> return True))
+        (UF.dropWhile (\_ -> True))
         start
 
-{-# ANN dropWhileFalse (PermitPatternMatches [''Int]) #-}
-{-# ANN dropWhileFalse (PermitConstructions []) #-}
-{-# ANN dropWhileFalse (PermitTypeClasses []) #-}
-{-# NOINLINE dropWhileFalse #-}
-dropWhileFalse :: Int -> Int -> IO ()
-dropWhileFalse size start =
-    drainTransformationDefault
-        (size + start)
-        (UF.dropWhileM (\_ -> return False))
-        start
-
-{-# ANN dropWhileMTrue (PermitPatternMatches [''Int]) #-}
-{-# ANN dropWhileMTrue (PermitConstructions []) #-}
-{-# ANN dropWhileMTrue (PermitTypeClasses []) #-}
-{-# NOINLINE dropWhileMTrue #-}
-dropWhileMTrue :: Int -> Int -> IO ()
-dropWhileMTrue size start =
-    drainTransformationDefault
-        size
-        (UF.dropWhileM (\_ -> return True))
-        start
-
-{-# ANN dropWhileMFalse (PermitPatternMatches [''Int]) #-}
-{-# ANN dropWhileMFalse (PermitConstructions []) #-}
-{-# ANN dropWhileMFalse (PermitTypeClasses []) #-}
-{-# NOINLINE dropWhileMFalse #-}
-dropWhileMFalse :: Int -> Int -> IO ()
-dropWhileMFalse size start =
-    drainTransformationDefault
-        size
-        (UF.dropWhileM (\_ -> return False))
-        start
-
-{-# ANN dropWhile (PermitPatternMatches [''Int]) #-}
-{-# ANN dropWhile (PermitConstructions []) #-}
-{-# ANN dropWhile (PermitTypeClasses []) #-}
-{-# NOINLINE dropWhile #-}
-dropWhile :: Int -> Int -> IO ()
-dropWhile size start =
+{-# ANN dropWhile_False (PermitPatternMatches [''Int]) #-}
+{-# ANN dropWhile_False (PermitConstructions []) #-}
+{-# ANN dropWhile_False (PermitTypeClasses []) #-}
+{-# NOINLINE dropWhile_False #-}
+dropWhile_False :: Int -> Int -> IO ()
+dropWhile_False size start =
     drainTransformationDefault
         (size + start)
         (UF.dropWhile (\_ -> False))
+        start
+
+{-# ANN dropWhileM_True (PermitPatternMatches [''Int]) #-}
+{-# ANN dropWhileM_True (PermitConstructions []) #-}
+{-# ANN dropWhileM_True (PermitTypeClasses []) #-}
+{-# NOINLINE dropWhileM_True #-}
+dropWhileM_True :: Int -> Int -> IO ()
+dropWhileM_True size start =
+    drainTransformationDefault
+        (size + start)
+        (UF.dropWhileM (\_ -> return True))
+        start
+
+{-# ANN dropWhileM_False (PermitPatternMatches [''Int]) #-}
+{-# ANN dropWhileM_False (PermitConstructions []) #-}
+{-# ANN dropWhileM_False (PermitTypeClasses []) #-}
+{-# NOINLINE dropWhileM_False #-}
+dropWhileM_False :: Int -> Int -> IO ()
+dropWhileM_False size start =
+    drainTransformationDefault
+        (size + start)
+        (UF.dropWhileM (\_ -> return False))
         start
 
 {-# ANN mapMaybe (PermitPatternMatches [''Int]) #-}
@@ -354,7 +348,8 @@ mapMaybe size start =
 {-# NOINLINE mapMaybeM #-}
 mapMaybeM :: Int -> Int -> IO ()
 mapMaybeM size start =
-    drainTransformationDefault (size + start) (UF.mapMaybeM (return . Just)) start
+    drainTransformationDefault (size + start) (UF.mapMaybeM (return . Just))
+        start
 
 {-# ANN catMaybes (PermitPatternMatches [''Int]) #-}
 {-# ANN catMaybes (PermitConstructions []) #-}
@@ -368,12 +363,12 @@ catMaybes size start =
 -- Stream combination
 -------------------------------------------------------------------------------
 
-{-# ANN eitherLeft (PermitPatternMatches [''Int]) #-}
-{-# ANN eitherLeft (PermitConstructions []) #-}
-{-# ANN eitherLeft (PermitTypeClasses []) #-}
-{-# NOINLINE eitherLeft #-}
-eitherLeft :: Int -> Int -> IO ()
-eitherLeft size start =
+{-# ANN either_Left (PermitPatternMatches [''Int]) #-}
+{-# ANN either_Left (PermitConstructions []) #-}
+{-# ANN either_Left (PermitTypeClasses []) #-}
+{-# NOINLINE either_Left #-}
+either_Left :: Int -> Int -> IO ()
+either_Left size start =
     drainGeneration
         (UF.either (source (size + start)) (source (size + start)))
         (Left start)
@@ -413,7 +408,8 @@ innerJoin value start =
 {-# NOINLINE before #-}
 before :: Int -> Int -> IO ()
 before size start =
-    drainTransformationDefault (size + start) (UF.before (\_ -> return ())) start
+    drainTransformationDefault (size + start) (UF.before (\_ -> return ()))
+        start
 
 {-# ANN after_ (PermitPatternMatches [''Int]) #-}
 {-# ANN after_ (PermitConstructions []) #-}
@@ -421,7 +417,8 @@ before size start =
 {-# NOINLINE after_ #-}
 after_ :: Int -> Int -> IO ()
 after_ size start =
-    drainTransformationDefault (size + start) (UF.after_ (\_ -> return ())) start
+    drainTransformationDefault (size + start) (UF.after_ (\_ -> return ()))
+        start
 
 {-# ANN afterIO (PermitPatternMatches [''Maybe,''Int]) #-}
 {-# ANN afterIO (PermitConstructions [''Maybe,''()]) #-}
@@ -435,7 +432,8 @@ afterIO size start =
         start
 
 {-# ANN finallyIO (PermitPatternMatches [''Maybe,''S.Step]) #-}
-{-# ANN finallyIO (PermitConstructions [''Int,''SrcLoc,''CallStack,''Maybe,''()]) #-}
+{-# ANN finallyIO (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''Maybe,''()]) #-}
 {-# ANN finallyIO (PermitTypeClasses [''IP,''MonadCatch]) #-}
 {-# NOINLINE finallyIO #-}
 finallyIO :: Int -> Int -> IO ()
@@ -446,7 +444,8 @@ finallyIO size start =
         start
 
 {-# ANN bracketIO (PermitPatternMatches [''Maybe,''STRef,''(,),''S.Step]) #-}
-{-# ANN bracketIO (PermitConstructions [''Int,''SrcLoc,''CallStack,''Maybe,''()]) #-}
+{-# ANN bracketIO (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''Maybe,''()]) #-}
 {-# ANN bracketIO (PermitTypeClasses [''IP,''MonadCatch]) #-}
 {-# NOINLINE bracketIO #-}
 bracketIO :: Int -> Int -> IO ()
@@ -460,12 +459,14 @@ lf :: Word8
 lf = fromIntegral (ord '\n')
 
 -- | Split on line feed.
-{-# ANN foldManySepBy (PermitPatternMatches [''UnsafeEquality,''IO,''Int,''[],''Array]) #-}
-{-# ANN foldManySepBy (PermitConstructions [''Int,''SrcLoc,''[],''CallStack,''Array]) #-}
-{-# ANN foldManySepBy (PermitTypeClasses [''IP]) #-}
-{-# NOINLINE foldManySepBy #-}
-foldManySepBy :: Handle -> IO Int
-foldManySepBy =
+{-# ANN foldMany (PermitPatternMatches
+    [''UnsafeEquality,''IO,''Int,''[],''Array]) #-}
+{-# ANN foldMany (PermitConstructions
+    [''Int,''SrcLoc,''[],''CallStack,''Array]) #-}
+{-# ANN foldMany (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE foldMany #-}
+foldMany :: Handle -> IO Int
+foldMany =
     let u = UF.foldMany (FL.takeEndBy_ (== lf) FL.drain) FH.reader
      in UF.fold FL.length u
 
@@ -484,71 +485,84 @@ moduleName = "Data.Unfold"
 -------------------------------------------------------------------------------
 
 -- | Send the file contents to /dev/null with exception handling
-{-# ANN readChunksOnException (PermitPatternMatches [''UnsafeEquality,''IO,''Int,''[],''Array,''S.Step]) #-}
-{-# ANN readChunksOnException (PermitConstructions
-   [''Int,''SrcLoc,''[],''CallStack,''Array]) #-}
-{-# ANN readChunksOnException (PermitTypeClasses [''IP,''MonadCatch]) #-}
-{-# NOINLINE readChunksOnException #-}
-readChunksOnException :: Handle -> Handle -> IO ()
-readChunksOnException inh devNull =
+{-# ANN onException_CopyFileChunks (PermitPatternMatches
+    [''UnsafeEquality,''IO,''Int,''[],''Array,''S.Step]) #-}
+{-# ANN onException_CopyFileChunks (PermitConstructions
+    [''Int,''SrcLoc,''[],''CallStack,''Array]) #-}
+{-# ANN onException_CopyFileChunks (PermitTypeClasses [''IP,''MonadCatch]) #-}
+{-# NOINLINE onException_CopyFileChunks #-}
+onException_CopyFileChunks :: Handle -> Handle -> IO ()
+onException_CopyFileChunks inh devNull =
     let readEx = UF.onException (\_ -> hClose inh) FH.chunkReader
     in UF.fold (IFH.writeChunks devNull) readEx inh
 
 -- | Send the file contents to /dev/null with exception handling
-{-# ANN readChunksBracket_ (PermitPatternMatches [''UnsafeEquality,''IO,''Int,''[],''Array,''S.Step]) #-}
-{-# ANN readChunksBracket_ (PermitConstructions
-   [''Int,''SrcLoc,''[],''CallStack,''Array]) #-}
-{-# ANN readChunksBracket_ (PermitTypeClasses [''IP,''MonadCatch]) #-}
-{-# NOINLINE readChunksBracket_ #-}
-readChunksBracket_ :: Handle -> Handle -> IO ()
-readChunksBracket_ inh devNull =
+{-# ANN bracket__CopyFileChunks (PermitPatternMatches
+    [''UnsafeEquality,''IO,''Int,''[],''Array,''S.Step]) #-}
+{-# ANN bracket__CopyFileChunks (PermitConstructions
+    [''Int,''SrcLoc,''[],''CallStack,''Array]) #-}
+{-# ANN bracket__CopyFileChunks (PermitTypeClasses [''IP,''MonadCatch]) #-}
+{-# NOINLINE bracket__CopyFileChunks #-}
+bracket__CopyFileChunks :: Handle -> Handle -> IO ()
+bracket__CopyFileChunks inh devNull =
     let readEx = UF.bracket_ return (\_ -> hClose inh) FH.chunkReader
     in UF.fold (IFH.writeChunks devNull) readEx inh
 
 -- | Send the file contents to /dev/null with exception handling
-{-# ANN readWriteOnExceptionUnfold (PermitPatternMatches [''UnsafeEquality,''Word8,''IO,''Int,''[],''Array,''ArrayUnsafe,''ConcatState,''S.Step]) #-}
-{-# ANN readWriteOnExceptionUnfold (PermitConstructions
-   [''Int,''SrcLoc,''[],''CallStack,''Array,''S.Step,''ConcatState,''ArrayUnsafe,''Word8,''()]) #-}
-{-# ANN readWriteOnExceptionUnfold
-   (PermitTypeClasses [''IP,''MonadCatch]) #-}
-{-# NOINLINE readWriteOnExceptionUnfold #-}
-readWriteOnExceptionUnfold :: Handle -> Handle -> IO ()
-readWriteOnExceptionUnfold inh devNull =
+{-# ANN onException_CopyFileBytes (PermitPatternMatches
+    [''UnsafeEquality,''Word8,''IO,''Int,''[],''Array,''ArrayUnsafe
+    ,''ConcatState,''S.Step]) #-}
+{-# ANN onException_CopyFileBytes (PermitConstructions
+    [''Int,''SrcLoc,''[],''CallStack,''Array,''S.Step,''ConcatState
+    ,''ArrayUnsafe,''Word8,''()]) #-}
+{-# ANN onException_CopyFileBytes (PermitTypeClasses [''IP,''MonadCatch]) #-}
+{-# NOINLINE onException_CopyFileBytes #-}
+onException_CopyFileBytes :: Handle -> Handle -> IO ()
+onException_CopyFileBytes inh devNull =
     let readEx = UF.onException (\_ -> hClose inh) FH.reader
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
 -- | Send the file contents to /dev/null with exception handling
-{-# ANN readWriteHandleExceptionUnfold (PermitPatternMatches [''Either,''UnsafeEquality,''Word8,''IO,''Int,''[],''Array,''ArrayUnsafe,''ConcatState,''S.Step]) #-}
-{-# ANN readWriteHandleExceptionUnfold (PermitConstructions
-   [''Int,''SrcLoc,''[],''CallStack,''Array,''S.Step,''ConcatState,''ArrayUnsafe,''Word8,''()]) #-}
-{-# ANN readWriteHandleExceptionUnfold
-   (PermitTypeClasses [''IP,''MonadCatch,''Exception]) #-}
-{-# NOINLINE readWriteHandleExceptionUnfold #-}
-readWriteHandleExceptionUnfold :: Handle -> Handle -> IO ()
-readWriteHandleExceptionUnfold inh devNull =
+{-# ANN handle_CopyFileBytes (PermitPatternMatches
+    [''Either,''UnsafeEquality,''Word8,''IO,''Int,''[],''Array
+    ,''ArrayUnsafe,''ConcatState,''S.Step]) #-}
+{-# ANN handle_CopyFileBytes (PermitConstructions
+    [''Int,''SrcLoc,''[],''CallStack,''Array,''S.Step,''ConcatState
+    ,''ArrayUnsafe,''Word8,''()]) #-}
+{-# ANN handle_CopyFileBytes (PermitTypeClasses
+    [''IP,''MonadCatch,''Exception]) #-}
+{-# NOINLINE handle_CopyFileBytes #-}
+handle_CopyFileBytes :: Handle -> Handle -> IO ()
+handle_CopyFileBytes inh devNull =
     let handler (_e :: SomeException) = hClose inh >> return 10
         readEx = UF.handle (UF.functionM handler) FH.reader
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
 -- | Send the file contents to /dev/null with exception handling
-{-# ANN readWriteFinally_Unfold (PermitPatternMatches [''UnsafeEquality,''Word8,''IO,''Int,''[],''Array,''ArrayUnsafe,''ConcatState,''S.Step]) #-}
-{-# ANN readWriteFinally_Unfold (PermitConstructions
-   [''Int,''SrcLoc,''[],''CallStack,''Array,''S.Step,''ConcatState,''ArrayUnsafe,''Word8,''()]) #-}
-{-# ANN readWriteFinally_Unfold (PermitTypeClasses [''IP,''MonadCatch]) #-}
-{-# NOINLINE readWriteFinally_Unfold #-}
-readWriteFinally_Unfold :: Handle -> Handle -> IO ()
-readWriteFinally_Unfold inh devNull =
+{-# ANN finally__CopyFileBytes (PermitPatternMatches
+    [''UnsafeEquality,''Word8,''IO,''Int,''[],''Array,''ArrayUnsafe
+    ,''ConcatState,''S.Step]) #-}
+{-# ANN finally__CopyFileBytes (PermitConstructions
+    [''Int,''SrcLoc,''[],''CallStack,''Array,''S.Step,''ConcatState
+    ,''ArrayUnsafe,''Word8,''()]) #-}
+{-# ANN finally__CopyFileBytes (PermitTypeClasses [''IP,''MonadCatch]) #-}
+{-# NOINLINE finally__CopyFileBytes #-}
+finally__CopyFileBytes :: Handle -> Handle -> IO ()
+finally__CopyFileBytes inh devNull =
     let readEx = UF.finally_ (\_ -> hClose inh) FH.reader
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
 -- | Send the file contents to /dev/null with exception handling
-{-# ANN readWriteBracket_Unfold (PermitPatternMatches [''UnsafeEquality,''Word8,''IO,''Int,''[],''Array,''ArrayUnsafe,''ConcatState,''S.Step]) #-}
-{-# ANN readWriteBracket_Unfold (PermitConstructions
-   [''Int,''SrcLoc,''[],''CallStack,''Array,''S.Step,''ConcatState,''ArrayUnsafe,''Word8,''()]) #-}
-{-# ANN readWriteBracket_Unfold (PermitTypeClasses [''IP,''MonadCatch]) #-}
-{-# NOINLINE readWriteBracket_Unfold #-}
-readWriteBracket_Unfold :: Handle -> Handle -> IO ()
-readWriteBracket_Unfold inh devNull =
+{-# ANN bracket__CopyFileBytes (PermitPatternMatches
+    [''UnsafeEquality,''Word8,''IO,''Int,''[],''Array,''ArrayUnsafe
+    ,''ConcatState,''S.Step]) #-}
+{-# ANN bracket__CopyFileBytes (PermitConstructions
+    [''Int,''SrcLoc,''[],''CallStack,''Array,''S.Step,''ConcatState
+    ,''ArrayUnsafe,''Word8,''()]) #-}
+{-# ANN bracket__CopyFileBytes (PermitTypeClasses [''IP,''MonadCatch]) #-}
+{-# NOINLINE bracket__CopyFileBytes #-}
+bracket__CopyFileBytes :: Handle -> Handle -> IO ()
+bracket__CopyFileBytes inh devNull =
     let readEx = UF.bracket_ return (\_ -> hClose inh) FH.reader
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
@@ -574,29 +588,28 @@ benchmarks env size =
     , (SpaceO_1, benchIO "discardFirst" $ discardFirst size)
     , (SpaceO_1, benchIO "discardSecond" $ discardSecond size)
     -- Mapping on Output
-    , (SpaceO_1, benchIO "postscan" $ postscan size)
+    , (SpaceO_1, benchIO "postscanl" $ postscanl size)
     , (SpaceO_1, benchIO "scanl" $ scanl size)
     , (SpaceO_1, benchIO "scanlMany" $ scanlMany size)
-    , (SpaceO_1, mkBench "foldMany (Fold.takeEndBy_ (== lf) Fold.drain)" env
-        $ \inh _ -> foldManySepBy inh)
+    , (SpaceO_1, mkBench "foldMany" env
+        $ \inh _ -> foldMany inh)
     -- Either Wrapped Input
-    , (SpaceO_1, benchIO "eitherLeft" $ eitherLeft size)
+    , (SpaceO_1, benchIO "either_Left" $ either_Left size)
     -- Filtering
     , (SpaceO_1, benchIO "take" $ take size)
     , (SpaceO_1, benchIO "filter" $ filter size)
     , (SpaceO_1, benchIO "filterM" $ filterM size)
-    , (SpaceO_1, benchIO "dropOne" $ dropOne size)
-    , (SpaceO_1, benchIO "dropAll" $ dropAll size)
-    , (SpaceO_1, benchIO "dropWhile" $ dropWhile size)
-    , (SpaceO_1, benchIO "dropWhileTrue" $ dropWhileTrue size)
-    , (SpaceO_1, benchIO "dropWhileFalse" $ dropWhileFalse size)
-    , (SpaceO_1, benchIO "dropWhileMTrue" $ dropWhileMTrue size)
-    , (SpaceO_1, benchIO "dropWhileMFalse" $ dropWhileMFalse size)
+    , (SpaceO_1, benchIO "drop_One" $ drop_One size)
+    , (SpaceO_1, benchIO "drop_All" $ drop_All size)
+    , (SpaceO_1, benchIO "dropWhile_True" $ dropWhile_True size)
+    , (SpaceO_1, benchIO "dropWhile_False" $ dropWhile_False size)
+    , (SpaceO_1, benchIO "dropWhileM_True" $ dropWhileM_True size)
+    , (SpaceO_1, benchIO "dropWhileM_False" $ dropWhileM_False size)
     , (SpaceO_1, benchIO "mapMaybe" $ mapMaybe size)
     , (SpaceO_1, benchIO "mapMaybeM" $ mapMaybeM size)
     , (SpaceO_1, benchIO "catMaybes" $ catMaybes size)
     -- Cross product
-    , (SpaceO_1, benchIO "innerJoin outer=inner=(sqrt Max)" $ innerJoin size)
+    , (SpaceO_1, benchIO "innerJoin" $ innerJoin size)
     -- Zip
     , (SpaceO_1, benchIO "zipRepeat" $ zipRepeat size)
     -- Resource Management
@@ -604,20 +617,20 @@ benchmarks env size =
     , (SpaceO_1, benchIO "afterIO" $ afterIO size)
     , (SpaceO_1, benchIO "after_" $ after_ size)
     , (SpaceO_1, benchIO "finallyIO" $ finallyIO size)
-    , (SpaceO_1, mkBenchSmall "UF.finally_" env $ \inh _ ->
-        readWriteFinally_Unfold inh (nullH env))
+    , (SpaceO_1, mkBenchSmall "finally__CopyFileBytes" env $ \inh _ ->
+        finally__CopyFileBytes inh (nullH env))
     , (SpaceO_1, benchIO "bracketIO" $ bracketIO size)
-    , (SpaceO_1, mkBenchSmall "UF.bracket_" env $ \inh _ ->
-        readWriteBracket_Unfold inh (nullH env))
+    , (SpaceO_1, mkBenchSmall "bracket__CopyFileBytes" env $ \inh _ ->
+        bracket__CopyFileBytes inh (nullH env))
     -- Exceptions
-    , (SpaceO_1, mkBenchSmall "UF.onException" env $ \inh _ ->
-        readWriteOnExceptionUnfold inh (nullH env))
-    , (SpaceO_1, mkBench "UF.onException (chunk)" env $ \inh _ ->
-        readChunksOnException inh (nullH env))
-    , (SpaceO_1, mkBench "UF.bracket_ (chunk)" env $ \inh _ ->
-        readChunksBracket_ inh (nullH env))
-    , (SpaceO_1, mkBenchSmall "UF.handle" env $ \inh _ ->
-        readWriteHandleExceptionUnfold inh (nullH env))
+    , (SpaceO_1, mkBenchSmall "onException_CopyFileBytes" env $ \inh _ ->
+        onException_CopyFileBytes inh (nullH env))
+    , (SpaceO_1, mkBench "onException_CopyFileChunks" env $ \inh _ ->
+        onException_CopyFileChunks inh (nullH env))
+    , (SpaceO_1, mkBench "bracket__CopyFileChunks" env $ \inh _ ->
+        bracket__CopyFileChunks inh (nullH env))
+    , (SpaceO_1, mkBenchSmall "handle_CopyFileBytes" env $ \inh _ ->
+        handle_CopyFileBytes inh (nullH env))
     ]
 
 -------------------------------------------------------------------------------

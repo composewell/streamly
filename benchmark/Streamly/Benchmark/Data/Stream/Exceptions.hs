@@ -58,35 +58,35 @@ instance Exception BenchException
 -------------------------------------------------------------------------------
 
 -- | Send the file contents to /dev/null with exception handling
-readWriteOnExceptionStream :: Handle -> Handle -> IO ()
-readWriteOnExceptionStream inh devNull =
+onException_CopyFileBytes :: Handle -> Handle -> IO ()
+onException_CopyFileBytes inh devNull =
     let readEx = Stream.onException (hClose inh) (Stream.unfold FH.reader inh)
     in Stream.fold (FH.write devNull) readEx
 
 -- | Send the file contents to /dev/null with exception handling
-readWriteHandleExceptionStream :: Handle -> Handle -> IO ()
-readWriteHandleExceptionStream inh devNull =
+handle_CopyFileBytes :: Handle -> Handle -> IO ()
+handle_CopyFileBytes inh devNull =
     let handler (_e :: SomeException) =
             return $ Stream.fromEffect (hClose inh >> return 10)
         readEx = Stream.handle handler (Stream.unfold FH.reader inh)
     in Stream.fold (FH.write devNull) readEx
 
 -- | Send the file contents to /dev/null with exception handling
-readWriteFinally_Stream :: Handle -> Handle -> IO ()
-readWriteFinally_Stream inh devNull =
+finallyUnsafe_CopyFileBytes :: Handle -> Handle -> IO ()
+finallyUnsafe_CopyFileBytes inh devNull =
     let readEx =
             Stream.finallyUnsafe (hClose inh) (Stream.unfold FH.reader inh)
     in Stream.fold (FH.write devNull) readEx
 
 -- | Send the file contents to /dev/null with exception handling
-fromToBytesBracket_Stream :: Handle -> Handle -> IO ()
-fromToBytesBracket_Stream inh devNull =
+bracketUnsafe_CopyFileBytes :: Handle -> Handle -> IO ()
+bracketUnsafe_CopyFileBytes inh devNull =
     let readEx = Stream.bracketUnsafe (return ()) (\_ -> hClose inh)
                     (\_ -> IFH.read inh)
     in IFH.putBytes devNull readEx
 
-readWriteAfter_Stream :: Handle -> Handle -> IO ()
-readWriteAfter_Stream inh devNull =
+afterUnsafe_CopyFileBytes :: Handle -> Handle -> IO ()
+afterUnsafe_CopyFileBytes inh devNull =
     let readEx = Stream.afterUnsafe (hClose inh) (Stream.unfold FH.reader inh)
      in Stream.fold (FH.write devNull) readEx
 
@@ -95,8 +95,8 @@ readWriteAfter_Stream inh devNull =
 -------------------------------------------------------------------------------
 
 -- | Send the file contents to /dev/null with exception handling
-toChunksBracket_ :: Handle -> Handle -> IO ()
-toChunksBracket_ inh devNull =
+bracketUnsafe_CopyFileChunks :: Handle -> Handle -> IO ()
+bracketUnsafe_CopyFileChunks inh devNull =
     let readEx = Stream.bracketUnsafe
             (return ())
             (\_ -> hClose inh)
@@ -109,55 +109,53 @@ toChunksBracket_ inh devNull =
 
 #ifdef INSPECTION
 -- stream exceptions
--- onException/finallyUnsafe/bracketUnsafe wrap the stream in a try/catch,
--- keeping Either SomeException (Step ...) in the exception path; Step survives.
-inspect $ hasNoTypeClasses 'readWriteOnExceptionStream
--- inspect $ 'readWriteOnExceptionStream `hasNoType` ''Stream.Step
-inspect $ 'readWriteOnExceptionStream `hasNoType` ''FL.Step
-inspect $ 'readWriteOnExceptionStream `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'onException_CopyFileBytes
+-- inspect $ 'onException_CopyFileBytes `hasNoType` ''Stream.Step
+inspect $ 'onException_CopyFileBytes `hasNoType` ''FL.Step
+inspect $ 'onException_CopyFileBytes `hasNoType` ''SPEC
 
 -- handle provides an alternative stream on exception; Step survives.
-inspect $ hasNoTypeClasses 'readWriteHandleExceptionStream
--- inspect $ 'readWriteHandleExceptionStream `hasNoType` ''Stream.Step
-inspect $ 'readWriteHandleExceptionStream `hasNoType` ''FL.Step
-inspect $ 'readWriteHandleExceptionStream `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'handle_CopyFileBytes
+-- inspect $ 'handle_CopyFileBytes `hasNoType` ''Stream.Step
+inspect $ 'handle_CopyFileBytes `hasNoType` ''FL.Step
+inspect $ 'handle_CopyFileBytes `hasNoType` ''SPEC
 
-inspect $ hasNoTypeClasses 'readWriteFinally_Stream
--- inspect $ 'readWriteFinally_Stream `hasNoType` ''Stream.Step
-inspect $ 'readWriteFinally_Stream `hasNoType` ''FL.Step
-inspect $ 'readWriteFinally_Stream `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'finallyUnsafe_CopyFileBytes
+-- inspect $ 'finallyUnsafe_CopyFileBytes `hasNoType` ''Stream.Step
+inspect $ 'finallyUnsafe_CopyFileBytes `hasNoType` ''FL.Step
+inspect $ 'finallyUnsafe_CopyFileBytes `hasNoType` ''SPEC
 
-inspect $ hasNoTypeClasses 'fromToBytesBracket_Stream
--- inspect $ 'fromToBytesBracket_Stream `hasNoType` ''Stream.Step
-inspect $ 'fromToBytesBracket_Stream `hasNoType` ''FL.Step
-inspect $ 'fromToBytesBracket_Stream `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'bracketUnsafe_CopyFileBytes
+-- inspect $ 'bracketUnsafe_CopyFileBytes `hasNoType` ''Stream.Step
+inspect $ 'bracketUnsafe_CopyFileBytes `hasNoType` ''FL.Step
+inspect $ 'bracketUnsafe_CopyFileBytes `hasNoType` ''SPEC
 
 -- afterUnsafe runs a cleanup action after the stream ends with no try/catch
 -- around the stream body, so Step constructors are fully eliminated.
-inspect $ hasNoTypeClasses 'readWriteAfter_Stream
-inspect $ 'readWriteAfter_Stream `hasNoType` ''Stream.Step
-inspect $ 'readWriteAfter_Stream `hasNoType` ''FL.Step
-inspect $ 'readWriteAfter_Stream `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'afterUnsafe_CopyFileBytes
+inspect $ 'afterUnsafe_CopyFileBytes `hasNoType` ''Stream.Step
+inspect $ 'afterUnsafe_CopyFileBytes `hasNoType` ''FL.Step
+inspect $ 'afterUnsafe_CopyFileBytes `hasNoType` ''SPEC
 
 -- toChunks (bracketUnsafe wraps readChunks; Step constructors survive)
-inspect $ hasNoTypeClasses 'toChunksBracket_
--- inspect $ 'toChunksBracket_ `hasNoType` ''Stream.Step
-inspect $ 'toChunksBracket_ `hasNoType` ''FL.Step
-inspect $ 'toChunksBracket_ `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'bracketUnsafe_CopyFileChunks
+-- inspect $ 'bracketUnsafe_CopyFileChunks `hasNoType` ''Stream.Step
+inspect $ 'bracketUnsafe_CopyFileChunks `hasNoType` ''FL.Step
+inspect $ 'bracketUnsafe_CopyFileChunks `hasNoType` ''SPEC
 #endif
 
 benchmarks :: BenchEnv -> Int -> [(SpaceComplexity, Benchmark)]
 benchmarks _env _size =
-      [ (SpaceO_1, mkBench "Stream.bracket_ (toChunks)" _env $ \inH _ ->
-            toChunksBracket_ inH (nullH _env))
-      , (SpaceO_1, mkBenchSmall "Stream.onException" _env $ \inh _ ->
-            readWriteOnExceptionStream inh (nullH _env))
-      , (SpaceO_1, mkBenchSmall "Stream.handle" _env $ \inh _ ->
-            readWriteHandleExceptionStream inh (nullH _env))
-      , (SpaceO_1, mkBenchSmall "Stream.finally_" _env $ \inh _ ->
-            readWriteFinally_Stream inh (nullH _env))
-      , (SpaceO_1, mkBenchSmall "Stream.after_" _env $ \inh _ ->
-            readWriteAfter_Stream inh (nullH _env))
-      , (SpaceO_1, mkBenchSmall "Stream.bracket_ (fromToBytes)" _env $ \inh _ ->
-            fromToBytesBracket_Stream inh (nullH _env))
+      [ (SpaceO_1, mkBench "bracketUnsafe_CopyFileChunks" _env $ \inH _ ->
+            bracketUnsafe_CopyFileChunks inH (nullH _env))
+      , (SpaceO_1, mkBenchSmall "onException_CopyFileBytes" _env $ \inh _ ->
+            onException_CopyFileBytes inh (nullH _env))
+      , (SpaceO_1, mkBenchSmall "handle_CopyFileBytes" _env $ \inh _ ->
+            handle_CopyFileBytes inh (nullH _env))
+      , (SpaceO_1, mkBenchSmall "finallyUnsafe_CopyFileBytes" _env $ \inh _ ->
+            finallyUnsafe_CopyFileBytes inh (nullH _env))
+      , (SpaceO_1, mkBenchSmall "afterUnsafe_CopyFileBytes" _env $ \inh _ ->
+            afterUnsafe_CopyFileBytes inh (nullH _env))
+      , (SpaceO_1, mkBenchSmall "bracketUnsafe_CopyFileBytes" _env $ \inh _ ->
+            bracketUnsafe_CopyFileBytes inh (nullH _env))
       ]

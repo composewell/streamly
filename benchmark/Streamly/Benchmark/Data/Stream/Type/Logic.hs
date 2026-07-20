@@ -111,49 +111,63 @@ fairStreamCrossEqn maxVal input =
 {-# INLINE unfoldEachEqn #-}
 unfoldEachEqn :: Monad m => Int -> Unfold m ((), ()) Int -> Stream m Int -> m ()
 unfoldEachEqn maxVal input ints =
-    let intu = Unfold.carryInput $ Unfold.lmap (const (undefined, undefined)) input
+    let intu =
+            Unfold.carryInput
+                $ Unfold.lmap (const (undefined, undefined)) input
      in result
         $ Stream.mapM (checkPair maxVal)
         $ Stream.unfoldEach intu ints
 
-{-# ANN concatForBounded (PermitPatternMatches [''Either,''Maybe,''(,),''Bool,''Int,''Producer.InterleaveState,''Stream.EnumToState,''Stream.Step,''Stream]) #-}
-{-# ANN concatForBounded (PermitConstructions [''Producer.InterleaveState,''Stream.EnumToState,''Either,''Int,''Maybe,''Stream.Step,''Stream,''(,),''SVar.State,''(),''Bool]) #-}
-{-# ANN concatForBounded (PermitTypeClasses []) #-}
-{-# NOINLINE concatForBounded #-}
-concatForBounded :: Int -> Int -> IO ()
-concatForBounded maxVal n =
+{-# ANN concatFor_Bounded (PermitPatternMatches
+    [''Either,''Maybe,''(,),''Bool,''Int,''Producer.InterleaveState
+    ,''Stream.EnumToState,''Stream.Step,''Stream]) #-}
+{-# ANN concatFor_Bounded (PermitConstructions
+    [''Producer.InterleaveState,''Stream.EnumToState,''Either,''Int
+    ,''Maybe,''Stream.Step,''Stream,''(,),''SVar.State,''(),''Bool]) #-}
+{-# ANN concatFor_Bounded (PermitTypeClasses []) #-}
+{-# NOINLINE concatFor_Bounded #-}
+concatFor_Bounded :: Int -> Int -> IO ()
+concatFor_Bounded maxVal n =
     concatForEqn maxVal (boundedInts maxVal n)
 
-{-# ANN streamCrossBounded (PermitPatternMatches [''Maybe,''Int]) #-}
-{-# ANN streamCrossBounded (PermitConstructions [''Maybe,''Int,''(,),''()]) #-}
-{-# ANN streamCrossBounded (PermitTypeClasses []) #-}
-{-# NOINLINE streamCrossBounded #-}
-streamCrossBounded :: Int -> Int -> IO ()
-streamCrossBounded maxVal n =
+{-# ANN cross_Bounded (PermitPatternMatches [''Maybe,''Int]) #-}
+{-# ANN cross_Bounded (PermitConstructions [''Maybe,''Int,''(,),''()]) #-}
+{-# ANN cross_Bounded (PermitTypeClasses []) #-}
+{-# NOINLINE cross_Bounded #-}
+cross_Bounded :: Int -> Int -> IO ()
+cross_Bounded maxVal n =
     streamCrossEqn maxVal (boundedInts maxVal n)
 
-{-# ANN fairStreamCrossBounded (PermitPatternMatches [''Maybe,''(,),''Int,''[],''Producer.InterleaveState,''Stream.EnumToState]) #-}
-{-# ANN fairStreamCrossBounded (PermitConstructions [''Maybe,''Int,''Stream.EnumToState,''Producer.InterleaveState,''(,),''[],''()]) #-}
-{-# ANN fairStreamCrossBounded (PermitTypeClasses []) #-}
-{-# NOINLINE fairStreamCrossBounded #-}
-fairStreamCrossBounded :: Int -> Int -> IO ()
-fairStreamCrossBounded maxVal n =
+{-# ANN fairCross_Bounded (PermitPatternMatches
+    [''Maybe,''(,),''Int,''[],''Producer.InterleaveState
+    ,''Stream.EnumToState]) #-}
+{-# ANN fairCross_Bounded (PermitConstructions
+    [''Maybe,''Int,''Stream.EnumToState,''Producer.InterleaveState,''(,)
+    ,''[],''()]) #-}
+{-# ANN fairCross_Bounded (PermitTypeClasses []) #-}
+{-# NOINLINE fairCross_Bounded #-}
+fairCross_Bounded :: Int -> Int -> IO ()
+fairCross_Bounded maxVal n =
     fairStreamCrossEqn maxVal (boundedInts maxVal n)
 
-{-# ANN fairStreamCrossInfinite (PermitPatternMatches [''Maybe,''(,),''Int,''[],''Producer.InterleaveState,''Stream.EnumToState]) #-}
-{-# ANN fairStreamCrossInfinite (PermitConstructions [''Int,''Maybe,''Producer.InterleaveState,''(,),''[],''Stream.EnumToState,''()]) #-}
-{-# ANN fairStreamCrossInfinite (PermitTypeClasses []) #-}
-{-# NOINLINE fairStreamCrossInfinite #-}
-fairStreamCrossInfinite :: Int -> Int -> IO ()
-fairStreamCrossInfinite maxVal n =
+{-# ANN fairCross_Infinite (PermitPatternMatches
+    [''Maybe,''(,),''Int,''[],''Producer.InterleaveState
+    ,''Stream.EnumToState]) #-}
+{-# ANN fairCross_Infinite (PermitConstructions
+    [''Int,''Maybe,''Producer.InterleaveState,''(,),''[]
+    ,''Stream.EnumToState,''()]) #-}
+{-# ANN fairCross_Infinite (PermitTypeClasses []) #-}
+{-# NOINLINE fairCross_Infinite #-}
+fairCross_Infinite :: Int -> Int -> IO ()
+fairCross_Infinite maxVal n =
     fairStreamCrossEqn maxVal (infiniteInts maxVal n)
 
-{-# ANN unfoldEachBounded (PermitPatternMatches [''Maybe,''Int]) #-}
-{-# ANN unfoldEachBounded (PermitConstructions [''Maybe,''Int,''(,),''()]) #-}
-{-# ANN unfoldEachBounded (PermitTypeClasses []) #-}
-{-# NOINLINE unfoldEachBounded #-}
-unfoldEachBounded :: Int -> Int -> IO ()
-unfoldEachBounded maxVal n =
+{-# ANN unfoldEach_Bounded (PermitPatternMatches [''Maybe,''Int]) #-}
+{-# ANN unfoldEach_Bounded (PermitConstructions [''Maybe,''Int,''(,),''()]) #-}
+{-# ANN unfoldEach_Bounded (PermitTypeClasses []) #-}
+{-# NOINLINE unfoldEach_Bounded #-}
+unfoldEach_Bounded :: Int -> Int -> IO ()
+unfoldEach_Bounded maxVal n =
     unfoldEachEqn maxVal (boundedIntsUnfold maxVal 0) (boundedInts maxVal n)
 
 -------------------------------------------------------------------------------
@@ -165,16 +179,16 @@ benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
     -- Logic Programming
     -- Solve simultaneous equations by exploring all possibilities
-    [ (SpaceO_1, benchIO "equations/concatFor (bounded)" $
-          concatForBounded sqrtVal)
-    , (SpaceO_1, benchIO "equations/streamCross (bounded)" $
-          streamCrossBounded sqrtVal)
-    , (SpaceO_1, benchIO "equations/fairStreamCross (bounded)" $
-          fairStreamCrossBounded sqrtVal)
-    , (SpaceO_1, benchIO "equations/fairStreamCross (infinite)" $
-          fairStreamCrossInfinite sqrtVal)
-    , (SpaceO_1, benchIO "equations/unfoldEach (bounded)" $
-          unfoldEachBounded sqrtVal)
+    [ (SpaceO_1, benchIO "concatFor_Bounded (equations)" $
+          concatFor_Bounded sqrtVal)
+    , (SpaceO_1, benchIO "cross_Bounded (equations)" $
+          cross_Bounded sqrtVal)
+    , (SpaceO_1, benchIO "fairCross_Bounded (equations)" $
+          fairCross_Bounded sqrtVal)
+    , (SpaceO_1, benchIO "fairCross_Infinite (equations)" $
+          fairCross_Infinite sqrtVal)
+    , (SpaceO_1, benchIO "unfoldEach_Bounded (equations)" $
+          unfoldEach_Bounded sqrtVal)
     ]
 
     where

@@ -34,30 +34,70 @@ import Streamly.Internal.Data.Time.Units (AbsTime)
 import qualified Streamly.Internal.Data.Stream as Stream
 
 import Test.Tasty.Bench
-import Stream.Common hiding (benchIO)
+import Stream.Common hiding (benchIO, repeat)
 import Stream.Type (benchIO, withDrain)
 import Streamly.Benchmark.Common
 import Fusion.Plugin.Types
 
 import Prelude hiding (repeat, replicate, iterate)
 
--- XXX should we use rnf to evaluate the result?
-{-# INLINE fromListM #-}
-fromListM :: Monad m => [m a] -> Stream m a
-fromListM = Stream.sequence . Stream.fromList
-
-{-# ANN sourceFromListM (PermitPatternMatches [''Int,''[]]) #-}
-{-# ANN sourceFromListM (PermitConstructions [''[],''Int,''()]) #-}
-{-# ANN sourceFromListM (PermitTypeClasses []) #-}
-{-# NOINLINE sourceFromListM #-}
-sourceFromListM :: Int -> Int -> IO ()
-sourceFromListM value = withDrain $ \n -> fromListM (fmap return [n..n+value])
+{-# ANN unfoldr (PermitPatternMatches [''Int]) #-}
+{-# ANN unfoldr (PermitConstructions [''()]) #-}
+{-# ANN unfoldr (PermitTypeClasses []) #-}
+{-# NOINLINE unfoldr #-}
+unfoldr :: Int -> Int -> IO ()
+unfoldr value = withDrain (sourceUnfoldr value)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'sourceFromListM
-inspect $ 'sourceFromListM `hasNoType` ''Stream.Step
-inspect $ 'sourceFromListM `hasNoType` ''Fold.Step
-inspect $ 'sourceFromListM `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'unfoldr
+inspect $ 'unfoldr `hasNoType` ''Stream.Step
+inspect $ 'unfoldr `hasNoType` ''Fold.Step
+inspect $ 'unfoldr `hasNoType` ''SPEC
+#endif
+
+{-# ANN unfoldrM (PermitPatternMatches [''Int]) #-}
+{-# ANN unfoldrM (PermitConstructions [''()]) #-}
+{-# ANN unfoldrM (PermitTypeClasses []) #-}
+{-# NOINLINE unfoldrM #-}
+unfoldrM :: Int -> Int -> IO ()
+unfoldrM value = withDrain (sourceUnfoldrM value)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'unfoldrM
+inspect $ 'unfoldrM `hasNoType` ''Stream.Step
+inspect $ 'unfoldrM `hasNoType` ''Fold.Step
+inspect $ 'unfoldrM `hasNoType` ''SPEC
+#endif
+
+{-# ANN repeat (PermitPatternMatches [''Int]) #-}
+{-# ANN repeat (PermitConstructions [''()]) #-}
+{-# ANN repeat (PermitTypeClasses []) #-}
+{-# NOINLINE repeat #-}
+repeat :: Int -> Int -> IO ()
+repeat value = withDrain (Stream.take value . Stream.repeat)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'repeat
+inspect $ 'repeat `hasNoType` ''Stream.Step
+inspect $ 'repeat `hasNoType` ''Fold.Step
+inspect $ 'repeat `hasNoType` ''SPEC
+#endif
+
+-- XXX should we use rnf to evaluate the result?
+{-# ANN fromListM (PermitPatternMatches [''Int,''[]]) #-}
+{-# ANN fromListM (PermitConstructions [''[],''Int,''()]) #-}
+{-# ANN fromListM (PermitTypeClasses []) #-}
+{-# NOINLINE fromListM #-}
+fromListM :: Int -> Int -> IO ()
+fromListM value =
+    withDrain
+        $ \n -> Stream.sequence (Stream.fromList (fmap return [n .. n + value]))
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'fromListM
+inspect $ 'fromListM `hasNoType` ''Stream.Step
+inspect $ 'fromListM `hasNoType` ''Fold.Step
+inspect $ 'fromListM `hasNoType` ''SPEC
 #endif
 
 {-# ANN replicate (PermitPatternMatches [''Int]) #-}
@@ -78,81 +118,84 @@ inspect $ 'replicate `hasNoType` ''SPEC
 -- enumerate
 -------------------------------------------------------------------------------
 
-{-# ANN sourceIntFromTo (PermitPatternMatches [''Int]) #-}
-{-# ANN sourceIntFromTo (PermitConstructions [''()]) #-}
-{-# ANN sourceIntFromTo (PermitTypeClasses []) #-}
-{-# NOINLINE sourceIntFromTo #-}
-sourceIntFromTo :: Int -> Int -> IO ()
-sourceIntFromTo value = withDrain $ \n -> Stream.enumerateFromTo n (n + value)
+{-# ANN enumerateFromTo_Int (PermitPatternMatches [''Int]) #-}
+{-# ANN enumerateFromTo_Int (PermitConstructions [''()]) #-}
+{-# ANN enumerateFromTo_Int (PermitTypeClasses []) #-}
+{-# NOINLINE enumerateFromTo_Int #-}
+enumerateFromTo_Int :: Int -> Int -> IO ()
+enumerateFromTo_Int value =
+    withDrain $ \n -> Stream.enumerateFromTo n (n + value)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'sourceIntFromTo
-inspect $ 'sourceIntFromTo `hasNoType` ''Stream.Step
-inspect $ 'sourceIntFromTo `hasNoType` ''Fold.Step
-inspect $ 'sourceIntFromTo `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'enumerateFromTo_Int
+inspect $ 'enumerateFromTo_Int `hasNoType` ''Stream.Step
+inspect $ 'enumerateFromTo_Int `hasNoType` ''Fold.Step
+inspect $ 'enumerateFromTo_Int `hasNoType` ''SPEC
 #endif
 
-{-# ANN sourceIntFromThenTo (PermitPatternMatches [''Int]) #-}
-{-# ANN sourceIntFromThenTo (PermitConstructions [''()]) #-}
-{-# ANN sourceIntFromThenTo (PermitTypeClasses []) #-}
-{-# NOINLINE sourceIntFromThenTo #-}
-sourceIntFromThenTo :: Int -> Int -> IO ()
-sourceIntFromThenTo value = withDrain $ \n ->
+{-# ANN enumerateFromThenTo_Int (PermitPatternMatches [''Int]) #-}
+{-# ANN enumerateFromThenTo_Int (PermitConstructions [''()]) #-}
+{-# ANN enumerateFromThenTo_Int (PermitTypeClasses []) #-}
+{-# NOINLINE enumerateFromThenTo_Int #-}
+enumerateFromThenTo_Int :: Int -> Int -> IO ()
+enumerateFromThenTo_Int value = withDrain $ \n ->
     Stream.enumerateFromThenTo n (n + 1) (n + value)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'sourceIntFromThenTo
-inspect $ 'sourceIntFromThenTo `hasNoType` ''Stream.Step
-inspect $ 'sourceIntFromThenTo `hasNoType` ''Producer.EnumState
-inspect $ 'sourceIntFromThenTo `hasNoType` ''Fold.Step
-inspect $ 'sourceIntFromThenTo `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'enumerateFromThenTo_Int
+inspect $ 'enumerateFromThenTo_Int `hasNoType` ''Stream.Step
+inspect $ 'enumerateFromThenTo_Int `hasNoType` ''Producer.EnumState
+inspect $ 'enumerateFromThenTo_Int `hasNoType` ''Fold.Step
+inspect $ 'enumerateFromThenTo_Int `hasNoType` ''SPEC
 #endif
 
-{-# ANN sourceFracFromTo (PermitPatternMatches [''Int]) #-}
-{-# ANN sourceFracFromTo (PermitConstructions [''()]) #-}
-{-# ANN sourceFracFromTo (PermitTypeClasses []) #-}
-{-# NOINLINE sourceFracFromTo #-}
-sourceFracFromTo :: Int -> Int -> IO ()
-sourceFracFromTo value = withDrain $ \n ->
+{-# ANN enumerateFromTo_Double (PermitPatternMatches [''Int]) #-}
+{-# ANN enumerateFromTo_Double (PermitConstructions [''()]) #-}
+{-# ANN enumerateFromTo_Double (PermitTypeClasses []) #-}
+{-# NOINLINE enumerateFromTo_Double #-}
+enumerateFromTo_Double :: Int -> Int -> IO ()
+enumerateFromTo_Double value = withDrain $ \n ->
     Stream.enumerateFromTo (fromIntegral n :: Double) (fromIntegral (n + value))
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'sourceFracFromTo
-inspect $ 'sourceFracFromTo `hasNoType` ''Stream.Step
-inspect $ 'sourceFracFromTo `hasNoType` ''Fold.Step
-inspect $ 'sourceFracFromTo `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'enumerateFromTo_Double
+inspect $ 'enumerateFromTo_Double `hasNoType` ''Stream.Step
+inspect $ 'enumerateFromTo_Double `hasNoType` ''Fold.Step
+inspect $ 'enumerateFromTo_Double `hasNoType` ''SPEC
 #endif
 
-{-# ANN sourceFracFromThenTo (PermitPatternMatches [''Int]) #-}
-{-# ANN sourceFracFromThenTo (PermitConstructions [''()]) #-}
-{-# ANN sourceFracFromThenTo (PermitTypeClasses []) #-}
-{-# NOINLINE sourceFracFromThenTo #-}
-sourceFracFromThenTo :: Int -> Int -> IO ()
-sourceFracFromThenTo value = withDrain $ \n ->
+{-# ANN enumerateFromThenTo_Double (PermitPatternMatches [''Int]) #-}
+{-# ANN enumerateFromThenTo_Double (PermitConstructions [''()]) #-}
+{-# ANN enumerateFromThenTo_Double (PermitTypeClasses []) #-}
+{-# NOINLINE enumerateFromThenTo_Double #-}
+enumerateFromThenTo_Double :: Int -> Int -> IO ()
+enumerateFromThenTo_Double value = withDrain $ \n ->
     Stream.enumerateFromThenTo
-        (fromIntegral n) (fromIntegral n + 1.0001 :: Double) (fromIntegral (n + value))
+        (fromIntegral n) (fromIntegral n + 1.0001 :: Double)
+            (fromIntegral (n + value))
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'sourceFracFromThenTo
-inspect $ 'sourceFracFromThenTo `hasNoType` ''Stream.Step
-inspect $ 'sourceFracFromThenTo `hasNoType` ''Fold.Step
-inspect $ 'sourceFracFromThenTo `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'enumerateFromThenTo_Double
+inspect $ 'enumerateFromThenTo_Double `hasNoType` ''Stream.Step
+inspect $ 'enumerateFromThenTo_Double `hasNoType` ''Fold.Step
+inspect $ 'enumerateFromThenTo_Double `hasNoType` ''SPEC
 #endif
 
-{-# ANN sourceIntegerFromStep (PermitPatternMatches [''Integer,''Int]) #-}
-{-# ANN sourceIntegerFromStep (PermitConstructions [''Integer,''()]) #-}
-{-# ANN sourceIntegerFromStep (PermitTypeClasses []) #-}
-{-# NOINLINE sourceIntegerFromStep #-}
-sourceIntegerFromStep :: Int -> Int -> IO ()
-sourceIntegerFromStep value = withDrain $ \n ->
+{-# ANN enumerateFromThen_Integer (PermitPatternMatches [''Integer,''Int]) #-}
+{-# ANN enumerateFromThen_Integer (PermitConstructions [''Integer,''()]) #-}
+{-# ANN enumerateFromThen_Integer (PermitTypeClasses []) #-}
+{-# NOINLINE enumerateFromThen_Integer #-}
+enumerateFromThen_Integer :: Int -> Int -> IO ()
+enumerateFromThen_Integer value = withDrain $ \n ->
     Stream.take value
-        $ Stream.enumerateFromThen (fromIntegral n :: Integer) (fromIntegral n + 1)
+        $ Stream.enumerateFromThen (fromIntegral n :: Integer)
+            (fromIntegral n + 1)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'sourceIntegerFromStep
-inspect $ 'sourceIntegerFromStep `hasNoType` ''Stream.Step
-inspect $ 'sourceIntegerFromStep `hasNoType` ''Fold.Step
-inspect $ 'sourceIntegerFromStep `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'enumerateFromThen_Integer
+inspect $ 'enumerateFromThen_Integer `hasNoType` ''Stream.Step
+inspect $ 'enumerateFromThen_Integer `hasNoType` ''Fold.Step
+inspect $ 'enumerateFromThen_Integer `hasNoType` ''SPEC
 #endif
 
 {-# ANN enumerateFrom (PermitPatternMatches [''Int]) #-}
@@ -169,38 +212,19 @@ inspect $ 'enumerateFrom `hasNoType` ''Fold.Step
 inspect $ 'enumerateFrom `hasNoType` ''SPEC
 #endif
 
-{-# ANN enumerateFromTo (PermitPatternMatches [''Int]) #-}
-{-# ANN enumerateFromTo (PermitConstructions [''()]) #-}
-{-# ANN enumerateFromTo (PermitTypeClasses []) #-}
-{-# NOINLINE enumerateFromTo #-}
-enumerateFromTo :: Int -> Int -> IO ()
-enumerateFromTo = sourceIntFromTo
-
--- 'enumerateFromTo' is an alias for 'sourceIntFromTo', already covered above.
-
-{-# ANN enumerateFromThen (PermitPatternMatches [''Int]) #-}
-{-# ANN enumerateFromThen (PermitConstructions [''()]) #-}
-{-# ANN enumerateFromThen (PermitTypeClasses []) #-}
-{-# NOINLINE enumerateFromThen #-}
-enumerateFromThen :: Int -> Int -> IO ()
-enumerateFromThen count = withDrain $ \n ->
+{-# ANN enumerateFromThen_Int (PermitConstructions [''()]) #-}
+{-# ANN enumerateFromThen_Int (PermitTypeClasses []) #-}
+{-# NOINLINE enumerateFromThen_Int #-}
+enumerateFromThen_Int :: Int -> Int -> IO ()
+enumerateFromThen_Int count = withDrain $ \n ->
     Stream.take count $ Stream.enumerateFromThen n (n + 1)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'enumerateFromThen
-inspect $ 'enumerateFromThen `hasNoType` ''Stream.Step
-inspect $ 'enumerateFromThen `hasNoType` ''Fold.Step
-inspect $ 'enumerateFromThen `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'enumerateFromThen_Int
+inspect $ 'enumerateFromThen_Int `hasNoType` ''Stream.Step
+inspect $ 'enumerateFromThen_Int `hasNoType` ''Fold.Step
+inspect $ 'enumerateFromThen_Int `hasNoType` ''SPEC
 #endif
-
-{-# ANN enumerateFromThenTo (PermitPatternMatches [''Int]) #-}
-{-# ANN enumerateFromThenTo (PermitConstructions [''()]) #-}
-{-# ANN enumerateFromThenTo (PermitTypeClasses []) #-}
-{-# NOINLINE enumerateFromThenTo #-}
-enumerateFromThenTo :: Int -> Int -> IO ()
-enumerateFromThenTo = sourceIntFromThenTo
-
--- 'enumerateFromThenTo' is an alias for 'sourceIntFromThenTo', already covered above.
 
 -- n ~ 1
 {-# ANN enumerate (PermitPatternMatches [''Int]) #-}
@@ -295,7 +319,8 @@ inspect $ 'replicateM `hasNoType` ''SPEC
 {-# ANN fromIndices (PermitTypeClasses []) #-}
 {-# NOINLINE fromIndices #-}
 fromIndices :: Int -> Int -> IO ()
-fromIndices value = withDrain $ \n -> Stream.take value $ Stream.fromIndices (+ n)
+fromIndices value =
+    withDrain $ \n -> Stream.take value $ Stream.fromIndices (+ n)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'fromIndices
@@ -329,23 +354,25 @@ _absTimes value _ = Stream.take value Stream.absTimes
 
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
-    -- 'sourceUnfoldr', 'sourceUnfoldrM', and 'repeat' are from Stream.Common.
-      [ (SpaceO_1, benchIO "unfoldr" $ withDrain (sourceUnfoldr size))
-      , (SpaceO_1, benchIO "unfoldrM" $ withDrain (sourceUnfoldrM size))
-      , (SpaceO_1, benchIO "repeat" $ withDrain (repeat size))
+      [ (SpaceO_1, benchIO "unfoldr" $ unfoldr size)
+      , (SpaceO_1, benchIO "unfoldrM" $ unfoldrM size)
+      , (SpaceO_1, benchIO "repeat" $ repeat size)
       , (SpaceO_1, benchIO "replicate" $ replicate size)
       , (SpaceO_1, benchIO "iterate" $ iterate size)
       , (SpaceO_1, benchIO "iterateM" $ iterateM size)
-      , (SpaceO_1, benchIO "intFromTo" $ sourceIntFromTo size)
-      , (SpaceO_1, benchIO "intFromThenTo" $ sourceIntFromThenTo size)
-      , (SpaceO_1, benchIO "integerFromStep" $ sourceIntegerFromStep size)
-      , (SpaceO_1, benchIO "fracFromThenTo" $ sourceFracFromThenTo size)
-      , (SpaceO_1, benchIO "fracFromTo" $ sourceFracFromTo size)
-      , (SpaceO_1, benchIO "fromListM" $ sourceFromListM size)
+      , (SpaceO_1, benchIO "fromListM" $ fromListM size)
       , (SpaceO_1, benchIO "enumerateFrom" $ enumerateFrom size)
-      , (SpaceO_1, benchIO "enumerateFromTo" $ enumerateFromTo size)
-      , (SpaceO_1, benchIO "enumerateFromThen" $ enumerateFromThen size)
-      , (SpaceO_1, benchIO "enumerateFromThenTo" $ enumerateFromThenTo size)
+      , (SpaceO_1, benchIO "enumerateFromTo_Int" $ enumerateFromTo_Int size)
+      , (SpaceO_1, benchIO "enumerateFromTo_Double" $
+            enumerateFromTo_Double size)
+      , (SpaceO_1, benchIO "enumerateFromThen_Int" $ enumerateFromThen_Int size)
+      , (SpaceO_1, benchIO "enumerateFromThen_Integer" $
+            enumerateFromThen_Integer size)
+      , (SpaceO_1, benchIO "enumerateFromThenTo_Int" $
+            enumerateFromThenTo_Int size)
+      , ( SpaceO_1
+        , benchIO "enumerateFromThenTo_Double" $ enumerateFromThenTo_Double size
+        )
       , (SpaceO_1, benchIO "enumerate" $ enumerate size)
       , (SpaceO_1, benchIO "enumerateTo" $ enumerateTo size)
       , (SpaceO_1, benchIO "repeatM" $ repeatM size)

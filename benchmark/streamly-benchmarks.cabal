@@ -472,6 +472,7 @@ benchmark Data.Stream
       Stream.Parse
       Stream.Parse.Group
       Stream.Transform
+      -- XXX this takes most memory to build, break it up
       Stream.Transform.Basic
       Stream.Transform.Composed
       Stream.Type
@@ -480,7 +481,7 @@ benchmark Data.Stream
       Stream.Type.Nested
       Stream.Type.Logic
   if flag(limit-build-mem)
-    ghc-options: +RTS -M500M -RTS
+    ghc-options: +RTS -M600M -RTS
 
 benchmark Data.Stream.Adaptive
   import: bench-options-threaded

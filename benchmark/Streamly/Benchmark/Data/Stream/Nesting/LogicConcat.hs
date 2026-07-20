@@ -38,7 +38,8 @@ import Prelude hiding (concatMap, zipWith)
 -- then we might go through more than maxVal x maxVal cases.
 --
 {-# INLINE checkStreamK #-}
-checkStreamK :: Int -> Int -> Int -> StreamK.StreamK m (Maybe (Maybe (Int, Int)))
+checkStreamK :: Int -> Int -> Int
+    -> StreamK.StreamK m (Maybe (Maybe (Int, Int)))
 checkStreamK maxVal x y =
     let eq1 = x + y == 0
         eq2 = x - y == 2 * maxVal
@@ -81,59 +82,89 @@ _schedForEqn maxVal input =
               Stream.schedForM input $ \y -> do
                 return $ Type.checkStream maxVal x y
 
-{-# ANN fairConcatForBounded (PermitPatternMatches [''Maybe,''Bool,''Int,''[],''Producer.InterleaveState,''Stream.EnumToState,''Stream.Step,''Stream.FairUnfoldState,''Stream]) #-}
-{-# ANN fairConcatForBounded (PermitConstructions [''Producer.InterleaveState,''Stream.EnumToState,''Int,''Maybe,''Stream.Step,''Stream,''(,),''[],''Stream.FairUnfoldState,''SVar.State,''(),''Bool]) #-}
-{-# ANN fairConcatForBounded (PermitTypeClasses []) #-}
-{-# NOINLINE fairConcatForBounded #-}
-fairConcatForBounded :: Int -> Int -> IO ()
-fairConcatForBounded maxVal n =
+{-# ANN fairConcatFor_Bounded (PermitPatternMatches
+    [''Maybe,''Bool,''Int,''[],''Producer.InterleaveState
+    ,''Stream.EnumToState,''Stream.Step,''Stream.FairUnfoldState,''Stream]) #-}
+{-# ANN fairConcatFor_Bounded (PermitConstructions
+    [''Producer.InterleaveState,''Stream.EnumToState,''Int,''Maybe
+    ,''Stream.Step,''Stream,''(,),''[],''Stream.FairUnfoldState
+    ,''SVar.State,''(),''Bool]) #-}
+{-# ANN fairConcatFor_Bounded (PermitTypeClasses []) #-}
+{-# NOINLINE fairConcatFor_Bounded #-}
+fairConcatFor_Bounded :: Int -> Int -> IO ()
+fairConcatFor_Bounded maxVal n =
     fairConcatForEqn maxVal (Type.boundedInts maxVal n)
 
-{-# ANN fairConcatForKBounded (PermitPatternMatches [''Maybe,''Bool,''Int,''[],''Producer.InterleaveState,''SVar.State,''Stream.EnumToState,''Stream.Step]) #-}
-{-# ANN fairConcatForKBounded (PermitConstructions [''Maybe,''[],''Producer.InterleaveState,''Int,''Stream.EnumToState,''SVar.State,''Stream.Step,''(,),''(),''Bool]) #-}
-{-# ANN fairConcatForKBounded (PermitTypeClasses []) #-}
-{-# NOINLINE fairConcatForKBounded #-}
-fairConcatForKBounded :: Int -> Int -> IO ()
-fairConcatForKBounded maxVal n =
+{-# ANN fairConcatForK_Bounded (PermitPatternMatches
+    [''Maybe,''Bool,''Int,''[],''Producer.InterleaveState,''SVar.State
+    ,''Stream.EnumToState,''Stream.Step]) #-}
+{-# ANN fairConcatForK_Bounded (PermitConstructions
+    [''Maybe,''[],''Producer.InterleaveState,''Int,''Stream.EnumToState
+    ,''SVar.State,''Stream.Step,''(,),''(),''Bool]) #-}
+{-# ANN fairConcatForK_Bounded (PermitTypeClasses []) #-}
+{-# NOINLINE fairConcatForK_Bounded #-}
+fairConcatForK_Bounded :: Int -> Int -> IO ()
+fairConcatForK_Bounded maxVal n =
     fairConcatForEqnK maxVal (Type.boundedInts maxVal n)
 
-{-# ANN fairConcatForInfinite (PermitPatternMatches [''Maybe,''Bool,''Int,''[],''Producer.InterleaveState,''Stream.EnumToState,''Stream.Step,''Stream.FairUnfoldState,''Stream]) #-}
-{-# ANN fairConcatForInfinite (PermitConstructions [''Int,''Producer.InterleaveState,''Stream.EnumToState,''Maybe,''Stream.Step,''Stream,''(,),''[],''Stream.FairUnfoldState,''SVar.State,''(),''Bool]) #-}
-{-# ANN fairConcatForInfinite (PermitTypeClasses []) #-}
-{-# NOINLINE fairConcatForInfinite #-}
-fairConcatForInfinite :: Int -> Int -> IO ()
-fairConcatForInfinite maxVal n =
+{-# ANN fairConcatFor_Infinite (PermitPatternMatches
+    [''Maybe,''Bool,''Int,''[],''Producer.InterleaveState
+    ,''Stream.EnumToState,''Stream.Step,''Stream.FairUnfoldState,''Stream]) #-}
+{-# ANN fairConcatFor_Infinite (PermitConstructions
+    [''Int,''Producer.InterleaveState,''Stream.EnumToState,''Maybe
+    ,''Stream.Step,''Stream,''(,),''[],''Stream.FairUnfoldState
+    ,''SVar.State,''(),''Bool]) #-}
+{-# ANN fairConcatFor_Infinite (PermitTypeClasses []) #-}
+{-# NOINLINE fairConcatFor_Infinite #-}
+fairConcatFor_Infinite :: Int -> Int -> IO ()
+fairConcatFor_Infinite maxVal n =
     fairConcatForEqn maxVal (Type.infiniteInts maxVal n)
 
-{-# ANN fairSchedForBounded (PermitPatternMatches [''Maybe,''Bool,''Int,''[],''Producer.InterleaveState,''Stream.EnumToState,''Stream.Step,''Stream.FairUnfoldState,''Stream]) #-}
-{-# ANN fairSchedForBounded (PermitConstructions [''Producer.InterleaveState,''Stream.EnumToState,''Int,''Maybe,''Stream.Step,''Stream,''(,),''[],''Stream.FairUnfoldState,''SVar.State,''(),''Bool]) #-}
-{-# ANN fairSchedForBounded (PermitTypeClasses []) #-}
-{-# NOINLINE fairSchedForBounded #-}
-fairSchedForBounded :: Int -> Int -> IO ()
-fairSchedForBounded maxVal n =
+{-# ANN fairSchedFor_Bounded (PermitPatternMatches
+    [''Maybe,''Bool,''Int,''[],''Producer.InterleaveState
+    ,''Stream.EnumToState,''Stream.Step,''Stream.FairUnfoldState,''Stream]) #-}
+{-# ANN fairSchedFor_Bounded (PermitConstructions
+    [''Producer.InterleaveState,''Stream.EnumToState,''Int,''Maybe
+    ,''Stream.Step,''Stream,''(,),''[],''Stream.FairUnfoldState
+    ,''SVar.State,''(),''Bool]) #-}
+{-# ANN fairSchedFor_Bounded (PermitTypeClasses []) #-}
+{-# NOINLINE fairSchedFor_Bounded #-}
+fairSchedFor_Bounded :: Int -> Int -> IO ()
+fairSchedFor_Bounded maxVal n =
     fairSchedForEqn maxVal (Type.boundedInts maxVal n)
 
-{-# ANN fairSchedForInfinite (PermitPatternMatches [''Maybe,''Bool,''Int,''[],''Producer.InterleaveState,''Stream.EnumToState,''Stream.Step,''Stream.FairUnfoldState,''Stream]) #-}
-{-# ANN fairSchedForInfinite (PermitConstructions [''Int,''Producer.InterleaveState,''Stream.EnumToState,''Maybe,''Stream.Step,''Stream,''(,),''[],''Stream.FairUnfoldState,''SVar.State,''(),''Bool]) #-}
-{-# ANN fairSchedForInfinite (PermitTypeClasses []) #-}
-{-# NOINLINE fairSchedForInfinite #-}
-fairSchedForInfinite :: Int -> Int -> IO ()
-fairSchedForInfinite maxVal n =
+{-# ANN fairSchedFor_Infinite (PermitPatternMatches
+    [''Maybe,''Bool,''Int,''[],''Producer.InterleaveState
+    ,''Stream.EnumToState,''Stream.Step,''Stream.FairUnfoldState,''Stream]) #-}
+{-# ANN fairSchedFor_Infinite (PermitConstructions
+    [''Int,''Producer.InterleaveState,''Stream.EnumToState,''Maybe
+    ,''Stream.Step,''Stream,''(,),''[],''Stream.FairUnfoldState
+    ,''SVar.State,''(),''Bool]) #-}
+{-# ANN fairSchedFor_Infinite (PermitTypeClasses []) #-}
+{-# NOINLINE fairSchedFor_Infinite #-}
+fairSchedFor_Infinite :: Int -> Int -> IO ()
+fairSchedFor_Infinite maxVal n =
     fairSchedForEqn maxVal (Type.infiniteInts maxVal n)
 
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
 
+-- XXX Move StreamK functions to StreamK module
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
     -- Solve simultaneous equations by exploring all possibilities
     -- Concat
-      [ (SpaceO_1, benchIO "equations/fairConcatFor (bounded)" $ fairConcatForBounded sqrtVal)
-      , (SpaceO_1, benchIO "equations/fairConcatForK (bounded)" $ fairConcatForKBounded sqrtVal)
-      , (SpaceO_1, benchIO "equations/fairConcatFor (infinite)" $ fairConcatForInfinite sqrtVal)
-      , (SpaceO_1, benchIO "equations/fairSchedFor (bounded)" $ fairSchedForBounded sqrtVal)
-      , (SpaceO_1, benchIO "equations/fairSchedFor (infinite)" $ fairSchedForInfinite sqrtVal)
+      [ (SpaceO_1, benchIO "fairConcatFor_Bounded (equations)" $
+            fairConcatFor_Bounded sqrtVal)
+      , (SpaceO_1, benchIO "fairConcatForK_Bounded (equations)" $
+            fairConcatForK_Bounded sqrtVal)
+      , (SpaceO_1, benchIO "fairConcatFor_Infinite (equations)" $
+            fairConcatFor_Infinite sqrtVal)
+      , (SpaceO_1, benchIO "fairSchedFor_Bounded (equations)" $
+            fairSchedFor_Bounded sqrtVal)
+      , (SpaceO_1, benchIO "fairSchedFor_Infinite (equations)" $
+            fairSchedFor_Infinite sqrtVal)
       ]
 
     where

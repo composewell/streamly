@@ -51,18 +51,18 @@ import qualified Prelude
 -- Reductions
 -------------------------------------------------------------------------------
 
-{-# ANN streamInit (PermitPatternMatches [''Int]) #-}
-{-# ANN streamInit (PermitConstructions [''()]) #-}
-{-# ANN streamInit (PermitTypeClasses []) #-}
-{-# NOINLINE streamInit #-}
-streamInit :: Int -> Int -> IO ()
-streamInit value = withStream value (S.init >=> Prelude.mapM_ S.drain)
+{-# ANN init (PermitPatternMatches [''Int]) #-}
+{-# ANN init (PermitConstructions [''()]) #-}
+{-# ANN init (PermitTypeClasses []) #-}
+{-# NOINLINE init #-}
+init :: Int -> Int -> IO ()
+init value = withStream value (S.init >=> Prelude.mapM_ S.drain)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'streamInit
-inspect $ 'streamInit `hasNoType` ''S.Step
-inspect $ 'streamInit `hasNoType` ''Fold.Step
-inspect $ 'streamInit `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'init
+inspect $ 'init `hasNoType` ''S.Step
+inspect $ 'init `hasNoType` ''Fold.Step
+inspect $ 'init `hasNoType` ''SPEC
 #endif
 
 {-# ANN mapM_ (PermitPatternMatches [''Int]) #-}
@@ -79,45 +79,45 @@ inspect $ 'mapM_ `hasNoType` ''Fold.Step
 inspect $ 'mapM_ `hasNoType` ''SPEC
 #endif
 
-{-# ANN streamLast (PermitPatternMatches [''Int]) #-}
-{-# ANN streamLast (PermitConstructions [''Maybe,''Int]) #-}
-{-# ANN streamLast (PermitTypeClasses []) #-}
-{-# NOINLINE streamLast #-}
-streamLast :: Int -> Int -> IO (Maybe Int)
-streamLast value = withStream value S.last
+{-# ANN last (PermitPatternMatches [''Int]) #-}
+{-# ANN last (PermitConstructions [''Maybe,''Int]) #-}
+{-# ANN last (PermitTypeClasses []) #-}
+{-# NOINLINE last #-}
+last :: Int -> Int -> IO (Maybe Int)
+last value = withStream value S.last
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'streamLast
-inspect $ 'streamLast `hasNoType` ''S.Step
-inspect $ 'streamLast `hasNoType` ''Fold.Step
-inspect $ 'streamLast `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'last
+inspect $ 'last `hasNoType` ''S.Step
+inspect $ 'last `hasNoType` ''Fold.Step
+inspect $ 'last `hasNoType` ''SPEC
 #endif
 
-{-# ANN foldl1'Reduce (PermitPatternMatches [''Int]) #-}
-{-# ANN foldl1'Reduce (PermitConstructions [''Maybe,''Int]) #-}
-{-# ANN foldl1'Reduce (PermitTypeClasses []) #-}
-{-# NOINLINE foldl1'Reduce #-}
-foldl1'Reduce :: Int -> Int -> IO (Maybe Int)
-foldl1'Reduce value = withStream value (S.fold (Fold.foldl1' (+)))
+{-# ANN foldl1' (PermitPatternMatches [''Int]) #-}
+{-# ANN foldl1' (PermitConstructions [''Maybe,''Int]) #-}
+{-# ANN foldl1' (PermitTypeClasses []) #-}
+{-# NOINLINE foldl1' #-}
+foldl1' :: Int -> Int -> IO (Maybe Int)
+foldl1' value = withStream value (S.fold (Fold.foldl1' (+)))
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'foldl1'Reduce
-inspect $ 'foldl1'Reduce `hasNoType` ''S.Step
+inspect $ hasNoTypeClasses 'foldl1'
+inspect $ 'foldl1' `hasNoType` ''S.Step
 #endif
 
 -- NOTE: eta expansion is required to eliminate the pattern match on S.Step
 -- type. Step is included to avoid accidental eta reduction.
-{-# ANN foldl1'ReduceIdentity (PermitPatternMatches [''Int]) #-}
-{-# ANN foldl1'ReduceIdentity (PermitConstructions [''Int,''Maybe]) #-}
-{-# ANN foldl1'ReduceIdentity (PermitTypeClasses []) #-}
-{-# NOINLINE foldl1'ReduceIdentity #-}
-foldl1'ReduceIdentity :: Int -> Int -> IO (Maybe Int)
-foldl1'ReduceIdentity value n =
+{-# ANN foldl1'_Identity (PermitPatternMatches [''Int]) #-}
+{-# ANN foldl1'_Identity (PermitConstructions [''Int,''Maybe]) #-}
+{-# ANN foldl1'_Identity (PermitTypeClasses []) #-}
+{-# NOINLINE foldl1'_Identity #-}
+foldl1'_Identity :: Int -> Int -> IO (Maybe Int)
+foldl1'_Identity value n =
     withPureStream value (runIdentity . S.fold (Fold.foldl1' (+))) n
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'foldl1'ReduceIdentity
-inspect $ 'foldl1'ReduceIdentity `hasNoType` ''S.Step
+inspect $ hasNoTypeClasses 'foldl1'_Identity
+inspect $ 'foldl1'_Identity `hasNoType` ''S.Step
 #endif
 
 {-# ANN elem (PermitPatternMatches [''Int]) #-}
@@ -382,7 +382,8 @@ toListRev value = withStream value S.toListRev
 
 -- NOTE: this is a Fold benchmark, used here only for comparison with toListRev
 -- {-# ANN toStreamRev (PermitPatternMatches []) #-}
-{-# ANN toStreamRev (PermitConstructions [''Int,''[],''Stream,''S.Step,''SPEC]) #-}
+{-# ANN toStreamRev (PermitConstructions
+    [''Int,''[],''Stream,''S.Step,''SPEC]) #-}
 {-# ANN toStreamRev (PermitTypeClasses []) #-}
 {-# NOINLINE toStreamRev #-}
 toStreamRev :: Int -> Int -> IO (Stream Identity Int)
@@ -448,20 +449,21 @@ inspect $ 'stripPrefix `hasNoType` ''SPEC
 -- Iterating using tail
 -------------------------------------------------------------------------------
 
-{-# ANN tail (PermitPatternMatches [''Int,''S.Step]) #-}
-{-# ANN tail (PermitConstructions [''Int,''S.Step]) #-}
-{-# ANN tail (PermitTypeClasses []) #-}
-{-# NOINLINE tail #-}
-tail :: Int -> Int -> IO ()
-tail value = withStream value go
+{-# ANN tail_Iterated (PermitPatternMatches [''Int,''S.Step]) #-}
+{-# ANN tail_Iterated (PermitConstructions [''Int,''S.Step]) #-}
+{-# ANN tail_Iterated (PermitTypeClasses []) #-}
+{-# NOINLINE tail_Iterated #-}
+tail_Iterated :: Int -> Int -> IO ()
+tail_Iterated value = withStream value go
     where go s = S.tail s >>= Prelude.mapM_ go
 
-{-# ANN nullHeadTail (PermitPatternMatches [''Int,''S.Step]) #-}
-{-# ANN nullHeadTail (PermitConstructions [''Int,''SVar.State,''Maybe,''S.Step,''Bool]) #-}
-{-# ANN nullHeadTail (PermitTypeClasses []) #-}
-{-# NOINLINE nullHeadTail #-}
-nullHeadTail :: Int -> Int -> IO ()
-nullHeadTail value = withStream value go
+{-# ANN tail_Null_Head_Iterated (PermitPatternMatches [''Int,''S.Step]) #-}
+{-# ANN tail_Null_Head_Iterated (PermitConstructions
+    [''Int,''SVar.State,''Maybe,''S.Step,''Bool]) #-}
+{-# ANN tail_Null_Head_Iterated (PermitTypeClasses []) #-}
+{-# NOINLINE tail_Null_Head_Iterated #-}
+tail_Null_Head_Iterated :: Int -> Int -> IO ()
+tail_Null_Head_Iterated value = withStream value go
     where
     go s = do
         r <- S.null s
@@ -469,23 +471,25 @@ nullHeadTail value = withStream value go
             _ <- S.head s
             S.tail s >>= Prelude.mapM_ go
 
-{-# ANN nullTail (PermitPatternMatches [''Int,''S.Step]) #-}
-{-# ANN nullTail (PermitConstructions [''Int,''SVar.State,''Maybe,''S.Step,''Bool]) #-}
-{-# ANN nullTail (PermitTypeClasses []) #-}
-{-# NOINLINE nullTail #-}
-nullTail :: Int -> Int -> IO ()
-nullTail value = withStream value go
+{-# ANN tail_Null_Iterated (PermitPatternMatches [''Int,''S.Step]) #-}
+{-# ANN tail_Null_Iterated (PermitConstructions
+    [''Int,''SVar.State,''Maybe,''S.Step,''Bool]) #-}
+{-# ANN tail_Null_Iterated (PermitTypeClasses []) #-}
+{-# NOINLINE tail_Null_Iterated #-}
+tail_Null_Iterated :: Int -> Int -> IO ()
+tail_Null_Iterated value = withStream value go
     where
     go s = do
         r <- S.null s
         when (not r) $ S.tail s >>= Prelude.mapM_ go
 
-{-# ANN headTail (PermitPatternMatches [''Int,''S.Step]) #-}
-{-# ANN headTail (PermitConstructions [''Int,''SVar.State,''Maybe,''S.Step,''Bool]) #-}
-{-# ANN headTail (PermitTypeClasses []) #-}
-{-# NOINLINE headTail #-}
-headTail :: Int -> Int -> IO ()
-headTail value = withStream value go
+{-# ANN tail_Head_Iterated (PermitPatternMatches [''Int,''S.Step]) #-}
+{-# ANN tail_Head_Iterated (PermitConstructions
+    [''Int,''SVar.State,''Maybe,''S.Step,''Bool]) #-}
+{-# ANN tail_Head_Iterated (PermitTypeClasses []) #-}
+{-# NOINLINE tail_Head_Iterated #-}
+tail_Head_Iterated :: Int -> Int -> IO ()
+tail_Head_Iterated value = withStream value go
     where
     go s = do
         h <- S.head s
@@ -501,13 +505,13 @@ headTail value = withStream value go
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
     -- Basic folds
-      [ (SpaceO_1, benchIO "foldl1'/IO" $ foldl1'Reduce size)
-      , (SpaceO_1, benchIO "foldl1'/Identity" $ foldl1'ReduceIdentity size)
+      [ (SpaceO_1, benchIO "foldl1'" $ foldl1' size)
+      , (SpaceO_1, benchIO "foldl1'_Identity" $ foldl1'_Identity size)
 
       -- deconstruction
       , (SpaceO_1, benchIO "mapM_" $ mapM_ size)
-      , (SpaceO_1, benchIO "last" $ streamLast size)
-      , (SpaceO_1, benchIO "init" $ streamInit size)
+      , (SpaceO_1, benchIO "last" $ last size)
+      , (SpaceO_1, benchIO "init" $ init size)
 
       -- this is too fast, causes all benchmarks reported in ns
     -- , benchIO "head" $ ...
@@ -543,8 +547,9 @@ benchmarks size =
       -- Converting the stream to a list or pure stream in a strict monad
       , (SpaceO_n, benchIO "toStream" $ toStream size)
 
-      , (StackO_n, benchIO "iterated/tail" $ tail size)
-      , (StackO_n, benchIO "iterated/nullTail" $ nullTail size)
-      , (StackO_n, benchIO "iterated/headTail" $ headTail size)
-      , (StackO_n, benchIO "iterated/nullHeadTail" $ nullHeadTail size)
+      , (StackO_n, benchIO "tail_Iterated" $ tail_Iterated size)
+      , (StackO_n, benchIO "tail_Null_Iterated" $ tail_Null_Iterated size)
+      , (StackO_n, benchIO "tail_Head_Iterated" $ tail_Head_Iterated size)
+      , (StackO_n, benchIO "tail_Null_Head_Iterated" $
+            tail_Null_Head_Iterated size)
       ]
