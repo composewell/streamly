@@ -52,12 +52,12 @@ import qualified Streamly.Internal.Data.Stream as S
 #endif
 
 {-# INLINE benchIO #-}
-benchIO :: NFData b => String -> IO b -> Benchmark
-benchIO name = bench name . nfIO
+benchIO :: NFData b => String -> (Int -> IO b) -> Benchmark
+benchIO name f = bench name $ nfIO $ randomRIO (1, 1 :: Int) >>= f
 
 {-# INLINE withStream #-}
-withStream :: Int -> (Stream IO Int -> IO b) -> IO b
-withStream value f = randomRIO (1,1) >>= f . streamUnfoldrM value
+withStream :: Int -> (Stream IO Int -> IO b) -> Int -> IO b
+withStream value f = f . streamUnfoldrM value
 
 -------------------------------------------------------------------------------
 -- Utilities
@@ -98,7 +98,7 @@ sourceEscapedFrames value = Stream.unfoldrM step
 -------------------------------------------------------------------------------
 
 {-# INLINE takeBetween #-}
-takeBetween :: Int -> IO (Either ParseError ())
+takeBetween :: Int -> Int -> IO (Either ParseError ())
 takeBetween value = withStream value $ Stream.parse (PR.takeBetween 0 value Fold.drain)
 
 #ifdef INSPECTION
@@ -111,7 +111,7 @@ inspect $ 'takeBetween `hasNoType` ''SPEC
 #endif
 
 {-# INLINE takeEQ #-}
-takeEQ :: Int -> IO (Either ParseError ())
+takeEQ :: Int -> Int -> IO (Either ParseError ())
 takeEQ value = withStream value $ Stream.parse (PR.takeEQ value Fold.drain)
 
 #ifdef INSPECTION
@@ -124,7 +124,7 @@ inspect $ 'takeEQ `hasNoType` ''PR.Tuple'Fused
 #endif
 
 {-# INLINE takeGE #-}
-takeGE :: Int -> IO (Either ParseError ())
+takeGE :: Int -> Int -> IO (Either ParseError ())
 takeGE value = withStream value $ Stream.parse (PR.takeGE value Fold.drain)
 
 #ifdef INSPECTION
@@ -137,7 +137,7 @@ inspect $ 'takeGE `hasNoType` ''PR.TakeGEState
 #endif
 
 {-# INLINE dropWhile #-}
-dropWhile :: Int -> IO (Either ParseError ())
+dropWhile :: Int -> Int -> IO (Either ParseError ())
 dropWhile value = withStream value $ Stream.parse (PR.dropWhile (<= value))
 
 #ifdef INSPECTION
@@ -149,11 +149,13 @@ inspect $ 'dropWhile `hasNoType` ''SPEC
 #endif
 
 {-# INLINE takeBeginBy #-}
-takeBeginBy :: Int -> IO (Either ParseError ())
-takeBeginBy value = do
-    n <- randomRIO (1, 1)
-    let stream = value `Stream.cons` streamUnfoldrM value n
+takeBeginBy :: Int -> Int -> IO (Either ParseError ())
+takeBeginBy value n =
     Stream.parse (PR.takeBeginBy (== value) Fold.drain) stream
+
+    where
+
+    stream = value `Stream.cons` streamUnfoldrM value n
 
 #ifdef INSPECTION
 inspect $ 'takeBeginBy `hasNoType` ''S.Step
@@ -164,9 +166,8 @@ inspect $ 'takeBeginBy `hasNoType` ''SPEC
 #endif
 
 {-# INLINE takeFramedByEsc_ #-}
-takeFramedByEsc_ :: Int -> IO (Either ParseError ())
-takeFramedByEsc_ value = do
-    n <- randomRIO (1, 1)
+takeFramedByEsc_ :: Int -> Int -> IO (Either ParseError ())
+takeFramedByEsc_ value n =
     Stream.parse parser (sourceEscapedFrames value n)
 
     where
@@ -178,16 +179,16 @@ takeFramedByEsc_ value = do
     parser = PR.takeFramedByEsc_ isEsc isBegin isEnd Fold.drain
 
 {-# INLINE listEqBy #-}
-listEqBy :: Int -> IO (Either ParseError [Int])
+listEqBy :: Int -> Int -> IO (Either ParseError [Int])
 listEqBy value = withStream value $ Stream.parse (PR.listEqBy (==) [1 .. value])
 
 {-# INLINE streamEqBy #-}
-streamEqBy :: Int -> IO (Either ParseError ())
+streamEqBy :: Int -> Int -> IO (Either ParseError ())
 streamEqBy value =
     withStream value $ Stream.parse (PR.streamEqBy (==) (Stream.enumerateFromTo 1 value))
 
 {-# INLINE takeWhile #-}
-takeWhile :: Int -> IO (Either ParseError ())
+takeWhile :: Int -> Int -> IO (Either ParseError ())
 takeWhile value = withStream value $ Stream.parse (PR.takeWhile (<= value) Fold.drain)
 
 #ifdef INSPECTION
@@ -199,7 +200,7 @@ inspect $ 'takeWhile `hasNoType` ''SPEC
 #endif
 
 {-# INLINE takeWhileP #-}
-takeWhileP :: Int -> IO (Either ParseError ())
+takeWhileP :: Int -> Int -> IO (Either ParseError ())
 takeWhileP value =
     withStream value $
         Stream.parse (PR.takeWhileP (<= value) (PR.takeWhile (<= value - 1) Fold.drain))
@@ -213,11 +214,11 @@ inspect $ 'takeWhileP `hasNoType` ''SPEC
 #endif
 
 {-# INLINE takeP #-}
-takeP :: Int -> IO (Either ParseError ())
+takeP :: Int -> Int -> IO (Either ParseError ())
 takeP value = withStream value $ Stream.parse (PR.takeP value (PR.fromFold Fold.drain))
 
 {-# INLINE groupBy #-}
-groupBy :: Int -> IO (Either ParseError ())
+groupBy :: Int -> Int -> IO (Either ParseError ())
 groupBy value = withStream value $ Stream.parse (PR.groupBy (<=) Fold.drain)
 
 #ifdef INSPECTION
@@ -230,7 +231,7 @@ inspect $ 'groupBy `hasNoType` ''PR.GroupByState
 #endif
 
 {-# INLINE groupByRolling #-}
-groupByRolling :: Int -> IO (Either ParseError ())
+groupByRolling :: Int -> Int -> IO (Either ParseError ())
 groupByRolling value = withStream value $ Stream.parse (PR.groupByRolling (<=) Fold.drain)
 
 #ifdef INSPECTION
@@ -243,7 +244,7 @@ inspect $ 'groupByRolling `hasNoType` ''PR.GroupByState
 #endif
 
 {-# INLINE wordBy #-}
-wordBy :: Int -> IO (Either ParseError ())
+wordBy :: Int -> Int -> IO (Either ParseError ())
 wordBy value = withStream value $ Stream.parse (PR.wordBy (>= value) Fold.drain)
 
 #ifdef INSPECTION
@@ -255,7 +256,7 @@ inspect $ 'wordBy `hasNoType` ''SPEC
 #endif
 
 {-# INLINE takeEndBy_ #-}
-takeEndBy_ :: Int -> IO (Either ParseError ())
+takeEndBy_ :: Int -> Int -> IO (Either ParseError ())
 takeEndBy_ value =
     withStream value $ Stream.parse (PR.takeEndBy_ (>= value) (PR.fromFold Fold.drain))
 
@@ -272,7 +273,7 @@ inspect $ 'takeEndBy_ `hasNoType` ''SPEC
 -------------------------------------------------------------------------------
 
 {-# INLINE span #-}
-span :: Int -> IO (Either ParseError ((), ()))
+span :: Int -> Int -> IO (Either ParseError ((), ()))
 span value =
     withStream value $ Stream.parse (PR.span (<= (value `div` 2)) Fold.drain Fold.drain)
 
@@ -286,7 +287,7 @@ inspect $ 'span `hasNoType` ''FL.Step
 #endif
 
 {-# INLINE spanBy #-}
-spanBy :: Int -> IO (Either ParseError ((), ()))
+spanBy :: Int -> Int -> IO (Either ParseError ((), ()))
 spanBy value =
     withStream value $
         Stream.parse (PR.spanBy (\_ i -> i <= (value `div` 2)) Fold.drain Fold.drain)
@@ -302,7 +303,7 @@ inspect $ 'spanBy `hasNoType` ''FL.Step
 #endif
 
 {-# INLINE spanByRolling #-}
-spanByRolling :: Int -> IO (Either ParseError ((), ()))
+spanByRolling :: Int -> Int -> IO (Either ParseError ((), ()))
 spanByRolling value =
     withStream value $
         Stream.parse (PR.spanByRolling (\_ i -> i <= value `div` 2) Fold.drain Fold.drain)
@@ -322,7 +323,7 @@ inspect $ 'spanByRolling `hasNoType` ''FL.Step
 -------------------------------------------------------------------------------
 
 {-# INLINE lookAhead #-}
-lookAhead :: Int -> IO (Either ParseError ())
+lookAhead :: Int -> Int -> IO (Either ParseError ())
 lookAhead value =
     withStream value $
         Stream.parse (PR.lookAhead (PR.takeWhile (<= value) Fold.drain) $> ())

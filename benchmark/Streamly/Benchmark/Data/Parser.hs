@@ -95,6 +95,6 @@ main = do
     -- sepByAllWords input
     -- sepBy1 input
     -- sepByWords1 input
-    takeFramedByEsc_ value (sourceEscapedFrames value 1)
+    takeFramedByEsc_ value 1
     return ()
 #endif

@@ -47,15 +47,15 @@ import qualified Streamly.Internal.Data.Fold as FL
 #endif
 
 {-# INLINE benchIO #-}
-benchIO :: NFData b => String -> IO b -> Benchmark
-benchIO name = bench name . nfIO
+benchIO :: NFData b => String -> (Int -> IO b) -> Benchmark
+benchIO name f = bench name $ nfIO $ randomRIO (1, 1 :: Int) >>= f
 
 {-# INLINE withStream #-}
-withStream :: Int -> (Stream IO Int -> IO b) -> IO b
-withStream value f = randomRIO (1,1) >>= f . streamUnfoldrM value
+withStream :: Int -> (Stream IO Int -> IO b) -> Int -> IO b
+withStream value f = f . streamUnfoldrM value
 
 {-# INLINE monad #-}
-monad :: Int -> IO (Either ParseError ())
+monad :: Int -> Int -> IO (Either ParseError ())
 monad value =
     withStream value $
         Stream.parse
@@ -73,7 +73,7 @@ inspect $ 'monad `hasNoType` ''FL.Step
 #endif
 
 {-# INLINE monad4 #-}
-monad4 :: Int -> IO (Either ParseError ())
+monad4 :: Int -> Int -> IO (Either ParseError ())
 monad4 value =
     withStream value $
         Stream.parse $ do
@@ -84,7 +84,7 @@ monad4 value =
 
 {- HLINT ignore "Evaluate"-}
 {-# INLINE monad8 #-}
-monad8 :: Int -> IO (Either ParseError ())
+monad8 :: Int -> Int -> IO (Either ParseError ())
 monad8 value =
     withStream value $
         Stream.parse $ do
@@ -98,7 +98,7 @@ monad8 value =
             PR.dropWhile (<= value)
 
 {-# INLINE monad16 #-}
-monad16 :: Int -> IO (Either ParseError ())
+monad16 :: Int -> Int -> IO (Either ParseError ())
 monad16 value =
     withStream value $
         Stream.parse $ do

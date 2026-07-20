@@ -55,12 +55,12 @@ sourceUnfoldrM value n = Stream.unfoldrM step n
         else return (Just (cnt, cnt + 1))
 
 {-# INLINE withStream #-}
-withStream :: Int -> (Stream IO Int -> IO b) -> IO b
-withStream value f = randomRIO (1, 1 :: Int) >>= f . sourceUnfoldrM value
+withStream :: Int -> (Stream IO Int -> IO b) -> Int -> IO b
+withStream value f = f . sourceUnfoldrM value
 
 {-# INLINE benchIO #-}
-benchIO :: NFData b => String -> IO b -> Benchmark
-benchIO name = bench name . nfIO
+benchIO :: NFData b => String -> (Int -> IO b) -> Benchmark
+benchIO name f = bench name $ nfIO $ randomRIO (1, 1 :: Int) >>= f
 
 {-# INLINE composeN #-}
 composeN ::
@@ -101,7 +101,7 @@ transformTeeMapM n =
         (Pipe.mapM (\x -> return (x + 1)) `Pipe.teeMerge`
          Pipe.mapM (\x -> return (x + 2)))
 
-pipeMapM :: Int -> IO ()
+pipeMapM :: Int -> Int -> IO ()
 pipeMapM value = withStream value (transformMapM 1)
 
 #ifdef INSPECTION
@@ -112,7 +112,7 @@ inspect $ 'pipeMapM `hasNoType` ''FL.Step
 inspect $ 'pipeMapM `hasNoType` ''SPEC
 #endif
 
-pipeCompose :: Int -> IO ()
+pipeCompose :: Int -> Int -> IO ()
 pipeCompose value = withStream value (transformComposeMapM 1)
 
 #ifdef INSPECTION
@@ -123,7 +123,7 @@ inspect $ 'pipeCompose `hasNoType` ''FL.Step
 inspect $ 'pipeCompose `hasNoType` ''SPEC
 #endif
 
-pipeTee :: Int -> IO ()
+pipeTee :: Int -> Int -> IO ()
 pipeTee value = withStream value (transformTeeMapM 1)
 
 #ifdef INSPECTION
@@ -137,7 +137,7 @@ inspect $ 'pipeTee `hasNoType` ''SPEC
 -- XXX this takes 1 GB memory to compile
 -- pipeZip :: Int -> IO ()
 
-pipeMapMX4 :: Int -> IO ()
+pipeMapMX4 :: Int -> Int -> IO ()
 pipeMapMX4 value = withStream value (transformMapM 4)
 
 #ifdef INSPECTION
@@ -148,7 +148,7 @@ inspect $ 'pipeMapMX4 `hasNoType` ''FL.Step
 inspect $ 'pipeMapMX4 `hasNoType` ''SPEC
 #endif
 
-pipeComposeX4 :: Int -> IO ()
+pipeComposeX4 :: Int -> Int -> IO ()
 pipeComposeX4 value = withStream value (transformComposeMapM 4)
 
 #ifdef INSPECTION
@@ -160,7 +160,7 @@ inspect $ 'pipeComposeX4 `hasNoType` ''SPEC
 #endif
 
 -- XXX requires @-fspec-constr-recursive=16@.
-pipeTeeX4 :: Int -> IO ()
+pipeTeeX4 :: Int -> Int -> IO ()
 pipeTeeX4 value = withStream value (transformTeeMapM 4)
 
 #ifdef INSPECTION

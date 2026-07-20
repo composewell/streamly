@@ -50,19 +50,19 @@ import qualified Streamly.Internal.Data.Stream as S
 #endif
 
 {-# INLINE benchIO #-}
-benchIO :: NFData b => String -> IO b -> Benchmark
-benchIO name = bench name . nfIO
+benchIO :: NFData b => String -> (Int -> IO b) -> Benchmark
+benchIO name f = bench name $ nfIO $ randomRIO (1, 1 :: Int) >>= f
 
 {-# INLINE withStream #-}
-withStream :: Int -> (Stream IO Int -> IO b) -> IO b
-withStream value f = randomRIO (1,1) >>= f . streamUnfoldrM value
+withStream :: Int -> (Stream IO Int -> IO b) -> Int -> IO b
+withStream value f = f . streamUnfoldrM value
 
 -------------------------------------------------------------------------------
 -- Parsers
 -------------------------------------------------------------------------------
 
 {-# INLINE sepByWords #-}
-sepByWords :: Int -> IO (Either ParseError ())
+sepByWords :: Int -> Int -> IO (Either ParseError ())
 sepByWords value = withStream value $ Stream.parse (wrds even Fold.drain)
     where
     wrds p = PR.sepBy (PR.takeWhile (not . p) Fold.drain) (PR.dropWhile p)
@@ -77,7 +77,7 @@ inspect $ 'sepByWords `hasNoType` ''PR.SepByState
 #endif
 
 {-# INLINE sepByAllWords #-}
-sepByAllWords :: Int -> IO (Either ParseError ())
+sepByAllWords :: Int -> Int -> IO (Either ParseError ())
 sepByAllWords value = withStream value $ Stream.parse (wrds even Fold.drain)
     where
     wrds p = PR.sepByAll (PR.takeWhile (not . p) Fold.drain) (PR.dropWhile p)
@@ -93,13 +93,13 @@ inspect $ 'sepByAllWords `hasNoType` ''PR.DeintercalateAllState
 
 -- Returning a list to compare with the sepBy1 in ParserK
 {-# INLINE sepBy1 #-}
-sepBy1 :: Int -> IO (Either ParseError [Int])
+sepBy1 :: Int -> Int -> IO (Either ParseError [Int])
 sepBy1 value =
     withStream value $
         Stream.parse (PR.sepBy1 (PR.satisfy odd) (PR.satisfy even) Fold.toList)
 
 {-# INLINE sepByWords1 #-}
-sepByWords1 :: Int -> IO (Either ParseError ())
+sepByWords1 :: Int -> Int -> IO (Either ParseError ())
 sepByWords1 value = withStream value $ Stream.parse (wrds even Fold.drain)
     where
     wrds p = PR.sepBy1 (PR.takeWhile (not . p) Fold.drain) (PR.dropWhile p)
@@ -114,7 +114,7 @@ inspect $ 'sepByWords1 `hasNoType` ''PR.SepBy1State
 #endif
 
 {-# INLINE deintercalate #-}
-deintercalate :: Int -> IO (Either ParseError ())
+deintercalate :: Int -> Int -> IO (Either ParseError ())
 deintercalate value = withStream value $ Stream.parse (partition even)
 
     where
@@ -133,7 +133,7 @@ inspect $ 'deintercalate `hasNoType` ''PR.DeintercalateState
 #endif
 
 {-# INLINE deintercalate1 #-}
-deintercalate1 :: Int -> IO (Either ParseError ())
+deintercalate1 :: Int -> Int -> IO (Either ParseError ())
 deintercalate1 value = withStream value $ Stream.parse (partition even)
 
     where
@@ -152,7 +152,7 @@ inspect $ 'deintercalate1 `hasNoType` ''PR.Deintercalate1State
 #endif
 
 {-# INLINE deintercalateAll #-}
-deintercalateAll :: Int -> IO (Either ParseError ())
+deintercalateAll :: Int -> Int -> IO (Either ParseError ())
 deintercalateAll value = withStream value $ Stream.parse (partition even)
 
     where
@@ -171,7 +171,7 @@ inspect $ 'deintercalateAll `hasNoType` ''PR.DeintercalateAllState
 #endif
 
 {-# INLINE manyTill #-}
-manyTill :: Int -> IO (Either ParseError Int)
+manyTill :: Int -> Int -> IO (Either ParseError Int)
 manyTill value =
     withStream value $
         Stream.parse (PR.manyTill (PR.satisfy (> 0)) (PR.satisfy (== value)) Fold.length)

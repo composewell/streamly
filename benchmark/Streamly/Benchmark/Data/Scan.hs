@@ -55,12 +55,12 @@ sourceUnfoldrM value n = Stream.unfoldrM step n
         else return (Just (cnt, cnt + 1))
 
 {-# INLINE withStream #-}
-withStream :: Int -> (Stream IO Int -> IO b) -> IO b
-withStream value f = randomRIO (1, 1 :: Int) >>= f . sourceUnfoldrM value
+withStream :: Int -> (Stream IO Int -> IO b) -> Int -> IO b
+withStream value f = f . sourceUnfoldrM value
 
 {-# INLINE benchIO #-}
-benchIO :: NFData b => String -> IO b -> Benchmark
-benchIO name = bench name . nfIO
+benchIO :: NFData b => String -> (Int -> IO b) -> Benchmark
+benchIO name f = bench name $ nfIO $ randomRIO (1, 1 :: Int) >>= f
 
 {-# INLINE composeN #-}
 composeN ::
@@ -101,7 +101,7 @@ scanTeeMapM n =
         (Scan.teeWith (+) (Scan.functionM (\x -> return (x + 1)))
          (Scan.functionM (\x -> return (x + 2))))
 
-scansMapM :: Int -> IO ()
+scansMapM :: Int -> Int -> IO ()
 scansMapM value = withStream value (scanMapM 1)
 
 #ifdef INSPECTION
@@ -112,7 +112,7 @@ inspect $ 'scansMapM `hasNoType` ''FL.Step
 inspect $ 'scansMapM `hasNoType` ''SPEC
 #endif
 
-scansCompose :: Int -> IO ()
+scansCompose :: Int -> Int -> IO ()
 scansCompose value = withStream value (scanComposeMapM 1)
 
 #ifdef INSPECTION
@@ -123,7 +123,7 @@ inspect $ 'scansCompose `hasNoType` ''FL.Step
 inspect $ 'scansCompose `hasNoType` ''SPEC
 #endif
 
-scansTee :: Int -> IO ()
+scansTee :: Int -> Int -> IO ()
 scansTee value = withStream value (scanTeeMapM 1)
 
 #ifdef INSPECTION
@@ -134,7 +134,7 @@ inspect $ 'scansTee `hasNoType` ''FL.Step
 inspect $ 'scansTee `hasNoType` ''SPEC
 #endif
 
-scansMapMX4 :: Int -> IO ()
+scansMapMX4 :: Int -> Int -> IO ()
 scansMapMX4 value = withStream value (scanMapM 4)
 
 #ifdef INSPECTION
@@ -145,7 +145,7 @@ inspect $ 'scansMapMX4 `hasNoType` ''FL.Step
 inspect $ 'scansMapMX4 `hasNoType` ''SPEC
 #endif
 
-scansComposeX4 :: Int -> IO ()
+scansComposeX4 :: Int -> Int -> IO ()
 scansComposeX4 value = withStream value (scanComposeMapM 4)
 
 #ifdef INSPECTION
@@ -156,7 +156,7 @@ inspect $ 'scansComposeX4 `hasNoType` ''FL.Step
 inspect $ 'scansComposeX4 `hasNoType` ''SPEC
 #endif
 
-scansTeeX4 :: Int -> IO ()
+scansTeeX4 :: Int -> Int -> IO ()
 scansTeeX4 value = withStream value (scanTeeMapM 4)
 
 #ifdef INSPECTION

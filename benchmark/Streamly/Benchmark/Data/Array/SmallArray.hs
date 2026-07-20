@@ -14,8 +14,8 @@ type Arr = A.SmallArray
 -------------------------------------------------------------------------------
 
 {-# INLINE sourceIntFromToFromList #-}
-sourceIntFromToFromList :: Int -> IO (Arr Int)
-sourceIntFromToFromList value = withRandomIntIO $ \n ->
+sourceIntFromToFromList :: Int -> Int -> IO (Arr Int)
+sourceIntFromToFromList value n =
     P.return $ A.fromListN value [n..n + value]
 
 {-# INLINE parseInstance #-}
@@ -27,8 +27,8 @@ parseInstance str =
         _ -> P.error "parseInstance: no parse"
 
 {-# INLINE readInstance #-}
-readInstance :: Int -> IO (Arr Int)
-readInstance value =
+readInstance :: Int -> Int -> IO (Arr Int)
+readInstance value _ =
     let testStr = "fromListN " ++ show (value + 1)
                     ++ "[1" ++ concat (replicate value ",1") ++ "]"
     in return $! parseInstance testStr

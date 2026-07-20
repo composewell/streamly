@@ -55,19 +55,19 @@ import qualified Streamly.Internal.Data.Stream as S
 #endif
 
 {-# INLINE benchIO #-}
-benchIO :: NFData b => String -> IO b -> Benchmark
-benchIO name = bench name . nfIO
+benchIO :: NFData b => String -> (Int -> IO b) -> Benchmark
+benchIO name f = bench name $ nfIO $ randomRIO (1, 1 :: Int) >>= f
 
 {-# INLINE withStream #-}
-withStream :: Int -> (Stream IO Int -> IO b) -> IO b
-withStream value f = randomRIO (1,1) >>= f . streamUnfoldrM value
+withStream :: Int -> (Stream IO Int -> IO b) -> Int -> IO b
+withStream value f = f . streamUnfoldrM value
 
 -------------------------------------------------------------------------------
 -- Parsers
 -------------------------------------------------------------------------------
 
 {-# INLINE splitManyWordByEven #-}
-splitManyWordByEven :: Int -> IO (Either ParseError ())
+splitManyWordByEven :: Int -> Int -> IO (Either ParseError ())
 splitManyWordByEven value =
     withStream value $ Stream.parse (PR.splitMany (PR.wordBy even Fold.drain) Fold.drain)
 
@@ -81,7 +81,7 @@ inspect $ 'splitManyWordByEven `hasNoType` ''PR.Fused3
 #endif
 
 {-# INLINE splitMany #-}
-splitMany :: Int -> IO (Either ParseError Int)
+splitMany :: Int -> Int -> IO (Either ParseError Int)
 splitMany value = withStream value $ Stream.parse (PR.splitMany (PR.satisfy (> 0)) Fold.length)
 
 #ifdef INSPECTION
@@ -94,7 +94,7 @@ inspect $ 'splitMany `hasNoType` ''PR.Fused3
 #endif
 
 {-# INLINE splitSome #-}
-splitSome :: Int -> IO (Either ParseError Int)
+splitSome :: Int -> Int -> IO (Either ParseError Int)
 splitSome value = withStream value $ Stream.parse (PR.splitSome (PR.satisfy (> 0)) Fold.length)
 
 #ifdef INSPECTION
@@ -107,15 +107,15 @@ inspect $ 'splitSome `hasNoType` ''PR.Fused3
 #endif
 
 {-# INLINE manyAlt #-}
-manyAlt :: Int -> IO Int
-manyAlt value = do
-    x <- withStream value $ Stream.parse (AP.many (PR.satisfy (> 0)))
+manyAlt :: Int -> Int -> IO Int
+manyAlt value start = do
+    x <- withStream value (Stream.parse (AP.many (PR.satisfy (> 0)))) start
     return $ Prelude.length x
 
 {-# INLINE someAlt #-}
-someAlt :: Int -> IO Int
-someAlt value = do
-    x <- withStream value $ Stream.parse (AP.some (PR.satisfy (> 0)))
+someAlt :: Int -> Int -> IO Int
+someAlt value start = do
+    x <- withStream value (Stream.parse (AP.some (PR.satisfy (> 0)))) start
     return $ Prelude.length x
 
 -- XXX dropWhile with applicative does not fuse
@@ -146,7 +146,7 @@ takeWhileFail predicate (Fold fstep finitial _ ffinal) =
     extract s = fmap (FDone 0) (ffinal s)
 
 {-# INLINE alt2 #-}
-alt2 :: Int -> IO (Either ParseError ())
+alt2 :: Int -> Int -> IO (Either ParseError ())
 alt2 value =
     withStream value $
         Stream.parse
@@ -166,7 +166,7 @@ inspect $ 'alt2 `hasNoType` ''FL.Step
 
 {- HLINT ignore "Evaluate"-}
 {-# INLINE alt4 #-}
-alt4 :: Int -> IO (Either ParseError ())
+alt4 :: Int -> Int -> IO (Either ParseError ())
 alt4 value =
     withStream value $
         Stream.parse
@@ -177,7 +177,7 @@ alt4 value =
             )
 
 {-# INLINE alt8 #-}
-alt8 :: Int -> IO (Either ParseError ())
+alt8 :: Int -> Int -> IO (Either ParseError ())
 alt8 value =
     withStream value $
         Stream.parse
@@ -192,7 +192,7 @@ alt8 value =
             )
 
 {-# INLINE alt16 #-}
-alt16 :: Int -> IO (Either ParseError ())
+alt16 :: Int -> Int -> IO (Either ParseError ())
 alt16 value =
     withStream value $
         Stream.parse
@@ -214,7 +214,7 @@ alt16 value =
             )
 
 {-# INLINE altSmall #-}
-altSmall :: Int -> IO ()
+altSmall :: Int -> Int -> IO ()
 altSmall value =
     withStream value $
         Stream.fold Fold.drain .
@@ -274,7 +274,7 @@ longestAllAny value =
 -- quadratic performance complexity.
 --
 {-# INLINE choiceAsum #-}
-choiceAsum :: Int -> IO (Either ParseError Int)
+choiceAsum :: Int -> Int -> IO (Either ParseError Int)
 choiceAsum value =
     withStream value $
         Stream.parse

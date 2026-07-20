@@ -78,27 +78,27 @@ onArray value f arr =
     Stream.fold (MArray.createOf value) $ f $ Stream.unfold MArray.reader arr
 
 {-# INLINE scanl' #-}
-scanl' :: Int -> IO (Stream Int)
+scanl' :: Int -> Int -> IO (Stream Int)
 scanl' value = withArray value $ composeN 1 $ onArray value $ Stream.scanl (Scanl.scanl' (+) 0)
 
 {-# INLINE scanl'X4 #-}
-scanl'X4 :: Int -> IO (Stream Int)
+scanl'X4 :: Int -> Int -> IO (Stream Int)
 scanl'X4 value = withArray value $ composeN 4 $ onArray value $ Stream.scanl (Scanl.scanl' (+) 0)
 
 {-# INLINE scanl1' #-}
-scanl1' :: Int -> IO (Stream Int)
+scanl1' :: Int -> Int -> IO (Stream Int)
 scanl1' value = withArray value $ composeN 1 $ onArray value $ Stream.scanl1' (+)
 
 {-# INLINE scanl1'X4 #-}
-scanl1'X4 :: Int -> IO (Stream Int)
+scanl1'X4 :: Int -> Int -> IO (Stream Int)
 scanl1'X4 value = withArray value $ composeN 4 $ onArray value $ Stream.scanl1' (+)
 
 {-# INLINE map #-}
-map :: Int -> IO (Stream Int)
+map :: Int -> Int -> IO (Stream Int)
 map value = withArray value $ composeN 1 $ onArray value $ fmap (+ 1)
 
 {-# INLINE mapX4 #-}
-mapX4 :: Int -> IO (Stream Int)
+mapX4 :: Int -> Int -> IO (Stream Int)
 mapX4 value = withArray value $ composeN 4 $ onArray value $ fmap (+ 1)
 
 -------------------------------------------------------------------------------
@@ -114,8 +114,8 @@ moduleName = "Data.MutArray"
 
 benchmarks ::
     (MutArray Int, Array.Array Int) -> Int -> [(SpaceComplexity, Benchmark)]
-benchmarks env value =
-    typeCommonBenchmarks env value
+benchmarks benchEnv value =
+    typeCommonBenchmarks benchEnv value
       ++ [ (SpaceO_1, benchIO "scanl'" $ scanl' value)
          , (SpaceO_1, benchIO "scanl1'" $ scanl1' value)
          , (SpaceO_1, benchIO "map" $ map value)

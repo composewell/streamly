@@ -21,39 +21,39 @@ onArray
 onArray value f arr = S.fold (A.createOf value) $ f $ S.unfold A.reader arr
 
 {-# INLINE scanl' #-}
-scanl' :: Int -> IO (Arr Int)
+scanl' :: Int -> Int -> IO (Arr Int)
 scanl' value = withArray value $ composeN 1 $ onArray value $ S.scanl (Scanl.scanl' (+) 0)
 
 {-# INLINE scanl'X4 #-}
-scanl'X4 :: Int -> IO (Arr Int)
+scanl'X4 :: Int -> Int -> IO (Arr Int)
 scanl'X4 value = withArray value $ composeN 4 $ onArray value $ S.scanl (Scanl.scanl' (+) 0)
 
 {-# INLINE scanl1' #-}
-scanl1' :: Int -> IO (Arr Int)
+scanl1' :: Int -> Int -> IO (Arr Int)
 scanl1' value = withArray value $ composeN 1 $ onArray value $ Stream.scanl1' (+)
 
 {-# INLINE scanl1'X4 #-}
-scanl1'X4 :: Int -> IO (Arr Int)
+scanl1'X4 :: Int -> Int -> IO (Arr Int)
 scanl1'X4 value = withArray value $ composeN 4 $ onArray value $ Stream.scanl1' (+)
 
 {-# INLINE map #-}
-map :: Int -> IO (Arr Int)
+map :: Int -> Int -> IO (Arr Int)
 map value = withArray value $ composeN 1 $ onArray value $ fmap (+1)
 
 {-# INLINE mapX4 #-}
-mapX4 :: Int -> IO (Arr Int)
+mapX4 :: Int -> Int -> IO (Arr Int)
 mapX4 value = withArray value $ composeN 4 $ onArray value $ fmap (+1)
 
 {-# INLINE createOfLast1 #-}
-createOfLast1 :: Int -> IO (Arr Int)
+createOfLast1 :: Int -> Int -> IO (Arr Int)
 createOfLast1 value = withStream value (S.fold (A.createOfLast 1))
 
 {-# INLINE createOfLast10 #-}
-createOfLast10 :: Int -> IO (Arr Int)
+createOfLast10 :: Int -> Int -> IO (Arr Int)
 createOfLast10 value = withStream value (S.fold (A.createOfLast 10))
 
 {-# INLINE createOfLastMax #-}
-createOfLastMax :: Int -> IO (Arr Int)
+createOfLastMax :: Int -> Int -> IO (Arr Int)
 createOfLastMax value = withStream value (S.fold (A.createOfLast (value + 1)))
 
 -------------------------------------------------------------------------------

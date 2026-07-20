@@ -56,19 +56,19 @@ import qualified Streamly.Internal.Data.Stream as S
 #endif
 
 {-# INLINE benchIO #-}
-benchIO :: NFData b => String -> IO b -> Benchmark
-benchIO name = bench name . nfIO
+benchIO :: NFData b => String -> (Int -> IO b) -> Benchmark
+benchIO name f = bench name $ nfIO $ randomRIO (1, 1 :: Int) >>= f
 
 {-# INLINE withStream #-}
-withStream :: Int -> (Stream IO Int -> IO b) -> IO b
-withStream value f = randomRIO (1,1) >>= f . streamUnfoldrM value
+withStream :: Int -> (Stream IO Int -> IO b) -> Int -> IO b
+withStream value f = f . streamUnfoldrM value
 
 -------------------------------------------------------------------------------
 -- Stream transformation
 -------------------------------------------------------------------------------
 
 {-# INLINE parseMany #-}
-parseMany :: Int -> Int -> IO ()
+parseMany :: Int -> Int -> Int -> IO ()
 parseMany n value =
     withStream value $
           Stream.fold Fold.drain
@@ -86,7 +86,7 @@ inspect $ 'parseMany `hasNoType` ''S.FIterState
 #endif
 
 {-# INLINE parseManyGroupBy #-}
-parseManyGroupBy :: (Int -> Int -> Bool) -> Int -> IO ()
+parseManyGroupBy :: (Int -> Int -> Bool) -> Int -> Int -> IO ()
 parseManyGroupBy cmp value =
     withStream value $
         Stream.fold Fold.drain . Stream.parseMany (PR.groupBy cmp Fold.drain)
@@ -102,7 +102,7 @@ inspect $ 'parseManyGroupBy `hasNoType` ''PR.GroupByState
 #endif
 
 {-# INLINE parseManyGroupsRolling #-}
-parseManyGroupsRolling :: Bool -> Int -> IO ()
+parseManyGroupsRolling :: Bool -> Int -> Int -> IO ()
 parseManyGroupsRolling b value =
     withStream value $
           Stream.fold Fold.drain
@@ -119,7 +119,7 @@ inspect $ 'parseManyGroupsRolling `hasNoType` ''PR.GroupByState
 #endif
 
 {-# INLINE parseManyGroupsRollingEither #-}
-parseManyGroupsRollingEither :: (Int -> Int -> Bool) -> Int -> IO ()
+parseManyGroupsRollingEither :: (Int -> Int -> Bool) -> Int -> Int -> IO ()
 parseManyGroupsRollingEither cmp value =
     withStream value $
           Stream.fold Fold.drain
@@ -136,7 +136,7 @@ inspect $ 'parseManyGroupsRollingEither `hasNoType` ''PR.GroupByStatePair
 #endif
 
 {-# INLINE parseManyGroupsRollingEitherAlt #-}
-parseManyGroupsRollingEitherAlt :: (Int -> Int -> Bool) -> Int -> IO ()
+parseManyGroupsRollingEitherAlt :: (Int -> Int -> Bool) -> Int -> Int -> IO ()
 parseManyGroupsRollingEitherAlt cmp value =
     withStream value $
           Stream.fold Fold.drain
@@ -145,12 +145,12 @@ parseManyGroupsRollingEitherAlt cmp value =
         . fmap (\x -> if even x then x + 2 else x)
 
 {-# INLINE concatSequence #-}
-concatSequence :: Int -> IO (Either ParseError ())
+concatSequence :: Int -> Int -> IO (Either ParseError ())
 concatSequence value =
     withStream value $ Stream.parse (PR.sequence (Stream.repeat PR.one) Fold.drain)
 
 {-# INLINE parseIterate #-}
-parseIterate :: Int -> Int -> IO ()
+parseIterate :: Int -> Int -> Int -> IO ()
 parseIterate n value =
     withStream value $
           Stream.fold Fold.drain

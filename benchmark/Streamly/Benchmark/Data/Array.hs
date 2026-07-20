@@ -17,7 +17,7 @@ import qualified Array.Stream as ArrayStream
 import qualified Streamly.Internal.Data.Array as A
 
 import Array.Type
-    (typeCommonBenchmarks, benchIO, withRandomIntIO, withArray, withStream)
+    (typeCommonBenchmarks, benchIO, withArray, withStream)
 
 #if __GLASGOW_HASKELL__ >= 810
 type Arr :: Type -> Type
@@ -31,16 +31,16 @@ type Arr = A.Array
 -------------------------------------------------------------------------------
 
 {-# INLINE sourceIsList #-}
-sourceIsList :: Int -> IO (Arr Int)
-sourceIsList value = withRandomIntIO $ \n -> return $! GHC.fromList [n..n+value]
+sourceIsList :: Int -> Int -> IO (Arr Int)
+sourceIsList value n = return $! GHC.fromList [n..n+value]
 
 {-# INLINE sourceIsString #-}
-sourceIsString :: Int -> IO (Arr P.Char)
-sourceIsString value = withRandomIntIO $ \n ->
+sourceIsString :: Int -> Int -> IO (Arr P.Char)
+sourceIsString value n =
     return $! GHC.fromString (P.replicate (n + value) 'a')
 
 {-# INLINE toListLength #-}
-toListLength :: Int -> IO Int
+toListLength :: Int -> Int -> IO Int
 toListLength value = withArray value $ \arr -> return $! length (GHC.toList arr)
 
 -------------------------------------------------------------------------------

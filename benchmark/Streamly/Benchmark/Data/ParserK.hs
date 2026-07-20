@@ -111,14 +111,13 @@ sourceUnfoldrM value n = Stream.unfoldrM step n
         else return (Just (cnt, cnt + 1))
 
 {-# INLINE benchIO #-}
-benchIO :: NFData b => String -> IO b -> Benchmark
-benchIO name = bench name . nfIO
+benchIO :: NFData b => String -> (Int -> IO b) -> Benchmark
+benchIO name f = bench name $ nfIO $ randomRIO (1, 1 :: Int) >>= f
 
 {-# INLINE withStreamK #-}
-withStreamK :: Int -> (StreamK IO PARSE_ELEM -> IO b) -> IO b
+withStreamK :: Int -> (StreamK IO PARSE_ELEM -> IO b) -> Int -> IO b
 withStreamK value f =
-    randomRIO (1,1) >>=
-        f . StreamK.fromStream
+    f . StreamK.fromStream
 #ifdef BENCH_CHUNKED
           . Array.chunksOf 4000
 #endif
@@ -132,11 +131,11 @@ withStreamK value f =
 -------------------------------------------------------------------------------
 
 {-# INLINE drain #-}
-drain :: Int -> IO ()
+drain :: Int -> Int -> IO ()
 drain value = withStreamK value $ Stream.fold Fold.drain . StreamK.toStream
 
 {-# INLINE one #-}
-one :: Int -> IO (Either ParseError (Maybe Int))
+one :: Int -> Int -> IO (Either ParseError (Maybe Int))
 one value = withStreamK value $ PARSE_OP p
 
     where
@@ -156,11 +155,11 @@ takeWhile :: CONSTRAINT_IO => (a -> Bool) -> PR.ParserK INPUT m ()
 takeWhile p = FROM_PARSER $ PRD.takeWhile p FL.drain
 
 {-# INLINE takeWhileK #-}
-takeWhileK :: Int -> IO (Either ParseError ())
+takeWhileK :: Int -> Int -> IO (Either ParseError ())
 takeWhileK value = withStreamK value $ PARSE_OP (takeWhile (<= value))
 
 {-# INLINE splitAp2 #-}
-splitAp2 :: Int -> IO (Either ParseError ((), ()))
+splitAp2 :: Int -> Int -> IO (Either ParseError ((), ()))
 splitAp2 value =
     withStreamK value $ PARSE_OP
         ((,)
@@ -169,7 +168,7 @@ splitAp2 value =
         )
 
 {-# INLINE splitAp8 #-}
-splitAp8 :: Int -> IO (Either ParseError ())
+splitAp8 :: Int -> Int -> IO (Either ParseError ())
 splitAp8 value =
     withStreamK value $ PARSE_OP
         (      (\() () () () () () () () -> ())
@@ -184,7 +183,7 @@ splitAp8 value =
         )
 
 {-# INLINE sequenceA #-}
-sequenceA :: Int -> IO Int
+sequenceA :: Int -> Int -> IO Int
 sequenceA value = withStreamK value $ \xs -> do
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
@@ -192,14 +191,14 @@ sequenceA value = withStreamK value $ \xs -> do
     return $ Prelude.length x
 
 {-# INLINE sequenceA_ #-}
-sequenceA_ :: Int -> IO (Either ParseError ())
+sequenceA_ :: Int -> Int -> IO (Either ParseError ())
 sequenceA_ value = withStreamK value $ \xs -> do
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
     PARSE_OP (F.sequenceA_ list) xs
 
 {-# INLINE sequence #-}
-sequence :: Int -> IO Int
+sequence :: Int -> Int -> IO Int
 sequence value = withStreamK value $ \xs -> do
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
@@ -207,7 +206,7 @@ sequence value = withStreamK value $ \xs -> do
     return $ Prelude.length x
 
 {-# INLINE sequence_ #-}
-sequence_ :: Int -> IO (Either ParseError ())
+sequence_ :: Int -> Int -> IO (Either ParseError ())
 sequence_ value =
     withStreamK value $
         let parser = satisfy (> 0)
@@ -245,7 +244,7 @@ takeWhileFail :: CONSTRAINT =>
 takeWhileFail p f = FROM_PARSER (takeWhileFailD p f)
 
 {-# INLINE alt2 #-}
-alt2 :: Int -> IO (Either ParseError ())
+alt2 :: Int -> Int -> IO (Either ParseError ())
 alt2 value =
     withStreamK value $ PARSE_OP
         (   takeWhileFail (<= (value `div` 2)) Fold.drain
@@ -253,7 +252,7 @@ alt2 value =
         )
 
 {-# INLINE alt8 #-}
-alt8 :: Int -> IO (Either ParseError ())
+alt8 :: Int -> Int -> IO (Either ParseError ())
 alt8 value =
     withStreamK value $ PARSE_OP
         (   takeWhileFail (<= ( value      `div` 8)) Fold.drain
@@ -267,7 +266,7 @@ alt8 value =
         )
 
 {-# INLINE alt16 #-}
-alt16 :: Int -> IO (Either ParseError ())
+alt16 :: Int -> Int -> IO (Either ParseError ())
 alt16 value =
     withStreamK value $ PARSE_OP
         (   takeWhileFail (<= ( value      `div` 16)) Fold.drain
@@ -289,32 +288,32 @@ alt16 value =
         )
 
 {-# INLINE manyAlt #-}
-manyAlt :: Int -> IO Int
+manyAlt :: Int -> Int -> IO Int
 manyAlt value = withStreamK value $ \xs -> do
     x <- PARSE_OP (AP.many (satisfy (> 0))) xs
     return $ Prelude.length x
 
 {-# INLINE someAlt #-}
-someAlt :: Int -> IO Int
+someAlt :: Int -> Int -> IO Int
 someAlt value = withStreamK value $ \xs -> do
     x <- PARSE_OP (AP.some (satisfy (> 0))) xs
     return $ Prelude.length x
 
 {-# INLINE choice #-}
-choice :: Int -> IO (Either ParseError Int)
+choice :: Int -> Int -> IO (Either ParseError Int)
 choice value =
     withStreamK value $ PARSE_OP (asum (replicate value (satisfy (< 0)))
         AP.<|> satisfy (> 0))
 
 {-# INLINE monad2 #-}
-monad2 :: Int -> IO (Either ParseError ())
+monad2 :: Int -> Int -> IO (Either ParseError ())
 monad2 value =
     withStreamK value $ PARSE_OP $ do
         takeWhile (<= (value `div` 2))
         takeWhile (<= value)
 
 {-# INLINE monad4 #-}
-monad4 :: Int -> IO (Either ParseError ())
+monad4 :: Int -> Int -> IO (Either ParseError ())
 monad4 value =
     withStreamK value $ PARSE_OP $ do
         takeWhile (<= ( value      `div` 4))
@@ -323,7 +322,7 @@ monad4 value =
         takeWhile (<= value)
 
 {-# INLINE monad8 #-}
-monad8 :: Int -> IO (Either ParseError ())
+monad8 :: Int -> Int -> IO (Either ParseError ())
 monad8 value =
     withStreamK value $ PARSE_OP $ do
         takeWhile (<= ( value      `div` 8))
@@ -336,7 +335,7 @@ monad8 value =
         takeWhile (<= value)
 
 {-# INLINE monad16 #-}
-monad16 :: Int -> IO (Either ParseError ())
+monad16 :: Int -> Int -> IO (Either ParseError ())
 monad16 value =
     withStreamK value $ PARSE_OP $ do
         takeWhile (<= ( value      `div` 16))
@@ -379,7 +378,7 @@ o_1_space_serial value =
     ]
 
 {-# INLINE sepBy1 #-}
-sepBy1 :: Int -> IO Int
+sepBy1 :: Int -> Int -> IO Int
 sepBy1 value = withStreamK value $ \xs -> do
     x <- PARSE_OP (parser (satisfy odd) (satisfy even)) xs
     return $ Prelude.length x

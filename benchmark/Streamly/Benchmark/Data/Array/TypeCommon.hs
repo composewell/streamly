@@ -2,34 +2,30 @@
 -- Benchmark helpers
 -------------------------------------------------------------------------------
 
-{-# INLINE withRandomIntIO #-}
-withRandomIntIO :: (Int -> IO b) -> IO b
-withRandomIntIO f = randomRIO (1, 1 :: Int) >>= f
-
 {-# INLINE benchIO #-}
-benchIO :: NFData b => String -> IO b -> Benchmark
-benchIO name = bench name . nfIO
+benchIO :: NFData b => String -> (Int -> IO b) -> Benchmark
+benchIO name f = bench name $ nfIO $ randomRIO (1, 1 :: Int) >>= f
 
 {-# INLINE withArray #-}
-withArray :: Int -> (Arr Int -> IO b) -> IO b
-withArray value f = sourceIntFromTo value >>= f
+withArray :: Int -> (Arr Int -> IO b) -> Int -> IO b
+withArray value f n = sourceIntFromTo value n >>= f
 
 {-# INLINE withStream #-}
-withStream :: Int -> (S.Stream IO Int -> IO b) -> IO b
-withStream value f = withRandomIntIO $ \n -> f $ P.sourceUnfoldrM value n
+withStream :: Int -> (S.Stream IO Int -> IO b) -> Int -> IO b
+withStream value f = f . P.sourceUnfoldrM value
 
 -------------------------------------------------------------------------------
 -- Bench Ops
 -------------------------------------------------------------------------------
 
 {-# INLINE sourceIntFromTo #-}
-sourceIntFromTo :: Int -> IO (Arr Int)
-sourceIntFromTo value = withRandomIntIO $ \n ->
+sourceIntFromTo :: Int -> Int -> IO (Arr Int)
+sourceIntFromTo value n =
     S.fold (A.createOf value) $ S.enumerateFromTo n (n + value)
 
 {-# INLINE sourceUnfoldr #-}
-sourceUnfoldr :: Int -> IO (Arr Int)
-sourceUnfoldr value = withRandomIntIO $ \n ->
+sourceUnfoldr :: Int -> Int -> IO (Arr Int)
+sourceUnfoldr value n =
     let step cnt =
             if cnt > n + value
             then Nothing
@@ -37,13 +33,13 @@ sourceUnfoldr value = withRandomIntIO $ \n ->
     in S.fold (A.createOf value) $ S.unfoldr step n
 
 {-# INLINE sourceFromList #-}
-sourceFromList :: Int -> IO (Arr Int)
-sourceFromList value = withRandomIntIO $ \n ->
+sourceFromList :: Int -> Int -> IO (Arr Int)
+sourceFromList value n =
     S.fold (A.createOf value) $ S.fromList [n..n+value]
 
 {-# INLINE sourceIntFromToFromStream #-}
-sourceIntFromToFromStream :: Int -> IO (Arr Int)
-sourceIntFromToFromStream value = withRandomIntIO $ \n ->
+sourceIntFromToFromStream :: Int -> Int -> IO (Arr Int)
+sourceIntFromToFromStream value n =
     S.fold A.create $ S.enumerateFromTo n (n + value)
 
 {-# INLINE parseInstance #-}
@@ -55,34 +51,34 @@ parseInstance str =
         _ -> P.error "parseInstance: no parse"
 
 {-# INLINE readInstance #-}
-readInstance :: Int -> IO (Arr Int)
-readInstance value = withRandomIntIO $ \n ->
+readInstance :: Int -> Int -> IO (Arr Int)
+readInstance value n =
     let testStr = "fromList " ++ show [n..n+value]
     in return $! parseInstance testStr
 
 
 {-# INLINE showStream #-}
-showStream :: Int -> IO P.String
+showStream :: Int -> Int -> IO P.String
 showStream value = withArray value (return . showInstance)
 
 {-# INLINE idArr #-}
-idArr :: Int -> IO (Arr Int)
+idArr :: Int -> Int -> IO (Arr Int)
 idArr value = withArray value return
 
 {-# INLINE eqInstance #-}
-eqInstance :: Int -> IO Bool
+eqInstance :: Int -> Int -> IO Bool
 eqInstance value = withArray value $ \src -> return (src == src)
 
 {-# INLINE eqInstanceNotEq #-}
-eqInstanceNotEq :: Int -> IO Bool
+eqInstanceNotEq :: Int -> Int -> IO Bool
 eqInstanceNotEq value = withArray value $ \src -> return (src P./= src)
 
 {-# INLINE ordInstance #-}
-ordInstance :: Int -> IO Bool
+ordInstance :: Int -> Int -> IO Bool
 ordInstance value = withArray value $ \src -> return (src P.< src)
 
 {-# INLINE ordInstanceMin #-}
-ordInstanceMin :: Int -> IO (Arr Int)
+ordInstanceMin :: Int -> Int -> IO (Arr Int)
 ordInstanceMin value = withArray value $ \src -> return (P.min src src)
 
 {-# INLINE showInstance #-}
@@ -90,7 +86,7 @@ showInstance :: Arr Int -> P.String
 showInstance = P.show
 
 {-# INLINE pureFoldl' #-}
-pureFoldl' :: Int -> IO Int
+pureFoldl' :: Int -> Int -> IO Int
 pureFoldl' value = withArray value $ S.fold (Fold.foldl' (+) 0) . S.unfold A.reader
 
 -------------------------------------------------------------------------------
@@ -98,15 +94,15 @@ pureFoldl' value = withArray value $ S.fold (Fold.foldl' (+) 0) . S.unfold A.rea
 -------------------------------------------------------------------------------
 
 {-# INLINE unfoldReadDrain #-}
-unfoldReadDrain :: Int -> IO ()
+unfoldReadDrain :: Int -> Int -> IO ()
 unfoldReadDrain value = withArray value $ S.fold Fold.drain . S.unfold A.reader
 
 {-# INLINE toStreamRevDrain #-}
-toStreamRevDrain :: Int -> IO ()
+toStreamRevDrain :: Int -> Int -> IO ()
 toStreamRevDrain value = withArray value $ S.fold Fold.drain . A.readRev
 
 {-# INLINE writeN #-}
-writeN :: Int -> IO (Arr Int)
+writeN :: Int -> Int -> IO (Arr Int)
 writeN value = withStream value (S.fold (A.createOf value))
 
 -------------------------------------------------------------------------------

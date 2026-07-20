@@ -52,15 +52,15 @@ import qualified Streamly.Internal.Data.Stream as S
 #endif
 
 {-# INLINE benchIO #-}
-benchIO :: NFData b => String -> IO b -> Benchmark
-benchIO name = bench name . nfIO
+benchIO :: NFData b => String -> (Int -> IO b) -> Benchmark
+benchIO name f = bench name $ nfIO $ randomRIO (1, 1 :: Int) >>= f
 
 {-# INLINE withStream #-}
-withStream :: Int -> (Stream IO Int -> IO b) -> IO b
-withStream value f = randomRIO (1,1) >>= f . streamUnfoldrM value
+withStream :: Int -> (Stream IO Int -> IO b) -> Int -> IO b
+withStream value f = f . streamUnfoldrM value
 
 {-# INLINE splitAp2 #-}
-splitAp2 :: Int -> IO (Either ParseError ((), ()))
+splitAp2 :: Int -> Int -> IO (Either ParseError ((), ()))
 splitAp2 value =
     withStream value $
         Stream.parse
@@ -80,7 +80,7 @@ inspect $ 'splitAp2 `hasNoType` ''FL.Step
 
 {- HLINT ignore "Evaluate"-}
 {-# INLINE splitAp4 #-}
-splitAp4 :: Int -> IO (Either ParseError ())
+splitAp4 :: Int -> Int -> IO (Either ParseError ())
 splitAp4 value =
     withStream value $
         Stream.parse
@@ -92,7 +92,7 @@ splitAp4 value =
             )
 
 {-# INLINE splitAp8 #-}
-splitAp8 :: Int -> IO (Either ParseError ())
+splitAp8 :: Int -> Int -> IO (Either ParseError ())
 splitAp8 value =
     withStream value $
         Stream.parse
@@ -108,7 +108,7 @@ splitAp8 value =
             )
 
 {-# INLINE splitApBefore #-}
-splitApBefore :: Int -> IO (Either ParseError ())
+splitApBefore :: Int -> Int -> IO (Either ParseError ())
 splitApBefore value =
     withStream value $
         Stream.parse
@@ -126,7 +126,7 @@ inspect $ 'splitApBefore `hasNoType` ''FL.Step
 #endif
 
 {-# INLINE splitApAfter #-}
-splitApAfter :: Int -> IO (Either ParseError ())
+splitApAfter :: Int -> Int -> IO (Either ParseError ())
 splitApAfter value =
     withStream value $
         Stream.parse
@@ -144,7 +144,7 @@ inspect $ 'splitApAfter `hasNoType` ''FL.Step
 #endif
 
 {-# INLINE splitWith2 #-}
-splitWith2 :: Int -> IO (Either ParseError ((), ()))
+splitWith2 :: Int -> Int -> IO (Either ParseError ((), ()))
 splitWith2 value =
     withStream value $
         Stream.parse
@@ -163,7 +163,7 @@ inspect $ 'splitWith2 `hasNoType` ''FL.Step
 #endif
 
 {-# INLINE split_ #-}
-split_ :: Int -> IO (Either ParseError ())
+split_ :: Int -> Int -> IO (Either ParseError ())
 split_ value =
     withStream value $
         Stream.parse
@@ -187,7 +187,7 @@ inspect $ 'split_ `hasNoType` ''FL.Step
 
 -- XXX The timing of this increased 3x after the stepify extract changes.
 {-# INLINE sequenceA_ #-}
-sequenceA_ :: Int -> IO (Either ParseError ())
+sequenceA_ :: Int -> Int -> IO (Either ParseError ())
 {- HLINT ignore "Use replicateM_"-}
 sequenceA_ value =
     withStream value $
@@ -195,22 +195,24 @@ sequenceA_ value =
 
 -- quadratic complexity
 {-# INLINE sequenceA #-}
-sequenceA :: Int -> IO Int
-sequenceA value = do
-    x <- withStream value $
-            Stream.parse (TR.sequenceA (replicate value (PR.satisfy (> 0))))
+sequenceA :: Int -> Int -> IO Int
+sequenceA value start = do
+    x <- withStream value
+            (Stream.parse (TR.sequenceA (replicate value (PR.satisfy (> 0)))))
+            start
     return $ length x
 
 -- quadratic complexity
 {-# INLINE sequence #-}
-sequence :: Int -> IO Int
-sequence value = do
-    x <- withStream value $
-            Stream.parse (TR.sequence (replicate value (PR.satisfy (> 0))))
+sequence :: Int -> Int -> IO Int
+sequence value start = do
+    x <- withStream value
+            (Stream.parse (TR.sequence (replicate value (PR.satisfy (> 0)))))
+            start
     return $ length x
 
 {-# INLINE sequence_ #-}
-sequence_ :: Int -> IO (Either ParseError ())
+sequence_ :: Int -> Int -> IO (Either ParseError ())
 sequence_ value =
     withStream value $
         Stream.parse

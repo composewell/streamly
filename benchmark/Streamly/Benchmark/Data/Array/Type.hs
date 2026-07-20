@@ -14,7 +14,6 @@ module Array.Type
     (
       typeCommonBenchmarks
     , benchIO
-    , withRandomIntIO
     , withArray
     , withStream
     ) where
@@ -46,8 +45,8 @@ instance NFData (A.Array a) where
     rnf _ = ()
 
 {-# INLINE sourceIntFromToFromList #-}
-sourceIntFromToFromList :: Int -> IO (Arr Int)
-sourceIntFromToFromList value = withRandomIntIO $ \n ->
+sourceIntFromToFromList :: Int -> Int -> IO (Arr Int)
+sourceIntFromToFromList value n =
     P.return $ A.fromListN value [n..n + value]
 
 #include "Streamly/Benchmark/Data/Array/TypeCommon.hs"

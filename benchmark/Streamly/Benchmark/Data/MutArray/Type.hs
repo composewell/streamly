@@ -57,21 +57,17 @@ instance NFData (MutArray a) where
 -- Benchmark helpers
 -------------------------------------------------------------------------------
 
-{-# INLINE withRandomIntIO #-}
-withRandomIntIO :: (Int -> IO b) -> IO b
-withRandomIntIO f = randomRIO (1, 1 :: Int) >>= f
-
 {-# INLINE benchIO #-}
-benchIO :: NFData b => String -> IO b -> Benchmark
-benchIO name = bench name . nfIO
+benchIO :: NFData b => String -> (Int -> IO b) -> Benchmark
+benchIO name f = bench name $ nfIO $ randomRIO (1, 1 :: Int) >>= f
 
 {-# INLINE withArray #-}
-withArray :: Int -> (Stream Int -> IO b) -> IO b
-withArray value f = sourceIntFromTo value >>= f
+withArray :: Int -> (Stream Int -> IO b) -> Int -> IO b
+withArray value f n = sourceIntFromTo value n >>= f
 
 {-# INLINE withStream #-}
-withStream :: Int -> (Stream.Stream IO Int -> IO b) -> IO b
-withStream value f = withRandomIntIO $ \n -> f $ sourceUnfoldrM value n
+withStream :: Int -> (Stream.Stream IO Int -> IO b) -> Int -> IO b
+withStream value f = f . sourceUnfoldrM value
 
 drain :: Monad m => Stream.Stream m a -> m ()
 drain = Stream.fold Fold.drain
@@ -81,8 +77,8 @@ drain = Stream.fold Fold.drain
 -------------------------------------------------------------------------------
 
 {-# INLINE sourceUnfoldr #-}
-sourceUnfoldr :: Int -> IO (Stream Int)
-sourceUnfoldr value = withRandomIntIO $ \n ->
+sourceUnfoldr :: Int -> Int -> IO (Stream Int)
+sourceUnfoldr value n =
     let step cnt =
             if cnt > n + value
             then Nothing
@@ -90,23 +86,23 @@ sourceUnfoldr value = withRandomIntIO $ \n ->
     in Stream.fold (MArray.createOf value) $ Stream.unfoldr step n
 
 {-# INLINE sourceIntFromTo #-}
-sourceIntFromTo :: Int -> IO (Stream Int)
-sourceIntFromTo value = withRandomIntIO $ \n ->
+sourceIntFromTo :: Int -> Int -> IO (Stream Int)
+sourceIntFromTo value n =
     Stream.fold (MArray.createOf value) $ Stream.enumerateFromTo n (n + value)
 
 {-# INLINE sourceFromList #-}
-sourceFromList :: Int -> IO (Stream Int)
-sourceFromList value = withRandomIntIO $ \n ->
+sourceFromList :: Int -> Int -> IO (Stream Int)
+sourceFromList value n =
     Stream.fold (MArray.createOf value) $ Stream.fromList [n .. n + value]
 
 {-# INLINE sourceIntFromToFromList #-}
-sourceIntFromToFromList :: Int -> IO (Stream Int)
-sourceIntFromToFromList value = withRandomIntIO $ \n ->
+sourceIntFromToFromList :: Int -> Int -> IO (Stream Int)
+sourceIntFromToFromList value n =
     MArray.fromListN value [n..n + value]
 
 {-# INLINE sourceIntFromToFromStream #-}
-sourceIntFromToFromStream :: Int -> IO (Stream Int)
-sourceIntFromToFromStream value = withRandomIntIO $ \n ->
+sourceIntFromToFromStream :: Int -> Int -> IO (Stream Int)
+sourceIntFromToFromStream value n =
     Stream.fold MArray.create $ Stream.enumerateFromTo n (n + value)
 
 {-# INLINE sourceUnfoldrM #-}
@@ -119,7 +115,7 @@ sourceUnfoldrM value n = Stream.unfoldrM step n
         else return (Just (cnt, cnt + 1))
 
 {-# INLINE idArr #-}
-idArr :: Int -> IO (Stream Int)
+idArr :: Int -> Int -> IO (Stream Int)
 idArr value = withArray value return
 
 -------------------------------------------------------------------------------
@@ -127,27 +123,27 @@ idArr value = withArray value return
 -------------------------------------------------------------------------------
 
 {-# INLINE unfoldReadDrain #-}
-unfoldReadDrain :: Int -> IO ()
+unfoldReadDrain :: Int -> Int -> IO ()
 unfoldReadDrain value = withArray value $ drain . Stream.unfold MArray.reader
 
 {-# INLINE unfoldReadRevDrain #-}
-unfoldReadRevDrain :: Int -> IO ()
+unfoldReadRevDrain :: Int -> Int -> IO ()
 unfoldReadRevDrain value = withArray value $ drain . Stream.unfold MArray.readerRev
 
 {-# INLINE toStreamDRevDrain #-}
-toStreamDRevDrain :: Int -> IO ()
+toStreamDRevDrain :: Int -> Int -> IO ()
 toStreamDRevDrain value = withArray value $ drain . MArray.readRev
 
 {-# INLINE toStreamDDrain #-}
-toStreamDDrain :: Int -> IO ()
+toStreamDDrain :: Int -> Int -> IO ()
 toStreamDDrain value = withArray value $ drain . MArray.read
 
 {-# INLINE unfoldFold #-}
-unfoldFold :: Int -> IO Int
+unfoldFold :: Int -> Int -> IO Int
 unfoldFold value = withArray value $ Stream.fold (Fold.foldl' (+) 0) . Stream.unfold MArray.reader
 
 {-# INLINE writeN #-}
-writeN :: Int -> IO (Stream Int)
+writeN :: Int -> Int -> IO (Stream Int)
 writeN value = withStream value (Stream.fold (MArray.createOf value))
 
 -------------------------------------------------------------------------------
@@ -157,16 +153,19 @@ writeN value = withStream value (Stream.fold (MArray.createOf value))
 typeCommonBenchmarks ::
     (MutArray Int, Array.Array Int) -> Int -> [(SpaceComplexity, Benchmark)]
 typeCommonBenchmarks ~(array, indices) value =
-      [ (SpaceO_1, benchIO "partitionBy (< 0)" $ MArray.partitionBy (< 0) array)
-      , (SpaceO_1, benchIO "partitionBy (> 0)" $ MArray.partitionBy (> 0) array)
-      , (SpaceO_1, benchIO "partitionBy (< value/2)" $
+      [ (SpaceO_1, benchIO "partitionBy (< 0)" $ \_ ->
+            MArray.partitionBy (< 0) array)
+      , (SpaceO_1, benchIO "partitionBy (> 0)" $ \_ ->
+            MArray.partitionBy (> 0) array)
+      , (SpaceO_1, benchIO "partitionBy (< value/2)" $ \_ ->
             MArray.partitionBy (< (value `div` 2)) array)
-      , (SpaceO_1, benchIO "partitionBy (> value/2)" $
+      , (SpaceO_1, benchIO "partitionBy (> value/2)" $ \_ ->
             MArray.partitionBy (> (value `div` 2)) array)
-      , (SpaceO_1, benchIO "strip (< value/2 || > value/2)" $
+      , (SpaceO_1, benchIO "strip (< value/2 || > value/2)" $ \_ ->
             MArray.dropAround (\x -> x < value `div` 2 || x > value `div` 2) array)
-      , (SpaceO_1, benchIO "strip (> 0)" $ MArray.dropAround (> 0) array)
-      , (SpaceO_1, benchIO "modifyIndices (+ 1)" $
+      , (SpaceO_1, benchIO "strip (> 0)" $ \_ ->
+            MArray.dropAround (> 0) array)
+      , (SpaceO_1, benchIO "modifyIndices (+ 1)" $ \_ ->
             Stream.fold (MArray.modifyIndices array (\_idx val -> val + 1))
             $ Stream.unfold Array.reader indices)
 
