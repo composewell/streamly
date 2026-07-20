@@ -56,13 +56,14 @@ import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.FileSystem.Handle as Handle
 import qualified Streamly.Internal.Unicode.Stream as Unicode
 
+import Fusion.Plugin.Types
 import Test.Tasty.Bench hiding (env)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Common.Handle
 import Prelude hiding
-    ( last, length, all, any, take, unzip, sequence_, filter
+    ( length, all, any, take, unzip, sequence_, filter
     , sum, product, maximum, minimum, mconcat, and, or
-    , elem, notElem, lookup, map, foldMap
+    , elem, notElem, lookup, concatMap, scanl
     )
 
 #ifdef INSPECTION
@@ -98,7 +99,10 @@ benchIO name = bench name . nfIO
 -- Elimination
 -------------------------------------------------------------------------------
 
-{-# INLINE drain #-}
+{-# ANN drain (PermitPatternMatches []) #-}
+{-# ANN drain (PermitConstructions []) #-}
+{-# ANN drain (PermitTypeClasses []) #-}
+{-# NOINLINE drain #-}
 drain :: Int -> IO ()
 drain n = withStream n $ Stream.fold FL.drain
 
@@ -108,17 +112,23 @@ inspect $ 'drain `hasNoType` ''FL.Step
 inspect $ 'drain `hasNoType` ''SPEC
 #endif
 
-{-# INLINE drainBy #-}
-drainBy :: Int -> IO ()
-drainBy n = withStream n $ Stream.fold (FL.drainMapM return)
+{-# ANN drainMapM (PermitPatternMatches []) #-}
+{-# ANN drainMapM (PermitConstructions []) #-}
+{-# ANN drainMapM (PermitTypeClasses []) #-}
+{-# NOINLINE drainMapM #-}
+drainMapM :: Int -> IO ()
+drainMapM n = withStream n $ Stream.fold (FL.drainMapM return)
 
 #ifdef INSPECTION
-inspect $ 'drainBy `hasNoType` ''Step
-inspect $ 'drainBy `hasNoType` ''FL.Step
-inspect $ 'drainBy `hasNoType` ''SPEC
+inspect $ 'drainMapM `hasNoType` ''Step
+inspect $ 'drainMapM `hasNoType` ''FL.Step
+inspect $ 'drainMapM `hasNoType` ''SPEC
 #endif
 
-{-# INLINE drainN #-}
+{-# ANN drainN (PermitPatternMatches []) #-}
+{-# ANN drainN (PermitConstructions []) #-}
+{-# ANN drainN (PermitTypeClasses []) #-}
+{-# NOINLINE drainN #-}
 drainN :: Int -> IO ()
 drainN n = withStream n $ Stream.fold (FL.drainN n)
 
@@ -128,17 +138,23 @@ inspect $ 'drainN `hasNoType` ''FL.Step
 inspect $ 'drainN `hasNoType` ''SPEC
 #endif
 
-{-# INLINE last #-}
-last :: Int -> IO (Maybe Int)
-last n = withStream n $ Stream.fold FL.latest
+{-# ANN latest (PermitPatternMatches []) #-}
+{-# ANN latest (PermitConstructions []) #-}
+{-# ANN latest (PermitTypeClasses []) #-}
+{-# NOINLINE latest #-}
+latest :: Int -> IO (Maybe Int)
+latest n = withStream n $ Stream.fold FL.latest
 
 #ifdef INSPECTION
-inspect $ 'last `hasNoType` ''Step
-inspect $ 'last `hasNoType` ''FL.Step
-inspect $ 'last `hasNoType` ''SPEC
+inspect $ 'latest `hasNoType` ''Step
+inspect $ 'latest `hasNoType` ''FL.Step
+inspect $ 'latest `hasNoType` ''SPEC
 #endif
 
-{-# INLINE length #-}
+{-# ANN length (PermitPatternMatches []) #-}
+{-# ANN length (PermitConstructions []) #-}
+{-# ANN length (PermitTypeClasses []) #-}
+{-# NOINLINE length #-}
 length :: Int -> IO Int
 length n = withStream n $ Stream.fold FL.length
 
@@ -148,15 +164,24 @@ inspect $ 'length `hasNoType` ''FL.Step
 inspect $ 'length `hasNoType` ''SPEC
 #endif
 
-{-# INLINE top #-}
+{-# ANN top (PermitPatternMatches []) #-}
+{-# ANN top (PermitConstructions []) #-}
+{-# ANN top (PermitTypeClasses []) #-}
+{-# NOINLINE top #-}
 top :: Int -> IO (MutArray Int)
 top n = withStream n $ Stream.fold (FL.top 10)
 
-{-# INLINE bottom #-}
+{-# ANN bottom (PermitPatternMatches []) #-}
+{-# ANN bottom (PermitConstructions []) #-}
+{-# ANN bottom (PermitTypeClasses []) #-}
+{-# NOINLINE bottom #-}
 bottom :: Int -> IO (MutArray Int)
 bottom n = withStream n $ Stream.fold (FL.bottom 10)
 
-{-# INLINE sum #-}
+{-# ANN sum (PermitPatternMatches []) #-}
+{-# ANN sum (PermitConstructions []) #-}
+{-# ANN sum (PermitTypeClasses []) #-}
+{-# NOINLINE sum #-}
 sum :: Int -> IO Int
 sum n = withStream n $ Stream.fold FL.sum
 
@@ -166,17 +191,23 @@ inspect $ 'sum `hasNoType` ''FL.Step
 inspect $ 'sum `hasNoType` ''SPEC
 #endif
 
-{-# INLINE foldMapSum #-}
-foldMapSum :: Int -> IO (Sum Int)
-foldMapSum n = withStream n $ Stream.fold (FL.foldMap Sum)
+{-# ANN foldMap_Sum (PermitPatternMatches []) #-}
+{-# ANN foldMap_Sum (PermitConstructions []) #-}
+{-# ANN foldMap_Sum (PermitTypeClasses []) #-}
+{-# NOINLINE foldMap_Sum #-}
+foldMap_Sum :: Int -> IO (Sum Int)
+foldMap_Sum n = withStream n $ Stream.fold (FL.foldMap Sum)
 
 #ifdef INSPECTION
-inspect $ 'foldMapSum `hasNoType` ''Step
-inspect $ 'foldMapSum `hasNoType` ''FL.Step
-inspect $ 'foldMapSum `hasNoType` ''SPEC
+inspect $ 'foldMap_Sum `hasNoType` ''Step
+inspect $ 'foldMap_Sum `hasNoType` ''FL.Step
+inspect $ 'foldMap_Sum `hasNoType` ''SPEC
 #endif
 
-{-# INLINE product #-}
+{-# ANN product (PermitPatternMatches []) #-}
+{-# ANN product (PermitConstructions []) #-}
+{-# ANN product (PermitTypeClasses []) #-}
+{-# NOINLINE product #-}
 product :: Int -> IO Int
 product n = withStream n $ Stream.fold FL.product
 
@@ -186,7 +217,10 @@ inspect $ 'product `hasNoType` ''FL.Step
 inspect $ 'product `hasNoType` ''SPEC
 #endif
 
-{-# INLINE maximumBy #-}
+{-# ANN maximumBy (PermitPatternMatches []) #-}
+{-# ANN maximumBy (PermitConstructions []) #-}
+{-# ANN maximumBy (PermitTypeClasses []) #-}
+{-# NOINLINE maximumBy #-}
 maximumBy :: Int -> IO (Maybe Int)
 maximumBy n = withStream n $ Stream.fold (FL.maximumBy compare)
 
@@ -196,7 +230,10 @@ inspect $ 'maximumBy `hasNoType` ''FL.Step
 inspect $ 'maximumBy `hasNoType` ''SPEC
 #endif
 
-{-# INLINE maximum #-}
+{-# ANN maximum (PermitPatternMatches []) #-}
+{-# ANN maximum (PermitConstructions []) #-}
+{-# ANN maximum (PermitTypeClasses []) #-}
+{-# NOINLINE maximum #-}
 maximum :: Int -> IO (Maybe Int)
 maximum n = withStream n $ Stream.fold FL.maximum
 
@@ -206,7 +243,10 @@ inspect $ 'maximum `hasNoType` ''FL.Step
 inspect $ 'maximum `hasNoType` ''SPEC
 #endif
 
-{-# INLINE minimumBy #-}
+{-# ANN minimumBy (PermitPatternMatches []) #-}
+{-# ANN minimumBy (PermitConstructions []) #-}
+{-# ANN minimumBy (PermitTypeClasses []) #-}
+{-# NOINLINE minimumBy #-}
 minimumBy :: Int -> IO (Maybe Int)
 minimumBy n = withStream n $ Stream.fold (FL.minimumBy compare)
 
@@ -216,7 +256,10 @@ inspect $ 'minimumBy `hasNoType` ''FL.Step
 inspect $ 'minimumBy `hasNoType` ''SPEC
 #endif
 
-{-# INLINE minimum #-}
+{-# ANN minimum (PermitPatternMatches []) #-}
+{-# ANN minimum (PermitConstructions []) #-}
+{-# ANN minimum (PermitTypeClasses []) #-}
+{-# NOINLINE minimum #-}
 minimum :: Int -> IO (Maybe Int)
 minimum n = withStream n $ Stream.fold FL.minimum
 
@@ -226,7 +269,10 @@ inspect $ 'minimum `hasNoType` ''FL.Step
 inspect $ 'minimum `hasNoType` ''SPEC
 #endif
 
-{-# INLINE mean #-}
+{-# ANN mean (PermitPatternMatches []) #-}
+{-# ANN mean (PermitConstructions []) #-}
+{-# ANN mean (PermitTypeClasses []) #-}
+{-# NOINLINE mean #-}
 mean :: Int -> IO Double
 mean n = withStream n $ Stream.fold FL.mean . fmap (fromIntegral :: Int -> Double)
 
@@ -236,7 +282,10 @@ inspect $ 'mean `hasNoType` ''FL.Step
 inspect $ 'mean `hasNoType` ''SPEC
 #endif
 
-{-# INLINE mconcat #-}
+{-# ANN mconcat (PermitPatternMatches []) #-}
+{-# ANN mconcat (PermitConstructions []) #-}
+{-# ANN mconcat (PermitTypeClasses []) #-}
+{-# NOINLINE mconcat #-}
 mconcat :: Int -> IO (Last Int)
 mconcat n = withStream n $ Stream.fold FL.mconcat . fmap (Last . Just)
 
@@ -246,17 +295,23 @@ inspect $ 'mconcat `hasNoType` ''FL.Step
 inspect $ 'mconcat `hasNoType` ''SPEC
 #endif
 
-{-# INLINE foldMap #-}
-foldMap :: Int -> IO (Last Int)
-foldMap n = withStream n $ Stream.fold (FL.foldMap (Last . Just))
+{-# ANN foldMap_Last (PermitPatternMatches []) #-}
+{-# ANN foldMap_Last (PermitConstructions []) #-}
+{-# ANN foldMap_Last (PermitTypeClasses []) #-}
+{-# NOINLINE foldMap_Last #-}
+foldMap_Last :: Int -> IO (Last Int)
+foldMap_Last n = withStream n $ Stream.fold (FL.foldMap (Last . Just))
 
 #ifdef INSPECTION
-inspect $ 'foldMap `hasNoType` ''Step
-inspect $ 'foldMap `hasNoType` ''FL.Step
-inspect $ 'foldMap `hasNoType` ''SPEC
+inspect $ 'foldMap_Last `hasNoType` ''Step
+inspect $ 'foldMap_Last `hasNoType` ''FL.Step
+inspect $ 'foldMap_Last `hasNoType` ''SPEC
 #endif
 
-{-# INLINE foldMapM #-}
+{-# ANN foldMapM (PermitPatternMatches []) #-}
+{-# ANN foldMapM (PermitConstructions []) #-}
+{-# ANN foldMapM (PermitTypeClasses []) #-}
+{-# NOINLINE foldMapM #-}
 foldMapM :: Int -> IO (Last Int)
 foldMapM n = withStream n $ Stream.fold (FL.foldMapM (return . Last . Just))
 
@@ -266,7 +321,10 @@ inspect $ 'foldMapM `hasNoType` ''FL.Step
 inspect $ 'foldMapM `hasNoType` ''SPEC
 #endif
 
-{-# INLINE index #-}
+{-# ANN index (PermitPatternMatches []) #-}
+{-# ANN index (PermitConstructions []) #-}
+{-# ANN index (PermitTypeClasses []) #-}
+{-# NOINLINE index #-}
 index :: Int -> IO (Maybe Int)
 index n = withStream n $ Stream.fold (FL.index (n + 1))
 
@@ -276,7 +334,10 @@ inspect $ 'index `hasNoType` ''FL.Step
 inspect $ 'index `hasNoType` ''SPEC
 #endif
 
-{-# INLINE find #-}
+{-# ANN find (PermitPatternMatches []) #-}
+{-# ANN find (PermitConstructions []) #-}
+{-# ANN find (PermitTypeClasses []) #-}
+{-# NOINLINE find #-}
 find :: Int -> IO (Maybe Int)
 find n = withStream n $ Stream.fold (FL.find (== (n + 1)))
 
@@ -286,7 +347,10 @@ inspect $ 'find `hasNoType` ''FL.Step
 inspect $ 'find `hasNoType` ''SPEC
 #endif
 
-{-# INLINE lookup #-}
+{-# ANN lookup (PermitPatternMatches []) #-}
+{-# ANN lookup (PermitConstructions []) #-}
+{-# ANN lookup (PermitTypeClasses []) #-}
+{-# NOINLINE lookup #-}
 lookup :: Int -> IO (Maybe Int)
 lookup n = withStream n $ Stream.fold (FL.lmap (\a -> (a, a)) (FL.lookup (n + 1)))
 
@@ -296,7 +360,10 @@ inspect $ 'lookup `hasNoType` ''FL.Step
 inspect $ 'lookup `hasNoType` ''SPEC
 #endif
 
-{-# INLINE findIndex #-}
+{-# ANN findIndex (PermitPatternMatches []) #-}
+{-# ANN findIndex (PermitConstructions []) #-}
+{-# ANN findIndex (PermitTypeClasses []) #-}
+{-# NOINLINE findIndex #-}
 findIndex :: Int -> IO (Maybe Int)
 findIndex n = withStream n $ Stream.fold (FL.findIndex (== (n + 1)))
 
@@ -306,7 +373,10 @@ inspect $ 'findIndex `hasNoType` ''FL.Step
 inspect $ 'findIndex `hasNoType` ''SPEC
 #endif
 
-{-# INLINE elemIndex #-}
+{-# ANN elemIndex (PermitPatternMatches []) #-}
+{-# ANN elemIndex (PermitConstructions []) #-}
+{-# ANN elemIndex (PermitTypeClasses []) #-}
+{-# NOINLINE elemIndex #-}
 elemIndex :: Int -> IO (Maybe Int)
 elemIndex n = withStream n $ Stream.fold (FL.elemIndex (n + 1))
 
@@ -316,7 +386,10 @@ inspect $ 'elemIndex `hasNoType` ''FL.Step
 inspect $ 'elemIndex `hasNoType` ''SPEC
 #endif
 
-{-# INLINE elem #-}
+{-# ANN elem (PermitPatternMatches []) #-}
+{-# ANN elem (PermitConstructions []) #-}
+{-# ANN elem (PermitTypeClasses []) #-}
+{-# NOINLINE elem #-}
 elem :: Int -> IO Bool
 elem n = withStream n $ Stream.fold (FL.elem (n + 1))
 
@@ -326,7 +399,10 @@ inspect $ 'elem `hasNoType` ''FL.Step
 inspect $ 'elem `hasNoType` ''SPEC
 #endif
 
-{-# INLINE notElem #-}
+{-# ANN notElem (PermitPatternMatches []) #-}
+{-# ANN notElem (PermitConstructions []) #-}
+{-# ANN notElem (PermitTypeClasses []) #-}
+{-# NOINLINE notElem #-}
 notElem :: Int -> IO Bool
 notElem n = withStream n $ Stream.fold (FL.notElem (n + 1))
 
@@ -336,7 +412,10 @@ inspect $ 'notElem `hasNoType` ''FL.Step
 inspect $ 'notElem `hasNoType` ''SPEC
 #endif
 
-{-# INLINE all #-}
+{-# ANN all (PermitPatternMatches []) #-}
+{-# ANN all (PermitConstructions []) #-}
+{-# ANN all (PermitTypeClasses []) #-}
+{-# NOINLINE all #-}
 all :: Int -> IO Bool
 all n = withStream n $ Stream.fold (FL.all (<= n))
 
@@ -346,7 +425,10 @@ inspect $ 'all `hasNoType` ''FL.Step
 inspect $ 'all `hasNoType` ''SPEC
 #endif
 
-{-# INLINE any #-}
+{-# ANN any (PermitPatternMatches []) #-}
+{-# ANN any (PermitConstructions []) #-}
+{-# ANN any (PermitTypeClasses []) #-}
+{-# NOINLINE any #-}
 any :: Int -> IO Bool
 any n = withStream n $ Stream.fold (FL.any (> n))
 
@@ -356,7 +438,10 @@ inspect $ 'any `hasNoType` ''FL.Step
 inspect $ 'any `hasNoType` ''SPEC
 #endif
 
-{-# INLINE take #-}
+{-# ANN take (PermitPatternMatches []) #-}
+{-# ANN take (PermitConstructions []) #-}
+{-# ANN take (PermitTypeClasses []) #-}
+{-# NOINLINE take #-}
 take :: Int -> IO ()
 take n = withStream n $ Stream.fold (FL.take n FL.drain)
 
@@ -367,7 +452,10 @@ inspect $ 'take `hasNoType` ''SPEC
 inspect $ 'take `hasNoType` ''FL.Tuple'Fused
 #endif
 
-{-# INLINE and #-}
+{-# ANN and (PermitPatternMatches []) #-}
+{-# ANN and (PermitConstructions []) #-}
+{-# ANN and (PermitTypeClasses []) #-}
+{-# NOINLINE and #-}
 and :: Int -> IO Bool
 and n = withStream n $ Stream.fold FL.and . fmap (<= (n + 1))
 
@@ -377,7 +465,10 @@ inspect $ 'and `hasNoType` ''FL.Step
 inspect $ 'and `hasNoType` ''SPEC
 #endif
 
-{-# INLINE or #-}
+{-# ANN or (PermitPatternMatches []) #-}
+{-# ANN or (PermitConstructions []) #-}
+{-# ANN or (PermitTypeClasses []) #-}
+{-# NOINLINE or #-}
 or :: Int -> IO Bool
 or n = withStream n $ Stream.fold FL.or . fmap (> (n + 1))
 
@@ -391,7 +482,10 @@ inspect $ 'or `hasNoType` ''SPEC
 -- Filter
 -------------------------------------------------------------------------------
 
-{-# INLINE filter #-}
+{-# ANN filter (PermitPatternMatches []) #-}
+{-# ANN filter (PermitConstructions []) #-}
+{-# ANN filter (PermitTypeClasses []) #-}
+{-# NOINLINE filter #-}
 filter :: Int -> IO ()
 filter n = withStream n $ Stream.fold (FL.filter even FL.drain)
 
@@ -401,27 +495,34 @@ inspect $ 'filter `hasNoType` ''FL.Step
 inspect $ 'filter `hasNoType` ''SPEC
 #endif
 
-{-# INLINE scanMaybe #-}
-scanMaybe :: Int -> IO ()
-scanMaybe n = withStream n $ Stream.fold (FL.postscanlMaybe (Scanl.filtering even) FL.drain)
+{-# ANN postscanlMaybe (PermitPatternMatches []) #-}
+{-# ANN postscanlMaybe (PermitConstructions []) #-}
+{-# ANN postscanlMaybe (PermitTypeClasses []) #-}
+{-# NOINLINE postscanlMaybe #-}
+postscanlMaybe :: Int -> IO ()
+postscanlMaybe n = withStream n $
+    Stream.fold (FL.postscanlMaybe (Scanl.filtering even) FL.drain)
 
 #ifdef INSPECTION
-inspect $ 'scanMaybe `hasNoType` ''Step
-inspect $ 'scanMaybe `hasNoType` ''FL.Step
-inspect $ 'scanMaybe `hasNoType` ''SPEC
+inspect $ 'postscanlMaybe `hasNoType` ''Step
+inspect $ 'postscanlMaybe `hasNoType` ''FL.Step
+inspect $ 'postscanlMaybe `hasNoType` ''SPEC
 #endif
 
-{-# INLINE scanMaybe2 #-}
-scanMaybe2 :: Int -> IO ()
-scanMaybe2 n = withStream n $
+{-# ANN postscanlMaybe_x2 (PermitPatternMatches []) #-}
+{-# ANN postscanlMaybe_x2 (PermitConstructions []) #-}
+{-# ANN postscanlMaybe_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE postscanlMaybe_x2 #-}
+postscanlMaybe_x2 :: Int -> IO ()
+postscanlMaybe_x2 n = withStream n $
     Stream.fold
         $ FL.postscanlMaybe (Scanl.filtering even)
         $ FL.postscanlMaybe (Scanl.filtering odd) FL.drain
 
 #ifdef INSPECTION
-inspect $ 'scanMaybe2 `hasNoType` ''Step
-inspect $ 'scanMaybe2 `hasNoType` ''FL.Step
-inspect $ 'scanMaybe2 `hasNoType` ''SPEC
+inspect $ 'postscanlMaybe_x2 `hasNoType` ''Step
+inspect $ 'postscanlMaybe_x2 `hasNoType` ''FL.Step
+inspect $ 'postscanlMaybe_x2 `hasNoType` ''SPEC
 #endif
 
 {-# INLINE sequence_ #-}
@@ -438,9 +539,12 @@ sequence_ value =
 -- Splitting in two
 -------------------------------------------------------------------------------
 
-{-# INLINE splitAllAny #-}
-splitAllAny :: Int -> IO (Bool, Bool)
-splitAllAny n = withStream n $
+{-# ANN splitWith (PermitPatternMatches []) #-}
+{-# ANN splitWith (PermitConstructions []) #-}
+{-# ANN splitWith (PermitTypeClasses []) #-}
+{-# NOINLINE splitWith #-}
+splitWith :: Int -> IO (Bool, Bool)
+splitWith n = withStream n $
     Stream.fold
         (FL.splitWith (,)
             (FL.all (<= (n `div` 2)))
@@ -448,13 +552,16 @@ splitAllAny n = withStream n $
         )
 
 #ifdef INSPECTION
-inspect $ 'splitAllAny `hasNoType` ''Step
-inspect $ 'splitAllAny `hasNoType` ''FL.Step
-inspect $ 'splitAllAny `hasNoType` ''SPEC
-inspect $ 'splitAllAny `hasNoType` ''FL.SeqFoldState
+inspect $ 'splitWith `hasNoType` ''Step
+inspect $ 'splitWith `hasNoType` ''FL.Step
+inspect $ 'splitWith `hasNoType` ''SPEC
+inspect $ 'splitWith `hasNoType` ''FL.SeqFoldState
 #endif
 
-{-# INLINE split_ #-}
+{-# ANN split_ (PermitPatternMatches []) #-}
+{-# ANN split_ (PermitConstructions []) #-}
+{-# ANN split_ (PermitTypeClasses []) #-}
+{-# NOINLINE split_ #-}
 split_ :: Int -> IO Bool
 split_ n = withStream n $
     Stream.fold
@@ -470,7 +577,10 @@ inspect $ 'split_ `hasNoType` ''SPEC
 inspect $ 'split_ `hasNoType` ''FL.SeqFoldState_
 #endif
 
-{-# INLINE shortest #-}
+{-# ANN shortest (PermitPatternMatches []) #-}
+{-# ANN shortest (PermitConstructions []) #-}
+{-# ANN shortest (PermitTypeClasses []) #-}
+{-# NOINLINE shortest #-}
 shortest :: Int -> IO (Either Int Int)
 shortest n = withStream n $ Stream.fold (FL.shortest FL.sum FL.length)
 
@@ -481,7 +591,10 @@ inspect $ 'shortest `hasNoType` ''FL.Step
 inspect $ 'shortest `hasNoType` ''SPEC
 #endif
 
-{-# INLINE longest #-}
+{-# ANN longest (PermitPatternMatches []) #-}
+{-# ANN longest (PermitConstructions []) #-}
+{-# ANN longest (PermitTypeClasses []) #-}
+{-# NOINLINE longest #-}
 longest :: Int -> IO (Either Int Int)
 longest n = withStream n $ Stream.fold (FL.longest FL.sum FL.length)
 
@@ -493,7 +606,10 @@ inspect $ 'longest `hasNoType` ''SPEC
 inspect $ 'longest `hasNoType` ''FL.LongestState
 #endif
 
-{-# INLINE foldBreak #-}
+{-# ANN foldBreak (PermitPatternMatches []) #-}
+{-# ANN foldBreak (PermitConstructions []) #-}
+{-# ANN foldBreak (PermitTypeClasses []) #-}
+{-# NOINLINE foldBreak #-}
 foldBreak :: Int -> IO ()
 foldBreak n = withStream n go
     where
@@ -505,7 +621,10 @@ foldBreak n = withStream n go
 -- Split generated streams (not a file)
 -------------------------------------------------------------------------------
 
-{-# INLINE many #-}
+{-# ANN many (PermitPatternMatches []) #-}
+{-# ANN many (PermitConstructions []) #-}
+{-# ANN many (PermitTypeClasses []) #-}
+{-# NOINLINE many #-}
 many :: Int -> IO ()
 many n = withStream n $ Stream.fold (FL.many (FL.take 1 FL.drain) FL.drain)
 
@@ -516,7 +635,10 @@ inspect $ 'many `hasNoType` ''SPEC
 inspect $ 'many `hasNoType` ''FL.ManyState
 #endif
 
-{-# INLINE takeEndBy_ #-}
+{-# ANN takeEndBy_ (PermitPatternMatches []) #-}
+{-# ANN takeEndBy_ (PermitConstructions []) #-}
+{-# ANN takeEndBy_ (PermitTypeClasses []) #-}
+{-# NOINLINE takeEndBy_ #-}
 takeEndBy_ :: Int -> IO ()
 takeEndBy_ n = withStream n $ Stream.fold (FL.takeEndBy_ (>= n) FL.drain)
 
@@ -537,23 +659,32 @@ toarr :: String -> Array Word8
 toarr = Array.fromList . fmap (fromIntegral . ord)
 
 -- | Split on line feed.
-fileInfixTakeEndBy_ :: Handle -> IO Int
-fileInfixTakeEndBy_ inh =
+{-# ANN takeEndBy__Infix_FileRead (PermitPatternMatches []) #-}
+{-# ANN takeEndBy__Infix_FileRead (PermitConstructions []) #-}
+{-# ANN takeEndBy__Infix_FileRead (PermitTypeClasses []) #-}
+{-# NOINLINE takeEndBy__Infix_FileRead #-}
+takeEndBy__Infix_FileRead :: Handle -> IO Int
+takeEndBy__Infix_FileRead inh =
     Stream.fold Fold.length
         $ Stream.foldManyPost (FL.takeEndBy_ (== lf) Fold.drain)
         $ Handle.read inh -- >>= print
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'fileInfixTakeEndBy_
-inspect $ 'fileInfixTakeEndBy_ `hasNoType` ''Step
-inspect $ 'fileInfixTakeEndBy_ `hasNoType` ''FL.Step
-inspect $ 'fileInfixTakeEndBy_ `hasNoType` ''SPEC
-inspect $ 'fileInfixTakeEndBy_ `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
+inspect $ hasNoTypeClasses 'takeEndBy__Infix_FileRead
+inspect $ 'takeEndBy__Infix_FileRead `hasNoType` ''Step
+inspect $ 'takeEndBy__Infix_FileRead `hasNoType` ''FL.Step
+inspect $ 'takeEndBy__Infix_FileRead `hasNoType` ''SPEC
+-- FH.read/A.read
+inspect $ 'takeEndBy__Infix_FileRead `hasNoType` ''MutArray.ArrayUnsafe
 #endif
 
 -- | Split on line feed.
-fileSuffixTakeEndBy_ :: Handle -> IO Int
-fileSuffixTakeEndBy_ inh =
+{-# ANN takeEndBy__Suffix_FileRead (PermitPatternMatches []) #-}
+{-# ANN takeEndBy__Suffix_FileRead (PermitConstructions []) #-}
+{-# ANN takeEndBy__Suffix_FileRead (PermitTypeClasses []) #-}
+{-# NOINLINE takeEndBy__Suffix_FileRead #-}
+takeEndBy__Suffix_FileRead :: Handle -> IO Int
+takeEndBy__Suffix_FileRead inh =
     Stream.fold Fold.length
         $ Stream.foldMany
             (Fold.takeEndBy_ (== lf) Fold.drain)
@@ -561,16 +692,21 @@ fileSuffixTakeEndBy_ inh =
      -- >>= print
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'fileSuffixTakeEndBy_
-inspect $ 'fileSuffixTakeEndBy_ `hasNoType` ''Step
-inspect $ 'fileSuffixTakeEndBy_ `hasNoType` ''FL.Step
-inspect $ 'fileSuffixTakeEndBy_ `hasNoType` ''SPEC
-inspect $ 'fileSuffixTakeEndBy_ `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
+inspect $ hasNoTypeClasses 'takeEndBy__Suffix_FileRead
+inspect $ 'takeEndBy__Suffix_FileRead `hasNoType` ''Step
+inspect $ 'takeEndBy__Suffix_FileRead `hasNoType` ''FL.Step
+inspect $ 'takeEndBy__Suffix_FileRead `hasNoType` ''SPEC
+-- FH.read/A.read
+inspect $ 'takeEndBy__Suffix_FileRead `hasNoType` ''MutArray.ArrayUnsafe
 #endif
 
 -- | Split on line feed.
-parseFileSuffixTakeEndBy_ :: Handle -> IO Int
-parseFileSuffixTakeEndBy_ inh =
+{-# ANN takeEndBy__Suffix_ParseMany_FileRead (PermitPatternMatches []) #-}
+{-# ANN takeEndBy__Suffix_ParseMany_FileRead (PermitConstructions []) #-}
+{-# ANN takeEndBy__Suffix_ParseMany_FileRead (PermitTypeClasses []) #-}
+{-# NOINLINE takeEndBy__Suffix_ParseMany_FileRead #-}
+takeEndBy__Suffix_ParseMany_FileRead :: Handle -> IO Int
+takeEndBy__Suffix_ParseMany_FileRead inh =
     Stream.fold Fold.length
         $ Stream.parseMany
             (Parser.fromFold $ Fold.takeEndBy_ (== lf) Fold.drain)
@@ -578,8 +714,12 @@ parseFileSuffixTakeEndBy_ inh =
      -- >>= print
 
 -- | Split suffix with line feed.
-fileSuffixTakeEndBy :: Handle -> IO Int
-fileSuffixTakeEndBy inh =
+{-# ANN takeEndBy_Suffix_FileRead (PermitPatternMatches []) #-}
+{-# ANN takeEndBy_Suffix_FileRead (PermitConstructions []) #-}
+{-# ANN takeEndBy_Suffix_FileRead (PermitTypeClasses []) #-}
+{-# NOINLINE takeEndBy_Suffix_FileRead #-}
+takeEndBy_Suffix_FileRead :: Handle -> IO Int
+takeEndBy_Suffix_FileRead inh =
     Stream.fold Fold.length
         $ Stream.foldMany
             (Fold.takeEndBy (== lf) Fold.drain)
@@ -587,56 +727,77 @@ fileSuffixTakeEndBy inh =
      -- >>= print
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'fileSuffixTakeEndBy
-inspect $ 'fileSuffixTakeEndBy `hasNoType` ''Step
-inspect $ 'fileSuffixTakeEndBy `hasNoType` ''FL.Step
-inspect $ 'fileSuffixTakeEndBy `hasNoType` ''SPEC
-inspect $ 'fileSuffixTakeEndBy `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
+inspect $ hasNoTypeClasses 'takeEndBy_Suffix_FileRead
+inspect $ 'takeEndBy_Suffix_FileRead `hasNoType` ''Step
+inspect $ 'takeEndBy_Suffix_FileRead `hasNoType` ''FL.Step
+inspect $ 'takeEndBy_Suffix_FileRead `hasNoType` ''SPEC
+-- FH.read/A.read
+inspect $ 'takeEndBy_Suffix_FileRead `hasNoType` ''MutArray.ArrayUnsafe
 #endif
 
 -- | Infix split on a word8 sequence.
-splitOnSeq :: String -> Handle -> IO Int
-splitOnSeq str inh =
+{-# ANN takeEndBySeq__Infix_FileRead (PermitPatternMatches []) #-}
+{-# ANN takeEndBySeq__Infix_FileRead (PermitConstructions []) #-}
+{-# ANN takeEndBySeq__Infix_FileRead (PermitTypeClasses []) #-}
+{-# NOINLINE takeEndBySeq__Infix_FileRead #-}
+takeEndBySeq__Infix_FileRead :: String -> Handle -> IO Int
+takeEndBySeq__Infix_FileRead str inh =
     Stream.fold Fold.length
         $ Stream.foldManyPost (Fold.takeEndBySeq_ (toarr str) Fold.drain)
         $ Handle.read inh -- >>= print
 
 #ifdef INSPECTION
--- inspect $ hasNoTypeClasses 'splitOnSeq
--- inspect $ 'splitOnSeq `hasNoType` ''Step
+-- inspect $ hasNoTypeClasses 'takeEndBySeq__Infix_FileRead
+-- inspect $ 'takeEndBySeq__Infix_FileRead `hasNoType` ''Step
 #endif
 
 -- | Infix split on a word8 sequence.
-splitOnSeq100k :: Handle -> IO Int
-splitOnSeq100k inh = do
+{-# ANN takeEndBySeq__Infix_Long_FileRead (PermitPatternMatches []) #-}
+{-# ANN takeEndBySeq__Infix_Long_FileRead (PermitConstructions []) #-}
+{-# ANN takeEndBySeq__Infix_Long_FileRead (PermitTypeClasses []) #-}
+{-# NOINLINE takeEndBySeq__Infix_Long_FileRead #-}
+takeEndBySeq__Infix_Long_FileRead :: Handle -> IO Int
+takeEndBySeq__Infix_Long_FileRead inh = do
     arr <- Stream.fold Array.create $ Stream.replicate 100000 123
     Stream.fold Fold.length
         $ Stream.foldManyPost (Fold.takeEndBySeq_ arr Fold.drain)
         $ Handle.read inh -- >>= print
 
 -- | Split on suffix sequence.
-splitOnSuffixSeq :: String -> Handle -> IO Int
-splitOnSuffixSeq str inh =
+{-# ANN takeEndBySeq__Suffix_FileRead (PermitPatternMatches []) #-}
+{-# ANN takeEndBySeq__Suffix_FileRead (PermitConstructions []) #-}
+{-# ANN takeEndBySeq__Suffix_FileRead (PermitTypeClasses []) #-}
+{-# NOINLINE takeEndBySeq__Suffix_FileRead #-}
+takeEndBySeq__Suffix_FileRead :: String -> Handle -> IO Int
+takeEndBySeq__Suffix_FileRead str inh =
     Stream.fold Fold.length
         $ Stream.foldMany (Fold.takeEndBySeq_ (toarr str) Fold.drain)
         $ Handle.read inh -- >>= print
 
 #ifdef INSPECTION
--- inspect $ hasNoTypeClasses 'splitOnSuffixSeq
--- inspect $ 'splitOnSuffixSeq `hasNoType` ''Step
+-- inspect $ hasNoTypeClasses 'takeEndBySeq__Suffix_FileRead
+-- inspect $ 'takeEndBySeq__Suffix_FileRead `hasNoType` ''Step
 #endif
 
 -- | Split on suffix sequence.
-splitWithSuffixSeq :: String -> Handle -> IO Int
-splitWithSuffixSeq str inh =
+{-# ANN takeEndBySeq_Suffix_FileRead (PermitPatternMatches []) #-}
+{-# ANN takeEndBySeq_Suffix_FileRead (PermitConstructions []) #-}
+{-# ANN takeEndBySeq_Suffix_FileRead (PermitTypeClasses []) #-}
+{-# NOINLINE takeEndBySeq_Suffix_FileRead #-}
+takeEndBySeq_Suffix_FileRead :: String -> Handle -> IO Int
+takeEndBySeq_Suffix_FileRead str inh =
     Stream.fold Fold.length
         $ Stream.foldMany (Fold.takeEndBySeq (toarr str) Fold.drain)
         $ Handle.read inh -- >>= print
 
 
 -- | Infix split on a character sequence.
-splitOnSeqUtf8 :: String -> Handle -> IO Int
-splitOnSeqUtf8 str inh =
+{-# ANN takeEndBySeq__Infix_Utf8_FileRead (PermitPatternMatches []) #-}
+{-# ANN takeEndBySeq__Infix_Utf8_FileRead (PermitConstructions []) #-}
+{-# ANN takeEndBySeq__Infix_Utf8_FileRead (PermitTypeClasses []) #-}
+{-# NOINLINE takeEndBySeq__Infix_Utf8_FileRead #-}
+takeEndBySeq__Infix_Utf8_FileRead :: String -> Handle -> IO Int
+takeEndBySeq__Infix_Utf8_FileRead str inh =
     -- XXX requires @-fspec-constr-recursive=12@. Maybe due to
     -- decodeUtf8.
     Stream.fold Fold.length
@@ -649,29 +810,40 @@ splitOnSeqUtf8 str inh =
 -- Distributing by parallel application
 -------------------------------------------------------------------------------
 
-{-# INLINE teeSumLength #-}
-teeSumLength :: Int -> IO (Int, Int)
-teeSumLength n = withStream n $ Stream.fold (FL.teeWith (,) FL.sum FL.length)
+{-# ANN teeWith_SumLength (PermitPatternMatches []) #-}
+{-# ANN teeWith_SumLength (PermitConstructions []) #-}
+{-# ANN teeWith_SumLength (PermitTypeClasses []) #-}
+{-# NOINLINE teeWith_SumLength #-}
+teeWith_SumLength :: Int -> IO (Int, Int)
+teeWith_SumLength n =
+    withStream n $ Stream.fold (FL.teeWith (,) FL.sum FL.length)
 
 #ifdef INSPECTION
-inspect $ 'teeSumLength `hasNoType` ''Step
-inspect $ 'teeSumLength `hasNoType` ''FL.Step
-inspect $ 'teeSumLength `hasNoType` ''SPEC
-inspect $ 'teeSumLength `hasNoType` ''FL.TeeState
+inspect $ 'teeWith_SumLength `hasNoType` ''Step
+inspect $ 'teeWith_SumLength `hasNoType` ''FL.Step
+inspect $ 'teeWith_SumLength `hasNoType` ''SPEC
+inspect $ 'teeWith_SumLength `hasNoType` ''FL.TeeState
 #endif
 
-{-# INLINE teeAllAny #-}
-teeAllAny :: Int -> IO (Bool, Bool)
-teeAllAny n = withStream n $ Stream.fold (FL.teeWith (,) (FL.all (<= n)) (FL.any (> n)))
+{-# ANN teeWith_AllAny (PermitPatternMatches []) #-}
+{-# ANN teeWith_AllAny (PermitConstructions []) #-}
+{-# ANN teeWith_AllAny (PermitTypeClasses []) #-}
+{-# NOINLINE teeWith_AllAny #-}
+teeWith_AllAny :: Int -> IO (Bool, Bool)
+teeWith_AllAny n = withStream n $
+    Stream.fold (FL.teeWith (,) (FL.all (<= n)) (FL.any (> n)))
 
 #ifdef INSPECTION
-inspect $ 'teeAllAny `hasNoType` ''Step
-inspect $ 'teeAllAny `hasNoType` ''FL.Step
-inspect $ 'teeAllAny `hasNoType` ''SPEC
-inspect $ 'teeAllAny `hasNoType` ''FL.TeeState
+inspect $ 'teeWith_AllAny `hasNoType` ''Step
+inspect $ 'teeWith_AllAny `hasNoType` ''FL.Step
+inspect $ 'teeWith_AllAny `hasNoType` ''SPEC
+inspect $ 'teeWith_AllAny `hasNoType` ''FL.TeeState
 #endif
 
-{-# INLINE teeWithFst #-}
+{-# ANN teeWithFst (PermitPatternMatches []) #-}
+{-# ANN teeWithFst (PermitConstructions []) #-}
+{-# ANN teeWithFst (PermitTypeClasses []) #-}
+{-# NOINLINE teeWithFst #-}
 teeWithFst :: Int -> IO (Int, Int)
 teeWithFst n = withStream n $ Stream.fold (FL.teeWithFst (,) FL.sum FL.length)
 
@@ -682,7 +854,10 @@ inspect $ 'teeWithFst `hasNoType` ''SPEC
 inspect $ 'teeWithFst `hasNoType` ''FL.TeeFstState
 #endif
 
-{-# INLINE teeWithMin #-}
+{-# ANN teeWithMin (PermitPatternMatches []) #-}
+{-# ANN teeWithMin (PermitConstructions []) #-}
+{-# ANN teeWithMin (PermitTypeClasses []) #-}
+{-# NOINLINE teeWithMin #-}
 teeWithMin :: Int -> IO (Int, Int)
 teeWithMin n = withStream n $ Stream.fold (FL.teeWithMin (,) FL.sum FL.length)
 
@@ -693,7 +868,10 @@ inspect $ 'teeWithMin `hasNoType` ''FL.Step
 inspect $ 'teeWithMin `hasNoType` ''SPEC
 #endif
 
-{-# INLINE distribute #-}
+{-# ANN distribute (PermitPatternMatches []) #-}
+{-# ANN distribute (PermitConstructions []) #-}
+{-# ANN distribute (PermitTypeClasses []) #-}
+{-# NOINLINE distribute #-}
 distribute :: Int -> IO [Int]
 distribute n = withStream n $ Stream.fold (FL.distribute [FL.sum, FL.length])
 
@@ -705,7 +883,10 @@ distribute n = withStream n $ Stream.fold (FL.distribute [FL.sum, FL.length])
 oddEven :: Int -> Either Int Int
 oddEven x = if odd x then Left x else Right x
 
-{-# INLINE partition #-}
+{-# ANN partition (PermitPatternMatches []) #-}
+{-# ANN partition (PermitConstructions []) #-}
+{-# ANN partition (PermitTypeClasses []) #-}
+{-# NOINLINE partition #-}
 partition :: Int -> IO (Int, Int)
 partition n = withStream n $ Stream.fold $ FL.lmap oddEven (FL.partition FL.sum FL.length)
 
@@ -716,7 +897,10 @@ inspect $ 'partition `hasNoType` ''SPEC
 inspect $ 'partition `hasNoType` ''FL.TeeState
 #endif
 
-{-# INLINE partitionByFstM #-}
+{-# ANN partitionByFstM (PermitPatternMatches []) #-}
+{-# ANN partitionByFstM (PermitConstructions []) #-}
+{-# ANN partitionByFstM (PermitTypeClasses []) #-}
+{-# NOINLINE partitionByFstM #-}
 partitionByFstM :: Int -> IO (Int, Int)
 partitionByFstM n = withStream n $
     Stream.fold (FL.partitionByFstM (return . oddEven) FL.sum FL.length)
@@ -728,55 +912,22 @@ inspect $ 'partitionByFstM `hasNoType` ''SPEC
 inspect $ 'partitionByFstM `hasNoType` ''FL.TeeFstState
 #endif
 
-{-# INLINE partitionByMinM #-}
+{-# ANN partitionByMinM (PermitPatternMatches []) #-}
+{-# ANN partitionByMinM (PermitConstructions []) #-}
+{-# ANN partitionByMinM (PermitTypeClasses []) #-}
+{-# NOINLINE partitionByMinM #-}
 partitionByMinM :: Int -> IO (Int, Int)
 partitionByMinM n = withStream n $
     Stream.fold (FL.partitionByMinM (return . oddEven) FL.sum FL.length)
 
 -------------------------------------------------------------------------------
--- Key-value folds (helpers)
--------------------------------------------------------------------------------
-
-{-# INLINE demuxToMap #-}
-demuxToMap :: (Monad m, Ord k) =>
-    (a -> k) -> (k -> m (Maybe (Fold m a b))) -> Stream m a -> m (Map k b)
-demuxToMap f g = Stream.fold (FL.demuxerToContainer f g)
-
-{-# INLINE demuxToIntMap #-}
-demuxToIntMap :: Monad m =>
-    (a -> Int) -> (Int -> m (Maybe (Fold m a b))) -> Stream m a -> m (IntMap b)
-demuxToIntMap f g = Stream.fold (FL.demuxerToContainer f g)
-
-{-# INLINE demuxToMapIO #-}
-demuxToMapIO :: (MonadIO m, Ord k) =>
-    (a -> k) -> (k -> m (Maybe (Fold m a b))) -> Stream m a -> m (Map k b)
-demuxToMapIO f g = Stream.fold (FL.demuxerToContainerIO f g)
-
-{-# INLINE toMap #-}
-toMap ::
-       (Monad m, Ord k, Num a) => (a -> k) -> Stream m a -> m (Map k a)
-toMap f = Stream.fold (FL.toContainer f FL.sum)
-
-{-# INLINE toIntMap #-}
-toIntMap ::
-       (Monad m, Num a) => (a -> Int) -> Stream m a -> m (IntMap a)
-toIntMap f = Stream.fold (FL.toContainer f FL.sum)
-
-{-# INLINE toMapIO #-}
-toMapIO ::
-       (MonadIO m, Ord k, Num a) => (a -> k) -> Stream m a -> m (Map k a)
-toMapIO f = Stream.fold (FL.toContainerIO f FL.sum)
-
-{-# INLINE toIntMapIO #-}
-toIntMapIO ::
-       (MonadIO m, Num a) => (a -> Int) -> Stream m a -> m (IntMap a)
-toIntMapIO f = Stream.fold (FL.toContainerIO f FL.sum)
-
--------------------------------------------------------------------------------
 -- Unzip
 -------------------------------------------------------------------------------
 
-{-# INLINE unzip #-}
+{-# ANN unzip (PermitPatternMatches []) #-}
+{-# ANN unzip (PermitConstructions []) #-}
+{-# ANN unzip (PermitTypeClasses []) #-}
+{-# NOINLINE unzip #-}
 unzip :: Int -> IO (Int, Int)
 unzip n = withStream n $ Stream.fold $ FL.lmap (\a -> (a, a)) (FL.unzip FL.sum FL.length)
 
@@ -787,7 +938,10 @@ inspect $ 'unzip `hasNoType` ''SPEC
 inspect $ 'unzip `hasNoType` ''FL.TeeState
 #endif
 
-{-# INLINE unzipWithFstM #-}
+{-# ANN unzipWithFstM (PermitPatternMatches []) #-}
+{-# ANN unzipWithFstM (PermitConstructions []) #-}
+{-# ANN unzipWithFstM (PermitTypeClasses []) #-}
+{-# NOINLINE unzipWithFstM #-}
 unzipWithFstM :: Int -> IO (Int, Int)
 unzipWithFstM n = withStream n $ Stream.fold (FL.unzipWithFstM f FL.sum FL.length)
     where f a = return (a + 1, a)
@@ -799,7 +953,10 @@ inspect $ 'unzipWithFstM `hasNoType` ''SPEC
 inspect $ 'unzipWithFstM `hasNoType` ''FL.TeeFstState
 #endif
 
-{-# INLINE unzipWithMinM #-}
+{-# ANN unzipWithMinM (PermitPatternMatches []) #-}
+{-# ANN unzipWithMinM (PermitConstructions []) #-}
+{-# ANN unzipWithMinM (PermitTypeClasses []) #-}
+{-# NOINLINE unzipWithMinM #-}
 unzipWithMinM :: Int -> IO (Int, Int)
 unzipWithMinM n = withStream n $ Stream.fold (FL.unzipWithMinM f FL.sum FL.length)
     where f a = return (a + 1, a)
@@ -808,7 +965,10 @@ unzipWithMinM n = withStream n $ Stream.fold (FL.unzipWithMinM f FL.sum FL.lengt
 -- Nested
 -------------------------------------------------------------------------------
 
-{-# INLINE unfoldEach #-}
+{-# ANN unfoldEach (PermitPatternMatches []) #-}
+{-# ANN unfoldEach (PermitConstructions []) #-}
+{-# ANN unfoldEach (PermitTypeClasses []) #-}
+{-# NOINLINE unfoldEach #-}
 unfoldEach :: Int -> IO ()
 unfoldEach n =
     Stream.fold (FL.unfoldEach Unfold.replicateM FL.drain)
@@ -818,17 +978,23 @@ unfoldEach n =
 -- Transformation
 -------------------------------------------------------------------------------
 
-{-# INLINE map #-}
-map :: Int -> IO ()
-map n = withStream n $ Stream.fold (FL.lmap (+ 1) FL.drain)
+{-# ANN lmap (PermitPatternMatches []) #-}
+{-# ANN lmap (PermitConstructions []) #-}
+{-# ANN lmap (PermitTypeClasses []) #-}
+{-# NOINLINE lmap #-}
+lmap :: Int -> IO ()
+lmap n = withStream n $ Stream.fold (FL.lmap (+ 1) FL.drain)
 
 #ifdef INSPECTION
-inspect $ 'map `hasNoType` ''Step
-inspect $ 'map `hasNoType` ''FL.Step
-inspect $ 'map `hasNoType` ''SPEC
+inspect $ 'lmap `hasNoType` ''Step
+inspect $ 'lmap `hasNoType` ''FL.Step
+inspect $ 'lmap `hasNoType` ''SPEC
 #endif
 
-{-# INLINE mapMaybe #-}
+{-# ANN mapMaybe (PermitPatternMatches []) #-}
+{-# ANN mapMaybe (PermitConstructions []) #-}
+{-# ANN mapMaybe (PermitTypeClasses []) #-}
+{-# NOINLINE mapMaybe #-}
 mapMaybe :: Int -> IO ()
 mapMaybe n = withStream n $
     Stream.fold (FL.mapMaybe (\x -> if even x then Just x else Nothing) FL.drain)
@@ -839,11 +1005,18 @@ inspect $ 'mapMaybe `hasNoType` ''FL.Step
 inspect $ 'mapMaybe `hasNoType` ''SPEC
 #endif
 
-{-# INLINE rsequence #-}
-rsequence :: Int -> IO ()
-rsequence n = withStream n $ Stream.fold (FL.rmapM id (return <$> FL.drain))
+{-# ANN rmapM_Sequence (PermitPatternMatches []) #-}
+{-# ANN rmapM_Sequence (PermitConstructions []) #-}
+{-# ANN rmapM_Sequence (PermitTypeClasses []) #-}
+{-# NOINLINE rmapM_Sequence #-}
+rmapM_Sequence :: Int -> IO ()
+rmapM_Sequence n =
+    withStream n $ Stream.fold (FL.rmapM id (return <$> FL.drain))
 
-{-# INLINE rmapM #-}
+{-# ANN rmapM (PermitPatternMatches []) #-}
+{-# ANN rmapM (PermitConstructions []) #-}
+{-# ANN rmapM (PermitTypeClasses []) #-}
+{-# NOINLINE rmapM #-}
 rmapM :: Int -> IO ()
 rmapM n = withStream n $ Stream.fold (FL.rmapM return FL.drain)
 
@@ -853,73 +1026,101 @@ inspect $ 'rmapM `hasNoType` ''FL.Step
 inspect $ 'rmapM `hasNoType` ''SPEC
 #endif
 
-{-# INLINE pipeMapM #-}
-pipeMapM :: Int -> IO ()
-pipeMapM n = withStream n $
+{-# ANN pipe (PermitPatternMatches []) #-}
+{-# ANN pipe (PermitConstructions []) #-}
+{-# ANN pipe (PermitTypeClasses []) #-}
+{-# NOINLINE pipe #-}
+pipe :: Int -> IO ()
+pipe n = withStream n $
     Stream.fold (FL.pipe (Pipe.mapM (\x -> return $ x + 1)) FL.drain)
 
 #ifdef INSPECTION
-inspect $ 'pipeMapM `hasNoType` ''Step
-inspect $ 'pipeMapM `hasNoType` ''FL.Step
-inspect $ 'pipeMapM `hasNoType` ''SPEC
+inspect $ 'pipe `hasNoType` ''Step
+inspect $ 'pipe `hasNoType` ''FL.Step
+inspect $ 'pipe `hasNoType` ''SPEC
 #endif
 
-{-# INLINE foldScanl #-}
-foldScanl :: Int -> IO ()
-foldScanl n = withStream n $ Stream.fold $ FL.scanl Scanl.sum FL.drain
+{-# ANN scanl (PermitPatternMatches []) #-}
+{-# ANN scanl (PermitConstructions []) #-}
+{-# ANN scanl (PermitTypeClasses []) #-}
+{-# NOINLINE scanl #-}
+scanl :: Int -> IO ()
+scanl n = withStream n $ Stream.fold $ FL.scanl Scanl.sum FL.drain
 
 #ifdef INSPECTION
-inspect $ 'foldScanl `hasNoType` ''Step
-inspect $ 'foldScanl `hasNoType` ''FL.Step
-inspect $ 'foldScanl `hasNoType` ''SPEC
+inspect $ 'scanl `hasNoType` ''Step
+inspect $ 'scanl `hasNoType` ''FL.Step
+inspect $ 'scanl `hasNoType` ''SPEC
 #endif
 
-{-# INLINE foldScanlMany #-}
-foldScanlMany :: Int -> IO ()
-foldScanlMany n = withStream n $ Stream.fold $ FL.scanlMany (Scanl.take 2 Scanl.drain) FL.drain
+{-# ANN scanlMany (PermitPatternMatches []) #-}
+{-# ANN scanlMany (PermitConstructions []) #-}
+{-# ANN scanlMany (PermitTypeClasses []) #-}
+{-# NOINLINE scanlMany #-}
+scanlMany :: Int -> IO ()
+scanlMany n = withStream n $
+    Stream.fold $ FL.scanlMany (Scanl.take 2 Scanl.drain) FL.drain
 
 #ifdef INSPECTION
-inspect $ 'foldScanlMany `hasNoType` ''Step
--- inspect $ 'foldScanlMany `hasNoType` ''FL.Step
-inspect $ 'foldScanlMany `hasNoType` ''SPEC
+inspect $ 'scanlMany `hasNoType` ''Step
+-- inspect $ 'scanlMany `hasNoType` ''FL.Step
+inspect $ 'scanlMany `hasNoType` ''SPEC
 #endif
 
-{-# INLINE foldPostscanl #-}
-foldPostscanl :: Int -> IO ()
-foldPostscanl n = withStream n $ Stream.fold $ FL.postscanl Scanl.sum FL.drain
+{-# ANN postscanl (PermitPatternMatches []) #-}
+{-# ANN postscanl (PermitConstructions []) #-}
+{-# ANN postscanl (PermitTypeClasses []) #-}
+{-# NOINLINE postscanl #-}
+postscanl :: Int -> IO ()
+postscanl n = withStream n $ Stream.fold $ FL.postscanl Scanl.sum FL.drain
 
 #ifdef INSPECTION
-inspect $ 'foldPostscanl `hasNoType` ''Step
-inspect $ 'foldPostscanl `hasNoType` ''FL.Step
-inspect $ 'foldPostscanl `hasNoType` ''SPEC
+inspect $ 'postscanl `hasNoType` ''Step
+inspect $ 'postscanl `hasNoType` ''FL.Step
+inspect $ 'postscanl `hasNoType` ''SPEC
 #endif
 
 -------------------------------------------------------------------------------
 -- O(n)-heap: elimination (building structures)
 -------------------------------------------------------------------------------
 
-{-# INLINE toList #-}
+{-# ANN toList (PermitPatternMatches []) #-}
+{-# ANN toList (PermitConstructions []) #-}
+{-# ANN toList (PermitTypeClasses []) #-}
+{-# NOINLINE toList #-}
 toList :: Int -> IO [Int]
 toList n = withStream n $ Stream.fold FL.toList
 
-{-# INLINE toListRev #-}
+{-# ANN toListRev (PermitPatternMatches []) #-}
+{-# ANN toListRev (PermitConstructions []) #-}
+{-# ANN toListRev (PermitTypeClasses []) #-}
+{-# NOINLINE toListRev #-}
 toListRev :: Int -> IO [Int]
 toListRev n = withStream n $ Stream.fold FL.toListRev
 
-{-# INLINE toStream #-}
+{-# ANN toStream (PermitPatternMatches []) #-}
+{-# ANN toStream (PermitConstructions []) #-}
+{-# ANN toStream (PermitTypeClasses []) #-}
+{-# NOINLINE toStream #-}
 toStream :: Int -> IO (Stream Identity Int)
 toStream n = withStream n $ Stream.fold FL.toStream
 
-{-# INLINE toStreamRev #-}
+{-# ANN toStreamRev (PermitPatternMatches []) #-}
+{-# ANN toStreamRev (PermitConstructions []) #-}
+{-# ANN toStreamRev (PermitTypeClasses []) #-}
+{-# NOINLINE toStreamRev #-}
 toStreamRev :: Int -> IO (Stream Identity Int)
 toStreamRev n = withStream n $ Stream.fold FL.toStreamRev
 
-{-# INLINE nub #-}
+{-# ANN nub (PermitPatternMatches []) #-}
+{-# ANN nub (PermitConstructions []) #-}
+{-# ANN nub (PermitTypeClasses []) #-}
+{-# NOINLINE nub #-}
 nub :: Int -> IO (Maybe Int)
 nub n = withStream n $ Stream.fold FL.nub
 
 -------------------------------------------------------------------------------
--- O(n)-heap: key-value (benchmark wrappers)
+-- O(n)-heap: key-value
 -------------------------------------------------------------------------------
 
 {-# INLINE getKey #-}
@@ -933,49 +1134,73 @@ getFold k = return $ Just $ case k of
     1 -> FL.length
     _ -> FL.length
 
-{-# INLINE demuxToMap64 #-}
-demuxToMap64 :: Int -> IO (Map Int Int)
-demuxToMap64 n = withStream n $ demuxToMap (getKey 64) getFold
+{-# ANN demuxerToContainer_Map (PermitPatternMatches []) #-}
+{-# ANN demuxerToContainer_Map (PermitConstructions []) #-}
+{-# ANN demuxerToContainer_Map (PermitTypeClasses []) #-}
+{-# NOINLINE demuxerToContainer_Map #-}
+demuxerToContainer_Map :: Int -> Int -> IO (Map Int Int)
+demuxerToContainer_Map buckets n =
+    withStream n $ Stream.fold (FL.demuxerToContainer (getKey buckets) getFold)
 
-{-# INLINE demuxToIntMap64 #-}
-demuxToIntMap64 :: Int -> IO (IntMap Int)
-demuxToIntMap64 n = withStream n $ demuxToIntMap (getKey 64) getFold
+{-# ANN demuxerToContainer_IntMap (PermitPatternMatches []) #-}
+{-# ANN demuxerToContainer_IntMap (PermitConstructions []) #-}
+{-# ANN demuxerToContainer_IntMap (PermitTypeClasses []) #-}
+{-# NOINLINE demuxerToContainer_IntMap #-}
+demuxerToContainer_IntMap :: Int -> Int -> IO (IntMap Int)
+demuxerToContainer_IntMap buckets n =
+    withStream n $ Stream.fold (FL.demuxerToContainer (getKey buckets) getFold)
 
-{-# INLINE demuxToMapIO64 #-}
-demuxToMapIO64 :: Int -> IO (Map Int Int)
-demuxToMapIO64 n = withStream n $ demuxToMapIO (getKey 64) getFold
+{-# ANN demuxerToContainerIO_Map (PermitPatternMatches []) #-}
+{-# ANN demuxerToContainerIO_Map (PermitConstructions []) #-}
+{-# ANN demuxerToContainerIO_Map (PermitTypeClasses []) #-}
+{-# NOINLINE demuxerToContainerIO_Map #-}
+demuxerToContainerIO_Map :: Int -> Int -> IO (Map Int Int)
+demuxerToContainerIO_Map buckets n =
+    withStream n
+        $ Stream.fold (FL.demuxerToContainerIO (getKey buckets) getFold)
 
-{-# INLINE toMap64 #-}
-toMap64 :: Int -> IO (Map Int Int)
-toMap64 n = withStream n $ toMap (getKey 64)
+{-# ANN toContainer_Map (PermitPatternMatches []) #-}
+{-# ANN toContainer_Map (PermitConstructions []) #-}
+{-# ANN toContainer_Map (PermitTypeClasses []) #-}
+{-# NOINLINE toContainer_Map #-}
+toContainer_Map :: Int -> Int -> IO (Map Int Int)
+toContainer_Map buckets n =
+    withStream n $ Stream.fold (FL.toContainer (getKey buckets) FL.sum)
 
-{-# INLINE toIntMap64 #-}
-toIntMap64 :: Int -> IO (IntMap Int)
-toIntMap64 n = withStream n $ toIntMap (getKey 64)
+{-# ANN toContainer_IntMap (PermitPatternMatches []) #-}
+{-# ANN toContainer_IntMap (PermitConstructions []) #-}
+{-# ANN toContainer_IntMap (PermitTypeClasses []) #-}
+{-# NOINLINE toContainer_IntMap #-}
+toContainer_IntMap :: Int -> Int -> IO (IntMap Int)
+toContainer_IntMap buckets n =
+    withStream n $ Stream.fold (FL.toContainer (getKey buckets) FL.sum)
 
-{-# INLINE toMapIO1 #-}
-toMapIO1 :: Int -> IO (Map Int Int)
-toMapIO1 n = withStream n $ toMapIO (getKey 1)
+{-# ANN toContainerIO_Map (PermitPatternMatches []) #-}
+{-# ANN toContainerIO_Map (PermitConstructions []) #-}
+{-# ANN toContainerIO_Map (PermitTypeClasses []) #-}
+{-# NOINLINE toContainerIO_Map #-}
+toContainerIO_Map :: Int -> Int -> IO (Map Int Int)
+toContainerIO_Map buckets n =
+    withStream n $ Stream.fold (FL.toContainerIO (getKey buckets) FL.sum)
 
-{-# INLINE toMapIO64 #-}
-toMapIO64 :: Int -> IO (Map Int Int)
-toMapIO64 n = withStream n $ toMapIO (getKey 64)
-
-{-# INLINE toMapIOMax #-}
-toMapIOMax :: Int -> IO (Map Int Int)
-toMapIOMax n = withStream n $ toMapIO (getKey n)
-
-{-# INLINE toIntMapIO64 #-}
-toIntMapIO64 :: Int -> IO (IntMap Int)
-toIntMapIO64 n = withStream n $ toIntMapIO (getKey 64)
+{-# ANN toContainerIO_IntMap (PermitPatternMatches []) #-}
+{-# ANN toContainerIO_IntMap (PermitConstructions []) #-}
+{-# ANN toContainerIO_IntMap (PermitTypeClasses []) #-}
+{-# NOINLINE toContainerIO_IntMap #-}
+toContainerIO_IntMap :: Int -> Int -> IO (IntMap Int)
+toContainerIO_IntMap buckets n =
+    withStream n $ Stream.fold (FL.toContainerIO (getKey buckets) FL.sum)
 
 -------------------------------------------------------------------------------
 -- N-space
 -------------------------------------------------------------------------------
 
-{-# INLINE sequenceFolds #-}
-sequenceFolds :: Int -> IO ()
-sequenceFolds n = withStream n $ Stream.fold (sequence_ n)
+{-# ANN concatMap (PermitPatternMatches []) #-}
+{-# ANN concatMap (PermitConstructions []) #-}
+{-# ANN concatMap (PermitTypeClasses []) #-}
+{-# NOINLINE concatMap #-}
+concatMap :: Int -> IO ()
+concatMap n = withStream n $ Stream.fold (sequence_ n)
 
 -------------------------------------------------------------------------------
 -- Benchmarks
@@ -994,73 +1219,76 @@ instance NFData a => NFData (Stream Identity a) where
 
 benchmarks :: BenchEnv -> Int -> [(SpaceComplexity, Benchmark)]
 benchmarks env value =
-    -- NOTE: keep the benchmark names consistent with Data.Stream.split*
-    -- Splitting on single element
     fmap (SpaceO_1,)
-    [ mkBench "takeEndBy_ infix (splitOn)" env $ \inh _ ->
-        fileInfixTakeEndBy_ inh
-    , mkBench "takeEndBy_ suffix (splitOnSuffix)" env $ \inh _ ->
-        fileSuffixTakeEndBy_ inh
-    , mkBench "takeEndBy_ suffix parseMany (splitOnSuffix)" env
-        $ \inh _ -> parseFileSuffixTakeEndBy_ inh
-    , mkBench "takeEndBy suffix (splitWithSuffix)" env $ \inh _ ->
-        fileSuffixTakeEndBy inh
+    [ mkBench "takeEndBy__Infix_FileRead" env $ \inh _ ->
+        takeEndBy__Infix_FileRead inh
+    , mkBench "takeEndBy__Suffix_FileRead" env $ \inh _ ->
+        takeEndBy__Suffix_FileRead inh
+    , mkBench "takeEndBy__Suffix_ParseMany_FileRead" env
+        $ \inh _ -> takeEndBy__Suffix_ParseMany_FileRead inh
+    , mkBench "takeEndBy_Suffix_FileRead" env $ \inh _ ->
+        takeEndBy_Suffix_FileRead inh
 
     -- Splitting on sequence
     -- Infix takeEndBySeq_
-    , mkBench "takeEndBySeq_ infix empty pattern" env $ \inh _ ->
-        splitOnSeq "" inh
-    , mkBench "takeEndBySeq_ infix lf" env $ \inh _ ->
-        splitOnSeq "\n" inh
-    , mkBench "takeEndBySeq_ infix a" env $ \inh _ ->
-        splitOnSeq "a" inh
-    , mkBench "takeEndBySeq_ infix crlf" env $ \inh _ ->
-        splitOnSeq "\r\n" inh
-    , mkBench "takeEndBySeq_ infix aa" env $ \inh _ ->
-        splitOnSeq "aa" inh
-    , mkBench "takeEndBySeq_ infix aaaa" env $ \inh _ ->
-        splitOnSeq "aaaa" inh
-    , mkBench "takeEndBySeq_ infix abcdefgh" env $ \inh _ ->
-        splitOnSeq "abcdefgh" inh
-    , mkBench "takeEndBySeq_ infix abcdefghi" env $ \inh _ ->
-        splitOnSeq "abcdefghi" inh
-    , mkBench "takeEndBySeq_ infix catcatcatcatcat" env $ \inh _ ->
-        splitOnSeq "catcatcatcatcat" inh
-    , mkBench "takeEndBySeq_ infix abcdefghijklmnopqrstuvwxyz"
-        env $ \inh _ -> splitOnSeq "abcdefghijklmnopqrstuvwxyz" inh
-    , mkBench "takeEndBySeq_ infix 100k long pattern"
-        env $ \inh _ -> splitOnSeq100k inh
+    , mkBench "takeEndBySeq__Infix_FileRead (empty pattern)" env $ \inh _ ->
+        takeEndBySeq__Infix_FileRead "" inh
+    , mkBench "takeEndBySeq__Infix_FileRead (lf)" env $ \inh _ ->
+        takeEndBySeq__Infix_FileRead "\n" inh
+    , mkBench "takeEndBySeq__Infix_FileRead (a)" env $ \inh _ ->
+        takeEndBySeq__Infix_FileRead "a" inh
+    , mkBench "takeEndBySeq__Infix_FileRead (crlf)" env $ \inh _ ->
+        takeEndBySeq__Infix_FileRead "\r\n" inh
+    , mkBench "takeEndBySeq__Infix_FileRead (aa)" env $ \inh _ ->
+        takeEndBySeq__Infix_FileRead "aa" inh
+    , mkBench "takeEndBySeq__Infix_FileRead (aaaa)" env $ \inh _ ->
+        takeEndBySeq__Infix_FileRead "aaaa" inh
+    , mkBench "takeEndBySeq__Infix_FileRead (abcdefgh)" env $ \inh _ ->
+        takeEndBySeq__Infix_FileRead "abcdefgh" inh
+    , mkBench "takeEndBySeq__Infix_FileRead (abcdefghi)" env $ \inh _ ->
+        takeEndBySeq__Infix_FileRead "abcdefghi" inh
+    , mkBench "takeEndBySeq__Infix_FileRead (catcatcatcatcat)" env $ \inh _ ->
+        takeEndBySeq__Infix_FileRead "catcatcatcatcat" inh
+    , mkBench "takeEndBySeq__Infix_FileRead (abcdefghijklmnopqrstuvwxyz)"
+        env $ \inh _ ->
+            takeEndBySeq__Infix_FileRead "abcdefghijklmnopqrstuvwxyz" inh
+    , mkBench "takeEndBySeq__Infix_Long_FileRead (100k pattern)"
+        env $ \inh _ -> takeEndBySeq__Infix_Long_FileRead inh
 
     -- Suffix takeEndBySeq_
-    , mkBench "takeEndBySeq_ suffix empty pattern" env $ \inh _ ->
-        splitOnSuffixSeq "" inh
-    , mkBench "takeEndBySeq_ suffix lf" env $ \inh _ ->
-        splitOnSuffixSeq "\n" inh
-    , mkBench "takeEndBySeq_ suffix crlf" env $ \inh _ ->
-        splitOnSuffixSeq "\r\n" inh
-    , mkBenchSmall "takeEndBySeq_ suffix abcdefghijklmnopqrstuvwxyz"
-        env $ \inh _ -> splitOnSuffixSeq "abcdefghijklmnopqrstuvwxyz" inh
+    , mkBench "takeEndBySeq__Suffix_FileRead (empty pattern)" env $ \inh _ ->
+        takeEndBySeq__Suffix_FileRead "" inh
+    , mkBench "takeEndBySeq__Suffix_FileRead (lf)" env $ \inh _ ->
+        takeEndBySeq__Suffix_FileRead "\n" inh
+    , mkBench "takeEndBySeq__Suffix_FileRead (crlf)" env $ \inh _ ->
+        takeEndBySeq__Suffix_FileRead "\r\n" inh
+    , mkBenchSmall "takeEndBySeq__Suffix_FileRead (abcdefghijklmnopqrstuvwxyz)"
+        env $ \inh _ ->
+            takeEndBySeq__Suffix_FileRead "abcdefghijklmnopqrstuvwxyz" inh
 
     -- Suffix takeEndBySeq
-    , mkBench "takeEndBySeq suffix crlf" env $ \inh _ ->
-        splitWithSuffixSeq "\r\n" inh
-    , mkBenchSmall "takeEndBySeq suffix abcdefghijklmnopqrstuvwxyz"
-        env $ \inh _ -> splitWithSuffixSeq "abcdefghijklmnopqrstuvwxyz" inh
+    , mkBench "takeEndBySeq_Suffix_FileRead (crlf)" env $ \inh _ ->
+        takeEndBySeq_Suffix_FileRead "\r\n" inh
+    , mkBenchSmall "takeEndBySeq_Suffix_FileRead (abcdefghijklmnopqrstuvwxyz)"
+        env $ \inh _ ->
+            takeEndBySeq_Suffix_FileRead "abcdefghijklmnopqrstuvwxyz" inh
 
-    , mkBenchSmall "takeEndBySeq_ infix abcdefgh (Utf8)"
-        env $ \inh _ -> splitOnSeqUtf8 "abcdefgh" inh
-    , mkBenchSmall "takeEndBySeq_ infix abcdefghijklmnopqrstuvwxyz (Utf8)"
-        env $ \inh _ -> splitOnSeqUtf8 "abcdefghijklmnopqrstuvwxyz" inh
+    , mkBenchSmall "takeEndBySeq__Infix_Utf8_FileRead (abcdefgh)"
+        env $ \inh _ -> takeEndBySeq__Infix_Utf8_FileRead "abcdefgh" inh
+    , mkBenchSmall
+        "takeEndBySeq__Infix_Utf8_FileRead (abcdefghijklmnopqrstuvwxyz)"
+        env $ \inh _ ->
+            takeEndBySeq__Infix_Utf8_FileRead "abcdefghijklmnopqrstuvwxyz" inh
 
     , benchIO "drain" $ drain value
-    , benchIO "drainBy" $ drainBy value
+    , benchIO "drainMapM" $ drainMapM value
     , benchIO "drainN" $ drainN value
-    , benchIO "last" $ last value
+    , benchIO "latest" $ latest value
     , benchIO "length" $ length value
     , benchIO "top" $ top value
     , benchIO "bottom" $ bottom value
     , benchIO "sum" $ sum value
-    , benchIO "sum (foldMap)" $ foldMapSum value
+    , benchIO "foldMap_Sum" $ foldMap_Sum value
     , benchIO "product" $ product value
     , benchIO "maximumBy" $ maximumBy value
     , benchIO "maximum" $ maximum value
@@ -1076,7 +1304,7 @@ benchmarks env value =
     , benchIO "stdDev" $ stdDev value
 -}
     , benchIO "mconcat" $ mconcat value
-    , benchIO "foldMap" $ foldMap value
+    , benchIO "foldMap_Last" $ foldMap_Last value
     , benchIO "foldMapM" $ foldMapM value
     , benchIO "index" $ index value
     -- , benchIO "head" $ head value
@@ -1094,33 +1322,31 @@ benchmarks env value =
     , benchIO "and" $ and value
     , benchIO "or" $ or value
 
-    , benchIO "map" $ map value
+    , benchIO "lmap" $ lmap value
     , benchIO "mapMaybe" $ mapMaybe value
-    , benchIO "rsequence" $ rsequence value
+    , benchIO "rmapM_Sequence" $ rmapM_Sequence value
     , benchIO "rmapM" $ rmapM value
-    , benchIO "pipe-mapM" $ pipeMapM value
-{-
-    , benchIO "fold-runScan" $ foldRunScan value
--}
-    , benchIO "fold-scan" $ foldScanl value
-    , benchIO "fold-scanMany" $ foldScanlMany value
-    , benchIO "fold-postscan" $ foldPostscanl value
+    , benchIO "pipe (mapM)" $ pipe value
+    , benchIO "scanl (sum)" $ scanl value
+    , benchIO "scanlMany (take 2, drain)" $ scanlMany value
+    , benchIO "postscanl (sum)" $ postscanl value
 
-    , benchIO "filter even" $ filter value
-    , benchIO "scanMaybe even" $ scanMaybe value
-    , benchIO "scanMaybe even, odd" $ scanMaybe2 value
+    , benchIO "filter (even)" $ filter value
+    , benchIO "postscanlMaybe (filtering even)" $ postscanlMaybe value
+    , benchIO "postscanlMaybe_x2 (filtering even, odd)" $
+        postscanlMaybe_x2 value
     , benchIO "foldBreak (recursive)" $ foldBreak value
-    , benchIO "splitWith (all, any)" $ splitAllAny value
+    , benchIO "splitWith (all, any)" $ splitWith value
     , benchIO "split_ (all, any)" $ split_ value
-    , benchIO "tee (all, any)" $ teeAllAny value
-    , benchIO "many drain (take 1)" $ many value
+    , benchIO "teeWith_AllAny" $ teeWith_AllAny value
+    , benchIO "many (take 1, drain)" $ many value
     , benchIO "unfoldEach" $ unfoldEach value
     , benchIO "shortest (sum, length)" $ shortest value
     , benchIO "longest (sum, length)" $ longest value
-    , benchIO "tee (sum, length)" $ teeSumLength value
+    , benchIO "teeWith_SumLength" $ teeWith_SumLength value
     , benchIO "teeWithFst (sum, length)" $ teeWithFst value
     , benchIO "teeWithMin (sum, length)" $ teeWithMin value
-    , benchIO "distribute [sum, length]" $ distribute value
+    , benchIO "distribute (sum, length)" $ distribute value
     , benchIO "partition (sum, length)" $ partition value
     , benchIO "partitionByFstM (sum, length)" $ partitionByFstM value
     , benchIO "partitionByMinM (sum, length)" $ partitionByMinM value
@@ -1128,7 +1354,10 @@ benchmarks env value =
     , benchIO "unzipWithFstM (sum, length)" $ unzipWithFstM value
     , benchIO "unzipWithMinM (sum, length)" $ unzipWithMinM value
     ]
-    ++ [ (SpaceO_n, benchIO "sequence_/100" $ sequenceFolds (value `div` 100))
+    ++ [ ( SpaceO_n
+         , benchIO "concatMap (folds sequenced, value div 100)"
+             $ concatMap (value `div` 100)
+         )
        ]
     ++ fmap (HeapO_n,)
     -- Left folds for building a structure are inherently non-streaming
@@ -1138,17 +1367,26 @@ benchmarks env value =
     , benchIO "toStream" $ toStream value
     , benchIO "toStreamRev" $ toStreamRev value
     , benchIO "nub" $ nub value
-    , benchIO "demuxToMap (64 buckets) [sum, length]" $ demuxToMap64 value
-    , benchIO "demuxToIntMap (64 buckets) [sum, length]" $ demuxToIntMap64 value
-    , benchIO "demuxToMapIO (64 buckets) [sum, length]" $ demuxToMapIO64 value
+    , benchIO "demuxerToContainer_Map (64 buckets, sum & length)"
+        $ demuxerToContainer_Map 64 value
+    , benchIO "demuxerToContainer_IntMap (64 buckets, sum & length)"
+        $ demuxerToContainer_IntMap 64 value
+    , benchIO "demuxerToContainerIO_Map (64 buckets, sum & length)"
+        $ demuxerToContainerIO_Map 64 value
     -- classify: immutable
-    , benchIO "toMap (64 buckets) sum" $ toMap64 value
-    , benchIO "toIntMap (64 buckets) sum" $ toIntMap64 value
+    , benchIO "toContainer_Map (64 buckets, sum)"
+        $ toContainer_Map 64 value
+    , benchIO "toContainer_IntMap (64 buckets, sum)"
+        $ toContainer_IntMap 64 value
     -- classify: mutable cells
-    , benchIO "toMapIO (single bucket) sum" $ toMapIO1 value
-    , benchIO "toMapIO (64 buckets) sum" $ toMapIO64 value
-    , benchIO "toMapIO (max buckets) sum" $ toMapIOMax value
-    , benchIO "toIntMapIO (64 buckets) sum" $ toIntMapIO64 value
+    , benchIO "toContainerIO_Map (single bucket, sum)"
+        $ toContainerIO_Map 1 value
+    , benchIO "toContainerIO_Map (64 buckets, sum)"
+        $ toContainerIO_Map 64 value
+    , benchIO "toContainerIO_Map (max buckets, sum)"
+        $ toContainerIO_Map value value
+    , benchIO "toContainerIO_IntMap (64 buckets, sum)"
+        $ toContainerIO_IntMap 64 value
     ]
 
 -------------------------------------------------------------------------------
@@ -1179,15 +1417,8 @@ main = do
     -- Enable one benchmark below, and run the benchmark
     -- Check the .dump-simpl output
     let value = 100000
-    let input = sourceUnfoldrM value 1
-    let getKey' buckets = (`mod` buckets)
-    let getFold' k =
-            return $ case k of
-                0 -> FL.sum
-                1 -> FL.length
-                _ -> FL.length
 
-    -- demuxToMap (getKey' 64) (getFold' . getKey' 64) input
-    toIntMapIO (getKey' 64) input
+    -- demuxerToContainer_Map 64 value
+    _ <- toContainerIO_IntMap 64 value
     return ()
 #endif
