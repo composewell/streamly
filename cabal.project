@@ -13,7 +13,7 @@ packages:   streamly.cabal
 source-repository-package
   type: git
   location: https://github.com/composewell/fusion-plugin.git
-  tag: 0a5b2bce2f62fbe3d557f45d98fcd5f05a02a43e
+  tag: 45b86bd23bcd53c3a66a6b3d34afdc0debf1e5b2
 
 source-repository-package
   type: git
