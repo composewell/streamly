@@ -447,12 +447,13 @@ inspect $ 'any `hasNoType` ''FL.Step
 inspect $ 'any `hasNoType` ''SPEC
 #endif
 
+-- XXX this is not fusing
 {-# ANN take (PermitPatternMatches [''Int]) #-}
 {-# ANN take (PermitConstructions [''()]) #-}
 {-# ANN take (PermitTypeClasses []) #-}
 {-# NOINLINE take #-}
 take :: Int -> Int -> IO ()
-take n = withStream n $ Stream.fold (FL.take n FL.drain)
+take n x = (withStream n $ Stream.fold (FL.take n FL.drain)) x
 
 #ifdef INSPECTION
 inspect $ 'take `hasNoType` ''Step
