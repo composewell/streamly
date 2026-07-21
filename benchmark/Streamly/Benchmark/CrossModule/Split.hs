@@ -22,16 +22,26 @@
 
 module CrossModule.Split (benchmarks) where
 
-import Data.Char (ord)
-import Data.Word (Word8)
+import Data.Char (GeneralCategory, ord)
+import Data.Word (Word32, Word8)
+import GHC.Classes (IP)
+import GHC.Stack (CallStack, SrcLoc)
 import System.IO (Handle)
+import Streamly.Data.MutByteArray (MutByteArray)
 import Streamly.Internal.Data.Array (Array)
+import Streamly.Internal.Data.MutArray (FlattenState, MutArray)
+import Streamly.Internal.Data.RingArray (RingArray)
+import Streamly.Internal.Data.Stream
+    (SplitOnSeqState, SplitOnSuffixSeqState, WordsByState)
+import Unsafe.Coerce (UnsafeEquality)
 
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream as Stream
+import qualified Streamly.Internal.Data.SVar.Type as SVar
 import qualified Streamly.Internal.FileSystem.Handle as Handle
 
+import Fusion.Plugin.Types
 import Test.Tasty.Bench hiding (env)
 import Prelude hiding (last, length)
 import Streamly.Benchmark.Common
@@ -58,6 +68,11 @@ toarr :: String -> Array Word8
 toarr = Array.fromList . map (fromIntegral . ord)
 
 -- | Split on line feed.
+{-# ANN splitOn (PermitPatternMatches [''[],''Int,''UnsafeEquality,''IO,''Array]) #-}
+{-# ANN splitOn (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''[],''Array]) #-}
+{-# ANN splitOn (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE splitOn #-}
 splitOn :: Handle -> IO Int
 splitOn inh =
     Stream.fold Fold.length
@@ -75,6 +90,14 @@ inspect $ 'splitOn `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 #endif
 
 -- | Words by space
+{-# ANN wordsBy (PermitPatternMatches
+    [''Char,''GeneralCategory,''[],''Int,''UnsafeEquality,''IO,''Array,''()
+    ,''Bool,''FlattenState,''MutByteArray,''WordsByState]) #-}
+{-# ANN wordsBy (PermitConstructions
+    [''Int,''Bool,''SrcLoc,''CallStack,''[],''Array,''WordsByState
+    ,''FlattenState,''(),''MutByteArray]) #-}
+{-# ANN wordsBy (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE wordsBy #-}
 wordsBy :: Handle -> IO Int
 wordsBy inh =
     Stream.fold Fold.length
@@ -91,6 +114,16 @@ inspect $ 'wordsBy `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 #endif
 
 -- | Split on a word8 sequence.
+{-# ANN splitOnSeq (PermitPatternMatches
+    [''[],''Int,''UnsafeEquality,''MutArray,''Word8,''SVar.State,''Char
+    ,''Array,''Word,''(),''Word32,''FlattenState,''MutByteArray,''RingArray
+    ,''SplitOnSeqState,''IO]) #-}
+{-# ANN splitOnSeq (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''Word,''SplitOnSeqState,''(),''Word32
+    ,''[],''Array,''MutArray,''SVar.State,''Maybe,''Bool,''Word8
+    ,''FlattenState,''MutByteArray,''RingArray]) #-}
+{-# ANN splitOnSeq (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE splitOnSeq #-}
 splitOnSeq :: String -> Handle -> IO Int
 splitOnSeq str inh =
     Stream.fold Fold.length $ Stream.splitSepBySeq_ (toarr str) Fold.drain
@@ -104,6 +137,12 @@ inspect $ 'splitOnSeq `hasNoType` ''Fold.Step
 inspect $ 'splitOnSeq `hasNoType` ''SPEC
 #endif
 
+{-# ANN takeEndBy (PermitPatternMatches
+    [''[],''Int,''UnsafeEquality,''IO,''Array,''Word8]) #-}
+{-# ANN takeEndBy (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''[],''Array]) #-}
+{-# ANN takeEndBy (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE takeEndBy #-}
 takeEndBy :: Word8 -> Handle -> IO Int
 takeEndBy c inh =
     Stream.fold Fold.length
@@ -120,6 +159,12 @@ inspect $ 'takeEndBy `hasNoType` ''Producer.ConcatState -- FH.read/UF.many
 inspect $ 'takeEndBy `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 #endif
 
+{-# ANN takeEndBy_ (PermitPatternMatches
+    [''[],''Int,''UnsafeEquality,''IO,''Array,''Word8]) #-}
+{-# ANN takeEndBy_ (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''[],''Array]) #-}
+{-# ANN takeEndBy_ (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE takeEndBy_ #-}
 takeEndBy_ :: Word8 -> Handle -> IO Int
 takeEndBy_ c inh =
     Stream.fold Fold.length
@@ -136,6 +181,14 @@ inspect $ 'takeEndBy_ `hasNoType` ''Producer.ConcatState -- FH.read/UF.many
 inspect $ 'takeEndBy_ `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 #endif
 
+{-# ANN takeEndBySeq (PermitPatternMatches
+    [''[],''Int,''UnsafeEquality,''IO,''MutArray,''Word8,''SVar.State
+    ,''Char,''Array,''Word,''Word32]) #-}
+{-# ANN takeEndBySeq (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''Word32,''[],''Array,''MutArray
+    ,''SVar.State,''Maybe,''Bool,''Word8,''Word]) #-}
+{-# ANN takeEndBySeq (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE takeEndBySeq #-}
 takeEndBySeq :: String -> Handle -> IO Int
 takeEndBySeq str inh =
     Stream.fold Fold.length
@@ -152,6 +205,14 @@ inspect $ 'takeEndBySeq `hasNoType` ''Fold.Step
 inspect $ 'takeEndBySeq `hasNoType` ''SPEC
 #endif
 
+{-# ANN takeEndBySeq_ (PermitPatternMatches
+    [''[],''Int,''UnsafeEquality,''IO,''MutArray,''Word8,''SVar.State
+    ,''Char,''Array,''Word,''RingArray,''Word32]) #-}
+{-# ANN takeEndBySeq_ (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''Word32,''[],''Array,''MutArray
+    ,''SVar.State,''Maybe,''Bool,''Word8,''Word,''RingArray]) #-}
+{-# ANN takeEndBySeq_ (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE takeEndBySeq_ #-}
 takeEndBySeq_ :: String -> Handle -> IO Int
 takeEndBySeq_ str inh =
     Stream.fold Fold.length
@@ -166,6 +227,15 @@ inspect $ 'takeEndBySeq_ `hasNoType` ''Fold.Step
 inspect $ 'takeEndBySeq_ `hasNoType` ''SPEC
 #endif
 
+-- XXX Move the array creation outside to reduce the permitted types.
+{-# ANN takeEndBySeq100k (PermitPatternMatches
+    [''MutArray,''[],''Int,''UnsafeEquality,''IO,''Array,''Word,''Word32])
+    #-}
+{-# ANN takeEndBySeq100k (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''Word32,''Array,''[],''Word,''MutArray])
+    #-}
+{-# ANN takeEndBySeq100k (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE takeEndBySeq100k #-}
 takeEndBySeq100k :: Handle -> IO Int
 takeEndBySeq100k inh = do
     arr <- Stream.fold Array.create $ Stream.replicate 100000 123
@@ -181,6 +251,14 @@ inspect $ 'takeEndBySeq100k `hasNoType` ''Fold.Step
 inspect $ 'takeEndBySeq100k `hasNoType` ''SPEC
 #endif
 
+{-# ANN takeEndBySeq_100k (PermitPatternMatches
+    [''MutArray,''[],''Int,''UnsafeEquality,''IO,''Array,''Word,''RingArray
+    ,''Word32,''Word8]) #-}
+{-# ANN takeEndBySeq_100k (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''Word32,''Array,''[],''Word,''RingArray
+    ,''MutArray]) #-}
+{-# ANN takeEndBySeq_100k (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE takeEndBySeq_100k #-}
 takeEndBySeq_100k :: Handle -> IO Int
 takeEndBySeq_100k inh = do
     arr <- Stream.fold Array.create $ Stream.replicate 100000 123
@@ -197,6 +275,16 @@ inspect $ 'takeEndBySeq_100k `hasNoType` ''SPEC
 #endif
 
 -- | Split on a word8 sequence.
+{-# ANN splitOnSeq100k (PermitPatternMatches
+    [''MutArray,''[],''Int,''UnsafeEquality,''IO,''Array,''Word,''()
+    ,''Word32,''FlattenState,''MutByteArray,''Word8,''RingArray
+    ,''SplitOnSeqState]) #-}
+{-# ANN splitOnSeq100k (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''Word,''SplitOnSeqState,''(),''Word32
+    ,''Array,''[],''FlattenState,''MutByteArray,''Word8,''RingArray
+    ,''MutArray]) #-}
+{-# ANN splitOnSeq100k (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE splitOnSeq100k #-}
 splitOnSeq100k :: Handle -> IO Int
 splitOnSeq100k inh = do
     arr <- Stream.fold Array.create $ Stream.replicate 100000 123
@@ -212,6 +300,16 @@ inspect $ 'splitOnSeq100k `hasNoType` ''SPEC
 #endif
 
 -- | Split on suffix sequence.
+{-# ANN splitOnSuffixSeq (PermitPatternMatches
+    [''[],''Int,''UnsafeEquality,''IO,''MutArray,''Word8,''SVar.State
+    ,''Char,''Array,''Word,''(),''Word32,''FlattenState,''MutByteArray
+    ,''SplitOnSuffixSeqState,''RingArray]) #-}
+{-# ANN splitOnSuffixSeq (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''Word32,''[],''Array,''MutArray
+    ,''SVar.State,''Maybe,''Bool,''Word8,''Word,''SplitOnSuffixSeqState
+    ,''(),''FlattenState,''MutByteArray,''RingArray]) #-}
+{-# ANN splitOnSuffixSeq (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE splitOnSuffixSeq #-}
 splitOnSuffixSeq :: String -> Handle -> IO Int
 splitOnSuffixSeq str inh =
     Stream.fold Fold.length
@@ -227,6 +325,16 @@ inspect $ 'splitOnSuffixSeq `hasNoType` ''SPEC
 #endif
 
 -- | Split on suffix sequence.
+{-# ANN splitWithSuffixSeq (PermitPatternMatches
+    [''[],''Int,''UnsafeEquality,''IO,''MutArray,''Word8,''SVar.State
+    ,''Char,''Array,''Word,''(),''Word32,''FlattenState,''MutByteArray
+    ,''SplitOnSuffixSeqState,''RingArray]) #-}
+{-# ANN splitWithSuffixSeq (PermitConstructions
+    [''SplitOnSuffixSeqState,''(),''Int,''SrcLoc,''CallStack,''Word32
+    ,''[],''Array,''MutArray,''SVar.State,''Maybe,''Bool,''Word8,''Word
+    ,''FlattenState,''MutByteArray,''RingArray]) #-}
+{-# ANN splitWithSuffixSeq (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE splitWithSuffixSeq #-}
 splitWithSuffixSeq :: String -> Handle -> IO Int
 splitWithSuffixSeq str inh =
     Stream.fold Fold.length

@@ -26,9 +26,14 @@ module CrossModule.FileSystem (benchmarks) where
 
 import Data.Functor.Identity (runIdentity)
 import Data.Word (Word8)
+import GHC.Classes (IP)
 import GHC.Magic (inline)
 import GHC.Magic (noinline)
+import GHC.Stack (CallStack, SrcLoc)
+import Streamly.Internal.Data.Array (Array)
+import Streamly.Internal.Data.MutArray (MutArray)
 import System.IO (Handle)
+import Unsafe.Coerce (UnsafeEquality)
 
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.FileSystem.Handle as FH
@@ -38,6 +43,7 @@ import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Stream as IP
 import qualified Streamly.Data.Stream as S
 
+import Fusion.Plugin.Types
 import Test.Tasty.Bench hiding (env)
 import Prelude hiding (last, length)
 import Streamly.Benchmark.Common
@@ -58,6 +64,12 @@ import Test.Inspection
 -------------------------------------------------------------------------------
 
 -- | Get the last byte from a file bytestream.
+{-# ANN readLast (PermitPatternMatches
+    [''[],''Int,''UnsafeEquality,''IO,''Array]) #-}
+{-# ANN readLast (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''[],''Array,''Maybe,''Word8]) #-}
+{-# ANN readLast (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE readLast #-}
 readLast :: Handle -> IO (Maybe Word8)
 readLast = S.fold Fold.latest . S.unfold FH.reader
 
@@ -69,6 +81,12 @@ inspect $ 'readLast `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 #endif
 
 -- | Count the number of bytes in a file.
+{-# ANN readCountBytes (PermitPatternMatches
+    [''[],''Int,''UnsafeEquality,''IO,''Array]) #-}
+{-# ANN readCountBytes (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''[],''Array]) #-}
+{-# ANN readCountBytes (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE readCountBytes #-}
 readCountBytes :: Handle -> IO Int
 readCountBytes = S.fold Fold.length . S.unfold FH.reader
 
@@ -80,6 +98,12 @@ inspect $ 'readCountBytes `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 #endif
 
 -- | Sum the bytes in a file.
+{-# ANN readSumBytes (PermitPatternMatches
+    [''[],''Int,''UnsafeEquality,''IO,''Array]) #-}
+{-# ANN readSumBytes (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''[],''Array,''Word8]) #-}
+{-# ANN readSumBytes (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE readSumBytes #-}
 readSumBytes :: Handle -> IO Word8
 readSumBytes = S.fold Fold.sum . S.unfold FH.reader
 
@@ -94,10 +118,21 @@ inspect $ 'readSumBytes `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 -- reduce after grouping in chunks
 -------------------------------------------------------------------------------
 
+{-# ANN chunksOfSum (PermitPatternMatches
+    [''[],''Int,''UnsafeEquality,''IO,''Array]) #-}
+{-# ANN chunksOfSum (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''[],''Array]) #-}
+{-# ANN chunksOfSum (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE chunksOfSum #-}
 chunksOfSum :: Int -> Handle -> IO Int
 chunksOfSum n inh =
     S.fold Fold.length $ IP.groupsOf n FL.sum (S.unfold FH.reader inh)
 
+-- NOTE: these three rely on the caller applying 'inline'/'noinline' (GHC.Magic)
+-- at each call site to get either a fully inlined or a real out-of-line call
+-- from the same definition, so they are intentionally left without a NOINLINE
+-- pragma/ANN -- adding NOINLINE here would remove the unfolding that 'inline'
+-- needs and defeat the small-n variant.
 foldMany1ChunksOfSum :: Int -> Handle -> IO Int
 foldMany1ChunksOfSum n inh =
     S.fold Fold.length
@@ -143,6 +178,12 @@ chunksOf n inh =
 -------------------------------------------------------------------------------
 
 -- | Get the last byte from a file bytestream.
+{-# ANN toChunksLast (PermitPatternMatches
+    [''[],''Int,''UnsafeEquality,''IO,''Array]) #-}
+{-# ANN toChunksLast (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''[],''Array,''Maybe,''Word8]) #-}
+{-# ANN toChunksLast (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE toChunksLast #-}
 toChunksLast :: Handle -> IO (Maybe Word8)
 toChunksLast inh = do
     let s = FH.readChunks inh
@@ -157,6 +198,12 @@ inspect $ 'toChunksLast `hasNoType` ''Step
 #endif
 
 -- | Count the number of bytes in a file.
+{-# ANN toChunksSumLengths (PermitPatternMatches
+    [''[],''Int,''UnsafeEquality,''IO,''Array]) #-}
+{-# ANN toChunksSumLengths (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''[],''Array]) #-}
+{-# ANN toChunksSumLengths (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE toChunksSumLengths #-}
 toChunksSumLengths :: Handle -> IO Int
 toChunksSumLengths inh =
     let s = FH.readChunks inh
@@ -168,6 +215,12 @@ inspect $ 'toChunksSumLengths `hasNoType` ''Step
 #endif
 
 -- | Sum the bytes in a file.
+{-# ANN toChunksCountBytes (PermitPatternMatches
+    [''[],''Int,''UnsafeEquality,''IO,''Array]) #-}
+{-# ANN toChunksCountBytes (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''[],''Array,''Word8]) #-}
+{-# ANN toChunksCountBytes (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE toChunksCountBytes #-}
 toChunksCountBytes :: Handle -> IO Word8
 toChunksCountBytes inh = do
     let foldlArr' f z = runIdentity . IP.foldl' f z . A.read
@@ -184,6 +237,12 @@ inspect $ 'toChunksCountBytes `hasNoType` ''Step
 -------------------------------------------------------------------------------
 
 -- | Count the number of lines in a file.
+{-# ANN toChunksSplitOnSuffix (PermitPatternMatches
+    [''[],''Int,''UnsafeEquality,''IO,''MutArray,''Array]) #-}
+{-# ANN toChunksSplitOnSuffix (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''[],''Array,''MutArray]) #-}
+{-# ANN toChunksSplitOnSuffix (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE toChunksSplitOnSuffix #-}
 toChunksSplitOnSuffix :: Handle -> IO Int
 toChunksSplitOnSuffix =
     IP.fold Fold.length
@@ -196,6 +255,12 @@ inspect $ 'toChunksSplitOnSuffix `hasNoType` ''Step
 #endif
 
 -- | Count the number of words in a file.
+{-# ANN toChunksSplitOn (PermitPatternMatches
+    [''[],''Int,''UnsafeEquality,''IO,''MutArray,''Array]) #-}
+{-# ANN toChunksSplitOn (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''[],''Array,''MutArray]) #-}
+{-# ANN toChunksSplitOn (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE toChunksSplitOn #-}
 toChunksSplitOn :: Handle -> IO Int
 toChunksSplitOn =
     IP.fold Fold.length
@@ -212,6 +277,11 @@ inspect $ 'toChunksSplitOn `hasNoType` ''Step
 -------------------------------------------------------------------------------
 
 -- | Lines and unlines
+{-# ANN copyChunksSplitInterposeSuffix (PermitPatternMatches
+    [''IO,''[],''Int,''UnsafeEquality,''Array,''MutArray]) #-}
+{-# ANN copyChunksSplitInterposeSuffix (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''[],''Array,''(),''MutArray]) #-}
+{-# ANN copyChunksSplitInterposeSuffix (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE copyChunksSplitInterposeSuffix #-}
 copyChunksSplitInterposeSuffix :: Handle -> Handle -> IO ()
 copyChunksSplitInterposeSuffix inh outh =
@@ -225,6 +295,12 @@ inspect $ 'copyChunksSplitInterposeSuffix `hasNoType` ''Step
 #endif
 
 -- | Words and unwords
+{-# ANN copyChunksSplitInterpose (PermitPatternMatches
+    [''IO,''[],''Int,''UnsafeEquality,''MutArray,''Array,''(,),''Maybe]) #-}
+{-# ANN copyChunksSplitInterpose (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''[],''Array,''(,),''MutArray,''Maybe,''()])
+    #-}
+{-# ANN copyChunksSplitInterpose (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE copyChunksSplitInterpose #-}
 copyChunksSplitInterpose :: Handle -> Handle -> IO ()
 copyChunksSplitInterpose inh outh =
