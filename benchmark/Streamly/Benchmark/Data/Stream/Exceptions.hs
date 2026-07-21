@@ -144,6 +144,13 @@ inspect $ 'bracketUnsafe_CopyFileChunks `hasNoType` ''FL.Step
 inspect $ 'bracketUnsafe_CopyFileChunks `hasNoType` ''SPEC
 #endif
 
+-- Benchmark naming: name each benchmark (and its IO action) after the exported
+-- function it benchmarks, using combinator_dimension1_dimension2..., where the
+-- dimensions are optional variants/type specializations (used esp. when more
+-- than one specialization is benchmarked). Keep extra info in parenthetical
+-- notes in the description; these also disambiguate benchmarks that reuse a
+-- single IO action with different arguments. If the name has a trailing
+-- underscore, add one more underscore.
 benchmarks :: BenchEnv -> Int -> [(SpaceComplexity, Benchmark)]
 benchmarks _env _size =
       [ (SpaceO_1, mkBench "bracketUnsafe_CopyFileChunks" _env $ \inH _ ->
