@@ -3,6 +3,8 @@
 #include "Streamly/Benchmark/Data/Array/CommonImports.hs"
 
 import qualified Streamly.Internal.Data.SmallArray as A
+
+-- Select the array type in the common includes below
 type Arr = A.SmallArray
 
 #include "Streamly/Benchmark/Data/Array/TypeCommon.hs"
@@ -13,9 +15,12 @@ type Arr = A.SmallArray
 -- Bench Ops
 -------------------------------------------------------------------------------
 
-{-# INLINE sourceIntFromToFromList #-}
-sourceIntFromToFromList :: Int -> Int -> IO (Arr Int)
-sourceIntFromToFromList value n =
+{-# ANN fromListN (PermitPatternMatches []) #-}
+{-# ANN fromListN (PermitConstructions []) #-}
+{-# ANN fromListN (PermitTypeClasses []) #-}
+{-# NOINLINE fromListN #-}
+fromListN :: Int -> Int -> IO (Arr Int)
+fromListN value n =
     P.return $ A.fromListN value [n..n + value]
 
 {-# INLINE parseInstance #-}
@@ -70,6 +75,10 @@ moduleName = "Data.SmallArray"
 defStreamSize :: Int
 defStreamSize = 128
 
+-- Note: Name each benchmark (and its IO action) after the exported function it
+-- benchmarks, using the format functionName_dimension1_dimension2..., where
+-- the dimensions are optional variants/type specializations. Keep extra info
+-- in parenthetical notes in the description.
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
       [ (SpaceO_1, benchIO "read" $ readInstance size)
