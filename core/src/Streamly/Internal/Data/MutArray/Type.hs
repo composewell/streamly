@@ -450,6 +450,7 @@ module Streamly.Internal.Data.MutArray.Type
     , writeChunks
     , flattenArrays
     , flattenArraysRev
+    , FlattenState (..)
     , fromArrayStreamK
     , fromStreamDN
     , fromStreamD
