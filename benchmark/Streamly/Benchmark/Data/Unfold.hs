@@ -16,11 +16,13 @@ import Control.Monad.Catch (MonadCatch)
 import Data.Char (ord)
 import Data.STRef (STRef)
 import Data.Word (Word8)
+import Foreign.Ptr (Ptr)
 import GHC.Classes (IP)
 import Unsafe.Coerce (UnsafeEquality)
 import GHC.Stack (CallStack, SrcLoc)
 import Streamly.Internal.Data.Array (Array)
 import Streamly.Internal.Data.MutArray (ArrayUnsafe)
+import Streamly.Internal.Data.MutByteArray (PinnedState)
 import Streamly.Internal.Data.Producer (ConcatState, EnumToState)
 import Streamly.Internal.Data.Stream (UnfoldState)
 import Streamly.Internal.Data.Unfold (Unfold)
@@ -421,7 +423,7 @@ after_ size start =
         start
 
 {-# ANN afterIO (PermitPatternMatches [''Maybe,''Int]) #-}
-{-# ANN afterIO (PermitConstructions [''Maybe,''()]) #-}
+{-# ANN afterIO (PermitConstructions [''Maybe,''(),''STRef]) #-}
 {-# ANN afterIO (PermitTypeClasses []) #-}
 {-# NOINLINE afterIO #-}
 afterIO :: Int -> Int -> IO ()
@@ -431,11 +433,14 @@ afterIO size start =
             (UF.supplySecond (size + start) UF.enumerateFromToNum))
         start
 
-{-# ANN finallyIO (PermitPatternMatches [''Maybe,''S.Step]) #-}
+{-# ANN finallyIO (PermitPatternMatches
+    [''Maybe,''S.Step,''EnumToState,''Int]) #-}
 {-# ANN finallyIO (PermitConstructions
-    [''Int,''SrcLoc,''CallStack,''Maybe,''()]) #-}
+    [''Int,''SrcLoc,''CallStack,''Maybe,''(),''S.Step,''EnumToState
+    ,''STRef]) #-}
 {-# ANN finallyIO (PermitTypeClasses [''IP,''MonadCatch]) #-}
 {-# NOINLINE finallyIO #-}
+{-# ANN finallyIO DumpCore #-}
 finallyIO :: Int -> Int -> IO ()
 finallyIO size start =
     UF.fold FL.drain
@@ -443,9 +448,11 @@ finallyIO size start =
             (UF.supplySecond (size + start) UF.enumerateFromToNum))
         start
 
-{-# ANN bracketIO (PermitPatternMatches [''Maybe,''STRef,''(,),''S.Step]) #-}
+{-# ANN bracketIO (PermitPatternMatches
+    [''Maybe,''STRef,''(,),''S.Step,''EnumToState,''Int]) #-}
 {-# ANN bracketIO (PermitConstructions
-    [''Int,''SrcLoc,''CallStack,''Maybe,''()]) #-}
+    [''Int,''SrcLoc,''CallStack,''Maybe,''(),''S.Step,''EnumToState
+    ,''STRef,''(,)]) #-}
 {-# ANN bracketIO (PermitTypeClasses [''IP,''MonadCatch]) #-}
 {-# NOINLINE bracketIO #-}
 bracketIO :: Int -> Int -> IO ()
@@ -462,7 +469,7 @@ lf = fromIntegral (ord '\n')
 {-# ANN foldMany (PermitPatternMatches
     [''UnsafeEquality,''IO,''Int,''[],''Array]) #-}
 {-# ANN foldMany (PermitConstructions
-    [''Int,''SrcLoc,''[],''CallStack,''Array]) #-}
+    [''Int,''SrcLoc,''[],''CallStack,''Array,''Ptr,''PinnedState]) #-}
 {-# ANN foldMany (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE foldMany #-}
 foldMany :: Handle -> IO Int
@@ -488,7 +495,8 @@ moduleName = "Data.Unfold"
 {-# ANN onException_CopyFileChunks (PermitPatternMatches
     [''UnsafeEquality,''IO,''Int,''[],''Array,''S.Step]) #-}
 {-# ANN onException_CopyFileChunks (PermitConstructions
-    [''Int,''SrcLoc,''[],''CallStack,''Array]) #-}
+    [''Int,''SrcLoc,''[],''CallStack,''Array,''Ptr,''Bool,''PinnedState
+    ,''S.Step]) #-}
 {-# ANN onException_CopyFileChunks (PermitTypeClasses [''IP,''MonadCatch]) #-}
 {-# NOINLINE onException_CopyFileChunks #-}
 onException_CopyFileChunks :: Handle -> Handle -> IO ()
@@ -500,7 +508,8 @@ onException_CopyFileChunks inh devNull =
 {-# ANN bracket__CopyFileChunks (PermitPatternMatches
     [''UnsafeEquality,''IO,''Int,''[],''Array,''S.Step]) #-}
 {-# ANN bracket__CopyFileChunks (PermitConstructions
-    [''Int,''SrcLoc,''[],''CallStack,''Array]) #-}
+    [''Int,''SrcLoc,''[],''CallStack,''Array,''Ptr,''Bool,''PinnedState
+    ,''S.Step]) #-}
 {-# ANN bracket__CopyFileChunks (PermitTypeClasses [''IP,''MonadCatch]) #-}
 {-# NOINLINE bracket__CopyFileChunks #-}
 bracket__CopyFileChunks :: Handle -> Handle -> IO ()
@@ -514,7 +523,7 @@ bracket__CopyFileChunks inh devNull =
     ,''ConcatState,''S.Step]) #-}
 {-# ANN onException_CopyFileBytes (PermitConstructions
     [''Int,''SrcLoc,''[],''CallStack,''Array,''S.Step,''ConcatState
-    ,''ArrayUnsafe,''Word8,''()]) #-}
+    ,''ArrayUnsafe,''Word8,''(),''Ptr,''Bool,''PinnedState]) #-}
 {-# ANN onException_CopyFileBytes (PermitTypeClasses [''IP,''MonadCatch]) #-}
 {-# NOINLINE onException_CopyFileBytes #-}
 onException_CopyFileBytes :: Handle -> Handle -> IO ()
@@ -528,7 +537,7 @@ onException_CopyFileBytes inh devNull =
     ,''ArrayUnsafe,''ConcatState,''S.Step]) #-}
 {-# ANN handle_CopyFileBytes (PermitConstructions
     [''Int,''SrcLoc,''[],''CallStack,''Array,''S.Step,''ConcatState
-    ,''ArrayUnsafe,''Word8,''()]) #-}
+    ,''ArrayUnsafe,''Word8,''(),''Ptr,''Bool,''PinnedState]) #-}
 {-# ANN handle_CopyFileBytes (PermitTypeClasses
     [''IP,''MonadCatch,''Exception]) #-}
 {-# NOINLINE handle_CopyFileBytes #-}
@@ -544,7 +553,7 @@ handle_CopyFileBytes inh devNull =
     ,''ConcatState,''S.Step]) #-}
 {-# ANN finally__CopyFileBytes (PermitConstructions
     [''Int,''SrcLoc,''[],''CallStack,''Array,''S.Step,''ConcatState
-    ,''ArrayUnsafe,''Word8,''()]) #-}
+    ,''ArrayUnsafe,''Word8,''(),''Ptr,''Bool,''PinnedState]) #-}
 {-# ANN finally__CopyFileBytes (PermitTypeClasses [''IP,''MonadCatch]) #-}
 {-# NOINLINE finally__CopyFileBytes #-}
 finally__CopyFileBytes :: Handle -> Handle -> IO ()
@@ -558,7 +567,7 @@ finally__CopyFileBytes inh devNull =
     ,''ConcatState,''S.Step]) #-}
 {-# ANN bracket__CopyFileBytes (PermitConstructions
     [''Int,''SrcLoc,''[],''CallStack,''Array,''S.Step,''ConcatState
-    ,''ArrayUnsafe,''Word8,''()]) #-}
+    ,''ArrayUnsafe,''Word8,''(),''Ptr,''Bool,''PinnedState]) #-}
 {-# ANN bracket__CopyFileBytes (PermitTypeClasses [''IP,''MonadCatch]) #-}
 {-# NOINLINE bracket__CopyFileBytes #-}
 bracket__CopyFileBytes :: Handle -> Handle -> IO ()

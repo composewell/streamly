@@ -36,6 +36,9 @@ module Streamly.Benchmark.Data.Parser.Sequence
 
 import Control.DeepSeq (NFData(..))
 import Data.Monoid (Sum(..))
+import GHC.Classes (IP)
+import GHC.Stack (CallStack, SrcLoc)
+import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
 import System.Random (randomRIO)
 import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.Stream (Stream)
@@ -46,6 +49,8 @@ import qualified Streamly.Internal.Data.Stream as Stream
 
 import Test.Tasty.Bench hiding (env)
 import Streamly.Benchmark.Common
+import Fusion.Plugin.Types
+import Prelude hiding (sequence)
 
 #ifdef INSPECTION
 import GHC.Types (SPEC(..))
@@ -67,13 +72,17 @@ withStream value f = f . streamUnfoldrM value
 -- Stream transformation
 -------------------------------------------------------------------------------
 
-{-# INLINE parseMany #-}
+{-# ANN parseMany (PermitPatternMatches [''Int]) #-}
+{-# ANN parseMany (PermitConstructions [''()]) #-}
+{-# ANN parseMany (PermitTypeClasses []) #-}
+{-# NOINLINE parseMany #-}
 parseMany :: Int -> Int -> Int -> IO ()
 parseMany n value =
     withStream value $
           Stream.fold Fold.drain
         . fmap getSum
-        . Stream.catRights . Stream.parseMany (PR.fromFold $ Fold.take n Fold.mconcat)
+        . Stream.catRights
+        . Stream.parseMany (PR.fromFold $ Fold.take n Fold.mconcat)
         . fmap Sum
 
 #ifdef INSPECTION
@@ -85,71 +94,154 @@ inspect $ 'parseMany `hasNoType` ''SPEC
 inspect $ 'parseMany `hasNoType` ''S.FIterState
 #endif
 
-{-# INLINE parseManyGroupBy #-}
-parseManyGroupBy :: (Int -> Int -> Bool) -> Int -> Int -> IO ()
-parseManyGroupBy cmp value =
+{-# ANN parseMany_GroupBy_LT (PermitPatternMatches [''Int, ''[]]) #-}
+{-# ANN parseMany_GroupBy_LT (PermitConstructions [''(), ''[], ''Int]) #-}
+{-# ANN parseMany_GroupBy_LT (PermitTypeClasses []) #-}
+{-# NOINLINE parseMany_GroupBy_LT #-}
+parseMany_GroupBy_LT :: Int -> Int -> IO ()
+parseMany_GroupBy_LT value =
     withStream value $
-        Stream.fold Fold.drain . Stream.parseMany (PR.groupBy cmp Fold.drain)
+        Stream.fold Fold.drain . Stream.parseMany (PR.groupBy (<) Fold.drain)
 
 #ifdef INSPECTION
-inspect $ 'parseManyGroupBy `hasNoType` ''S.Step
-inspect $ 'parseManyGroupBy `hasNoType` ''PR.Step
-inspect $ 'parseManyGroupBy `hasNoType` ''PR.Initial
-inspect $ 'parseManyGroupBy `hasNoType` ''FL.Step
-inspect $ 'parseManyGroupBy `hasNoType` ''SPEC
-inspect $ 'parseManyGroupBy `hasNoType` ''S.FIterState
-inspect $ 'parseManyGroupBy `hasNoType` ''PR.GroupByState
+inspect $ 'parseMany_GroupBy_LT `hasNoType` ''S.Step
+inspect $ 'parseMany_GroupBy_LT `hasNoType` ''PR.Step
+inspect $ 'parseMany_GroupBy_LT `hasNoType` ''PR.Initial
+inspect $ 'parseMany_GroupBy_LT `hasNoType` ''FL.Step
+inspect $ 'parseMany_GroupBy_LT `hasNoType` ''SPEC
+inspect $ 'parseMany_GroupBy_LT `hasNoType` ''S.FIterState
+inspect $ 'parseMany_GroupBy_LT `hasNoType` ''PR.GroupByState
 #endif
 
-{-# INLINE parseManyGroupsRolling #-}
-parseManyGroupsRolling :: Bool -> Int -> Int -> IO ()
-parseManyGroupsRolling b value =
+{-# ANN parseMany_GroupBy_Eq (PermitPatternMatches [''Int, ''[]]) #-}
+{-# ANN parseMany_GroupBy_Eq (PermitConstructions [''(), ''[], ''Int]) #-}
+{-# ANN parseMany_GroupBy_Eq (PermitTypeClasses []) #-}
+{-# NOINLINE parseMany_GroupBy_Eq #-}
+parseMany_GroupBy_Eq :: Int -> Int -> IO ()
+parseMany_GroupBy_Eq value =
     withStream value $
-          Stream.fold Fold.drain
-        . Stream.parseMany (PR.groupByRolling (\_ _ -> b) Fold.drain)
+        Stream.fold Fold.drain . Stream.parseMany (PR.groupBy (==) Fold.drain)
 
 #ifdef INSPECTION
-inspect $ 'parseManyGroupsRolling `hasNoType` ''S.Step
-inspect $ 'parseManyGroupsRolling `hasNoType` ''PR.Step
-inspect $ 'parseManyGroupsRolling `hasNoType` ''PR.Initial
-inspect $ 'parseManyGroupsRolling `hasNoType` ''FL.Step
-inspect $ 'parseManyGroupsRolling `hasNoType` ''SPEC
-inspect $ 'parseManyGroupsRolling `hasNoType` ''S.FIterState
-inspect $ 'parseManyGroupsRolling `hasNoType` ''PR.GroupByState
+inspect $ 'parseMany_GroupBy_Eq `hasNoType` ''S.Step
+inspect $ 'parseMany_GroupBy_Eq `hasNoType` ''PR.Step
+inspect $ 'parseMany_GroupBy_Eq `hasNoType` ''PR.Initial
+inspect $ 'parseMany_GroupBy_Eq `hasNoType` ''FL.Step
+inspect $ 'parseMany_GroupBy_Eq `hasNoType` ''SPEC
+inspect $ 'parseMany_GroupBy_Eq `hasNoType` ''S.FIterState
+inspect $ 'parseMany_GroupBy_Eq `hasNoType` ''PR.GroupByState
 #endif
 
-{-# INLINE parseManyGroupsRollingEither #-}
-parseManyGroupsRollingEither :: (Int -> Int -> Bool) -> Int -> Int -> IO ()
-parseManyGroupsRollingEither cmp value =
+{-# ANN parseMany_GroupByRolling_Bounded (PermitPatternMatches
+    [''Int, ''[]]) #-}
+{-# ANN parseMany_GroupByRolling_Bounded (PermitConstructions
+    [''(), ''[], ''Int]) #-}
+{-# ANN parseMany_GroupByRolling_Bounded (PermitTypeClasses []) #-}
+{-# NOINLINE parseMany_GroupByRolling_Bounded #-}
+parseMany_GroupByRolling_Bounded :: Int -> Int -> IO ()
+parseMany_GroupByRolling_Bounded value =
     withStream value $
           Stream.fold Fold.drain
-        . Stream.parseMany (PR.groupByRollingEither cmp Fold.drain Fold.drain)
+        . Stream.parseMany (PR.groupByRolling (\_ _ -> False) Fold.drain)
 
 #ifdef INSPECTION
-inspect $ 'parseManyGroupsRollingEither `hasNoType` ''S.Step
-inspect $ 'parseManyGroupsRollingEither `hasNoType` ''PR.Step
-inspect $ 'parseManyGroupsRollingEither `hasNoType` ''PR.Initial
-inspect $ 'parseManyGroupsRollingEither `hasNoType` ''FL.Step
-inspect $ 'parseManyGroupsRollingEither `hasNoType` ''SPEC
-inspect $ 'parseManyGroupsRollingEither `hasNoType` ''S.FIterState
-inspect $ 'parseManyGroupsRollingEither `hasNoType` ''PR.GroupByStatePair
+inspect $ 'parseMany_GroupByRolling_Bounded `hasNoType` ''S.Step
+inspect $ 'parseMany_GroupByRolling_Bounded `hasNoType` ''PR.Step
+inspect $ 'parseMany_GroupByRolling_Bounded `hasNoType` ''PR.Initial
+inspect $ 'parseMany_GroupByRolling_Bounded `hasNoType` ''FL.Step
+inspect $ 'parseMany_GroupByRolling_Bounded `hasNoType` ''SPEC
+inspect $ 'parseMany_GroupByRolling_Bounded `hasNoType` ''S.FIterState
+inspect $ 'parseMany_GroupByRolling_Bounded `hasNoType` ''PR.GroupByState
 #endif
 
-{-# INLINE parseManyGroupsRollingEitherAlt #-}
-parseManyGroupsRollingEitherAlt :: (Int -> Int -> Bool) -> Int -> Int -> IO ()
-parseManyGroupsRollingEitherAlt cmp value =
+{-# ANN parseMany_GroupByRolling_OneGroup (PermitPatternMatches [''Int]) #-}
+{-# ANN parseMany_GroupByRolling_OneGroup (PermitConstructions [''()]) #-}
+{-# ANN parseMany_GroupByRolling_OneGroup (PermitTypeClasses []) #-}
+{-# NOINLINE parseMany_GroupByRolling_OneGroup #-}
+parseMany_GroupByRolling_OneGroup :: Int -> Int -> IO ()
+parseMany_GroupByRolling_OneGroup value =
     withStream value $
           Stream.fold Fold.drain
-        . Stream.parseMany (PR.groupByRollingEither cmp Fold.drain Fold.drain)
+        . Stream.parseMany (PR.groupByRolling (\_ _ -> True) Fold.drain)
+
+{-# ANN parseMany_GroupByRollingEither_LT (PermitPatternMatches
+    [''Int, ''[]]) #-}
+{-# ANN parseMany_GroupByRollingEither_LT (PermitConstructions
+    [''(), ''[], ''Int]) #-}
+{-# ANN parseMany_GroupByRollingEither_LT (PermitTypeClasses []) #-}
+{-# NOINLINE parseMany_GroupByRollingEither_LT #-}
+parseMany_GroupByRollingEither_LT :: Int -> Int -> IO ()
+parseMany_GroupByRollingEither_LT value =
+    withStream value $
+          Stream.fold Fold.drain
+        . Stream.parseMany
+            (PR.groupByRollingEither (<) Fold.drain Fold.drain)
+
+#ifdef INSPECTION
+inspect $ 'parseMany_GroupByRollingEither_LT `hasNoType` ''S.Step
+inspect $ 'parseMany_GroupByRollingEither_LT `hasNoType` ''PR.Step
+inspect $ 'parseMany_GroupByRollingEither_LT `hasNoType` ''PR.Initial
+inspect $ 'parseMany_GroupByRollingEither_LT `hasNoType` ''FL.Step
+inspect $ 'parseMany_GroupByRollingEither_LT `hasNoType` ''SPEC
+inspect $ 'parseMany_GroupByRollingEither_LT `hasNoType` ''S.FIterState
+inspect $
+    'parseMany_GroupByRollingEither_LT `hasNoType` ''PR.GroupByStatePair
+#endif
+
+{-# ANN parseMany_GroupByRollingEither_GT (PermitPatternMatches
+    [''Int, ''[]]) #-}
+{-# ANN parseMany_GroupByRollingEither_GT (PermitConstructions
+    [''(), ''[], ''Int]) #-}
+{-# ANN parseMany_GroupByRollingEither_GT (PermitTypeClasses []) #-}
+{-# NOINLINE parseMany_GroupByRollingEither_GT #-}
+parseMany_GroupByRollingEither_GT :: Int -> Int -> IO ()
+parseMany_GroupByRollingEither_GT value =
+    withStream value $
+          Stream.fold Fold.drain
+        . Stream.parseMany
+            (PR.groupByRollingEither (>) Fold.drain Fold.drain)
+
+{-# ANN parseMany_GroupByRollingEither_Alternating
+    (PermitPatternMatches [''Int, ''[]]) #-}
+{-# ANN parseMany_GroupByRollingEither_Alternating
+    (PermitConstructions [''(), ''[], ''Int]) #-}
+{-# ANN parseMany_GroupByRollingEither_Alternating
+    (PermitTypeClasses []) #-}
+{-# NOINLINE parseMany_GroupByRollingEither_Alternating #-}
+parseMany_GroupByRollingEither_Alternating :: Int -> Int -> IO ()
+parseMany_GroupByRollingEither_Alternating value =
+    withStream value $
+          Stream.fold Fold.drain
+        . Stream.parseMany
+            (PR.groupByRollingEither (>) Fold.drain Fold.drain)
         -- Make the input unsorted.
         . fmap (\x -> if even x then x + 2 else x)
 
-{-# INLINE concatSequence #-}
-concatSequence :: Int -> Int -> IO (Either ParseError ())
-concatSequence value =
-    withStream value $ Stream.parse (PR.sequence (Stream.repeat PR.one) Fold.drain)
+{-# ANN sequence (PermitPatternMatches
+    [ ''[], ''PR.Step, ''(,,), ''(,), ''Maybe', ''PR.Parser, ''PR.Initial
+    , ''PR.Final, ''(), ''IO, ''Int
+    ]) #-}
+{-# ANN sequence (PermitConstructions
+    [ ''[], ''(,), ''Either, ''Int, ''SrcLoc, ''CallStack, ''PR.Final, ''()
+    , ''(,,), ''Maybe', ''PR.Parser, ''PR.Initial, ''PR.Step
+    ]) #-}
+{-# ANN sequence (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE sequence #-}
+sequence :: Int -> Int -> IO (Either ParseError ())
+sequence value =
+    withStream value
+        $ Stream.parse (PR.sequence (Stream.repeat PR.one) Fold.drain)
 
-{-# INLINE parseIterate #-}
+{-# ANN parseIterate (PermitPatternMatches
+    [ ''[], ''Int, ''Fold.Tuple'Fused, ''PR.Step, ''(,), ''Bool
+    , ''PR.Initial
+    ]) #-}
+{-# ANN parseIterate (PermitConstructions
+    [ ''Fold.Tuple'Fused, ''PR.Initial, ''Int, ''SrcLoc, ''CallStack, ''[]
+    , ''(), ''(,), ''PR.Step
+    ]) #-}
+{-# ANN parseIterate (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE parseIterate #-}
 parseIterate :: Int -> Int -> Int -> IO ()
 parseIterate n value =
     withStream value $
@@ -169,43 +261,34 @@ instance NFData ParseError where
     {-# INLINE rnf #-}
     rnf (ParseError x) = rnf x
 
+-- Note: Name each benchmark (and its IO action) after the exported function it
+-- benchmarks, using the format functionName_dimension1_dimension2..., where
+-- the dimensions are optional variants/type specializations. Keep extra info
+-- in parenthetical notes in the description.
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks value =
     [
     -- parseMany
-      (SpaceO_1, benchIO "parseMany" $ parseMany value value)
-    , (SpaceO_1, benchIO "parseMany (take 1)" $ parseMany 1 value)
+      (SpaceO_1, benchIO "parseMany (take 1)" $ parseMany 1 value)
     , (SpaceO_1, benchIO "parseMany (take all)" $ parseMany value value)
-    , (SpaceO_1, benchIO "parseMany (groupBy (<))" $ parseManyGroupBy (<) value)
+    , (SpaceO_1, benchIO "parseMany_GroupBy_LT" $ parseMany_GroupBy_LT value)
     -- requires -fspec-constr-recursive=10
-    , (SpaceO_1, benchIO "parseMany (groupBy (==))" $ parseManyGroupBy (==) value)
+    , (SpaceO_1, benchIO "parseMany_GroupBy_Eq" $ parseMany_GroupBy_Eq value)
     -- requires -fspec-constr-recursive=10
-    , (SpaceO_1, benchIO "parseMany groupRollingBy (bound groups)"
-          $ parseManyGroupsRolling False value)
-    , (SpaceO_1, benchIO "parseMany groupRollingBy (1 group)"
-          $ parseManyGroupsRolling True value)
-    , (SpaceO_1, benchIO "parseMany groupRollingByEither (Left)"
-        parseManyGroupsRollingEitherLeft)
-    , (SpaceO_1, benchIO "parseMany groupRollingByEither (Right)"
-        parseManyGroupsRollingEitherRight)
+    , (SpaceO_1, benchIO "parseMany_GroupByRolling_Bounded"
+          $ parseMany_GroupByRolling_Bounded value)
+    , (SpaceO_1, benchIO "parseMany_GroupByRolling_OneGroup"
+          $ parseMany_GroupByRolling_OneGroup value)
+    , (SpaceO_1, benchIO "parseMany_GroupByRollingEither_LT (all Left)"
+          $ parseMany_GroupByRollingEither_LT value)
+    , (SpaceO_1, benchIO "parseMany_GroupByRollingEither_GT (all Right)"
+          $ parseMany_GroupByRollingEither_GT value)
     -- requires -fspec-constr-recursive=10
-    , (SpaceO_1, benchIO "parseMany groupRollingByEither (Alternating)"
-        parseManyGroupsRollingEitherAlt1)
-    , (SpaceO_1, benchIO "concatSequence" $ concatSequence value)
+    , (SpaceO_1, benchIO "parseMany_GroupByRollingEither_Alternating"
+          $ parseMany_GroupByRollingEither_Alternating value)
+    , (SpaceO_1, benchIO "sequence (repeat one, drain)" $ sequence value)
 
     -- parseIterate
     , (SpaceO_1, benchIO "parseIterate (take 1)" $ parseIterate 1 value)
     , (SpaceO_1, benchIO "parseIterate (take all)" $ parseIterate value value)
     ]
-
-    where
-
-    {-# NOINLINE parseManyGroupsRollingEitherLeft #-}
-    parseManyGroupsRollingEitherLeft = parseManyGroupsRollingEither (<) value
-
-    {-# NOINLINE parseManyGroupsRollingEitherRight #-}
-    parseManyGroupsRollingEitherRight = parseManyGroupsRollingEither (>) value
-
-    {-# NOINLINE parseManyGroupsRollingEitherAlt1 #-}
-    parseManyGroupsRollingEitherAlt1 =
-        parseManyGroupsRollingEitherAlt (>) value

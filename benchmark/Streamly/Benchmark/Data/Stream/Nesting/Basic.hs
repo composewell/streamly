@@ -52,6 +52,7 @@ import Prelude hiding (concatMap, zipWith)
 {-# ANN interleave (PermitConstructions [''Int,''()]) #-}
 {-# ANN interleave (PermitTypeClasses []) #-}
 {-# NOINLINE interleave #-}
+{-# ANN interleave DumpCore #-}
 interleave :: Int -> Int -> IO ()
 interleave count n =
     drain $

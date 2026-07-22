@@ -25,7 +25,7 @@ import Test.Tasty.Bench
 {-# ANN windowMinimum_Double (PermitPatternMatches
     [''Bool,''Double,''IO,''Int]) #-}
 {-# ANN windowMinimum_Double (PermitConstructions
-    [''Int,''SrcLoc,''CallStack,''()]) #-}
+    [''Int,''SrcLoc,''CallStack,''(),''Double]) #-}
 {-# ANN windowMinimum_Double (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE windowMinimum_Double #-}
 windowMinimum_Double :: Int -> Int -> Int -> IO ()
@@ -50,7 +50,7 @@ windowMinimum_IntDesc win n = withPostscanlDesc n (Scanl.windowMinimum win)
 {-# ANN windowMaximum_Double (PermitPatternMatches
     [''Bool,''Double,''IO,''Int]) #-}
 {-# ANN windowMaximum_Double (PermitConstructions
-    [''Int,''SrcLoc,''CallStack,''()]) #-}
+    [''Int,''SrcLoc,''CallStack,''(),''Double]) #-}
 {-# ANN windowMaximum_Double (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE windowMaximum_Double #-}
 windowMaximum_Double :: Int -> Int -> Int -> IO ()
@@ -67,7 +67,7 @@ windowMaximum_IntDesc win n = withPostscanlDesc n (Scanl.windowMaximum win)
 {-# ANN windowRange_Double (PermitPatternMatches
     [''Bool,''Double,''IO,''Int]) #-}
 {-# ANN windowRange_Double (PermitConstructions
-    [''Int,''SrcLoc,''CallStack,''()]) #-}
+    [''Int,''SrcLoc,''CallStack,''(),''Double]) #-}
 {-# ANN windowRange_Double (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE windowRange_Double #-}
 windowRange_Double :: Int -> Int -> Int -> IO ()
@@ -83,7 +83,7 @@ windowRange_IntDesc win n = withPostscanlDesc n (Scanl.windowRange win)
 
 {-# ANN incrSum_Double (PermitPatternMatches [''Bool,''Double,''IO,''Int]) #-}
 {-# ANN incrSum_Double (PermitConstructions
-    [''Int,''SrcLoc,''CallStack,''()]) #-}
+    [''Int,''SrcLoc,''CallStack,''(),''Double]) #-}
 {-# ANN incrSum_Double (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE incrSum_Double #-}
 incrSum_Double :: Int -> Int -> Int -> IO ()
@@ -91,7 +91,7 @@ incrSum_Double win n = withPostscanlDouble n (Scanl.incrScan win Scanl.incrSum)
 
 {-# ANN incrSum_Double_Cumulative (PermitPatternMatches
     [''Bool,''Double,''Int]) #-}
-{-# ANN incrSum_Double_Cumulative (PermitConstructions [''()]) #-}
+{-# ANN incrSum_Double_Cumulative (PermitConstructions [''(),''Double]) #-}
 {-# ANN incrSum_Double_Cumulative (PermitTypeClasses []) #-}
 {-# NOINLINE incrSum_Double_Cumulative #-}
 incrSum_Double_Cumulative :: Int -> Int -> IO ()
@@ -107,7 +107,7 @@ incrSum_Int win n = withPostscanl n (Scanl.incrScan win Scanl.incrSumInt)
 
 {-# ANN incrMean_Double (PermitPatternMatches [''Bool,''Double,''IO,''Int]) #-}
 {-# ANN incrMean_Double (PermitConstructions
-    [''Int,''SrcLoc,''CallStack,''()]) #-}
+    [''Int,''SrcLoc,''CallStack,''(),''Double]) #-}
 {-# ANN incrMean_Double (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE incrMean_Double #-}
 incrMean_Double :: Int -> Int -> Int -> IO ()
@@ -116,7 +116,7 @@ incrMean_Double win n =
 
 {-# ANN incrMean_Double_Cumulative (PermitPatternMatches
     [''Bool,''Double,''Int]) #-}
-{-# ANN incrMean_Double_Cumulative (PermitConstructions [''()]) #-}
+{-# ANN incrMean_Double_Cumulative (PermitConstructions [''(),''Double]) #-}
 {-# ANN incrMean_Double_Cumulative (PermitTypeClasses []) #-}
 {-# NOINLINE incrMean_Double_Cumulative #-}
 incrMean_Double_Cumulative :: Int -> Int -> IO ()
@@ -126,7 +126,7 @@ incrMean_Double_Cumulative n =
 {-# ANN incrPowerSum_Double (PermitPatternMatches
     [''Bool,''Double,''IO,''Int]) #-}
 {-# ANN incrPowerSum_Double (PermitConstructions
-    [''Int,''SrcLoc,''CallStack,''()]) #-}
+    [''Int,''SrcLoc,''CallStack,''(),''Double]) #-}
 {-# ANN incrPowerSum_Double (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE incrPowerSum_Double #-}
 incrPowerSum_Double :: Int -> Int -> Int -> IO ()
@@ -135,7 +135,7 @@ incrPowerSum_Double win n =
 
 {-# ANN incrPowerSum_Double_Cumulative (PermitPatternMatches
     [''Bool,''Double,''Int]) #-}
-{-# ANN incrPowerSum_Double_Cumulative (PermitConstructions [''()]) #-}
+{-# ANN incrPowerSum_Double_Cumulative (PermitConstructions [''(),''Double]) #-}
 {-# ANN incrPowerSum_Double_Cumulative (PermitTypeClasses []) #-}
 {-# NOINLINE incrPowerSum_Double_Cumulative #-}
 incrPowerSum_Double_Cumulative :: Int -> Int -> IO ()

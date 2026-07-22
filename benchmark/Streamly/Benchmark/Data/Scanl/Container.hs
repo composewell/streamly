@@ -65,28 +65,28 @@ getScanl k = do
 -------------------------------------------------------------------------------
 
 {-# ANN toSet (PermitPatternMatches [''Set,''Int]) #-}
-{-# ANN toSet (PermitConstructions [''Set,''()]) #-}
+{-# ANN toSet (PermitConstructions [''Set,''(),''Int]) #-}
 {-# ANN toSet (PermitTypeClasses []) #-}
 {-# NOINLINE toSet #-}
 toSet :: Int -> Int -> IO ()
 toSet n = withPostscanl n Scanl.toSet
 
 {-# ANN toIntSet (PermitPatternMatches [''IntSet,''Int]) #-}
-{-# ANN toIntSet (PermitConstructions [''()]) #-}
+{-# ANN toIntSet (PermitConstructions [''(),''IntSet]) #-}
 {-# ANN toIntSet (PermitTypeClasses []) #-}
 {-# NOINLINE toIntSet #-}
 toIntSet :: Int -> Int -> IO ()
 toIntSet n = withPostscanl n Scanl.toIntSet
 
 {-# ANN countDistinct (PermitPatternMatches [''Set,''Int]) #-}
-{-# ANN countDistinct (PermitConstructions [''Set,''()]) #-}
+{-# ANN countDistinct (PermitConstructions [''Set,''(),''Int]) #-}
 {-# ANN countDistinct (PermitTypeClasses []) #-}
 {-# NOINLINE countDistinct #-}
 countDistinct :: Int -> Int -> IO ()
 countDistinct n = withPostscanl n Scanl.countDistinct
 
 {-# ANN countDistinctInt (PermitPatternMatches [''IntSet,''Int]) #-}
-{-# ANN countDistinctInt (PermitConstructions [''()]) #-}
+{-# ANN countDistinctInt (PermitConstructions [''(),''IntSet]) #-}
 {-# ANN countDistinctInt (PermitTypeClasses []) #-}
 {-# NOINLINE countDistinctInt #-}
 countDistinctInt :: Int -> Int -> IO ()
@@ -100,7 +100,7 @@ nub :: Int -> Int -> IO ()
 nub n = withPostscanl n Scanl.nub
 
 {-# ANN nubInt (PermitPatternMatches [''IntSet,''Bool,''Int]) #-}
-{-# ANN nubInt (PermitConstructions [''()]) #-}
+{-# ANN nubInt (PermitConstructions [''(),''IntSet]) #-}
 {-# ANN nubInt (PermitTypeClasses []) #-}
 {-# NOINLINE nubInt #-}
 nubInt :: Int -> Int -> IO ()
@@ -127,7 +127,8 @@ demuxIO_Sum100 len =
 {-# ANN demuxIO_Sum (PermitPatternMatches
     [''Map,''STRef,''IO,''Int,''FL.Step,''Step,''Scanl,''Tuple']) #-}
 {-# ANN demuxIO_Sum (PermitConstructions
-    [''Int,''Map,''SrcLoc,''CallStack,''Step,''Tuple',''()]) #-}
+    [''Int,''Map,''SrcLoc,''CallStack,''Step,''Tuple',''(),''Scanl
+    ,''STRef,''FL.Step]) #-}
 {-# ANN demuxIO_Sum (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE demuxIO_Sum #-}
 demuxIO_Sum :: Int -> Int -> IO ()
@@ -139,7 +140,8 @@ demuxIO_Sum len =
 
 {-# ANN demux_Sum (PermitPatternMatches
     [''Map,''Int,''FL.Step,''Step,''Scanl,''Tuple']) #-}
-{-# ANN demux_Sum (PermitConstructions [''Int,''Map,''Step,''Tuple',''()]) #-}
+{-# ANN demux_Sum (PermitConstructions
+    [''Int,''Map,''Step,''Tuple',''(),''Scanl,''FL.Step]) #-}
 {-# ANN demux_Sum (PermitTypeClasses []) #-}
 {-# NOINLINE demux_Sum #-}
 demux_Sum :: Int -> Int -> IO ()
@@ -152,7 +154,7 @@ demux_Sum len =
 {-# ANN demuxGeneric_Sum (PermitPatternMatches
     [''Map,''Maybe,''Int,''FL.Step,''Step,''Scanl,''Tuple']) #-}
 {-# ANN demuxGeneric_Sum (PermitConstructions
-    [''Int,''Map,''Maybe,''Step,''Tuple',''()]) #-}
+    [''Int,''Map,''Maybe,''Step,''Tuple',''(),''Scanl,''FL.Step]) #-}
 {-# ANN demuxGeneric_Sum (PermitTypeClasses []) #-}
 {-# NOINLINE demuxGeneric_Sum #-}
 demuxGeneric_Sum :: Int -> Int -> IO ()
@@ -166,7 +168,8 @@ demuxGeneric_Sum len =
 {-# ANN demuxGenericIO_Sum (PermitPatternMatches
     [''Map,''Maybe,''STRef,''IO,''Int,''FL.Step,''Step,''Scanl,''Tuple']) #-}
 {-# ANN demuxGenericIO_Sum (PermitConstructions
-    [''Int,''Map,''Maybe,''SrcLoc,''CallStack,''Step,''Tuple',''()]) #-}
+    [''Int,''Map,''Maybe,''SrcLoc,''CallStack,''Step,''Tuple',''(),''Scanl
+    ,''STRef,''FL.Step]) #-}
 {-# ANN demuxGenericIO_Sum (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE demuxGenericIO_Sum #-}
 demuxGenericIO_Sum :: Int -> Int -> IO ()
@@ -183,7 +186,8 @@ demuxGenericIO_Sum len =
 
 {-# ANN classifyIO_Sum100 (PermitPatternMatches
     [''Map,''Set,''STRef,''Int,''Tuple'Fused,''Tuple']) #-}
-{-# ANN classifyIO_Sum100 (PermitConstructions [''Int,''Map,''Set,''()]) #-}
+{-# ANN classifyIO_Sum100 (PermitConstructions
+    [''Int,''Map,''Set,''(),''Tuple'Fused,''Tuple',''STRef]) #-}
 {-# ANN classifyIO_Sum100 (PermitTypeClasses []) #-}
 {-# NOINLINE classifyIO_Sum100 #-}
 classifyIO_Sum100 :: Int -> Int -> IO ()
@@ -194,7 +198,8 @@ classifyIO_Sum100 len =
 
 {-# ANN classifyIO_Sum (PermitPatternMatches
     [''Map,''Set,''STRef,''Int,''Tuple']) #-}
-{-# ANN classifyIO_Sum (PermitConstructions [''Int,''Map,''Set,''()]) #-}
+{-# ANN classifyIO_Sum (PermitConstructions
+    [''Int,''Map,''Set,''(),''Tuple',''STRef]) #-}
 {-# ANN classifyIO_Sum (PermitTypeClasses []) #-}
 {-# NOINLINE classifyIO_Sum #-}
 classifyIO_Sum :: Int -> Int -> IO ()
@@ -204,7 +209,8 @@ classifyIO_Sum len =
         . Stream.postscanl (Scanl.classifyIO (getKey 64) Scanl.sum)
 
 {-# ANN classify_Sum (PermitPatternMatches [''Map,''Set,''Int,''Tuple']) #-}
-{-# ANN classify_Sum (PermitConstructions [''Int,''Map,''Set,''()]) #-}
+{-# ANN classify_Sum (PermitConstructions
+    [''Int,''Map,''Set,''(),''Tuple']) #-}
 {-# ANN classify_Sum (PermitTypeClasses []) #-}
 {-# NOINLINE classify_Sum #-}
 classify_Sum :: Int -> Int -> IO ()
@@ -216,7 +222,7 @@ classify_Sum len =
 {-# ANN classifyGeneric_Sum (PermitPatternMatches
     [''Map,''Set,''Maybe,''Int,''Tuple',''Tuple3']) #-}
 {-# ANN classifyGeneric_Sum (PermitConstructions
-    [''Int,''Map,''Maybe,''Set,''Tuple3',''(,),''()]) #-}
+    [''Int,''Map,''Maybe,''Set,''Tuple3',''(,),''(),''Tuple']) #-}
 {-# ANN classifyGeneric_Sum (PermitTypeClasses []) #-}
 {-# NOINLINE classifyGeneric_Sum #-}
 classifyGeneric_Sum :: Int -> Int -> IO ()
@@ -230,7 +236,7 @@ classifyGeneric_Sum len =
 {-# ANN classifyGenericIO_Sum (PermitPatternMatches
     [''Map,''Set,''Maybe,''STRef,''Int,''Tuple',''Tuple3']) #-}
 {-# ANN classifyGenericIO_Sum (PermitConstructions
-    [''Int,''Map,''Maybe,''Set,''Tuple3',''(,),''()]) #-}
+    [''Int,''Map,''Maybe,''Set,''Tuple3',''(,),''(),''Tuple',''STRef]) #-}
 {-# ANN classifyGenericIO_Sum (PermitTypeClasses []) #-}
 {-# NOINLINE classifyGenericIO_Sum #-}
 classifyGenericIO_Sum :: Int -> Int -> IO ()

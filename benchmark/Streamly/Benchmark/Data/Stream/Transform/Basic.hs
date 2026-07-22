@@ -256,7 +256,7 @@ inspect $ 'postscanl'_x1 `hasNoType` ''Stream.Step
 #endif
 
 {-# ANN postscanl'_x4 (PermitPatternMatches
-    [''Maybe,''(,),''Int,''Stream.Step,''Stream]) #-}
+    [''Maybe,''(,),''Int,''Stream.Step,''Stream,''SVar.State]) #-}
 {-# ANN postscanl'_x4 (PermitConstructions
     [''Int,''(,),''Maybe,''Stream.Step,''SVar.State,''Stream,''(),''Bool]) #-}
 {-# ANN postscanl'_x4 (PermitTypeClasses []) #-}

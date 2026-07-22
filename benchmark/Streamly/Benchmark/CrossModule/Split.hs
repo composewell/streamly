@@ -27,7 +27,9 @@ import Data.Word (Word32, Word8)
 import GHC.Classes (IP)
 import GHC.Stack (CallStack, SrcLoc)
 import System.IO (Handle)
+import Foreign.Ptr (Ptr)
 import Streamly.Data.MutByteArray (MutByteArray)
+import Streamly.Internal.Data.MutByteArray (PinnedState)
 import Streamly.Internal.Data.Array (Array)
 import Streamly.Internal.Data.MutArray (FlattenState, MutArray)
 import Streamly.Internal.Data.RingArray (RingArray)
@@ -70,7 +72,7 @@ toarr = Array.fromList . map (fromIntegral . ord)
 -- | Split on line feed.
 {-# ANN splitOn (PermitPatternMatches [''[],''Int,''UnsafeEquality,''IO,''Array]) #-}
 {-# ANN splitOn (PermitConstructions
-    [''Int,''SrcLoc,''CallStack,''[],''Array]) #-}
+    [''Int,''SrcLoc,''CallStack,''[],''Array,''Ptr,''PinnedState]) #-}
 {-# ANN splitOn (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE splitOn #-}
 splitOn :: Handle -> IO Int
@@ -95,7 +97,7 @@ inspect $ 'splitOn `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
     ,''Bool,''FlattenState,''MutByteArray,''WordsByState]) #-}
 {-# ANN wordsBy (PermitConstructions
     [''Int,''Bool,''SrcLoc,''CallStack,''[],''Array,''WordsByState
-    ,''FlattenState,''(),''MutByteArray]) #-}
+    ,''FlattenState,''(),''MutByteArray,''Ptr,''PinnedState]) #-}
 {-# ANN wordsBy (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE wordsBy #-}
 wordsBy :: Handle -> IO Int
@@ -121,7 +123,7 @@ inspect $ 'wordsBy `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 {-# ANN splitOnSeq (PermitConstructions
     [''Int,''SrcLoc,''CallStack,''Word,''SplitOnSeqState,''(),''Word32
     ,''[],''Array,''MutArray,''SVar.State,''Maybe,''Bool,''Word8
-    ,''FlattenState,''MutByteArray,''RingArray]) #-}
+    ,''FlattenState,''MutByteArray,''RingArray,''Ptr,''PinnedState]) #-}
 {-# ANN splitOnSeq (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE splitOnSeq #-}
 splitOnSeq :: String -> Handle -> IO Int
@@ -140,7 +142,7 @@ inspect $ 'splitOnSeq `hasNoType` ''SPEC
 {-# ANN takeEndBy (PermitPatternMatches
     [''[],''Int,''UnsafeEquality,''IO,''Array,''Word8]) #-}
 {-# ANN takeEndBy (PermitConstructions
-    [''Int,''SrcLoc,''CallStack,''[],''Array]) #-}
+    [''Int,''SrcLoc,''CallStack,''[],''Array,''Ptr,''PinnedState]) #-}
 {-# ANN takeEndBy (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE takeEndBy #-}
 takeEndBy :: Word8 -> Handle -> IO Int
@@ -162,7 +164,7 @@ inspect $ 'takeEndBy `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 {-# ANN takeEndBy_ (PermitPatternMatches
     [''[],''Int,''UnsafeEquality,''IO,''Array,''Word8]) #-}
 {-# ANN takeEndBy_ (PermitConstructions
-    [''Int,''SrcLoc,''CallStack,''[],''Array]) #-}
+    [''Int,''SrcLoc,''CallStack,''[],''Array,''Ptr,''PinnedState]) #-}
 {-# ANN takeEndBy_ (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE takeEndBy_ #-}
 takeEndBy_ :: Word8 -> Handle -> IO Int
@@ -186,7 +188,7 @@ inspect $ 'takeEndBy_ `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
     ,''Char,''Array,''Word,''Word32]) #-}
 {-# ANN takeEndBySeq (PermitConstructions
     [''Int,''SrcLoc,''CallStack,''Word32,''[],''Array,''MutArray
-    ,''SVar.State,''Maybe,''Bool,''Word8,''Word]) #-}
+    ,''SVar.State,''Maybe,''Bool,''Word8,''Word,''Ptr,''PinnedState]) #-}
 {-# ANN takeEndBySeq (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE takeEndBySeq #-}
 takeEndBySeq :: String -> Handle -> IO Int
@@ -210,7 +212,8 @@ inspect $ 'takeEndBySeq `hasNoType` ''SPEC
     ,''Char,''Array,''Word,''RingArray,''Word32]) #-}
 {-# ANN takeEndBySeq_ (PermitConstructions
     [''Int,''SrcLoc,''CallStack,''Word32,''[],''Array,''MutArray
-    ,''SVar.State,''Maybe,''Bool,''Word8,''Word,''RingArray]) #-}
+    ,''SVar.State,''Maybe,''Bool,''Word8,''Word,''RingArray,''Ptr
+    ,''PinnedState]) #-}
 {-# ANN takeEndBySeq_ (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE takeEndBySeq_ #-}
 takeEndBySeq_ :: String -> Handle -> IO Int
@@ -232,8 +235,8 @@ inspect $ 'takeEndBySeq_ `hasNoType` ''SPEC
     [''MutArray,''[],''Int,''UnsafeEquality,''IO,''Array,''Word,''Word32])
     #-}
 {-# ANN takeEndBySeq100k (PermitConstructions
-    [''Int,''SrcLoc,''CallStack,''Word32,''Array,''[],''Word,''MutArray])
-    #-}
+    [''Int,''SrcLoc,''CallStack,''Word32,''Array,''[],''Word,''MutArray
+    ,''Ptr,''PinnedState]) #-}
 {-# ANN takeEndBySeq100k (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE takeEndBySeq100k #-}
 takeEndBySeq100k :: Handle -> IO Int
@@ -256,7 +259,7 @@ inspect $ 'takeEndBySeq100k `hasNoType` ''SPEC
     ,''Word32,''Word8]) #-}
 {-# ANN takeEndBySeq_100k (PermitConstructions
     [''Int,''SrcLoc,''CallStack,''Word32,''Array,''[],''Word,''RingArray
-    ,''MutArray]) #-}
+    ,''MutArray,''Ptr,''PinnedState]) #-}
 {-# ANN takeEndBySeq_100k (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE takeEndBySeq_100k #-}
 takeEndBySeq_100k :: Handle -> IO Int
@@ -282,7 +285,7 @@ inspect $ 'takeEndBySeq_100k `hasNoType` ''SPEC
 {-# ANN splitOnSeq100k (PermitConstructions
     [''Int,''SrcLoc,''CallStack,''Word,''SplitOnSeqState,''(),''Word32
     ,''Array,''[],''FlattenState,''MutByteArray,''Word8,''RingArray
-    ,''MutArray]) #-}
+    ,''MutArray,''Ptr,''PinnedState]) #-}
 {-# ANN splitOnSeq100k (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE splitOnSeq100k #-}
 splitOnSeq100k :: Handle -> IO Int
@@ -307,7 +310,7 @@ inspect $ 'splitOnSeq100k `hasNoType` ''SPEC
 {-# ANN splitOnSuffixSeq (PermitConstructions
     [''Int,''SrcLoc,''CallStack,''Word32,''[],''Array,''MutArray
     ,''SVar.State,''Maybe,''Bool,''Word8,''Word,''SplitOnSuffixSeqState
-    ,''(),''FlattenState,''MutByteArray,''RingArray]) #-}
+    ,''(),''FlattenState,''MutByteArray,''RingArray,''Ptr,''PinnedState]) #-}
 {-# ANN splitOnSuffixSeq (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE splitOnSuffixSeq #-}
 splitOnSuffixSeq :: String -> Handle -> IO Int
@@ -332,7 +335,7 @@ inspect $ 'splitOnSuffixSeq `hasNoType` ''SPEC
 {-# ANN splitWithSuffixSeq (PermitConstructions
     [''SplitOnSuffixSeqState,''(),''Int,''SrcLoc,''CallStack,''Word32
     ,''[],''Array,''MutArray,''SVar.State,''Maybe,''Bool,''Word8,''Word
-    ,''FlattenState,''MutByteArray,''RingArray]) #-}
+    ,''FlattenState,''MutByteArray,''RingArray,''Ptr,''PinnedState]) #-}
 {-# ANN splitWithSuffixSeq (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE splitWithSuffixSeq #-}
 splitWithSuffixSeq :: String -> Handle -> IO Int

@@ -24,6 +24,7 @@ module CrossModule.SplitChunks (benchmarks) where
 
 import Data.Word (Word32, Word8)
 import Foreign.Ptr (Ptr)
+import Streamly.Internal.Data.MutByteArray (PinnedState)
 import GHC.Classes (IP)
 import GHC.Stack (CallStack, SrcLoc)
 import System.IO (Handle)
@@ -67,7 +68,7 @@ import Test.Inspection
 {-# ANN splitOnSeqUtf8 (PermitConstructions
     [''MutArray,''SVar.State,''Maybe,''Bool,''Int,''SrcLoc,''CallStack
     ,''Word,''SplitOnSeqState,''(),''Word32,''[],''Array,''FlattenState
-    ,''MutByteArray,''Char,''RingArray]) #-}
+    ,''MutByteArray,''Char,''RingArray,''Ptr,''PinnedState]) #-}
 {-# ANN splitOnSeqUtf8 (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE splitOnSeqUtf8 #-}
 splitOnSeqUtf8 :: String -> Handle -> IO Int

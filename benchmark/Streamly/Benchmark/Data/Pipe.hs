@@ -34,6 +34,8 @@ import qualified Streamly.Internal.Data.Stream as Stream
 
 import Test.Tasty.Bench
 import Streamly.Benchmark.Common
+import Fusion.Plugin.Types
+import Prelude hiding (mapM)
 
 #ifdef INSPECTION
 import GHC.Types (SPEC(..))
@@ -81,94 +83,118 @@ composeN n f =
 -- Pipe benchmarks
 -------------------------------------------------------------------------------
 
-{-# INLINE transformMapM #-}
-transformMapM :: Monad m => Int -> Stream m Int -> m ()
-transformMapM n = composeN n $ Stream.pipe (Pipe.mapM return)
+{-# INLINE mapM #-}
+mapM :: Monad m => Int -> Stream m Int -> m ()
+mapM n = composeN n $ Stream.pipe (Pipe.mapM return)
 
-{-# INLINE transformComposeMapM #-}
-transformComposeMapM :: Monad m => Int -> Stream m Int -> m ()
-transformComposeMapM n =
+{-# INLINE compose #-}
+compose :: Monad m => Int -> Stream m Int -> m ()
+compose n =
     composeN n $
     Stream.pipe
         (Pipe.mapM (\x -> return (x + 1)) `Pipe.compose`
          Pipe.mapM (\x -> return (x + 2)))
 
-{-# INLINE transformTeeMapM #-}
-transformTeeMapM :: Monad m => Int -> Stream m Int -> m ()
-transformTeeMapM n =
+{-# INLINE teeMerge #-}
+teeMerge :: Monad m => Int -> Stream m Int -> m ()
+teeMerge n =
     composeN n $
     Stream.pipe
         (Pipe.mapM (\x -> return (x + 1)) `Pipe.teeMerge`
          Pipe.mapM (\x -> return (x + 2)))
 
-pipeMapM :: Int -> Int -> IO ()
-pipeMapM value = withStream value (transformMapM 1)
+{-# ANN mapM_x1 (PermitPatternMatches [''Int]) #-}
+{-# ANN mapM_x1 (PermitConstructions [''()]) #-}
+{-# ANN mapM_x1 (PermitTypeClasses []) #-}
+{-# NOINLINE mapM_x1 #-}
+mapM_x1 :: Int -> Int -> IO ()
+mapM_x1 value = withStream value (mapM 1)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'pipeMapM
-inspect $ 'pipeMapM `hasNoType` ''S.Step
-inspect $ 'pipeMapM `hasNoType` ''S.PipeState
-inspect $ 'pipeMapM `hasNoType` ''FL.Step
-inspect $ 'pipeMapM `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'mapM_x1
+inspect $ 'mapM_x1 `hasNoType` ''S.Step
+inspect $ 'mapM_x1 `hasNoType` ''S.PipeState
+inspect $ 'mapM_x1 `hasNoType` ''FL.Step
+inspect $ 'mapM_x1 `hasNoType` ''SPEC
 #endif
 
-pipeCompose :: Int -> Int -> IO ()
-pipeCompose value = withStream value (transformComposeMapM 1)
+{-# ANN compose_x1 (PermitPatternMatches [''Int]) #-}
+{-# ANN compose_x1 (PermitConstructions [''()]) #-}
+{-# ANN compose_x1 (PermitTypeClasses []) #-}
+{-# NOINLINE compose_x1 #-}
+compose_x1 :: Int -> Int -> IO ()
+compose_x1 value = withStream value (compose 1)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'pipeCompose
-inspect $ 'pipeCompose `hasNoType` ''S.Step
-inspect $ 'pipeCompose `hasNoType` ''S.PipeState
-inspect $ 'pipeCompose `hasNoType` ''FL.Step
-inspect $ 'pipeCompose `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'compose_x1
+inspect $ 'compose_x1 `hasNoType` ''S.Step
+inspect $ 'compose_x1 `hasNoType` ''S.PipeState
+inspect $ 'compose_x1 `hasNoType` ''FL.Step
+inspect $ 'compose_x1 `hasNoType` ''SPEC
 #endif
 
-pipeTee :: Int -> Int -> IO ()
-pipeTee value = withStream value (transformTeeMapM 1)
+{-# ANN teeMerge_x1 (PermitPatternMatches [''Int]) #-}
+{-# ANN teeMerge_x1 (PermitConstructions [''()]) #-}
+{-# ANN teeMerge_x1 (PermitTypeClasses []) #-}
+{-# NOINLINE teeMerge_x1 #-}
+teeMerge_x1 :: Int -> Int -> IO ()
+teeMerge_x1 value = withStream value (teeMerge 1)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'pipeTee
-inspect $ 'pipeTee `hasNoType` ''S.Step
-inspect $ 'pipeTee `hasNoType` ''S.PipeState
-inspect $ 'pipeTee `hasNoType` ''FL.Step
-inspect $ 'pipeTee `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'teeMerge_x1
+inspect $ 'teeMerge_x1 `hasNoType` ''S.Step
+inspect $ 'teeMerge_x1 `hasNoType` ''S.PipeState
+inspect $ 'teeMerge_x1 `hasNoType` ''FL.Step
+inspect $ 'teeMerge_x1 `hasNoType` ''SPEC
 #endif
 
 -- XXX this takes 1 GB memory to compile
 -- pipeZip :: Int -> IO ()
 
-pipeMapMX4 :: Int -> Int -> IO ()
-pipeMapMX4 value = withStream value (transformMapM 4)
+{-# ANN mapM_x4 (PermitPatternMatches [''Int]) #-}
+{-# ANN mapM_x4 (PermitConstructions [''()]) #-}
+{-# ANN mapM_x4 (PermitTypeClasses []) #-}
+{-# NOINLINE mapM_x4 #-}
+mapM_x4 :: Int -> Int -> IO ()
+mapM_x4 value = withStream value (mapM 4)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'pipeMapMX4
-inspect $ 'pipeMapMX4 `hasNoType` ''S.Step
-inspect $ 'pipeMapMX4 `hasNoType` ''S.PipeState
-inspect $ 'pipeMapMX4 `hasNoType` ''FL.Step
-inspect $ 'pipeMapMX4 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'mapM_x4
+inspect $ 'mapM_x4 `hasNoType` ''S.Step
+inspect $ 'mapM_x4 `hasNoType` ''S.PipeState
+inspect $ 'mapM_x4 `hasNoType` ''FL.Step
+inspect $ 'mapM_x4 `hasNoType` ''SPEC
 #endif
 
-pipeComposeX4 :: Int -> Int -> IO ()
-pipeComposeX4 value = withStream value (transformComposeMapM 4)
+{-# ANN compose_x4 (PermitPatternMatches [''Int]) #-}
+{-# ANN compose_x4 (PermitConstructions [''()]) #-}
+{-# ANN compose_x4 (PermitTypeClasses []) #-}
+{-# NOINLINE compose_x4 #-}
+compose_x4 :: Int -> Int -> IO ()
+compose_x4 value = withStream value (compose 4)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'pipeComposeX4
-inspect $ 'pipeComposeX4 `hasNoType` ''S.Step
-inspect $ 'pipeComposeX4 `hasNoType` ''S.PipeState
-inspect $ 'pipeComposeX4 `hasNoType` ''FL.Step
-inspect $ 'pipeComposeX4 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'compose_x4
+inspect $ 'compose_x4 `hasNoType` ''S.Step
+inspect $ 'compose_x4 `hasNoType` ''S.PipeState
+inspect $ 'compose_x4 `hasNoType` ''FL.Step
+inspect $ 'compose_x4 `hasNoType` ''SPEC
 #endif
 
 -- XXX requires @-fspec-constr-recursive=16@.
-pipeTeeX4 :: Int -> Int -> IO ()
-pipeTeeX4 value = withStream value (transformTeeMapM 4)
+{-# ANN teeMerge_x4 (PermitPatternMatches [''Int]) #-}
+{-# ANN teeMerge_x4 (PermitConstructions [''()]) #-}
+{-# ANN teeMerge_x4 (PermitTypeClasses []) #-}
+{-# NOINLINE teeMerge_x4 #-}
+teeMerge_x4 :: Int -> Int -> IO ()
+teeMerge_x4 value = withStream value (teeMerge 4)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'pipeTeeX4
-inspect $ 'pipeTeeX4 `hasNoType` ''S.Step
-inspect $ 'pipeTeeX4 `hasNoType` ''S.PipeState
-inspect $ 'pipeTeeX4 `hasNoType` ''FL.Step
-inspect $ 'pipeTeeX4 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'teeMerge_x4
+inspect $ 'teeMerge_x4 `hasNoType` ''S.Step
+inspect $ 'teeMerge_x4 `hasNoType` ''S.PipeState
+inspect $ 'teeMerge_x4 `hasNoType` ''FL.Step
+inspect $ 'teeMerge_x4 `hasNoType` ''SPEC
 #endif
 
 -- XXX this takes 1 GB memory to compile
@@ -183,12 +209,12 @@ moduleName = "Data.Pipe"
 
 o_1_space :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space value =
-    [ (SpaceO_1, benchIO "mapM" $ pipeMapM value)
-    , (SpaceO_1, benchIO "compose" $ pipeCompose value)
-    , (SpaceO_1, benchIO "tee" $ pipeTee value)
-    , (SpaceO_1, benchIO "mapM x 4" $ pipeMapMX4 value)
-    , (SpaceO_1, benchIO "compose x 4" $ pipeComposeX4 value)
-    , (SpaceO_1, benchIO "tee x 4" $ pipeTeeX4 value)
+    [ (SpaceO_1, benchIO "mapM_x1" $ mapM_x1 value)
+    , (SpaceO_1, benchIO "compose_x1 (2 mapM)" $ compose_x1 value)
+    , (SpaceO_1, benchIO "teeMerge_x1 (2 mapM)" $ teeMerge_x1 value)
+    , (SpaceO_1, benchIO "mapM_x4" $ mapM_x4 value)
+    , (SpaceO_1, benchIO "compose_x4 (2 mapM)" $ compose_x4 value)
+    , (SpaceO_1, benchIO "teeMerge_x4 (2 mapM)" $ teeMerge_x4 value)
     ]
 
 main :: IO ()

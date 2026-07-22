@@ -34,6 +34,7 @@ import qualified Streamly.Internal.Data.Stream as Stream
 
 import Test.Tasty.Bench
 import Streamly.Benchmark.Common
+import Fusion.Plugin.Types
 
 #ifdef INSPECTION
 import GHC.Types (SPEC(..))
@@ -81,90 +82,114 @@ composeN n f =
 -- Scan benchmarks
 -------------------------------------------------------------------------------
 
-{-# INLINE scanMapM #-}
-scanMapM :: Monad m => Int -> Stream m Int -> m ()
-scanMapM n = composeN n $ Stream.scanr (Scan.functionM return)
+{-# INLINE functionM #-}
+functionM :: Monad m => Int -> Stream m Int -> m ()
+functionM n = composeN n $ Stream.scanr (Scan.functionM return)
 
-{-# INLINE scanComposeMapM #-}
-scanComposeMapM :: Monad m => Int -> Stream m Int -> m ()
-scanComposeMapM n =
+{-# INLINE compose #-}
+compose :: Monad m => Int -> Stream m Int -> m ()
+compose n =
     composeN n $
     Stream.scanr
         (Scan.functionM (\x -> return (x + 1)) `Scan.compose`
          Scan.functionM (\x -> return (x + 2)))
 
-{-# INLINE scanTeeMapM #-}
-scanTeeMapM :: Monad m => Int -> Stream m Int -> m ()
-scanTeeMapM n =
+{-# INLINE teeWith #-}
+teeWith :: Monad m => Int -> Stream m Int -> m ()
+teeWith n =
     composeN n $
     Stream.scanr
         (Scan.teeWith (+) (Scan.functionM (\x -> return (x + 1)))
          (Scan.functionM (\x -> return (x + 2))))
 
-scansMapM :: Int -> Int -> IO ()
-scansMapM value = withStream value (scanMapM 1)
+{-# ANN functionM_x1 (PermitPatternMatches [''Int]) #-}
+{-# ANN functionM_x1 (PermitConstructions [''()]) #-}
+{-# ANN functionM_x1 (PermitTypeClasses []) #-}
+{-# NOINLINE functionM_x1 #-}
+functionM_x1 :: Int -> Int -> IO ()
+functionM_x1 value = withStream value (functionM 1)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'scansMapM
-inspect $ 'scansMapM `hasNoType` ''S.Step
-inspect $ 'scansMapM `hasNoType` ''S.RunScanState
-inspect $ 'scansMapM `hasNoType` ''FL.Step
-inspect $ 'scansMapM `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'functionM_x1
+inspect $ 'functionM_x1 `hasNoType` ''S.Step
+inspect $ 'functionM_x1 `hasNoType` ''S.RunScanState
+inspect $ 'functionM_x1 `hasNoType` ''FL.Step
+inspect $ 'functionM_x1 `hasNoType` ''SPEC
 #endif
 
-scansCompose :: Int -> Int -> IO ()
-scansCompose value = withStream value (scanComposeMapM 1)
+{-# ANN compose_x1 (PermitPatternMatches [''Int]) #-}
+{-# ANN compose_x1 (PermitConstructions [''()]) #-}
+{-# ANN compose_x1 (PermitTypeClasses []) #-}
+{-# NOINLINE compose_x1 #-}
+compose_x1 :: Int -> Int -> IO ()
+compose_x1 value = withStream value (compose 1)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'scansCompose
-inspect $ 'scansCompose `hasNoType` ''S.Step
-inspect $ 'scansCompose `hasNoType` ''S.RunScanState
-inspect $ 'scansCompose `hasNoType` ''FL.Step
-inspect $ 'scansCompose `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'compose_x1
+inspect $ 'compose_x1 `hasNoType` ''S.Step
+inspect $ 'compose_x1 `hasNoType` ''S.RunScanState
+inspect $ 'compose_x1 `hasNoType` ''FL.Step
+inspect $ 'compose_x1 `hasNoType` ''SPEC
 #endif
 
-scansTee :: Int -> Int -> IO ()
-scansTee value = withStream value (scanTeeMapM 1)
+{-# ANN teeWith_x1 (PermitPatternMatches [''Int]) #-}
+{-# ANN teeWith_x1 (PermitConstructions [''()]) #-}
+{-# ANN teeWith_x1 (PermitTypeClasses []) #-}
+{-# NOINLINE teeWith_x1 #-}
+teeWith_x1 :: Int -> Int -> IO ()
+teeWith_x1 value = withStream value (teeWith 1)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'scansTee
-inspect $ 'scansTee `hasNoType` ''S.Step
-inspect $ 'scansTee `hasNoType` ''S.RunScanState
-inspect $ 'scansTee `hasNoType` ''FL.Step
-inspect $ 'scansTee `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'teeWith_x1
+inspect $ 'teeWith_x1 `hasNoType` ''S.Step
+inspect $ 'teeWith_x1 `hasNoType` ''S.RunScanState
+inspect $ 'teeWith_x1 `hasNoType` ''FL.Step
+inspect $ 'teeWith_x1 `hasNoType` ''SPEC
 #endif
 
-scansMapMX4 :: Int -> Int -> IO ()
-scansMapMX4 value = withStream value (scanMapM 4)
+{-# ANN functionM_x4 (PermitPatternMatches [''Int]) #-}
+{-# ANN functionM_x4 (PermitConstructions [''()]) #-}
+{-# ANN functionM_x4 (PermitTypeClasses []) #-}
+{-# NOINLINE functionM_x4 #-}
+functionM_x4 :: Int -> Int -> IO ()
+functionM_x4 value = withStream value (functionM 4)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'scansMapMX4
-inspect $ 'scansMapMX4 `hasNoType` ''S.Step
-inspect $ 'scansMapMX4 `hasNoType` ''S.RunScanState
-inspect $ 'scansMapMX4 `hasNoType` ''FL.Step
-inspect $ 'scansMapMX4 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'functionM_x4
+inspect $ 'functionM_x4 `hasNoType` ''S.Step
+inspect $ 'functionM_x4 `hasNoType` ''S.RunScanState
+inspect $ 'functionM_x4 `hasNoType` ''FL.Step
+inspect $ 'functionM_x4 `hasNoType` ''SPEC
 #endif
 
-scansComposeX4 :: Int -> Int -> IO ()
-scansComposeX4 value = withStream value (scanComposeMapM 4)
+{-# ANN compose_x4 (PermitPatternMatches [''Int]) #-}
+{-# ANN compose_x4 (PermitConstructions [''()]) #-}
+{-# ANN compose_x4 (PermitTypeClasses []) #-}
+{-# NOINLINE compose_x4 #-}
+compose_x4 :: Int -> Int -> IO ()
+compose_x4 value = withStream value (compose 4)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'scansComposeX4
-inspect $ 'scansComposeX4 `hasNoType` ''S.Step
-inspect $ 'scansComposeX4 `hasNoType` ''S.RunScanState
-inspect $ 'scansComposeX4 `hasNoType` ''FL.Step
-inspect $ 'scansComposeX4 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'compose_x4
+inspect $ 'compose_x4 `hasNoType` ''S.Step
+inspect $ 'compose_x4 `hasNoType` ''S.RunScanState
+inspect $ 'compose_x4 `hasNoType` ''FL.Step
+inspect $ 'compose_x4 `hasNoType` ''SPEC
 #endif
 
-scansTeeX4 :: Int -> Int -> IO ()
-scansTeeX4 value = withStream value (scanTeeMapM 4)
+{-# ANN teeWith_x4 (PermitPatternMatches [''Int]) #-}
+{-# ANN teeWith_x4 (PermitConstructions [''()]) #-}
+{-# ANN teeWith_x4 (PermitTypeClasses []) #-}
+{-# NOINLINE teeWith_x4 #-}
+teeWith_x4 :: Int -> Int -> IO ()
+teeWith_x4 value = withStream value (teeWith 4)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'scansTeeX4
-inspect $ 'scansTeeX4 `hasNoType` ''S.Step
-inspect $ 'scansTeeX4 `hasNoType` ''S.RunScanState
-inspect $ 'scansTeeX4 `hasNoType` ''FL.Step
-inspect $ 'scansTeeX4 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'teeWith_x4
+inspect $ 'teeWith_x4 `hasNoType` ''S.Step
+inspect $ 'teeWith_x4 `hasNoType` ''S.RunScanState
+inspect $ 'teeWith_x4 `hasNoType` ''FL.Step
+inspect $ 'teeWith_x4 `hasNoType` ''SPEC
 #endif
 
 -------------------------------------------------------------------------------
@@ -176,12 +201,12 @@ moduleName = "Data.Scan"
 
 o_1_space :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space value =
-    [ (SpaceO_1, benchIO "mapM" $ scansMapM value)
-    , (SpaceO_1, benchIO "compose" $ scansCompose value)
-    , (SpaceO_1, benchIO "tee" $ scansTee value)
-    , (SpaceO_1, benchIO "mapM x 4" $ scansMapMX4 value)
-    , (SpaceO_1, benchIO "compose x 4" $ scansComposeX4 value)
-    , (SpaceO_1, benchIO "tee x 4" $ scansTeeX4 value)
+    [ (SpaceO_1, benchIO "functionM_x1" $ functionM_x1 value)
+    , (SpaceO_1, benchIO "compose_x1 (2 functionM)" $ compose_x1 value)
+    , (SpaceO_1, benchIO "teeWith_x1 (2 functionM)" $ teeWith_x1 value)
+    , (SpaceO_1, benchIO "functionM_x4" $ functionM_x4 value)
+    , (SpaceO_1, benchIO "compose_x4 (2 functionM)" $ compose_x4 value)
+    , (SpaceO_1, benchIO "teeWith_x4 (2 functionM)" $ teeWith_x4 value)
     ]
 
 main :: IO ()

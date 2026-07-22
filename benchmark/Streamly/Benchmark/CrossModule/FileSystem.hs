@@ -50,7 +50,8 @@ import Streamly.Benchmark.Common
 import Streamly.Benchmark.Common.Handle
 
 #ifdef INSPECTION
-import Streamly.Internal.Data.MutByteArray (Unbox)
+import Foreign.Ptr (Ptr)
+import Streamly.Internal.Data.MutByteArray (Unbox, PinnedState)
 import Streamly.Internal.Data.Stream (Step(..), FoldMany)
 
 import qualified Streamly.Internal.Data.MutArray as MutArray
@@ -67,7 +68,8 @@ import Test.Inspection
 {-# ANN readLast (PermitPatternMatches
     [''[],''Int,''UnsafeEquality,''IO,''Array]) #-}
 {-# ANN readLast (PermitConstructions
-    [''Int,''SrcLoc,''CallStack,''[],''Array,''Maybe,''Word8]) #-}
+    [''Int,''SrcLoc,''CallStack,''[],''Array,''Maybe,''Word8,''Ptr
+    ,''PinnedState]) #-}
 {-# ANN readLast (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE readLast #-}
 readLast :: Handle -> IO (Maybe Word8)
@@ -84,7 +86,7 @@ inspect $ 'readLast `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 {-# ANN readCountBytes (PermitPatternMatches
     [''[],''Int,''UnsafeEquality,''IO,''Array]) #-}
 {-# ANN readCountBytes (PermitConstructions
-    [''Int,''SrcLoc,''CallStack,''[],''Array]) #-}
+    [''Int,''SrcLoc,''CallStack,''[],''Array,''Ptr,''PinnedState]) #-}
 {-# ANN readCountBytes (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE readCountBytes #-}
 readCountBytes :: Handle -> IO Int
@@ -101,7 +103,7 @@ inspect $ 'readCountBytes `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 {-# ANN readSumBytes (PermitPatternMatches
     [''[],''Int,''UnsafeEquality,''IO,''Array]) #-}
 {-# ANN readSumBytes (PermitConstructions
-    [''Int,''SrcLoc,''CallStack,''[],''Array,''Word8]) #-}
+    [''Int,''SrcLoc,''CallStack,''[],''Array,''Word8,''Ptr,''PinnedState]) #-}
 {-# ANN readSumBytes (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE readSumBytes #-}
 readSumBytes :: Handle -> IO Word8
@@ -121,7 +123,7 @@ inspect $ 'readSumBytes `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 {-# ANN chunksOfSum (PermitPatternMatches
     [''[],''Int,''UnsafeEquality,''IO,''Array]) #-}
 {-# ANN chunksOfSum (PermitConstructions
-    [''Int,''SrcLoc,''CallStack,''[],''Array]) #-}
+    [''Int,''SrcLoc,''CallStack,''[],''Array,''Ptr,''PinnedState]) #-}
 {-# ANN chunksOfSum (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE chunksOfSum #-}
 chunksOfSum :: Int -> Handle -> IO Int
@@ -181,7 +183,8 @@ chunksOf n inh =
 {-# ANN toChunksLast (PermitPatternMatches
     [''[],''Int,''UnsafeEquality,''IO,''Array]) #-}
 {-# ANN toChunksLast (PermitConstructions
-    [''Int,''SrcLoc,''CallStack,''[],''Array,''Maybe,''Word8]) #-}
+    [''Int,''SrcLoc,''CallStack,''[],''Array,''Maybe,''Word8,''Ptr
+    ,''PinnedState]) #-}
 {-# ANN toChunksLast (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE toChunksLast #-}
 toChunksLast :: Handle -> IO (Maybe Word8)
@@ -201,7 +204,7 @@ inspect $ 'toChunksLast `hasNoType` ''Step
 {-# ANN toChunksSumLengths (PermitPatternMatches
     [''[],''Int,''UnsafeEquality,''IO,''Array]) #-}
 {-# ANN toChunksSumLengths (PermitConstructions
-    [''Int,''SrcLoc,''CallStack,''[],''Array]) #-}
+    [''Int,''SrcLoc,''CallStack,''[],''Array,''Ptr,''PinnedState]) #-}
 {-# ANN toChunksSumLengths (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE toChunksSumLengths #-}
 toChunksSumLengths :: Handle -> IO Int
@@ -218,7 +221,7 @@ inspect $ 'toChunksSumLengths `hasNoType` ''Step
 {-# ANN toChunksCountBytes (PermitPatternMatches
     [''[],''Int,''UnsafeEquality,''IO,''Array]) #-}
 {-# ANN toChunksCountBytes (PermitConstructions
-    [''Int,''SrcLoc,''CallStack,''[],''Array,''Word8]) #-}
+    [''Int,''SrcLoc,''CallStack,''[],''Array,''Word8,''Ptr,''PinnedState]) #-}
 {-# ANN toChunksCountBytes (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE toChunksCountBytes #-}
 toChunksCountBytes :: Handle -> IO Word8
@@ -240,7 +243,8 @@ inspect $ 'toChunksCountBytes `hasNoType` ''Step
 {-# ANN toChunksSplitOnSuffix (PermitPatternMatches
     [''[],''Int,''UnsafeEquality,''IO,''MutArray,''Array]) #-}
 {-# ANN toChunksSplitOnSuffix (PermitConstructions
-    [''Int,''SrcLoc,''CallStack,''[],''Array,''MutArray]) #-}
+    [''Int,''SrcLoc,''CallStack,''[],''Array,''MutArray,''Ptr
+    ,''PinnedState]) #-}
 {-# ANN toChunksSplitOnSuffix (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE toChunksSplitOnSuffix #-}
 toChunksSplitOnSuffix :: Handle -> IO Int
@@ -258,7 +262,8 @@ inspect $ 'toChunksSplitOnSuffix `hasNoType` ''Step
 {-# ANN toChunksSplitOn (PermitPatternMatches
     [''[],''Int,''UnsafeEquality,''IO,''MutArray,''Array]) #-}
 {-# ANN toChunksSplitOn (PermitConstructions
-    [''Int,''SrcLoc,''CallStack,''[],''Array,''MutArray]) #-}
+    [''Int,''SrcLoc,''CallStack,''[],''Array,''MutArray,''Ptr
+    ,''PinnedState]) #-}
 {-# ANN toChunksSplitOn (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE toChunksSplitOn #-}
 toChunksSplitOn :: Handle -> IO Int
@@ -280,7 +285,8 @@ inspect $ 'toChunksSplitOn `hasNoType` ''Step
 {-# ANN copyChunksSplitInterposeSuffix (PermitPatternMatches
     [''IO,''[],''Int,''UnsafeEquality,''Array,''MutArray]) #-}
 {-# ANN copyChunksSplitInterposeSuffix (PermitConstructions
-    [''Int,''SrcLoc,''CallStack,''[],''Array,''(),''MutArray]) #-}
+    [''Int,''SrcLoc,''CallStack,''[],''Array,''(),''MutArray,''Ptr,''Bool
+    ,''PinnedState]) #-}
 {-# ANN copyChunksSplitInterposeSuffix (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE copyChunksSplitInterposeSuffix #-}
 copyChunksSplitInterposeSuffix :: Handle -> Handle -> IO ()
@@ -298,8 +304,8 @@ inspect $ 'copyChunksSplitInterposeSuffix `hasNoType` ''Step
 {-# ANN copyChunksSplitInterpose (PermitPatternMatches
     [''IO,''[],''Int,''UnsafeEquality,''MutArray,''Array,''(,),''Maybe]) #-}
 {-# ANN copyChunksSplitInterpose (PermitConstructions
-    [''Int,''SrcLoc,''CallStack,''[],''Array,''(,),''MutArray,''Maybe,''()])
-    #-}
+    [''Int,''SrcLoc,''CallStack,''[],''Array,''(,),''MutArray,''Maybe,''()
+    ,''Ptr,''Bool,''PinnedState]) #-}
 {-# ANN copyChunksSplitInterpose (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE copyChunksSplitInterpose #-}
 copyChunksSplitInterpose :: Handle -> Handle -> IO ()

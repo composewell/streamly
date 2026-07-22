@@ -635,7 +635,7 @@ inspect $ 'foldl'_fmap `hasNoType` ''SPEC
 
 -- this is quadratic
 {-# ANN scanl'_Iterated (PermitPatternMatches
-    [''Int,''Stream.Step,''Stream.ScanState,''Stream]) #-}
+    [''Int,''Stream.Step,''Stream.ScanState,''Stream,''SVar.State]) #-}
 {-# ANN scanl'_Iterated (PermitConstructions
     [''Int,''Stream,''Stream.ScanState,''Stream.Step,''SVar.State,''Maybe
     ,''(),''Bool]) #-}
@@ -648,7 +648,7 @@ scanl'_Iterated value iterCount =
 
 -- this is quadratic
 {-# ANN scanl1'_Iterated (PermitPatternMatches
-    [''Maybe,''(,),''Int,''Stream.Step,''Stream]) #-}
+    [''Maybe,''(,),''Int,''Stream.Step,''Stream,''SVar.State]) #-}
 {-# ANN scanl1'_Iterated (PermitConstructions
     [''Int,''Maybe,''Stream,''(,),''Stream.Step,''SVar.State,''(),''Bool]) #-}
 {-# ANN scanl1'_Iterated (PermitTypeClasses []) #-}
@@ -658,7 +658,8 @@ scanl1'_Iterated value iterCount =
     Common.drain . iterateSource (S.scanl1' (+)) (value `div` iterCount)
         iterCount
 
-{-# ANN mapM_Iterated (PermitPatternMatches [''Int,''Stream.Step,''Stream]) #-}
+{-# ANN mapM_Iterated (PermitPatternMatches
+    [''Int,''Stream.Step,''Stream,''SVar.State]) #-}
 {-# ANN mapM_Iterated (PermitConstructions
     [''Int,''Stream,''SVar.State,''Maybe,''Stream.Step,''(),''Bool]) #-}
 {-# ANN mapM_Iterated (PermitTypeClasses []) #-}
@@ -669,7 +670,7 @@ mapM_Iterated value iterCount =
         iterCount
 
 {-# ANN filter_Even_Iterated (PermitPatternMatches
-    [''Int,''Stream.Step,''Stream]) #-}
+    [''Int,''Stream.Step,''Stream,''SVar.State]) #-}
 {-# ANN filter_Even_Iterated (PermitConstructions
     [''Int,''Stream.Step,''Stream,''SVar.State,''Maybe,''(),''Bool]) #-}
 {-# ANN filter_Even_Iterated (PermitTypeClasses []) #-}
@@ -679,7 +680,8 @@ filter_Even_Iterated value iterCount =
     Common.drain . iterateSource (S.filter even) (value `div` iterCount)
         iterCount
 
-{-# ANN take_All_Iterated (PermitPatternMatches [''(,),''Int,''Stream.Step]) #-}
+{-# ANN take_All_Iterated (PermitPatternMatches
+    [''(,),''Int,''Stream.Step,''SVar.State]) #-}
 {-# ANN take_All_Iterated (PermitConstructions
     [''Int,''SVar.State,''Maybe,''Stream.Step,''(,),''(),''Bool]) #-}
 {-# ANN take_All_Iterated (PermitTypeClasses []) #-}
@@ -690,7 +692,7 @@ take_All_Iterated value iterCount =
         iterCount
 
 {-# ANN drop_One_Iterated (PermitPatternMatches
-    [''Maybe,''(,),''Bool,''Int,''Stream.Step,''Stream]) #-}
+    [''Maybe,''(,),''Bool,''Int,''Stream.Step,''Stream,''SVar.State]) #-}
 {-# ANN drop_One_Iterated (PermitConstructions
     [''Int,''Integer,''Maybe,''Stream,''(,),''Stream.Step,''SVar.State
     ,''(),''Bool]) #-}
@@ -701,7 +703,7 @@ drop_One_Iterated value iterCount =
     Common.drain . iterateSource (S.drop 1) (value `div` iterCount) iterCount
 
 {-# ANN dropWhile_True_Iterated (PermitPatternMatches
-    [''Int,''Stream.Step,''Stream.DropWhileState]) #-}
+    [''Int,''Stream.Step,''Stream.DropWhileState,''SVar.State]) #-}
 {-# ANN dropWhile_True_Iterated (PermitConstructions
     [''Int,''SVar.State,''Maybe,''Stream.Step,''Stream.DropWhileState,''()
     ,''Bool]) #-}
@@ -764,7 +766,7 @@ ioAction_Iterated value i0 =
     iterateN (\i acc -> acc >>= \n -> return $ i + n) (return i0) value
 
 {-# ANN submap_Iterated (PermitPatternMatches
-    [''Bool,''Int,''Stream.Step,''Stream]) #-}
+    [''Bool,''Int,''Stream.Step,''Stream,''SVar.State]) #-}
 {-# ANN submap_Iterated (PermitConstructions
     [''Int,''Stream.Step,''Stream,''SVar.State,''Maybe,''Bool]) #-}
 {-# ANN submap_Iterated (PermitTypeClasses []) #-}
@@ -772,7 +774,8 @@ ioAction_Iterated value i0 =
 submap_Iterated :: Int -> Int -> IO ()
 submap_Iterated value = drain . iterateSingleton (<$) value
 
-{-# ANN fmap_Iterated (PermitPatternMatches [''Int,''Stream.Step,''Stream]) #-}
+{-# ANN fmap_Iterated (PermitPatternMatches
+    [''Int,''Stream.Step,''Stream,''SVar.State,''Bool]) #-}
 {-# ANN fmap_Iterated (PermitConstructions
     [''Int,''Stream.Step,''Stream,''SVar.State,''Maybe,''Bool]) #-}
 {-# ANN fmap_Iterated (PermitTypeClasses []) #-}

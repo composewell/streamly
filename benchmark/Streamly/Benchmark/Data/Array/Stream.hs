@@ -85,6 +85,11 @@ drainWhile p = Parser.takeWhile p Fold.drain
 -- Folds and parsers
 -------------------------------------------------------------------------------
 
+-- NOTE: Ideally we should not pass streams to fused IO actions, the stream
+-- boundary will remain unfused. But if we avoid that then we will have to pass
+-- lists and then generate stream from list inside, but then the list-stream
+-- boundary will remain unfused.
+
 {-# ANN foldBreak_Drain (PermitPatternMatches
     [''Stream, ''SVar.State, ''Step]) #-}
 {-# ANN foldBreak_Drain (PermitConstructions

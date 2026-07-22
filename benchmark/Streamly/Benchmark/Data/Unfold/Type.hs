@@ -719,9 +719,11 @@ bind_MonadInstance_FilterSome_x2 value start = do
      in UF.fold FL.drain u start
 
 {-# ANN bind_MonadInstance_BreakAfterSome_x2 (PermitPatternMatches
-    [''SomeException,''UnsafeEquality,''Bool]) #-}
+    [''SomeException,''UnsafeEquality,''Bool,''Int,''Stream.Step
+    ,''Producer.ConcatMapReaderState,''Producer.EnumToState,''Unfold]) #-}
 {-# ANN bind_MonadInstance_BreakAfterSome_x2 (PermitConstructions
-    [''Either,''Int,''SrcLoc,''CallStack]) #-}
+    [''Either,''Int,''SrcLoc,''CallStack,''Stream.Step
+    ,''Producer.ConcatMapReaderState,''Producer.EnumToState,''Bool,''()]) #-}
 {-# ANN bind_MonadInstance_BreakAfterSome_x2 (PermitTypeClasses
     [''Typeable,''IP,''Exception]) #-}
 {-# NOINLINE bind_MonadInstance_BreakAfterSome_x2 #-}

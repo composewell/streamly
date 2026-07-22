@@ -376,7 +376,7 @@ inspect $ 'length_Foldable `hasNoType` ''SPEC
 #endif
 
 {-# ANN minimum_Foldable (PermitPatternMatches [''Int,''Maybe']) #-}
-{-# ANN minimum_Foldable (PermitConstructions []) #-}
+{-# ANN minimum_Foldable (PermitConstructions [''Maybe',''Int]) #-}
 {-# ANN minimum_Foldable (PermitTypeClasses []) #-}
 {-# NOINLINE minimum_Foldable #-}
 minimum_Foldable :: Int -> Int -> Int
@@ -407,7 +407,7 @@ inspect $ 'min_OrdInstance `hasNoType` ''SPEC
 #endif
 
 {-# ANN maximum_Foldable (PermitPatternMatches [''Int,''Maybe']) #-}
-{-# ANN maximum_Foldable (PermitConstructions []) #-}
+{-# ANN maximum_Foldable (PermitConstructions [''Maybe',''Int]) #-}
 {-# ANN maximum_Foldable (PermitTypeClasses []) #-}
 {-# NOINLINE maximum_Foldable #-}
 maximum_Foldable :: Int -> Int -> Int
@@ -422,7 +422,7 @@ inspect $ 'maximum_Foldable `hasNoType` ''SPEC
 #endif
 
 {-# ANN minimumBy_Foldable (PermitPatternMatches [''Int,''Maybe]) #-}
-{-# ANN minimumBy_Foldable (PermitConstructions []) #-}
+{-# ANN minimumBy_Foldable (PermitConstructions [''Maybe,''Int]) #-}
 {-# ANN minimumBy_Foldable (PermitTypeClasses []) #-}
 {-# NOINLINE minimumBy_Foldable #-}
 minimumBy_Foldable :: Int -> Int -> Int
@@ -444,7 +444,7 @@ minimumBy_List_Foldable :: Int -> Int -> Int
 minimumBy_List_Foldable value n = F.minimumBy compare [1..value+n]
 
 {-# ANN maximumBy_Foldable (PermitPatternMatches [''Int,''Maybe]) #-}
-{-# ANN maximumBy_Foldable (PermitConstructions []) #-}
+{-# ANN maximumBy_Foldable (PermitConstructions [''Maybe,''Int]) #-}
 {-# ANN maximumBy_Foldable (PermitTypeClasses []) #-}
 {-# NOINLINE maximumBy_Foldable #-}
 maximumBy_Foldable :: Int -> Int -> Int

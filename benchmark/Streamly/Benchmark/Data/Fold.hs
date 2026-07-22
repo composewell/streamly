@@ -49,6 +49,7 @@ import System.Random (randomRIO)
 import Unsafe.Coerce (UnsafeEquality)
 
 import Streamly.Data.MutByteArray (MutByteArray, Unbox)
+import Streamly.Internal.Data.MutByteArray (PinnedState)
 import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Fold (Fold(..))
 import Streamly.Internal.Data.MutArray (MutArray)
@@ -672,7 +673,7 @@ toarr = Array.fromList . fmap (fromIntegral . ord)
 {-# ANN takeEndBy__Infix_FileRead (PermitPatternMatches
     [''[],''Int,''UnsafeEquality,''IO,''Array]) #-}
 {-# ANN takeEndBy__Infix_FileRead (PermitConstructions
-    [''Int,''SrcLoc,''CallStack,''[],''Array]) #-}
+    [''Int,''SrcLoc,''CallStack,''[],''Array,''Ptr,''PinnedState]) #-}
 {-# ANN takeEndBy__Infix_FileRead (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE takeEndBy__Infix_FileRead #-}
 takeEndBy__Infix_FileRead :: Handle -> IO Int
@@ -694,7 +695,7 @@ inspect $ 'takeEndBy__Infix_FileRead `hasNoType` ''MutArray.ArrayUnsafe
 {-# ANN takeEndBy__Suffix_FileRead (PermitPatternMatches
     [''[],''Int,''UnsafeEquality,''IO,''Array]) #-}
 {-# ANN takeEndBy__Suffix_FileRead (PermitConstructions
-    [''Int,''SrcLoc,''CallStack,''[],''Array]) #-}
+    [''Int,''SrcLoc,''CallStack,''[],''Array,''Ptr,''PinnedState]) #-}
 {-# ANN takeEndBy__Suffix_FileRead (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE takeEndBy__Suffix_FileRead #-}
 takeEndBy__Suffix_FileRead :: Handle -> IO Int
@@ -718,7 +719,7 @@ inspect $ 'takeEndBy__Suffix_FileRead `hasNoType` ''MutArray.ArrayUnsafe
 {-# ANN takeEndBy__Suffix_ParseMany_FileRead (PermitPatternMatches
     [''[],''Int,''UnsafeEquality,''IO,''Array]) #-}
 {-# ANN takeEndBy__Suffix_ParseMany_FileRead (PermitConstructions
-    [''Int,''SrcLoc,''CallStack,''[],''Array]) #-}
+    [''Int,''SrcLoc,''CallStack,''[],''Array,''Ptr,''PinnedState]) #-}
 {-# ANN takeEndBy__Suffix_ParseMany_FileRead (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE takeEndBy__Suffix_ParseMany_FileRead #-}
 takeEndBy__Suffix_ParseMany_FileRead :: Handle -> IO Int
@@ -733,7 +734,7 @@ takeEndBy__Suffix_ParseMany_FileRead inh =
 {-# ANN takeEndBy_Suffix_FileRead (PermitPatternMatches
     [''[],''Int,''UnsafeEquality,''IO,''Array]) #-}
 {-# ANN takeEndBy_Suffix_FileRead (PermitConstructions
-    [''Int,''SrcLoc,''CallStack,''[],''Array]) #-}
+    [''Int,''SrcLoc,''CallStack,''[],''Array,''Ptr,''PinnedState]) #-}
 {-# ANN takeEndBy_Suffix_FileRead (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE takeEndBy_Suffix_FileRead #-}
 takeEndBy_Suffix_FileRead :: Handle -> IO Int
@@ -759,7 +760,7 @@ inspect $ 'takeEndBy_Suffix_FileRead `hasNoType` ''MutArray.ArrayUnsafe
     ,''Array,''Word,''Word32]) #-}
 {-# ANN takeEndBySeq__Infix_FileRead (PermitConstructions
     [''[],''Word8,''Int,''SrcLoc,''CallStack,''Array,''Word32,''MutArray
-    ,''SVar.State,''Maybe,''Bool,''Word,''()]) #-}
+    ,''SVar.State,''Maybe,''Bool,''Word,''(),''Ptr,''PinnedState]) #-}
 {-# ANN takeEndBySeq__Infix_FileRead (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE takeEndBySeq__Infix_FileRead #-}
 takeEndBySeq__Infix_FileRead :: String -> Handle -> IO Int
@@ -779,7 +780,7 @@ takeEndBySeq__Infix_FileRead str inh =
     ,''Word32]) #-}
 {-# ANN takeEndBySeq__Infix_Long_FileRead (PermitConstructions
     [''Int,''SrcLoc,''CallStack,''[],''Array,''Word32,''Word,''()
-    ,''MutByteArray]) #-}
+    ,''MutByteArray,''Ptr,''PinnedState]) #-}
 {-# ANN takeEndBySeq__Infix_Long_FileRead (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE takeEndBySeq__Infix_Long_FileRead #-}
 takeEndBySeq__Infix_Long_FileRead :: Handle -> IO Int
@@ -795,7 +796,8 @@ takeEndBySeq__Infix_Long_FileRead inh = do
     ,''Array,''(),''Word,''FL.SplitOnSeqState,''MutByteArray,''Word32]) #-}
 {-# ANN takeEndBySeq__Suffix_FileRead (PermitConstructions
     [''[],''Word8,''Int,''SrcLoc,''CallStack,''Array,''Word32,''MutArray
-    ,''SVar.State,''Maybe,''Bool,''(),''Word]) #-}
+    ,''SVar.State,''Maybe,''Bool,''(),''Word,''Ptr,''PinnedState
+    ,''FL.SplitOnSeqState,''MutByteArray]) #-}
 {-# ANN takeEndBySeq__Suffix_FileRead (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE takeEndBySeq__Suffix_FileRead #-}
 takeEndBySeq__Suffix_FileRead :: String -> Handle -> IO Int
@@ -815,7 +817,7 @@ takeEndBySeq__Suffix_FileRead str inh =
     ,''Array,''Word,''Word32]) #-}
 {-# ANN takeEndBySeq_Suffix_FileRead (PermitConstructions
     [''[],''Word8,''Int,''SrcLoc,''CallStack,''Array,''Word32,''MutArray
-    ,''SVar.State,''Maybe,''Bool,''Word]) #-}
+    ,''SVar.State,''Maybe,''Bool,''Word,''Ptr,''PinnedState]) #-}
 {-# ANN takeEndBySeq_Suffix_FileRead (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE takeEndBySeq_Suffix_FileRead #-}
 takeEndBySeq_Suffix_FileRead :: String -> Handle -> IO Int
@@ -831,7 +833,7 @@ takeEndBySeq_Suffix_FileRead str inh =
     ,''Word,''Word32,''Ptr,''Stream.Step]) #-}
 {-# ANN takeEndBySeq__Infix_Utf8_FileRead (PermitConstructions
     [''MutArray,''SVar.State,''Maybe,''Bool,''Int,''SrcLoc,''CallStack,''[]
-    ,''Array,''Word32,''Word,''()]) #-}
+    ,''Array,''Word32,''Word,''(),''Ptr,''PinnedState]) #-}
 {-# ANN takeEndBySeq__Infix_Utf8_FileRead (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE takeEndBySeq__Infix_Utf8_FileRead #-}
 takeEndBySeq__Infix_Utf8_FileRead :: String -> Handle -> IO Int
@@ -1196,7 +1198,8 @@ demuxerToContainer_IntMap buckets n =
 {-# ANN demuxerToContainerIO_Map (PermitPatternMatches
     [''STRef,''Map,''Int,''Tuple',''Fold,''FL.Step,''IO,''Maybe]) #-}
 {-# ANN demuxerToContainerIO_Map (PermitConstructions
-    [''Map,''Int,''FL.Step,''Maybe,''Tuple',''SrcLoc,''CallStack]) #-}
+    [''Map,''Int,''FL.Step,''Maybe,''Tuple',''SrcLoc,''CallStack,''Fold
+    ,''STRef]) #-}
 {-# ANN demuxerToContainerIO_Map (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE demuxerToContainerIO_Map #-}
 demuxerToContainerIO_Map :: Int -> Int -> Int -> IO (Map Int Int)
@@ -1206,7 +1209,7 @@ demuxerToContainerIO_Map buckets n =
 
 {-# ANN toContainer_Map (PermitPatternMatches
     [''Tuple',''Map,''Int,''Maybe]) #-}
-{-# ANN toContainer_Map (PermitConstructions [''Map,''Int,''Maybe]) #-}
+{-# ANN toContainer_Map (PermitConstructions [''Map,''Int,''Maybe,''Tuple']) #-}
 {-# ANN toContainer_Map (PermitTypeClasses []) #-}
 {-# NOINLINE toContainer_Map #-}
 toContainer_Map :: Int -> Int -> Int -> IO (Map Int Int)
@@ -1225,7 +1228,8 @@ toContainer_IntMap buckets n =
 
 {-# ANN toContainerIO_Map (PermitPatternMatches
     [''STRef,''Map,''Int,''Tuple',''Maybe]) #-}
-{-# ANN toContainerIO_Map (PermitConstructions [''Map,''Int,''Maybe]) #-}
+{-# ANN toContainerIO_Map (PermitConstructions
+    [''Map,''Int,''Maybe,''Tuple',''STRef]) #-}
 {-# ANN toContainerIO_Map (PermitTypeClasses []) #-}
 {-# NOINLINE toContainerIO_Map #-}
 toContainerIO_Map :: Int -> Int -> Int -> IO (Map Int Int)
@@ -1235,7 +1239,7 @@ toContainerIO_Map buckets n =
 {-# ANN toContainerIO_IntMap (PermitPatternMatches
     [''IntMap,''STRef,''Tuple',''Int,''FL.Step]) #-}
 {-# ANN toContainerIO_IntMap (PermitConstructions
-    [''Int,''IntMap,''FL.Step,''Tuple']) #-}
+    [''Int,''IntMap,''FL.Step,''Tuple',''STRef]) #-}
 {-# ANN toContainerIO_IntMap (PermitTypeClasses []) #-}
 {-# NOINLINE toContainerIO_IntMap #-}
 toContainerIO_IntMap :: Int -> Int -> Int -> IO (IntMap Int)
@@ -1271,6 +1275,10 @@ instance NFData a => NFData (Stream Identity a) where
     {-# INLINE rnf #-}
     rnf xs = runIdentity $ Stream.fold (FL.foldl' (\_ x -> rnf x) ()) xs
 
+-- Note: Name each benchmark (and its IO action) after the exported function it
+-- benchmarks, using the format functionName_dimension1_dimension2..., where
+-- the dimensions are optional variants/type specializations. Keep extra info
+-- in parenthetical notes in the description.
 benchmarks :: BenchEnv -> Int -> [(SpaceComplexity, Benchmark)]
 benchmarks env value =
     fmap (SpaceO_1,)

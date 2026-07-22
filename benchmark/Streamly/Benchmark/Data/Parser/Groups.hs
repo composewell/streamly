@@ -31,6 +31,11 @@ module Streamly.Benchmark.Data.Parser.Groups
 
 import Control.DeepSeq (NFData(..))
 import Data.Functor (($>))
+import GHC.Classes (IP)
+import GHC.Stack (CallStack, SrcLoc)
+import GHC.Types (SPEC(..))
+import Streamly.Internal.Data.Either.Strict (Either'(..))
+import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.Stream (Stream)
 import System.Random (randomRIO)
@@ -41,10 +46,10 @@ import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Stream as Stream
 
 import Streamly.Benchmark.Common
+import Fusion.Plugin.Types
 import Prelude hiding (takeWhile, dropWhile, span)
 
 #ifdef INSPECTION
-import GHC.Types (SPEC(..))
 import Test.Inspection
 
 import qualified Streamly.Internal.Data.Fold as FL
@@ -97,9 +102,14 @@ sourceEscapedFrames value = Stream.unfoldrM step
 -- Parsers
 -------------------------------------------------------------------------------
 
-{-# INLINE takeBetween #-}
+{-# ANN takeBetween (PermitPatternMatches [''[], ''String, ''Int, ''IO]) #-}
+{-# ANN takeBetween (PermitConstructions
+    [''[], ''Either, ''(), ''Int, ''SrcLoc, ''CallStack]) #-}
+{-# ANN takeBetween (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE takeBetween #-}
 takeBetween :: Int -> Int -> IO (Either ParseError ())
-takeBetween value = withStream value $ Stream.parse (PR.takeBetween 0 value Fold.drain)
+takeBetween value =
+    withStream value $ Stream.parse (PR.takeBetween 0 value Fold.drain)
 
 #ifdef INSPECTION
 inspect $ 'takeBetween `hasNoType` ''S.Step
@@ -110,7 +120,10 @@ inspect $ 'takeBetween `hasNoType` ''SPEC
 -- inspect $ 'takeBetween `hasNoType` ''PR.Tuple'Fused
 #endif
 
-{-# INLINE takeEQ #-}
+{-# ANN takeEQ (PermitPatternMatches [''Int, ''String, ''[]]) #-}
+{-# ANN takeEQ (PermitConstructions [''Either, ''(), ''[]]) #-}
+{-# ANN takeEQ (PermitTypeClasses []) #-}
+{-# NOINLINE takeEQ #-}
 takeEQ :: Int -> Int -> IO (Either ParseError ())
 takeEQ value = withStream value $ Stream.parse (PR.takeEQ value Fold.drain)
 
@@ -123,7 +136,11 @@ inspect $ 'takeEQ `hasNoType` ''SPEC
 inspect $ 'takeEQ `hasNoType` ''PR.Tuple'Fused
 #endif
 
-{-# INLINE takeGE #-}
+{-# ANN takeGE (PermitPatternMatches [''Int, ''String, ''[]]) #-}
+{-# ANN takeGE (PermitConstructions
+    [''Stream.Step, ''Stream, ''(), ''Either, ''[], ''Int]) #-}
+{-# ANN takeGE (PermitTypeClasses []) #-}
+{-# NOINLINE takeGE #-}
 takeGE :: Int -> Int -> IO (Either ParseError ())
 takeGE value = withStream value $ Stream.parse (PR.takeGE value Fold.drain)
 
@@ -136,7 +153,10 @@ inspect $ 'takeGE `hasNoType` ''SPEC
 inspect $ 'takeGE `hasNoType` ''PR.TakeGEState
 #endif
 
-{-# INLINE dropWhile #-}
+{-# ANN dropWhile (PermitPatternMatches [''Int]) #-}
+{-# ANN dropWhile (PermitConstructions [''Either, ''()]) #-}
+{-# ANN dropWhile (PermitTypeClasses []) #-}
+{-# NOINLINE dropWhile #-}
 dropWhile :: Int -> Int -> IO (Either ParseError ())
 dropWhile value = withStream value $ Stream.parse (PR.dropWhile (<= value))
 
@@ -148,7 +168,10 @@ inspect $ 'dropWhile `hasNoType` ''FL.Step
 inspect $ 'dropWhile `hasNoType` ''SPEC
 #endif
 
-{-# INLINE takeBeginBy #-}
+{-# ANN takeBeginBy (PermitPatternMatches [''[], ''Int, ''Either']) #-}
+{-# ANN takeBeginBy (PermitConstructions [''Either, ''(), ''Either']) #-}
+{-# ANN takeBeginBy (PermitTypeClasses []) #-}
+{-# NOINLINE takeBeginBy #-}
 takeBeginBy :: Int -> Int -> IO (Either ParseError ())
 takeBeginBy value n =
     Stream.parse (PR.takeBeginBy (== value) Fold.drain) stream
@@ -165,7 +188,12 @@ inspect $ 'takeBeginBy `hasNoType` ''FL.Step
 inspect $ 'takeBeginBy `hasNoType` ''SPEC
 #endif
 
-{-# INLINE takeFramedByEsc_ #-}
+{-# ANN takeFramedByEsc_ (PermitPatternMatches
+    [''Maybe, ''(,), ''Char, ''Int]) #-}
+{-# ANN takeFramedByEsc_ (PermitConstructions
+    [''Either, ''Char, ''(), ''Maybe, ''(,), ''Int]) #-}
+{-# ANN takeFramedByEsc_ (PermitTypeClasses []) #-}
+{-# NOINLINE takeFramedByEsc_ #-}
 takeFramedByEsc_ :: Int -> Int -> IO (Either ParseError ())
 takeFramedByEsc_ value n =
     Stream.parse parser (sourceEscapedFrames value n)
@@ -178,18 +206,31 @@ takeFramedByEsc_ value n =
 
     parser = PR.takeFramedByEsc_ isEsc isBegin isEnd Fold.drain
 
-{-# INLINE listEqBy #-}
+{-# ANN listEqBy (PermitPatternMatches [''[], ''Int, ''Maybe', ''String]) #-}
+{-# ANN listEqBy (PermitConstructions [''Either, ''[], ''Int, ''Maybe']) #-}
+{-# ANN listEqBy (PermitTypeClasses []) #-}
+{-# NOINLINE listEqBy #-}
 listEqBy :: Int -> Int -> IO (Either ParseError [Int])
-listEqBy value = withStream value $ Stream.parse (PR.listEqBy (==) [1 .. value])
+listEqBy value =
+    withStream value $ Stream.parse (PR.listEqBy (==) [1 .. value])
 
-{-# INLINE streamEqBy #-}
+{-# ANN streamEqBy (PermitPatternMatches [''Int, ''String]) #-}
+{-# ANN streamEqBy (PermitConstructions [''Either, ''(), ''[]]) #-}
+{-# ANN streamEqBy (PermitTypeClasses []) #-}
+{-# NOINLINE streamEqBy #-}
 streamEqBy :: Int -> Int -> IO (Either ParseError ())
 streamEqBy value =
-    withStream value $ Stream.parse (PR.streamEqBy (==) (Stream.enumerateFromTo 1 value))
+    withStream value
+        $ Stream.parse
+            (PR.streamEqBy (==) (Stream.enumerateFromTo 1 value))
 
-{-# INLINE takeWhile #-}
+{-# ANN takeWhile (PermitPatternMatches [''Int]) #-}
+{-# ANN takeWhile (PermitConstructions [''Either, ''()]) #-}
+{-# ANN takeWhile (PermitTypeClasses []) #-}
+{-# NOINLINE takeWhile #-}
 takeWhile :: Int -> Int -> IO (Either ParseError ())
-takeWhile value = withStream value $ Stream.parse (PR.takeWhile (<= value) Fold.drain)
+takeWhile value =
+    withStream value $ Stream.parse (PR.takeWhile (<= value) Fold.drain)
 
 #ifdef INSPECTION
 inspect $ 'takeWhile `hasNoType` ''S.Step
@@ -199,11 +240,16 @@ inspect $ 'takeWhile `hasNoType` ''FL.Step
 inspect $ 'takeWhile `hasNoType` ''SPEC
 #endif
 
-{-# INLINE takeWhileP #-}
+{-# ANN takeWhileP (PermitPatternMatches [''Int]) #-}
+{-# ANN takeWhileP (PermitConstructions [''Either, ''()]) #-}
+{-# ANN takeWhileP (PermitTypeClasses []) #-}
+{-# NOINLINE takeWhileP #-}
 takeWhileP :: Int -> Int -> IO (Either ParseError ())
 takeWhileP value =
     withStream value $
-        Stream.parse (PR.takeWhileP (<= value) (PR.takeWhile (<= value - 1) Fold.drain))
+        Stream.parse
+            (PR.takeWhileP (<= value)
+                (PR.takeWhile (<= value - 1) Fold.drain))
 
 #ifdef INSPECTION
 -- inspect $ 'takeWhileP `hasNoType` ''S.Step
@@ -213,11 +259,19 @@ inspect $ 'takeWhileP `hasNoType` ''FL.Step
 inspect $ 'takeWhileP `hasNoType` ''SPEC
 #endif
 
-{-# INLINE takeP #-}
+{-# ANN takeP (PermitPatternMatches [''Int]) #-}
+{-# ANN takeP (PermitConstructions [''Either, ''()]) #-}
+{-# ANN takeP (PermitTypeClasses []) #-}
+{-# NOINLINE takeP #-}
 takeP :: Int -> Int -> IO (Either ParseError ())
-takeP value = withStream value $ Stream.parse (PR.takeP value (PR.fromFold Fold.drain))
+takeP value =
+    withStream value
+        $ Stream.parse (PR.takeP value (PR.fromFold Fold.drain))
 
-{-# INLINE groupBy #-}
+{-# ANN groupBy (PermitPatternMatches [''Int]) #-}
+{-# ANN groupBy (PermitConstructions [''(), ''Either]) #-}
+{-# ANN groupBy (PermitTypeClasses []) #-}
+{-# NOINLINE groupBy #-}
 groupBy :: Int -> Int -> IO (Either ParseError ())
 groupBy value = withStream value $ Stream.parse (PR.groupBy (<=) Fold.drain)
 
@@ -230,9 +284,13 @@ inspect $ 'groupBy `hasNoType` ''SPEC
 inspect $ 'groupBy `hasNoType` ''PR.GroupByState
 #endif
 
-{-# INLINE groupByRolling #-}
+{-# ANN groupByRolling (PermitPatternMatches [''Int]) #-}
+{-# ANN groupByRolling (PermitConstructions [''(), ''Either]) #-}
+{-# ANN groupByRolling (PermitTypeClasses []) #-}
+{-# NOINLINE groupByRolling #-}
 groupByRolling :: Int -> Int -> IO (Either ParseError ())
-groupByRolling value = withStream value $ Stream.parse (PR.groupByRolling (<=) Fold.drain)
+groupByRolling value =
+    withStream value $ Stream.parse (PR.groupByRolling (<=) Fold.drain)
 
 #ifdef INSPECTION
 inspect $ 'groupByRolling `hasNoType` ''S.Step
@@ -243,9 +301,14 @@ inspect $ 'groupByRolling `hasNoType` ''SPEC
 inspect $ 'groupByRolling `hasNoType` ''PR.GroupByState
 #endif
 
-{-# INLINE wordBy #-}
+{-# ANN wordBy (PermitPatternMatches
+    [''(), ''[], ''Int, ''PR.WordByState]) #-}
+{-# ANN wordBy (PermitConstructions [''(), ''PR.WordByState, ''Either]) #-}
+{-# ANN wordBy (PermitTypeClasses []) #-}
+{-# NOINLINE wordBy #-}
 wordBy :: Int -> Int -> IO (Either ParseError ())
-wordBy value = withStream value $ Stream.parse (PR.wordBy (>= value) Fold.drain)
+wordBy value =
+    withStream value $ Stream.parse (PR.wordBy (>= value) Fold.drain)
 
 #ifdef INSPECTION
 inspect $ 'wordBy `hasNoType` ''S.Step
@@ -255,10 +318,15 @@ inspect $ 'wordBy `hasNoType` ''FL.Step
 inspect $ 'wordBy `hasNoType` ''SPEC
 #endif
 
-{-# INLINE takeEndBy_ #-}
+{-# ANN takeEndBy_ (PermitPatternMatches [''Int]) #-}
+{-# ANN takeEndBy_ (PermitConstructions [''Either, ''()]) #-}
+{-# ANN takeEndBy_ (PermitTypeClasses []) #-}
+{-# NOINLINE takeEndBy_ #-}
 takeEndBy_ :: Int -> Int -> IO (Either ParseError ())
 takeEndBy_ value =
-    withStream value $ Stream.parse (PR.takeEndBy_ (>= value) (PR.fromFold Fold.drain))
+    withStream value
+        $ Stream.parse
+            (PR.takeEndBy_ (>= value) (PR.fromFold Fold.drain))
 
 #ifdef INSPECTION
 inspect $ 'takeEndBy_ `hasNoType` ''S.Step
@@ -272,10 +340,17 @@ inspect $ 'takeEndBy_ `hasNoType` ''SPEC
 -- Spanning
 -------------------------------------------------------------------------------
 
-{-# INLINE span #-}
+{-# ANN span (PermitPatternMatches
+    [''[], ''(,), ''Int, ''SPEC, ''PR.SeqParseState]) #-}
+{-# ANN span (PermitConstructions
+    [''PR.SeqParseState, ''(), ''[], ''(,), ''Either]) #-}
+{-# ANN span (PermitTypeClasses []) #-}
+{-# NOINLINE span #-}
 span :: Int -> Int -> IO (Either ParseError ((), ()))
 span value =
-    withStream value $ Stream.parse (PR.span (<= (value `div` 2)) Fold.drain Fold.drain)
+    withStream value
+        $ Stream.parse
+            (PR.span (<= (value `div` 2)) Fold.drain Fold.drain)
 
 #ifdef INSPECTION
 inspect $ 'span `hasNoType` ''S.Step
@@ -286,11 +361,18 @@ inspect $ 'span `hasNoType` ''FL.Step
 -- inspect $ 'span `hasNoType` ''PR.SeqParseState
 #endif
 
-{-# INLINE spanBy #-}
+{-# ANN spanBy (PermitPatternMatches
+    [''[], ''(,), ''Int, ''SPEC, ''PR.SeqParseState, ''PR.GroupByState]) #-}
+{-# ANN spanBy (PermitConstructions
+    [''PR.GroupByState, ''(), ''PR.SeqParseState, ''[], ''(,), ''Int, ''Either]) #-}
+{-# ANN spanBy (PermitTypeClasses []) #-}
+{-# NOINLINE spanBy #-}
 spanBy :: Int -> Int -> IO (Either ParseError ((), ()))
 spanBy value =
     withStream value $
-        Stream.parse (PR.spanBy (\_ i -> i <= (value `div` 2)) Fold.drain Fold.drain)
+        Stream.parse
+            (PR.spanBy
+                (\_ i -> i <= (value `div` 2)) Fold.drain Fold.drain)
 
 #ifdef INSPECTION
 inspect $ 'spanBy `hasNoType` ''S.Step
@@ -302,11 +384,18 @@ inspect $ 'spanBy `hasNoType` ''FL.Step
 -- inspect $ 'spanBy `hasNoType` ''PR.GroupByState
 #endif
 
-{-# INLINE spanByRolling #-}
+{-# ANN spanByRolling (PermitPatternMatches
+    [''[], ''(,), ''Int, ''SPEC, ''PR.SeqParseState, ''PR.GroupByState]) #-}
+{-# ANN spanByRolling (PermitConstructions
+    [''PR.GroupByState, ''(), ''PR.SeqParseState, ''[], ''(,), ''Int, ''Either]) #-}
+{-# ANN spanByRolling (PermitTypeClasses []) #-}
+{-# NOINLINE spanByRolling #-}
 spanByRolling :: Int -> Int -> IO (Either ParseError ((), ()))
 spanByRolling value =
     withStream value $
-        Stream.parse (PR.spanByRolling (\_ i -> i <= value `div` 2) Fold.drain Fold.drain)
+        Stream.parse
+            (PR.spanByRolling
+                (\_ i -> i <= value `div` 2) Fold.drain Fold.drain)
 
 #ifdef INSPECTION
 inspect $ 'spanByRolling `hasNoType` ''S.Step
@@ -322,7 +411,10 @@ inspect $ 'spanByRolling `hasNoType` ''FL.Step
 --
 -------------------------------------------------------------------------------
 
-{-# INLINE lookAhead #-}
+{-# ANN lookAhead (PermitPatternMatches [''String]) #-}
+{-# ANN lookAhead (PermitConstructions [''Either, ''(), ''[]]) #-}
+{-# ANN lookAhead (PermitTypeClasses []) #-}
+{-# NOINLINE lookAhead #-}
 lookAhead :: Int -> Int -> IO (Either ParseError ())
 lookAhead value =
     withStream value $
@@ -336,6 +428,10 @@ instance NFData ParseError where
     {-# INLINE rnf #-}
     rnf (ParseError x) = rnf x
 
+-- Note: Name each benchmark (and its IO action) after the exported function it
+-- benchmarks, using the format functionName_dimension1_dimension2..., where
+-- the dimensions are optional variants/type specializations. Keep extra info
+-- in parenthetical notes in the description.
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks value =
     [

@@ -21,7 +21,8 @@ module Main
   ) where
 
 import Prelude hiding
-    (any, all, take, sequence, sequence_, sequenceA, takeWhile, dropWhile, span)
+    ( any, all, take, sequence, sequence_, sequenceA, takeWhile, dropWhile
+    , span)
 
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Fold as Fold
@@ -68,7 +69,9 @@ main = do
 
     where
 
-    alloc value = Stream.fold Fold.toList $ Array.chunksOf 100 $ streamUnfoldrM value 0
+    alloc value =
+        Stream.fold Fold.toList
+            $ Array.chunksOf 100 $ streamUnfoldrM value 0
 
     allBenchmarks env arrays value =
         let allBenches = benchmarkList value env arrays
@@ -91,10 +94,10 @@ main = do
     -- deintercalate value input
     -- deintercalate1 value input
     -- deintercalateAll value input
-    -- sepByWords input
-    -- sepByAllWords input
-    -- sepBy1 input
-    -- sepByWords1 input
+    -- sepBy_Words input
+    -- sepByAll_Words input
+    -- sepBy1_Satisfy input
+    -- sepBy1_Words input
     takeFramedByEsc_ value 1
     return ()
 #endif
