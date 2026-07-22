@@ -9,7 +9,7 @@ package bench-show
 source-repository-package
   type: git
   location: https://github.com/composewell/bench-report.git
-  tag: b4fa619c0af36af42a9606d72127d09abcbbf2ca
+  tag: 65aac231a0255df65b807fa4b3c717ec599a8137
 
 source-repository-package
   type: git
