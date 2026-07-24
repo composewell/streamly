@@ -221,7 +221,7 @@ inspect $ 'toChunksSumLengths `hasNoType` ''Step
 {-# ANN toChunksCountBytes (PermitPatternMatches
     [''[],''Int,''UnsafeEquality,''IO,''Array]) #-}
 {-# ANN toChunksCountBytes (PermitConstructions
-    [''Int,''SrcLoc,''CallStack,''[],''Array,''Word8,''Ptr,''PinnedState]) #-}
+    [''Int,''SrcLoc,''CallStack,''[],''Array,''Ptr,''PinnedState]) #-}
 {-# ANN toChunksCountBytes (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE toChunksCountBytes #-}
 toChunksCountBytes :: Handle -> IO Word8

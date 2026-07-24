@@ -33,14 +33,14 @@ drainGeneration = UF.fold FL.drain
 -- Stream generation
 -------------------------------------------------------------------------------
 
-{-# ANN enumerateFromNum (PermitPatternMatches [''Int]) #-}
+{-# ANN enumerateFromNum (PermitPatternMatches []) #-}
 {-# ANN enumerateFromNum (PermitConstructions []) #-}
 {-# ANN enumerateFromNum (PermitTypeClasses []) #-}
 {-# NOINLINE enumerateFromNum #-}
 enumerateFromNum :: Int -> Int -> IO ()
 enumerateFromNum size = drainGeneration (UF.take size UF.enumerateFromNum)
 
-{-# ANN enumerateFromThenNum (PermitPatternMatches [''Int]) #-}
+{-# ANN enumerateFromThenNum (PermitPatternMatches []) #-}
 {-# ANN enumerateFromThenNum (PermitConstructions []) #-}
 {-# ANN enumerateFromThenNum (PermitTypeClasses []) #-}
 {-# NOINLINE enumerateFromThenNum #-}
@@ -48,7 +48,7 @@ enumerateFromThenNum :: Int -> Int -> IO ()
 enumerateFromThenNum size start =
     drainGeneration (UF.take size UF.enumerateFromThenNum) (start, 1)
 
-{-# ANN enumerateFromToNum (PermitPatternMatches [''Int]) #-}
+{-# ANN enumerateFromToNum (PermitPatternMatches []) #-}
 {-# ANN enumerateFromToNum (PermitConstructions []) #-}
 {-# ANN enumerateFromToNum (PermitTypeClasses []) #-}
 {-# NOINLINE enumerateFromToNum #-}

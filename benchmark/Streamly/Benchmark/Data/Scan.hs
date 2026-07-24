@@ -102,7 +102,7 @@ teeWith n =
         (Scan.teeWith (+) (Scan.functionM (\x -> return (x + 1)))
          (Scan.functionM (\x -> return (x + 2))))
 
-{-# ANN functionM_x1 (PermitPatternMatches [''Int]) #-}
+{-# ANN functionM_x1 (PermitPatternMatches []) #-}
 {-# ANN functionM_x1 (PermitConstructions [''()]) #-}
 {-# ANN functionM_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE functionM_x1 #-}
@@ -117,7 +117,7 @@ inspect $ 'functionM_x1 `hasNoType` ''FL.Step
 inspect $ 'functionM_x1 `hasNoType` ''SPEC
 #endif
 
-{-# ANN compose_x1 (PermitPatternMatches [''Int]) #-}
+{-# ANN compose_x1 (PermitPatternMatches []) #-}
 {-# ANN compose_x1 (PermitConstructions [''()]) #-}
 {-# ANN compose_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE compose_x1 #-}
@@ -132,7 +132,7 @@ inspect $ 'compose_x1 `hasNoType` ''FL.Step
 inspect $ 'compose_x1 `hasNoType` ''SPEC
 #endif
 
-{-# ANN teeWith_x1 (PermitPatternMatches [''Int]) #-}
+{-# ANN teeWith_x1 (PermitPatternMatches []) #-}
 {-# ANN teeWith_x1 (PermitConstructions [''()]) #-}
 {-# ANN teeWith_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE teeWith_x1 #-}
@@ -147,7 +147,7 @@ inspect $ 'teeWith_x1 `hasNoType` ''FL.Step
 inspect $ 'teeWith_x1 `hasNoType` ''SPEC
 #endif
 
-{-# ANN functionM_x4 (PermitPatternMatches [''Int]) #-}
+{-# ANN functionM_x4 (PermitPatternMatches []) #-}
 {-# ANN functionM_x4 (PermitConstructions [''()]) #-}
 {-# ANN functionM_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE functionM_x4 #-}
@@ -162,7 +162,7 @@ inspect $ 'functionM_x4 `hasNoType` ''FL.Step
 inspect $ 'functionM_x4 `hasNoType` ''SPEC
 #endif
 
-{-# ANN compose_x4 (PermitPatternMatches [''Int]) #-}
+{-# ANN compose_x4 (PermitPatternMatches []) #-}
 {-# ANN compose_x4 (PermitConstructions [''()]) #-}
 {-# ANN compose_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE compose_x4 #-}
@@ -177,7 +177,7 @@ inspect $ 'compose_x4 `hasNoType` ''FL.Step
 inspect $ 'compose_x4 `hasNoType` ''SPEC
 #endif
 
-{-# ANN teeWith_x4 (PermitPatternMatches [''Int]) #-}
+{-# ANN teeWith_x4 (PermitPatternMatches []) #-}
 {-# ANN teeWith_x4 (PermitConstructions [''()]) #-}
 {-# ANN teeWith_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE teeWith_x4 #-}

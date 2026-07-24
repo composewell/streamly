@@ -71,7 +71,7 @@ getScanl k = do
 toSet :: Int -> Int -> IO ()
 toSet n = withPostscanl n Scanl.toSet
 
-{-# ANN toIntSet (PermitPatternMatches [''IntSet,''Int]) #-}
+{-# ANN toIntSet (PermitPatternMatches [''IntSet]) #-}
 {-# ANN toIntSet (PermitConstructions [''(),''IntSet]) #-}
 {-# ANN toIntSet (PermitTypeClasses []) #-}
 {-# NOINLINE toIntSet #-}
@@ -85,7 +85,7 @@ toIntSet n = withPostscanl n Scanl.toIntSet
 countDistinct :: Int -> Int -> IO ()
 countDistinct n = withPostscanl n Scanl.countDistinct
 
-{-# ANN countDistinctInt (PermitPatternMatches [''IntSet,''Int]) #-}
+{-# ANN countDistinctInt (PermitPatternMatches [''IntSet]) #-}
 {-# ANN countDistinctInt (PermitConstructions [''(),''IntSet]) #-}
 {-# ANN countDistinctInt (PermitTypeClasses []) #-}
 {-# NOINLINE countDistinctInt #-}
@@ -99,7 +99,7 @@ countDistinctInt n = withPostscanl n Scanl.countDistinctInt
 nub :: Int -> Int -> IO ()
 nub n = withPostscanl n Scanl.nub
 
-{-# ANN nubInt (PermitPatternMatches [''IntSet,''Bool,''Int]) #-}
+{-# ANN nubInt (PermitPatternMatches [''IntSet,''Bool]) #-}
 {-# ANN nubInt (PermitConstructions [''(),''IntSet]) #-}
 {-# ANN nubInt (PermitTypeClasses []) #-}
 {-# NOINLINE nubInt #-}

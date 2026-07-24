@@ -38,7 +38,7 @@ instance NFData a => NFData (A.Array a) where
 -- Bench Ops
 -------------------------------------------------------------------------------
 
-{-# ANN fromListN (PermitPatternMatches [''Int]) #-}
+{-# ANN fromListN (PermitPatternMatches []) #-}
 {-# ANN fromListN (PermitConstructions [''[], ''Int]) #-}
 {-# ANN fromListN (PermitTypeClasses []) #-}
 {-# NOINLINE fromListN #-}

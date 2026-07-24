@@ -43,11 +43,11 @@ createOf :: Int -> Int -> IO (Arr Int)
 createOf = sourceIntFromTo
 
 #if defined(ARRAY_UNBOXED)
-{-# ANN createOf_Unfoldr (PermitPatternMatches [''Int, ''IO]) #-}
+{-# ANN createOf_Unfoldr (PermitPatternMatches [''IO]) #-}
 {-# ANN createOf_Unfoldr (PermitConstructions [''A.Array]) #-}
 {-# ANN createOf_Unfoldr (PermitTypeClasses []) #-}
 #elif defined(ARRAY_GENERIC)
-{-# ANN createOf_Unfoldr (PermitPatternMatches [''Int]) #-}
+{-# ANN createOf_Unfoldr (PermitPatternMatches []) #-}
 {-# ANN createOf_Unfoldr (PermitConstructions
     [ ''[], ''Char, ''Int, ''SrcLoc, ''CallStack, ''A.Array
     ]) #-}
@@ -71,7 +71,7 @@ createOf_Unfoldr value n =
 {-# ANN createOf_FromList (PermitConstructions [''A.Array, ''[], ''Int]) #-}
 {-# ANN createOf_FromList (PermitTypeClasses []) #-}
 #elif defined(ARRAY_GENERIC)
-{-# ANN createOf_FromList (PermitPatternMatches [''[], ''Int]) #-}
+{-# ANN createOf_FromList (PermitPatternMatches [''[]]) #-}
 {-# ANN createOf_FromList (PermitConstructions
     [ ''[], ''Char, ''Int, ''SrcLoc, ''CallStack, ''A.Array
     ]) #-}
@@ -87,14 +87,15 @@ createOf_FromList value n =
     S.fold (A.createOf value) $ S.fromList [n..n+value]
 
 #if defined(ARRAY_UNBOXED)
-{-# ANN create (PermitPatternMatches [''MutArray.MutArray, ''Int]) #-}
+{-# ANN create (PermitPatternMatches [''MutArray.MutArray]) #-}
 {-# ANN create (PermitConstructions
     [''A.Array, ''MutArray.MutArray, ''PinnedState]) #-}
 {-# ANN create (PermitTypeClasses []) #-}
 #elif defined(ARRAY_GENERIC)
-{-# ANN create (PermitPatternMatches [''Int, ''MutArray.MutArray]) #-}
+{-# ANN create (PermitPatternMatches [''MutArray.MutArray]) #-}
 {-# ANN create (PermitConstructions
     [ ''[], ''Char, ''Int, ''SrcLoc, ''CallStack, ''A.Array
+    , ''MutArray.MutArray
     ]) #-}
 {-# ANN create (PermitTypeClasses [''IP, ''MonadIO]) #-}
 #else
@@ -117,7 +118,7 @@ parseInstance str =
 
 #if defined(ARRAY_UNBOXED)
 {-# ANN read_ReadInstance (PermitPatternMatches
-    [''[], ''Arr, ''(,), ''A.Array, ''Int]) #-}
+    [''[], ''Arr, ''(,), ''A.Array]) #-}
 {-# ANN read_ReadInstance (PermitConstructions
     [''Int, ''SrcLoc, ''CallStack, ''[]]) #-}
 {-# ANN read_ReadInstance (PermitTypeClasses [''Read, ''Unbox, ''IP]) #-}
@@ -140,11 +141,11 @@ read_ReadInstance value n =
 
 
 #if defined(ARRAY_UNBOXED)
-{-# ANN show_ShowInstance (PermitPatternMatches [''A.Array, ''Int, ''IO]) #-}
+{-# ANN show_ShowInstance (PermitPatternMatches [''A.Array, ''IO]) #-}
 {-# ANN show_ShowInstance (PermitConstructions [''[], ''Int, ''A.Array]) #-}
 {-# ANN show_ShowInstance (PermitTypeClasses []) #-}
 #elif defined(ARRAY_GENERIC)
-{-# ANN show_ShowInstance (PermitPatternMatches [''A.Array, ''Int]) #-}
+{-# ANN show_ShowInstance (PermitPatternMatches [''A.Array]) #-}
 {-# ANN show_ShowInstance (PermitConstructions
     [ ''[], ''Char, ''Int, ''SrcLoc, ''CallStack, ''A.Array
     ]) #-}
@@ -159,7 +160,7 @@ show_ShowInstance :: Int -> Int -> IO P.String
 show_ShowInstance value = withArray value (return . showInstance)
 
 #if defined(ARRAY_UNBOXED)
-{-# ANN eq_EqInstance (PermitPatternMatches [''UnsafeEquality, ''Int, ''IO]) #-}
+{-# ANN eq_EqInstance (PermitPatternMatches [''UnsafeEquality, ''IO]) #-}
 {-# ANN eq_EqInstance (PermitConstructions [''Bool]) #-}
 {-# ANN eq_EqInstance (PermitTypeClasses []) #-}
 #elif defined(ARRAY_GENERIC)
@@ -179,7 +180,7 @@ eq_EqInstance value = withArray value $ \src -> return (src == src)
 
 #if defined(ARRAY_UNBOXED)
 {-# ANN notEq_EqInstance (PermitPatternMatches
-    [''UnsafeEquality, ''Int, ''IO]) #-}
+    [''UnsafeEquality, ''IO]) #-}
 {-# ANN notEq_EqInstance (PermitConstructions [''Bool]) #-}
 {-# ANN notEq_EqInstance (PermitTypeClasses []) #-}
 #elif defined(ARRAY_GENERIC)
@@ -198,7 +199,7 @@ notEq_EqInstance :: Int -> Int -> IO Bool
 notEq_EqInstance value = withArray value $ \src -> return (src P./= src)
 
 #if defined(ARRAY_UNBOXED)
-{-# ANN lt_OrdInstance (PermitPatternMatches [''A.Array, ''Int, ''IO]) #-}
+{-# ANN lt_OrdInstance (PermitPatternMatches [''A.Array, ''IO]) #-}
 {-# ANN lt_OrdInstance (PermitConstructions [''Bool, ''A.Array]) #-}
 {-# ANN lt_OrdInstance (PermitTypeClasses []) #-}
 #elif defined(ARRAY_GENERIC)
@@ -217,7 +218,7 @@ lt_OrdInstance :: Int -> Int -> IO Bool
 lt_OrdInstance value = withArray value $ \src -> return (src P.< src)
 
 #if defined(ARRAY_UNBOXED)
-{-# ANN min_OrdInstance (PermitPatternMatches [''A.Array, ''Int, ''IO]) #-}
+{-# ANN min_OrdInstance (PermitPatternMatches [''A.Array, ''IO]) #-}
 {-# ANN min_OrdInstance (PermitConstructions [''A.Array]) #-}
 {-# ANN min_OrdInstance (PermitTypeClasses []) #-}
 #elif defined(ARRAY_GENERIC)
@@ -283,11 +284,11 @@ reader :: Int -> Int -> IO ()
 reader value = withArray value $ S.fold Fold.drain . S.unfold A.reader
 
 #if defined(ARRAY_UNBOXED)
-{-# ANN readRev (PermitPatternMatches [''Int, ''IO]) #-}
+{-# ANN readRev (PermitPatternMatches [''IO]) #-}
 {-# ANN readRev (PermitConstructions [''()]) #-}
 {-# ANN readRev (PermitTypeClasses []) #-}
 #elif defined(ARRAY_GENERIC)
-{-# ANN readRev (PermitPatternMatches [''A.Array, ''Int]) #-}
+{-# ANN readRev (PermitPatternMatches [''A.Array]) #-}
 {-# ANN readRev (PermitConstructions
     [ ''(), ''[], ''Char, ''Int, ''SrcLoc, ''CallStack, ''A.Array
     ]) #-}
@@ -302,11 +303,11 @@ readRev :: Int -> Int -> IO ()
 readRev value = withArray value $ S.fold Fold.drain . A.readRev
 
 #if defined(ARRAY_UNBOXED)
-{-# ANN createOf_UnfoldrM (PermitPatternMatches [''Int, ''IO]) #-}
+{-# ANN createOf_UnfoldrM (PermitPatternMatches [''IO]) #-}
 {-# ANN createOf_UnfoldrM (PermitConstructions [''A.Array]) #-}
 {-# ANN createOf_UnfoldrM (PermitTypeClasses []) #-}
 #elif defined(ARRAY_GENERIC)
-{-# ANN createOf_UnfoldrM (PermitPatternMatches [''Int]) #-}
+{-# ANN createOf_UnfoldrM (PermitPatternMatches []) #-}
 {-# ANN createOf_UnfoldrM (PermitConstructions
     [ ''[], ''Char, ''Int, ''SrcLoc, ''CallStack, ''A.Array
     ]) #-}

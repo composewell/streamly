@@ -130,7 +130,7 @@ oddEven x = if odd x then Left x else Right x
 -- Constructors
 -------------------------------------------------------------------------------
 
-{-# ANN scanl' (PermitPatternMatches [''Int]) #-}
+{-# ANN scanl' (PermitPatternMatches []) #-}
 {-# ANN scanl' (PermitConstructions [''()]) #-}
 {-# ANN scanl' (PermitTypeClasses []) #-}
 {-# NOINLINE scanl' #-}
@@ -143,7 +143,7 @@ inspect $ 'scanl' `hasNoType` ''FL.Step
 inspect $ 'scanl' `hasNoType` ''SPEC
 #endif
 
-{-# ANN scanlM' (PermitPatternMatches [''Int]) #-}
+{-# ANN scanlM' (PermitPatternMatches []) #-}
 {-# ANN scanlM' (PermitConstructions [''()]) #-}
 {-# ANN scanlM' (PermitTypeClasses []) #-}
 {-# NOINLINE scanlM' #-}
@@ -156,7 +156,7 @@ inspect $ 'scanlM' `hasNoType` ''FL.Step
 inspect $ 'scanlM' `hasNoType` ''SPEC
 #endif
 
-{-# ANN scanl1' (PermitPatternMatches [''Int]) #-}
+{-# ANN scanl1' (PermitPatternMatches []) #-}
 {-# ANN scanl1' (PermitConstructions [''()]) #-}
 {-# ANN scanl1' (PermitTypeClasses []) #-}
 {-# NOINLINE scanl1' #-}
@@ -169,7 +169,7 @@ inspect $ 'scanl1' `hasNoType` ''FL.Step
 inspect $ 'scanl1' `hasNoType` ''SPEC
 #endif
 
-{-# ANN scanl1M' (PermitPatternMatches [''Int]) #-}
+{-# ANN scanl1M' (PermitPatternMatches []) #-}
 {-# ANN scanl1M' (PermitConstructions [''()]) #-}
 {-# ANN scanl1M' (PermitTypeClasses []) #-}
 {-# NOINLINE scanl1M' #-}
@@ -182,7 +182,7 @@ inspect $ 'scanl1M' `hasNoType` ''FL.Step
 inspect $ 'scanl1M' `hasNoType` ''SPEC
 #endif
 
-{-# ANN scant' (PermitPatternMatches [''Int]) #-}
+{-# ANN scant' (PermitPatternMatches []) #-}
 {-# ANN scant' (PermitConstructions [''()]) #-}
 {-# ANN scant' (PermitTypeClasses []) #-}
 {-# NOINLINE scant' #-}
@@ -195,7 +195,7 @@ inspect $ 'scant' `hasNoType` ''Step
 inspect $ 'scant' `hasNoType` ''SPEC
 #endif
 
-{-# ANN scantM' (PermitPatternMatches [''Int]) #-}
+{-# ANN scantM' (PermitPatternMatches []) #-}
 {-# ANN scantM' (PermitConstructions [''()]) #-}
 {-# ANN scantM' (PermitTypeClasses []) #-}
 {-# NOINLINE scantM' #-}
@@ -227,7 +227,7 @@ mkScanrM n =
 -- Reducers
 -------------------------------------------------------------------------------
 
-{-# ANN drain (PermitPatternMatches [''Int]) #-}
+{-# ANN drain (PermitPatternMatches []) #-}
 {-# ANN drain (PermitConstructions [''()]) #-}
 {-# ANN drain (PermitTypeClasses []) #-}
 {-# NOINLINE drain #-}
@@ -240,7 +240,7 @@ inspect $ 'drain `hasNoType` ''FL.Step
 inspect $ 'drain `hasNoType` ''SPEC
 #endif
 
-{-# ANN latest (PermitPatternMatches [''Int]) #-}
+{-# ANN latest (PermitPatternMatches []) #-}
 {-# ANN latest (PermitConstructions [''()]) #-}
 {-# ANN latest (PermitTypeClasses []) #-}
 {-# NOINLINE latest #-}
@@ -253,7 +253,7 @@ inspect $ 'latest `hasNoType` ''FL.Step
 inspect $ 'latest `hasNoType` ''SPEC
 #endif
 
-{-# ANN functionM (PermitPatternMatches [''Int]) #-}
+{-# ANN functionM (PermitPatternMatches []) #-}
 {-# ANN functionM (PermitConstructions [''()]) #-}
 {-# ANN functionM (PermitTypeClasses []) #-}
 {-# NOINLINE functionM #-}
@@ -266,7 +266,7 @@ inspect $ 'functionM `hasNoType` ''FL.Step
 inspect $ 'functionM `hasNoType` ''SPEC
 #endif
 
-{-# ANN genericLength (PermitPatternMatches [''Int]) #-}
+{-# ANN genericLength (PermitPatternMatches []) #-}
 {-# ANN genericLength (PermitConstructions [''()]) #-}
 {-# ANN genericLength (PermitTypeClasses []) #-}
 {-# NOINLINE genericLength #-}
@@ -279,7 +279,7 @@ inspect $ 'genericLength `hasNoType` ''FL.Step
 inspect $ 'genericLength `hasNoType` ''SPEC
 #endif
 
-{-# ANN length (PermitPatternMatches [''Int]) #-}
+{-# ANN length (PermitPatternMatches []) #-}
 {-# ANN length (PermitConstructions [''()]) #-}
 {-# ANN length (PermitTypeClasses []) #-}
 {-# NOINLINE length #-}
@@ -292,7 +292,7 @@ inspect $ 'length `hasNoType` ''FL.Step
 inspect $ 'length `hasNoType` ''SPEC
 #endif
 
-{-# ANN maximumBy (PermitPatternMatches [''Int]) #-}
+{-# ANN maximumBy (PermitPatternMatches []) #-}
 {-# ANN maximumBy (PermitConstructions [''()]) #-}
 {-# ANN maximumBy (PermitTypeClasses []) #-}
 {-# NOINLINE maximumBy #-}
@@ -305,7 +305,7 @@ inspect $ 'maximumBy `hasNoType` ''FL.Step
 inspect $ 'maximumBy `hasNoType` ''SPEC
 #endif
 
-{-# ANN maximum (PermitPatternMatches [''Int]) #-}
+{-# ANN maximum (PermitPatternMatches []) #-}
 {-# ANN maximum (PermitConstructions [''()]) #-}
 {-# ANN maximum (PermitTypeClasses []) #-}
 {-# NOINLINE maximum #-}
@@ -318,7 +318,7 @@ inspect $ 'maximum `hasNoType` ''FL.Step
 inspect $ 'maximum `hasNoType` ''SPEC
 #endif
 
-{-# ANN minimumBy (PermitPatternMatches [''Int]) #-}
+{-# ANN minimumBy (PermitPatternMatches []) #-}
 {-# ANN minimumBy (PermitConstructions [''()]) #-}
 {-# ANN minimumBy (PermitTypeClasses []) #-}
 {-# NOINLINE minimumBy #-}
@@ -331,7 +331,7 @@ inspect $ 'minimumBy `hasNoType` ''FL.Step
 inspect $ 'minimumBy `hasNoType` ''SPEC
 #endif
 
-{-# ANN minimum (PermitPatternMatches [''Int]) #-}
+{-# ANN minimum (PermitPatternMatches []) #-}
 {-# ANN minimum (PermitConstructions [''()]) #-}
 {-# ANN minimum (PermitTypeClasses []) #-}
 {-# NOINLINE minimum #-}
@@ -344,7 +344,7 @@ inspect $ 'minimum `hasNoType` ''FL.Step
 inspect $ 'minimum `hasNoType` ''SPEC
 #endif
 
-{-# ANN rangeBy (PermitPatternMatches [''Int]) #-}
+{-# ANN rangeBy (PermitPatternMatches []) #-}
 {-# ANN rangeBy (PermitConstructions [''()]) #-}
 {-# ANN rangeBy (PermitTypeClasses []) #-}
 {-# NOINLINE rangeBy #-}
@@ -357,7 +357,7 @@ inspect $ 'rangeBy `hasNoType` ''FL.Step
 inspect $ 'rangeBy `hasNoType` ''SPEC
 #endif
 
-{-# ANN range (PermitPatternMatches [''Int]) #-}
+{-# ANN range (PermitPatternMatches []) #-}
 {-# ANN range (PermitConstructions [''()]) #-}
 {-# ANN range (PermitTypeClasses []) #-}
 {-# NOINLINE range #-}
@@ -374,7 +374,7 @@ inspect $ 'range `hasNoType` ''SPEC
 -- Mapping
 -------------------------------------------------------------------------------
 
-{-# ANN rmapM (PermitPatternMatches [''Int]) #-}
+{-# ANN rmapM (PermitPatternMatches []) #-}
 {-# ANN rmapM (PermitConstructions [''()]) #-}
 {-# ANN rmapM (PermitTypeClasses []) #-}
 {-# NOINLINE rmapM #-}
@@ -387,7 +387,7 @@ inspect $ 'rmapM `hasNoType` ''FL.Step
 inspect $ 'rmapM `hasNoType` ''SPEC
 #endif
 
-{-# ANN lmap (PermitPatternMatches [''Int]) #-}
+{-# ANN lmap (PermitPatternMatches []) #-}
 {-# ANN lmap (PermitConstructions [''()]) #-}
 {-# ANN lmap (PermitTypeClasses []) #-}
 {-# NOINLINE lmap #-}
@@ -400,7 +400,7 @@ inspect $ 'lmap `hasNoType` ''FL.Step
 inspect $ 'lmap `hasNoType` ''SPEC
 #endif
 
-{-# ANN lmapM (PermitPatternMatches [''Int]) #-}
+{-# ANN lmapM (PermitPatternMatches []) #-}
 {-# ANN lmapM (PermitConstructions [''()]) #-}
 {-# ANN lmapM (PermitTypeClasses []) #-}
 {-# NOINLINE lmapM #-}
@@ -413,7 +413,7 @@ inspect $ 'lmapM `hasNoType` ''FL.Step
 inspect $ 'lmapM `hasNoType` ''SPEC
 #endif
 
-{-# ANN postscanl (PermitPatternMatches [''Int]) #-}
+{-# ANN postscanl (PermitPatternMatches []) #-}
 {-# ANN postscanl (PermitConstructions [''()]) #-}
 {-# ANN postscanl (PermitTypeClasses []) #-}
 {-# NOINLINE postscanl #-}
@@ -429,7 +429,7 @@ inspect $ 'postscanl `hasNoType` ''SPEC
 -- Filtering
 -------------------------------------------------------------------------------
 
-{-# ANN catMaybes (PermitPatternMatches [''Int]) #-}
+{-# ANN catMaybes (PermitPatternMatches []) #-}
 {-# ANN catMaybes (PermitConstructions [''()]) #-}
 {-# ANN catMaybes (PermitTypeClasses []) #-}
 {-# NOINLINE catMaybes #-}
@@ -442,7 +442,7 @@ inspect $ 'catMaybes `hasNoType` ''FL.Step
 inspect $ 'catMaybes `hasNoType` ''SPEC
 #endif
 
-{-# ANN postscanlMaybe (PermitPatternMatches [''Int]) #-}
+{-# ANN postscanlMaybe (PermitPatternMatches []) #-}
 {-# ANN postscanlMaybe (PermitConstructions [''()]) #-}
 {-# ANN postscanlMaybe (PermitTypeClasses []) #-}
 {-# NOINLINE postscanlMaybe #-}
@@ -455,7 +455,7 @@ inspect $ 'postscanlMaybe `hasNoType` ''Step
 inspect $ 'postscanlMaybe `hasNoType` ''SPEC
 #endif
 
-{-# ANN filter (PermitPatternMatches [''Int]) #-}
+{-# ANN filter (PermitPatternMatches []) #-}
 {-# ANN filter (PermitConstructions [''()]) #-}
 {-# ANN filter (PermitTypeClasses []) #-}
 {-# NOINLINE filter #-}
@@ -468,7 +468,7 @@ inspect $ 'filter `hasNoType` ''FL.Step
 inspect $ 'filter `hasNoType` ''SPEC
 #endif
 
-{-# ANN filtering (PermitPatternMatches [''Int]) #-}
+{-# ANN filtering (PermitPatternMatches []) #-}
 {-# ANN filtering (PermitConstructions [''()]) #-}
 {-# ANN filtering (PermitTypeClasses []) #-}
 {-# NOINLINE filtering #-}
@@ -481,7 +481,7 @@ inspect $ 'filtering `hasNoType` ''FL.Step
 inspect $ 'filtering `hasNoType` ''SPEC
 #endif
 
-{-# ANN filterM (PermitPatternMatches [''Int]) #-}
+{-# ANN filterM (PermitPatternMatches []) #-}
 {-# ANN filterM (PermitConstructions [''()]) #-}
 {-# ANN filterM (PermitTypeClasses []) #-}
 {-# NOINLINE filterM #-}
@@ -494,7 +494,7 @@ inspect $ 'filterM `hasNoType` ''FL.Step
 inspect $ 'filterM `hasNoType` ''SPEC
 #endif
 
-{-# ANN catLefts (PermitPatternMatches [''Int]) #-}
+{-# ANN catLefts (PermitPatternMatches []) #-}
 {-# ANN catLefts (PermitConstructions [''()]) #-}
 {-# ANN catLefts (PermitTypeClasses []) #-}
 {-# NOINLINE catLefts #-}
@@ -507,7 +507,7 @@ inspect $ 'catLefts `hasNoType` ''Step
 inspect $ 'catLefts `hasNoType` ''SPEC
 #endif
 
-{-# ANN catRights (PermitPatternMatches [''Int]) #-}
+{-# ANN catRights (PermitPatternMatches []) #-}
 {-# ANN catRights (PermitConstructions [''()]) #-}
 {-# ANN catRights (PermitTypeClasses []) #-}
 {-# NOINLINE catRights #-}
@@ -520,7 +520,7 @@ inspect $ 'catRights `hasNoType` ''Step
 inspect $ 'catRights `hasNoType` ''SPEC
 #endif
 
-{-# ANN catEithers (PermitPatternMatches [''Int]) #-}
+{-# ANN catEithers (PermitPatternMatches []) #-}
 {-# ANN catEithers (PermitConstructions [''()]) #-}
 {-# ANN catEithers (PermitTypeClasses []) #-}
 {-# NOINLINE catEithers #-}
@@ -562,7 +562,7 @@ inspect $ 'taking `hasNoType` ''FL.Step
 inspect $ 'taking `hasNoType` ''SPEC
 #endif
 
-{-# ANN takeEndBy_ (PermitPatternMatches [''Int]) #-}
+{-# ANN takeEndBy_ (PermitPatternMatches []) #-}
 {-# ANN takeEndBy_ (PermitConstructions [''()]) #-}
 {-# ANN takeEndBy_ (PermitTypeClasses []) #-}
 {-# NOINLINE takeEndBy_ #-}
@@ -575,7 +575,7 @@ inspect $ 'takeEndBy_ `hasNoType` ''FL.Step
 inspect $ 'takeEndBy_ `hasNoType` ''SPEC
 #endif
 
-{-# ANN takeEndBy (PermitPatternMatches [''Int]) #-}
+{-# ANN takeEndBy (PermitPatternMatches []) #-}
 {-# ANN takeEndBy (PermitConstructions [''()]) #-}
 {-# ANN takeEndBy (PermitTypeClasses []) #-}
 {-# NOINLINE takeEndBy #-}
@@ -605,7 +605,7 @@ inspect $ 'dropping `hasNoType` ''SPEC
 -- Distributing
 -------------------------------------------------------------------------------
 
-{-# ANN teeWith (PermitPatternMatches [''Int]) #-}
+{-# ANN teeWith (PermitPatternMatches []) #-}
 {-# ANN teeWith (PermitConstructions [''()]) #-}
 {-# ANN teeWith (PermitTypeClasses []) #-}
 {-# NOINLINE teeWith #-}
@@ -622,21 +622,21 @@ inspect $ 'teeWith `hasNoType` ''SPEC
 -- O(n) heap: building structures
 -------------------------------------------------------------------------------
 
-{-# ANN toList (PermitPatternMatches [''Int,''[]]) #-}
+{-# ANN toList (PermitPatternMatches [''[]]) #-}
 {-# ANN toList (PermitConstructions [''Int,''[],''()]) #-}
 {-# ANN toList (PermitTypeClasses []) #-}
 {-# NOINLINE toList #-}
 toList :: Int -> Int -> IO ()
 toList n = withPostscanl n Scanl.toList
 
-{-# ANN toStreamK (PermitPatternMatches [''Int]) #-}
+{-# ANN toStreamK (PermitPatternMatches []) #-}
 {-# ANN toStreamK (PermitConstructions [''Int,''()]) #-}
 {-# ANN toStreamK (PermitTypeClasses []) #-}
 {-# NOINLINE toStreamK #-}
 toStreamK :: Int -> Int -> IO ()
 toStreamK n = withPostscanl n (Scanl.toStreamK :: Scanl IO Int (StreamK IO Int))
 
-{-# ANN toStreamKRev (PermitPatternMatches [''Int]) #-}
+{-# ANN toStreamKRev (PermitPatternMatches []) #-}
 {-# ANN toStreamKRev (PermitConstructions [''Int,''()]) #-}
 {-# ANN toStreamKRev (PermitTypeClasses []) #-}
 {-# NOINLINE toStreamKRev #-}

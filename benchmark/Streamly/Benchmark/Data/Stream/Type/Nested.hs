@@ -15,7 +15,7 @@ module Stream.Type.Nested
     ( benchmarks
     ) where
 
-import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Internal.Data.Stream (Stream, Step)
 
 import qualified Streamly.Internal.Data.Stream as Stream
 
@@ -24,8 +24,8 @@ import Stream.Common hiding (benchIO)
 import Stream.Type.Basic (benchIO, withStream)
 import Streamly.Benchmark.Common
 import Fusion.Plugin.Types
-import qualified Streamly.Internal.Data.SVar.Type as SVar
 import Prelude hiding (concatMap, mapM, zipWith)
+import Streamly.Internal.Data.SVar.Type (State)
 
 mkCross :: Stream m a -> Stream.Nested m a
 mkCross = Stream.Nested
@@ -51,9 +51,9 @@ ap_ApplicativeInstance_Pure_x2 linearCount start = drain $ unCross $
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
 {-# ANN bind_MonadInstance_Pure_x2 (PermitPatternMatches
-    [''Int,''Either,''Bool,''(,),''Stream,''Stream.Step]) #-}
+    [''Int,''Either,''Bool,''(,),''Stream,''Step]) #-}
 {-# ANN bind_MonadInstance_Pure_x2 (PermitConstructions
-    [''SVar.State,''Maybe,''Bool,''Stream.Step,''Either,''(,),''Int
+    [''State,''Maybe,''Bool,''Step,''Either,''(,),''Int
     ,''Stream]) #-}
 {-# ANN bind_MonadInstance_Pure_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE bind_MonadInstance_Pure_x2 #-}
@@ -68,9 +68,9 @@ bind_MonadInstance_Pure_x2 linearCount start = drain $ unCross $ do
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
 {-# ANN bind_MonadInstance_Pure_x3 (PermitPatternMatches
-    [''Int,''Either,''Bool,''(,),''Stream,''Stream.Step]) #-}
+    [''Int,''Either,''Bool,''(,),''Stream,''Step]) #-}
 {-# ANN bind_MonadInstance_Pure_x3 (PermitConstructions
-    [''SVar.State,''Maybe,''Bool,''Either,''Stream.Step,''(,),''Int
+    [''State,''Maybe,''Bool,''Either,''Step,''(,),''Int
     ,''Stream]) #-}
 {-# ANN bind_MonadInstance_Pure_x3 (PermitTypeClasses []) #-}
 {-# NOINLINE bind_MonadInstance_Pure_x3 #-}
@@ -86,9 +86,9 @@ bind_MonadInstance_Pure_x3 linearCount start = drain $ unCross $ do
     nestedCount3 = round (fromIntegral linearCount**(1/3::Double))
 
 {-# ANN bind_MonadInstance_FilterAllOut_Pure_x2 (PermitPatternMatches
-    [''Int,''Either,''Bool,''(,),''Stream,''Stream.Step]) #-}
+    [''Int,''Either,''Bool,''(,),''Stream,''Step]) #-}
 {-# ANN bind_MonadInstance_FilterAllOut_Pure_x2 (PermitConstructions
-    [''SVar.State,''Maybe,''Bool,''Stream.Step,''Stream,''(),''Either
+    [''State,''Maybe,''Bool,''Step,''Stream,''(),''Either
     ,''(,),''Int]) #-}
 {-# ANN bind_MonadInstance_FilterAllOut_Pure_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE bind_MonadInstance_FilterAllOut_Pure_x2 #-}
@@ -106,9 +106,9 @@ bind_MonadInstance_FilterAllOut_Pure_x2 linearCount start = drain $ unCross $ do
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
 {-# ANN bind_MonadInstance_FilterAllIn_Pure_x2 (PermitPatternMatches
-    [''Int,''Either,''Bool,''(,),''Stream,''Stream.Step]) #-}
+    [''Int,''Either,''Bool,''(,),''Stream,''Step]) #-}
 {-# ANN bind_MonadInstance_FilterAllIn_Pure_x2 (PermitConstructions
-    [''SVar.State,''Maybe,''Bool,''Stream.Step,''Stream,''(),''Either
+    [''State,''Maybe,''Bool,''Step,''Stream,''(),''Either
     ,''(,),''Int]) #-}
 {-# ANN bind_MonadInstance_FilterAllIn_Pure_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE bind_MonadInstance_FilterAllIn_Pure_x2 #-}
@@ -125,7 +125,7 @@ bind_MonadInstance_FilterAllIn_Pure_x2 linearCount start = drain $ unCross $ do
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
-{-# ANN crossWith (PermitPatternMatches [''Int]) #-}
+{-# ANN crossWith (PermitPatternMatches []) #-}
 {-# ANN crossWith (PermitConstructions []) #-}
 {-# ANN crossWith (PermitTypeClasses []) #-}
 {-# NOINLINE crossWith #-}
@@ -153,7 +153,7 @@ crossApply linearCount start = drain $
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
-{-# ANN crossApplyFst (PermitPatternMatches [''Int]) #-}
+{-# ANN crossApplyFst (PermitPatternMatches []) #-}
 {-# ANN crossApplyFst (PermitConstructions []) #-}
 {-# ANN crossApplyFst (PermitTypeClasses []) #-}
 {-# NOINLINE crossApplyFst #-}
@@ -167,7 +167,7 @@ crossApplyFst linearCount start = drain $
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
-{-# ANN crossApplySnd (PermitPatternMatches [''Int]) #-}
+{-# ANN crossApplySnd (PermitPatternMatches []) #-}
 {-# ANN crossApplySnd (PermitConstructions []) #-}
 {-# ANN crossApplySnd (PermitTypeClasses []) #-}
 {-# NOINLINE crossApplySnd #-}
@@ -185,9 +185,9 @@ crossApplySnd linearCount start = drain $
 -- Monad
 -------------------------------------------------------------------------------
 
-{-# ANN concatFor_x1 (PermitPatternMatches [''Bool,''Int,''Stream.Step]) #-}
+{-# ANN concatFor_x1 (PermitPatternMatches [''Bool,''Step]) #-}
 {-# ANN concatFor_x1 (PermitConstructions
-    [''Int,''Stream.Step,''SVar.State,''Maybe,''Bool]) #-}
+    [''Int,''Step,''State,''Maybe,''Bool]) #-}
 {-# ANN concatFor_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE concatFor_x1 #-}
 concatFor_x1 :: Int -> Int -> IO ()
@@ -196,9 +196,9 @@ concatFor_x1 count = withStream count $ \s ->
         Stream.fromPure $ x + 1
 
 {-# ANN concatFor_x2 (PermitPatternMatches
-    [''Either,''(,),''Bool,''Int,''Stream.Step,''Stream]) #-}
+    [''Either,''(,),''Bool,''Int,''Step,''Stream]) #-}
 {-# ANN concatFor_x2 (PermitConstructions
-    [''Int,''Stream.Step,''Either,''SVar.State,''Maybe,''(,),''Stream
+    [''Int,''Step,''Either,''State,''Maybe,''(,),''Stream
     ,''Bool]) #-}
 {-# ANN concatFor_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE concatFor_x2 #-}
@@ -210,9 +210,9 @@ concatFor_x2 count = withStream count $ \s ->
                 Stream.fromPure $ x + y
 
 {-# ANN concatForM_x2 (PermitPatternMatches
-    [''Either,''(,),''Bool,''Int,''Stream.Step,''Stream]) #-}
+    [''Either,''(,),''Bool,''Int,''Step,''Stream]) #-}
 {-# ANN concatForM_x2 (PermitConstructions
-    [''Int,''Stream.Step,''Either,''SVar.State,''Maybe,''(,),''Stream
+    [''Int,''Step,''Either,''State,''Maybe,''(,),''Stream
     ,''Bool]) #-}
 {-# ANN concatForM_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE concatForM_x2 #-}
@@ -224,9 +224,9 @@ concatForM_x2 count = withStream count $ \s ->
                 pure $ Stream.fromPure $ x + y
 
 {-# ANN concatFor_x3 (PermitPatternMatches
-    [''Either,''(,),''Bool,''Int,''Stream.Step,''Stream]) #-}
+    [''Either,''(,),''Bool,''Int,''Step,''Stream]) #-}
 {-# ANN concatFor_x3 (PermitConstructions
-    [''Int,''Stream.Step,''Either,''Stream,''SVar.State,''Maybe,''(,)
+    [''Int,''Step,''Either,''Stream,''State,''Maybe,''(,)
     ,''Bool]) #-}
 {-# ANN concatFor_x3 (PermitTypeClasses []) #-}
 {-# NOINLINE concatFor_x3 #-}
@@ -239,9 +239,9 @@ concatFor_x3 count = withStream count $ \s ->
                     Stream.fromPure $ x + y + z
 
 {-# ANN concatFor_x4 (PermitPatternMatches
-    [''Either,''(,),''Bool,''Int,''Stream.Step,''Stream]) #-}
+    [''Either,''(,),''Bool,''Int,''Step,''Stream]) #-}
 {-# ANN concatFor_x4 (PermitConstructions
-    [''Int,''Stream.Step,''Either,''Stream,''SVar.State,''Maybe,''(,)
+    [''Int,''Step,''Either,''Stream,''State,''Maybe,''(,)
     ,''Bool]) #-}
 {-# ANN concatFor_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE concatFor_x4 #-}
@@ -255,9 +255,9 @@ concatFor_x4 count = withStream count $ \s ->
                         Stream.fromPure $ x + y + z + w
 
 {-# ANN concatFor_x5 (PermitPatternMatches
-    [''Either,''(,),''Bool,''Int,''Stream.Step,''Stream]) #-}
+    [''Either,''(,),''Bool,''Int,''Step,''Stream]) #-}
 {-# ANN concatFor_x5 (PermitConstructions
-    [''Int,''Stream.Step,''Either,''Stream,''SVar.State,''Maybe,''(,)
+    [''Int,''Step,''Either,''Stream,''State,''Maybe,''(,)
     ,''Bool]) #-}
 {-# ANN concatFor_x5 (PermitTypeClasses []) #-}
 {-# NOINLINE concatFor_x5 #-}
@@ -272,9 +272,9 @@ concatFor_x5 count = withStream count $ \s ->
                             Stream.fromPure $ x + y + z + w + u
 
 {-# ANN concatForM_x3 (PermitPatternMatches
-    [''Either,''(,),''Bool,''Int,''Stream.Step,''Stream]) #-}
+    [''Either,''(,),''Bool,''Int,''Step,''Stream]) #-}
 {-# ANN concatForM_x3 (PermitConstructions
-    [''Int,''Stream.Step,''Either,''Stream,''SVar.State,''Maybe,''(,)
+    [''Int,''Step,''Either,''Stream,''State,''Maybe,''(,)
     ,''Bool]) #-}
 {-# ANN concatForM_x3 (PermitTypeClasses []) #-}
 {-# NOINLINE concatForM_x3 #-}
@@ -287,9 +287,9 @@ concatForM_x3 count = withStream count $ \s ->
                     pure $ Stream.fromPure $ x + y + z
 
 {-# ANN concatFor_FilterAllIn_x2 (PermitPatternMatches
-    [''Either,''(,),''Bool,''Int,''Stream.Step,''Stream]) #-}
+    [''Either,''(,),''Bool,''Int,''Step,''Stream]) #-}
 {-# ANN concatFor_FilterAllIn_x2 (PermitConstructions
-    [''Stream,''Int,''Stream.Step,''Either,''SVar.State,''Maybe,''(,),''()
+    [''Stream,''Int,''Step,''Either,''State,''Maybe,''(,),''()
     ,''Bool]) #-}
 {-# ANN concatFor_FilterAllIn_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE concatFor_FilterAllIn_x2 #-}
@@ -304,9 +304,9 @@ concatFor_FilterAllIn_x2 count = withStream count $ \s ->
                     else Stream.nil
 
 {-# ANN concatFor_FilterAllOut_x2 (PermitPatternMatches
-    [''Either,''(,),''Bool,''Int,''Stream.Step,''Stream]) #-}
+    [''Either,''(,),''Bool,''Int,''Step,''Stream]) #-}
 {-# ANN concatFor_FilterAllOut_x2 (PermitConstructions
-    [''Stream,''Int,''Stream.Step,''Either,''SVar.State,''Maybe,''(,),''()
+    [''Stream,''Int,''Step,''Either,''State,''Maybe,''(,),''()
     ,''Bool]) #-}
 {-# ANN concatFor_FilterAllOut_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE concatFor_FilterAllOut_x2 #-}

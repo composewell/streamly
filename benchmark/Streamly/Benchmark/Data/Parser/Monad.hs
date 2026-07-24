@@ -31,7 +31,7 @@ module Streamly.Benchmark.Data.Parser.Monad
 
 import Control.DeepSeq (NFData(..))
 import GHC.Types (SPEC(..))
-import Streamly.Internal.Data.Parser (ParseError(..))
+import Streamly.Internal.Data.Parser (ParseError(..), SeqAState)
 import Streamly.Internal.Data.Stream (Stream)
 import System.Random (randomRIO)
 import Test.Tasty.Bench (Benchmark, bench, nfIO)
@@ -57,9 +57,9 @@ withStream :: Int -> (Stream IO Int -> IO b) -> Int -> IO b
 withStream value f = f . streamUnfoldrM value
 
 {-# ANN then_MonadInstance_x2 (PermitPatternMatches
-    [''[], ''Int, ''PR.SeqAState]) #-}
+    [''[], ''Int, ''SeqAState]) #-}
 {-# ANN then_MonadInstance_x2 (PermitConstructions
-    [''PR.SeqAState, ''(), ''[], ''Int, ''Either]) #-}
+    [''SeqAState, ''(), ''[], ''Int]) #-}
 {-# ANN then_MonadInstance_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE then_MonadInstance_x2 #-}
 then_MonadInstance_x2 :: Int -> Int -> IO (Either ParseError ())
@@ -80,9 +80,9 @@ inspect $ 'then_MonadInstance_x2 `hasNoType` ''FL.Step
 #endif
 
 {-# ANN then_MonadInstance_x4 (PermitPatternMatches
-    [''[], ''Int, ''SPEC, ''PR.SeqAState]) #-}
+    [''[], ''Int, ''SPEC, ''SeqAState]) #-}
 {-# ANN then_MonadInstance_x4 (PermitConstructions
-    [''PR.SeqAState, ''(), ''[], ''Int]) #-}
+    [''SeqAState, ''(), ''[], ''Int]) #-}
 {-# ANN then_MonadInstance_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE then_MonadInstance_x4 #-}
 then_MonadInstance_x4 :: Int -> Int -> IO (Either ParseError ())
@@ -96,9 +96,9 @@ then_MonadInstance_x4 value =
 
 {- HLINT ignore "Evaluate"-}
 {-# ANN then_MonadInstance_x8 (PermitPatternMatches
-    [''[], ''Int, ''SPEC, ''PR.SeqAState]) #-}
+    [''[], ''Int, ''SPEC, ''SeqAState]) #-}
 {-# ANN then_MonadInstance_x8 (PermitConstructions
-    [''PR.SeqAState, ''(), ''[], ''Int]) #-}
+    [''SeqAState, ''(), ''[], ''Int]) #-}
 {-# ANN then_MonadInstance_x8 (PermitTypeClasses []) #-}
 {-# NOINLINE then_MonadInstance_x8 #-}
 then_MonadInstance_x8 :: Int -> Int -> IO (Either ParseError ())
@@ -115,9 +115,9 @@ then_MonadInstance_x8 value =
             PR.dropWhile (<= value)
 
 {-# ANN then_MonadInstance_x16 (PermitPatternMatches
-    [''[], ''Int, ''SPEC, ''PR.SeqAState]) #-}
+    [''[], ''Int, ''SPEC, ''SeqAState]) #-}
 {-# ANN then_MonadInstance_x16 (PermitConstructions
-    [''PR.SeqAState, ''(), ''[], ''Int]) #-}
+    [''SeqAState, ''(), ''[], ''Int]) #-}
 {-# ANN then_MonadInstance_x16 (PermitTypeClasses []) #-}
 {-# NOINLINE then_MonadInstance_x16 #-}
 then_MonadInstance_x16 :: Int -> Int -> IO (Either ParseError ())

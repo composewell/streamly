@@ -65,7 +65,7 @@ withStream value f = f . streamUnfoldrM value
 -------------------------------------------------------------------------------
 
 {-# ANN sepBy_Words (PermitPatternMatches [''Int, ''(), ''[]]) #-}
-{-# ANN sepBy_Words (PermitConstructions [''(), ''[], ''Int, ''Either]) #-}
+{-# ANN sepBy_Words (PermitConstructions [''(), ''[], ''Int]) #-}
 {-# ANN sepBy_Words (PermitTypeClasses []) #-}
 {-# NOINLINE sepBy_Words #-}
 sepBy_Words :: Int -> Int -> IO (Either ParseError ())
@@ -82,7 +82,7 @@ inspect $ 'sepBy_Words `hasNoType` ''SPEC
 inspect $ 'sepBy_Words `hasNoType` ''PR.SepByState
 #endif
 
-{-# ANN sepByAll_Words (PermitPatternMatches [''(), ''Int]) #-}
+{-# ANN sepByAll_Words (PermitPatternMatches [''()]) #-}
 {-# ANN sepByAll_Words (PermitConstructions [''Either, ''()]) #-}
 {-# ANN sepByAll_Words (PermitTypeClasses []) #-}
 {-# NOINLINE sepByAll_Words #-}
@@ -101,7 +101,7 @@ inspect $ 'sepByAll_Words `hasNoType` ''PR.DeintercalateAllState
 #endif
 
 -- Returning a list to compare with the sepBy1 in ParserK
-{-# ANN sepBy1_Satisfy (PermitPatternMatches [''Int, ''[]]) #-}
+{-# ANN sepBy1_Satisfy (PermitPatternMatches [''[]]) #-}
 {-# ANN sepBy1_Satisfy (PermitConstructions [''Either, ''[], ''Int]) #-}
 {-# ANN sepBy1_Satisfy (PermitTypeClasses []) #-}
 {-# NOINLINE sepBy1_Satisfy #-}
@@ -111,7 +111,7 @@ sepBy1_Satisfy value =
         Stream.parse (PR.sepBy1 (PR.satisfy odd) (PR.satisfy even) Fold.toList)
 
 {-# ANN sepBy1_Words (PermitPatternMatches [''Int, ''(), ''[]]) #-}
-{-# ANN sepBy1_Words (PermitConstructions [''(), ''[], ''Int, ''Either]) #-}
+{-# ANN sepBy1_Words (PermitConstructions [''(), ''[], ''Int]) #-}
 {-# ANN sepBy1_Words (PermitTypeClasses []) #-}
 {-# NOINLINE sepBy1_Words #-}
 sepBy1_Words :: Int -> Int -> IO (Either ParseError ())
@@ -129,7 +129,7 @@ inspect $ 'sepBy1_Words `hasNoType` ''PR.SepBy1State
 #endif
 
 {-# ANN deintercalate (PermitPatternMatches [''(), ''Int, ''[]]) #-}
-{-# ANN deintercalate (PermitConstructions [''(), ''[], ''Int, ''Either]) #-}
+{-# ANN deintercalate (PermitConstructions [''(), ''[], ''Int]) #-}
 {-# ANN deintercalate (PermitTypeClasses []) #-}
 {-# NOINLINE deintercalate #-}
 deintercalate :: Int -> Int -> IO (Either ParseError ())
@@ -153,7 +153,7 @@ inspect $ 'deintercalate `hasNoType` ''PR.DeintercalateState
 #endif
 
 {-# ANN deintercalate1 (PermitPatternMatches [''(), ''Int, ''[]]) #-}
-{-# ANN deintercalate1 (PermitConstructions [''(), ''[], ''Int, ''Either]) #-}
+{-# ANN deintercalate1 (PermitConstructions [''(), ''[], ''Int]) #-}
 {-# ANN deintercalate1 (PermitTypeClasses []) #-}
 {-# NOINLINE deintercalate1 #-}
 deintercalate1 :: Int -> Int -> IO (Either ParseError ())
@@ -176,7 +176,7 @@ inspect $ 'deintercalate1 `hasNoType` ''SPEC
 inspect $ 'deintercalate1 `hasNoType` ''PR.Deintercalate1State
 #endif
 
-{-# ANN deintercalateAll (PermitPatternMatches [''(), ''Int]) #-}
+{-# ANN deintercalateAll (PermitPatternMatches [''()]) #-}
 {-# ANN deintercalateAll (PermitConstructions [''Either, ''()]) #-}
 {-# ANN deintercalateAll (PermitTypeClasses []) #-}
 {-# NOINLINE deintercalateAll #-}
@@ -201,9 +201,9 @@ inspect $ 'deintercalateAll `hasNoType` ''PR.DeintercalateAllState
 #endif
 
 {-# ANN manyTill (PermitPatternMatches
-    [''[], ''Int, ''(,), ''PR.ManyTillState, ''SPEC]) #-}
+    [''[], ''Int, ''(,)]) #-}
 {-# ANN manyTill (PermitConstructions
-    [''[], ''Int, ''SrcLoc, ''CallStack, ''Either, ''(,), ''PR.ManyTillState, ''()]) #-}
+    [''[], ''Int, ''SrcLoc, ''CallStack, ''Either, ''(,)]) #-}
 {-# ANN manyTill (PermitTypeClasses [''IP]) #-}
 
 -- XXX NOINLINE makes the inspection tests fail.

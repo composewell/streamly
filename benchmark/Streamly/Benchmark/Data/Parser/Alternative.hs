@@ -36,7 +36,8 @@ import GHC.Stack (CallStack, SrcLoc)
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Fold (Fold(..))
 import Streamly.Internal.Data.Parser
-    (ParseError(..), Parser(..), Initial(..), Step(..), Final(..))
+    ( ParseError(..), Parser(..), Initial(..), Step(..), Final(..)
+    , AltParseState, SeqAState)
 import Streamly.Internal.Data.Stream (Stream)
 import System.Random (randomRIO)
 import Test.Tasty.Bench (Benchmark, bench, nfIO)
@@ -69,8 +70,8 @@ withStream value f = f . streamUnfoldrM value
 -- Parsers
 -------------------------------------------------------------------------------
 
-{-# ANN splitMany_WordBy (PermitPatternMatches [''(), ''Int]) #-}
-{-# ANN splitMany_WordBy (PermitConstructions [''(), ''Either]) #-}
+{-# ANN splitMany_WordBy (PermitPatternMatches [''()]) #-}
+{-# ANN splitMany_WordBy (PermitConstructions [''()]) #-}
 {-# ANN splitMany_WordBy (PermitTypeClasses []) #-}
 {-# NOINLINE splitMany_WordBy #-}
 splitMany_WordBy :: Int -> Int -> IO (Either ParseError ())
@@ -88,8 +89,8 @@ inspect $ 'splitMany_WordBy `hasNoType` ''SPEC
 inspect $ 'splitMany_WordBy `hasNoType` ''PR.Fused3
 #endif
 
-{-# ANN splitMany_Satisfy (PermitPatternMatches [''Int]) #-}
-{-# ANN splitMany_Satisfy (PermitConstructions [''Int, ''Either]) #-}
+{-# ANN splitMany_Satisfy (PermitPatternMatches []) #-}
+{-# ANN splitMany_Satisfy (PermitConstructions [''Int]) #-}
 {-# ANN splitMany_Satisfy (PermitTypeClasses []) #-}
 {-# NOINLINE splitMany_Satisfy #-}
 splitMany_Satisfy :: Int -> Int -> IO (Either ParseError Int)
@@ -106,7 +107,7 @@ inspect $ 'splitMany_Satisfy `hasNoType` ''SPEC
 inspect $ 'splitMany_Satisfy `hasNoType` ''PR.Fused3
 #endif
 
-{-# ANN splitSome (PermitPatternMatches [''Int]) #-}
+{-# ANN splitSome (PermitPatternMatches []) #-}
 {-# ANN splitSome (PermitConstructions [''Either, ''Int]) #-}
 {-# ANN splitSome (PermitTypeClasses []) #-}
 {-# NOINLINE splitSome #-}
@@ -124,7 +125,7 @@ inspect $ 'splitSome `hasNoType` ''SPEC
 inspect $ 'splitSome `hasNoType` ''PR.Fused3
 #endif
 
-{-# ANN many_AlternativeInstance (PermitPatternMatches [''[], ''Int]) #-}
+{-# ANN many_AlternativeInstance (PermitPatternMatches [''[]]) #-}
 {-# ANN many_AlternativeInstance (PermitConstructions [''[], ''Int]) #-}
 {-# ANN many_AlternativeInstance (PermitTypeClasses []) #-}
 {-# NOINLINE many_AlternativeInstance #-}
@@ -133,7 +134,7 @@ many_AlternativeInstance value start = do
     x <- withStream value (Stream.parse (AP.many (PR.satisfy (> 0)))) start
     return $ Prelude.length x
 
-{-# ANN some_AlternativeInstance (PermitPatternMatches [''Int, ''[]]) #-}
+{-# ANN some_AlternativeInstance (PermitPatternMatches [''[]]) #-}
 {-# ANN some_AlternativeInstance (PermitConstructions [''[], ''Int]) #-}
 {-# ANN some_AlternativeInstance (PermitTypeClasses []) #-}
 {-# NOINLINE some_AlternativeInstance #-}
@@ -169,9 +170,10 @@ takeWhileFail predicate (Fold fstep finitial _ ffinal) =
 
     extract s = fmap (FDone 0) (ffinal s)
 
-{-# ANN alt_x2 (PermitPatternMatches [''[], ''Int, ''(,), ''SPEC, ''PR.AltParseState]) #-}
+{-# ANN alt_x2 (PermitPatternMatches
+    [''[], ''Int, ''(,), ''SPEC, ''AltParseState]) #-}
 {-# ANN alt_x2 (PermitConstructions
-    [''[], ''Int, ''SrcLoc, ''CallStack, ''(), ''(,), ''PR.AltParseState, ''Either]) #-}
+    [''[], ''Int, ''SrcLoc, ''CallStack, ''(), ''(,), ''AltParseState]) #-}
 {-# ANN alt_x2 (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE alt_x2 #-}
 alt_x2 :: Int -> Int -> IO (Either ParseError ())
@@ -189,14 +191,14 @@ inspect $ 'alt_x2 `hasNoType` ''PR.Step
 inspect $ 'alt_x2 `hasNoType` ''PR.Initial
 inspect $ 'alt_x2 `hasNoType` ''FL.Step
 -- inspect $ 'alt_x2 `hasNoType` ''SPEC
--- inspect $ 'alt_x2 `hasNoType` ''PR.AltParseState
+-- inspect $ 'alt_x2 `hasNoType` ''AltParseState
 #endif
 
 {- HLINT ignore "Evaluate"-}
 {-# ANN alt_AlternativeInstance_x4 (PermitPatternMatches
-    [''[], ''Int, ''(,), ''SPEC, ''PR.AltParseState]) #-}
+    [''[], ''Int, ''(,), ''SPEC, ''AltParseState]) #-}
 {-# ANN alt_AlternativeInstance_x4 (PermitConstructions
-    [''[], ''Int, ''SrcLoc, ''CallStack, ''PR.AltParseState, ''(), ''(,)]) #-}
+    [''[], ''Int, ''SrcLoc, ''CallStack, ''AltParseState, ''(), ''(,)]) #-}
 {-# ANN alt_AlternativeInstance_x4 (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE alt_AlternativeInstance_x4 #-}
 alt_AlternativeInstance_x4 :: Int -> Int -> IO (Either ParseError ())
@@ -210,9 +212,9 @@ alt_AlternativeInstance_x4 value =
             )
 
 {-# ANN alt_AlternativeInstance_x8 (PermitPatternMatches
-    [''[], ''Int, ''(,), ''SPEC, ''PR.AltParseState]) #-}
+    [''[], ''Int, ''(,), ''SPEC, ''AltParseState]) #-}
 {-# ANN alt_AlternativeInstance_x8 (PermitConstructions
-    [''[], ''Int, ''SrcLoc, ''CallStack, ''PR.AltParseState, ''(), ''(,)]) #-}
+    [''[], ''Int, ''SrcLoc, ''CallStack, ''AltParseState, ''(), ''(,)]) #-}
 {-# ANN alt_AlternativeInstance_x8 (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE alt_AlternativeInstance_x8 #-}
 alt_AlternativeInstance_x8 :: Int -> Int -> IO (Either ParseError ())
@@ -230,9 +232,9 @@ alt_AlternativeInstance_x8 value =
             )
 
 {-# ANN alt_AlternativeInstance_x16 (PermitPatternMatches
-    [''[], ''Int, ''(,), ''SPEC, ''PR.AltParseState]) #-}
+    [''[], ''Int, ''(,), ''SPEC, ''AltParseState]) #-}
 {-# ANN alt_AlternativeInstance_x16 (PermitConstructions
-    [''[], ''Int, ''SrcLoc, ''CallStack, ''PR.AltParseState, ''(), ''(,)]) #-}
+    [''[], ''Int, ''SrcLoc, ''CallStack, ''AltParseState, ''(), ''(,)]) #-}
 {-# ANN alt_AlternativeInstance_x16 (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE alt_AlternativeInstance_x16 #-}
 alt_AlternativeInstance_x16 :: Int -> Int -> IO (Either ParseError ())
@@ -257,9 +259,9 @@ alt_AlternativeInstance_x16 value =
             )
 
 {-# ANN alt_ParseMany_x2 (PermitPatternMatches
-    [''[], ''(,), ''PR.AltParseState, ''PR.SeqAState, ''Int]) #-}
+    [''[], ''(,), ''AltParseState, ''SeqAState, ''Int]) #-}
 {-# ANN alt_ParseMany_x2 (PermitConstructions
-    [''[], ''Int, ''SrcLoc, ''CallStack, ''PR.AltParseState, ''(), ''(,)]) #-}
+    [''[], ''Int, ''SrcLoc, ''CallStack, ''AltParseState, ''(), ''(,)]) #-}
 {-# ANN alt_ParseMany_x2 (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE alt_ParseMany_x2 #-}
 alt_ParseMany_x2 :: Int -> Int -> IO ()
@@ -322,9 +324,11 @@ longestAllAny value =
 -- quadratic performance complexity.
 --
 {-# ANN asum (PermitPatternMatches
-    [''PR.AltParseState, ''Int, ''Parser, ''Initial, ''Step, ''Final, ''[], ''IO, ''(,)]) #-}
+    [ ''AltParseState, ''Int, ''Parser, ''Initial, ''Step, ''Final, ''[], ''IO
+    , ''(,)
+    ]) #-}
 {-# ANN asum (PermitConstructions
-    [ ''Final, ''PR.AltParseState, ''(), ''Initial, ''Step, ''Parser, ''[]
+    [ ''Final, ''AltParseState, ''(), ''Initial, ''Step, ''Parser, ''[]
     , ''Int, ''SrcLoc, ''CallStack, ''Char, ''(,), ''Either
     ]) #-}
 {-# ANN asum (PermitTypeClasses [''IP]) #-}

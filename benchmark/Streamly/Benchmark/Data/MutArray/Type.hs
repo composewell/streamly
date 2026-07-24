@@ -37,7 +37,7 @@ import Prelude hiding (read)
 
 import Streamly.Data.MutByteArray (MutByteArray, Unbox)
 import Streamly.Internal.Data.MutByteArray (PinnedState)
-import Streamly.Internal.Data.MutArray (MutArray)
+import Streamly.Internal.Data.MutArray (MutArray, ArrayUnsafe)
 
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.MutArray as MArray
@@ -47,6 +47,7 @@ import qualified Streamly.Internal.Data.Stream as Stream
 import Test.Tasty.Bench
 import Streamly.Benchmark.Common hiding (benchPureSrc)
 import Fusion.Plugin.Types
+import Streamly.Internal.Data.Fold (Tuple'Fused)
 
 #if __GLASGOW_HASKELL__ >= 810
 type Stream :: Type -> Type
@@ -97,15 +98,15 @@ sourceUnfoldrM value n = Stream.unfoldrM step n
 -- sourceIntFromTo is also the helper behind withArray, so it stays INLINE and
 -- the benchmark gets its own NOINLINE wrapper.
 {-# ANN createOf (PermitPatternMatches
-    [''Int,''Fold.Tuple'Fused,''MArray.ArrayUnsafe,''IO]) #-}
+    [''Int,''Tuple'Fused,''ArrayUnsafe,''IO]) #-}
 {-# ANN createOf (PermitConstructions
-    [''Int,''MutArray,''Fold.Tuple'Fused,''MArray.ArrayUnsafe]) #-}
+    [''Int,''MutArray,''Tuple'Fused,''ArrayUnsafe]) #-}
 {-# ANN createOf (PermitTypeClasses []) #-}
 {-# NOINLINE createOf #-}
 createOf :: Int -> Int -> IO (Stream Int)
 createOf = sourceIntFromTo
 
-{-# ANN createOf_Unfoldr (PermitPatternMatches [''Int,''IO]) #-}
+{-# ANN createOf_Unfoldr (PermitPatternMatches [''IO]) #-}
 {-# ANN createOf_Unfoldr (PermitConstructions [''MutArray]) #-}
 {-# ANN createOf_Unfoldr (PermitTypeClasses []) #-}
 {-# NOINLINE createOf_Unfoldr #-}
@@ -118,16 +119,16 @@ createOf_Unfoldr value n =
     in Stream.fold (MArray.createOf value) $ Stream.unfoldr step n
 
 {-# ANN createOf_FromList (PermitPatternMatches
-    [''Fold.Tuple'Fused,''[],''Int,''MArray.ArrayUnsafe,''IO]) #-}
+    [''Tuple'Fused,''[],''Int,''ArrayUnsafe,''IO]) #-}
 {-# ANN createOf_FromList (PermitConstructions
-    [''Int,''MutArray,''[],''Fold.Tuple'Fused,''MArray.ArrayUnsafe]) #-}
+    [''Int,''MutArray,''[],''Tuple'Fused,''ArrayUnsafe]) #-}
 {-# ANN createOf_FromList (PermitTypeClasses []) #-}
 {-# NOINLINE createOf_FromList #-}
 createOf_FromList :: Int -> Int -> IO (Stream Int)
 createOf_FromList value n =
     Stream.fold (MArray.createOf value) $ Stream.fromList [n .. n + value]
 
-{-# ANN createOf_UnfoldrM (PermitPatternMatches [''Int,''IO]) #-}
+{-# ANN createOf_UnfoldrM (PermitPatternMatches [''IO]) #-}
 {-# ANN createOf_UnfoldrM (PermitConstructions [''MutArray]) #-}
 {-# ANN createOf_UnfoldrM (PermitTypeClasses []) #-}
 {-# NOINLINE createOf_UnfoldrM #-}
@@ -142,7 +143,7 @@ createOf_UnfoldrM value =
 fromListN :: Int -> Int -> IO (Stream Int)
 fromListN value n = MArray.fromListN value [n..n + value]
 
-{-# ANN create (PermitPatternMatches [''MutArray,''Int]) #-}
+{-# ANN create (PermitPatternMatches [''MutArray]) #-}
 {-# ANN create (PermitConstructions [''MutArray, ''PinnedState]) #-}
 {-# ANN create (PermitTypeClasses []) #-}
 {-# NOINLINE create #-}
@@ -155,7 +156,7 @@ create value n =
 -------------------------------------------------------------------------------
 
 {-# ANN partitionBy_LT (PermitPatternMatches
-    [''MutArray,''Int,''Maybe,''(,)]) #-}
+    [''Int,''Maybe,''(,)]) #-}
 {-# ANN partitionBy_LT (PermitConstructions
     [''Maybe,''(,),''Int,''MutArray]) #-}
 {-# ANN partitionBy_LT (PermitTypeClasses []) #-}
@@ -165,7 +166,7 @@ partitionBy_LT ::
 partitionBy_LT array pivot _ = MArray.partitionBy (< pivot) array
 
 {-# ANN partitionBy_GT (PermitPatternMatches
-    [''MutArray,''Int,''Maybe,''(,)]) #-}
+    [''Int,''Maybe,''(,)]) #-}
 {-# ANN partitionBy_GT (PermitConstructions
     [''Maybe,''(,),''Int,''MutArray]) #-}
 {-# ANN partitionBy_GT (PermitTypeClasses []) #-}
@@ -174,14 +175,14 @@ partitionBy_GT ::
     Stream Int -> Int -> Int -> IO (Stream Int, Stream Int)
 partitionBy_GT array pivot _ = MArray.partitionBy (> pivot) array
 
-{-# ANN dropAround_GT (PermitPatternMatches [''Int,''MutByteArray]) #-}
+{-# ANN dropAround_GT (PermitPatternMatches [''MutByteArray]) #-}
 {-# ANN dropAround_GT (PermitConstructions [''MutArray]) #-}
 {-# ANN dropAround_GT (PermitTypeClasses []) #-}
 {-# NOINLINE dropAround_GT #-}
 dropAround_GT :: Stream Int -> Int -> Int -> IO (Stream Int)
 dropAround_GT array pivot _ = MArray.dropAround (> pivot) array
 
-{-# ANN dropAround_NotEq (PermitPatternMatches [''Int,''MutByteArray]) #-}
+{-# ANN dropAround_NotEq (PermitPatternMatches [''MutByteArray]) #-}
 {-# ANN dropAround_NotEq (PermitConstructions [''MutArray]) #-}
 {-# ANN dropAround_NotEq (PermitTypeClasses []) #-}
 {-# NOINLINE dropAround_NotEq #-}
@@ -190,7 +191,7 @@ dropAround_NotEq array pivot _ =
     MArray.dropAround (\x -> x < pivot || x > pivot) array
 
 {-# ANN modifyIndices (PermitPatternMatches
-    [''Int,''Array.Array,''MutArray,''()]) #-}
+    [''Int,''()]) #-}
 {-# ANN modifyIndices (PermitConstructions [''(,),''Int,''()]) #-}
 {-# ANN modifyIndices (PermitTypeClasses [''MonadIO,''Unbox]) #-}
 {-# NOINLINE modifyIndices #-}
@@ -204,45 +205,45 @@ modifyIndices array indices _ =
 -------------------------------------------------------------------------------
 
 {-# ANN reader (PermitPatternMatches
-    [''MutArray,''Int,''Fold.Tuple'Fused,''MArray.ArrayUnsafe,''IO]) #-}
+    [''MutArray,''Int,''Tuple'Fused,''ArrayUnsafe,''IO]) #-}
 {-# ANN reader (PermitConstructions
-    [''(),''Int,''MutArray,''Fold.Tuple'Fused,''MArray.ArrayUnsafe]) #-}
+    [''(),''Int,''MutArray,''Tuple'Fused,''ArrayUnsafe]) #-}
 {-# ANN reader (PermitTypeClasses []) #-}
 {-# NOINLINE reader #-}
 reader :: Int -> Int -> IO ()
 reader value = withArray value $ drain . Stream.unfold MArray.reader
 
 {-# ANN readerRev (PermitPatternMatches
-    [''MutArray,''Int,''Fold.Tuple'Fused,''MArray.ArrayUnsafe,''IO]) #-}
+    [''MutArray,''Int,''Tuple'Fused,''ArrayUnsafe,''IO]) #-}
 {-# ANN readerRev (PermitConstructions
-    [''(),''Int,''MutArray,''Fold.Tuple'Fused,''MArray.ArrayUnsafe]) #-}
+    [''(),''Int,''MutArray,''Tuple'Fused,''ArrayUnsafe]) #-}
 {-# ANN readerRev (PermitTypeClasses []) #-}
 {-# NOINLINE readerRev #-}
 readerRev :: Int -> Int -> IO ()
 readerRev value = withArray value $ drain . Stream.unfold MArray.readerRev
 
 {-# ANN read (PermitPatternMatches
-    [''Fold.Tuple'Fused,''Int,''MArray.ArrayUnsafe,''IO]) #-}
+    [''Tuple'Fused,''Int,''ArrayUnsafe,''IO]) #-}
 {-# ANN read (PermitConstructions
-    [''Int,''(),''Fold.Tuple'Fused,''MArray.ArrayUnsafe]) #-}
+    [''Int,''(),''Tuple'Fused,''ArrayUnsafe]) #-}
 {-# ANN read (PermitTypeClasses []) #-}
 {-# NOINLINE read #-}
 read :: Int -> Int -> IO ()
 read value = withArray value $ drain . MArray.read
 
 {-# ANN readRev (PermitPatternMatches
-    [''Fold.Tuple'Fused,''Int,''MArray.ArrayUnsafe,''IO]) #-}
+    [''Tuple'Fused,''Int,''ArrayUnsafe,''IO]) #-}
 {-# ANN readRev (PermitConstructions
-    [''Int,''(),''Fold.Tuple'Fused,''MArray.ArrayUnsafe]) #-}
+    [''Int,''(),''Tuple'Fused,''ArrayUnsafe]) #-}
 {-# ANN readRev (PermitTypeClasses []) #-}
 {-# NOINLINE readRev #-}
 readRev :: Int -> Int -> IO ()
 readRev value = withArray value $ drain . MArray.readRev
 
 {-# ANN foldl'_Reader (PermitPatternMatches
-    [''MutArray,''Int,''Fold.Tuple'Fused,''MArray.ArrayUnsafe,''IO]) #-}
+    [''MutArray,''Int,''Tuple'Fused,''ArrayUnsafe,''IO]) #-}
 {-# ANN foldl'_Reader (PermitConstructions
-    [''Int,''MutArray,''Fold.Tuple'Fused,''MArray.ArrayUnsafe]) #-}
+    [''Int,''MutArray,''Tuple'Fused,''ArrayUnsafe]) #-}
 {-# ANN foldl'_Reader (PermitTypeClasses []) #-}
 {-# NOINLINE foldl'_Reader #-}
 foldl'_Reader :: Int -> Int -> IO Int

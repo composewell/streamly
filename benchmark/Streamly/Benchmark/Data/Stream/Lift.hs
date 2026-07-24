@@ -94,7 +94,7 @@ inspect $ 'liftInner `hasNoType` ''SPEC
 #endif
 
 -- NOTE: eta expansion is required to eliminate Step pattern match
-{-# ANN generalizeInner_Identity (PermitPatternMatches [''Int]) #-}
+{-# ANN generalizeInner_Identity (PermitPatternMatches []) #-}
 {-# ANN generalizeInner_Identity (PermitConstructions [''Int]) #-}
 {-# ANN generalizeInner_Identity (PermitTypeClasses []) #-}
 {-# NOINLINE generalizeInner_Identity #-}

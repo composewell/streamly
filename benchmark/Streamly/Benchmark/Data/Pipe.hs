@@ -103,7 +103,7 @@ teeMerge n =
         (Pipe.mapM (\x -> return (x + 1)) `Pipe.teeMerge`
          Pipe.mapM (\x -> return (x + 2)))
 
-{-# ANN mapM_x1 (PermitPatternMatches [''Int]) #-}
+{-# ANN mapM_x1 (PermitPatternMatches []) #-}
 {-# ANN mapM_x1 (PermitConstructions [''()]) #-}
 {-# ANN mapM_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE mapM_x1 #-}
@@ -118,7 +118,7 @@ inspect $ 'mapM_x1 `hasNoType` ''FL.Step
 inspect $ 'mapM_x1 `hasNoType` ''SPEC
 #endif
 
-{-# ANN compose_x1 (PermitPatternMatches [''Int]) #-}
+{-# ANN compose_x1 (PermitPatternMatches []) #-}
 {-# ANN compose_x1 (PermitConstructions [''()]) #-}
 {-# ANN compose_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE compose_x1 #-}
@@ -133,7 +133,7 @@ inspect $ 'compose_x1 `hasNoType` ''FL.Step
 inspect $ 'compose_x1 `hasNoType` ''SPEC
 #endif
 
-{-# ANN teeMerge_x1 (PermitPatternMatches [''Int]) #-}
+{-# ANN teeMerge_x1 (PermitPatternMatches []) #-}
 {-# ANN teeMerge_x1 (PermitConstructions [''()]) #-}
 {-# ANN teeMerge_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE teeMerge_x1 #-}
@@ -151,7 +151,7 @@ inspect $ 'teeMerge_x1 `hasNoType` ''SPEC
 -- XXX this takes 1 GB memory to compile
 -- pipeZip :: Int -> IO ()
 
-{-# ANN mapM_x4 (PermitPatternMatches [''Int]) #-}
+{-# ANN mapM_x4 (PermitPatternMatches []) #-}
 {-# ANN mapM_x4 (PermitConstructions [''()]) #-}
 {-# ANN mapM_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE mapM_x4 #-}
@@ -166,7 +166,7 @@ inspect $ 'mapM_x4 `hasNoType` ''FL.Step
 inspect $ 'mapM_x4 `hasNoType` ''SPEC
 #endif
 
-{-# ANN compose_x4 (PermitPatternMatches [''Int]) #-}
+{-# ANN compose_x4 (PermitPatternMatches []) #-}
 {-# ANN compose_x4 (PermitConstructions [''()]) #-}
 {-# ANN compose_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE compose_x4 #-}
@@ -182,7 +182,7 @@ inspect $ 'compose_x4 `hasNoType` ''SPEC
 #endif
 
 -- XXX requires @-fspec-constr-recursive=16@.
-{-# ANN teeMerge_x4 (PermitPatternMatches [''Int]) #-}
+{-# ANN teeMerge_x4 (PermitPatternMatches []) #-}
 {-# ANN teeMerge_x4 (PermitConstructions [''()]) #-}
 {-# ANN teeMerge_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE teeMerge_x4 #-}

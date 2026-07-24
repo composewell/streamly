@@ -35,12 +35,12 @@ import Streamly.Internal.Data.MutArray (FlattenState, MutArray)
 import Streamly.Internal.Data.RingArray (RingArray)
 import Streamly.Internal.Data.Stream
     (SplitOnSeqState, SplitOnSuffixSeqState, WordsByState)
+import Streamly.Internal.Data.SVar.Type (State)
 import Unsafe.Coerce (UnsafeEquality)
 
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream as Stream
-import qualified Streamly.Internal.Data.SVar.Type as SVar
 import qualified Streamly.Internal.FileSystem.Handle as Handle
 
 import Fusion.Plugin.Types
@@ -70,7 +70,8 @@ toarr :: String -> Array Word8
 toarr = Array.fromList . map (fromIntegral . ord)
 
 -- | Split on line feed.
-{-# ANN splitOn (PermitPatternMatches [''[],''Int,''UnsafeEquality,''IO,''Array]) #-}
+{-# ANN splitOn (PermitPatternMatches
+    [''[], ''Int, ''UnsafeEquality, ''IO, ''Array]) #-}
 {-# ANN splitOn (PermitConstructions
     [''Int,''SrcLoc,''CallStack,''[],''Array,''Ptr,''PinnedState]) #-}
 {-# ANN splitOn (PermitTypeClasses [''IP]) #-}
@@ -117,12 +118,12 @@ inspect $ 'wordsBy `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 
 -- | Split on a word8 sequence.
 {-# ANN splitOnSeq (PermitPatternMatches
-    [''[],''Int,''UnsafeEquality,''MutArray,''Word8,''SVar.State,''Char
+    [''[],''Int,''UnsafeEquality,''MutArray,''Word8,''State,''Char
     ,''Array,''Word,''(),''Word32,''FlattenState,''MutByteArray,''RingArray
     ,''SplitOnSeqState,''IO]) #-}
 {-# ANN splitOnSeq (PermitConstructions
     [''Int,''SrcLoc,''CallStack,''Word,''SplitOnSeqState,''(),''Word32
-    ,''[],''Array,''MutArray,''SVar.State,''Maybe,''Bool,''Word8
+    ,''[],''Array,''MutArray,''State,''Maybe,''Bool,''Word8
     ,''FlattenState,''MutByteArray,''RingArray,''Ptr,''PinnedState]) #-}
 {-# ANN splitOnSeq (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE splitOnSeq #-}
@@ -140,7 +141,7 @@ inspect $ 'splitOnSeq `hasNoType` ''SPEC
 #endif
 
 {-# ANN takeEndBy (PermitPatternMatches
-    [''[],''Int,''UnsafeEquality,''IO,''Array,''Word8]) #-}
+    [''[],''Int,''UnsafeEquality,''IO,''Array]) #-}
 {-# ANN takeEndBy (PermitConstructions
     [''Int,''SrcLoc,''CallStack,''[],''Array,''Ptr,''PinnedState]) #-}
 {-# ANN takeEndBy (PermitTypeClasses [''IP]) #-}
@@ -162,7 +163,7 @@ inspect $ 'takeEndBy `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 #endif
 
 {-# ANN takeEndBy_ (PermitPatternMatches
-    [''[],''Int,''UnsafeEquality,''IO,''Array,''Word8]) #-}
+    [''[],''Int,''UnsafeEquality,''IO,''Array]) #-}
 {-# ANN takeEndBy_ (PermitConstructions
     [''Int,''SrcLoc,''CallStack,''[],''Array,''Ptr,''PinnedState]) #-}
 {-# ANN takeEndBy_ (PermitTypeClasses [''IP]) #-}
@@ -184,11 +185,11 @@ inspect $ 'takeEndBy_ `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 #endif
 
 {-# ANN takeEndBySeq (PermitPatternMatches
-    [''[],''Int,''UnsafeEquality,''IO,''MutArray,''Word8,''SVar.State
+    [''[],''Int,''UnsafeEquality,''IO,''MutArray,''Word8,''State
     ,''Char,''Array,''Word,''Word32]) #-}
 {-# ANN takeEndBySeq (PermitConstructions
     [''Int,''SrcLoc,''CallStack,''Word32,''[],''Array,''MutArray
-    ,''SVar.State,''Maybe,''Bool,''Word8,''Word,''Ptr,''PinnedState]) #-}
+    ,''State,''Maybe,''Bool,''Word8,''Word,''Ptr,''PinnedState]) #-}
 {-# ANN takeEndBySeq (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE takeEndBySeq #-}
 takeEndBySeq :: String -> Handle -> IO Int
@@ -208,11 +209,11 @@ inspect $ 'takeEndBySeq `hasNoType` ''SPEC
 #endif
 
 {-# ANN takeEndBySeq_ (PermitPatternMatches
-    [''[],''Int,''UnsafeEquality,''IO,''MutArray,''Word8,''SVar.State
+    [''[],''Int,''UnsafeEquality,''IO,''MutArray,''Word8,''State
     ,''Char,''Array,''Word,''RingArray,''Word32]) #-}
 {-# ANN takeEndBySeq_ (PermitConstructions
     [''Int,''SrcLoc,''CallStack,''Word32,''[],''Array,''MutArray
-    ,''SVar.State,''Maybe,''Bool,''Word8,''Word,''RingArray,''Ptr
+    ,''State,''Maybe,''Bool,''Word8,''Word,''RingArray,''Ptr
     ,''PinnedState]) #-}
 {-# ANN takeEndBySeq_ (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE takeEndBySeq_ #-}
@@ -304,12 +305,12 @@ inspect $ 'splitOnSeq100k `hasNoType` ''SPEC
 
 -- | Split on suffix sequence.
 {-# ANN splitOnSuffixSeq (PermitPatternMatches
-    [''[],''Int,''UnsafeEquality,''IO,''MutArray,''Word8,''SVar.State
+    [''[],''Int,''UnsafeEquality,''IO,''MutArray,''Word8,''State
     ,''Char,''Array,''Word,''(),''Word32,''FlattenState,''MutByteArray
     ,''SplitOnSuffixSeqState,''RingArray]) #-}
 {-# ANN splitOnSuffixSeq (PermitConstructions
     [''Int,''SrcLoc,''CallStack,''Word32,''[],''Array,''MutArray
-    ,''SVar.State,''Maybe,''Bool,''Word8,''Word,''SplitOnSuffixSeqState
+    ,''State,''Maybe,''Bool,''Word8,''Word,''SplitOnSuffixSeqState
     ,''(),''FlattenState,''MutByteArray,''RingArray,''Ptr,''PinnedState]) #-}
 {-# ANN splitOnSuffixSeq (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE splitOnSuffixSeq #-}
@@ -329,12 +330,12 @@ inspect $ 'splitOnSuffixSeq `hasNoType` ''SPEC
 
 -- | Split on suffix sequence.
 {-# ANN splitWithSuffixSeq (PermitPatternMatches
-    [''[],''Int,''UnsafeEquality,''IO,''MutArray,''Word8,''SVar.State
+    [''[],''Int,''UnsafeEquality,''IO,''MutArray,''Word8,''State
     ,''Char,''Array,''Word,''(),''Word32,''FlattenState,''MutByteArray
     ,''SplitOnSuffixSeqState,''RingArray]) #-}
 {-# ANN splitWithSuffixSeq (PermitConstructions
     [''SplitOnSuffixSeqState,''(),''Int,''SrcLoc,''CallStack,''Word32
-    ,''[],''Array,''MutArray,''SVar.State,''Maybe,''Bool,''Word8,''Word
+    ,''[],''Array,''MutArray,''State,''Maybe,''Bool,''Word8,''Word
     ,''FlattenState,''MutByteArray,''RingArray,''Ptr,''PinnedState]) #-}
 {-# ANN splitWithSuffixSeq (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE splitWithSuffixSeq #-}

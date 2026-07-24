@@ -27,7 +27,7 @@ import Control.Applicative (liftA2)
 import Control.DeepSeq (NFData)
 import Control.Monad (when)
 import Data.Maybe (isJust)
-import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Internal.Data.Stream (Stream, Step)
 import Streamly.Internal.Data.StreamK (StreamK)
 import System.Random (randomRIO)
 import Test.Tasty.Bench (bench, nf, nfIO, bgroup, Benchmark)
@@ -37,7 +37,7 @@ import qualified Prelude as P
 import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.StreamK as StreamK
-import qualified Streamly.Internal.Data.SVar.Type as SVar
+import Streamly.Internal.Data.SVar.Type (State)
 
 import GHC.Classes (IP)
 import GHC.Stack (SrcLoc, CallStack)
@@ -85,8 +85,9 @@ sourceUnfoldrM streamLen n = StreamK.unfoldrMWith StreamK.consM step n
         then return Nothing
         else return (Just (cnt, cnt + 1))
 
-{-# ANN unfoldrMWith (PermitPatternMatches [''Int]) #-}
-{-# ANN unfoldrMWith (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN unfoldrMWith (PermitPatternMatches []) #-}
+{-# ANN unfoldrMWith (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN unfoldrMWith (PermitTypeClasses []) #-}
 {-# NOINLINE unfoldrMWith #-}
 unfoldrMWith :: Int -> Int -> IO ()
@@ -96,15 +97,15 @@ unfoldrMWith streamLen = withDrain (sourceUnfoldrM streamLen)
 withStream :: Int -> (StreamK IO Int -> IO b) -> Int -> IO b
 withStream value f = f . sourceUnfoldrM value
 
-{-# ANN repeat (PermitPatternMatches [''SVar.State]) #-}
-{-# ANN repeat (PermitConstructions [''(),''SVar.State,''Maybe,''Bool]) #-}
+{-# ANN repeat (PermitPatternMatches [''State]) #-}
+{-# ANN repeat (PermitConstructions [''(),''State,''Maybe,''Bool]) #-}
 {-# ANN repeat (PermitTypeClasses []) #-}
 {-# NOINLINE repeat #-}
 repeat :: Int -> Int -> IO ()
 repeat streamLen = withDrain $ StreamK.take streamLen . StreamK.repeat
 
-{-# ANN repeatM (PermitPatternMatches [''SVar.State]) #-}
-{-# ANN repeatM (PermitConstructions [''(),''SVar.State,''Maybe,''Bool]) #-}
+{-# ANN repeatM (PermitPatternMatches [''State]) #-}
+{-# ANN repeatM (PermitConstructions [''(),''State,''Maybe,''Bool]) #-}
 {-# ANN repeatM (PermitTypeClasses [''Monad]) #-}
 {-# NOINLINE repeatM #-}
 repeatM :: Int -> Int -> IO ()
@@ -112,29 +113,29 @@ repeatM streamLen =
     withDrain $ StreamK.take streamLen . StreamK.repeatM . return
 
 {-# ANN replicate (PermitPatternMatches []) #-}
-{-# ANN replicate (PermitConstructions [''(),''SVar.State,''Maybe,''Bool]) #-}
+{-# ANN replicate (PermitConstructions [''(),''State,''Maybe,''Bool]) #-}
 {-# ANN replicate (PermitTypeClasses []) #-}
 {-# NOINLINE replicate #-}
 replicate :: Int -> Int -> IO ()
 replicate streamLen = withDrain (StreamK.replicate streamLen)
 
-{-# ANN replicateMWith (PermitPatternMatches [''Int]) #-}
-{-# ANN replicateMWith (PermitConstructions [''(),''SVar.State,''Maybe,''Bool]) #-}
+{-# ANN replicateMWith (PermitPatternMatches []) #-}
+{-# ANN replicateMWith (PermitConstructions [''(),''State,''Maybe,''Bool]) #-}
 {-# ANN replicateMWith (PermitTypeClasses []) #-}
 {-# NOINLINE replicateMWith #-}
 replicateMWith :: Int -> Int -> IO ()
 replicateMWith streamLen =
     withDrain $ StreamK.replicateMWith StreamK.consM streamLen . return
 
-{-# ANN iterate (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN iterate (PermitConstructions [''Int,''(),''SVar.State,''Maybe,''Bool]) #-}
+{-# ANN iterate (PermitPatternMatches [''State]) #-}
+{-# ANN iterate (PermitConstructions [''Int,''(),''State,''Maybe,''Bool]) #-}
 {-# ANN iterate (PermitTypeClasses []) #-}
 {-# NOINLINE iterate #-}
 iterate :: Int -> Int -> IO ()
 iterate streamLen = withDrain $ StreamK.take streamLen . StreamK.iterate (+1)
 
-{-# ANN iterateM (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN iterateM (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN iterateM (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN iterateM (PermitConstructions [''(),''State,''Maybe,''Bool,''Int]) #-}
 {-# ANN iterateM (PermitTypeClasses []) #-}
 {-# NOINLINE iterateM #-}
 iterateM :: Int -> Int -> IO ()
@@ -143,7 +144,8 @@ iterateM streamLen =
         $ StreamK.take streamLen . StreamK.iterateM (return . (+1)) . return
 
 {-# ANN fromFoldable (PermitPatternMatches []) #-}
-{-# ANN fromFoldable (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN fromFoldable (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN fromFoldable (PermitTypeClasses []) #-}
 {-# NOINLINE fromFoldable #-}
 fromFoldable :: Int -> Int -> IO ()
@@ -152,7 +154,8 @@ fromFoldable streamLen =
 
 {- HLINT ignore "Fuse foldr/fmap" -}
 {-# ANN fromFoldableM (PermitPatternMatches []) #-}
-{-# ANN fromFoldableM (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN fromFoldableM (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN fromFoldableM (PermitTypeClasses []) #-}
 {-# NOINLINE fromFoldableM #-}
 fromFoldableM :: Int -> Int -> IO ()
@@ -173,14 +176,16 @@ concatMapFoldableSerialM streamLen n =
         StreamK.nil [n..n+streamLen]
 
 {-# ANN append_Foldable (PermitPatternMatches []) #-}
-{-# ANN append_Foldable (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN append_Foldable (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN append_Foldable (PermitTypeClasses []) #-}
 {-# NOINLINE append_Foldable #-}
 append_Foldable :: Int -> Int -> IO ()
 append_Foldable streamLen = withDrain (concatMapFoldableSerial streamLen)
 
 {-# ANN append_FoldableM (PermitPatternMatches []) #-}
-{-# ANN append_FoldableM (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN append_FoldableM (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN append_FoldableM (PermitTypeClasses []) #-}
 {-# NOINLINE append_FoldableM #-}
 append_FoldableM :: Int -> Int -> IO ()
@@ -190,15 +195,15 @@ append_FoldableM streamLen = withDrain (concatMapFoldableSerialM streamLen)
 -- Elimination
 -------------------------------------------------------------------------------
 
-{-# ANN mapM_ (PermitPatternMatches [''Int]) #-}
-{-# ANN mapM_ (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN mapM_ (PermitPatternMatches []) #-}
+{-# ANN mapM_ (PermitConstructions [''(),''State,''Maybe,''Bool,''Int]) #-}
 {-# ANN mapM_ (PermitTypeClasses []) #-}
 {-# NOINLINE mapM_ #-}
 mapM_ :: Int -> Int -> IO ()
 mapM_ streamLen = withStream streamLen (StreamK.mapM_ (\_ -> return ()))
 
-{-# ANN uncons (PermitPatternMatches [''Maybe,''(,),''Int]) #-}
-{-# ANN uncons (PermitConstructions [''SVar.State,''Maybe,''Bool,''(,),''Int]) #-}
+{-# ANN uncons (PermitPatternMatches [''Maybe,''(,)]) #-}
+{-# ANN uncons (PermitConstructions [''State,''Maybe,''Bool,''(,),''Int]) #-}
 {-# ANN uncons (PermitTypeClasses []) #-}
 {-# NOINLINE uncons #-}
 uncons :: Int -> Int -> IO ()
@@ -210,8 +215,8 @@ uncons streamLen = withStream streamLen go
             Nothing -> return ()
             Just (_, t) -> go t
 
-{-# ANN init (PermitPatternMatches [''Int,''Maybe,''(,)]) #-}
-{-# ANN init (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int,''(,)]) #-}
+{-# ANN init (PermitPatternMatches [''Maybe,''(,)]) #-}
+{-# ANN init (PermitConstructions [''(),''State,''Maybe,''Bool,''Int,''(,)]) #-}
 {-# ANN init (PermitTypeClasses []) #-}
 {-# NOINLINE init #-}
 init :: Int -> Int -> IO ()
@@ -221,16 +226,17 @@ init streamLen = withStream streamLen go
         t <- StreamK.init s
         P.mapM_ StreamK.drain t
 
-{-# ANN tail_Iterated (PermitPatternMatches [''Maybe,''Int]) #-}
-{-# ANN tail_Iterated (PermitConstructions [''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN tail_Iterated (PermitPatternMatches [''Maybe]) #-}
+{-# ANN tail_Iterated (PermitConstructions [''State,''Maybe,''Bool,''Int]) #-}
 {-# ANN tail_Iterated (PermitTypeClasses []) #-}
 {-# NOINLINE tail_Iterated #-}
 tail_Iterated :: Int -> Int -> IO ()
 tail_Iterated streamLen = withStream streamLen go
     where go s = StreamK.tail s >>= P.mapM_ go
 
-{-# ANN tail_Null_Iterated (PermitPatternMatches [''Bool,''Maybe,''Int]) #-}
-{-# ANN tail_Null_Iterated (PermitConstructions [''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN tail_Null_Iterated (PermitPatternMatches [''Bool,''Maybe]) #-}
+{-# ANN tail_Null_Iterated (PermitConstructions
+    [''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN tail_Null_Iterated (PermitTypeClasses []) #-}
 {-# NOINLINE tail_Null_Iterated #-}
 tail_Null_Iterated :: Int -> Int -> IO ()
@@ -240,8 +246,9 @@ tail_Null_Iterated streamLen = withStream streamLen go
         r <- StreamK.null s
         when (not r) $ StreamK.tail s >>= P.mapM_ go
 
-{-# ANN tail_Head_Iterated (PermitPatternMatches [''Maybe,''Int]) #-}
-{-# ANN tail_Head_Iterated (PermitConstructions [''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN tail_Head_Iterated (PermitPatternMatches [''Maybe]) #-}
+{-# ANN tail_Head_Iterated (PermitConstructions
+    [''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN tail_Head_Iterated (PermitTypeClasses []) #-}
 {-# NOINLINE tail_Head_Iterated #-}
 tail_Head_Iterated :: Int -> Int -> IO ()
@@ -251,30 +258,30 @@ tail_Head_Iterated streamLen = withStream streamLen go
         h <- StreamK.head s
         when (isJust h) $ StreamK.tail s >>= P.mapM_ go
 
-{-# ANN toList (PermitPatternMatches [''Int]) #-}
-{-# ANN toList (PermitConstructions [''[],''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN toList (PermitPatternMatches []) #-}
+{-# ANN toList (PermitConstructions [''[],''State,''Maybe,''Bool,''Int]) #-}
 {-# ANN toList (PermitTypeClasses []) #-}
 {-# NOINLINE toList #-}
 toList :: Int -> Int -> IO [Int]
 toList streamLen = withStream streamLen StreamK.toList
 
 {-# ANN foldl' (PermitPatternMatches [''Int]) #-}
-{-# ANN foldl' (PermitConstructions [''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN foldl' (PermitConstructions [''State,''Maybe,''Bool,''Int]) #-}
 {-# ANN foldl' (PermitTypeClasses []) #-}
 {-# NOINLINE foldl' #-}
 foldl' :: Int -> Int -> IO Int
 foldl' streamLen = withStream streamLen (StreamK.foldl' (+) 0)
 
 {-# ANN foldlM' (PermitPatternMatches [''Int]) #-}
-{-# ANN foldlM' (PermitConstructions [''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN foldlM' (PermitConstructions [''State,''Maybe,''Bool,''Int]) #-}
 {-# ANN foldlM' (PermitTypeClasses []) #-}
 {-# NOINLINE foldlM' #-}
 foldlM' :: Int -> Int -> IO Int
 foldlM' streamLen =
     withStream streamLen (StreamK.foldlM' (\b a -> return (b + a)) (return 0))
 
-{-# ANN last (PermitPatternMatches [''Int]) #-}
-{-# ANN last (PermitConstructions [''Maybe,''SVar.State,''Bool,''Int]) #-}
+{-# ANN last (PermitPatternMatches []) #-}
+{-# ANN last (PermitConstructions [''Maybe,''State,''Bool,''Int]) #-}
 {-# ANN last (PermitTypeClasses []) #-}
 {-# NOINLINE last #-}
 last :: Int -> Int -> IO (Maybe Int)
@@ -391,232 +398,257 @@ intersperse_Pure bound n streamLen =
 -- Composed transformation wrappers
 -------------------------------------------------------------------------------
 
-{-# ANN scanl'_x1 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN scanl'_x1 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN scanl'_x1 (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN scanl'_x1 (PermitConstructions [''(),''State,''Maybe,''Bool,''Int]) #-}
 {-# ANN scanl'_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE scanl'_x1 #-}
 scanl'_x1 :: Int -> Int -> IO ()
 scanl'_x1 streamLen = scanl' 1 streamLen
 
-{-# ANN scanl'_x4 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN scanl'_x4 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN scanl'_x4 (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN scanl'_x4 (PermitConstructions [''(),''State,''Maybe,''Bool,''Int]) #-}
 {-# ANN scanl'_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE scanl'_x4 #-}
 scanl'_x4 :: Int -> Int -> IO ()
 scanl'_x4 streamLen = scanl' 4 streamLen
 
-{-# ANN map_x1 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN map_x1 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN map_x1 (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN map_x1 (PermitConstructions [''(),''State,''Maybe,''Bool,''Int]) #-}
 {-# ANN map_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE map_x1 #-}
 map_x1 :: Int -> Int -> IO ()
 map_x1 streamLen = map 1 streamLen
 
-{-# ANN map_x4 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN map_x4 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN map_x4 (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN map_x4 (PermitConstructions [''(),''State,''Maybe,''Bool,''Int]) #-}
 {-# ANN map_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE map_x4 #-}
 map_x4 :: Int -> Int -> IO ()
 map_x4 streamLen = map 4 streamLen
 
-{-# ANN fmap_x1 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN fmap_x1 (PermitConstructions [''Int,''SVar.State,''Maybe,''(),''Bool]) #-}
+{-# ANN fmap_x1 (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN fmap_x1 (PermitConstructions [''Int,''State,''Maybe,''(),''Bool]) #-}
 {-# ANN fmap_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE fmap_x1 #-}
 fmap_x1 :: Int -> Int -> IO ()
 fmap_x1 streamLen = fmapN 1 streamLen
 
-{-# ANN fmap_x4 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN fmap_x4 (PermitConstructions [''Int,''SVar.State,''Maybe,''(),''Bool]) #-}
+{-# ANN fmap_x4 (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN fmap_x4 (PermitConstructions [''Int,''State,''Maybe,''(),''Bool]) #-}
 {-# ANN fmap_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE fmap_x4 #-}
 fmap_x4 :: Int -> Int -> IO ()
 fmap_x4 streamLen = fmapN 4 streamLen
 
-{-# ANN mapMWith_x1 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN mapMWith_x1 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN mapMWith_x1 (PermitPatternMatches [''State]) #-}
+{-# ANN mapMWith_x1 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN mapMWith_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE mapMWith_x1 #-}
 mapMWith_x1 :: Int -> Int -> IO ()
 mapMWith_x1 streamLen = mapMWith 1 streamLen
 
-{-# ANN mapMWith_x4 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN mapMWith_x4 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN mapMWith_x4 (PermitPatternMatches [''State]) #-}
+{-# ANN mapMWith_x4 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN mapMWith_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE mapMWith_x4 #-}
 mapMWith_x4 :: Int -> Int -> IO ()
 mapMWith_x4 streamLen = mapMWith 4 streamLen
 
-{-# ANN mapMSerial_x1 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN mapMSerial_x1 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN mapMSerial_x1 (PermitPatternMatches [''State]) #-}
+{-# ANN mapMSerial_x1 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN mapMSerial_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE mapMSerial_x1 #-}
 mapMSerial_x1 :: Int -> Int -> IO ()
 mapMSerial_x1 streamLen = mapMSerial 1 streamLen
 
-{-# ANN mapMSerial_x4 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN mapMSerial_x4 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN mapMSerial_x4 (PermitPatternMatches [''State]) #-}
+{-# ANN mapMSerial_x4 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN mapMSerial_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE mapMSerial_x4 #-}
 mapMSerial_x4 :: Int -> Int -> IO ()
 mapMSerial_x4 streamLen = mapMSerial 4 streamLen
 
-{-# ANN filter_Even_x1 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN filter_Even_x1 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN filter_Even_x1 (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN filter_Even_x1 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN filter_Even_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE filter_Even_x1 #-}
 filter_Even_x1 :: Int -> Int -> IO ()
 filter_Even_x1 streamLen = filter_Even 1 streamLen
 
-{-# ANN filter_Even_x4 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN filter_Even_x4 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN filter_Even_x4 (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN filter_Even_x4 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN filter_Even_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE filter_Even_x4 #-}
 filter_Even_x4 :: Int -> Int -> IO ()
 filter_Even_x4 streamLen = filter_Even 4 streamLen
 
-{-# ANN filter_AllOut_x1 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN filter_AllOut_x1 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN filter_AllOut_x1 (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN filter_AllOut_x1 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN filter_AllOut_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE filter_AllOut_x1 #-}
 filter_AllOut_x1 :: Int -> Int -> IO ()
 filter_AllOut_x1 streamLen = filter_AllOut 1 streamLen
 
-{-# ANN filter_AllOut_x4 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN filter_AllOut_x4 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN filter_AllOut_x4 (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN filter_AllOut_x4 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN filter_AllOut_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE filter_AllOut_x4 #-}
 filter_AllOut_x4 :: Int -> Int -> IO ()
 filter_AllOut_x4 streamLen = filter_AllOut 4 streamLen
 
-{-# ANN filter_AllIn_x1 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN filter_AllIn_x1 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN filter_AllIn_x1 (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN filter_AllIn_x1 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN filter_AllIn_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE filter_AllIn_x1 #-}
 filter_AllIn_x1 :: Int -> Int -> IO ()
 filter_AllIn_x1 streamLen = filter_AllIn 1 streamLen
 
-{-# ANN filter_AllIn_x4 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN filter_AllIn_x4 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN filter_AllIn_x4 (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN filter_AllIn_x4 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN filter_AllIn_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE filter_AllIn_x4 #-}
 filter_AllIn_x4 :: Int -> Int -> IO ()
 filter_AllIn_x4 streamLen = filter_AllIn 4 streamLen
 
-{-# ANN take_All_x1 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN take_All_x1 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN take_All_x1 (PermitPatternMatches [''State]) #-}
+{-# ANN take_All_x1 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN take_All_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE take_All_x1 #-}
 take_All_x1 :: Int -> Int -> IO ()
 take_All_x1 streamLen = take_All 1 streamLen
 
-{-# ANN take_All_x4 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN take_All_x4 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN take_All_x4 (PermitPatternMatches [''State]) #-}
+{-# ANN take_All_x4 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN take_All_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE take_All_x4 #-}
 take_All_x4 :: Int -> Int -> IO ()
 take_All_x4 streamLen = take_All 4 streamLen
 
-{-# ANN takeWhile_True_x1 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN takeWhile_True_x1 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN takeWhile_True_x1 (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN takeWhile_True_x1 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN takeWhile_True_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE takeWhile_True_x1 #-}
 takeWhile_True_x1 :: Int -> Int -> IO ()
 takeWhile_True_x1 streamLen = takeWhile_True 1 streamLen
 
-{-# ANN takeWhile_True_x4 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN takeWhile_True_x4 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN takeWhile_True_x4 (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN takeWhile_True_x4 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN takeWhile_True_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE takeWhile_True_x4 #-}
 takeWhile_True_x4 :: Int -> Int -> IO ()
 takeWhile_True_x4 streamLen = takeWhile_True 4 streamLen
 
-{-# ANN drop_One_x1 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN drop_One_x1 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN drop_One_x1 (PermitPatternMatches [''State]) #-}
+{-# ANN drop_One_x1 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN drop_One_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE drop_One_x1 #-}
 drop_One_x1 :: Int -> Int -> IO ()
 drop_One_x1 streamLen = drop_One 1 streamLen
 
-{-# ANN drop_One_x4 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN drop_One_x4 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN drop_One_x4 (PermitPatternMatches [''State]) #-}
+{-# ANN drop_One_x4 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN drop_One_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE drop_One_x4 #-}
 drop_One_x4 :: Int -> Int -> IO ()
 drop_One_x4 streamLen = drop_One 4 streamLen
 
-{-# ANN drop_All_x1 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN drop_All_x1 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN drop_All_x1 (PermitPatternMatches [''State]) #-}
+{-# ANN drop_All_x1 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN drop_All_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE drop_All_x1 #-}
 drop_All_x1 :: Int -> Int -> IO ()
 drop_All_x1 streamLen = drop_All 1 streamLen
 
-{-# ANN drop_All_x4 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN drop_All_x4 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN drop_All_x4 (PermitPatternMatches [''State]) #-}
+{-# ANN drop_All_x4 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN drop_All_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE drop_All_x4 #-}
 drop_All_x4 :: Int -> Int -> IO ()
 drop_All_x4 streamLen = drop_All 4 streamLen
 
-{-# ANN dropWhile_True_x1 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN dropWhile_True_x1 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN dropWhile_True_x1 (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN dropWhile_True_x1 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN dropWhile_True_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE dropWhile_True_x1 #-}
 dropWhile_True_x1 :: Int -> Int -> IO ()
 dropWhile_True_x1 streamLen = dropWhile_True 1 streamLen
 
-{-# ANN dropWhile_True_x4 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN dropWhile_True_x4 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN dropWhile_True_x4 (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN dropWhile_True_x4 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN dropWhile_True_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE dropWhile_True_x4 #-}
 dropWhile_True_x4 :: Int -> Int -> IO ()
 dropWhile_True_x4 streamLen = dropWhile_True 4 streamLen
 
-{-# ANN dropWhile_False_x1 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN dropWhile_False_x1 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN dropWhile_False_x1 (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN dropWhile_False_x1 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN dropWhile_False_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE dropWhile_False_x1 #-}
 dropWhile_False_x1 :: Int -> Int -> IO ()
 dropWhile_False_x1 streamLen = dropWhile_False 1 streamLen
 
-{-# ANN dropWhile_False_x4 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN dropWhile_False_x4 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN dropWhile_False_x4 (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN dropWhile_False_x4 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN dropWhile_False_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE dropWhile_False_x4 #-}
 dropWhile_False_x4 :: Int -> Int -> IO ()
 dropWhile_False_x4 streamLen = dropWhile_False 4 streamLen
 
-{-# ANN foldrS_x1 (PermitPatternMatches [''Int]) #-}
-{-# ANN foldrS_x1 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN foldrS_x1 (PermitPatternMatches []) #-}
+{-# ANN foldrS_x1 (PermitConstructions [''(),''State,''Maybe,''Bool,''Int]) #-}
 {-# ANN foldrS_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE foldrS_x1 #-}
 foldrS_x1 :: Int -> Int -> IO ()
 foldrS_x1 streamLen = foldrS 1 streamLen
 
-{-# ANN foldlS_x1 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN foldlS_x1 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN foldlS_x1 (PermitPatternMatches [''State]) #-}
+{-# ANN foldlS_x1 (PermitConstructions [''(),''State,''Maybe,''Bool,''Int]) #-}
 {-# ANN foldlS_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE foldlS_x1 #-}
 foldlS_x1 :: Int -> Int -> IO ()
 foldlS_x1 streamLen = foldlS 1 streamLen
 
-{-# ANN intersperse_x1 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN intersperse_x1 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN intersperse_x1 (PermitPatternMatches [''State]) #-}
+{-# ANN intersperse_x1 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN intersperse_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE intersperse_x1 #-}
 intersperse_x1 :: Int -> Int -> Int -> IO ()
 intersperse_x1 bound streamLen = intersperse bound 1 streamLen
 
-{-# ANN intersperse_x4 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN intersperse_x4 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN intersperse_x4 (PermitPatternMatches [''State]) #-}
+{-# ANN intersperse_x4 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN intersperse_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE intersperse_x4 #-}
 intersperse_x4 :: Int -> Int -> Int -> IO ()
 intersperse_x4 bound streamLen = intersperse bound 4 streamLen
 
-{-# ANN intersperse_Pure_x1 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN intersperse_Pure_x1 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN intersperse_Pure_x1 (PermitPatternMatches [''State]) #-}
+{-# ANN intersperse_Pure_x1 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN intersperse_Pure_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE intersperse_Pure_x1 #-}
 intersperse_Pure_x1 :: Int -> Int -> Int -> IO ()
@@ -636,8 +668,9 @@ iterateSource iterStreamLen g i n = f i (sourceUnfoldrM iterStreamLen n)
         f x m = g (f (x P.- 1) m)
 
 -- this is quadratic
-{-# ANN scanl'_Iterated (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN scanl'_Iterated (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN scanl'_Iterated (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN scanl'_Iterated (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN scanl'_Iterated (PermitTypeClasses []) #-}
 {-# NOINLINE scanl'_Iterated #-}
 scanl'_Iterated :: Int -> Int -> Int -> IO ()
@@ -647,8 +680,9 @@ scanl'_Iterated iterStreamLen maxIters =
             iterStreamLen (StreamK.scanl' (+) 0) (maxIters `div` 10)
 
 -- this is quadratic
-{-# ANN dropWhile_False_Iterated (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN dropWhile_False_Iterated (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN dropWhile_False_Iterated (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN dropWhile_False_Iterated (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN dropWhile_False_Iterated (PermitTypeClasses []) #-}
 {-# NOINLINE dropWhile_False_Iterated #-}
 dropWhile_False_Iterated :: Int -> Int -> Int -> Int -> IO ()
@@ -659,8 +693,9 @@ dropWhile_False_Iterated streamLen iterStreamLen maxIters =
             (StreamK.dropWhile (> streamLen))
             (maxIters `div` 10)
 
-{-# ANN mapMWith_Iterated (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN mapMWith_Iterated (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN mapMWith_Iterated (PermitPatternMatches [''State]) #-}
+{-# ANN mapMWith_Iterated (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN mapMWith_Iterated (PermitTypeClasses []) #-}
 {-# NOINLINE mapMWith_Iterated #-}
 mapMWith_Iterated :: Int -> Int -> Int -> IO ()
@@ -669,32 +704,36 @@ mapMWith_Iterated iterStreamLen maxIters =
         $ iterateSource
             iterStreamLen (StreamK.mapMWith StreamK.consM return) maxIters
 
-{-# ANN filter_Even_Iterated (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN filter_Even_Iterated (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN filter_Even_Iterated (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN filter_Even_Iterated (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN filter_Even_Iterated (PermitTypeClasses []) #-}
 {-# NOINLINE filter_Even_Iterated #-}
 filter_Even_Iterated :: Int -> Int -> Int -> IO ()
 filter_Even_Iterated iterStreamLen maxIters =
     withDrain $ iterateSource iterStreamLen (StreamK.filter even) maxIters
 
-{-# ANN take_All_Iterated (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN take_All_Iterated (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN take_All_Iterated (PermitPatternMatches [''State]) #-}
+{-# ANN take_All_Iterated (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN take_All_Iterated (PermitTypeClasses []) #-}
 {-# NOINLINE take_All_Iterated #-}
 take_All_Iterated :: Int -> Int -> Int -> Int -> IO ()
 take_All_Iterated streamLen iterStreamLen maxIters =
     withDrain $ iterateSource iterStreamLen (StreamK.take streamLen) maxIters
 
-{-# ANN drop_One_Iterated (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN drop_One_Iterated (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN drop_One_Iterated (PermitPatternMatches [''State]) #-}
+{-# ANN drop_One_Iterated (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN drop_One_Iterated (PermitTypeClasses []) #-}
 {-# NOINLINE drop_One_Iterated #-}
 drop_One_Iterated :: Int -> Int -> Int -> IO ()
 drop_One_Iterated iterStreamLen maxIters =
     withDrain $ iterateSource iterStreamLen (StreamK.drop 1) maxIters
 
-{-# ANN dropWhile_True_Iterated (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN dropWhile_True_Iterated (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN dropWhile_True_Iterated (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN dropWhile_True_Iterated (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN dropWhile_True_Iterated (PermitTypeClasses []) #-}
 {-# NOINLINE dropWhile_True_Iterated #-}
 dropWhile_True_Iterated :: Int -> Int -> Int -> Int -> IO ()
@@ -707,8 +746,9 @@ dropWhile_True_Iterated streamLen iterStreamLen maxIters =
 -- Zipping
 -------------------------------------------------------------------------------
 
-{-# ANN zipWith (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN zipWith (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''(,),''Int]) #-}
+{-# ANN zipWith (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN zipWith (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''(,), ''Int]) #-}
 {-# ANN zipWith (PermitTypeClasses []) #-}
 {-# NOINLINE zipWith #-}
 zipWith :: Int -> Int -> IO ()
@@ -716,8 +756,9 @@ zipWith streamLen = withDrain $ \n ->
     let src = sourceUnfoldrM streamLen n
     in StreamK.zipWith (,) src src
 
-{-# ANN zipWithM (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN zipWithM (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''(,),''Int]) #-}
+{-# ANN zipWithM (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN zipWithM (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''(,), ''Int]) #-}
 {-# ANN zipWithM (PermitTypeClasses []) #-}
 {-# NOINLINE zipWithM #-}
 zipWithM :: Int -> Int -> IO ()
@@ -737,8 +778,9 @@ sortByK f = StreamK.mergeMapWith (StreamK.mergeBy f) StreamK.fromPure
 sortBy :: (Int -> Int -> Ordering) -> Int -> Int -> IO ()
 sortBy cmp streamLen = withDrain $ sortByK cmp . sourceUnfoldrM streamLen
 
-{-# ANN sortBy_Randomized (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN sortBy_Randomized (PermitConstructions [''Int,''SVar.State,''Maybe,''(),''Bool]) #-}
+{-# ANN sortBy_Randomized (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN sortBy_Randomized (PermitConstructions
+    [''Int, ''State, ''Maybe, ''(), ''Bool]) #-}
 {-# ANN sortBy_Randomized (PermitTypeClasses []) #-}
 {-# NOINLINE sortBy_Randomized #-}
 sortBy_Randomized :: Int -> Int -> IO ()
@@ -752,8 +794,8 @@ sortBy_Randomized streamLen =
 -- Joining
 -------------------------------------------------------------------------------
 
-{-# ANN interleave (PermitPatternMatches [''Int]) #-}
-{-# ANN interleave (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN interleave (PermitPatternMatches []) #-}
+{-# ANN interleave (PermitConstructions [''(),''State,''Maybe,''Bool,''Int]) #-}
 {-# ANN interleave (PermitTypeClasses []) #-}
 {-# NOINLINE interleave #-}
 interleave :: Int -> Int -> IO ()
@@ -871,86 +913,113 @@ mergeByM = mergeWithM StreamK.mergeByM
 -- Join and merge wrappers
 -------------------------------------------------------------------------------
 
-{-# ANN concatMapWith_Append (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN concatMapWith_Append (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN concatMapWith_Append (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN concatMapWith_Append (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN concatMapWith_Append (PermitTypeClasses []) #-}
 {-# NOINLINE concatMapWith_Append #-}
 concatMapWith_Append :: Int -> Int -> Int -> IO ()
 concatMapWith_Append = concatMapWith StreamK.append
 
-{-# ANN concatMapWith_Interleave (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN concatMapWith_Interleave (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN concatMapWith_Interleave (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN concatMapWith_Interleave (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN concatMapWith_Interleave (PermitTypeClasses []) #-}
 {-# NOINLINE concatMapWith_Interleave #-}
 concatMapWith_Interleave :: Int -> Int -> Int -> IO ()
 concatMapWith_Interleave = concatMapWith StreamK.interleave
 
-{-# ANN concatMapWith_D_Interleave (PermitPatternMatches [''Stream,''Producer.InterleaveState,''Stream.Step,''Int,''SVar.State]) #-}
-{-# ANN concatMapWith_D_Interleave (PermitConstructions [''Stream.Step,''Producer.InterleaveState,''Stream,''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN concatMapWith_D_Interleave (PermitPatternMatches
+    [''Stream, ''Producer.InterleaveState, ''Step, ''Int, ''State]) #-}
+{-# ANN concatMapWith_D_Interleave (PermitConstructions
+    [ ''Step, ''Producer.InterleaveState, ''Stream, ''(), ''State, ''Maybe
+    , ''Bool, ''Int
+    ]) #-}
 {-# ANN concatMapWith_D_Interleave (PermitTypeClasses []) #-}
 {-# NOINLINE concatMapWith_D_Interleave #-}
 concatMapWith_D_Interleave :: Int -> Int -> Int -> IO ()
 concatMapWith_D_Interleave = concatMapWithD Stream.interleave
 
-{-# ANN concatMapWith_D_RoundRobin (PermitPatternMatches [''Stream,''Stream.InterleaveState,''Stream.Step,''Int,''SVar.State]) #-}
-{-# ANN concatMapWith_D_RoundRobin (PermitConstructions [''Stream.Step,''Stream.InterleaveState,''Stream,''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN concatMapWith_D_RoundRobin (PermitPatternMatches
+    [''Stream, ''Stream.InterleaveState, ''Step, ''Int, ''State]) #-}
+{-# ANN concatMapWith_D_RoundRobin (PermitConstructions
+    [ ''Step, ''Stream.InterleaveState, ''Stream, ''(), ''State, ''Maybe
+    , ''Bool, ''Int
+    ]) #-}
 {-# ANN concatMapWith_D_RoundRobin (PermitTypeClasses []) #-}
 {-# NOINLINE concatMapWith_D_RoundRobin #-}
 concatMapWith_D_RoundRobin :: Int -> Int -> Int -> IO ()
 concatMapWith_D_RoundRobin = concatMapWithD Stream.roundRobin
 
-{-# ANN mergeMapWith_Interleave (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN mergeMapWith_Interleave (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN mergeMapWith_Interleave (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN mergeMapWith_Interleave (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN mergeMapWith_Interleave (PermitTypeClasses []) #-}
 {-# NOINLINE mergeMapWith_Interleave #-}
 mergeMapWith_Interleave :: Int -> Int -> Int -> IO ()
 mergeMapWith_Interleave = mergeMapWith StreamK.interleave
 
-{-# ANN mergeMapWith_MergeBy_Compare (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN mergeMapWith_MergeBy_Compare (PermitConstructions [''Int,''SVar.State,''Maybe,''(),''Bool]) #-}
+{-# ANN mergeMapWith_MergeBy_Compare (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN mergeMapWith_MergeBy_Compare (PermitConstructions
+    [''Int, ''State, ''Maybe, ''(), ''Bool]) #-}
 {-# ANN mergeMapWith_MergeBy_Compare (PermitTypeClasses []) #-}
 {-# NOINLINE mergeMapWith_MergeBy_Compare #-}
 mergeMapWith_MergeBy_Compare :: Int -> Int -> Int -> IO ()
 mergeMapWith_MergeBy_Compare = mergeMapWith (StreamK.mergeBy compare)
 
-{-# ANN mergeMapWith_MergeBy_FlipCompare (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN mergeMapWith_MergeBy_FlipCompare (PermitConstructions [''Int,''SVar.State,''Maybe,''(),''Bool]) #-}
+{-# ANN mergeMapWith_MergeBy_FlipCompare (PermitPatternMatches
+    [''State, ''Int]) #-}
+{-# ANN mergeMapWith_MergeBy_FlipCompare (PermitConstructions
+    [''Int, ''State, ''Maybe, ''(), ''Bool]) #-}
 {-# ANN mergeMapWith_MergeBy_FlipCompare (PermitTypeClasses []) #-}
 {-# NOINLINE mergeMapWith_MergeBy_FlipCompare #-}
 mergeMapWith_MergeBy_FlipCompare :: Int -> Int -> Int -> IO ()
 mergeMapWith_MergeBy_FlipCompare =
     mergeMapWith (StreamK.mergeBy (flip compare))
 
-{-# ANN mergeMapWith_ZipWith (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN mergeMapWith_ZipWith (PermitConstructions [''SVar.State,''Maybe,''(),''Bool,''Int]) #-}
+{-# ANN mergeMapWith_ZipWith (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN mergeMapWith_ZipWith (PermitConstructions
+    [''State, ''Maybe, ''(), ''Bool, ''Int]) #-}
 {-# ANN mergeMapWith_ZipWith (PermitTypeClasses []) #-}
 {-# NOINLINE mergeMapWith_ZipWith #-}
 mergeMapWith_ZipWith :: Int -> Int -> Int -> IO ()
 mergeMapWith_ZipWith = mergeMapWith (StreamK.zipWith (+))
 
-{-# ANN mergeMapWith_D_Interleave (PermitPatternMatches [''Stream,''Producer.InterleaveState,''Stream.Step,''SVar.State,''Int]) #-}
-{-# ANN mergeMapWith_D_Interleave (PermitConstructions [''Stream.Step,''Producer.InterleaveState,''Stream,''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN mergeMapWith_D_Interleave (PermitPatternMatches
+    [''Stream, ''Producer.InterleaveState, ''Step, ''State, ''Int]) #-}
+{-# ANN mergeMapWith_D_Interleave (PermitConstructions
+    [ ''Step, ''Producer.InterleaveState, ''Stream, ''(), ''State, ''Maybe
+    , ''Bool, ''Int
+    ]) #-}
 {-# ANN mergeMapWith_D_Interleave (PermitTypeClasses []) #-}
 {-# NOINLINE mergeMapWith_D_Interleave #-}
 mergeMapWith_D_Interleave :: Int -> Int -> Int -> IO ()
 mergeMapWith_D_Interleave = mergeMapWithD Stream.interleave
 
-{-# ANN mergeMapWith_D_RoundRobin (PermitPatternMatches [''Stream,''Stream.InterleaveState,''Stream.Step,''SVar.State,''Int]) #-}
-{-# ANN mergeMapWith_D_RoundRobin (PermitConstructions [''Stream.Step,''Stream.InterleaveState,''Stream,''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN mergeMapWith_D_RoundRobin (PermitPatternMatches
+    [''Stream, ''Stream.InterleaveState, ''Step, ''State, ''Int]) #-}
+{-# ANN mergeMapWith_D_RoundRobin (PermitConstructions
+    [ ''Step, ''Stream.InterleaveState, ''Stream, ''(), ''State, ''Maybe
+    , ''Bool, ''Int
+    ]) #-}
 {-# ANN mergeMapWith_D_RoundRobin (PermitTypeClasses []) #-}
 {-# NOINLINE mergeMapWith_D_RoundRobin #-}
 mergeMapWith_D_RoundRobin :: Int -> Int -> Int -> IO ()
 mergeMapWith_D_RoundRobin = mergeMapWithD Stream.roundRobin
 
-{-# ANN mergeMapWith_D_MergeBy_Compare (PermitPatternMatches [''(,,,),''Maybe,''(),''Int,''Stream.Step,''Stream,''SVar.State]) #-}
-{-# ANN mergeMapWith_D_MergeBy_Compare (PermitConstructions [''(,,,),''Maybe,''Stream.Step,''Stream,''(),''SVar.State,''Bool,''Int]) #-}
+{-# ANN mergeMapWith_D_MergeBy_Compare (PermitPatternMatches
+    [''(,,,), ''Maybe, ''(), ''Int, ''Step, ''Stream, ''State]) #-}
+{-# ANN mergeMapWith_D_MergeBy_Compare (PermitConstructions
+    [''(,,,), ''Maybe, ''Step, ''Stream, ''(), ''State, ''Bool, ''Int]) #-}
 {-# ANN mergeMapWith_D_MergeBy_Compare (PermitTypeClasses []) #-}
 {-# NOINLINE mergeMapWith_D_MergeBy_Compare #-}
 mergeMapWith_D_MergeBy_Compare :: Int -> Int -> Int -> IO ()
 mergeMapWith_D_MergeBy_Compare = mergeMapWithD (Stream.mergeBy compare)
 
-{-# ANN mergeMapWith_D_MergeBy_FlipCompare (PermitPatternMatches [''(,,,),''Maybe,''(),''Int,''Stream.Step,''Stream,''SVar.State]) #-}
-{-# ANN mergeMapWith_D_MergeBy_FlipCompare (PermitConstructions [''(,,,),''Maybe,''Stream.Step,''Stream,''(),''SVar.State,''Bool,''Int]) #-}
+{-# ANN mergeMapWith_D_MergeBy_FlipCompare (PermitPatternMatches
+    [''(,,,), ''Maybe, ''(), ''Int, ''Step, ''Stream, ''State]) #-}
+{-# ANN mergeMapWith_D_MergeBy_FlipCompare (PermitConstructions
+    [''(,,,), ''Maybe, ''Step, ''Stream, ''(), ''State, ''Bool, ''Int]) #-}
 {-# ANN mergeMapWith_D_MergeBy_FlipCompare (PermitTypeClasses []) #-}
 {-# NOINLINE mergeMapWith_D_MergeBy_FlipCompare #-}
 mergeMapWith_D_MergeBy_FlipCompare :: Int -> Int -> Int -> IO ()
@@ -958,42 +1027,49 @@ mergeMapWith_D_MergeBy_FlipCompare =
     mergeMapWithD (Stream.mergeBy (flip compare))
 
 {-# ANN mergeBy_Compare (PermitPatternMatches [''Int]) #-}
-{-# ANN mergeBy_Compare (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN mergeBy_Compare (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN mergeBy_Compare (PermitTypeClasses []) #-}
 {-# NOINLINE mergeBy_Compare #-}
 mergeBy_Compare :: Int -> Int -> IO ()
 mergeBy_Compare = mergeBy compare
 
 {-# ANN mergeBy_FlipCompare (PermitPatternMatches [''Int]) #-}
-{-# ANN mergeBy_FlipCompare (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN mergeBy_FlipCompare (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN mergeBy_FlipCompare (PermitTypeClasses []) #-}
 {-# NOINLINE mergeBy_FlipCompare #-}
 mergeBy_FlipCompare :: Int -> Int -> IO ()
 mergeBy_FlipCompare = mergeBy (flip compare)
 
-{-# ANN mergeByM_Compare (PermitPatternMatches [''SVar.State,''Ordering,''Int]) #-}
-{-# ANN mergeByM_Compare (PermitConstructions [''SVar.State,''Maybe,''(),''Bool,''Int]) #-}
+{-# ANN mergeByM_Compare (PermitPatternMatches [''State,''Ordering,''Int]) #-}
+{-# ANN mergeByM_Compare (PermitConstructions
+    [''State, ''Maybe, ''(), ''Bool, ''Int]) #-}
 {-# ANN mergeByM_Compare (PermitTypeClasses []) #-}
 {-# NOINLINE mergeByM_Compare #-}
 mergeByM_Compare :: Int -> Int -> IO ()
 mergeByM_Compare = mergeByM compare
 
-{-# ANN mergeByM_FlipCompare (PermitPatternMatches [''SVar.State,''Ordering,''Int]) #-}
-{-# ANN mergeByM_FlipCompare (PermitConstructions [''SVar.State,''Maybe,''(),''Bool,''Int]) #-}
+{-# ANN mergeByM_FlipCompare (PermitPatternMatches
+    [''State, ''Ordering, ''Int]) #-}
+{-# ANN mergeByM_FlipCompare (PermitConstructions
+    [''State, ''Maybe, ''(), ''Bool, ''Int]) #-}
 {-# ANN mergeByM_FlipCompare (PermitTypeClasses []) #-}
 {-# NOINLINE mergeByM_FlipCompare #-}
 mergeByM_FlipCompare :: Int -> Int -> IO ()
 mergeByM_FlipCompare = mergeByM (flip compare)
 
-{-# ANN sortBy_Compare (PermitPatternMatches [''SVar.State,''Ordering,''Int]) #-}
-{-# ANN sortBy_Compare (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN sortBy_Compare (PermitPatternMatches [''State,''Ordering,''Int]) #-}
+{-# ANN sortBy_Compare (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN sortBy_Compare (PermitTypeClasses []) #-}
 {-# NOINLINE sortBy_Compare #-}
 sortBy_Compare :: Int -> Int -> IO ()
 sortBy_Compare = sortBy compare
 
-{-# ANN sortBy_FlipCompare (PermitPatternMatches [''SVar.State,''Ordering,''Int]) #-}
-{-# ANN sortBy_FlipCompare (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN sortBy_FlipCompare (PermitPatternMatches [''State,''Ordering,''Int]) #-}
+{-# ANN sortBy_FlipCompare (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN sortBy_FlipCompare (PermitTypeClasses []) #-}
 {-# NOINLINE sortBy_FlipCompare #-}
 sortBy_FlipCompare :: Int -> Int -> IO ()
@@ -1069,211 +1145,241 @@ filter_map n streamLen =
     withStream streamLen
         (composeN n (StreamK.map (subtract 1) . StreamK.filter (<= streamLen)))
 
-{-# ANN scanl'_map_x1 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN scanl'_map_x1 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN scanl'_map_x1 (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN scanl'_map_x1 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN scanl'_map_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE scanl'_map_x1 #-}
 scanl'_map_x1 :: Int -> Int -> IO ()
 scanl'_map_x1 streamLen = scanl'_map 1 streamLen
 
-{-# ANN scanl'_map_x2 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN scanl'_map_x2 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN scanl'_map_x2 (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN scanl'_map_x2 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN scanl'_map_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE scanl'_map_x2 #-}
 scanl'_map_x2 :: Int -> Int -> IO ()
 scanl'_map_x2 streamLen = scanl'_map 2 streamLen
 
-{-# ANN scanl'_map_x4 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN scanl'_map_x4 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN scanl'_map_x4 (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN scanl'_map_x4 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN scanl'_map_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE scanl'_map_x4 #-}
 scanl'_map_x4 :: Int -> Int -> IO ()
 scanl'_map_x4 streamLen = scanl'_map 4 streamLen
 
-{-# ANN drop_map_x1 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN drop_map_x1 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN drop_map_x1 (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN drop_map_x1 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN drop_map_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE drop_map_x1 #-}
 drop_map_x1 :: Int -> Int -> IO ()
 drop_map_x1 streamLen = drop_map 1 streamLen
 
-{-# ANN drop_map_x2 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN drop_map_x2 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN drop_map_x2 (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN drop_map_x2 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN drop_map_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE drop_map_x2 #-}
 drop_map_x2 :: Int -> Int -> IO ()
 drop_map_x2 streamLen = drop_map 2 streamLen
 
-{-# ANN drop_map_x4 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN drop_map_x4 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN drop_map_x4 (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN drop_map_x4 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN drop_map_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE drop_map_x4 #-}
 drop_map_x4 :: Int -> Int -> IO ()
 drop_map_x4 streamLen = drop_map 4 streamLen
 
-{-# ANN drop_scanl'_x1 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN drop_scanl'_x1 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN drop_scanl'_x1 (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN drop_scanl'_x1 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN drop_scanl'_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE drop_scanl'_x1 #-}
 drop_scanl'_x1 :: Int -> Int -> IO ()
 drop_scanl'_x1 streamLen = drop_scanl' 1 streamLen
 
-{-# ANN drop_scanl'_x2 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN drop_scanl'_x2 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN drop_scanl'_x2 (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN drop_scanl'_x2 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN drop_scanl'_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE drop_scanl'_x2 #-}
 drop_scanl'_x2 :: Int -> Int -> IO ()
 drop_scanl'_x2 streamLen = drop_scanl' 2 streamLen
 
-{-# ANN drop_scanl'_x4 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN drop_scanl'_x4 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN drop_scanl'_x4 (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN drop_scanl'_x4 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN drop_scanl'_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE drop_scanl'_x4 #-}
 drop_scanl'_x4 :: Int -> Int -> IO ()
 drop_scanl'_x4 streamLen = drop_scanl' 4 streamLen
 
-{-# ANN take_drop_x1 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN take_drop_x1 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN take_drop_x1 (PermitPatternMatches [''State]) #-}
+{-# ANN take_drop_x1 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN take_drop_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE take_drop_x1 #-}
 take_drop_x1 :: Int -> Int -> IO ()
 take_drop_x1 streamLen = take_drop 1 streamLen
 
-{-# ANN take_drop_x2 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN take_drop_x2 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN take_drop_x2 (PermitPatternMatches [''State]) #-}
+{-# ANN take_drop_x2 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN take_drop_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE take_drop_x2 #-}
 take_drop_x2 :: Int -> Int -> IO ()
 take_drop_x2 streamLen = take_drop 2 streamLen
 
-{-# ANN take_drop_x4 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN take_drop_x4 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN take_drop_x4 (PermitPatternMatches [''State]) #-}
+{-# ANN take_drop_x4 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN take_drop_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE take_drop_x4 #-}
 take_drop_x4 :: Int -> Int -> IO ()
 take_drop_x4 streamLen = take_drop 4 streamLen
 
-{-# ANN take_scanl'_x1 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN take_scanl'_x1 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN take_scanl'_x1 (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN take_scanl'_x1 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN take_scanl'_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE take_scanl'_x1 #-}
 take_scanl'_x1 :: Int -> Int -> IO ()
 take_scanl'_x1 streamLen = take_scanl' 1 streamLen
 
-{-# ANN take_scanl'_x2 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN take_scanl'_x2 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN take_scanl'_x2 (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN take_scanl'_x2 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN take_scanl'_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE take_scanl'_x2 #-}
 take_scanl'_x2 :: Int -> Int -> IO ()
 take_scanl'_x2 streamLen = take_scanl' 2 streamLen
 
-{-# ANN take_scanl'_x4 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN take_scanl'_x4 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN take_scanl'_x4 (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN take_scanl'_x4 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN take_scanl'_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE take_scanl'_x4 #-}
 take_scanl'_x4 :: Int -> Int -> IO ()
 take_scanl'_x4 streamLen = take_scanl' 4 streamLen
 
-{-# ANN take_map_x1 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN take_map_x1 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN take_map_x1 (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN take_map_x1 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN take_map_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE take_map_x1 #-}
 take_map_x1 :: Int -> Int -> IO ()
 take_map_x1 streamLen = take_map 1 streamLen
 
-{-# ANN take_map_x2 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN take_map_x2 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN take_map_x2 (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN take_map_x2 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN take_map_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE take_map_x2 #-}
 take_map_x2 :: Int -> Int -> IO ()
 take_map_x2 streamLen = take_map 2 streamLen
 
-{-# ANN take_map_x4 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN take_map_x4 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN take_map_x4 (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN take_map_x4 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN take_map_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE take_map_x4 #-}
 take_map_x4 :: Int -> Int -> IO ()
 take_map_x4 streamLen = take_map 4 streamLen
 
-{-# ANN filter_drop_x1 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN filter_drop_x1 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN filter_drop_x1 (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN filter_drop_x1 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN filter_drop_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE filter_drop_x1 #-}
 filter_drop_x1 :: Int -> Int -> IO ()
 filter_drop_x1 streamLen = filter_drop 1 streamLen
 
-{-# ANN filter_drop_x2 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN filter_drop_x2 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN filter_drop_x2 (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN filter_drop_x2 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN filter_drop_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE filter_drop_x2 #-}
 filter_drop_x2 :: Int -> Int -> IO ()
 filter_drop_x2 streamLen = filter_drop 2 streamLen
 
-{-# ANN filter_drop_x4 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN filter_drop_x4 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN filter_drop_x4 (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN filter_drop_x4 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN filter_drop_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE filter_drop_x4 #-}
 filter_drop_x4 :: Int -> Int -> IO ()
 filter_drop_x4 streamLen = filter_drop 4 streamLen
 
-{-# ANN filter_take_x1 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN filter_take_x1 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN filter_take_x1 (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN filter_take_x1 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN filter_take_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE filter_take_x1 #-}
 filter_take_x1 :: Int -> Int -> IO ()
 filter_take_x1 streamLen = filter_take 1 streamLen
 
-{-# ANN filter_take_x2 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN filter_take_x2 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN filter_take_x2 (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN filter_take_x2 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN filter_take_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE filter_take_x2 #-}
 filter_take_x2 :: Int -> Int -> IO ()
 filter_take_x2 streamLen = filter_take 2 streamLen
 
-{-# ANN filter_take_x4 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN filter_take_x4 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN filter_take_x4 (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN filter_take_x4 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN filter_take_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE filter_take_x4 #-}
 filter_take_x4 :: Int -> Int -> IO ()
 filter_take_x4 streamLen = filter_take 4 streamLen
 
-{-# ANN filter_scanl'_x1 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN filter_scanl'_x1 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN filter_scanl'_x1 (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN filter_scanl'_x1 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN filter_scanl'_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE filter_scanl'_x1 #-}
 filter_scanl'_x1 :: Int -> Int -> IO ()
 filter_scanl'_x1 streamLen = filter_scanl' 1 streamLen
 
-{-# ANN filter_scanl'_x2 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN filter_scanl'_x2 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN filter_scanl'_x2 (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN filter_scanl'_x2 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN filter_scanl'_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE filter_scanl'_x2 #-}
 filter_scanl'_x2 :: Int -> Int -> IO ()
 filter_scanl'_x2 streamLen = filter_scanl' 2 streamLen
 
-{-# ANN filter_scanl'_x4 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN filter_scanl'_x4 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN filter_scanl'_x4 (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN filter_scanl'_x4 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN filter_scanl'_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE filter_scanl'_x4 #-}
 filter_scanl'_x4 :: Int -> Int -> IO ()
 filter_scanl'_x4 streamLen = filter_scanl' 4 streamLen
 
-{-# ANN filter_map_x1 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN filter_map_x1 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN filter_map_x1 (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN filter_map_x1 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN filter_map_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE filter_map_x1 #-}
 filter_map_x1 :: Int -> Int -> IO ()
 filter_map_x1 streamLen = filter_map 1 streamLen
 
-{-# ANN filter_map_x2 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN filter_map_x2 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN filter_map_x2 (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN filter_map_x2 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN filter_map_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE filter_map_x2 #-}
 filter_map_x2 :: Int -> Int -> IO ()
 filter_map_x2 streamLen = filter_map 2 streamLen
 
-{-# ANN filter_map_x4 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN filter_map_x4 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN filter_map_x4 (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN filter_map_x4 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN filter_map_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE filter_map_x4 #-}
 filter_map_x4 :: Int -> Int -> IO ()
@@ -1285,8 +1391,8 @@ filter_map_x4 streamLen = filter_map 4 streamLen
 
 -- concatMap unfoldrMWith/unfoldrMWith
 
-{-# ANN concatMap (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN concatMap (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN concatMap (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN concatMap (PermitConstructions [''(),''State,''Maybe,''Bool,''Int]) #-}
 {-# ANN concatMap (PermitTypeClasses []) #-}
 {-# NOINLINE concatMap #-}
 concatMap :: Int -> Int -> Int -> IO ()
@@ -1302,8 +1408,9 @@ inspect $ hasNoTypeClasses 'concatMap
 
 -- concatMap unfoldr/unfoldr
 
-{-# ANN concatMap_Pure (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN concatMap_Pure (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN concatMap_Pure (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN concatMap_Pure (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN concatMap_Pure (PermitTypeClasses []) #-}
 {-# NOINLINE concatMap_Pure #-}
 concatMap_Pure :: Int -> Int -> Int -> IO ()
@@ -1319,8 +1426,9 @@ inspect $ hasNoTypeClasses 'concatMap_Pure
 
 -- concatMap replicate/unfoldrMWith
 
-{-# ANN concatMap_Replicate (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN concatMap_Replicate (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN concatMap_Replicate (PermitPatternMatches [''State]) #-}
+{-# ANN concatMap_Replicate (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN concatMap_Replicate (PermitTypeClasses []) #-}
 {-# NOINLINE concatMap_Replicate #-}
 concatMap_Replicate :: Int -> Int -> Int -> IO ()
@@ -1340,8 +1448,9 @@ sourceConcatMapId :: Monad m
 sourceConcatMapId val n =
     StreamK.fromFoldable $ P.fmap (StreamK.fromEffect . return) [n..n+val]
 
-{-# ANN concatMapWith_Streams (PermitPatternMatches [''SVar.State]) #-}
-{-# ANN concatMapWith_Streams (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN concatMapWith_Streams (PermitPatternMatches [''State]) #-}
+{-# ANN concatMapWith_Streams (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN concatMapWith_Streams (PermitTypeClasses []) #-}
 {-# NOINLINE concatMapWith_Streams #-}
 concatMapWith_Streams :: Int -> Int -> IO ()
@@ -1380,8 +1489,9 @@ instance Monad m => Monad (StreamK.StreamK m) where
     {-# INLINE (>>=) #-}
     (>>=) = flip StreamK.concatMap
 
-{-# ANN ap_ApplicativeInstance_x2 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN ap_ApplicativeInstance_x2 (PermitConstructions [''SVar.State,''Maybe,''(),''Bool,''Int]) #-}
+{-# ANN ap_ApplicativeInstance_x2 (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN ap_ApplicativeInstance_x2 (PermitConstructions
+    [''State, ''Maybe, ''(), ''Bool, ''Int]) #-}
 {-# ANN ap_ApplicativeInstance_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE ap_ApplicativeInstance_x2 #-}
 ap_ApplicativeInstance_x2 :: Int -> Int -> IO ()
@@ -1389,8 +1499,9 @@ ap_ApplicativeInstance_x2 streamLen = withDrain $ \n ->
     let s = sourceUnfoldrM streamLen n
     in (+) <$> s <*> s
 
-{-# ANN ap_ApplicativeInstance_Pure_x2 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN ap_ApplicativeInstance_Pure_x2 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN ap_ApplicativeInstance_Pure_x2 (PermitPatternMatches [''State]) #-}
+{-# ANN ap_ApplicativeInstance_Pure_x2 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN ap_ApplicativeInstance_Pure_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE ap_ApplicativeInstance_Pure_x2 #-}
 ap_ApplicativeInstance_Pure_x2 :: Int -> Int -> IO ()
@@ -1398,8 +1509,9 @@ ap_ApplicativeInstance_Pure_x2 streamLen = withDrain $ \n ->
     let s = sourceUnfoldr streamLen n
     in (+) <$> s <*> s
 
-{-# ANN bind_MonadInstance_x2 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN bind_MonadInstance_x2 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN bind_MonadInstance_x2 (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN bind_MonadInstance_x2 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN bind_MonadInstance_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE bind_MonadInstance_x2 #-}
 bind_MonadInstance_x2 :: Int -> Int -> IO ()
@@ -1407,8 +1519,9 @@ bind_MonadInstance_x2 streamLen = withDrain $ \n ->
     let s = sourceUnfoldrM streamLen n
     in do { x <- s; y <- s; return $ x + y }
 
-{-# ANN bind_MonadInstance_Pure_x2 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN bind_MonadInstance_Pure_x2 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN bind_MonadInstance_Pure_x2 (PermitPatternMatches [''State]) #-}
+{-# ANN bind_MonadInstance_Pure_x2 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN bind_MonadInstance_Pure_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE bind_MonadInstance_Pure_x2 #-}
 bind_MonadInstance_Pure_x2 :: Int -> Int -> IO ()
@@ -1416,8 +1529,9 @@ bind_MonadInstance_Pure_x2 streamLen = withDrain $ \n ->
     let s = sourceUnfoldr streamLen n
     in do { x <- s; y <- s; return $ x + y }
 
-{-# ANN concatFor_x1 (PermitPatternMatches [''SVar.State,''Int]) #-}
-{-# ANN concatFor_x1 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN concatFor_x1 (PermitPatternMatches [''State,''Int]) #-}
+{-# ANN concatFor_x1 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN concatFor_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE concatFor_x1 #-}
 concatFor_x1 :: Int -> Int -> IO ()
@@ -1425,8 +1539,9 @@ concatFor_x1 streamLen = withDrain $ \n ->
     let s = sourceUnfoldrM streamLen n
     in StreamK.concatFor s $ \x -> StreamK.fromPure $ x + 1
 
-{-# ANN concatFor_x2 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN concatFor_x2 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN concatFor_x2 (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN concatFor_x2 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN concatFor_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE concatFor_x2 #-}
 concatFor_x2 :: Int -> Int -> IO ()
@@ -1436,8 +1551,9 @@ concatFor_x2 streamLen = withDrain $ \n ->
         StreamK.concatFor s $ \y ->
             StreamK.fromPure $ x + y
 
-{-# ANN concatForM_x2 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN concatForM_x2 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN concatForM_x2 (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN concatForM_x2 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN concatForM_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE concatForM_x2 #-}
 concatForM_x2 :: Int -> Int -> IO ()
@@ -1447,8 +1563,9 @@ concatForM_x2 streamLen = withDrain $ \n ->
         pure $ StreamK.concatForM s $ \y ->
             pure $ StreamK.fromPure $ x + y
 
-{-# ANN bind_MonadInstance_x3 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN bind_MonadInstance_x3 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN bind_MonadInstance_x3 (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN bind_MonadInstance_x3 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN bind_MonadInstance_x3 (PermitTypeClasses []) #-}
 {-# NOINLINE bind_MonadInstance_x3 #-}
 bind_MonadInstance_x3 :: Int -> Int -> IO ()
@@ -1456,8 +1573,9 @@ bind_MonadInstance_x3 streamLen = withDrain $ \n ->
     let s = sourceUnfoldrM streamLen n
     in do { x <- s; y <- s; z <- s; return $ x + y + z }
 
-{-# ANN bind_MonadInstance_Pure_x3 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN bind_MonadInstance_Pure_x3 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN bind_MonadInstance_Pure_x3 (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN bind_MonadInstance_Pure_x3 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN bind_MonadInstance_Pure_x3 (PermitTypeClasses []) #-}
 {-# NOINLINE bind_MonadInstance_Pure_x3 #-}
 bind_MonadInstance_Pure_x3 :: Int -> Int -> IO ()
@@ -1465,8 +1583,9 @@ bind_MonadInstance_Pure_x3 streamLen = withDrain $ \n ->
     let s = sourceUnfoldr streamLen n
     in do { x <- s; y <- s; z <- s; return $ x + y + z }
 
-{-# ANN concatFor_x3 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN concatFor_x3 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN concatFor_x3 (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN concatFor_x3 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN concatFor_x3 (PermitTypeClasses []) #-}
 {-# NOINLINE concatFor_x3 #-}
 concatFor_x3 :: Int -> Int -> IO ()
@@ -1477,8 +1596,9 @@ concatFor_x3 streamLen = withDrain $ \n ->
             StreamK.concatFor s $ \z ->
                 StreamK.fromPure $ x + y + z
 
-{-# ANN concatForM_x3 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN concatForM_x3 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN concatForM_x3 (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN concatForM_x3 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN concatForM_x3 (PermitTypeClasses []) #-}
 {-# NOINLINE concatForM_x3 #-}
 concatForM_x3 :: Int -> Int -> IO ()
@@ -1489,8 +1609,9 @@ concatForM_x3 streamLen = withDrain $ \n ->
             pure $ StreamK.concatForM s $ \z ->
                 pure $ StreamK.fromPure $ x + y + z
 
-{-# ANN concatFor_x4 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN concatFor_x4 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN concatFor_x4 (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN concatFor_x4 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN concatFor_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE concatFor_x4 #-}
 concatFor_x4 :: Int -> Int -> IO ()
@@ -1502,8 +1623,9 @@ concatFor_x4 streamLen = withDrain $ \n ->
                 StreamK.concatFor s $ \w ->
                     StreamK.fromPure $ x + y + z + w
 
-{-# ANN concatFor_x5 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN concatFor_x5 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN concatFor_x5 (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN concatFor_x5 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN concatFor_x5 (PermitTypeClasses []) #-}
 {-# NOINLINE concatFor_x5 #-}
 concatFor_x5 :: Int -> Int -> IO ()
@@ -1516,8 +1638,10 @@ concatFor_x5 streamLen = withDrain $ \n ->
                     StreamK.concatFor s $ \u ->
                         StreamK.fromPure $ x + y + z + w + u
 
-{-# ANN bind_MonadInstance_FilterAllOut_x2 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN bind_MonadInstance_FilterAllOut_x2 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN bind_MonadInstance_FilterAllOut_x2 (PermitPatternMatches
+    [''Int, ''State]) #-}
+{-# ANN bind_MonadInstance_FilterAllOut_x2 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN bind_MonadInstance_FilterAllOut_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE bind_MonadInstance_FilterAllOut_x2 #-}
 bind_MonadInstance_FilterAllOut_x2 :: Int -> Int -> IO ()
@@ -1529,8 +1653,10 @@ bind_MonadInstance_FilterAllOut_x2 streamLen = withDrain $ \n ->
         let s = x + y
         if s < 0 then return s else StreamK.nil
 
-{-# ANN bind_MonadInstance_FilterAllOut_Pure_x2 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN bind_MonadInstance_FilterAllOut_Pure_x2 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN bind_MonadInstance_FilterAllOut_Pure_x2 (PermitPatternMatches
+    [''Int, ''State]) #-}
+{-# ANN bind_MonadInstance_FilterAllOut_Pure_x2 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN bind_MonadInstance_FilterAllOut_Pure_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE bind_MonadInstance_FilterAllOut_Pure_x2 #-}
 bind_MonadInstance_FilterAllOut_Pure_x2 :: Int -> Int -> IO ()
@@ -1542,8 +1668,9 @@ bind_MonadInstance_FilterAllOut_Pure_x2 streamLen = withDrain $ \n ->
         let s = x + y
         if s < 0 then return s else StreamK.nil
 
-{-# ANN concatFor_FilterAllOut_x2 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN concatFor_FilterAllOut_x2 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN concatFor_FilterAllOut_x2 (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN concatFor_FilterAllOut_x2 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN concatFor_FilterAllOut_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE concatFor_FilterAllOut_x2 #-}
 concatFor_FilterAllOut_x2 :: Int -> Int -> IO ()
@@ -1554,8 +1681,10 @@ concatFor_FilterAllOut_x2 streamLen = withDrain $ \n ->
             let s1 = x + y
              in if s1 < 0 then StreamK.fromPure s1 else StreamK.nil
 
-{-# ANN bind_MonadInstance_FilterAllIn_x2 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN bind_MonadInstance_FilterAllIn_x2 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN bind_MonadInstance_FilterAllIn_x2 (PermitPatternMatches
+    [''Int, ''State]) #-}
+{-# ANN bind_MonadInstance_FilterAllIn_x2 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN bind_MonadInstance_FilterAllIn_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE bind_MonadInstance_FilterAllIn_x2 #-}
 bind_MonadInstance_FilterAllIn_x2 :: Int -> Int -> IO ()
@@ -1567,8 +1696,10 @@ bind_MonadInstance_FilterAllIn_x2 streamLen = withDrain $ \n ->
         let s = x + y
         if s > 0 then return s else StreamK.nil
 
-{-# ANN bind_MonadInstance_FilterAllIn_Pure_x2 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN bind_MonadInstance_FilterAllIn_Pure_x2 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN bind_MonadInstance_FilterAllIn_Pure_x2 (PermitPatternMatches
+    [''Int, ''State]) #-}
+{-# ANN bind_MonadInstance_FilterAllIn_Pure_x2 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN bind_MonadInstance_FilterAllIn_Pure_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE bind_MonadInstance_FilterAllIn_Pure_x2 #-}
 bind_MonadInstance_FilterAllIn_Pure_x2 :: Int -> Int -> IO ()
@@ -1580,8 +1711,9 @@ bind_MonadInstance_FilterAllIn_Pure_x2 streamLen = withDrain $ \n ->
         let s = x + y
         if s > 0 then return s else StreamK.nil
 
-{-# ANN concatFor_FilterAllIn_x2 (PermitPatternMatches [''Int,''SVar.State]) #-}
-{-# ANN concatFor_FilterAllIn_x2 (PermitConstructions [''(),''SVar.State,''Maybe,''Bool,''Int]) #-}
+{-# ANN concatFor_FilterAllIn_x2 (PermitPatternMatches [''Int,''State]) #-}
+{-# ANN concatFor_FilterAllIn_x2 (PermitConstructions
+    [''(), ''State, ''Maybe, ''Bool, ''Int]) #-}
 {-# ANN concatFor_FilterAllIn_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE concatFor_FilterAllIn_x2 #-}
 concatFor_FilterAllIn_x2 :: Int -> Int -> IO ()
@@ -1615,14 +1747,14 @@ unfoldrList maxval n = List.unfoldr step n
 withList :: Int -> ([Int] -> IO b) -> Int -> IO b
 withList value f = f . unfoldrList value
 
-{-# ANN last_List (PermitPatternMatches [''Int]) #-}
-{-# ANN last_List (PermitConstructions [''Int,''SrcLoc,''CallStack,''[]]) #-}
+{-# ANN last_List (PermitPatternMatches []) #-}
+{-# ANN last_List (PermitConstructions [''Int,''SrcLoc,''CallStack]) #-}
 {-# ANN last_List (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE last_List #-}
 last_List :: Int -> Int -> IO [Int]
 last_List streamLen = withList streamLen (return . (\xs -> [List.last xs]))
 
-{-# ANN ap_ApplicativeInstance_List_x2 (PermitPatternMatches [''Int,''[]]) #-}
+{-# ANN ap_ApplicativeInstance_List_x2 (PermitPatternMatches [''[]]) #-}
 {-# ANN ap_ApplicativeInstance_List_x2 (PermitConstructions [''[],''Int]) #-}
 {-# ANN ap_ApplicativeInstance_List_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE ap_ApplicativeInstance_List_x2 #-}
@@ -1630,7 +1762,7 @@ ap_ApplicativeInstance_List_x2 :: Int -> Int -> IO [Int]
 ap_ApplicativeInstance_List_x2 streamLen =
     withList streamLen $ \s -> return $ (+) <$> s <*> s
 
-{-# ANN bind_MonadInstance_List_x2 (PermitPatternMatches [''Int,''[]]) #-}
+{-# ANN bind_MonadInstance_List_x2 (PermitPatternMatches [''[]]) #-}
 {-# ANN bind_MonadInstance_List_x2 (PermitConstructions [''[],''Int]) #-}
 {-# ANN bind_MonadInstance_List_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE bind_MonadInstance_List_x2 #-}
@@ -1651,8 +1783,10 @@ bind_MonadInstance_List_x3 streamLen = withList streamLen $ \s -> return $ do
     z <- s
     return $ x + y + z
 
-{-# ANN bind_MonadInstance_FilterAllIn_List_x2 (PermitPatternMatches [''Int,''[]]) #-}
-{-# ANN bind_MonadInstance_FilterAllIn_List_x2 (PermitConstructions [''[],''Int]) #-}
+{-# ANN bind_MonadInstance_FilterAllIn_List_x2 (PermitPatternMatches
+    [''Int, ''[]]) #-}
+{-# ANN bind_MonadInstance_FilterAllIn_List_x2 (PermitConstructions
+    [''[], ''Int]) #-}
 {-# ANN bind_MonadInstance_FilterAllIn_List_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE bind_MonadInstance_FilterAllIn_List_x2 #-}
 bind_MonadInstance_FilterAllIn_List_x2 :: Int -> Int -> IO [Int]
@@ -1663,8 +1797,10 @@ bind_MonadInstance_FilterAllIn_List_x2 streamLen =
     let t = x + y
     if t > 0 then return t else []
 
-{-# ANN bind_MonadInstance_FilterAllOut_List_x2 (PermitPatternMatches [''Int,''[]]) #-}
-{-# ANN bind_MonadInstance_FilterAllOut_List_x2 (PermitConstructions [''[],''Int]) #-}
+{-# ANN bind_MonadInstance_FilterAllOut_List_x2 (PermitPatternMatches
+    [''Int, ''[]]) #-}
+{-# ANN bind_MonadInstance_FilterAllOut_List_x2 (PermitConstructions
+    [''[], ''Int]) #-}
 {-# ANN bind_MonadInstance_FilterAllOut_List_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE bind_MonadInstance_FilterAllOut_List_x2 #-}
 bind_MonadInstance_FilterAllOut_List_x2 :: Int -> Int -> IO [Int]

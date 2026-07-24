@@ -239,9 +239,10 @@ fmap_x4 value = withArray value $ composeN 4 $ onArray value $ fmap (+1)
     ]) #-}
 {-# ANN createOfLast_1 (PermitTypeClasses []) #-}
 #elif defined(ARRAY_GENERIC)
-{-# ANN createOfLast_1 (PermitPatternMatches [''MutArray.MutArray, ''Int]) #-}
+{-# ANN createOfLast_1 (PermitPatternMatches [''MutArray.MutArray]) #-}
 {-# ANN createOfLast_1 (PermitConstructions
     [ ''[], ''Char, ''Int, ''SrcLoc, ''CallStack, ''A.Array
+    , ''MutArray.MutArray
     ]) #-}
 {-# ANN createOfLast_1 (PermitTypeClasses [''IP]) #-}
 #else
@@ -260,9 +261,10 @@ createOfLast_1 value = withStream value (S.fold (A.createOfLast 1))
     ]) #-}
 {-# ANN createOfLast_10 (PermitTypeClasses []) #-}
 #elif defined(ARRAY_GENERIC)
-{-# ANN createOfLast_10 (PermitPatternMatches [''MutArray.MutArray, ''Int]) #-}
+{-# ANN createOfLast_10 (PermitPatternMatches [''MutArray.MutArray]) #-}
 {-# ANN createOfLast_10 (PermitConstructions
     [ ''[], ''Char, ''Int, ''SrcLoc, ''CallStack, ''A.Array
+    , ''MutArray.MutArray
     ]) #-}
 {-# ANN createOfLast_10 (PermitTypeClasses [''IP]) #-}
 #else
@@ -276,7 +278,7 @@ createOfLast_10 value = withStream value (S.fold (A.createOfLast 10))
 
 #if defined(ARRAY_UNBOXED)
 {-# ANN createOfLast_Max (PermitPatternMatches
-    [ ''RingArray.RingArray, ''IO, ''Int, ''A.Array
+    [ ''RingArray.RingArray, ''IO, ''A.Array
     ]) #-}
 {-# ANN createOfLast_Max (PermitConstructions
     [ ''A.Array, ''RingArray.RingArray
@@ -284,7 +286,7 @@ createOfLast_10 value = withStream value (S.fold (A.createOfLast 10))
 {-# ANN createOfLast_Max (PermitTypeClasses []) #-}
 #elif defined(ARRAY_GENERIC)
 {-# ANN createOfLast_Max (PermitPatternMatches
-    [ ''MutArray.MutArray, ''Int
+    [ ''MutArray.MutArray
     ]) #-}
 {-# ANN createOfLast_Max (PermitConstructions
     [ ''[], ''Char, ''Int, ''SrcLoc, ''CallStack, ''A.Array

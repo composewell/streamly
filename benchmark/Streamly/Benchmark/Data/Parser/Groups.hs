@@ -36,8 +36,9 @@ import GHC.Stack (CallStack, SrcLoc)
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Either.Strict (Either'(..))
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
-import Streamly.Internal.Data.Parser (ParseError(..))
-import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Internal.Data.Parser
+    (ParseError(..), GroupByState, SeqParseState, WordByState)
+import Streamly.Internal.Data.Stream (Stream, Step)
 import System.Random (randomRIO)
 import Test.Tasty.Bench (Benchmark, bench, nfIO)
 
@@ -102,7 +103,7 @@ sourceEscapedFrames value = Stream.unfoldrM step
 -- Parsers
 -------------------------------------------------------------------------------
 
-{-# ANN takeBetween (PermitPatternMatches [''[], ''String, ''Int, ''IO]) #-}
+{-# ANN takeBetween (PermitPatternMatches [''[], ''String, ''IO]) #-}
 {-# ANN takeBetween (PermitConstructions
     [''[], ''Either, ''(), ''Int, ''SrcLoc, ''CallStack]) #-}
 {-# ANN takeBetween (PermitTypeClasses [''IP]) #-}
@@ -120,7 +121,7 @@ inspect $ 'takeBetween `hasNoType` ''SPEC
 -- inspect $ 'takeBetween `hasNoType` ''PR.Tuple'Fused
 #endif
 
-{-# ANN takeEQ (PermitPatternMatches [''Int, ''String, ''[]]) #-}
+{-# ANN takeEQ (PermitPatternMatches [''String, ''[]]) #-}
 {-# ANN takeEQ (PermitConstructions [''Either, ''(), ''[]]) #-}
 {-# ANN takeEQ (PermitTypeClasses []) #-}
 {-# NOINLINE takeEQ #-}
@@ -136,9 +137,9 @@ inspect $ 'takeEQ `hasNoType` ''SPEC
 inspect $ 'takeEQ `hasNoType` ''PR.Tuple'Fused
 #endif
 
-{-# ANN takeGE (PermitPatternMatches [''Int, ''String, ''[]]) #-}
+{-# ANN takeGE (PermitPatternMatches [''String, ''[]]) #-}
 {-# ANN takeGE (PermitConstructions
-    [''Stream.Step, ''Stream, ''(), ''Either, ''[], ''Int]) #-}
+    [''Step, ''Stream, ''(), ''Either, ''[], ''Int]) #-}
 {-# ANN takeGE (PermitTypeClasses []) #-}
 {-# NOINLINE takeGE #-}
 takeGE :: Int -> Int -> IO (Either ParseError ())
@@ -153,7 +154,7 @@ inspect $ 'takeGE `hasNoType` ''SPEC
 inspect $ 'takeGE `hasNoType` ''PR.TakeGEState
 #endif
 
-{-# ANN dropWhile (PermitPatternMatches [''Int]) #-}
+{-# ANN dropWhile (PermitPatternMatches []) #-}
 {-# ANN dropWhile (PermitConstructions [''Either, ''()]) #-}
 {-# ANN dropWhile (PermitTypeClasses []) #-}
 {-# NOINLINE dropWhile #-}
@@ -214,7 +215,7 @@ listEqBy :: Int -> Int -> IO (Either ParseError [Int])
 listEqBy value =
     withStream value $ Stream.parse (PR.listEqBy (==) [1 .. value])
 
-{-# ANN streamEqBy (PermitPatternMatches [''Int, ''String]) #-}
+{-# ANN streamEqBy (PermitPatternMatches [''String]) #-}
 {-# ANN streamEqBy (PermitConstructions [''Either, ''(), ''[]]) #-}
 {-# ANN streamEqBy (PermitTypeClasses []) #-}
 {-# NOINLINE streamEqBy #-}
@@ -224,7 +225,7 @@ streamEqBy value =
         $ Stream.parse
             (PR.streamEqBy (==) (Stream.enumerateFromTo 1 value))
 
-{-# ANN takeWhile (PermitPatternMatches [''Int]) #-}
+{-# ANN takeWhile (PermitPatternMatches []) #-}
 {-# ANN takeWhile (PermitConstructions [''Either, ''()]) #-}
 {-# ANN takeWhile (PermitTypeClasses []) #-}
 {-# NOINLINE takeWhile #-}
@@ -240,7 +241,7 @@ inspect $ 'takeWhile `hasNoType` ''FL.Step
 inspect $ 'takeWhile `hasNoType` ''SPEC
 #endif
 
-{-# ANN takeWhileP (PermitPatternMatches [''Int]) #-}
+{-# ANN takeWhileP (PermitPatternMatches []) #-}
 {-# ANN takeWhileP (PermitConstructions [''Either, ''()]) #-}
 {-# ANN takeWhileP (PermitTypeClasses []) #-}
 {-# NOINLINE takeWhileP #-}
@@ -259,7 +260,7 @@ inspect $ 'takeWhileP `hasNoType` ''FL.Step
 inspect $ 'takeWhileP `hasNoType` ''SPEC
 #endif
 
-{-# ANN takeP (PermitPatternMatches [''Int]) #-}
+{-# ANN takeP (PermitPatternMatches []) #-}
 {-# ANN takeP (PermitConstructions [''Either, ''()]) #-}
 {-# ANN takeP (PermitTypeClasses []) #-}
 {-# NOINLINE takeP #-}
@@ -268,8 +269,8 @@ takeP value =
     withStream value
         $ Stream.parse (PR.takeP value (PR.fromFold Fold.drain))
 
-{-# ANN groupBy (PermitPatternMatches [''Int]) #-}
-{-# ANN groupBy (PermitConstructions [''(), ''Either]) #-}
+{-# ANN groupBy (PermitPatternMatches []) #-}
+{-# ANN groupBy (PermitConstructions [''()]) #-}
 {-# ANN groupBy (PermitTypeClasses []) #-}
 {-# NOINLINE groupBy #-}
 groupBy :: Int -> Int -> IO (Either ParseError ())
@@ -281,11 +282,11 @@ inspect $ 'groupBy `hasNoType` ''PR.Step
 inspect $ 'groupBy `hasNoType` ''PR.Initial
 inspect $ 'groupBy `hasNoType` ''FL.Step
 inspect $ 'groupBy `hasNoType` ''SPEC
-inspect $ 'groupBy `hasNoType` ''PR.GroupByState
+inspect $ 'groupBy `hasNoType` ''GroupByState
 #endif
 
-{-# ANN groupByRolling (PermitPatternMatches [''Int]) #-}
-{-# ANN groupByRolling (PermitConstructions [''(), ''Either]) #-}
+{-# ANN groupByRolling (PermitPatternMatches []) #-}
+{-# ANN groupByRolling (PermitConstructions [''()]) #-}
 {-# ANN groupByRolling (PermitTypeClasses []) #-}
 {-# NOINLINE groupByRolling #-}
 groupByRolling :: Int -> Int -> IO (Either ParseError ())
@@ -298,12 +299,12 @@ inspect $ 'groupByRolling `hasNoType` ''PR.Step
 inspect $ 'groupByRolling `hasNoType` ''PR.Initial
 inspect $ 'groupByRolling `hasNoType` ''FL.Step
 inspect $ 'groupByRolling `hasNoType` ''SPEC
-inspect $ 'groupByRolling `hasNoType` ''PR.GroupByState
+inspect $ 'groupByRolling `hasNoType` ''GroupByState
 #endif
 
 {-# ANN wordBy (PermitPatternMatches
-    [''(), ''[], ''Int, ''PR.WordByState]) #-}
-{-# ANN wordBy (PermitConstructions [''(), ''PR.WordByState, ''Either]) #-}
+    [''(), ''[], ''Int, ''WordByState]) #-}
+{-# ANN wordBy (PermitConstructions [''(), ''WordByState]) #-}
 {-# ANN wordBy (PermitTypeClasses []) #-}
 {-# NOINLINE wordBy #-}
 wordBy :: Int -> Int -> IO (Either ParseError ())
@@ -318,7 +319,7 @@ inspect $ 'wordBy `hasNoType` ''FL.Step
 inspect $ 'wordBy `hasNoType` ''SPEC
 #endif
 
-{-# ANN takeEndBy_ (PermitPatternMatches [''Int]) #-}
+{-# ANN takeEndBy_ (PermitPatternMatches []) #-}
 {-# ANN takeEndBy_ (PermitConstructions [''Either, ''()]) #-}
 {-# ANN takeEndBy_ (PermitTypeClasses []) #-}
 {-# NOINLINE takeEndBy_ #-}
@@ -341,9 +342,9 @@ inspect $ 'takeEndBy_ `hasNoType` ''SPEC
 -------------------------------------------------------------------------------
 
 {-# ANN span (PermitPatternMatches
-    [''[], ''(,), ''Int, ''SPEC, ''PR.SeqParseState]) #-}
+    [''[], ''(,), ''Int, ''SPEC, ''SeqParseState]) #-}
 {-# ANN span (PermitConstructions
-    [''PR.SeqParseState, ''(), ''[], ''(,), ''Either]) #-}
+    [''SeqParseState, ''(), ''[], ''(,)]) #-}
 {-# ANN span (PermitTypeClasses []) #-}
 {-# NOINLINE span #-}
 span :: Int -> Int -> IO (Either ParseError ((), ()))
@@ -358,13 +359,13 @@ inspect $ 'span `hasNoType` ''PR.Step
 inspect $ 'span `hasNoType` ''PR.Initial
 inspect $ 'span `hasNoType` ''FL.Step
 -- inspect $ 'span `hasNoType` ''SPEC
--- inspect $ 'span `hasNoType` ''PR.SeqParseState
+-- inspect $ 'span `hasNoType` ''SeqParseState
 #endif
 
 {-# ANN spanBy (PermitPatternMatches
-    [''[], ''(,), ''Int, ''SPEC, ''PR.SeqParseState, ''PR.GroupByState]) #-}
+    [''[], ''(,), ''Int, ''SPEC, ''SeqParseState, ''GroupByState]) #-}
 {-# ANN spanBy (PermitConstructions
-    [''PR.GroupByState, ''(), ''PR.SeqParseState, ''[], ''(,), ''Int, ''Either]) #-}
+    [''GroupByState, ''(), ''SeqParseState, ''[], ''(,), ''Int]) #-}
 {-# ANN spanBy (PermitTypeClasses []) #-}
 {-# NOINLINE spanBy #-}
 spanBy :: Int -> Int -> IO (Either ParseError ((), ()))
@@ -380,14 +381,14 @@ inspect $ 'spanBy `hasNoType` ''PR.Step
 inspect $ 'spanBy `hasNoType` ''PR.Initial
 inspect $ 'spanBy `hasNoType` ''FL.Step
 -- inspect $ 'spanBy `hasNoType` ''SPEC
--- inspect $ 'spanBy `hasNoType` ''PR.SeqParseState
--- inspect $ 'spanBy `hasNoType` ''PR.GroupByState
+-- inspect $ 'spanBy `hasNoType` ''SeqParseState
+-- inspect $ 'spanBy `hasNoType` ''GroupByState
 #endif
 
 {-# ANN spanByRolling (PermitPatternMatches
-    [''[], ''(,), ''Int, ''SPEC, ''PR.SeqParseState, ''PR.GroupByState]) #-}
+    [''[], ''(,), ''Int, ''SPEC, ''SeqParseState, ''GroupByState]) #-}
 {-# ANN spanByRolling (PermitConstructions
-    [''PR.GroupByState, ''(), ''PR.SeqParseState, ''[], ''(,), ''Int, ''Either]) #-}
+    [''GroupByState, ''(), ''SeqParseState, ''[], ''(,), ''Int]) #-}
 {-# ANN spanByRolling (PermitTypeClasses []) #-}
 {-# NOINLINE spanByRolling #-}
 spanByRolling :: Int -> Int -> IO (Either ParseError ((), ()))
@@ -403,8 +404,8 @@ inspect $ 'spanByRolling `hasNoType` ''PR.Step
 inspect $ 'spanByRolling `hasNoType` ''PR.Initial
 inspect $ 'spanByRolling `hasNoType` ''FL.Step
 -- inspect $ 'spanByRolling `hasNoType` ''SPEC
--- inspect $ 'spanByRolling `hasNoType` ''PR.SeqParseState
--- inspect $ 'spanByRolling `hasNoType` ''PR.GroupByState
+-- inspect $ 'spanByRolling `hasNoType` ''SeqParseState
+-- inspect $ 'spanByRolling `hasNoType` ''GroupByState
 #endif
 
 -------------------------------------------------------------------------------

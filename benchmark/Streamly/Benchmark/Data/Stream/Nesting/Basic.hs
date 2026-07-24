@@ -39,6 +39,7 @@ import qualified Streamly.Internal.Data.Producer as Producer
 import GHC.Stack (SrcLoc, CallStack)
 import GHC.Classes (IP)
 import Prelude hiding (concatMap, zipWith)
+import Streamly.Internal.Data.Producer (InterleaveEachState)
 
 -------------------------------------------------------------------------------
 -- Multi-Stream
@@ -49,7 +50,7 @@ import Prelude hiding (concatMap, zipWith)
 -------------------------------------------------------------------------------
 
 {-# ANN interleave (PermitPatternMatches [''Int]) #-}
-{-# ANN interleave (PermitConstructions [''Int,''()]) #-}
+{-# ANN interleave (PermitConstructions [''Int]) #-}
 {-# ANN interleave (PermitTypeClasses []) #-}
 {-# NOINLINE interleave #-}
 {-# ANN interleave DumpCore #-}
@@ -69,7 +70,7 @@ inspect $ 'interleave `hasNoType` ''Fold.Step
 #endif
 
 {-# ANN roundRobin (PermitPatternMatches [''Int]) #-}
-{-# ANN roundRobin (PermitConstructions [''Int,''()]) #-}
+{-# ANN roundRobin (PermitConstructions [''Int]) #-}
 {-# ANN roundRobin (PermitTypeClasses []) #-}
 {-# NOINLINE roundRobin #-}
 roundRobin :: Int -> Int -> IO ()
@@ -92,7 +93,7 @@ inspect $ 'roundRobin `hasNoType` ''Fold.Step
 -------------------------------------------------------------------------------
 
 {-# ANN mergeBy (PermitPatternMatches [''Int]) #-}
-{-# ANN mergeBy (PermitConstructions [''Int,''()]) #-}
+{-# ANN mergeBy (PermitConstructions [''Int]) #-}
 {-# ANN mergeBy (PermitTypeClasses []) #-}
 {-# NOINLINE mergeBy #-}
 mergeBy :: Int -> Int -> IO ()
@@ -111,7 +112,7 @@ inspect $ 'mergeBy `hasNoType` ''Fold.Step
 #endif
 
 {-# ANN mergeByM (PermitPatternMatches [''Int]) #-}
-{-# ANN mergeByM (PermitConstructions [''Int,''()]) #-}
+{-# ANN mergeByM (PermitConstructions [''Int]) #-}
 {-# ANN mergeByM (PermitTypeClasses []) #-}
 {-# NOINLINE mergeByM #-}
 mergeByM :: Int -> Int -> IO ()
@@ -149,7 +150,7 @@ sourceUnfoldrMUF count = UF.unfoldrM step
             else Just (cnt, (cnt + 1, start))
 
 {-# ANN bfsUnfoldEach (PermitPatternMatches [''Int,''[],''(,)]) #-}
-{-# ANN bfsUnfoldEach (PermitConstructions [''Int,''[],''(,),''()]) #-}
+{-# ANN bfsUnfoldEach (PermitConstructions [''Int,''[],''(,)]) #-}
 {-# ANN bfsUnfoldEach (PermitTypeClasses []) #-}
 {-# NOINLINE bfsUnfoldEach #-}
 bfsUnfoldEach :: Int -> Int -> Int -> IO ()
@@ -167,10 +168,10 @@ inspect $ 'bfsUnfoldEach `hasNoType` ''SPEC
 #endif
 
 {-# ANN altBfsUnfoldEach (PermitPatternMatches
-    [''Int,''SPEC,''Producer.InterleaveEachState,''[],''IO,''(,)]) #-}
+    [''Int,''SPEC,''InterleaveEachState,''[],''IO,''(,)]) #-}
 {-# ANN altBfsUnfoldEach (PermitConstructions
-    [''[],''Int,''SrcLoc,''CallStack,''Producer.InterleaveEachState,''(,)
-    ,''(),''SPEC]) #-}
+    [''[],''Int,''SrcLoc,''CallStack,''InterleaveEachState,''(,)
+    ,''SPEC]) #-}
 {-# ANN altBfsUnfoldEach (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE altBfsUnfoldEach #-}
 altBfsUnfoldEach :: Int -> Int -> Int -> IO ()
@@ -188,7 +189,7 @@ inspect $ 'altBfsUnfoldEach `hasNoType` ''Fold.Step
 #endif
 
 {-# ANN unfoldSched (PermitPatternMatches [''(,),''Int,''[]]) #-}
-{-# ANN unfoldSched (PermitConstructions [''Int,''[],''(,),''()]) #-}
+{-# ANN unfoldSched (PermitConstructions [''Int,''[],''(,)]) #-}
 {-# ANN unfoldSched (PermitTypeClasses []) #-}
 {-# NOINLINE unfoldSched #-}
 unfoldSched :: Int -> Int -> Int -> IO ()

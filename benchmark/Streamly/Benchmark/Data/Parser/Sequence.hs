@@ -40,7 +40,8 @@ import GHC.Classes (IP)
 import GHC.Stack (CallStack, SrcLoc)
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
 import System.Random (randomRIO)
-import Streamly.Internal.Data.Parser (ParseError(..))
+import Streamly.Internal.Data.Parser
+    (ParseError(..), Final, Initial, Parser, Step)
 import Streamly.Internal.Data.Stream (Stream)
 
 import qualified Streamly.Internal.Data.Fold as Fold
@@ -51,6 +52,7 @@ import Test.Tasty.Bench hiding (env)
 import Streamly.Benchmark.Common
 import Fusion.Plugin.Types
 import Prelude hiding (sequence)
+import Streamly.Internal.Data.Fold (Tuple'Fused)
 
 #ifdef INSPECTION
 import GHC.Types (SPEC(..))
@@ -72,7 +74,7 @@ withStream value f = f . streamUnfoldrM value
 -- Stream transformation
 -------------------------------------------------------------------------------
 
-{-# ANN parseMany (PermitPatternMatches [''Int]) #-}
+{-# ANN parseMany (PermitPatternMatches []) #-}
 {-# ANN parseMany (PermitConstructions [''()]) #-}
 {-# ANN parseMany (PermitTypeClasses []) #-}
 {-# NOINLINE parseMany #-}
@@ -154,7 +156,7 @@ inspect $ 'parseMany_GroupByRolling_Bounded `hasNoType` ''S.FIterState
 inspect $ 'parseMany_GroupByRolling_Bounded `hasNoType` ''PR.GroupByState
 #endif
 
-{-# ANN parseMany_GroupByRolling_OneGroup (PermitPatternMatches [''Int]) #-}
+{-# ANN parseMany_GroupByRolling_OneGroup (PermitPatternMatches []) #-}
 {-# ANN parseMany_GroupByRolling_OneGroup (PermitConstructions [''()]) #-}
 {-# ANN parseMany_GroupByRolling_OneGroup (PermitTypeClasses []) #-}
 {-# NOINLINE parseMany_GroupByRolling_OneGroup #-}
@@ -218,12 +220,12 @@ parseMany_GroupByRollingEither_Alternating value =
         . fmap (\x -> if even x then x + 2 else x)
 
 {-# ANN sequence (PermitPatternMatches
-    [ ''[], ''PR.Step, ''(,,), ''(,), ''Maybe', ''PR.Parser, ''PR.Initial
-    , ''PR.Final, ''(), ''IO, ''Int
+    [ ''[], ''Step, ''(,,), ''(,), ''Maybe', ''Parser, ''Initial
+    , ''Final, ''(), ''IO, ''Int
     ]) #-}
 {-# ANN sequence (PermitConstructions
-    [ ''[], ''(,), ''Either, ''Int, ''SrcLoc, ''CallStack, ''PR.Final, ''()
-    , ''(,,), ''Maybe', ''PR.Parser, ''PR.Initial, ''PR.Step
+    [ ''[], ''(,), ''Either, ''Int, ''SrcLoc, ''CallStack, ''Final, ''()
+    , ''(,,), ''Maybe', ''Parser, ''Initial, ''Step
     ]) #-}
 {-# ANN sequence (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE sequence #-}
@@ -233,12 +235,12 @@ sequence value =
         $ Stream.parse (PR.sequence (Stream.repeat PR.one) Fold.drain)
 
 {-# ANN parseIterate (PermitPatternMatches
-    [ ''[], ''Int, ''Fold.Tuple'Fused, ''PR.Step, ''(,), ''Bool
-    , ''PR.Initial
+    [ ''[], ''Int, ''Tuple'Fused, ''Step, ''(,), ''Bool
+    , ''Initial
     ]) #-}
 {-# ANN parseIterate (PermitConstructions
-    [ ''Fold.Tuple'Fused, ''PR.Initial, ''Int, ''SrcLoc, ''CallStack, ''[]
-    , ''(), ''(,), ''PR.Step
+    [ ''Tuple'Fused, ''Initial, ''Int, ''SrcLoc, ''CallStack, ''[]
+    , ''(), ''(,), ''Step
     ]) #-}
 {-# ANN parseIterate (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE parseIterate #-}

@@ -27,6 +27,9 @@ import Test.Inspection
 import GHC.Types (SPEC(..))
 import Data.Monoid (Sum(..))
 
+import Streamly.Internal.Data.Fold (Tuple'Fused)
+import Streamly.Internal.Data.Stream (GroupByState)
+
 import qualified Stream.Common as Common
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream as S
@@ -43,9 +46,9 @@ import Stream.Type (benchIO, withStream)
 -------------------------------------------------------------------------------
 
 -- XXX use errorWithoutStackTrace to get rid of IP/srcLoc/CallStack
-{-# ANN groupsWhile_LT (PermitPatternMatches [''IO,''Int,''S.GroupByState]) #-}
+{-# ANN groupsWhile_LT (PermitPatternMatches [''IO,''Int,''GroupByState]) #-}
 {-# ANN groupsWhile_LT (PermitConstructions
-    [''Int,''SrcLoc,''CallStack,''S.GroupByState,''()]) #-}
+    [''Int,''SrcLoc,''CallStack,''GroupByState]) #-}
 {-# ANN groupsWhile_LT (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE groupsWhile_LT #-}
 groupsWhile_LT :: Int -> Int -> IO ()
@@ -60,9 +63,9 @@ inspect $ 'groupsWhile_LT `hasNoType` ''FL.Step
 inspect $ 'groupsWhile_LT `hasNoType` ''SPEC
 #endif
 
-{-# ANN groupsWhile_Eq (PermitPatternMatches [''IO,''Int,''S.GroupByState]) #-}
+{-# ANN groupsWhile_Eq (PermitPatternMatches [''IO,''Int,''GroupByState]) #-}
 {-# ANN groupsWhile_Eq (PermitConstructions
-    [''Int,''SrcLoc,''CallStack,''S.GroupByState,''()]) #-}
+    [''Int,''SrcLoc,''CallStack,''GroupByState]) #-}
 {-# ANN groupsWhile_Eq (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE groupsWhile_Eq #-}
 groupsWhile_Eq :: Int -> Int -> IO ()
@@ -77,9 +80,9 @@ inspect $ 'groupsWhile_Eq `hasNoType` ''FL.Step
 inspect $ 'groupsWhile_Eq `hasNoType` ''SPEC
 #endif
 
-{-# ANN groupsRollingBy_LT (PermitPatternMatches [''Int,''S.GroupByState]) #-}
+{-# ANN groupsRollingBy_LT (PermitPatternMatches [''Int,''GroupByState]) #-}
 {-# ANN groupsRollingBy_LT (PermitConstructions
-    [''S.GroupByState,''Int,''()]) #-}
+    [''GroupByState,''Int,''()]) #-}
 {-# ANN groupsRollingBy_LT (PermitTypeClasses []) #-}
 {-# NOINLINE groupsRollingBy_LT #-}
 groupsRollingBy_LT :: Int -> Int -> IO ()
@@ -89,14 +92,14 @@ groupsRollingBy_LT value =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'groupsRollingBy_LT
 inspect $ 'groupsRollingBy_LT `hasNoType` ''S.Step
--- inspect $ 'groupsRollingBy_LT `hasNoType` ''S.GroupByState
+-- inspect $ 'groupsRollingBy_LT `hasNoType` ''GroupByState
 inspect $ 'groupsRollingBy_LT `hasNoType` ''FL.Step
 inspect $ 'groupsRollingBy_LT `hasNoType` ''SPEC
 #endif
 
-{-# ANN groupsRollingBy_Eq (PermitPatternMatches [''Int,''S.GroupByState]) #-}
+{-# ANN groupsRollingBy_Eq (PermitPatternMatches [''Int,''GroupByState]) #-}
 {-# ANN groupsRollingBy_Eq (PermitConstructions
-    [''S.GroupByState,''Int,''()]) #-}
+    [''GroupByState,''Int,''()]) #-}
 {-# ANN groupsRollingBy_Eq (PermitTypeClasses []) #-}
 {-# NOINLINE groupsRollingBy_Eq #-}
 groupsRollingBy_Eq :: Int -> Int -> IO ()
@@ -106,13 +109,13 @@ groupsRollingBy_Eq value =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'groupsRollingBy_Eq
 inspect $ 'groupsRollingBy_Eq `hasNoType` ''S.Step
--- inspect $ 'groupsRollingBy_Eq `hasNoType` ''S.GroupByState
+-- inspect $ 'groupsRollingBy_Eq `hasNoType` ''GroupByState
 inspect $ 'groupsRollingBy_Eq `hasNoType` ''FL.Step
 inspect $ 'groupsRollingBy_Eq `hasNoType` ''SPEC
 #endif
 
-{-# ANN foldIterateM (PermitPatternMatches [''Int,''FL.Tuple'Fused]) #-}
-{-# ANN foldIterateM (PermitConstructions [''Int,''FL.Tuple'Fused,''()]) #-}
+{-# ANN foldIterateM (PermitPatternMatches [''Int,''Tuple'Fused]) #-}
+{-# ANN foldIterateM (PermitConstructions [''Int,''Tuple'Fused]) #-}
 {-# ANN foldIterateM (PermitTypeClasses []) #-}
 {-# NOINLINE foldIterateM #-}
 foldIterateM :: Int -> Int -> IO ()

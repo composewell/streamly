@@ -33,14 +33,14 @@ benchIO name = bench name . nfIO
 -------------------------------------------------------------------------------
 
 {-# ANN eqArrayN (PermitPatternMatches [''UnsafeEquality, ''IO]) #-}
-{-# ANN eqArrayN (PermitConstructions [''Int, ''SrcLoc, ''CallStack, ''Bool]) #-}
+{-# ANN eqArrayN (PermitConstructions [''Int, ''SrcLoc, ''CallStack]) #-}
 {-# ANN eqArrayN (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE eqArrayN #-}
 eqArrayN :: (Int, Array.Array Int, RingArray.RingArray Int) -> IO Bool
 eqArrayN (value, arr, ring) = RingArray.eqArrayN ring arr value
 
 {-# ANN eqArray (PermitPatternMatches [''UnsafeEquality, ''IO]) #-}
-{-# ANN eqArray (PermitConstructions [''Int, ''SrcLoc, ''CallStack, ''Bool]) #-}
+{-# ANN eqArray (PermitConstructions [''Int, ''SrcLoc, ''CallStack]) #-}
 {-# ANN eqArray (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE eqArray #-}
 eqArray :: (Array.Array Int, RingArray.RingArray Int) -> IO Bool

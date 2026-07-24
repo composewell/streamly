@@ -81,7 +81,7 @@ windowRange_Double win n = withPostscanlDouble n (Scanl.windowRange win)
 windowRange_IntDesc :: Int -> Int -> Int -> IO ()
 windowRange_IntDesc win n = withPostscanlDesc n (Scanl.windowRange win)
 
-{-# ANN incrSum_Double (PermitPatternMatches [''Bool,''Double,''IO,''Int]) #-}
+{-# ANN incrSum_Double (PermitPatternMatches [''Bool,''Double,''IO]) #-}
 {-# ANN incrSum_Double (PermitConstructions
     [''Int,''SrcLoc,''CallStack,''(),''Double]) #-}
 {-# ANN incrSum_Double (PermitTypeClasses [''IP]) #-}
@@ -90,7 +90,7 @@ incrSum_Double :: Int -> Int -> Int -> IO ()
 incrSum_Double win n = withPostscanlDouble n (Scanl.incrScan win Scanl.incrSum)
 
 {-# ANN incrSum_Double_Cumulative (PermitPatternMatches
-    [''Bool,''Double,''Int]) #-}
+    [''Bool,''Double]) #-}
 {-# ANN incrSum_Double_Cumulative (PermitConstructions [''(),''Double]) #-}
 {-# ANN incrSum_Double_Cumulative (PermitTypeClasses []) #-}
 {-# NOINLINE incrSum_Double_Cumulative #-}
@@ -98,14 +98,14 @@ incrSum_Double_Cumulative :: Int -> Int -> IO ()
 incrSum_Double_Cumulative n =
     withPostscanlDouble n (Scanl.cumulativeScan Scanl.incrSum)
 
-{-# ANN incrSum_Int (PermitPatternMatches [''IO,''Int]) #-}
+{-# ANN incrSum_Int (PermitPatternMatches [''IO]) #-}
 {-# ANN incrSum_Int (PermitConstructions [''Int,''SrcLoc,''CallStack,''()]) #-}
 {-# ANN incrSum_Int (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE incrSum_Int #-}
 incrSum_Int :: Int -> Int -> Int -> IO ()
 incrSum_Int win n = withPostscanl n (Scanl.incrScan win Scanl.incrSumInt)
 
-{-# ANN incrMean_Double (PermitPatternMatches [''Bool,''Double,''IO,''Int]) #-}
+{-# ANN incrMean_Double (PermitPatternMatches [''Bool,''Double,''IO]) #-}
 {-# ANN incrMean_Double (PermitConstructions
     [''Int,''SrcLoc,''CallStack,''(),''Double]) #-}
 {-# ANN incrMean_Double (PermitTypeClasses [''IP]) #-}
@@ -115,7 +115,7 @@ incrMean_Double win n =
     withPostscanlDouble n (Scanl.incrScan win Scanl.incrMean)
 
 {-# ANN incrMean_Double_Cumulative (PermitPatternMatches
-    [''Bool,''Double,''Int]) #-}
+    [''Bool,''Double]) #-}
 {-# ANN incrMean_Double_Cumulative (PermitConstructions [''(),''Double]) #-}
 {-# ANN incrMean_Double_Cumulative (PermitTypeClasses []) #-}
 {-# NOINLINE incrMean_Double_Cumulative #-}
@@ -124,7 +124,7 @@ incrMean_Double_Cumulative n =
     withPostscanlDouble n (Scanl.cumulativeScan Scanl.incrMean)
 
 {-# ANN incrPowerSum_Double (PermitPatternMatches
-    [''Bool,''Double,''IO,''Int]) #-}
+    [''Bool,''Double,''IO]) #-}
 {-# ANN incrPowerSum_Double (PermitConstructions
     [''Int,''SrcLoc,''CallStack,''(),''Double]) #-}
 {-# ANN incrPowerSum_Double (PermitTypeClasses [''IP]) #-}
@@ -134,7 +134,7 @@ incrPowerSum_Double win n =
     withPostscanlDouble n (Scanl.incrScan win (Scanl.incrPowerSum 2))
 
 {-# ANN incrPowerSum_Double_Cumulative (PermitPatternMatches
-    [''Bool,''Double,''Int]) #-}
+    [''Bool,''Double]) #-}
 {-# ANN incrPowerSum_Double_Cumulative (PermitConstructions [''(),''Double]) #-}
 {-# ANN incrPowerSum_Double_Cumulative (PermitTypeClasses []) #-}
 {-# NOINLINE incrPowerSum_Double_Cumulative #-}

@@ -24,7 +24,7 @@ import Streamly.Internal.Data.Array (Array)
 import Streamly.Internal.Data.MutArray (ArrayUnsafe)
 import Streamly.Internal.Data.MutByteArray (PinnedState)
 import Streamly.Internal.Data.Producer (ConcatState, EnumToState)
-import Streamly.Internal.Data.Stream (UnfoldState)
+import Streamly.Internal.Data.Stream (UnfoldState, Step)
 import Streamly.Internal.Data.Unfold (Unfold)
 import System.IO (Handle, hClose)
 import System.Random (randomRIO)
@@ -37,7 +37,6 @@ import qualified Streamly.Internal.Data.Scanl as Scanl
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.StreamK as K
-import qualified Streamly.Internal.Data.SVar.Type as SVar
 
 import qualified Unfold.Enumeration as Enumeration
 import qualified Unfold.Type as Type
@@ -48,6 +47,7 @@ import Prelude hiding
     (take, filter, zipWith, map, mapM, takeWhile, scanl, repeat, dropWhile)
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Common.Handle
+import Streamly.Internal.Data.SVar.Type (State)
 
 {-# INLINE benchIO #-}
 benchIO :: (NFData b) => String -> (Int -> IO b) -> Benchmark
@@ -85,7 +85,7 @@ drainTransformationDefault to =
 -- Operations on input
 -------------------------------------------------------------------------------
 
-{-# ANN discardFirst (PermitPatternMatches [''Int]) #-}
+{-# ANN discardFirst (PermitPatternMatches []) #-}
 {-# ANN discardFirst (PermitConstructions []) #-}
 {-# ANN discardFirst (PermitTypeClasses []) #-}
 {-# NOINLINE discardFirst #-}
@@ -93,7 +93,7 @@ discardFirst :: Int -> Int -> IO ()
 discardFirst size start =
     drainTransformationDefault (size + start) UF.discardFirst (start, start)
 
-{-# ANN discardSecond (PermitPatternMatches [''Int]) #-}
+{-# ANN discardSecond (PermitPatternMatches []) #-}
 {-# ANN discardSecond (PermitConstructions []) #-}
 {-# ANN discardSecond (PermitTypeClasses []) #-}
 {-# NOINLINE discardSecond #-}
@@ -105,8 +105,8 @@ discardSecond size start =
 -- Stream generation
 -------------------------------------------------------------------------------
 
-{-# ANN fromStream (PermitPatternMatches [''Int,''S.Step]) #-}
-{-# ANN fromStream (PermitConstructions [''Int,''S.Step]) #-}
+{-# ANN fromStream (PermitPatternMatches [''Int,''Step]) #-}
+{-# ANN fromStream (PermitConstructions [''Int,''Step]) #-}
 {-# ANN fromStream (PermitTypeClasses []) #-}
 {-# NOINLINE fromStream #-}
 fromStream :: Int -> Int -> IO ()
@@ -117,14 +117,14 @@ fromStream size start =
 -- fromStream, this is considerably worse. More than 4x worse.
 {-# ANN fromStreamK (PermitPatternMatches [''Maybe,''(,)]) #-}
 {-# ANN fromStreamK (PermitConstructions
-    [''Maybe,''(,),''SVar.State,''Bool]) #-}
+    [''Maybe,''(,),''State,''Bool]) #-}
 {-# ANN fromStreamK (PermitTypeClasses []) #-}
 {-# NOINLINE fromStreamK #-}
 fromStreamK :: Int -> Int -> IO ()
 fromStreamK size start = drainGeneration UF.fromStreamK (K.replicate size start)
 
-{-# ANN fromStreamD (PermitPatternMatches [''Int,''S.Step]) #-}
-{-# ANN fromStreamD (PermitConstructions [''Int,''S.Step]) #-}
+{-# ANN fromStreamD (PermitPatternMatches [''Int,''Step]) #-}
+{-# ANN fromStreamD (PermitConstructions [''Int,''Step]) #-}
 {-# ANN fromStreamD (PermitTypeClasses []) #-}
 {-# NOINLINE fromStreamD #-}
 fromStreamD :: Int -> Int -> IO ()
@@ -133,7 +133,7 @@ fromStreamD size start =
 
 -- 'nilM' runs its action on the seed but yields no output, so unfold it over an
 -- outer source of value seeds to run it ~value times.
-{-# ANN nilM (PermitPatternMatches [''Int]) #-}
+{-# ANN nilM (PermitPatternMatches []) #-}
 {-# ANN nilM (PermitConstructions []) #-}
 {-# ANN nilM (PermitTypeClasses []) #-}
 {-# NOINLINE nilM #-}
@@ -142,7 +142,7 @@ nilM value start =
     drainGeneration (UF.unfoldEach (UF.nilM return) (source (start + value)))
         start
 
-{-# ANN nil (PermitPatternMatches [''Int]) #-}
+{-# ANN nil (PermitPatternMatches []) #-}
 {-# ANN nil (PermitConstructions []) #-}
 {-# ANN nil (PermitTypeClasses []) #-}
 {-# NOINLINE nil #-}
@@ -151,9 +151,9 @@ nil value start =
     drainGeneration (UF.unfoldEach UF.nil (source (start + value))) start
 
 {-# ANN consM (PermitPatternMatches
-    [''Int,''EnumToState,''S.Step,''UnfoldState]) #-}
+    [''Int,''EnumToState,''Step,''UnfoldState]) #-}
 {-# ANN consM (PermitConstructions
-    [''UnfoldState,''EnumToState,''Int,''S.Step]) #-}
+    [''UnfoldState,''EnumToState,''Int,''Step]) #-}
 {-# ANN consM (PermitTypeClasses []) #-}
 {-# NOINLINE consM #-}
 consM :: Int -> Int -> IO ()
@@ -217,7 +217,7 @@ fromIndicesM size start =
 -- Stream transformation
 -------------------------------------------------------------------------------
 
-{-# ANN postscanl (PermitPatternMatches [''Int]) #-}
+{-# ANN postscanl (PermitPatternMatches []) #-}
 {-# ANN postscanl (PermitConstructions []) #-}
 {-# ANN postscanl (PermitTypeClasses []) #-}
 {-# NOINLINE postscanl #-}
@@ -225,7 +225,7 @@ postscanl :: Int -> Int -> IO ()
 postscanl size start =
     drainTransformationDefault (size + start) (UF.postscanl Scanl.sum) start
 
-{-# ANN scanl (PermitPatternMatches [''Int]) #-}
+{-# ANN scanl (PermitPatternMatches []) #-}
 {-# ANN scanl (PermitConstructions []) #-}
 {-# ANN scanl (PermitTypeClasses []) #-}
 {-# NOINLINE scanl #-}
@@ -233,7 +233,7 @@ scanl :: Int -> Int -> IO ()
 scanl size start =
     drainTransformationDefault (size + start) (UF.scanl Scanl.sum) start
 
-{-# ANN scanlMany (PermitPatternMatches [''Int]) #-}
+{-# ANN scanlMany (PermitPatternMatches []) #-}
 {-# ANN scanlMany (PermitConstructions []) #-}
 {-# ANN scanlMany (PermitTypeClasses []) #-}
 {-# NOINLINE scanlMany #-}
@@ -246,14 +246,14 @@ scanlMany size start =
 -- Stream filtering
 -------------------------------------------------------------------------------
 
-{-# ANN take (PermitPatternMatches [''Int]) #-}
+{-# ANN take (PermitPatternMatches []) #-}
 {-# ANN take (PermitConstructions []) #-}
 {-# ANN take (PermitTypeClasses []) #-}
 {-# NOINLINE take #-}
 take :: Int -> Int -> IO ()
 take size start = drainTransformationDefault (size + start) (UF.take size) start
 
-{-# ANN filter (PermitPatternMatches [''Int]) #-}
+{-# ANN filter (PermitPatternMatches []) #-}
 {-# ANN filter (PermitConstructions []) #-}
 {-# ANN filter (PermitTypeClasses []) #-}
 {-# NOINLINE filter #-}
@@ -261,7 +261,7 @@ filter :: Int -> Int -> IO ()
 filter size start =
     drainTransformationDefault (size + start) (UF.filter (\_ -> True)) start
 
-{-# ANN filterM (PermitPatternMatches [''Int]) #-}
+{-# ANN filterM (PermitPatternMatches []) #-}
 {-# ANN filterM (PermitConstructions []) #-}
 {-# ANN filterM (PermitTypeClasses []) #-}
 {-# NOINLINE filterM #-}
@@ -275,7 +275,7 @@ filterM size start =
 -- Dropping one element from a large stream is dominated by generation, so
 -- instead exercise 'drop' ~value/2 times: generate value/2 two-element streams
 -- with 'fromTuple', 'drop' the first element of each, and flatten the rest.
-{-# ANN drop_One (PermitPatternMatches [''Int]) #-}
+{-# ANN drop_One (PermitPatternMatches []) #-}
 {-# ANN drop_One (PermitConstructions []) #-}
 {-# ANN drop_One (PermitTypeClasses []) #-}
 {-# NOINLINE drop_One #-}
@@ -284,7 +284,7 @@ drop_One value start =
     let outer = UF.map (\i -> (i, i)) (source (start + value `div` 2))
      in drainGeneration (UF.unfoldEach (UF.drop 1 UF.fromTuple) outer) start
 
-{-# ANN drop_All (PermitPatternMatches [''Int]) #-}
+{-# ANN drop_All (PermitPatternMatches []) #-}
 {-# ANN drop_All (PermitConstructions []) #-}
 {-# ANN drop_All (PermitTypeClasses []) #-}
 {-# NOINLINE drop_All #-}
@@ -292,7 +292,7 @@ drop_All :: Int -> Int -> IO ()
 drop_All size start =
     drainTransformationDefault (size + start) (UF.drop (size + 1)) start
 
-{-# ANN dropWhile_True (PermitPatternMatches [''Int]) #-}
+{-# ANN dropWhile_True (PermitPatternMatches []) #-}
 {-# ANN dropWhile_True (PermitConstructions []) #-}
 {-# ANN dropWhile_True (PermitTypeClasses []) #-}
 {-# NOINLINE dropWhile_True #-}
@@ -303,7 +303,7 @@ dropWhile_True size start =
         (UF.dropWhile (\_ -> True))
         start
 
-{-# ANN dropWhile_False (PermitPatternMatches [''Int]) #-}
+{-# ANN dropWhile_False (PermitPatternMatches []) #-}
 {-# ANN dropWhile_False (PermitConstructions []) #-}
 {-# ANN dropWhile_False (PermitTypeClasses []) #-}
 {-# NOINLINE dropWhile_False #-}
@@ -314,7 +314,7 @@ dropWhile_False size start =
         (UF.dropWhile (\_ -> False))
         start
 
-{-# ANN dropWhileM_True (PermitPatternMatches [''Int]) #-}
+{-# ANN dropWhileM_True (PermitPatternMatches []) #-}
 {-# ANN dropWhileM_True (PermitConstructions []) #-}
 {-# ANN dropWhileM_True (PermitTypeClasses []) #-}
 {-# NOINLINE dropWhileM_True #-}
@@ -325,7 +325,7 @@ dropWhileM_True size start =
         (UF.dropWhileM (\_ -> return True))
         start
 
-{-# ANN dropWhileM_False (PermitPatternMatches [''Int]) #-}
+{-# ANN dropWhileM_False (PermitPatternMatches []) #-}
 {-# ANN dropWhileM_False (PermitConstructions []) #-}
 {-# ANN dropWhileM_False (PermitTypeClasses []) #-}
 {-# NOINLINE dropWhileM_False #-}
@@ -336,7 +336,7 @@ dropWhileM_False size start =
         (UF.dropWhileM (\_ -> return False))
         start
 
-{-# ANN mapMaybe (PermitPatternMatches [''Int]) #-}
+{-# ANN mapMaybe (PermitPatternMatches []) #-}
 {-# ANN mapMaybe (PermitConstructions []) #-}
 {-# ANN mapMaybe (PermitTypeClasses []) #-}
 {-# NOINLINE mapMaybe #-}
@@ -344,7 +344,7 @@ mapMaybe :: Int -> Int -> IO ()
 mapMaybe size start =
     drainTransformationDefault (size + start) (UF.mapMaybe Just) start
 
-{-# ANN mapMaybeM (PermitPatternMatches [''Int]) #-}
+{-# ANN mapMaybeM (PermitPatternMatches []) #-}
 {-# ANN mapMaybeM (PermitConstructions []) #-}
 {-# ANN mapMaybeM (PermitTypeClasses []) #-}
 {-# NOINLINE mapMaybeM #-}
@@ -353,7 +353,7 @@ mapMaybeM size start =
     drainTransformationDefault (size + start) (UF.mapMaybeM (return . Just))
         start
 
-{-# ANN catMaybes (PermitPatternMatches [''Int]) #-}
+{-# ANN catMaybes (PermitPatternMatches []) #-}
 {-# ANN catMaybes (PermitConstructions []) #-}
 {-# ANN catMaybes (PermitTypeClasses []) #-}
 {-# NOINLINE catMaybes #-}
@@ -365,7 +365,7 @@ catMaybes size start =
 -- Stream combination
 -------------------------------------------------------------------------------
 
-{-# ANN either_Left (PermitPatternMatches [''Int]) #-}
+{-# ANN either_Left (PermitPatternMatches []) #-}
 {-# ANN either_Left (PermitConstructions []) #-}
 {-# ANN either_Left (PermitTypeClasses []) #-}
 {-# NOINLINE either_Left #-}
@@ -375,7 +375,7 @@ either_Left size start =
         (UF.either (source (size + start)) (source (size + start)))
         (Left start)
 
-{-# ANN zipRepeat (PermitPatternMatches [''Int]) #-}
+{-# ANN zipRepeat (PermitPatternMatches []) #-}
 {-# ANN zipRepeat (PermitConstructions []) #-}
 {-# ANN zipRepeat (PermitTypeClasses []) #-}
 {-# NOINLINE zipRepeat #-}
@@ -404,7 +404,7 @@ innerJoin value start =
 -- Resource management
 -------------------------------------------------------------------------------
 
-{-# ANN before (PermitPatternMatches [''Int]) #-}
+{-# ANN before (PermitPatternMatches []) #-}
 {-# ANN before (PermitConstructions []) #-}
 {-# ANN before (PermitTypeClasses []) #-}
 {-# NOINLINE before #-}
@@ -413,7 +413,7 @@ before size start =
     drainTransformationDefault (size + start) (UF.before (\_ -> return ()))
         start
 
-{-# ANN after_ (PermitPatternMatches [''Int]) #-}
+{-# ANN after_ (PermitPatternMatches []) #-}
 {-# ANN after_ (PermitConstructions []) #-}
 {-# ANN after_ (PermitTypeClasses []) #-}
 {-# NOINLINE after_ #-}
@@ -422,7 +422,7 @@ after_ size start =
     drainTransformationDefault (size + start) (UF.after_ (\_ -> return ()))
         start
 
-{-# ANN afterIO (PermitPatternMatches [''Maybe,''Int]) #-}
+{-# ANN afterIO (PermitPatternMatches [''Maybe]) #-}
 {-# ANN afterIO (PermitConstructions [''Maybe,''(),''STRef]) #-}
 {-# ANN afterIO (PermitTypeClasses []) #-}
 {-# NOINLINE afterIO #-}
@@ -434,9 +434,9 @@ afterIO size start =
         start
 
 {-# ANN finallyIO (PermitPatternMatches
-    [''Maybe,''S.Step,''EnumToState,''Int]) #-}
+    [''Maybe,''Step,''EnumToState,''Int]) #-}
 {-# ANN finallyIO (PermitConstructions
-    [''Int,''SrcLoc,''CallStack,''Maybe,''(),''S.Step,''EnumToState
+    [''Int,''SrcLoc,''CallStack,''Maybe,''(),''Step,''EnumToState
     ,''STRef]) #-}
 {-# ANN finallyIO (PermitTypeClasses [''IP,''MonadCatch]) #-}
 {-# NOINLINE finallyIO #-}
@@ -449,9 +449,9 @@ finallyIO size start =
         start
 
 {-# ANN bracketIO (PermitPatternMatches
-    [''Maybe,''STRef,''(,),''S.Step,''EnumToState,''Int]) #-}
+    [''Maybe,''STRef,''(,),''Step,''EnumToState,''Int]) #-}
 {-# ANN bracketIO (PermitConstructions
-    [''Int,''SrcLoc,''CallStack,''Maybe,''(),''S.Step,''EnumToState
+    [''Int,''SrcLoc,''CallStack,''Maybe,''(),''Step,''EnumToState
     ,''STRef,''(,)]) #-}
 {-# ANN bracketIO (PermitTypeClasses [''IP,''MonadCatch]) #-}
 {-# NOINLINE bracketIO #-}
@@ -493,10 +493,10 @@ moduleName = "Data.Unfold"
 
 -- | Send the file contents to /dev/null with exception handling
 {-# ANN onException_CopyFileChunks (PermitPatternMatches
-    [''UnsafeEquality,''IO,''Int,''[],''Array,''S.Step]) #-}
+    [''UnsafeEquality,''IO,''Int,''[],''Array,''Step]) #-}
 {-# ANN onException_CopyFileChunks (PermitConstructions
     [''Int,''SrcLoc,''[],''CallStack,''Array,''Ptr,''Bool,''PinnedState
-    ,''S.Step]) #-}
+    ,''Step]) #-}
 {-# ANN onException_CopyFileChunks (PermitTypeClasses [''IP,''MonadCatch]) #-}
 {-# NOINLINE onException_CopyFileChunks #-}
 onException_CopyFileChunks :: Handle -> Handle -> IO ()
@@ -506,10 +506,10 @@ onException_CopyFileChunks inh devNull =
 
 -- | Send the file contents to /dev/null with exception handling
 {-# ANN bracket__CopyFileChunks (PermitPatternMatches
-    [''UnsafeEquality,''IO,''Int,''[],''Array,''S.Step]) #-}
+    [''UnsafeEquality,''IO,''Int,''[],''Array,''Step]) #-}
 {-# ANN bracket__CopyFileChunks (PermitConstructions
     [''Int,''SrcLoc,''[],''CallStack,''Array,''Ptr,''Bool,''PinnedState
-    ,''S.Step]) #-}
+    ,''Step]) #-}
 {-# ANN bracket__CopyFileChunks (PermitTypeClasses [''IP,''MonadCatch]) #-}
 {-# NOINLINE bracket__CopyFileChunks #-}
 bracket__CopyFileChunks :: Handle -> Handle -> IO ()
@@ -520,9 +520,9 @@ bracket__CopyFileChunks inh devNull =
 -- | Send the file contents to /dev/null with exception handling
 {-# ANN onException_CopyFileBytes (PermitPatternMatches
     [''UnsafeEquality,''Word8,''IO,''Int,''[],''Array,''ArrayUnsafe
-    ,''ConcatState,''S.Step]) #-}
+    ,''ConcatState,''Step]) #-}
 {-# ANN onException_CopyFileBytes (PermitConstructions
-    [''Int,''SrcLoc,''[],''CallStack,''Array,''S.Step,''ConcatState
+    [''Int,''SrcLoc,''[],''CallStack,''Array,''Step,''ConcatState
     ,''ArrayUnsafe,''Word8,''(),''Ptr,''Bool,''PinnedState]) #-}
 {-# ANN onException_CopyFileBytes (PermitTypeClasses [''IP,''MonadCatch]) #-}
 {-# NOINLINE onException_CopyFileBytes #-}
@@ -534,9 +534,9 @@ onException_CopyFileBytes inh devNull =
 -- | Send the file contents to /dev/null with exception handling
 {-# ANN handle_CopyFileBytes (PermitPatternMatches
     [''Either,''UnsafeEquality,''Word8,''IO,''Int,''[],''Array
-    ,''ArrayUnsafe,''ConcatState,''S.Step]) #-}
+    ,''ArrayUnsafe,''ConcatState,''Step]) #-}
 {-# ANN handle_CopyFileBytes (PermitConstructions
-    [''Int,''SrcLoc,''[],''CallStack,''Array,''S.Step,''ConcatState
+    [''Int,''SrcLoc,''[],''CallStack,''Array,''Step,''ConcatState
     ,''ArrayUnsafe,''Word8,''(),''Ptr,''Bool,''PinnedState]) #-}
 {-# ANN handle_CopyFileBytes (PermitTypeClasses
     [''IP,''MonadCatch,''Exception]) #-}
@@ -550,9 +550,9 @@ handle_CopyFileBytes inh devNull =
 -- | Send the file contents to /dev/null with exception handling
 {-# ANN finally__CopyFileBytes (PermitPatternMatches
     [''UnsafeEquality,''Word8,''IO,''Int,''[],''Array,''ArrayUnsafe
-    ,''ConcatState,''S.Step]) #-}
+    ,''ConcatState,''Step]) #-}
 {-# ANN finally__CopyFileBytes (PermitConstructions
-    [''Int,''SrcLoc,''[],''CallStack,''Array,''S.Step,''ConcatState
+    [''Int,''SrcLoc,''[],''CallStack,''Array,''Step,''ConcatState
     ,''ArrayUnsafe,''Word8,''(),''Ptr,''Bool,''PinnedState]) #-}
 {-# ANN finally__CopyFileBytes (PermitTypeClasses [''IP,''MonadCatch]) #-}
 {-# NOINLINE finally__CopyFileBytes #-}
@@ -564,9 +564,9 @@ finally__CopyFileBytes inh devNull =
 -- | Send the file contents to /dev/null with exception handling
 {-# ANN bracket__CopyFileBytes (PermitPatternMatches
     [''UnsafeEquality,''Word8,''IO,''Int,''[],''Array,''ArrayUnsafe
-    ,''ConcatState,''S.Step]) #-}
+    ,''ConcatState,''Step]) #-}
 {-# ANN bracket__CopyFileBytes (PermitConstructions
-    [''Int,''SrcLoc,''[],''CallStack,''Array,''S.Step,''ConcatState
+    [''Int,''SrcLoc,''[],''CallStack,''Array,''Step,''ConcatState
     ,''ArrayUnsafe,''Word8,''(),''Ptr,''Bool,''PinnedState]) #-}
 {-# ANN bracket__CopyFileBytes (PermitTypeClasses [''IP,''MonadCatch]) #-}
 {-# NOINLINE bracket__CopyFileBytes #-}

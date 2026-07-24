@@ -30,7 +30,7 @@ import GHC.Types (SPEC(..))
 import Control.DeepSeq (NFData(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import GHC.Generics (Generic)
-import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Internal.Data.Stream (Stream, Step, DropWhileState, ScanState)
 
 import qualified Stream.Common as Common
 import qualified Streamly.Internal.Data.Fold as FL
@@ -41,7 +41,7 @@ import qualified Streamly.Internal.Data.Stream as Stream
 import Test.Tasty.Bench
 import Streamly.Benchmark.Common
 import Fusion.Plugin.Types
-import qualified Streamly.Internal.Data.SVar.Type as SVar
+import Streamly.Internal.Data.SVar.Type (State)
 import Stream.Common hiding (benchIO)
 import Stream.Type (benchIO, withStream)
 import Prelude hiding (tail)
@@ -70,8 +70,8 @@ iterateSource g count len n = f count (sourceUnfoldrM len n)
 scanl'_fmap :: MonadIO m => Int -> Stream m Int -> m ()
 scanl'_fmap n = composeN n $ fmap (subtract 1) . Common.scanl' (+) 0
 
-{-# ANN scanl'_fmap_x1 (PermitPatternMatches [''Int]) #-}
-{-# ANN scanl'_fmap_x1 (PermitConstructions [''()]) #-}
+{-# ANN scanl'_fmap_x1 (PermitPatternMatches []) #-}
+{-# ANN scanl'_fmap_x1 (PermitConstructions []) #-}
 {-# ANN scanl'_fmap_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE scanl'_fmap_x1 #-}
 scanl'_fmap_x1 :: Int -> Int -> IO ()
@@ -85,8 +85,8 @@ inspect $ 'scanl'_fmap_x1 `hasNoType` ''FL.Step
 inspect $ 'scanl'_fmap_x1 `hasNoType` ''SPEC
 #endif
 
-{-# ANN scanl'_fmap_x2 (PermitPatternMatches [''Int]) #-}
-{-# ANN scanl'_fmap_x2 (PermitConstructions [''()]) #-}
+{-# ANN scanl'_fmap_x2 (PermitPatternMatches []) #-}
+{-# ANN scanl'_fmap_x2 (PermitConstructions []) #-}
 {-# ANN scanl'_fmap_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE scanl'_fmap_x2 #-}
 scanl'_fmap_x2 :: Int -> Int -> IO ()
@@ -100,8 +100,8 @@ inspect $ 'scanl'_fmap_x2 `hasNoType` ''FL.Step
 inspect $ 'scanl'_fmap_x2 `hasNoType` ''SPEC
 #endif
 
-{-# ANN scanl'_fmap_x4 (PermitPatternMatches [''Int]) #-}
-{-# ANN scanl'_fmap_x4 (PermitConstructions [''()]) #-}
+{-# ANN scanl'_fmap_x4 (PermitPatternMatches []) #-}
+{-# ANN scanl'_fmap_x4 (PermitConstructions []) #-}
 {-# ANN scanl'_fmap_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE scanl'_fmap_x4 #-}
 scanl'_fmap_x4 :: Int -> Int -> IO ()
@@ -119,8 +119,8 @@ inspect $ 'scanl'_fmap_x4 `hasNoType` ''SPEC
 drop_fmap :: MonadIO m => Int -> Stream m Int -> m ()
 drop_fmap n = composeN n $ fmap (subtract 1) . S.drop 1
 
-{-# ANN drop_fmap_x1 (PermitPatternMatches [''Int]) #-}
-{-# ANN drop_fmap_x1 (PermitConstructions [''()]) #-}
+{-# ANN drop_fmap_x1 (PermitPatternMatches []) #-}
+{-# ANN drop_fmap_x1 (PermitConstructions []) #-}
 {-# ANN drop_fmap_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE drop_fmap_x1 #-}
 drop_fmap_x1 :: Int -> Int -> IO ()
@@ -133,8 +133,8 @@ inspect $ 'drop_fmap_x1 `hasNoType` ''FL.Step
 inspect $ 'drop_fmap_x1 `hasNoType` ''SPEC
 #endif
 
-{-# ANN drop_fmap_x2 (PermitPatternMatches [''Int]) #-}
-{-# ANN drop_fmap_x2 (PermitConstructions [''()]) #-}
+{-# ANN drop_fmap_x2 (PermitPatternMatches []) #-}
+{-# ANN drop_fmap_x2 (PermitConstructions []) #-}
 {-# ANN drop_fmap_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE drop_fmap_x2 #-}
 drop_fmap_x2 :: Int -> Int -> IO ()
@@ -147,8 +147,8 @@ inspect $ 'drop_fmap_x2 `hasNoType` ''FL.Step
 inspect $ 'drop_fmap_x2 `hasNoType` ''SPEC
 #endif
 
-{-# ANN drop_fmap_x4 (PermitPatternMatches [''Int]) #-}
-{-# ANN drop_fmap_x4 (PermitConstructions [''()]) #-}
+{-# ANN drop_fmap_x4 (PermitPatternMatches []) #-}
+{-# ANN drop_fmap_x4 (PermitConstructions []) #-}
 {-# ANN drop_fmap_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE drop_fmap_x4 #-}
 drop_fmap_x4 :: Int -> Int -> IO ()
@@ -165,8 +165,8 @@ inspect $ 'drop_fmap_x4 `hasNoType` ''SPEC
 drop_scanl' :: MonadIO m => Int -> Stream m Int -> m ()
 drop_scanl' n = composeN n $ Common.scanl' (+) 0 . S.drop 1
 
-{-# ANN drop_scanl'_x1 (PermitPatternMatches [''Int]) #-}
-{-# ANN drop_scanl'_x1 (PermitConstructions [''()]) #-}
+{-# ANN drop_scanl'_x1 (PermitPatternMatches []) #-}
+{-# ANN drop_scanl'_x1 (PermitConstructions []) #-}
 {-# ANN drop_scanl'_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE drop_scanl'_x1 #-}
 drop_scanl'_x1 :: Int -> Int -> IO ()
@@ -180,8 +180,8 @@ inspect $ 'drop_scanl'_x1 `hasNoType` ''FL.Step
 inspect $ 'drop_scanl'_x1 `hasNoType` ''SPEC
 #endif
 
-{-# ANN drop_scanl'_x2 (PermitPatternMatches [''Int]) #-}
-{-# ANN drop_scanl'_x2 (PermitConstructions [''()]) #-}
+{-# ANN drop_scanl'_x2 (PermitPatternMatches []) #-}
+{-# ANN drop_scanl'_x2 (PermitConstructions []) #-}
 {-# ANN drop_scanl'_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE drop_scanl'_x2 #-}
 drop_scanl'_x2 :: Int -> Int -> IO ()
@@ -195,8 +195,8 @@ inspect $ 'drop_scanl'_x2 `hasNoType` ''FL.Step
 inspect $ 'drop_scanl'_x2 `hasNoType` ''SPEC
 #endif
 
-{-# ANN drop_scanl'_x4 (PermitPatternMatches [''Int]) #-}
-{-# ANN drop_scanl'_x4 (PermitConstructions [''()]) #-}
+{-# ANN drop_scanl'_x4 (PermitPatternMatches []) #-}
+{-# ANN drop_scanl'_x4 (PermitConstructions []) #-}
 {-# ANN drop_scanl'_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE drop_scanl'_x4 #-}
 drop_scanl'_x4 :: Int -> Int -> IO ()
@@ -214,8 +214,8 @@ inspect $ 'drop_scanl'_x4 `hasNoType` ''SPEC
 take_drop :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 take_drop value n = composeN n $ S.drop 1 . S.take (value + 1)
 
-{-# ANN take_drop_x1 (PermitPatternMatches [''Int]) #-}
-{-# ANN take_drop_x1 (PermitConstructions [''()]) #-}
+{-# ANN take_drop_x1 (PermitPatternMatches []) #-}
+{-# ANN take_drop_x1 (PermitConstructions []) #-}
 {-# ANN take_drop_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE take_drop_x1 #-}
 take_drop_x1 :: Int -> Int -> IO ()
@@ -228,8 +228,8 @@ inspect $ 'take_drop_x1 `hasNoType` ''FL.Step
 inspect $ 'take_drop_x1 `hasNoType` ''SPEC
 #endif
 
-{-# ANN take_drop_x2 (PermitPatternMatches [''Int]) #-}
-{-# ANN take_drop_x2 (PermitConstructions [''()]) #-}
+{-# ANN take_drop_x2 (PermitPatternMatches []) #-}
+{-# ANN take_drop_x2 (PermitConstructions []) #-}
 {-# ANN take_drop_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE take_drop_x2 #-}
 take_drop_x2 :: Int -> Int -> IO ()
@@ -242,8 +242,8 @@ inspect $ 'take_drop_x2 `hasNoType` ''FL.Step
 inspect $ 'take_drop_x2 `hasNoType` ''SPEC
 #endif
 
-{-# ANN take_drop_x4 (PermitPatternMatches [''Int]) #-}
-{-# ANN take_drop_x4 (PermitConstructions [''()]) #-}
+{-# ANN take_drop_x4 (PermitPatternMatches []) #-}
+{-# ANN take_drop_x4 (PermitConstructions []) #-}
 {-# ANN take_drop_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE take_drop_x4 #-}
 take_drop_x4 :: Int -> Int -> IO ()
@@ -260,8 +260,8 @@ inspect $ 'take_drop_x4 `hasNoType` ''SPEC
 take_scanl' :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 take_scanl' value n = composeN n $ Common.scanl' (+) 0 . S.take (value + 1)
 
-{-# ANN take_scanl'_x1 (PermitPatternMatches [''Int]) #-}
-{-# ANN take_scanl'_x1 (PermitConstructions [''()]) #-}
+{-# ANN take_scanl'_x1 (PermitPatternMatches []) #-}
+{-# ANN take_scanl'_x1 (PermitConstructions []) #-}
 {-# ANN take_scanl'_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE take_scanl'_x1 #-}
 take_scanl'_x1 :: Int -> Int -> IO ()
@@ -275,8 +275,8 @@ inspect $ 'take_scanl'_x1 `hasNoType` ''FL.Step
 inspect $ 'take_scanl'_x1 `hasNoType` ''SPEC
 #endif
 
-{-# ANN take_scanl'_x2 (PermitPatternMatches [''Int]) #-}
-{-# ANN take_scanl'_x2 (PermitConstructions [''()]) #-}
+{-# ANN take_scanl'_x2 (PermitPatternMatches []) #-}
+{-# ANN take_scanl'_x2 (PermitConstructions []) #-}
 {-# ANN take_scanl'_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE take_scanl'_x2 #-}
 take_scanl'_x2 :: Int -> Int -> IO ()
@@ -290,8 +290,8 @@ inspect $ 'take_scanl'_x2 `hasNoType` ''FL.Step
 inspect $ 'take_scanl'_x2 `hasNoType` ''SPEC
 #endif
 
-{-# ANN take_scanl'_x4 (PermitPatternMatches [''Int]) #-}
-{-# ANN take_scanl'_x4 (PermitConstructions [''()]) #-}
+{-# ANN take_scanl'_x4 (PermitPatternMatches []) #-}
+{-# ANN take_scanl'_x4 (PermitConstructions []) #-}
 {-# ANN take_scanl'_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE take_scanl'_x4 #-}
 take_scanl'_x4 :: Int -> Int -> IO ()
@@ -309,8 +309,8 @@ inspect $ 'take_scanl'_x4 `hasNoType` ''SPEC
 take_fmap :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 take_fmap value n = composeN n $ fmap (subtract 1) . S.take (value + 1)
 
-{-# ANN take_fmap_x1 (PermitPatternMatches [''Int]) #-}
-{-# ANN take_fmap_x1 (PermitConstructions [''()]) #-}
+{-# ANN take_fmap_x1 (PermitPatternMatches []) #-}
+{-# ANN take_fmap_x1 (PermitConstructions []) #-}
 {-# ANN take_fmap_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE take_fmap_x1 #-}
 take_fmap_x1 :: Int -> Int -> IO ()
@@ -323,8 +323,8 @@ inspect $ 'take_fmap_x1 `hasNoType` ''FL.Step
 inspect $ 'take_fmap_x1 `hasNoType` ''SPEC
 #endif
 
-{-# ANN take_fmap_x2 (PermitPatternMatches [''Int]) #-}
-{-# ANN take_fmap_x2 (PermitConstructions [''()]) #-}
+{-# ANN take_fmap_x2 (PermitPatternMatches []) #-}
+{-# ANN take_fmap_x2 (PermitConstructions []) #-}
 {-# ANN take_fmap_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE take_fmap_x2 #-}
 take_fmap_x2 :: Int -> Int -> IO ()
@@ -337,8 +337,8 @@ inspect $ 'take_fmap_x2 `hasNoType` ''FL.Step
 inspect $ 'take_fmap_x2 `hasNoType` ''SPEC
 #endif
 
-{-# ANN take_fmap_x4 (PermitPatternMatches [''Int]) #-}
-{-# ANN take_fmap_x4 (PermitConstructions [''()]) #-}
+{-# ANN take_fmap_x4 (PermitPatternMatches []) #-}
+{-# ANN take_fmap_x4 (PermitConstructions []) #-}
 {-# ANN take_fmap_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE take_fmap_x4 #-}
 take_fmap_x4 :: Int -> Int -> IO ()
@@ -355,8 +355,8 @@ inspect $ 'take_fmap_x4 `hasNoType` ''SPEC
 filter_drop :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 filter_drop value n = composeN n $ S.drop 1 . S.filter (<= (value + 1))
 
-{-# ANN filter_drop_x1 (PermitPatternMatches [''Int]) #-}
-{-# ANN filter_drop_x1 (PermitConstructions [''()]) #-}
+{-# ANN filter_drop_x1 (PermitPatternMatches []) #-}
+{-# ANN filter_drop_x1 (PermitConstructions []) #-}
 {-# ANN filter_drop_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE filter_drop_x1 #-}
 filter_drop_x1 :: Int -> Int -> IO ()
@@ -369,8 +369,8 @@ inspect $ 'filter_drop_x1 `hasNoType` ''FL.Step
 inspect $ 'filter_drop_x1 `hasNoType` ''SPEC
 #endif
 
-{-# ANN filter_drop_x2 (PermitPatternMatches [''Int]) #-}
-{-# ANN filter_drop_x2 (PermitConstructions [''()]) #-}
+{-# ANN filter_drop_x2 (PermitPatternMatches []) #-}
+{-# ANN filter_drop_x2 (PermitConstructions []) #-}
 {-# ANN filter_drop_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE filter_drop_x2 #-}
 filter_drop_x2 :: Int -> Int -> IO ()
@@ -383,8 +383,8 @@ inspect $ 'filter_drop_x2 `hasNoType` ''FL.Step
 inspect $ 'filter_drop_x2 `hasNoType` ''SPEC
 #endif
 
-{-# ANN filter_drop_x4 (PermitPatternMatches [''Int]) #-}
-{-# ANN filter_drop_x4 (PermitConstructions [''()]) #-}
+{-# ANN filter_drop_x4 (PermitPatternMatches []) #-}
+{-# ANN filter_drop_x4 (PermitConstructions []) #-}
 {-# ANN filter_drop_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE filter_drop_x4 #-}
 filter_drop_x4 :: Int -> Int -> IO ()
@@ -402,8 +402,8 @@ filter_take :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 filter_take value n =
     composeN n $ S.take (value + 1) . S.filter (<= (value + 1))
 
-{-# ANN filter_take_x1 (PermitPatternMatches [''Int]) #-}
-{-# ANN filter_take_x1 (PermitConstructions [''()]) #-}
+{-# ANN filter_take_x1 (PermitPatternMatches []) #-}
+{-# ANN filter_take_x1 (PermitConstructions []) #-}
 {-# ANN filter_take_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE filter_take_x1 #-}
 filter_take_x1 :: Int -> Int -> IO ()
@@ -416,8 +416,8 @@ inspect $ 'filter_take_x1 `hasNoType` ''FL.Step
 inspect $ 'filter_take_x1 `hasNoType` ''SPEC
 #endif
 
-{-# ANN filter_take_x2 (PermitPatternMatches [''Int]) #-}
-{-# ANN filter_take_x2 (PermitConstructions [''()]) #-}
+{-# ANN filter_take_x2 (PermitPatternMatches []) #-}
+{-# ANN filter_take_x2 (PermitConstructions []) #-}
 {-# ANN filter_take_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE filter_take_x2 #-}
 filter_take_x2 :: Int -> Int -> IO ()
@@ -430,8 +430,8 @@ inspect $ 'filter_take_x2 `hasNoType` ''FL.Step
 inspect $ 'filter_take_x2 `hasNoType` ''SPEC
 #endif
 
-{-# ANN filter_take_x4 (PermitPatternMatches [''Int]) #-}
-{-# ANN filter_take_x4 (PermitConstructions [''()]) #-}
+{-# ANN filter_take_x4 (PermitPatternMatches []) #-}
+{-# ANN filter_take_x4 (PermitConstructions []) #-}
 {-# ANN filter_take_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE filter_take_x4 #-}
 filter_take_x4 :: Int -> Int -> IO ()
@@ -448,8 +448,8 @@ inspect $ 'filter_take_x4 `hasNoType` ''SPEC
 filter_scanl' :: MonadIO m => Int -> Stream m Int -> m ()
 filter_scanl' n = composeN n $ Common.scanl' (+) 0 . S.filter (<= maxBound)
 
-{-# ANN filter_scanl'_x1 (PermitPatternMatches [''Int]) #-}
-{-# ANN filter_scanl'_x1 (PermitConstructions [''()]) #-}
+{-# ANN filter_scanl'_x1 (PermitPatternMatches []) #-}
+{-# ANN filter_scanl'_x1 (PermitConstructions []) #-}
 {-# ANN filter_scanl'_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE filter_scanl'_x1 #-}
 filter_scanl'_x1 :: Int -> Int -> IO ()
@@ -463,8 +463,8 @@ inspect $ 'filter_scanl'_x1 `hasNoType` ''FL.Step
 inspect $ 'filter_scanl'_x1 `hasNoType` ''SPEC
 #endif
 
-{-# ANN filter_scanl'_x2 (PermitPatternMatches [''Int]) #-}
-{-# ANN filter_scanl'_x2 (PermitConstructions [''()]) #-}
+{-# ANN filter_scanl'_x2 (PermitPatternMatches []) #-}
+{-# ANN filter_scanl'_x2 (PermitConstructions []) #-}
 {-# ANN filter_scanl'_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE filter_scanl'_x2 #-}
 filter_scanl'_x2 :: Int -> Int -> IO ()
@@ -478,8 +478,8 @@ inspect $ 'filter_scanl'_x2 `hasNoType` ''FL.Step
 inspect $ 'filter_scanl'_x2 `hasNoType` ''SPEC
 #endif
 
-{-# ANN filter_scanl'_x4 (PermitPatternMatches [''Int]) #-}
-{-# ANN filter_scanl'_x4 (PermitConstructions [''()]) #-}
+{-# ANN filter_scanl'_x4 (PermitPatternMatches []) #-}
+{-# ANN filter_scanl'_x4 (PermitConstructions []) #-}
 {-# ANN filter_scanl'_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE filter_scanl'_x4 #-}
 filter_scanl'_x4 :: Int -> Int -> IO ()
@@ -497,8 +497,8 @@ inspect $ 'filter_scanl'_x4 `hasNoType` ''SPEC
 filter_scanl1' :: MonadIO m => Int -> Stream m Int -> m ()
 filter_scanl1' n = composeN n $ S.scanl1' (+) . S.filter (<= maxBound)
 
-{-# ANN filter_scanl1'_x2 (PermitPatternMatches [''Int]) #-}
-{-# ANN filter_scanl1'_x2 (PermitConstructions [''()]) #-}
+{-# ANN filter_scanl1'_x2 (PermitPatternMatches []) #-}
+{-# ANN filter_scanl1'_x2 (PermitConstructions []) #-}
 {-# ANN filter_scanl1'_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE filter_scanl1'_x2 #-}
 filter_scanl1'_x2 :: Int -> Int -> IO ()
@@ -512,8 +512,8 @@ inspect $ 'filter_scanl1'_x2 `hasNoType` ''FL.Step
 inspect $ 'filter_scanl1'_x2 `hasNoType` ''SPEC
 #endif
 
-{-# ANN filter_scanl1'_x4 (PermitPatternMatches [''Int]) #-}
-{-# ANN filter_scanl1'_x4 (PermitConstructions [''()]) #-}
+{-# ANN filter_scanl1'_x4 (PermitPatternMatches []) #-}
+{-# ANN filter_scanl1'_x4 (PermitConstructions []) #-}
 {-# ANN filter_scanl1'_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE filter_scanl1'_x4 #-}
 filter_scanl1'_x4 :: Int -> Int -> IO ()
@@ -531,8 +531,8 @@ inspect $ 'filter_scanl1'_x4 `hasNoType` ''SPEC
 filter_fmap :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 filter_fmap value n = composeN n $ fmap (subtract 1) . S.filter (<= (value + 1))
 
-{-# ANN filter_fmap_x1 (PermitPatternMatches [''Int]) #-}
-{-# ANN filter_fmap_x1 (PermitConstructions [''()]) #-}
+{-# ANN filter_fmap_x1 (PermitPatternMatches []) #-}
+{-# ANN filter_fmap_x1 (PermitConstructions []) #-}
 {-# ANN filter_fmap_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE filter_fmap_x1 #-}
 filter_fmap_x1 :: Int -> Int -> IO ()
@@ -545,8 +545,8 @@ inspect $ 'filter_fmap_x1 `hasNoType` ''FL.Step
 inspect $ 'filter_fmap_x1 `hasNoType` ''SPEC
 #endif
 
-{-# ANN filter_fmap_x2 (PermitPatternMatches [''Int]) #-}
-{-# ANN filter_fmap_x2 (PermitConstructions [''()]) #-}
+{-# ANN filter_fmap_x2 (PermitPatternMatches []) #-}
+{-# ANN filter_fmap_x2 (PermitConstructions []) #-}
 {-# ANN filter_fmap_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE filter_fmap_x2 #-}
 filter_fmap_x2 :: Int -> Int -> IO ()
@@ -559,8 +559,8 @@ inspect $ 'filter_fmap_x2 `hasNoType` ''FL.Step
 inspect $ 'filter_fmap_x2 `hasNoType` ''SPEC
 #endif
 
-{-# ANN filter_fmap_x4 (PermitPatternMatches [''Int]) #-}
-{-# ANN filter_fmap_x4 (PermitConstructions [''()]) #-}
+{-# ANN filter_fmap_x4 (PermitPatternMatches []) #-}
+{-# ANN filter_fmap_x4 (PermitConstructions []) #-}
 {-# ANN filter_fmap_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE filter_fmap_x4 #-}
 filter_fmap_x4 :: Int -> Int -> IO ()
@@ -581,7 +581,7 @@ data Pair a b =
     Pair !a !b
     deriving (Generic, NFData)
 
-{-# ANN foldl'_SumProduct (PermitPatternMatches [''Int]) #-}
+{-# ANN foldl'_SumProduct (PermitPatternMatches []) #-}
 {-# ANN foldl'_SumProduct (PermitConstructions [''Pair,''Int]) #-}
 {-# ANN foldl'_SumProduct (PermitTypeClasses []) #-}
 {-# NOINLINE foldl'_SumProduct #-}
@@ -597,7 +597,7 @@ inspect $ 'foldl'_SumProduct `hasNoType` ''FL.Step
 inspect $ 'foldl'_SumProduct `hasNoType` ''SPEC
 #endif
 
-{-# ANN scanl'_foldl'_SumProduct (PermitPatternMatches [''Int]) #-}
+{-# ANN scanl'_foldl'_SumProduct (PermitPatternMatches []) #-}
 {-# ANN scanl'_foldl'_SumProduct (PermitConstructions [''Int,''Pair]) #-}
 {-# ANN scanl'_foldl'_SumProduct (PermitTypeClasses []) #-}
 {-# NOINLINE scanl'_foldl'_SumProduct #-}
@@ -615,7 +615,7 @@ inspect $ 'scanl'_foldl'_SumProduct `hasNoType` ''FL.Step
 inspect $ 'scanl'_foldl'_SumProduct `hasNoType` ''SPEC
 #endif
 
-{-# ANN foldl'_fmap (PermitPatternMatches [''Int]) #-}
+{-# ANN foldl'_fmap (PermitPatternMatches []) #-}
 {-# ANN foldl'_fmap (PermitConstructions [''Int]) #-}
 {-# ANN foldl'_fmap (PermitTypeClasses []) #-}
 {-# NOINLINE foldl'_fmap #-}
@@ -635,9 +635,9 @@ inspect $ 'foldl'_fmap `hasNoType` ''SPEC
 
 -- this is quadratic
 {-# ANN scanl'_Iterated (PermitPatternMatches
-    [''Int,''Stream.Step,''Stream.ScanState,''Stream,''SVar.State]) #-}
+    [''Int,''Step,''ScanState,''Stream,''State]) #-}
 {-# ANN scanl'_Iterated (PermitConstructions
-    [''Int,''Stream,''Stream.ScanState,''Stream.Step,''SVar.State,''Maybe
+    [''Int,''Stream,''ScanState,''Step,''State,''Maybe
     ,''(),''Bool]) #-}
 {-# ANN scanl'_Iterated (PermitTypeClasses []) #-}
 {-# NOINLINE scanl'_Iterated #-}
@@ -648,9 +648,9 @@ scanl'_Iterated value iterCount =
 
 -- this is quadratic
 {-# ANN scanl1'_Iterated (PermitPatternMatches
-    [''Maybe,''(,),''Int,''Stream.Step,''Stream,''SVar.State]) #-}
+    [''Maybe,''(,),''Int,''Step,''Stream,''State]) #-}
 {-# ANN scanl1'_Iterated (PermitConstructions
-    [''Int,''Maybe,''Stream,''(,),''Stream.Step,''SVar.State,''(),''Bool]) #-}
+    [''Int,''Maybe,''Stream,''(,),''Step,''State,''(),''Bool]) #-}
 {-# ANN scanl1'_Iterated (PermitTypeClasses []) #-}
 {-# NOINLINE scanl1'_Iterated #-}
 scanl1'_Iterated :: Int -> Int -> Int -> IO ()
@@ -659,9 +659,9 @@ scanl1'_Iterated value iterCount =
         iterCount
 
 {-# ANN mapM_Iterated (PermitPatternMatches
-    [''Int,''Stream.Step,''Stream,''SVar.State]) #-}
+    [''Int,''Step,''Stream,''State]) #-}
 {-# ANN mapM_Iterated (PermitConstructions
-    [''Int,''Stream,''SVar.State,''Maybe,''Stream.Step,''(),''Bool]) #-}
+    [''Int,''Stream,''State,''Maybe,''Step,''(),''Bool]) #-}
 {-# ANN mapM_Iterated (PermitTypeClasses []) #-}
 {-# NOINLINE mapM_Iterated #-}
 mapM_Iterated :: Int -> Int -> Int -> IO ()
@@ -670,9 +670,9 @@ mapM_Iterated value iterCount =
         iterCount
 
 {-# ANN filter_Even_Iterated (PermitPatternMatches
-    [''Int,''Stream.Step,''Stream,''SVar.State]) #-}
+    [''Int,''Step,''Stream,''State]) #-}
 {-# ANN filter_Even_Iterated (PermitConstructions
-    [''Int,''Stream.Step,''Stream,''SVar.State,''Maybe,''(),''Bool]) #-}
+    [''Int,''Step,''Stream,''State,''Maybe,''(),''Bool]) #-}
 {-# ANN filter_Even_Iterated (PermitTypeClasses []) #-}
 {-# NOINLINE filter_Even_Iterated #-}
 filter_Even_Iterated :: Int -> Int -> Int -> IO ()
@@ -681,9 +681,9 @@ filter_Even_Iterated value iterCount =
         iterCount
 
 {-# ANN take_All_Iterated (PermitPatternMatches
-    [''(,),''Int,''Stream.Step,''SVar.State]) #-}
+    [''(,),''Int,''Step,''State]) #-}
 {-# ANN take_All_Iterated (PermitConstructions
-    [''Int,''SVar.State,''Maybe,''Stream.Step,''(,),''(),''Bool]) #-}
+    [''Int,''State,''Maybe,''Step,''(,),''(),''Bool]) #-}
 {-# ANN take_All_Iterated (PermitTypeClasses []) #-}
 {-# NOINLINE take_All_Iterated #-}
 take_All_Iterated :: Int -> Int -> Int -> IO ()
@@ -692,9 +692,9 @@ take_All_Iterated value iterCount =
         iterCount
 
 {-# ANN drop_One_Iterated (PermitPatternMatches
-    [''Maybe,''(,),''Bool,''Int,''Stream.Step,''Stream,''SVar.State]) #-}
+    [''Maybe,''(,),''Bool,''Int,''Step,''Stream,''State]) #-}
 {-# ANN drop_One_Iterated (PermitConstructions
-    [''Int,''Integer,''Maybe,''Stream,''(,),''Stream.Step,''SVar.State
+    [''Int,''Integer,''Maybe,''Stream,''(,),''Step,''State
     ,''(),''Bool]) #-}
 {-# ANN drop_One_Iterated (PermitTypeClasses [''Ord,''Num]) #-}
 {-# NOINLINE drop_One_Iterated #-}
@@ -703,9 +703,9 @@ drop_One_Iterated value iterCount =
     Common.drain . iterateSource (S.drop 1) (value `div` iterCount) iterCount
 
 {-# ANN dropWhile_True_Iterated (PermitPatternMatches
-    [''Int,''Stream.Step,''Stream.DropWhileState,''SVar.State]) #-}
+    [''Int,''Step,''DropWhileState,''State]) #-}
 {-# ANN dropWhile_True_Iterated (PermitConstructions
-    [''Int,''SVar.State,''Maybe,''Stream.Step,''Stream.DropWhileState,''()
+    [''Int,''State,''Maybe,''Step,''DropWhileState,''()
     ,''Bool]) #-}
 {-# ANN dropWhile_True_Iterated (PermitTypeClasses []) #-}
 {-# NOINLINE dropWhile_True_Iterated #-}
@@ -766,18 +766,18 @@ ioAction_Iterated value i0 =
     iterateN (\i acc -> acc >>= \n -> return $ i + n) (return i0) value
 
 {-# ANN submap_Iterated (PermitPatternMatches
-    [''Bool,''Int,''Stream.Step,''Stream,''SVar.State]) #-}
+    [''Bool,''Step,''Stream,''State]) #-}
 {-# ANN submap_Iterated (PermitConstructions
-    [''Int,''Stream.Step,''Stream,''SVar.State,''Maybe,''Bool]) #-}
+    [''Int,''Step,''Stream,''State,''Maybe,''Bool]) #-}
 {-# ANN submap_Iterated (PermitTypeClasses []) #-}
 {-# NOINLINE submap_Iterated #-}
 submap_Iterated :: Int -> Int -> IO ()
 submap_Iterated value = drain . iterateSingleton (<$) value
 
 {-# ANN fmap_Iterated (PermitPatternMatches
-    [''Int,''Stream.Step,''Stream,''SVar.State,''Bool]) #-}
+    [''Int,''Step,''Stream,''State,''Bool]) #-}
 {-# ANN fmap_Iterated (PermitConstructions
-    [''Int,''Stream.Step,''Stream,''SVar.State,''Maybe,''Bool]) #-}
+    [''Int,''Step,''Stream,''State,''Maybe,''Bool]) #-}
 {-# ANN fmap_Iterated (PermitTypeClasses []) #-}
 {-# NOINLINE fmap_Iterated #-}
 fmap_Iterated :: Int -> Int -> IO ()

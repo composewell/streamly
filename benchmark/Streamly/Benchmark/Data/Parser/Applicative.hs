@@ -33,7 +33,10 @@ import Control.DeepSeq (NFData(..))
 import GHC.Classes (IP)
 import GHC.Stack (CallStack, SrcLoc)
 import GHC.Types (SPEC(..))
-import Streamly.Internal.Data.Parser (ParseError(..))
+import Streamly.Internal.Data.Parser
+    ( ParseError(..), SeqAState, SeqParseState, Final, Initial, Parser, Step
+    , Tuple'Fused
+    )
 import Streamly.Internal.Data.Stream (Stream)
 import System.Random (randomRIO)
 import Test.Tasty.Bench (Benchmark, bench, nfIO)
@@ -64,9 +67,9 @@ withStream :: Int -> (Stream IO Int -> IO b) -> Int -> IO b
 withStream value f = f . streamUnfoldrM value
 
 {-# ANN ap_ApplicativeInstance_x2 (PermitPatternMatches
-    [''[], ''(,), ''Int, ''PR.SeqParseState]) #-}
+    [''[], ''(,), ''Int, ''SeqParseState]) #-}
 {-# ANN ap_ApplicativeInstance_x2 (PermitConstructions
-    [''PR.SeqParseState, ''(), ''(,), ''[], ''Int, ''Either]) #-}
+    [''SeqParseState, ''(), ''(,), ''[], ''Int]) #-}
 {-# ANN ap_ApplicativeInstance_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE ap_ApplicativeInstance_x2 #-}
 ap_ApplicativeInstance_x2 :: Int -> Int -> IO (Either ParseError ((), ()))
@@ -84,14 +87,14 @@ inspect $ 'ap_ApplicativeInstance_x2 `hasNoType` ''PR.Step
 inspect $ 'ap_ApplicativeInstance_x2 `hasNoType` ''PR.Initial
 inspect $ 'ap_ApplicativeInstance_x2 `hasNoType` ''FL.Step
 -- inspect $ 'ap_ApplicativeInstance_x2 `hasNoType` ''SPEC
--- inspect $ 'ap_ApplicativeInstance_x2 `hasNoType` ''PR.SeqParseState
+-- inspect $ 'ap_ApplicativeInstance_x2 `hasNoType` ''SeqParseState
 #endif
 
 {- HLINT ignore "Evaluate"-}
 {-# ANN ap_ApplicativeInstance_x4 (PermitPatternMatches
-    [''(), ''[], ''Int, ''SPEC, ''PR.SeqParseState]) #-}
+    [''(), ''[], ''Int, ''SPEC, ''SeqParseState]) #-}
 {-# ANN ap_ApplicativeInstance_x4 (PermitConstructions
-    [''PR.SeqParseState, ''(), ''[], ''Int]) #-}
+    [''SeqParseState, ''(), ''[], ''Int]) #-}
 {-# ANN ap_ApplicativeInstance_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE ap_ApplicativeInstance_x4 #-}
 ap_ApplicativeInstance_x4 :: Int -> Int -> IO (Either ParseError ())
@@ -106,9 +109,9 @@ ap_ApplicativeInstance_x4 value =
             )
 
 {-# ANN ap_ApplicativeInstance_x8 (PermitPatternMatches
-    [''(), ''[], ''Int, ''SPEC, ''PR.SeqParseState]) #-}
+    [''(), ''[], ''Int, ''SPEC, ''SeqParseState]) #-}
 {-# ANN ap_ApplicativeInstance_x8 (PermitConstructions
-    [''PR.SeqParseState, ''(), ''[], ''Int]) #-}
+    [''SeqParseState, ''(), ''[], ''Int]) #-}
 {-# ANN ap_ApplicativeInstance_x8 (PermitTypeClasses []) #-}
 {-# NOINLINE ap_ApplicativeInstance_x8 #-}
 ap_ApplicativeInstance_x8 :: Int -> Int -> IO (Either ParseError ())
@@ -127,9 +130,9 @@ ap_ApplicativeInstance_x8 value =
             )
 
 {-# ANN discardFst_ApplicativeInstance_x2 (PermitPatternMatches
-    [''[], ''Int, ''PR.SeqAState]) #-}
+    [''[], ''Int, ''SeqAState]) #-}
 {-# ANN discardFst_ApplicativeInstance_x2 (PermitConstructions
-    [''PR.SeqAState, ''(), ''[], ''Int, ''Either]) #-}
+    [''SeqAState, ''(), ''[], ''Int]) #-}
 {-# ANN discardFst_ApplicativeInstance_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE discardFst_ApplicativeInstance_x2 #-}
 discardFst_ApplicativeInstance_x2 ::
@@ -147,13 +150,13 @@ inspect $ 'discardFst_ApplicativeInstance_x2 `hasNoType` ''PR.Step
 inspect $ 'discardFst_ApplicativeInstance_x2 `hasNoType` ''PR.Initial
 inspect $ 'discardFst_ApplicativeInstance_x2 `hasNoType` ''FL.Step
 -- inspect $ 'discardFst_ApplicativeInstance_x2 `hasNoType` ''SPEC
--- inspect $ 'discardFst_ApplicativeInstance_x2 `hasNoType` ''PR.SeqAState
+-- inspect $ 'discardFst_ApplicativeInstance_x2 `hasNoType` ''SeqAState
 #endif
 
 {-# ANN discardSnd_ApplicativeInstance_x2 (PermitPatternMatches
-    [''[], ''(), ''Int, ''PR.SeqParseState]) #-}
+    [''[], ''(), ''Int, ''SeqParseState]) #-}
 {-# ANN discardSnd_ApplicativeInstance_x2 (PermitConstructions
-    [''PR.SeqParseState, ''(), ''[], ''Int, ''Either]) #-}
+    [''SeqParseState, ''(), ''[], ''Int]) #-}
 {-# ANN discardSnd_ApplicativeInstance_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE discardSnd_ApplicativeInstance_x2 #-}
 discardSnd_ApplicativeInstance_x2 ::
@@ -172,13 +175,13 @@ inspect $ 'discardSnd_ApplicativeInstance_x2 `hasNoType` ''PR.Initial
 inspect $ 'discardSnd_ApplicativeInstance_x2 `hasNoType` ''FL.Step
 -- inspect $ 'discardSnd_ApplicativeInstance_x2 `hasNoType` ''SPEC
 -- inspect $
---     'discardSnd_ApplicativeInstance_x2 `hasNoType` ''PR.SeqParseState
+--     'discardSnd_ApplicativeInstance_x2 `hasNoType` ''SeqParseState
 #endif
 
 {-# ANN splitWith_x2 (PermitPatternMatches
-    [''[], ''(,), ''Int, ''PR.SeqParseState]) #-}
+    [''[], ''(,), ''Int, ''SeqParseState]) #-}
 {-# ANN splitWith_x2 (PermitConstructions
-    [''PR.SeqParseState, ''(), ''(,), ''[], ''Int, ''Either]) #-}
+    [''SeqParseState, ''(), ''(,), ''[], ''Int]) #-}
 {-# ANN splitWith_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE splitWith_x2 #-}
 splitWith_x2 :: Int -> Int -> IO (Either ParseError ((), ()))
@@ -196,12 +199,12 @@ inspect $ 'splitWith_x2 `hasNoType` ''PR.Step
 inspect $ 'splitWith_x2 `hasNoType` ''PR.Initial
 inspect $ 'splitWith_x2 `hasNoType` ''FL.Step
 -- inspect $ 'splitWith_x2 `hasNoType` ''SPEC
--- inspect $ 'splitWith_x2 `hasNoType` ''PR.SeqParseState
+-- inspect $ 'splitWith_x2 `hasNoType` ''SeqParseState
 #endif
 
-{-# ANN split_ (PermitPatternMatches [''[], ''Int, ''PR.SeqAState]) #-}
+{-# ANN split_ (PermitPatternMatches [''[], ''Int, ''SeqAState]) #-}
 {-# ANN split_ (PermitConstructions
-    [''PR.SeqAState, ''(), ''[], ''Int, ''Either]) #-}
+    [''SeqAState, ''(), ''[], ''Int]) #-}
 {-# ANN split_ (PermitTypeClasses []) #-}
 {-# NOINLINE split_ #-}
 split_ :: Int -> Int -> IO (Either ParseError ())
@@ -219,7 +222,7 @@ inspect $ 'split_ `hasNoType` ''PR.Step
 inspect $ 'split_ `hasNoType` ''PR.Initial
 inspect $ 'split_ `hasNoType` ''FL.Step
 -- inspect $ 'split_ `hasNoType` ''SPEC
--- inspect $ 'split_ `hasNoType` ''PR.SeqAState
+-- inspect $ 'split_ `hasNoType` ''SeqAState
 #endif
 
 -------------------------------------------------------------------------------
@@ -228,11 +231,11 @@ inspect $ 'split_ `hasNoType` ''FL.Step
 
 -- XXX The timing of this increased 3x after the stepify extract changes.
 {-# ANN sequenceA_ (PermitPatternMatches
-    [ ''PR.SeqAState, ''Int, ''PR.Parser, ''PR.Initial, ''PR.Step, ''PR.Final
+    [ ''SeqAState, ''Int, ''Parser, ''Initial, ''Step, ''Final
     , ''[], ''IO, ''(,)
     ]) #-}
 {-# ANN sequenceA_ (PermitConstructions
-    [ ''PR.Final, ''PR.SeqAState, ''(), ''PR.Initial, ''PR.Step, ''PR.Parser
+    [ ''Final, ''SeqAState, ''(), ''Initial, ''Step, ''Parser
     , ''[], ''Int, ''SrcLoc, ''CallStack, ''Either, ''(,)
     ]) #-}
 {-# ANN sequenceA_ (PermitTypeClasses [''IP]) #-}
@@ -245,12 +248,12 @@ sequenceA_ value =
 
 -- quadratic complexity
 {-# ANN sequenceA (PermitPatternMatches
-    [ ''[], ''PR.SeqParseState, ''PR.Step, ''PR.Initial, ''PR.Final, ''()
-    , ''Int, ''PR.Parser, ''IO, ''(,)
+    [ ''[], ''SeqParseState, ''Step, ''Initial, ''Final, ''()
+    , ''Int, ''Parser, ''IO, ''(,)
     ]) #-}
 {-# ANN sequenceA (PermitConstructions
-    [ ''[], ''Int, ''SrcLoc, ''CallStack, ''PR.Parser, ''PR.Step
-    , ''PR.SeqParseState, ''PR.Initial, ''PR.Final, ''(), ''(,)
+    [ ''[], ''Int, ''SrcLoc, ''CallStack, ''Parser, ''Step
+    , ''SeqParseState, ''Initial, ''Final, ''(), ''(,)
     ]) #-}
 {-# ANN sequenceA (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE sequenceA #-}
@@ -263,12 +266,12 @@ sequenceA value start = do
 
 -- quadratic complexity
 {-# ANN sequence (PermitPatternMatches
-    [ ''PR.SeqParseState, ''PR.Step, ''PR.Initial, ''[], ''PR.Final, ''()
-    , ''Int, ''PR.Parser, ''IO, ''(,)
+    [ ''SeqParseState, ''Step, ''Initial, ''[], ''Final, ''()
+    , ''Int, ''Parser, ''IO, ''(,)
     ]) #-}
 {-# ANN sequence (PermitConstructions
-    [ ''PR.Parser, ''PR.Step, ''PR.SeqParseState, ''[], ''PR.Initial
-    , ''PR.Final, ''(), ''Int, ''SrcLoc, ''CallStack, ''(,)
+    [ ''Parser, ''Step, ''SeqParseState, ''[], ''Initial
+    , ''Final, ''(), ''Int, ''SrcLoc, ''CallStack, ''(,)
     ]) #-}
 {-# ANN sequence (PermitTypeClasses [''IP]) #-}
 {-# NOINLINE sequence #-}
@@ -280,12 +283,12 @@ sequence value start = do
     return $ length x
 
 {-# ANN sequence_ (PermitPatternMatches
-    [ ''PR.SeqAState, ''PR.Tuple'Fused, ''Int, ''String, ''PR.Parser
-    , ''PR.Initial, ''PR.Step, ''PR.Final, ''[], ''IO, ''(,)
+    [ ''SeqAState, ''Tuple'Fused, ''Int, ''String, ''Parser
+    , ''Initial, ''Step, ''Final, ''[], ''IO, ''(,)
     ]) #-}
 {-# ANN sequence_ (PermitConstructions
-    [ ''PR.Final, ''(), ''PR.SeqAState, ''PR.Initial, ''PR.Step
-    , ''PR.Tuple'Fused, ''Int, ''PR.Parser, ''[], ''SrcLoc, ''CallStack
+    [ ''Final, ''(), ''SeqAState, ''Initial, ''Step
+    , ''Tuple'Fused, ''Int, ''Parser, ''[], ''SrcLoc, ''CallStack
     , ''Either, ''(,)
     ]) #-}
 {-# ANN sequence_ (PermitTypeClasses [''IP]) #-}

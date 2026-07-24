@@ -41,7 +41,7 @@ import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as Parser
 import qualified Streamly.Internal.Data.ParserK as ParserK
 import qualified Streamly.Internal.Data.StreamK as StreamK
-import qualified Streamly.Internal.Data.SVar.Type as SVar
+import Streamly.Internal.Data.SVar.Type (State)
 
 import Test.Tasty.Bench hiding (env)
 import Streamly.Benchmark.Common
@@ -50,6 +50,8 @@ import Control.Monad.IO.Class (MonadIO)
 import GHC.Classes (IP)
 import GHC.Stack (CallStack, SrcLoc)
 import Streamly.Data.MutByteArray (Unbox)
+import Streamly.Internal.Data.Array (Array)
+import Streamly.Internal.Data.ParserK (Input)
 
 -------------------------------------------------------------------------------
 -- Utilities
@@ -91,9 +93,9 @@ drainWhile p = Parser.takeWhile p Fold.drain
 -- boundary will remain unfused.
 
 {-# ANN foldBreak_Drain (PermitPatternMatches
-    [''Stream, ''SVar.State, ''Step]) #-}
+    [''State, ''Step]) #-}
 {-# ANN foldBreak_Drain (PermitConstructions
-    [''Fold.Step, ''(), ''SVar.State, ''Maybe]) #-}
+    [''Fold.Step, ''(), ''State, ''Maybe]) #-}
 {-# ANN foldBreak_Drain (PermitTypeClasses [''MonadIO, ''Unbox]) #-}
 {-# ANN foldBreak_Drain DumpCore #-}
 {-# NOINLINE foldBreak_Drain #-}
@@ -101,12 +103,12 @@ foldBreak_Drain :: Stream IO (Array.Array Int) -> IO ()
 foldBreak_Drain s = void $ Array.foldBreak Fold.drain $ StreamK.fromStream s
 
 {-# ANN parseBreak_TakeWhile (PermitPatternMatches
-    [ ''[], ''ParserK.Step, ''Array.Array, ''(,), ''IO, ''Int, ''()
-    , ''ParserK.Input, ''SVar.State, ''Step
+    [ ''[], ''ParserK.Step, ''Array, ''(,), ''IO, ''Int, ''()
+    , ''Input, ''State, ''Step
     ]) #-}
 {-# ANN parseBreak_TakeWhile (PermitConstructions
-    [ ''Int, ''SVar.State, ''Maybe, ''Bool, ''[], ''SrcLoc, ''CallStack
-    , ''(,), ''Either, ''Array.Array, ''ParserK.Step, ''(), ''ParserK.Input
+    [ ''Int, ''State, ''Maybe, ''Bool, ''[], ''SrcLoc, ''CallStack
+    , ''(,), ''Either, ''Array, ''ParserK.Step, ''(), ''Input
     ]) #-}
 {-# ANN parseBreak_TakeWhile (PermitTypeClasses [''IP, ''Show]) #-}
 {-# NOINLINE parseBreak_TakeWhile #-}
@@ -128,12 +130,12 @@ foldBreak_One_Recursive s = do
     when (isJust r) $ foldBreak_One_Recursive s1
 
 {-# ANN parseBreak_One_Recursive (PermitPatternMatches
-    [ ''Int, ''(), ''ParserK.Input, ''Array.Array, ''[], ''ParserK.Step
+    [ ''Int, ''(), ''Input, ''Array, ''[], ''ParserK.Step
     , ''(,), ''IO, ''Either
     ]) #-}
 {-# ANN parseBreak_One_Recursive (PermitConstructions
     [ ''Int, ''(), ''ParserK.Step, ''[], ''SrcLoc, ''CallStack, ''(,)
-    , ''Either, ''Array.Array, ''SVar.State, ''Maybe, ''Bool, ''ParserK.Input
+    , ''Either, ''Array, ''State, ''Maybe, ''Bool, ''Input
     ]) #-}
 {-# ANN parseBreak_One_Recursive (PermitTypeClasses [''IP, ''Show]) #-}
 {-# NOINLINE parseBreak_One_Recursive #-}

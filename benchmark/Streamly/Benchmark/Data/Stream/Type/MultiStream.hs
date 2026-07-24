@@ -33,7 +33,7 @@ import qualified Streamly.Internal.Data.Producer as Producer
 
 import GHC.Types (SPEC(..))
 import Data.Monoid (Sum(..))
-import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Internal.Data.Stream (Stream, Step)
 import Streamly.Data.Unfold (Unfold)
 
 import qualified Streamly.Internal.Data.Fold as FL
@@ -48,8 +48,8 @@ import Stream.Common hiding (benchIO)
 import Stream.Type.Basic (benchIO, withStream)
 import Streamly.Benchmark.Common
 import Fusion.Plugin.Types
-import qualified Streamly.Internal.Data.SVar.Type as SVar
 import Prelude hiding (concatMap, zipWith)
+import Streamly.Internal.Data.SVar.Type (State)
 
 -------------------------------------------------------------------------------
 -- Multi-stream
@@ -59,8 +59,8 @@ import Prelude hiding (concatMap, zipWith)
 -- Appending
 -------------------------------------------------------------------------------
 
-{-# ANN append_x2 (PermitPatternMatches [''Int]) #-}
-{-# ANN append_x2 (PermitConstructions [''()]) #-}
+{-# ANN append_x2 (PermitPatternMatches []) #-}
+{-# ANN append_x2 (PermitConstructions []) #-}
 {-# ANN append_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE append_x2 #-}
 append_x2 :: Int -> Int -> IO ()
@@ -78,8 +78,8 @@ inspect $ 'append_x2 `hasNoType` ''S.Step
 inspect $ 'append_x2 `hasNoType` ''Fold.Step
 #endif
 
-{-# ANN append_x4 (PermitPatternMatches [''Int]) #-}
-{-# ANN append_x4 (PermitConstructions [''()]) #-}
+{-# ANN append_x4 (PermitPatternMatches []) #-}
+{-# ANN append_x4 (PermitConstructions []) #-}
 {-# ANN append_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE append_x4 #-}
 append_x4 :: Int -> Int -> IO ()
@@ -105,8 +105,8 @@ inspect $ 'append_x4 `hasNoType` ''Fold.Step
 -- Branching
 -------------------------------------------------------------------------------
 
-{-# ANN ifThenElse (PermitPatternMatches [''Int]) #-}
-{-# ANN ifThenElse (PermitConstructions [''()]) #-}
+{-# ANN ifThenElse (PermitPatternMatches []) #-}
+{-# ANN ifThenElse (PermitConstructions []) #-}
 {-# ANN ifThenElse (PermitTypeClasses []) #-}
 {-# NOINLINE ifThenElse #-}
 ifThenElse :: Int -> Int -> IO ()
@@ -129,8 +129,8 @@ inspect $ 'ifThenElse `hasNoType` ''Fold.Step
 -- Zipping
 -------------------------------------------------------------------------------
 
-{-# ANN zipWith (PermitPatternMatches [''Int]) #-}
-{-# ANN zipWith (PermitConstructions [''()]) #-}
+{-# ANN zipWith (PermitPatternMatches []) #-}
+{-# ANN zipWith (PermitConstructions []) #-}
 {-# ANN zipWith (PermitTypeClasses []) #-}
 {-# NOINLINE zipWith #-}
 zipWith :: Int -> Int -> IO ()
@@ -144,8 +144,8 @@ inspect $ 'zipWith `hasNoType` ''SPEC
 inspect $ 'zipWith `hasNoType` ''Fold.Step
 #endif
 
-{-# ANN zipWithM (PermitPatternMatches [''Int]) #-}
-{-# ANN zipWithM (PermitConstructions [''()]) #-}
+{-# ANN zipWithM (PermitPatternMatches []) #-}
+{-# ANN zipWithM (PermitConstructions []) #-}
 {-# ANN zipWithM (PermitTypeClasses []) #-}
 {-# NOINLINE zipWithM #-}
 zipWithM :: Int -> Int -> IO ()
@@ -175,9 +175,9 @@ sourceConcatMapStreams :: Monad m => Int -> Int -> Int
 sourceConcatMapStreams outer inner start =
     fmap (sourceUnfoldr inner) $ sourceUnfoldr outer start
 
-{-# ANN concatMap (PermitPatternMatches [''Int,''Stream.Step]) #-}
+{-# ANN concatMap (PermitPatternMatches [''Int,''Step]) #-}
 {-# ANN concatMap (PermitConstructions
-    [''Int,''SVar.State,''Maybe,''Stream.Step,''(),''Bool]) #-}
+    [''Int,''State,''Maybe,''Step,''Bool]) #-}
 {-# ANN concatMap (PermitTypeClasses []) #-}
 {-# NOINLINE concatMap #-}
 concatMap :: Int -> Int -> Int -> IO ()
@@ -194,9 +194,9 @@ inspect $ 'concatMap `hasNoType` ''Fold.Step
 #endif
 
 {-# ANN concatMapM_x2 (PermitPatternMatches
-    [''Either,''(,),''Bool,''Int,''Stream.Step,''Stream]) #-}
+    [''Either,''(,),''Bool,''Int,''Step,''Stream]) #-}
 {-# ANN concatMapM_x2 (PermitConstructions
-    [''Int,''Stream.Step,''Either,''SVar.State,''Maybe,''(,),''Stream
+    [''Int,''Step,''Either,''State,''Maybe,''(,),''Stream
     ,''Bool]) #-}
 {-# ANN concatMapM_x2 (PermitTypeClasses []) #-}
 {-# NOINLINE concatMapM_x2 #-}
@@ -208,9 +208,9 @@ concatMapM_x2 value = withStream value $ \s ->
                 pure $ Stream.fromPure $ x + y) s) s
 
 {-# ANN concatMapM_x3 (PermitPatternMatches
-    [''Either,''(,),''Bool,''Int,''Stream.Step,''Stream]) #-}
+    [''Either,''(,),''Bool,''Int,''Step,''Stream]) #-}
 {-# ANN concatMapM_x3 (PermitConstructions
-    [''Int,''Stream.Step,''Either,''Stream,''SVar.State,''Maybe,''(,)
+    [''Int,''Step,''Either,''Stream,''State,''Maybe,''(,)
     ,''Bool]) #-}
 {-# ANN concatMapM_x3 (PermitTypeClasses []) #-}
 {-# NOINLINE concatMapM_x3 #-}
@@ -222,8 +222,8 @@ concatMapM_x3 value = withStream value $ \s ->
                 pure $ Stream.concatMapM (\z ->
                     pure $ Stream.fromPure $ x + y + z) s) s) s
 
-{-# ANN unfoldEach_FromStream (PermitPatternMatches [''Int,''Stream.Step]) #-}
-{-# ANN unfoldEach_FromStream (PermitConstructions [''Int,''Stream.Step]) #-}
+{-# ANN unfoldEach_FromStream (PermitPatternMatches [''Int,''Step]) #-}
+{-# ANN unfoldEach_FromStream (PermitConstructions [''Int,''Step]) #-}
 {-# ANN unfoldEach_FromStream (PermitTypeClasses []) #-}
 {-# NOINLINE unfoldEach_FromStream #-}
 unfoldEach_FromStream :: Int -> Int -> Int -> IO ()
@@ -236,9 +236,9 @@ unfoldEach_FromStream outer inner n =
 
     cmap f = Stream.unfoldEach (UF.lmap f UF.fromStream)
 
-{-# ANN concatMapM (PermitPatternMatches [''Int,''Stream.Step]) #-}
+{-# ANN concatMapM (PermitPatternMatches [''Int,''Step]) #-}
 {-# ANN concatMapM (PermitConstructions
-    [''Int,''SVar.State,''Maybe,''Stream.Step,''Bool]) #-}
+    [''Int,''State,''Maybe,''Step,''Bool]) #-}
 {-# ANN concatMapM (PermitTypeClasses []) #-}
 {-# NOINLINE concatMapM #-}
 concatMapM :: Int -> Int -> Int -> IO ()
@@ -247,9 +247,9 @@ concatMapM outer inner n =
         (return . sourceUnfoldrM inner)
         (sourceUnfoldrM outer n)
 
-{-# ANN concatEffect (PermitPatternMatches [''Int,''Stream.Step]) #-}
+{-# ANN concatEffect (PermitPatternMatches [''Int,''Step]) #-}
 {-# ANN concatEffect (PermitConstructions
-    [''SVar.State,''Maybe,''Bool,''Stream.Step,''Int,''()]) #-}
+    [''State,''Maybe,''Bool,''Step,''Int]) #-}
 {-# ANN concatEffect (PermitTypeClasses []) #-}
 {-# NOINLINE concatEffect #-}
 concatEffect :: Int -> Int -> IO ()
@@ -266,18 +266,18 @@ inspect $ 'concatEffect `hasNoType` ''Fold.Step
 -- concatMap Streams
 
 {-# ANN concatMap_Streams_Singleton (PermitPatternMatches
-    [''Bool,''Int,''Stream.Step]) #-}
+    [''Bool,''Step]) #-}
 {-# ANN concatMap_Streams_Singleton (PermitConstructions
-    [''Int,''Stream.Step,''SVar.State,''Maybe,''Bool]) #-}
+    [''Int,''Step,''State,''Maybe,''Bool]) #-}
 {-# ANN concatMap_Streams_Singleton (PermitTypeClasses []) #-}
 {-# NOINLINE concatMap_Streams_Singleton #-}
 concatMap_Streams_Singleton :: Int -> Int -> IO ()
 concatMap_Streams_Singleton value =
     (drain . S.concatMap id . sourceConcatMapSingletonStreams value)
 
-{-# ANN concatMap_Streams (PermitPatternMatches [''Int,''Stream.Step]) #-}
+{-# ANN concatMap_Streams (PermitPatternMatches [''Int,''Step]) #-}
 {-# ANN concatMap_Streams (PermitConstructions
-    [''Int,''SVar.State,''Maybe,''Stream.Step,''Bool]) #-}
+    [''Int,''State,''Maybe,''Step,''Bool]) #-}
 {-# ANN concatMap_Streams (PermitTypeClasses []) #-}
 {-# NOINLINE concatMap_Streams #-}
 concatMap_Streams :: Int -> Int -> Int -> IO ()
@@ -286,9 +286,9 @@ concatMap_Streams outer inner =
 
 -- concatMap unfoldr/unfoldr
 
-{-# ANN concatMap_Pure (PermitPatternMatches [''Int,''Stream.Step]) #-}
+{-# ANN concatMap_Pure (PermitPatternMatches [''Int,''Step]) #-}
 {-# ANN concatMap_Pure (PermitConstructions
-    [''Int,''SVar.State,''Maybe,''Stream.Step,''(),''Bool]) #-}
+    [''Int,''State,''Maybe,''Step,''Bool]) #-}
 {-# ANN concatMap_Pure (PermitTypeClasses []) #-}
 {-# NOINLINE concatMap_Pure #-}
 concatMap_Pure :: Int -> Int -> Int -> IO ()
@@ -321,7 +321,7 @@ sourceUnfoldrMUnfold size start = UF.unfoldrM step
               else Nothing
 
 {-# ANN unfoldEach (PermitPatternMatches [''Int]) #-}
-{-# ANN unfoldEach (PermitConstructions [''Int,''()]) #-}
+{-# ANN unfoldEach (PermitConstructions [''Int]) #-}
 {-# ANN unfoldEach (PermitTypeClasses []) #-}
 {-# NOINLINE unfoldEach #-}
 unfoldEach :: Int -> Int -> Int -> IO ()
@@ -338,7 +338,7 @@ inspect $ 'unfoldEach `hasNoType` ''Fold.Step
 #endif
 
 {-# ANN unfoldEach_CarryInput (PermitPatternMatches [''Int]) #-}
-{-# ANN unfoldEach_CarryInput (PermitConstructions [''Int,''()]) #-}
+{-# ANN unfoldEach_CarryInput (PermitConstructions [''Int]) #-}
 {-# ANN unfoldEach_CarryInput (PermitTypeClasses []) #-}
 {-# NOINLINE unfoldEach_CarryInput #-}
 unfoldEach_CarryInput :: Int -> Int -> Int -> IO ()
@@ -355,7 +355,7 @@ inspect $ 'unfoldEach_CarryInput `hasNoType` ''SPEC
 #endif
 
 {-# ANN unfoldEach_CarryInput_x3 (PermitPatternMatches [''Int]) #-}
-{-# ANN unfoldEach_CarryInput_x3 (PermitConstructions [''Int,''()]) #-}
+{-# ANN unfoldEach_CarryInput_x3 (PermitConstructions [''Int]) #-}
 {-# ANN unfoldEach_CarryInput_x3 (PermitTypeClasses []) #-}
 {-# NOINLINE unfoldEach_CarryInput_x3 #-}
 unfoldEach_CarryInput_x3 :: Int -> Int -> IO ()
@@ -378,7 +378,7 @@ inspect $ 'unfoldEach_CarryInput_x3 `hasNoType` ''SPEC
 #endif
 
 {-# ANN unfoldCross (PermitPatternMatches [''Int]) #-}
-{-# ANN unfoldCross (PermitConstructions [''()]) #-}
+{-# ANN unfoldCross (PermitConstructions []) #-}
 {-# ANN unfoldCross (PermitTypeClasses []) #-}
 {-# NOINLINE unfoldCross #-}
 unfoldCross :: Int -> Int -> Int -> IO ()
@@ -401,8 +401,8 @@ inspect $ 'unfoldCross `hasNoType` ''SPEC
 -- Fold Many
 -------------------------------------------------------------------------------
 
-{-# ANN foldMany (PermitPatternMatches [''Int]) #-}
-{-# ANN foldMany (PermitConstructions [''()]) #-}
+{-# ANN foldMany (PermitPatternMatches []) #-}
+{-# ANN foldMany (PermitConstructions []) #-}
 {-# ANN foldMany (PermitTypeClasses []) #-}
 {-# NOINLINE foldMany #-}
 foldMany :: Int -> Int -> IO ()
@@ -421,8 +421,8 @@ inspect $ 'foldMany `hasNoType` ''FL.Step
 inspect $ 'foldMany `hasNoType` ''SPEC
 #endif
 
-{-# ANN foldManyPost (PermitPatternMatches [''Int]) #-}
-{-# ANN foldManyPost (PermitConstructions [''()]) #-}
+{-# ANN foldManyPost (PermitPatternMatches []) #-}
+{-# ANN foldManyPost (PermitConstructions []) #-}
 {-# ANN foldManyPost (PermitTypeClasses []) #-}
 {-# NOINLINE foldManyPost #-}
 foldManyPost :: Int -> Int -> IO ()
@@ -441,8 +441,8 @@ inspect $ 'foldManyPost `hasNoType` ''FL.Step
 inspect $ 'foldManyPost `hasNoType` ''SPEC
 #endif
 
-{-# ANN refoldMany (PermitPatternMatches [''Int]) #-}
-{-# ANN refoldMany (PermitConstructions [''()]) #-}
+{-# ANN refoldMany (PermitPatternMatches []) #-}
+{-# ANN refoldMany (PermitConstructions []) #-}
 {-# ANN refoldMany (PermitTypeClasses []) #-}
 {-# NOINLINE refoldMany #-}
 refoldMany :: Int -> Int -> IO ()
@@ -461,8 +461,8 @@ inspect $ 'refoldMany `hasNoType` ''FL.Step
 inspect $ 'refoldMany `hasNoType` ''SPEC
 #endif
 
-{-# ANN refoldIterateM (PermitPatternMatches [''Int]) #-}
-{-# ANN refoldIterateM (PermitConstructions [''()]) #-}
+{-# ANN refoldIterateM (PermitPatternMatches []) #-}
+{-# ANN refoldIterateM (PermitConstructions []) #-}
 {-# ANN refoldIterateM (PermitTypeClasses []) #-}
 {-# NOINLINE refoldIterateM #-}
 refoldIterateM :: Int -> Int -> IO ()

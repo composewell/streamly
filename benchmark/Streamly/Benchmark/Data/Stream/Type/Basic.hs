@@ -49,7 +49,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Control.DeepSeq (NFData(..))
 import Data.Functor.Identity (Identity(..), runIdentity)
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..))
-import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Internal.Data.Stream (Stream, Step)
 import System.Random (randomRIO)
 
 import qualified Data.Foldable as F
@@ -93,8 +93,8 @@ withPureStream value f n = return (f (sourceUnfoldr value n))
 -- fromList
 -------------------------------------------------------------------------------
 
-{-# ANN fromList (PermitPatternMatches [''[],''Int]) #-}
-{-# ANN fromList (PermitConstructions [''[],''Int,''()]) #-}
+{-# ANN fromList (PermitPatternMatches [''[]]) #-}
+{-# ANN fromList (PermitConstructions [''[],''Int]) #-}
 {-# ANN fromList (PermitTypeClasses []) #-}
 {-# NOINLINE fromList #-}
 fromList :: Int -> Int -> IO ()
@@ -112,7 +112,7 @@ inspect $ 'fromList `hasNoType` ''SPEC
 -- stream with a light 'sum' fold (avoiding a heavy, non-fusible 'concatMap'
 -- that would mask the cost of 'fromTuple').
 {-# ANN fromTuple (PermitPatternMatches [''[],''(,),''Int]) #-}
-{-# ANN fromTuple (PermitConstructions [''[],''Int,''(,),''()]) #-}
+{-# ANN fromTuple (PermitConstructions [''[],''Int,''(,)]) #-}
 {-# ANN fromTuple (PermitTypeClasses []) #-}
 {-# NOINLINE fromTuple #-}
 fromTuple :: Int -> Int -> IO ()
@@ -128,8 +128,8 @@ inspect $ 'fromTuple `hasNoType` ''Fold.Step
 inspect $ 'fromTuple `hasNoType` ''SPEC
 #endif
 
-{-# ANN fromList_IsList (PermitPatternMatches [''[],''Int]) #-}
-{-# ANN fromList_IsList (PermitConstructions [''[],''Int,''()]) #-}
+{-# ANN fromList_IsList (PermitPatternMatches [''[]]) #-}
+{-# ANN fromList_IsList (PermitConstructions [''[],''Int]) #-}
 {-# ANN fromList_IsList (PermitTypeClasses []) #-}
 {-# NOINLINE fromList_IsList #-}
 fromList_IsList :: Int -> Int -> IO ()
@@ -142,8 +142,8 @@ inspect $ 'fromList_IsList `hasNoType` ''Fold.Step
 inspect $ 'fromList_IsList `hasNoType` ''SPEC
 #endif
 
-{-# ANN fromString_IsString (PermitPatternMatches [''[],''Int]) #-}
-{-# ANN fromString_IsString (PermitConstructions [''Char,''[],''()]) #-}
+{-# ANN fromString_IsString (PermitPatternMatches [''[]]) #-}
+{-# ANN fromString_IsString (PermitConstructions [''Char,''[]]) #-}
 {-# ANN fromString_IsString (PermitTypeClasses []) #-}
 {-# NOINLINE fromString_IsString #-}
 fromString_IsString :: Int -> Int -> IO ()
@@ -185,7 +185,7 @@ instance NFData a => NFData (Stream Identity a) where
 -- Foldable Instance
 -------------------------------------------------------------------------------
 
-{-# ANN foldl'_Foldable (PermitPatternMatches [''Int]) #-}
+{-# ANN foldl'_Foldable (PermitPatternMatches []) #-}
 {-# ANN foldl'_Foldable (PermitConstructions [''Int]) #-}
 {-# ANN foldl'_Foldable (PermitTypeClasses []) #-}
 {-# NOINLINE foldl'_Foldable #-}
@@ -198,7 +198,7 @@ inspect $ hasNoTypeClasses 'foldl'_Foldable
 inspect $ 'foldl'_Foldable `hasNoType` ''Stream.Step
 #endif
 
-{-# ANN foldr_Elem_Foldable (PermitPatternMatches [''Int]) #-}
+{-# ANN foldr_Elem_Foldable (PermitPatternMatches []) #-}
 {-# ANN foldr_Elem_Foldable (PermitConstructions [''Bool]) #-}
 {-# ANN foldr_Elem_Foldable (PermitTypeClasses []) #-}
 {-# NOINLINE foldr_Elem_Foldable #-}
@@ -215,7 +215,7 @@ inspect $ 'foldr_Elem_Foldable `hasNoType` ''Fold.Step
 inspect $ 'foldr_Elem_Foldable `hasNoType` ''SPEC
 #endif
 
-{-# ANN sum_Foldable (PermitPatternMatches [''Int]) #-}
+{-# ANN sum_Foldable (PermitPatternMatches []) #-}
 {-# ANN sum_Foldable (PermitConstructions [''Int]) #-}
 {-# ANN sum_Foldable (PermitTypeClasses []) #-}
 {-# NOINLINE sum_Foldable #-}
@@ -230,7 +230,7 @@ inspect $ 'sum_Foldable `hasNoType` ''Fold.Step
 inspect $ 'sum_Foldable `hasNoType` ''SPEC
 #endif
 
-{-# ANN product_Foldable (PermitPatternMatches [''Int]) #-}
+{-# ANN product_Foldable (PermitPatternMatches []) #-}
 {-# ANN product_Foldable (PermitConstructions [''Int]) #-}
 {-# ANN product_Foldable (PermitTypeClasses []) #-}
 {-# NOINLINE product_Foldable #-}
@@ -250,7 +250,7 @@ _null_Foldable :: Int -> Int -> Bool
 _null_Foldable value n =
     Prelude.null (sourceUnfoldr value n :: Stream Identity Int)
 
-{-# ANN elem_Foldable (PermitPatternMatches [''Int]) #-}
+{-# ANN elem_Foldable (PermitPatternMatches []) #-}
 {-# ANN elem_Foldable (PermitConstructions [''Bool]) #-}
 {-# ANN elem_Foldable (PermitTypeClasses []) #-}
 {-# NOINLINE elem_Foldable #-}
@@ -265,7 +265,7 @@ inspect $ 'elem_Foldable `hasNoType` ''Fold.Step
 inspect $ 'elem_Foldable `hasNoType` ''SPEC
 #endif
 
-{-# ANN notElem_Foldable (PermitPatternMatches [''Int]) #-}
+{-# ANN notElem_Foldable (PermitPatternMatches []) #-}
 {-# ANN notElem_Foldable (PermitConstructions [''Bool]) #-}
 {-# ANN notElem_Foldable (PermitTypeClasses []) #-}
 {-# NOINLINE notElem_Foldable #-}
@@ -280,7 +280,7 @@ inspect $ 'notElem_Foldable `hasNoType` ''Fold.Step
 inspect $ 'notElem_Foldable `hasNoType` ''SPEC
 #endif
 
-{-# ANN find_Foldable (PermitPatternMatches [''Int]) #-}
+{-# ANN find_Foldable (PermitPatternMatches []) #-}
 {-# ANN find_Foldable (PermitConstructions [''Maybe,''Int]) #-}
 {-# ANN find_Foldable (PermitTypeClasses []) #-}
 {-# NOINLINE find_Foldable #-}
@@ -295,7 +295,7 @@ inspect $ 'find_Foldable `hasNoType` ''Fold.Step
 inspect $ 'find_Foldable `hasNoType` ''SPEC
 #endif
 
-{-# ANN all_Foldable (PermitPatternMatches [''Int]) #-}
+{-# ANN all_Foldable (PermitPatternMatches []) #-}
 {-# ANN all_Foldable (PermitConstructions [''Bool]) #-}
 {-# ANN all_Foldable (PermitTypeClasses []) #-}
 {-# NOINLINE all_Foldable #-}
@@ -311,7 +311,7 @@ inspect $ 'all_Foldable `hasNoType` ''SPEC
 #endif
 
 {- HLINT ignore "Use any"-}
-{-# ANN any_Foldable (PermitPatternMatches [''Int]) #-}
+{-# ANN any_Foldable (PermitPatternMatches []) #-}
 {-# ANN any_Foldable (PermitConstructions [''Bool]) #-}
 {-# ANN any_Foldable (PermitTypeClasses []) #-}
 {-# NOINLINE any_Foldable #-}
@@ -327,7 +327,7 @@ inspect $ 'any_Foldable `hasNoType` ''SPEC
 #endif
 
 {- HLINT ignore "Use all"-}
-{-# ANN and_Foldable (PermitPatternMatches [''Int]) #-}
+{-# ANN and_Foldable (PermitPatternMatches []) #-}
 {-# ANN and_Foldable (PermitConstructions [''Bool]) #-}
 {-# ANN and_Foldable (PermitTypeClasses []) #-}
 {-# NOINLINE and_Foldable #-}
@@ -344,7 +344,7 @@ inspect $ 'and_Foldable `hasNoType` ''SPEC
 #endif
 
 {- HLINT ignore "Use any"-}
-{-# ANN or_Foldable (PermitPatternMatches [''Int]) #-}
+{-# ANN or_Foldable (PermitPatternMatches []) #-}
 {-# ANN or_Foldable (PermitConstructions [''Bool]) #-}
 {-# ANN or_Foldable (PermitTypeClasses []) #-}
 {-# NOINLINE or_Foldable #-}
@@ -360,7 +360,7 @@ inspect $ 'or_Foldable `hasNoType` ''Fold.Step
 inspect $ 'or_Foldable `hasNoType` ''SPEC
 #endif
 
-{-# ANN length_Foldable (PermitPatternMatches [''Int]) #-}
+{-# ANN length_Foldable (PermitPatternMatches []) #-}
 {-# ANN length_Foldable (PermitConstructions [''Int]) #-}
 {-# ANN length_Foldable (PermitTypeClasses []) #-}
 {-# NOINLINE length_Foldable #-}
@@ -375,7 +375,7 @@ inspect $ 'length_Foldable `hasNoType` ''Fold.Step
 inspect $ 'length_Foldable `hasNoType` ''SPEC
 #endif
 
-{-# ANN minimum_Foldable (PermitPatternMatches [''Int,''Maybe']) #-}
+{-# ANN minimum_Foldable (PermitPatternMatches [''Maybe']) #-}
 {-# ANN minimum_Foldable (PermitConstructions [''Maybe',''Int]) #-}
 {-# ANN minimum_Foldable (PermitTypeClasses []) #-}
 {-# NOINLINE minimum_Foldable #-}
@@ -390,8 +390,8 @@ inspect $ 'minimum_Foldable `hasNoType` ''Fold.Step
 inspect $ 'minimum_Foldable `hasNoType` ''SPEC
 #endif
 
-{-# ANN min_OrdInstance (PermitPatternMatches [''Int]) #-}
-{-# ANN min_OrdInstance (PermitConstructions [''()]) #-}
+{-# ANN min_OrdInstance (PermitPatternMatches []) #-}
+{-# ANN min_OrdInstance (PermitConstructions []) #-}
 {-# ANN min_OrdInstance (PermitTypeClasses []) #-}
 {-# NOINLINE min_OrdInstance #-}
 min_OrdInstance :: Int -> Int -> ()
@@ -406,7 +406,7 @@ inspect $ 'min_OrdInstance `hasNoType` ''Fold.Step
 inspect $ 'min_OrdInstance `hasNoType` ''SPEC
 #endif
 
-{-# ANN maximum_Foldable (PermitPatternMatches [''Int,''Maybe']) #-}
+{-# ANN maximum_Foldable (PermitPatternMatches [''Maybe']) #-}
 {-# ANN maximum_Foldable (PermitConstructions [''Maybe',''Int]) #-}
 {-# ANN maximum_Foldable (PermitTypeClasses []) #-}
 {-# NOINLINE maximum_Foldable #-}
@@ -421,7 +421,7 @@ inspect $ 'maximum_Foldable `hasNoType` ''Fold.Step
 inspect $ 'maximum_Foldable `hasNoType` ''SPEC
 #endif
 
-{-# ANN minimumBy_Foldable (PermitPatternMatches [''Int,''Maybe]) #-}
+{-# ANN minimumBy_Foldable (PermitPatternMatches [''Maybe]) #-}
 {-# ANN minimumBy_Foldable (PermitConstructions [''Maybe,''Int]) #-}
 {-# ANN minimumBy_Foldable (PermitTypeClasses []) #-}
 {-# NOINLINE minimumBy_Foldable #-}
@@ -443,7 +443,7 @@ inspect $ 'minimumBy_Foldable `hasNoType` ''SPEC
 minimumBy_List_Foldable :: Int -> Int -> Int
 minimumBy_List_Foldable value n = F.minimumBy compare [1..value+n]
 
-{-# ANN maximumBy_Foldable (PermitPatternMatches [''Int,''Maybe]) #-}
+{-# ANN maximumBy_Foldable (PermitPatternMatches [''Maybe]) #-}
 {-# ANN maximumBy_Foldable (PermitConstructions [''Maybe,''Int]) #-}
 {-# ANN maximumBy_Foldable (PermitTypeClasses []) #-}
 {-# NOINLINE maximumBy_Foldable #-}
@@ -458,7 +458,7 @@ inspect $ 'maximumBy_Foldable `hasNoType` ''Fold.Step
 inspect $ 'maximumBy_Foldable `hasNoType` ''SPEC
 #endif
 
-{-# ANN toList_Foldable (PermitPatternMatches [''Int]) #-}
+{-# ANN toList_Foldable (PermitPatternMatches []) #-}
 {-# ANN toList_Foldable (PermitConstructions [''[],''Int]) #-}
 {-# ANN toList_Foldable (PermitTypeClasses []) #-}
 {-# NOINLINE toList_Foldable #-}
@@ -473,7 +473,7 @@ inspect $ 'toList_Foldable `hasNoType` ''Fold.Step
 inspect $ 'toList_Foldable `hasNoType` ''SPEC
 #endif
 
-{-# ANN mapM__Foldable (PermitPatternMatches [''Int]) #-}
+{-# ANN mapM__Foldable (PermitPatternMatches []) #-}
 {-# ANN mapM__Foldable (PermitConstructions [''()]) #-}
 {-# ANN mapM__Foldable (PermitTypeClasses []) #-}
 {-# NOINLINE mapM__Foldable #-}
@@ -488,7 +488,7 @@ inspect $ 'mapM__Foldable `hasNoType` ''Fold.Step
 inspect $ 'mapM__Foldable `hasNoType` ''SPEC
 #endif
 
-{-# ANN sequence__Foldable (PermitPatternMatches [''Int]) #-}
+{-# ANN sequence__Foldable (PermitPatternMatches []) #-}
 {-# ANN sequence__Foldable (PermitConstructions [''()]) #-}
 {-# ANN sequence__Foldable (PermitTypeClasses []) #-}
 {-# NOINLINE sequence__Foldable #-}
@@ -514,7 +514,7 @@ _msum_Foldable value n =
 
 {-# ANN show_ShowInstance (PermitPatternMatches [''Int]) #-}
 {-# ANN show_ShowInstance (PermitConstructions
-    [''Int,''Stream.Step,''Stream]) #-}
+    [''Int,''Step,''Stream]) #-}
 {-# ANN show_ShowInstance (PermitTypeClasses [''Show]) #-}
 {-# NOINLINE show_ShowInstance #-}
 show_ShowInstance :: Int -> Int -> IO String
@@ -531,7 +531,7 @@ show_HaskellLists = show
 -- Eq and Ord instances
 -------------------------------------------------------------------------------
 
-{-# ANN eq_EqInstance (PermitPatternMatches [''Int]) #-}
+{-# ANN eq_EqInstance (PermitPatternMatches []) #-}
 {-# ANN eq_EqInstance (PermitConstructions [''Bool]) #-}
 {-# ANN eq_EqInstance (PermitTypeClasses []) #-}
 {-# NOINLINE eq_EqInstance #-}
@@ -545,7 +545,7 @@ inspect $ 'eq_EqInstance `hasNoType` ''Fold.Step
 inspect $ 'eq_EqInstance `hasNoType` ''SPEC
 #endif
 
-{-# ANN notEq_EqInstance (PermitPatternMatches [''Int]) #-}
+{-# ANN notEq_EqInstance (PermitPatternMatches []) #-}
 {-# ANN notEq_EqInstance (PermitConstructions [''Bool]) #-}
 {-# ANN notEq_EqInstance (PermitTypeClasses []) #-}
 {-# NOINLINE notEq_EqInstance #-}
@@ -559,7 +559,7 @@ inspect $ 'notEq_EqInstance `hasNoType` ''Fold.Step
 inspect $ 'notEq_EqInstance `hasNoType` ''SPEC
 #endif
 
-{-# ANN lt_OrdInstance (PermitPatternMatches [''Int]) #-}
+{-# ANN lt_OrdInstance (PermitPatternMatches []) #-}
 {-# ANN lt_OrdInstance (PermitConstructions [''Bool]) #-}
 {-# ANN lt_OrdInstance (PermitTypeClasses []) #-}
 {-# NOINLINE lt_OrdInstance #-}
@@ -577,8 +577,8 @@ inspect $ 'lt_OrdInstance `hasNoType` ''SPEC
 -- Reductions
 -------------------------------------------------------------------------------
 
-{-# ANN uncons (PermitPatternMatches [''Stream.Step,''Int]) #-}
-{-# ANN uncons (PermitConstructions [''Int,''Stream.Step,''()]) #-}
+{-# ANN uncons (PermitPatternMatches [''Step,''Int]) #-}
+{-# ANN uncons (PermitConstructions [''Int,''Step]) #-}
 {-# ANN uncons (PermitTypeClasses []) #-}
 {-# NOINLINE uncons #-}
 uncons :: Int -> Int -> IO ()
@@ -599,8 +599,8 @@ inspect $ 'uncons `hasNoType` ''Fold.Step
 inspect $ 'uncons `hasNoType` ''SPEC
 #endif
 
-{-# ANN foldBreak (PermitPatternMatches [''Stream.Step,''Int]) #-}
-{-# ANN foldBreak (PermitConstructions [''Int,''Stream.Step,''()]) #-}
+{-# ANN foldBreak (PermitPatternMatches [''Step,''Int]) #-}
+{-# ANN foldBreak (PermitConstructions [''Int,''Step]) #-}
 {-# ANN foldBreak (PermitTypeClasses []) #-}
 {-# NOINLINE foldBreak #-}
 foldBreak :: Int -> Int -> IO ()
@@ -619,7 +619,7 @@ inspect $ 'foldBreak `hasNoType` ''Fold.Step
 inspect $ 'foldBreak `hasNoType` ''SPEC
 #endif
 
-{-# ANN foldrM_Elem (PermitPatternMatches [''Int]) #-}
+{-# ANN foldrM_Elem (PermitPatternMatches []) #-}
 {-# ANN foldrM_Elem (PermitConstructions [''Bool]) #-}
 {-# ANN foldrM_Elem (PermitTypeClasses []) #-}
 {-# NOINLINE foldrM_Elem #-}
@@ -637,7 +637,7 @@ inspect $ 'foldrM_Elem `hasNoType` ''Fold.Step
 inspect $ 'foldrM_Elem `hasNoType` ''SPEC
 #endif
 
-{-# ANN foldrM_Elem_Identity (PermitPatternMatches [''Int]) #-}
+{-# ANN foldrM_Elem_Identity (PermitPatternMatches []) #-}
 {-# ANN foldrM_Elem_Identity (PermitConstructions [''Bool]) #-}
 {-# ANN foldrM_Elem_Identity (PermitTypeClasses []) #-}
 {-# NOINLINE foldrM_Elem_Identity #-}
@@ -655,7 +655,7 @@ inspect $ 'foldrM_Elem_Identity `hasNoType` ''Fold.Step
 inspect $ 'foldrM_Elem_Identity `hasNoType` ''SPEC
 #endif
 
-{-# ANN foldrM_ToList (PermitPatternMatches [''Int]) #-}
+{-# ANN foldrM_ToList (PermitPatternMatches []) #-}
 {-# ANN foldrM_ToList (PermitConstructions [''[],''Int]) #-}
 {-# ANN foldrM_ToList (PermitTypeClasses []) #-}
 {-# NOINLINE foldrM_ToList #-}
@@ -663,7 +663,7 @@ foldrM_ToList :: Int -> Int -> IO [Int]
 foldrM_ToList value =
     withStream value $ S.foldrM (\x xs -> (x :) <$> xs) (return [])
 
-{-# ANN foldrM_ToList_Identity (PermitPatternMatches [''Int]) #-}
+{-# ANN foldrM_ToList_Identity (PermitPatternMatches []) #-}
 {-# ANN foldrM_ToList_Identity (PermitConstructions [''Int,''[]]) #-}
 {-# ANN foldrM_ToList_Identity (PermitTypeClasses []) #-}
 {-# NOINLINE foldrM_ToList_Identity #-}
@@ -679,7 +679,7 @@ foldrM_ToList_Identity value =
 foldl'_Reduce :: Int -> Int -> IO Int
 foldl'_Reduce value = withStream value (S.foldl' (+) 0)
 
-{-# ANN foldl'_Reduce_Identity (PermitPatternMatches [''Int]) #-}
+{-# ANN foldl'_Reduce_Identity (PermitPatternMatches []) #-}
 {-# ANN foldl'_Reduce_Identity (PermitConstructions [''Int]) #-}
 {-# ANN foldl'_Reduce_Identity (PermitTypeClasses []) #-}
 {-# NOINLINE foldl'_Reduce_Identity #-}
@@ -700,7 +700,7 @@ foldlM'_Reduce :: Int -> Int -> IO Int
 foldlM'_Reduce value =
     withStream value (S.foldlM' (\xs a -> return $ a + xs) (return 0))
 
-{-# ANN foldlM'_Reduce_Identity (PermitPatternMatches [''Int]) #-}
+{-# ANN foldlM'_Reduce_Identity (PermitPatternMatches []) #-}
 {-# ANN foldlM'_Reduce_Identity (PermitConstructions [''Int]) #-}
 {-# ANN foldlM'_Reduce_Identity (PermitTypeClasses []) #-}
 {-# NOINLINE foldlM'_Reduce_Identity #-}
@@ -714,8 +714,8 @@ inspect $ hasNoTypeClasses 'foldlM'_Reduce_Identity
 inspect $ 'foldlM'_Reduce_Identity `hasNoType` ''S.Step
 #endif
 
-{-# ANN drain (PermitPatternMatches [''Int]) #-}
-{-# ANN drain (PermitConstructions [''()]) #-}
+{-# ANN drain (PermitPatternMatches []) #-}
+{-# ANN drain (PermitConstructions []) #-}
 {-# ANN drain (PermitTypeClasses []) #-}
 {-# NOINLINE drain #-}
 drain :: Int -> Int -> IO ()
@@ -728,7 +728,7 @@ inspect $ 'drain `hasNoType` ''Fold.Step
 inspect $ 'drain `hasNoType` ''SPEC
 #endif
 
-{-# ANN drain_Identity (PermitPatternMatches [''Int]) #-}
+{-# ANN drain_Identity (PermitPatternMatches []) #-}
 {-# ANN drain_Identity (PermitConstructions [''()]) #-}
 {-# ANN drain_Identity (PermitTypeClasses []) #-}
 {-# NOINLINE drain_Identity #-}
@@ -738,7 +738,7 @@ drain_Identity value = withPureStream value $ runIdentity . S.drain
 -- This has unfused constructors but those are eliminated by SpecConstr rather
 -- than inlining, therefore force inlining has no use except that it issues a
 -- warning.
-{-# ANN drainN (PermitPatternMatches [''Int]) #-}
+{-# ANN drainN (PermitPatternMatches []) #-}
 {-# ANN drainN (PermitConstructions [''()]) #-}
 {-# ANN drainN (PermitTypeClasses []) #-}
 {-# NOINLINE drainN #-}
@@ -785,7 +785,7 @@ foldrM_ToSum :: Int -> Int -> IO Int
 foldrM_ToSum value =
     withStream value (S.foldrM (\x xs -> (x +) <$> xs) (return 0))
 
-{-# ANN foldrM_ToSum_Identity (PermitPatternMatches [''Int]) #-}
+{-# ANN foldrM_ToSum_Identity (PermitPatternMatches []) #-}
 {-# ANN foldrM_ToSum_Identity (PermitConstructions [''Int]) #-}
 {-# ANN foldrM_ToSum_Identity (PermitTypeClasses []) #-}
 {-# NOINLINE foldrM_ToSum_Identity #-}
@@ -794,14 +794,14 @@ foldrM_ToSum_Identity value =
     withPureStream value
         (runIdentity . S.foldrM (\x xs -> (x +) <$> xs) (return 0))
 
-{-# ANN toList_Stream (PermitPatternMatches [''Int]) #-}
+{-# ANN toList_Stream (PermitPatternMatches []) #-}
 {-# ANN toList_Stream (PermitConstructions [''[],''Int]) #-}
 {-# ANN toList_Stream (PermitTypeClasses []) #-}
 {-# NOINLINE toList_Stream #-}
 toList_Stream :: Int -> Int -> IO [Int]
 toList_Stream value = withStream value S.toList
 
-{-# ANN eqBy_Identity (PermitPatternMatches [''Int]) #-}
+{-# ANN eqBy_Identity (PermitPatternMatches []) #-}
 {-# ANN eqBy_Identity (PermitConstructions [''Bool]) #-}
 {-# ANN eqBy_Identity (PermitTypeClasses []) #-}
 {-# NOINLINE eqBy_Identity #-}
@@ -816,7 +816,7 @@ inspect $ 'eqBy_Identity `hasNoType` ''S.Step
 inspect $ 'eqBy_Identity `hasNoType` ''Fold.Step
 #endif
 
-{-# ANN cmpBy_Identity (PermitPatternMatches [''Int]) #-}
+{-# ANN cmpBy_Identity (PermitPatternMatches []) #-}
 {-# ANN cmpBy_Identity (PermitConstructions [''Ordering]) #-}
 {-# ANN cmpBy_Identity (PermitTypeClasses []) #-}
 {-# NOINLINE cmpBy_Identity #-}
@@ -831,14 +831,14 @@ inspect $ 'cmpBy_Identity `hasNoType` ''S.Step
 inspect $ 'cmpBy_Identity `hasNoType` ''Fold.Step
 #endif
 
-{-# ANN eqBy (PermitPatternMatches [''Int]) #-}
+{-# ANN eqBy (PermitPatternMatches []) #-}
 {-# ANN eqBy (PermitConstructions [''Bool]) #-}
 {-# ANN eqBy (PermitTypeClasses []) #-}
 {-# NOINLINE eqBy #-}
 eqBy :: Int -> Int -> IO Bool
 eqBy value = withStream value $ \src -> S.eqBy (==) src src
 
-{-# ANN cmpBy (PermitPatternMatches [''Int]) #-}
+{-# ANN cmpBy (PermitPatternMatches []) #-}
 {-# ANN cmpBy (PermitConstructions [''Ordering]) #-}
 {-# ANN cmpBy (PermitTypeClasses []) #-}
 {-# NOINLINE cmpBy #-}
@@ -857,8 +857,8 @@ mapN n = composeN n $ fmap (+ 1)
 mapM :: MonadAsync m => Int -> Stream m Int -> m ()
 mapM n = composeN n $ Stream.mapM return
 
-{-# ANN fmap_x1 (PermitPatternMatches [''Int]) #-}
-{-# ANN fmap_x1 (PermitConstructions [''()]) #-}
+{-# ANN fmap_x1 (PermitPatternMatches []) #-}
+{-# ANN fmap_x1 (PermitConstructions []) #-}
 {-# ANN fmap_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE fmap_x1 #-}
 fmap_x1 :: Int -> Int -> IO ()
@@ -871,8 +871,8 @@ inspect $ 'fmap_x1 `hasNoType` ''FL.Step
 inspect $ 'fmap_x1 `hasNoType` ''SPEC
 #endif
 
-{-# ANN mapM_x1 (PermitPatternMatches [''Int]) #-}
-{-# ANN mapM_x1 (PermitConstructions [''()]) #-}
+{-# ANN mapM_x1 (PermitPatternMatches []) #-}
+{-# ANN mapM_x1 (PermitConstructions []) #-}
 {-# ANN mapM_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE mapM_x1 #-}
 mapM_x1 :: Int -> Int -> IO ()
@@ -885,8 +885,8 @@ inspect $ 'mapM_x1 `hasNoType` ''FL.Step
 inspect $ 'mapM_x1 `hasNoType` ''SPEC
 #endif
 
-{-# ANN fmap_x4 (PermitPatternMatches [''Int]) #-}
-{-# ANN fmap_x4 (PermitConstructions [''()]) #-}
+{-# ANN fmap_x4 (PermitPatternMatches []) #-}
+{-# ANN fmap_x4 (PermitConstructions []) #-}
 {-# ANN fmap_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE fmap_x4 #-}
 fmap_x4 :: Int -> Int -> IO ()
@@ -899,8 +899,8 @@ inspect $ 'fmap_x4 `hasNoType` ''FL.Step
 inspect $ 'fmap_x4 `hasNoType` ''SPEC
 #endif
 
-{-# ANN mapM_x4 (PermitPatternMatches [''Int]) #-}
-{-# ANN mapM_x4 (PermitConstructions [''()]) #-}
+{-# ANN mapM_x4 (PermitPatternMatches []) #-}
+{-# ANN mapM_x4 (PermitConstructions []) #-}
 {-# ANN mapM_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE mapM_x4 #-}
 mapM_x4 :: Int -> Int -> IO ()
@@ -925,8 +925,8 @@ _take_One n = composeN n $ Stream.take 1
 takeAll :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 takeAll value n = composeN n $ Stream.take (value + 1)
 
-{-# ANN take_All_x1 (PermitPatternMatches [''Int]) #-}
-{-# ANN take_All_x1 (PermitConstructions [''()]) #-}
+{-# ANN take_All_x1 (PermitPatternMatches []) #-}
+{-# ANN take_All_x1 (PermitConstructions []) #-}
 {-# ANN take_All_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE take_All_x1 #-}
 take_All_x1 :: Int -> Int -> IO ()
@@ -939,8 +939,8 @@ inspect $ 'take_All_x1 `hasNoType` ''FL.Step
 inspect $ 'take_All_x1 `hasNoType` ''SPEC
 #endif
 
-{-# ANN take_All_x4 (PermitPatternMatches [''Int]) #-}
-{-# ANN take_All_x4 (PermitConstructions [''()]) #-}
+{-# ANN take_All_x4 (PermitPatternMatches []) #-}
+{-# ANN take_All_x4 (PermitConstructions []) #-}
 {-# ANN take_All_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE take_All_x4 #-}
 take_All_x4 :: Int -> Int -> IO ()
@@ -957,8 +957,8 @@ inspect $ 'take_All_x4 `hasNoType` ''SPEC
 takeWhileTrue :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 takeWhileTrue value n = composeN n $ Stream.takeWhile (<= (value + 1))
 
-{-# ANN takeWhile_True_x1 (PermitPatternMatches [''Int]) #-}
-{-# ANN takeWhile_True_x1 (PermitConstructions [''()]) #-}
+{-# ANN takeWhile_True_x1 (PermitPatternMatches []) #-}
+{-# ANN takeWhile_True_x1 (PermitConstructions []) #-}
 {-# ANN takeWhile_True_x1 (PermitTypeClasses []) #-}
 {-# NOINLINE takeWhile_True_x1 #-}
 takeWhile_True_x1 :: Int -> Int -> IO ()
@@ -971,8 +971,8 @@ inspect $ 'takeWhile_True_x1 `hasNoType` ''FL.Step
 inspect $ 'takeWhile_True_x1 `hasNoType` ''SPEC
 #endif
 
-{-# ANN takeWhile_True_x4 (PermitPatternMatches [''Int]) #-}
-{-# ANN takeWhile_True_x4 (PermitConstructions [''()]) #-}
+{-# ANN takeWhile_True_x4 (PermitPatternMatches []) #-}
+{-# ANN takeWhile_True_x4 (PermitConstructions []) #-}
 {-# ANN takeWhile_True_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE takeWhile_True_x4 #-}
 takeWhile_True_x4 :: Int -> Int -> IO ()
@@ -990,8 +990,8 @@ takeWhileMTrue :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 takeWhileMTrue value n =
     composeN n $ Stream.takeWhileM (return . (<= (value + 1)))
 
-{-# ANN takeWhileM_True_x4 (PermitPatternMatches [''Int]) #-}
-{-# ANN takeWhileM_True_x4 (PermitConstructions [''()]) #-}
+{-# ANN takeWhileM_True_x4 (PermitPatternMatches []) #-}
+{-# ANN takeWhileM_True_x4 (PermitConstructions []) #-}
 {-# ANN takeWhileM_True_x4 (PermitTypeClasses []) #-}
 {-# NOINLINE takeWhileM_True_x4 #-}
 takeWhileM_True_x4 :: Int -> Int -> IO ()

@@ -41,8 +41,8 @@ import Fusion.Plugin.Types
 
 import Prelude hiding (repeat, replicate, iterate)
 
-{-# ANN unfoldr (PermitPatternMatches [''Int]) #-}
-{-# ANN unfoldr (PermitConstructions [''()]) #-}
+{-# ANN unfoldr (PermitPatternMatches []) #-}
+{-# ANN unfoldr (PermitConstructions []) #-}
 {-# ANN unfoldr (PermitTypeClasses []) #-}
 {-# NOINLINE unfoldr #-}
 unfoldr :: Int -> Int -> IO ()
@@ -55,8 +55,8 @@ inspect $ 'unfoldr `hasNoType` ''Fold.Step
 inspect $ 'unfoldr `hasNoType` ''SPEC
 #endif
 
-{-# ANN unfoldrM (PermitPatternMatches [''Int]) #-}
-{-# ANN unfoldrM (PermitConstructions [''()]) #-}
+{-# ANN unfoldrM (PermitPatternMatches []) #-}
+{-# ANN unfoldrM (PermitConstructions []) #-}
 {-# ANN unfoldrM (PermitTypeClasses []) #-}
 {-# NOINLINE unfoldrM #-}
 unfoldrM :: Int -> Int -> IO ()
@@ -69,8 +69,8 @@ inspect $ 'unfoldrM `hasNoType` ''Fold.Step
 inspect $ 'unfoldrM `hasNoType` ''SPEC
 #endif
 
-{-# ANN repeat (PermitPatternMatches [''Int]) #-}
-{-# ANN repeat (PermitConstructions [''()]) #-}
+{-# ANN repeat (PermitPatternMatches []) #-}
+{-# ANN repeat (PermitConstructions []) #-}
 {-# ANN repeat (PermitTypeClasses []) #-}
 {-# NOINLINE repeat #-}
 repeat :: Int -> Int -> IO ()
@@ -84,8 +84,8 @@ inspect $ 'repeat `hasNoType` ''SPEC
 #endif
 
 -- XXX should we use rnf to evaluate the result?
-{-# ANN fromListM (PermitPatternMatches [''Int,''[]]) #-}
-{-# ANN fromListM (PermitConstructions [''[],''Int,''()]) #-}
+{-# ANN fromListM (PermitPatternMatches [''[]]) #-}
+{-# ANN fromListM (PermitConstructions [''[],''Int]) #-}
 {-# ANN fromListM (PermitTypeClasses []) #-}
 {-# NOINLINE fromListM #-}
 fromListM :: Int -> Int -> IO ()
@@ -100,8 +100,8 @@ inspect $ 'fromListM `hasNoType` ''Fold.Step
 inspect $ 'fromListM `hasNoType` ''SPEC
 #endif
 
-{-# ANN replicate (PermitPatternMatches [''Int]) #-}
-{-# ANN replicate (PermitConstructions [''()]) #-}
+{-# ANN replicate (PermitPatternMatches []) #-}
+{-# ANN replicate (PermitConstructions []) #-}
 {-# ANN replicate (PermitTypeClasses []) #-}
 {-# NOINLINE replicate #-}
 replicate :: Int -> Int -> IO ()
@@ -118,8 +118,8 @@ inspect $ 'replicate `hasNoType` ''SPEC
 -- enumerate
 -------------------------------------------------------------------------------
 
-{-# ANN enumerateFromTo_Int (PermitPatternMatches [''Int]) #-}
-{-# ANN enumerateFromTo_Int (PermitConstructions [''()]) #-}
+{-# ANN enumerateFromTo_Int (PermitPatternMatches []) #-}
+{-# ANN enumerateFromTo_Int (PermitConstructions []) #-}
 {-# ANN enumerateFromTo_Int (PermitTypeClasses []) #-}
 {-# NOINLINE enumerateFromTo_Int #-}
 enumerateFromTo_Int :: Int -> Int -> IO ()
@@ -133,8 +133,8 @@ inspect $ 'enumerateFromTo_Int `hasNoType` ''Fold.Step
 inspect $ 'enumerateFromTo_Int `hasNoType` ''SPEC
 #endif
 
-{-# ANN enumerateFromThenTo_Int (PermitPatternMatches [''Int]) #-}
-{-# ANN enumerateFromThenTo_Int (PermitConstructions [''()]) #-}
+{-# ANN enumerateFromThenTo_Int (PermitPatternMatches []) #-}
+{-# ANN enumerateFromThenTo_Int (PermitConstructions []) #-}
 {-# ANN enumerateFromThenTo_Int (PermitTypeClasses []) #-}
 {-# NOINLINE enumerateFromThenTo_Int #-}
 enumerateFromThenTo_Int :: Int -> Int -> IO ()
@@ -149,8 +149,8 @@ inspect $ 'enumerateFromThenTo_Int `hasNoType` ''Fold.Step
 inspect $ 'enumerateFromThenTo_Int `hasNoType` ''SPEC
 #endif
 
-{-# ANN enumerateFromTo_Double (PermitPatternMatches [''Int]) #-}
-{-# ANN enumerateFromTo_Double (PermitConstructions [''()]) #-}
+{-# ANN enumerateFromTo_Double (PermitPatternMatches []) #-}
+{-# ANN enumerateFromTo_Double (PermitConstructions []) #-}
 {-# ANN enumerateFromTo_Double (PermitTypeClasses []) #-}
 {-# NOINLINE enumerateFromTo_Double #-}
 enumerateFromTo_Double :: Int -> Int -> IO ()
@@ -164,8 +164,8 @@ inspect $ 'enumerateFromTo_Double `hasNoType` ''Fold.Step
 inspect $ 'enumerateFromTo_Double `hasNoType` ''SPEC
 #endif
 
-{-# ANN enumerateFromThenTo_Double (PermitPatternMatches [''Int]) #-}
-{-# ANN enumerateFromThenTo_Double (PermitConstructions [''()]) #-}
+{-# ANN enumerateFromThenTo_Double (PermitPatternMatches []) #-}
+{-# ANN enumerateFromThenTo_Double (PermitConstructions []) #-}
 {-# ANN enumerateFromThenTo_Double (PermitTypeClasses []) #-}
 {-# NOINLINE enumerateFromThenTo_Double #-}
 enumerateFromThenTo_Double :: Int -> Int -> IO ()
@@ -181,8 +181,8 @@ inspect $ 'enumerateFromThenTo_Double `hasNoType` ''Fold.Step
 inspect $ 'enumerateFromThenTo_Double `hasNoType` ''SPEC
 #endif
 
-{-# ANN enumerateFromThen_Integer (PermitPatternMatches [''Integer,''Int]) #-}
-{-# ANN enumerateFromThen_Integer (PermitConstructions [''Integer,''()]) #-}
+{-# ANN enumerateFromThen_Integer (PermitPatternMatches [''Integer]) #-}
+{-# ANN enumerateFromThen_Integer (PermitConstructions [''Integer]) #-}
 {-# ANN enumerateFromThen_Integer (PermitTypeClasses []) #-}
 {-# NOINLINE enumerateFromThen_Integer #-}
 enumerateFromThen_Integer :: Int -> Int -> IO ()
@@ -198,8 +198,8 @@ inspect $ 'enumerateFromThen_Integer `hasNoType` ''Fold.Step
 inspect $ 'enumerateFromThen_Integer `hasNoType` ''SPEC
 #endif
 
-{-# ANN enumerateFrom (PermitPatternMatches [''Int]) #-}
-{-# ANN enumerateFrom (PermitConstructions [''()]) #-}
+{-# ANN enumerateFrom (PermitPatternMatches []) #-}
+{-# ANN enumerateFrom (PermitConstructions []) #-}
 {-# ANN enumerateFrom (PermitTypeClasses []) #-}
 {-# NOINLINE enumerateFrom #-}
 enumerateFrom :: Int -> Int -> IO ()
@@ -212,7 +212,7 @@ inspect $ 'enumerateFrom `hasNoType` ''Fold.Step
 inspect $ 'enumerateFrom `hasNoType` ''SPEC
 #endif
 
-{-# ANN enumerateFromThen_Int (PermitConstructions [''()]) #-}
+{-# ANN enumerateFromThen_Int (PermitConstructions []) #-}
 {-# ANN enumerateFromThen_Int (PermitTypeClasses []) #-}
 {-# NOINLINE enumerateFromThen_Int #-}
 enumerateFromThen_Int :: Int -> Int -> IO ()
@@ -227,8 +227,8 @@ inspect $ 'enumerateFromThen_Int `hasNoType` ''SPEC
 #endif
 
 -- n ~ 1
-{-# ANN enumerate (PermitPatternMatches [''Int]) #-}
-{-# ANN enumerate (PermitConstructions [''()]) #-}
+{-# ANN enumerate (PermitPatternMatches []) #-}
+{-# ANN enumerate (PermitConstructions []) #-}
 {-# ANN enumerate (PermitTypeClasses []) #-}
 {-# NOINLINE enumerate #-}
 enumerate :: Int -> Int -> IO ()
@@ -243,8 +243,8 @@ inspect $ 'enumerate `hasNoType` ''SPEC
 #endif
 
 -- n ~ 1
-{-# ANN enumerateTo (PermitPatternMatches [''Int]) #-}
-{-# ANN enumerateTo (PermitConstructions [''()]) #-}
+{-# ANN enumerateTo (PermitPatternMatches []) #-}
+{-# ANN enumerateTo (PermitConstructions []) #-}
 {-# ANN enumerateTo (PermitTypeClasses []) #-}
 {-# NOINLINE enumerateTo #-}
 enumerateTo :: Int -> Int -> IO ()
@@ -258,7 +258,7 @@ inspect $ 'enumerateTo `hasNoType` ''SPEC
 #endif
 
 {-# ANN iterate (PermitPatternMatches [''Int]) #-}
-{-# ANN iterate (PermitConstructions [''Int,''()]) #-}
+{-# ANN iterate (PermitConstructions [''Int]) #-}
 {-# ANN iterate (PermitTypeClasses []) #-}
 {-# NOINLINE iterate #-}
 iterate :: Int -> Int -> IO ()
@@ -272,7 +272,7 @@ inspect $ 'iterate `hasNoType` ''SPEC
 #endif
 
 {-# ANN iterateM (PermitPatternMatches [''Int]) #-}
-{-# ANN iterateM (PermitConstructions [''Int,''()]) #-}
+{-# ANN iterateM (PermitConstructions [''Int]) #-}
 {-# ANN iterateM (PermitTypeClasses []) #-}
 {-# NOINLINE iterateM #-}
 iterateM :: Int -> Int -> IO ()
@@ -286,8 +286,8 @@ inspect $ 'iterateM `hasNoType` ''Fold.Step
 inspect $ 'iterateM `hasNoType` ''SPEC
 #endif
 
-{-# ANN repeatM (PermitPatternMatches [''Int]) #-}
-{-# ANN repeatM (PermitConstructions [''()]) #-}
+{-# ANN repeatM (PermitPatternMatches []) #-}
+{-# ANN repeatM (PermitConstructions []) #-}
 {-# ANN repeatM (PermitTypeClasses []) #-}
 {-# NOINLINE repeatM #-}
 repeatM :: Int -> Int -> IO ()
@@ -300,8 +300,8 @@ inspect $ 'repeatM `hasNoType` ''Fold.Step
 inspect $ 'repeatM `hasNoType` ''SPEC
 #endif
 
-{-# ANN replicateM (PermitPatternMatches [''Int]) #-}
-{-# ANN replicateM (PermitConstructions [''()]) #-}
+{-# ANN replicateM (PermitPatternMatches []) #-}
+{-# ANN replicateM (PermitConstructions []) #-}
 {-# ANN replicateM (PermitTypeClasses []) #-}
 {-# NOINLINE replicateM #-}
 replicateM :: Int -> Int -> IO ()
@@ -314,8 +314,8 @@ inspect $ 'replicateM `hasNoType` ''Fold.Step
 inspect $ 'replicateM `hasNoType` ''SPEC
 #endif
 
-{-# ANN fromIndices (PermitPatternMatches [''Int]) #-}
-{-# ANN fromIndices (PermitConstructions [''()]) #-}
+{-# ANN fromIndices (PermitPatternMatches []) #-}
+{-# ANN fromIndices (PermitConstructions []) #-}
 {-# ANN fromIndices (PermitTypeClasses []) #-}
 {-# NOINLINE fromIndices #-}
 fromIndices :: Int -> Int -> IO ()
@@ -329,8 +329,8 @@ inspect $ 'fromIndices `hasNoType` ''Fold.Step
 inspect $ 'fromIndices `hasNoType` ''SPEC
 #endif
 
-{-# ANN fromIndicesM (PermitPatternMatches [''Int]) #-}
-{-# ANN fromIndicesM (PermitConstructions [''()]) #-}
+{-# ANN fromIndicesM (PermitPatternMatches []) #-}
+{-# ANN fromIndicesM (PermitConstructions []) #-}
 {-# ANN fromIndicesM (PermitTypeClasses []) #-}
 {-# NOINLINE fromIndicesM #-}
 fromIndicesM :: Int -> Int -> IO ()
