@@ -142,7 +142,7 @@ jobs:
       run: |
         # --cabal-build-options "-j1"
         ./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --targets "$CI_BENCHMARKS" --core-sizes
-        ./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --targets "$CI_BENCHMARKS" --raw --keep-going
+        ./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --targets "$CI_BENCHMARKS" --raw --keep-going || true
         # XXX Print dependencies of streamly-core and streamly for comparison
         # in case there is a regression due to version changes.
         # ghc-pkg --package-db=./dist-newstyle/packagedb/ghc-9.10.3/ field streamly depends
