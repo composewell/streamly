@@ -136,6 +136,7 @@ module Streamly.Internal.Data.MutArray.Generic
 
     -- ** Construct from streams
     , chunksOf
+    , GroupState(..)
     -- , arrayStreamKFromStreamD
     -- , writeChunks
 
