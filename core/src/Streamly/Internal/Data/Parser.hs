@@ -241,6 +241,7 @@ module Streamly.Internal.Data.Parser
     , Tuple'Fused (..)
     , TakeGEState (..)
     , FramedEscState (..)
+    , WordByState (..)
     , GroupByState (..)
     , GroupByStatePair (..)
     , DeintercalateAllState (..)

@@ -4,46 +4,34 @@
 -- License     : MIT
 -- Maintainer  : streamly@composewell.com
 
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-
-#undef FUSION_CHECK
-#ifdef FUSION_CHECK
-{-# OPTIONS_GHC -ddump-simpl -ddump-to-file -dsuppress-all #-}
-#endif
-
-#ifdef __HADDOCK_VERSION__
-#undef INSPECTION
-#endif
-
-#ifdef INSPECTION
-{-# LANGUAGE TemplateHaskell #-}
-{-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
-#endif
 
 module Unfold.Type (benchmarks) where
 
+import GHC.Types (SPEC(..))
 import Control.DeepSeq (NFData(..))
-import Control.Exception (ErrorCall, try)
-import qualified Data.Tuple as Tuple
+import Control.Exception (ErrorCall, try, Exception, SomeException)
+import Data.Typeable (Typeable)
+import Unsafe.Coerce (UnsafeEquality)
+import GHC.Classes (IP)
+import GHC.Stack (CallStack, SrcLoc)
 import Streamly.Internal.Data.Unfold (Unfold)
 import System.Random (randomRIO)
 
+import qualified Data.Tuple as Tuple
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as UF
 
+import Fusion.Plugin.Types
 import Test.Tasty.Bench hiding (env)
-import Prelude hiding (take, filter, zipWith, map, mapM, takeWhile, scanl, repeat, dropWhile)
+import Prelude hiding
+    (take, filter, zipWith, map, mapM, takeWhile, scanl, repeat, dropWhile)
 import Streamly.Benchmark.Common
-
-#ifdef INSPECTION
-import GHC.Types (SPEC(..))
-import Test.Inspection
-import qualified Streamly.Internal.Data.Stream as S
-
-import qualified Streamly.Internal.Data.Producer as Producer
-#endif
+import Streamly.Internal.Data.Producer
+    (ConcatMapReaderState, EnumToState, InterleaveEachState)
+import Streamly.Internal.Data.Stream (Step)
 
 {-# INLINE benchIO #-}
 benchIO :: (NFData b) => String -> (Int -> IO b) -> Benchmark
@@ -104,40 +92,34 @@ drainProductDefault to = drainProduct src src
 -- Operations on input
 -------------------------------------------------------------------------------
 
-{-# INLINE lmap #-}
+{-# ANN lmap (PermitPatternMatches []) #-}
+{-# ANN lmap (PermitConstructions []) #-}
+{-# ANN lmap (PermitTypeClasses []) #-}
+{-# NOINLINE lmap #-}
 lmap :: Int -> Int -> IO ()
 lmap size start =
     drainTransformationDefault (size + start) (UF.lmap (+ 1)) start
 
-#ifdef INSPECTION
-inspect $ 'lmap `hasNoType` ''S.Step
-inspect $ 'lmap `hasNoType` ''FL.Step
-inspect $ 'lmap `hasNoType` ''SPEC
-#endif
-
-{-# INLINE lmapM #-}
+{-# ANN lmapM (PermitPatternMatches []) #-}
+{-# ANN lmapM (PermitConstructions []) #-}
+{-# ANN lmapM (PermitTypeClasses []) #-}
+{-# NOINLINE lmapM #-}
 lmapM :: Int -> Int -> IO ()
 lmapM size start =
     drainTransformationDefault (size + start) (UF.lmapM (return . (+) 1)) start
 
-#ifdef INSPECTION
-inspect $ 'lmapM `hasNoType` ''S.Step
-inspect $ 'lmapM `hasNoType` ''FL.Step
-inspect $ 'lmapM `hasNoType` ''SPEC
-#endif
-
-{-# INLINE both #-}
+{-# ANN both (PermitPatternMatches []) #-}
+{-# ANN both (PermitConstructions []) #-}
+{-# ANN both (PermitTypeClasses []) #-}
+{-# NOINLINE both #-}
 both :: Int -> Int -> IO ()
 both size start =
     drainTransformationDefault (size + start) (UF.supply start) ()
 
-#ifdef INSPECTION
-inspect $ 'both `hasNoType` ''S.Step
-inspect $ 'both `hasNoType` ''FL.Step
-inspect $ 'both `hasNoType` ''SPEC
-#endif
-
-{-# INLINE first #-}
+{-# ANN first (PermitPatternMatches []) #-}
+{-# ANN first (PermitConstructions []) #-}
+{-# ANN first (PermitTypeClasses []) #-}
+{-# NOINLINE first #-}
 first :: Int -> Int -> IO ()
 first size start =
     drainTransformation
@@ -145,62 +127,42 @@ first size start =
         (UF.supplyFirst start)
         1
 
-#ifdef INSPECTION
-inspect $ 'first `hasNoType` ''S.Step
-inspect $ 'first `hasNoType` ''FL.Step
-inspect $ 'first `hasNoType` ''SPEC
-#endif
-
-{-# INLINE second #-}
+{-# ANN second (PermitPatternMatches []) #-}
+{-# ANN second (PermitConstructions []) #-}
+{-# ANN second (PermitTypeClasses []) #-}
+{-# NOINLINE second #-}
 second :: Int -> Int -> IO ()
 second size =
     drainTransformation
         (UF.take size UF.enumerateFromThenNum)
         (UF.supplySecond 1)
 
-#ifdef INSPECTION
-inspect $ 'second `hasNoType` ''S.Step
-inspect $ 'second `hasNoType` ''FL.Step
-inspect $ 'second `hasNoType` ''SPEC
-#endif
-
-{-# INLINE consInput #-}
+{-# ANN consInput (PermitPatternMatches []) #-}
+{-# ANN consInput (PermitConstructions []) #-}
+{-# ANN consInput (PermitTypeClasses []) #-}
+{-# NOINLINE consInput #-}
 consInput :: Int -> Int -> IO ()
 consInput size start =
     drainTransformationDefault (size + start) UF.consInput start
 
-#ifdef INSPECTION
-inspect $ 'consInput `hasNoType` ''S.Step
-inspect $ 'consInput `hasNoType` ''FL.Step
-inspect $ 'consInput `hasNoType` ''SPEC
-inspect $ 'consInput `hasNoType` ''UF.ConsInputState
-#endif
-
-{-# INLINE consInputWith #-}
+{-# ANN consInputWith (PermitPatternMatches []) #-}
+{-# ANN consInputWith (PermitConstructions []) #-}
+{-# ANN consInputWith (PermitTypeClasses []) #-}
+{-# NOINLINE consInputWith #-}
 consInputWith :: Int -> Int -> IO ()
 consInputWith size start =
     drainTransformationDefault (size + start) (UF.consInputWith (+1)) start
 
-#ifdef INSPECTION
-inspect $ 'consInputWith `hasNoType` ''S.Step
-inspect $ 'consInputWith `hasNoType` ''FL.Step
-inspect $ 'consInputWith `hasNoType` ''SPEC
-inspect $ 'consInputWith `hasNoType` ''UF.ConsInputState
-#endif
-
-{-# INLINE swap #-}
+{-# ANN swap (PermitPatternMatches []) #-}
+{-# ANN swap (PermitConstructions []) #-}
+{-# ANN swap (PermitTypeClasses []) #-}
+{-# NOINLINE swap #-}
 swap :: Int -> Int -> IO ()
 swap size start =
     drainTransformation
         (UF.take size UF.enumerateFromThenNum)
         (UF.lmap Tuple.swap)
         (1, start)
-
-#ifdef INSPECTION
-inspect $ 'swap `hasNoType` ''S.Step
-inspect $ 'swap `hasNoType` ''FL.Step
-inspect $ 'swap `hasNoType` ''SPEC
-#endif
 
 -------------------------------------------------------------------------------
 -- Stream generation
@@ -209,101 +171,73 @@ inspect $ 'swap `hasNoType` ''SPEC
 -- 'functionM', 'function', 'identity' and 'fromEffect' generate a single
 -- element per seed, so to process ~value elements we unfold them over an outer
 -- source of value seeds.
-{-# INLINE functionM #-}
+{-# ANN functionM (PermitPatternMatches []) #-}
+{-# ANN functionM (PermitConstructions []) #-}
+{-# ANN functionM (PermitTypeClasses []) #-}
+{-# NOINLINE functionM #-}
 functionM :: Int -> Int -> IO ()
 functionM value start =
     drainGeneration
         (UF.unfoldEach (UF.functionM return) (source (start + value))) start
 
-#ifdef INSPECTION
-inspect $ 'functionM `hasNoType` ''S.Step
-inspect $ 'functionM `hasNoType` ''FL.Step
-inspect $ 'functionM `hasNoType` ''SPEC
-inspect $ 'functionM `hasNoType` ''Producer.ConcatState
-#endif
-
-{-# INLINE function #-}
+{-# ANN function (PermitPatternMatches []) #-}
+{-# ANN function (PermitConstructions []) #-}
+{-# ANN function (PermitTypeClasses []) #-}
+{-# NOINLINE function #-}
 function :: Int -> Int -> IO ()
 function value start =
     drainGeneration
         (UF.unfoldEach (UF.function id) (source (start + value))) start
 
-#ifdef INSPECTION
-inspect $ 'function `hasNoType` ''S.Step
-inspect $ 'function `hasNoType` ''FL.Step
-inspect $ 'function `hasNoType` ''SPEC
-inspect $ 'function `hasNoType` ''Producer.ConcatState
-#endif
-
-{-# INLINE identity #-}
+{-# ANN identity (PermitPatternMatches []) #-}
+{-# ANN identity (PermitConstructions []) #-}
+{-# ANN identity (PermitTypeClasses []) #-}
+{-# NOINLINE identity #-}
 identity :: Int -> Int -> IO ()
 identity value start =
     drainGeneration (UF.unfoldEach UF.identity (source (start + value))) start
 
-#ifdef INSPECTION
-inspect $ 'identity `hasNoType` ''S.Step
-inspect $ 'identity `hasNoType` ''FL.Step
-inspect $ 'identity `hasNoType` ''SPEC
-inspect $ 'identity `hasNoType` ''Producer.ConcatState
-#endif
-
-{-# INLINE fromEffect #-}
+{-# ANN fromEffect (PermitPatternMatches []) #-}
+{-# ANN fromEffect (PermitConstructions []) #-}
+{-# ANN fromEffect (PermitTypeClasses []) #-}
+{-# NOINLINE fromEffect #-}
 fromEffect :: Int -> Int -> IO ()
 fromEffect value start =
     drainGeneration
         (UF.unfoldEach (UF.fromEffect (return start)) (source (start + value)))
         start
 
-#ifdef INSPECTION
-inspect $ 'fromEffect `hasNoType` ''S.Step
-inspect $ 'fromEffect `hasNoType` ''FL.Step
-inspect $ 'fromEffect `hasNoType` ''SPEC
-inspect $ 'fromEffect `hasNoType` ''Producer.ConcatState
-#endif
-
-{-# INLINE fromPure #-}
+{-# ANN fromPure (PermitPatternMatches []) #-}
+{-# ANN fromPure (PermitConstructions []) #-}
+{-# ANN fromPure (PermitTypeClasses []) #-}
+{-# NOINLINE fromPure #-}
 fromPure :: Int -> Int -> IO ()
 fromPure value start =
     drainGeneration
         (UF.unfoldEach (UF.fromPure start) (source (start + value)))
         start
 
-#ifdef INSPECTION
-inspect $ 'fromPure `hasNoType` ''S.Step
-inspect $ 'fromPure `hasNoType` ''FL.Step
-inspect $ 'fromPure `hasNoType` ''SPEC
-inspect $ 'fromPure `hasNoType` ''Producer.ConcatState
-#endif
-
-{-# INLINE functionMaybeM #-}
+{-# ANN functionMaybeM (PermitPatternMatches []) #-}
+{-# ANN functionMaybeM (PermitConstructions []) #-}
+{-# ANN functionMaybeM (PermitTypeClasses []) #-}
+{-# NOINLINE functionMaybeM #-}
 functionMaybeM :: Int -> Int -> IO ()
 functionMaybeM value start =
     drainGeneration
-        (UF.unfoldEach (UF.functionMaybeM (return . Just)) (source (start + value)))
+        (UF.unfoldEach
+            (UF.functionMaybeM (return . Just)) (source (start + value)))
         start
-
-#ifdef INSPECTION
-inspect $ 'functionMaybeM `hasNoType` ''S.Step
-inspect $ 'functionMaybeM `hasNoType` ''FL.Step
-inspect $ 'functionMaybeM `hasNoType` ''SPEC
-inspect $ 'functionMaybeM `hasNoType` ''Producer.ConcatState
-#endif
 
 -- 'fromTuple' generates two elements per seed, so unfold it over value/2 tuples
 -- to emit and drain ~value elements.
-{-# INLINE fromTuple #-}
+{-# ANN fromTuple (PermitPatternMatches []) #-}
+{-# ANN fromTuple (PermitConstructions []) #-}
+{-# ANN fromTuple (PermitTypeClasses []) #-}
+{-# NOINLINE fromTuple #-}
 fromTuple :: Int -> Int -> IO ()
 fromTuple value start =
     let outer = UF.map (\i -> (i, i)) (source (start + value `div` 2))
      in drainGeneration (UF.unfoldEach UF.fromTuple outer) start
-
-#ifdef INSPECTION
-inspect $ 'fromTuple `hasNoType` ''S.Step
-inspect $ 'fromTuple `hasNoType` ''FL.Step
-inspect $ 'fromTuple `hasNoType` ''SPEC
-inspect $ 'fromTuple `hasNoType` ''Producer.ConcatState
-inspect $ 'fromTuple `hasNoType` ''Producer.TupleState
-#endif
 
 {-# INLINE sourceUnfoldrM #-}
 sourceUnfoldrM :: Monad m => Int -> Int -> Unfold m Int Int
@@ -317,81 +251,66 @@ sourceUnfoldrM size start = UF.unfoldrM step
               then Just (i, i + 1)
               else Nothing
 
-{-# INLINE unfoldrM #-}
+{-# ANN unfoldrM (PermitPatternMatches []) #-}
+{-# ANN unfoldrM (PermitConstructions []) #-}
+{-# ANN unfoldrM (PermitTypeClasses []) #-}
+{-# NOINLINE unfoldrM #-}
 unfoldrM :: Int -> Int -> IO ()
 unfoldrM size start = drainGeneration (sourceUnfoldrM size start) start
 
-#ifdef INSPECTION
-inspect $ 'unfoldrM `hasNoType` ''S.Step
-inspect $ 'unfoldrM `hasNoType` ''FL.Step
-inspect $ 'unfoldrM `hasNoType` ''SPEC
-#endif
-
-{-# INLINE unfoldr #-}
+{-# ANN unfoldr (PermitPatternMatches []) #-}
+{-# ANN unfoldr (PermitConstructions []) #-}
+{-# ANN unfoldr (PermitTypeClasses []) #-}
+{-# NOINLINE unfoldr #-}
 unfoldr :: Int -> Int -> IO ()
 unfoldr size start = drainGeneration (UF.unfoldr step) start
     where
     step i = if i < start + size then Just (i, i + 1) else Nothing
 
-#ifdef INSPECTION
-inspect $ 'unfoldr `hasNoType` ''S.Step
-inspect $ 'unfoldr `hasNoType` ''FL.Step
-inspect $ 'unfoldr `hasNoType` ''SPEC
-#endif
-
-{-# INLINE fromList #-}
+{-# ANN fromList (PermitPatternMatches [''[]]) #-}
+{-# ANN fromList (PermitConstructions [''Int,''[]]) #-}
+{-# ANN fromList (PermitTypeClasses []) #-}
+{-# NOINLINE fromList #-}
 fromList :: Int -> Int -> IO ()
 fromList size start = drainGeneration UF.fromList [start .. start + size]
-
-#ifdef INSPECTION
-inspect $ 'fromList `hasNoType` ''S.Step
-inspect $ 'fromList `hasNoType` ''FL.Step
-inspect $ 'fromList `hasNoType` ''SPEC
-#endif
 
 -------------------------------------------------------------------------------
 -- Stream transformation
 -------------------------------------------------------------------------------
 
-{-# INLINE map #-}
+{-# ANN map (PermitPatternMatches []) #-}
+{-# ANN map (PermitConstructions []) #-}
+{-# ANN map (PermitTypeClasses []) #-}
+{-# NOINLINE map #-}
 map :: Int -> Int -> IO ()
 map size start = drainTransformationDefault (size + start) (UF.map (+1)) start
 
-#ifdef INSPECTION
-inspect $ 'map `hasNoType` ''S.Step
-inspect $ 'map `hasNoType` ''FL.Step
-inspect $ 'map `hasNoType` ''SPEC
-#endif
-
-{-# INLINE mapM #-}
+{-# ANN mapM (PermitPatternMatches []) #-}
+{-# ANN mapM (PermitConstructions []) #-}
+{-# ANN mapM (PermitTypeClasses []) #-}
+{-# NOINLINE mapM #-}
 mapM :: Int -> Int -> IO ()
 mapM size start =
     drainTransformationDefault (size + start) (UF.mapM (return . (+) 1)) start
 
-#ifdef INSPECTION
-inspect $ 'mapM `hasNoType` ''S.Step
-inspect $ 'mapM `hasNoType` ''FL.Step
-inspect $ 'mapM `hasNoType` ''SPEC
-#endif
-
-{-# INLINE mapM2 #-}
-mapM2 :: Int -> Int -> IO ()
-mapM2 size =
+{-# ANN mapM_CarryInput (PermitPatternMatches []) #-}
+{-# ANN mapM_CarryInput (PermitConstructions []) #-}
+{-# ANN mapM_CarryInput (PermitTypeClasses []) #-}
+{-# NOINLINE mapM_CarryInput #-}
+mapM_CarryInput :: Int -> Int -> IO ()
+mapM_CarryInput size =
     drainTransformationDefault
         size
         (UF.mapM (\(a, b) -> return $ a + b) . UF.carryInput)
-
-#ifdef INSPECTION
-inspect $ 'mapM2 `hasNoType` ''S.Step
-inspect $ 'mapM2 `hasNoType` ''FL.Step
-inspect $ 'mapM2 `hasNoType` ''SPEC
-#endif
 
 -------------------------------------------------------------------------------
 -- Stream filtering
 -------------------------------------------------------------------------------
 
-{-# INLINE takeWhileM #-}
+{-# ANN takeWhileM (PermitPatternMatches []) #-}
+{-# ANN takeWhileM (PermitConstructions []) #-}
+{-# ANN takeWhileM (PermitTypeClasses []) #-}
+{-# NOINLINE takeWhileM #-}
 takeWhileM :: Int -> Int -> IO ()
 takeWhileM size start =
     drainTransformationDefault
@@ -399,13 +318,10 @@ takeWhileM size start =
         (UF.takeWhileM (\b -> return (b <= size + start)))
         start
 
-#ifdef INSPECTION
-inspect $ 'takeWhileM `hasNoType` ''S.Step
-inspect $ 'takeWhileM `hasNoType` ''FL.Step
-inspect $ 'takeWhileM `hasNoType` ''SPEC
-#endif
-
-{-# INLINE takeWhile #-}
+{-# ANN takeWhile (PermitPatternMatches []) #-}
+{-# ANN takeWhile (PermitConstructions []) #-}
+{-# ANN takeWhile (PermitTypeClasses []) #-}
+{-# NOINLINE takeWhile #-}
 takeWhile :: Int -> Int -> IO ()
 takeWhile size start =
     drainTransformationDefault
@@ -413,28 +329,22 @@ takeWhile size start =
         (UF.takeWhile (\b -> b <= size + start))
         start
 
-#ifdef INSPECTION
-inspect $ 'takeWhile `hasNoType` ''S.Step
-inspect $ 'takeWhile `hasNoType` ''FL.Step
-inspect $ 'takeWhile `hasNoType` ''SPEC
-#endif
-
 -------------------------------------------------------------------------------
 -- Stream combination
 -------------------------------------------------------------------------------
 
-{-# INLINE zipWith #-}
+{-# ANN zipWith (PermitPatternMatches [''Int]) #-}
+{-# ANN zipWith (PermitConstructions [''Int]) #-}
+{-# ANN zipWith (PermitTypeClasses []) #-}
+{-# NOINLINE zipWith #-}
 zipWith :: Int -> Int -> IO ()
 zipWith size start =
     drainProductDefault (size + start) (UF.zipWith (+)) start
 
-#ifdef INSPECTION
-inspect $ 'zipWith `hasNoType` ''S.Step
-inspect $ 'zipWith `hasNoType` ''FL.Step
-inspect $ 'zipWith `hasNoType` ''SPEC
-#endif
-
-{-# INLINE zipWithM #-}
+{-# ANN zipWithM (PermitPatternMatches [''Int]) #-}
+{-# ANN zipWithM (PermitConstructions [''Int]) #-}
+{-# ANN zipWithM (PermitTypeClasses []) #-}
+{-# NOINLINE zipWithM #-}
 zipWithM :: Int -> Int -> IO ()
 zipWithM size start =
     drainProductDefault
@@ -442,36 +352,18 @@ zipWithM size start =
         (UF.zipWithM (\a b -> return $ a + b))
         start
 
-#ifdef INSPECTION
-inspect $ 'zipWithM `hasNoType` ''S.Step
-inspect $ 'zipWithM `hasNoType` ''FL.Step
-inspect $ 'zipWithM `hasNoType` ''SPEC
-#endif
-
-{-# INLINE teeZipWith #-}
-teeZipWith :: Int -> Int -> IO ()
-teeZipWith size start =
-    drainProductDefault (size + start) (UF.zipWith (+)) start
-
-#ifdef INSPECTION
-inspect $ 'teeZipWith `hasNoType` ''S.Step
-inspect $ 'teeZipWith `hasNoType` ''FL.Step
-inspect $ 'teeZipWith `hasNoType` ''SPEC
-#endif
-
-{-# INLINE interleave #-}
+{-# ANN interleave (PermitPatternMatches []) #-}
+{-# ANN interleave (PermitConstructions []) #-}
+{-# ANN interleave (PermitTypeClasses []) #-}
+{-# NOINLINE interleave #-}
 interleave :: Int -> Int -> IO ()
 interleave size start =
     drainProductDefault (size + start) UF.interleave (start, start)
 
-#ifdef INSPECTION
-inspect $ 'interleave `hasNoType` ''S.Step
-inspect $ 'interleave `hasNoType` ''FL.Step
-inspect $ 'interleave `hasNoType` ''SPEC
-inspect $ 'interleave `hasNoType` ''Producer.InterleaveState
-#endif
-
-{-# INLINE zipArrowWithM #-}
+{-# ANN zipArrowWithM (PermitPatternMatches [''Int]) #-}
+{-# ANN zipArrowWithM (PermitConstructions [''Int]) #-}
+{-# ANN zipArrowWithM (PermitTypeClasses []) #-}
+{-# NOINLINE zipArrowWithM #-}
 zipArrowWithM :: Int -> Int -> IO ()
 zipArrowWithM size start =
     drainProductDefault
@@ -479,22 +371,13 @@ zipArrowWithM size start =
         (UF.zipArrowWithM (\a b -> return (a + b)))
         (start, start)
 
-#ifdef INSPECTION
-inspect $ 'zipArrowWithM `hasNoType` ''S.Step
-inspect $ 'zipArrowWithM `hasNoType` ''FL.Step
-inspect $ 'zipArrowWithM `hasNoType` ''SPEC
-#endif
-
-{-# INLINE zipArrowWith #-}
+{-# ANN zipArrowWith (PermitPatternMatches [''Int]) #-}
+{-# ANN zipArrowWith (PermitConstructions [''Int]) #-}
+{-# ANN zipArrowWith (PermitTypeClasses []) #-}
+{-# NOINLINE zipArrowWith #-}
 zipArrowWith :: Int -> Int -> IO ()
 zipArrowWith size start =
     drainProductDefault (size + start) (UF.zipArrowWith (+)) (start, start)
-
-#ifdef INSPECTION
-inspect $ 'zipArrowWith `hasNoType` ''S.Step
-inspect $ 'zipArrowWith `hasNoType` ''FL.Step
-inspect $ 'zipArrowWith `hasNoType` ''SPEC
-#endif
 
 -------------------------------------------------------------------------------
 -- Applicative
@@ -503,146 +386,112 @@ inspect $ 'zipArrowWith `hasNoType` ''SPEC
 nthRoot :: Double -> Int -> Int
 nthRoot n value = round (fromIntegral value**(1/n))
 
-{-# INLINE toNullAp #-}
-toNullAp :: Int -> Int -> IO ()
-toNullAp value start =
+{-# ANN ap_ApplicativeInstance_x2 (PermitPatternMatches [''Int]) #-}
+{-# ANN ap_ApplicativeInstance_x2 (PermitConstructions [''Int]) #-}
+{-# ANN ap_ApplicativeInstance_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE ap_ApplicativeInstance_x2 #-}
+ap_ApplicativeInstance_x2 :: Int -> Int -> IO ()
+ap_ApplicativeInstance_x2 value start =
     let end = start + nthRoot 2 value
         s = source end
     -- in UF.fold ((+) <$> s <*> s) FL.drain start
     in UF.fold FL.drain (((+) `fmap` s) `UF.crossApply` s) start
 
-#ifdef INSPECTION
-inspect $ 'toNullAp `hasNoType` ''S.Step
-inspect $ 'toNullAp `hasNoType` ''FL.Step
-inspect $ 'toNullAp `hasNoType` ''SPEC
-inspect $ 'toNullAp `hasNoType` ''Producer.CrossApplyState
-#endif
-
-{-# INLINE crossApplyFst #-}
+{-# ANN crossApplyFst (PermitPatternMatches [''Int]) #-}
+{-# ANN crossApplyFst (PermitConstructions [''Int]) #-}
+{-# ANN crossApplyFst (PermitTypeClasses []) #-}
+{-# NOINLINE crossApplyFst #-}
 crossApplyFst :: Int -> Int -> IO ()
 crossApplyFst value start =
     let end = start + nthRoot 2 value
         s = source end
     in UF.fold FL.drain (s `UF.crossApplyFst` s) start
 
-#ifdef INSPECTION
-inspect $ 'crossApplyFst `hasNoType` ''S.Step
-inspect $ 'crossApplyFst `hasNoType` ''FL.Step
-inspect $ 'crossApplyFst `hasNoType` ''SPEC
-inspect $ 'crossApplyFst `hasNoType` ''Producer.CrossApplyFstState
-#endif
-
-{-# INLINE crossApplySnd #-}
+{-# ANN crossApplySnd (PermitPatternMatches [''Int]) #-}
+{-# ANN crossApplySnd (PermitConstructions [''Int]) #-}
+{-# ANN crossApplySnd (PermitTypeClasses []) #-}
+{-# NOINLINE crossApplySnd #-}
 crossApplySnd :: Int -> Int -> IO ()
 crossApplySnd value start =
     let end = start + nthRoot 2 value
         s = source end
     in UF.fold FL.drain (s `UF.crossApplySnd` s) start
 
-#ifdef INSPECTION
-inspect $ 'crossApplySnd `hasNoType` ''S.Step
-inspect $ 'crossApplySnd `hasNoType` ''FL.Step
-inspect $ 'crossApplySnd `hasNoType` ''SPEC
-inspect $ 'crossApplySnd `hasNoType` ''Producer.CrossApplyState
-#endif
-
-{-# INLINE cross #-}
+{-# ANN cross (PermitPatternMatches [''Int]) #-}
+{-# ANN cross (PermitConstructions [''Int]) #-}
+{-# ANN cross (PermitTypeClasses []) #-}
+{-# NOINLINE cross #-}
 cross :: Int -> Int -> IO ()
 cross value start =
     let end = start + nthRoot 2 value
         s = source end
     in UF.fold FL.drain (s `UF.cross` s) start
 
-#ifdef INSPECTION
-inspect $ 'cross `hasNoType` ''S.Step
-inspect $ 'cross `hasNoType` ''FL.Step
-inspect $ 'cross `hasNoType` ''SPEC
-inspect $ 'cross `hasNoType` ''Producer.CrossState
-#endif
-
-{-# INLINE fairCross #-}
+{-# ANN fairCross (PermitPatternMatches
+    [''(,),''Int,''[],''EnumToState]) #-}
+{-# ANN fairCross (PermitConstructions
+    [''Int,''(,),''[],''EnumToState]) #-}
+{-# ANN fairCross (PermitTypeClasses []) #-}
+{-# NOINLINE fairCross #-}
 fairCross :: Int -> Int -> IO ()
 fairCross value start =
     let end = start + nthRoot 2 value
         s = source end
     in UF.fold FL.drain (s `UF.fairCross` s) start
 
-#ifdef INSPECTION
-inspect $ 'fairCross `hasNoType` ''S.Step
-inspect $ 'fairCross `hasNoType` ''FL.Step
-inspect $ 'fairCross `hasNoType` ''SPEC
-inspect $ 'fairCross `hasNoType` ''Producer.FairCrossState
-#endif
-
-{-# INLINE crossApply #-}
+{-# ANN crossApply (PermitPatternMatches [''Int]) #-}
+{-# ANN crossApply (PermitConstructions [''Int]) #-}
+{-# ANN crossApply (PermitTypeClasses []) #-}
+{-# NOINLINE crossApply #-}
 crossApply :: Int -> Int -> IO ()
 crossApply value start =
     let end = start + nthRoot 2 value
         s = source end
     in UF.fold FL.drain (UF.crossApply (UF.map (+) s) s) start
 
-#ifdef INSPECTION
-inspect $ 'crossApply `hasNoType` ''S.Step
-inspect $ 'crossApply `hasNoType` ''FL.Step
-inspect $ 'crossApply `hasNoType` ''SPEC
-inspect $ 'crossApply `hasNoType` ''Producer.CrossApplyState
-#endif
-
-{-# INLINE crossWithM #-}
+{-# ANN crossWithM (PermitPatternMatches [''Int]) #-}
+{-# ANN crossWithM (PermitConstructions [''Int]) #-}
+{-# ANN crossWithM (PermitTypeClasses []) #-}
+{-# NOINLINE crossWithM #-}
 crossWithM :: Int -> Int -> IO ()
 crossWithM value start =
     let end = start + nthRoot 2 value
         s = source end
     in UF.fold FL.drain (UF.crossWithM (\a b -> return (a + b)) s s) start
 
-#ifdef INSPECTION
-inspect $ 'crossWithM `hasNoType` ''S.Step
-inspect $ 'crossWithM `hasNoType` ''FL.Step
-inspect $ 'crossWithM `hasNoType` ''SPEC
-inspect $ 'crossWithM `hasNoType` ''Producer.CrossState
-#endif
-
-{-# INLINE crossWith #-}
+{-# ANN crossWith (PermitPatternMatches [''Int]) #-}
+{-# ANN crossWith (PermitConstructions [''Int]) #-}
+{-# ANN crossWith (PermitTypeClasses []) #-}
+{-# NOINLINE crossWith #-}
 crossWith :: Int -> Int -> IO ()
 crossWith value start =
     let end = start + nthRoot 2 value
         s = source end
     in UF.fold FL.drain (UF.crossWith (+) s s) start
 
-#ifdef INSPECTION
-inspect $ 'crossWith `hasNoType` ''S.Step
-inspect $ 'crossWith `hasNoType` ''FL.Step
-inspect $ 'crossWith `hasNoType` ''SPEC
-inspect $ 'crossWith `hasNoType` ''Producer.CrossState
-#endif
-
-{-# INLINE fairCrossWithM #-}
+{-# ANN fairCrossWithM (PermitPatternMatches
+    [''(,),''Int,''[],''EnumToState]) #-}
+{-# ANN fairCrossWithM (PermitConstructions
+    [''Int,''(,),''[],''EnumToState]) #-}
+{-# ANN fairCrossWithM (PermitTypeClasses []) #-}
+{-# NOINLINE fairCrossWithM #-}
 fairCrossWithM :: Int -> Int -> IO ()
 fairCrossWithM value start =
     let end = start + nthRoot 2 value
         s = source end
     in UF.fold FL.drain (UF.fairCrossWithM (\a b -> return (a + b)) s s) start
 
-#ifdef INSPECTION
-inspect $ 'fairCrossWithM `hasNoType` ''S.Step
-inspect $ 'fairCrossWithM `hasNoType` ''FL.Step
-inspect $ 'fairCrossWithM `hasNoType` ''SPEC
-inspect $ 'fairCrossWithM `hasNoType` ''Producer.FairCrossState
-#endif
-
-{-# INLINE fairCrossWith #-}
+{-# ANN fairCrossWith (PermitPatternMatches
+    [''(,),''Int,''[],''EnumToState]) #-}
+{-# ANN fairCrossWith (PermitConstructions
+    [''Int,''(,),''[],''EnumToState]) #-}
+{-# ANN fairCrossWith (PermitTypeClasses []) #-}
+{-# NOINLINE fairCrossWith #-}
 fairCrossWith :: Int -> Int -> IO ()
 fairCrossWith value start =
     let end = start + nthRoot 2 value
         s = source end
     in UF.fold FL.drain (UF.fairCrossWith (+) s s) start
-
-#ifdef INSPECTION
-inspect $ 'fairCrossWith `hasNoType` ''S.Step
-inspect $ 'fairCrossWith `hasNoType` ''FL.Step
-inspect $ 'fairCrossWith `hasNoType` ''SPEC
-inspect $ 'fairCrossWith `hasNoType` ''Producer.FairCrossState
-#endif
 
 -------------------------------------------------------------------------------
 -- Monad
@@ -650,7 +499,10 @@ inspect $ 'fairCrossWith `hasNoType` ''Producer.FairCrossState
 
 -- XXX to keep the benchmarks same as Stream we should use sourceUnfoldrM in
 -- all of these, and other benchmarks too.
-{-# INLINE concatMapM #-}
+{-# ANN concatMapM (PermitPatternMatches [''Int,''EnumToState]) #-}
+{-# ANN concatMapM (PermitConstructions [''Int,''EnumToState]) #-}
+{-# ANN concatMapM (PermitTypeClasses []) #-}
+{-# NOINLINE concatMapM #-}
 concatMapM :: Int -> Int -> Int -> IO ()
 concatMapM inner outer start =
     drainGeneration (UF.concatMapM unfoldInGen unfoldOut) start
@@ -662,15 +514,17 @@ concatMapM inner outer start =
 
 -- The 'bind'-based benchmarks use the Unfold monad ('UF.bind'), which is a
 -- concatMap and does not fuse, so the 'Step' constructors remain.
-#ifdef INSPECTION
--- inspect $ 'concatMapM `hasNoType` ''S.Step
-inspect $ 'concatMapM `hasNoType` ''FL.Step
-inspect $ 'concatMapM `hasNoType` ''SPEC
-#endif
 
-{-# INLINE toNull #-}
-toNull :: Int -> Int -> IO ()
-toNull value start =
+{-# ANN bind_MonadInstance_x2 (PermitPatternMatches
+    [''Bool,''Int,''ConcatMapReaderState,''EnumToState
+    ,''Step]) #-}
+{-# ANN bind_MonadInstance_x2 (PermitConstructions
+    [''Int,''Step,''ConcatMapReaderState
+    ,''EnumToState,''Bool]) #-}
+{-# ANN bind_MonadInstance_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE bind_MonadInstance_x2 #-}
+bind_MonadInstance_x2 :: Int -> Int -> IO ()
+bind_MonadInstance_x2 value start =
     let end = start + nthRoot 2 value
         src = source end
         {-
@@ -684,15 +538,16 @@ toNull value start =
                 UF.fromPure (x + y)
      in UF.fold FL.drain u start
 
-#ifdef INSPECTION
--- inspect $ 'toNull `hasNoType` ''S.Step
-inspect $ 'toNull `hasNoType` ''FL.Step
-inspect $ 'toNull `hasNoType` ''SPEC
-#endif
-
-{-# INLINE toNull3 #-}
-toNull3 :: Int -> Int -> IO ()
-toNull3 value start =
+{-# ANN bind_MonadInstance_x3 (PermitPatternMatches
+    [''Bool,''Int,''ConcatMapReaderState,''EnumToState
+    ,''Step,''Unfold]) #-}
+{-# ANN bind_MonadInstance_x3 (PermitConstructions
+    [''Int,''Step,''ConcatMapReaderState
+    ,''EnumToState,''Unfold,''Bool]) #-}
+{-# ANN bind_MonadInstance_x3 (PermitTypeClasses []) #-}
+{-# NOINLINE bind_MonadInstance_x3 #-}
+bind_MonadInstance_x3 :: Int -> Int -> IO ()
+bind_MonadInstance_x3 value start =
     let end = start + nthRoot 3 value
         src = source end
         {-
@@ -708,15 +563,16 @@ toNull3 value start =
                 UF.fromPure (x + y + z)
      in UF.fold FL.drain u start
 
-#ifdef INSPECTION
--- inspect $ 'toNull3 `hasNoType` ''S.Step
-inspect $ 'toNull3 `hasNoType` ''FL.Step
-inspect $ 'toNull3 `hasNoType` ''SPEC
-#endif
-
-{-# INLINE toNullConcatMap #-}
-toNullConcatMap :: Int -> Int -> IO ()
-toNullConcatMap value start =
+{-# ANN concatMap_x2 (PermitPatternMatches
+    [''Bool,''Int,''ConcatMapReaderState,''EnumToState
+    ,''Step]) #-}
+{-# ANN concatMap_x2 (PermitConstructions
+    [''Int,''Step,''ConcatMapReaderState
+    ,''EnumToState,''Bool]) #-}
+{-# ANN concatMap_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE concatMap_x2 #-}
+concatMap_x2 :: Int -> Int -> IO ()
+concatMap_x2 value start =
     let end = start + nthRoot 2 value
         src = source end
         u = UF.concatMap (\x ->
@@ -724,9 +580,16 @@ toNullConcatMap value start =
                 UF.fromPure (x + y)) src) src
      in UF.fold FL.drain u start
 
-{-# INLINE toNull3ConcatMap #-}
-toNull3ConcatMap :: Int -> Int -> IO ()
-toNull3ConcatMap value start =
+{-# ANN concatMap_x3 (PermitPatternMatches
+    [''Bool,''Int,''ConcatMapReaderState,''EnumToState
+    ,''Step,''Unfold]) #-}
+{-# ANN concatMap_x3 (PermitConstructions
+    [''Int,''Step,''ConcatMapReaderState
+    ,''EnumToState,''Unfold,''Bool]) #-}
+{-# ANN concatMap_x3 (PermitTypeClasses []) #-}
+{-# NOINLINE concatMap_x3 #-}
+concatMap_x3 :: Int -> Int -> IO ()
+concatMap_x3 value start =
     let end = start + nthRoot 3 value
         src = source end
         u = UF.concatMap (\x ->
@@ -735,9 +598,16 @@ toNull3ConcatMap value start =
                 UF.fromPure (x + y + z)) src) src) src
      in UF.fold FL.drain u start
 
-{-# INLINE toList #-}
-toList :: Int -> Int -> IO [Int]
-toList value start = do
+{-# ANN bind_MonadInstance_ToList_x2 (PermitPatternMatches
+    [''Bool,''Int,''ConcatMapReaderState,''EnumToState
+    ,''Step]) #-}
+{-# ANN bind_MonadInstance_ToList_x2 (PermitConstructions
+    [''Int,''Step,''ConcatMapReaderState,''[]
+    ,''EnumToState,''Bool]) #-}
+{-# ANN bind_MonadInstance_ToList_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE bind_MonadInstance_ToList_x2 #-}
+bind_MonadInstance_ToList_x2 :: Int -> Int -> IO [Int]
+bind_MonadInstance_ToList_x2 value start = do
     let end = start + nthRoot 2 value
         src = source end
         {-
@@ -751,15 +621,16 @@ toList value start = do
                 UF.fromPure (x + y)
      in UF.fold FL.toList u start
 
-#ifdef INSPECTION
--- inspect $ 'toList `hasNoType` ''S.Step
-inspect $ 'toList `hasNoType` ''FL.Step
-inspect $ 'toList `hasNoType` ''SPEC
-#endif
-
-{-# INLINE toListSome #-}
-toListSome :: Int -> Int -> IO [Int]
-toListSome value start = do
+{-# ANN bind_MonadInstance_ToListSome_x2 (PermitPatternMatches
+    [''Bool,''Int,''ConcatMapReaderState,''EnumToState
+    ,''Step]) #-}
+{-# ANN bind_MonadInstance_ToListSome_x2 (PermitConstructions
+    [''Int,''Step,''ConcatMapReaderState,''[]
+    ,''EnumToState,''Bool]) #-}
+{-# ANN bind_MonadInstance_ToListSome_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE bind_MonadInstance_ToListSome_x2 #-}
+bind_MonadInstance_ToListSome_x2 :: Int -> Int -> IO [Int]
+bind_MonadInstance_ToListSome_x2 value start = do
     let end = start + nthRoot 2 value
         src = source end
         {-
@@ -773,15 +644,16 @@ toListSome value start = do
                 UF.fromPure (x + y)
      in UF.fold FL.toList (UF.take 1000 u) start
 
-#ifdef INSPECTION
--- inspect $ 'toListSome `hasNoType` ''S.Step
-inspect $ 'toListSome `hasNoType` ''FL.Step
-inspect $ 'toListSome `hasNoType` ''SPEC
-#endif
-
-{-# INLINE filterAllOut #-}
-filterAllOut :: Int -> Int -> IO ()
-filterAllOut value start = do
+{-# ANN bind_MonadInstance_FilterAllOut_x2 (PermitPatternMatches
+    [''Bool,''Int,''ConcatMapReaderState,''EnumToState
+    ,''Step]) #-}
+{-# ANN bind_MonadInstance_FilterAllOut_x2 (PermitConstructions
+    [''Int,''Step,''ConcatMapReaderState
+    ,''EnumToState,''Bool]) #-}
+{-# ANN bind_MonadInstance_FilterAllOut_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE bind_MonadInstance_FilterAllOut_x2 #-}
+bind_MonadInstance_FilterAllOut_x2 :: Int -> Int -> IO ()
+bind_MonadInstance_FilterAllOut_x2 value start = do
     let end = start + nthRoot 2 value
         src = source end
         {-
@@ -797,15 +669,16 @@ filterAllOut value start = do
                 else UF.nilM (return . const ())
      in UF.fold FL.drain u start
 
-#ifdef INSPECTION
--- inspect $ 'filterAllOut `hasNoType` ''S.Step
-inspect $ 'filterAllOut `hasNoType` ''FL.Step
-inspect $ 'filterAllOut `hasNoType` ''SPEC
-#endif
-
-{-# INLINE filterAllIn #-}
-filterAllIn :: Int -> Int -> IO ()
-filterAllIn value start = do
+{-# ANN bind_MonadInstance_FilterAllIn_x2 (PermitPatternMatches
+    [''Bool,''Int,''ConcatMapReaderState,''EnumToState
+    ,''Step]) #-}
+{-# ANN bind_MonadInstance_FilterAllIn_x2 (PermitConstructions
+    [''Int,''Step,''ConcatMapReaderState
+    ,''EnumToState,''Bool]) #-}
+{-# ANN bind_MonadInstance_FilterAllIn_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE bind_MonadInstance_FilterAllIn_x2 #-}
+bind_MonadInstance_FilterAllIn_x2 :: Int -> Int -> IO ()
+bind_MonadInstance_FilterAllIn_x2 value start = do
     let end = start + nthRoot 2 value
         src = source end
         {-
@@ -821,15 +694,16 @@ filterAllIn value start = do
                 else UF.nilM (return . const ())
      in UF.fold FL.drain u start
 
-#ifdef INSPECTION
--- inspect $ 'filterAllIn `hasNoType` ''S.Step
-inspect $ 'filterAllIn `hasNoType` ''FL.Step
-inspect $ 'filterAllIn `hasNoType` ''SPEC
-#endif
-
-{-# INLINE filterSome #-}
-filterSome :: Int -> Int -> IO ()
-filterSome value start = do
+{-# ANN bind_MonadInstance_FilterSome_x2 (PermitPatternMatches
+    [''Bool,''Int,''ConcatMapReaderState,''EnumToState
+    ,''Step]) #-}
+{-# ANN bind_MonadInstance_FilterSome_x2 (PermitConstructions
+    [''Int,''Step,''ConcatMapReaderState
+    ,''EnumToState,''Bool]) #-}
+{-# ANN bind_MonadInstance_FilterSome_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE bind_MonadInstance_FilterSome_x2 #-}
+bind_MonadInstance_FilterSome_x2 :: Int -> Int -> IO ()
+bind_MonadInstance_FilterSome_x2 value start = do
     let end = start + nthRoot 2 value
         src = source end
         {-
@@ -845,15 +719,17 @@ filterSome value start = do
                 else UF.nilM (return . const ())
      in UF.fold FL.drain u start
 
-#ifdef INSPECTION
--- inspect $ 'filterSome `hasNoType` ''S.Step
-inspect $ 'filterSome `hasNoType` ''FL.Step
-inspect $ 'filterSome `hasNoType` ''SPEC
-#endif
-
-{-# INLINE breakAfterSome #-}
-breakAfterSome :: Int -> Int -> IO ()
-breakAfterSome value start =
+{-# ANN bind_MonadInstance_BreakAfterSome_x2 (PermitPatternMatches
+    [''SomeException,''UnsafeEquality,''Bool,''Int,''Step
+    ,''ConcatMapReaderState,''EnumToState,''Unfold]) #-}
+{-# ANN bind_MonadInstance_BreakAfterSome_x2 (PermitConstructions
+    [''Either,''Int,''SrcLoc,''CallStack,''Step
+    ,''ConcatMapReaderState,''EnumToState,''Bool,''()]) #-}
+{-# ANN bind_MonadInstance_BreakAfterSome_x2 (PermitTypeClasses
+    [''Typeable,''IP,''Exception]) #-}
+{-# NOINLINE bind_MonadInstance_BreakAfterSome_x2 #-}
+bind_MonadInstance_BreakAfterSome_x2 :: Int -> Int -> IO ()
+bind_MonadInstance_BreakAfterSome_x2 value start =
     let end = start + nthRoot 2 value
         src = source end
         {-
@@ -871,33 +747,29 @@ breakAfterSome value start =
         (_ :: Either ErrorCall ()) <- try $ UF.fold FL.drain u start
         return ()
 
-#ifdef INSPECTION
--- inspect $ 'breakAfterSome `hasNoType` ''S.Step
-inspect $ 'breakAfterSome `hasNoType` ''FL.Step
-inspect $ 'breakAfterSome `hasNoType` ''SPEC
-#endif
-
 -------------------------------------------------------------------------------
 -- Benchmark ops
 -------------------------------------------------------------------------------
 
-{-# INLINE unfoldEach #-}
+{-# ANN unfoldEach (PermitPatternMatches []) #-}
+{-# ANN unfoldEach (PermitConstructions []) #-}
+{-# ANN unfoldEach (PermitTypeClasses []) #-}
+{-# NOINLINE unfoldEach #-}
 unfoldEach :: Int -> Int -> Int -> IO ()
 unfoldEach inner outer start = do
     UF.fold
         FL.drain
-        (UF.unfoldEach (sourceUnfoldrM inner start) (sourceUnfoldrM outer start))
+        (UF.unfoldEach
+            (sourceUnfoldrM inner start) (sourceUnfoldrM outer start))
         start
 
-#ifdef INSPECTION
-inspect $ 'unfoldEach `hasNoType` ''S.Step
-inspect $ 'unfoldEach `hasNoType` ''FL.Step
-inspect $ 'unfoldEach `hasNoType` ''SPEC
-inspect $ 'unfoldEach `hasNoType` ''Producer.ConcatState
-#endif
-
 -- NOTE: Inlining this blows up the heap requirement to 1 GB.
--- {-# INLINE unfoldEachInterleave #-}
+{-# ANN unfoldEachInterleave (PermitPatternMatches
+    [''InterleaveEachState,''Int,''IO,''[],''SPEC]) #-}
+{-# ANN unfoldEachInterleave (PermitConstructions
+    [''InterleaveEachState,''Int,''SrcLoc,''[],''CallStack,''SPEC]) #-}
+{-# ANN unfoldEachInterleave (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE unfoldEachInterleave #-}
 unfoldEachInterleave :: Int -> Int -> Int -> IO ()
 unfoldEachInterleave inner outer start = do
     UF.fold
@@ -906,16 +778,12 @@ unfoldEachInterleave inner outer start = do
             (sourceUnfoldrM inner start) (sourceUnfoldrM outer start))
         start
 
--- 'unfoldEachInterleave' does not fuse: 'Step' and 'SPEC' are not eliminated.
-#ifdef INSPECTION
--- inspect $ 'unfoldEachInterleave `hasNoType` ''S.Step
--- inspect $ 'unfoldEachInterleave `hasNoType` ''SPEC
-inspect $ 'unfoldEachInterleave `hasNoType` ''FL.Step
-#endif
-
-{-# INLINE concatMapPure #-}
-concatMapPure :: Int -> Int -> Int -> IO ()
-concatMapPure inner outer start =
+{-# ANN concatMap_Pure (PermitPatternMatches [''Int,''EnumToState]) #-}
+{-# ANN concatMap_Pure (PermitConstructions [''Int,''EnumToState]) #-}
+{-# ANN concatMap_Pure (PermitTypeClasses []) #-}
+{-# NOINLINE concatMap_Pure #-}
+concatMap_Pure :: Int -> Int -> Int -> IO ()
+concatMap_Pure inner outer start =
     drainGeneration (UF.concatMap unfoldInGen unfoldOut) start
 
     where
@@ -923,16 +791,17 @@ concatMapPure inner outer start =
     unfoldInGen i = UF.supplySecond (i + inner) UF.enumerateFromToNum
     unfoldOut = UF.supplySecond (start + outer) UF.enumerateFromToNum
 
-#ifdef INSPECTION
--- inspect $ 'concatMapPure `hasNoType` ''S.Step
-inspect $ 'concatMapPure `hasNoType` ''FL.Step
-inspect $ 'concatMapPure `hasNoType` ''SPEC
-#endif
-
 -------------------------------------------------------------------------------
 -- Benchmarks
 -------------------------------------------------------------------------------
 
+-- Benchmark naming: name each benchmark (and its IO action) after the exported
+-- function it benchmarks, using combinator_dimension1_dimension2..., where the
+-- dimensions are optional variants/type specializations (used esp. when more
+-- than one specialization is benchmarked). Keep extra info in parenthetical
+-- notes in the description; these also disambiguate benchmarks that reuse a
+-- single IO action with different arguments. If the name has a trailing
+-- underscore, add one more underscore.
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
     -- Basic Constructors
@@ -964,47 +833,56 @@ benchmarks size =
     , (SpaceO_1, benchIO "takeWhile" $ takeWhile size)
     -- Nesting
     , (SpaceO_1, benchIO "interleave" $ interleave size)
-    , (SpaceO_1, benchIO "unfoldEach inner=outer=(sqrt Max)" $ unfoldEach sqrtVal sqrtVal)
-    , (SpaceO_1, benchIO "unfoldEach inner=1 outer=Max" $ unfoldEach 1 size)
-    , (SpaceO_1, benchIO "unfoldEach inner=Max outer=1" $ unfoldEach size 1)
-    , (SpaceO_1, benchIO "unfoldEachInterleave inner=outer=(sqrt Max)"
+    , (SpaceO_1, benchIO "unfoldEach (inner=outer=sqrt Max)" $
+          unfoldEach sqrtVal sqrtVal)
+    , (SpaceO_1, benchIO "unfoldEach (inner=1 outer=Max)" $ unfoldEach 1 size)
+    , (SpaceO_1, benchIO "unfoldEach (inner=Max outer=1)" $ unfoldEach size 1)
+    , (SpaceO_1, benchIO "unfoldEachInterleave (inner=outer=sqrt Max)"
         $ unfoldEachInterleave sqrtVal sqrtVal)
-    , (SpaceO_1, benchIO "unfoldEachInterleave inner=1 outer=Max"
+    , (SpaceO_1, benchIO "unfoldEachInterleave (inner=1 outer=Max)"
         $ unfoldEachInterleave 1 size)
-    , (SpaceO_1, benchIO "unfoldEachInterleave inner=Max outer=1"
+    , (SpaceO_1, benchIO "unfoldEachInterleave (inner=Max outer=1)"
         $ unfoldEachInterleave size 1)
     -- Applicative
-    , (SpaceO_1, benchIO "crossApply outer=inner=(sqrt Max)" $ toNullAp size)
-    , (SpaceO_1, benchIO "crossApply2 outer=inner=(sqrt Max)" $ crossApply size)
-    , (SpaceO_1, benchIO "crossApplySnd outer=inner=(sqrt Max)" $ crossApplySnd size)
-    , (SpaceO_1, benchIO "crossApplyFst outer=inner=(sqrt Max)" $ crossApplyFst size)
-    , (SpaceO_1, benchIO "crossWithM outer=inner=(sqrt Max)" $ crossWithM size)
-    , (SpaceO_1, benchIO "crossWith outer=inner=(sqrt Max)" $ crossWith size)
-    , (SpaceO_1, benchIO "cross outer=inner=(sqrt Max)" $ cross size)
-    , (SpaceO_1, benchIO "fairCrossWithM outer=inner=(sqrt Max)" $ fairCrossWithM size)
-    , (SpaceO_1, benchIO "fairCrossWith outer=inner=(sqrt Max)" $ fairCrossWith size)
-    , (SpaceO_1, benchIO "fairCross outer=inner=(sqrt Max)" $ fairCross size)
+    , (SpaceO_1, benchIO "ap_ApplicativeInstance_x2" $
+          ap_ApplicativeInstance_x2 size)
+    , (SpaceO_1, benchIO "crossApply" $ crossApply size)
+    , (SpaceO_1, benchIO "crossApplySnd" $ crossApplySnd size)
+    , (SpaceO_1, benchIO "crossApplyFst" $ crossApplyFst size)
+    , (SpaceO_1, benchIO "crossWithM" $ crossWithM size)
+    , (SpaceO_1, benchIO "crossWith" $ crossWith size)
+    , (SpaceO_1, benchIO "cross" $ cross size)
+    , (SpaceO_1, benchIO "fairCrossWithM" $ fairCrossWithM size)
+    , (SpaceO_1, benchIO "fairCrossWith" $ fairCrossWith size)
+    , (SpaceO_1, benchIO "fairCross" $ fairCross size)
     -- Monad
-    , (SpaceO_1, benchIO "concatMapM outer=inner=(sqrt Max)" $ concatMapM sqrtVal sqrtVal)
-    , (SpaceO_1, benchIO "concatMapPure outer=inner=(sqrt Max)" $ concatMapPure sqrtVal sqrtVal)
-    , (SpaceO_1, benchIO "concatMap2" $ toNullConcatMap size)
-    , (SpaceO_1, benchIO "concatMap3" $ toNull3ConcatMap size)
-    , (SpaceO_1, benchIO "bind2" $ toNull size)
-    , (SpaceO_1, benchIO "bind3" $ toNull3 size)
-    , (SpaceO_1, benchIO "breakAfterSome2" $ breakAfterSome size)
-    , (SpaceO_1, benchIO "filterAllOut2" $ filterAllOut size)
-    , (SpaceO_1, benchIO "filterAllIn2" $ filterAllIn size)
-    , (SpaceO_1, benchIO "filterSome2" $ filterSome size)
-    , (SpaceO_n, benchIO "toList2" $ toList size)
-    , (SpaceO_n, benchIO "toListSome2" $ toListSome size)
+    , (SpaceO_1, benchIO "concatMapM (inner=outer=sqrt Max)" $
+          concatMapM sqrtVal sqrtVal)
+    , (SpaceO_1, benchIO "concatMap_Pure (inner=outer=sqrt Max)" $
+          concatMap_Pure sqrtVal sqrtVal)
+    , (SpaceO_1, benchIO "concatMap_x2" $ concatMap_x2 size)
+    , (SpaceO_1, benchIO "concatMap_x3" $ concatMap_x3 size)
+    , (SpaceO_1, benchIO "bind_MonadInstance_x2" $ bind_MonadInstance_x2 size)
+    , (SpaceO_1, benchIO "bind_MonadInstance_x3" $ bind_MonadInstance_x3 size)
+    , (SpaceO_1, benchIO "bind_MonadInstance_BreakAfterSome_x2" $
+          bind_MonadInstance_BreakAfterSome_x2 size)
+    , (SpaceO_1, benchIO "bind_MonadInstance_FilterAllOut_x2" $
+          bind_MonadInstance_FilterAllOut_x2 size)
+    , (SpaceO_1, benchIO "bind_MonadInstance_FilterAllIn_x2" $
+          bind_MonadInstance_FilterAllIn_x2 size)
+    , (SpaceO_1, benchIO "bind_MonadInstance_FilterSome_x2" $
+          bind_MonadInstance_FilterSome_x2 size)
+    , (SpaceO_n, benchIO "bind_MonadInstance_ToList_x2" $
+          bind_MonadInstance_ToList_x2 size)
+    , (SpaceO_n, benchIO "bind_MonadInstance_ToListSome_x2" $
+          bind_MonadInstance_ToListSome_x2 size)
     -- zipWith
     , (SpaceO_1, benchIO "zipArrowWithM" $ zipArrowWithM size)
     , (SpaceO_1, benchIO "zipArrowWith" $ zipArrowWith size)
     , (SpaceO_1, benchIO "zipWithM" $ zipWithM size)
     , (SpaceO_1, benchIO "zipWith" $ zipWith size)
-    , (SpaceO_1, benchIO "teeZipWith" $ teeZipWith size)
     -- Deprecated
-    , (SpaceO_1, benchIO "mapM2" $ mapM2 size)
+    , (SpaceO_1, benchIO "mapM_CarryInput" $ mapM_CarryInput size)
     ]
 
     where

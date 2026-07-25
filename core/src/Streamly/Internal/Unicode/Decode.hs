@@ -46,6 +46,7 @@ module Streamly.Internal.Unicode.Decode
     , decodeUtf8Chunks
     , decodeUtf8Chunks'
     , decodeUtf8Chunks_
+    , FlattenState (..)
     -- , fromUtf8ChunksEndByLn
 
     -- * StreamD UTF8 Encoding / Decoding transformations.

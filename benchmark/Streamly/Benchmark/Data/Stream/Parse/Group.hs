@@ -21,11 +21,14 @@
 module Stream.Parse.Group (benchmarks) where
 
 #ifdef INSPECTION
-import GHC.Types (SPEC(..))
 import Test.Inspection
+import GHC.Types (SPEC(..))
 #endif
 
 import Data.Monoid (Sum(..))
+
+import Streamly.Internal.Data.Fold (Tuple'Fused)
+import Streamly.Internal.Data.Stream (GroupByState)
 
 import qualified Stream.Common as Common
 import qualified Streamly.Internal.Data.Fold as FL
@@ -33,71 +36,89 @@ import qualified Streamly.Internal.Data.Stream as S
 
 import Test.Tasty.Bench
 import Streamly.Benchmark.Common
+import Fusion.Plugin.Types
+import GHC.Stack (SrcLoc, CallStack)
+import GHC.Classes (IP)
 import Stream.Type (benchIO, withStream)
 
 -------------------------------------------------------------------------------
 -- Grouping transformations
 -------------------------------------------------------------------------------
 
-{-# NOINLINE groups #-}
-groups :: Int -> IO ()
-groups value = withStream value $ Common.drain . S.groupsWhile (==) FL.drain
+-- XXX use errorWithoutStackTrace to get rid of IP/srcLoc/CallStack
+{-# ANN groupsWhile_LT (PermitPatternMatches [''IO,''Int,''GroupByState]) #-}
+{-# ANN groupsWhile_LT (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''GroupByState]) #-}
+{-# ANN groupsWhile_LT (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE groupsWhile_LT #-}
+groupsWhile_LT :: Int -> Int -> IO ()
+groupsWhile_LT value =
+    withStream value $ Common.drain . S.groupsWhile (<) FL.drain
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'groups
--- inspect $ 'groups `hasNoType` ''S.Step
-inspect $ 'groups `hasNoType` ''FL.Step
-inspect $ 'groups `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'groupsWhile_LT
+-- XXX fails but can't find the type in the core printed
+-- inspect $ 'groupsWhile_LT `hasNoType` ''S.Step
+inspect $ 'groupsWhile_LT `hasNoType` ''FL.Step
+inspect $ 'groupsWhile_LT `hasNoType` ''SPEC
 #endif
 
-{-# NOINLINE groupsWhileLT #-}
-groupsWhileLT :: Int -> IO ()
-groupsWhileLT value = withStream value $ Common.drain . S.groupsWhile (<) FL.drain
+{-# ANN groupsWhile_Eq (PermitPatternMatches [''IO,''Int,''GroupByState]) #-}
+{-# ANN groupsWhile_Eq (PermitConstructions
+    [''Int,''SrcLoc,''CallStack,''GroupByState]) #-}
+{-# ANN groupsWhile_Eq (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE groupsWhile_Eq #-}
+groupsWhile_Eq :: Int -> Int -> IO ()
+groupsWhile_Eq value =
+    withStream value $ Common.drain . S.groupsWhile (==) FL.drain
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'groupsWhileLT
--- inspect $ 'groupsWhileLT `hasNoType` ''S.Step
-inspect $ 'groupsWhileLT `hasNoType` ''FL.Step
-inspect $ 'groupsWhileLT `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'groupsWhile_Eq
+-- XXX fails but can't find the type in the core printed
+-- inspect $ 'groupsWhile_Eq `hasNoType` ''S.Step
+inspect $ 'groupsWhile_Eq `hasNoType` ''FL.Step
+inspect $ 'groupsWhile_Eq `hasNoType` ''SPEC
 #endif
 
-{-# NOINLINE groupsWhileEq #-}
-groupsWhileEq :: Int -> IO ()
-groupsWhileEq value = withStream value $ Common.drain . S.groupsWhile (==) FL.drain
+{-# ANN groupsRollingBy_LT (PermitPatternMatches [''Int,''GroupByState]) #-}
+{-# ANN groupsRollingBy_LT (PermitConstructions
+    [''GroupByState,''Int,''()]) #-}
+{-# ANN groupsRollingBy_LT (PermitTypeClasses []) #-}
+{-# NOINLINE groupsRollingBy_LT #-}
+groupsRollingBy_LT :: Int -> Int -> IO ()
+groupsRollingBy_LT value =
+    withStream value $ Common.drain . S.groupsRollingBy (<) FL.drain
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'groupsWhileEq
--- inspect $ 'groupsWhileEq `hasNoType` ''S.Step
-inspect $ 'groupsWhileEq `hasNoType` ''FL.Step
-inspect $ 'groupsWhileEq `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'groupsRollingBy_LT
+inspect $ 'groupsRollingBy_LT `hasNoType` ''S.Step
+-- inspect $ 'groupsRollingBy_LT `hasNoType` ''GroupByState
+inspect $ 'groupsRollingBy_LT `hasNoType` ''FL.Step
+inspect $ 'groupsRollingBy_LT `hasNoType` ''SPEC
 #endif
 
-{-# NOINLINE groupsByRollingLT #-}
-groupsByRollingLT :: Int -> IO ()
-groupsByRollingLT value = withStream value $ Common.drain . S.groupsRollingBy (<) FL.drain
+{-# ANN groupsRollingBy_Eq (PermitPatternMatches [''Int,''GroupByState]) #-}
+{-# ANN groupsRollingBy_Eq (PermitConstructions
+    [''GroupByState,''Int,''()]) #-}
+{-# ANN groupsRollingBy_Eq (PermitTypeClasses []) #-}
+{-# NOINLINE groupsRollingBy_Eq #-}
+groupsRollingBy_Eq :: Int -> Int -> IO ()
+groupsRollingBy_Eq value =
+    withStream value $ Common.drain . S.groupsRollingBy (==) FL.drain
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'groupsByRollingLT
-inspect $ 'groupsByRollingLT `hasNoType` ''S.Step
--- inspect $ 'groupsByRollingLT `hasNoType` ''S.GroupByState
-inspect $ 'groupsByRollingLT `hasNoType` ''FL.Step
-inspect $ 'groupsByRollingLT `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'groupsRollingBy_Eq
+inspect $ 'groupsRollingBy_Eq `hasNoType` ''S.Step
+-- inspect $ 'groupsRollingBy_Eq `hasNoType` ''GroupByState
+inspect $ 'groupsRollingBy_Eq `hasNoType` ''FL.Step
+inspect $ 'groupsRollingBy_Eq `hasNoType` ''SPEC
 #endif
 
-{-# NOINLINE groupsByRollingEq #-}
-groupsByRollingEq :: Int -> IO ()
-groupsByRollingEq value = withStream value $ Common.drain . S.groupsRollingBy (==) FL.drain
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'groupsByRollingEq
-inspect $ 'groupsByRollingEq `hasNoType` ''S.Step
--- inspect $ 'groupsByRollingEq `hasNoType` ''S.GroupByState
-inspect $ 'groupsByRollingEq `hasNoType` ''FL.Step
-inspect $ 'groupsByRollingEq `hasNoType` ''SPEC
-#endif
-
+{-# ANN foldIterateM (PermitPatternMatches [''Int,''Tuple'Fused]) #-}
+{-# ANN foldIterateM (PermitConstructions [''Int,''Tuple'Fused]) #-}
+{-# ANN foldIterateM (PermitTypeClasses []) #-}
 {-# NOINLINE foldIterateM #-}
-foldIterateM :: Int -> IO ()
+foldIterateM :: Int -> Int -> IO ()
 foldIterateM value =
     withStream value $
         Common.drain
@@ -118,14 +139,20 @@ inspect $ 'foldIterateM `hasNoType` ''SPEC
 -- Main
 -------------------------------------------------------------------------------
 
+-- Benchmark naming: name each benchmark (and its IO action) after the exported
+-- function it benchmarks, using combinator_dimension1_dimension2..., where the
+-- dimensions are optional variants/type specializations (used esp. when more
+-- than one specialization is benchmarked). Keep extra info in parenthetical
+-- notes in the description; these also disambiguate benchmarks that reuse a
+-- single IO action with different arguments. If the name has a trailing
+-- underscore, add one more underscore.
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
     -- Buffering operations using heap proportional to group/window sizes.
-      [ (SpaceO_1, benchIO "groups" $ groups size)
-      , (SpaceO_1, benchIO "groupsWhileLT" $ groupsWhileLT size)
-      , (SpaceO_1, benchIO "groupsWhileEq" $ groupsWhileEq size)
-      , (SpaceO_1, benchIO "groupsByRollingLT" $ groupsByRollingLT size)
-      , (SpaceO_1, benchIO "groupsByRollingEq" $ groupsByRollingEq size)
+      [ (SpaceO_1, benchIO "groupsWhile_LT" $ groupsWhile_LT size)
+      , (SpaceO_1, benchIO "groupsWhile_Eq" $ groupsWhile_Eq size)
+      , (SpaceO_1, benchIO "groupsRollingBy_LT" $ groupsRollingBy_LT size)
+      , (SpaceO_1, benchIO "groupsRollingBy_Eq" $ groupsRollingBy_Eq size)
 
       , (SpaceO_1, benchIO "foldIterateM" $ foldIterateM size)
       ]

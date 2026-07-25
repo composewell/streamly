@@ -33,17 +33,17 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
     benchSpecific
 
         | "Data.Array" `isPrefixOf` benchName
-             && "/o-1-space.read" `isSuffixOf` benchName = "-M64M"
+             && "/o-1-space.read_ReadInstance" `isSuffixOf` benchName = "-M64M"
         -- XXX GHC 9.6 onwards needs 64M, earlier it was 32M
         | "Data.Array" `isPrefixOf` benchName
-             && "/o-1-space.show" `isSuffixOf` benchName = "-M64M"
+             && "/o-1-space.show_ShowInstance" `isSuffixOf` benchName = "-M64M"
         -- XXX For --long option, need to check why so much heap is required.
         | "Data.Array/o-1-space.foldBreak"
             `isPrefixOf` benchName = "-K4M -M512M"
         | "Data.Array/o-1-space.parseBreak"
             `isPrefixOf` benchName = "-K4M -M512M"
         -- XXX GHC 9.6 onwards needs 64M, earlier it was 32M
-        | "Data.Array.Generic/o-1-space.mapX4"
+        | "Data.Array.Generic/o-1-space.fmap_x4"
             `isPrefixOf` benchName = "-M64M"
 
 
@@ -75,17 +75,21 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
             `isPrefixOf` benchName = "-K512K"
 
         -- GHC-9.6 requires 64M, earlier it was 32M
-        | "Data.Stream/o-n-heap.showsPrec Haskell lists"
+        | "Data.Stream/o-n-heap.show_HaskellLists (showsPrec)"
             == benchName = "-M64M"
         -- GHC-9.6 requires 64M, earlier it was 32M
-        | "Data.Stream/o-n-heap.readsPrec pure streams"
+        | "Data.Stream/o-n-heap.read_ReadInstance (readsPrec)"
             == benchName = "-M64M"
 
-        | "Data.Stream/o-n-space.foldrM/"
+        | "Data.Stream/o-n-space.foldrM_"
             `isPrefixOf` benchName = "-K4M"
-        | "Data.Stream/o-n-space.iterated/"
-            `isPrefixOf` benchName = "-K4M"
-        | "Data.Stream/o-n-space.toList"
+        | "Data.Stream/o-n-space." `isPrefixOf` benchName
+            && "_Iterated" `isInfixOf` benchName = "-K4M"
+
+        -- toList benchmarks
+        | "Data.Stream/o-n-space.toList_Stream"
+            `isPrefixOf` benchName = "-K2M"
+        | "Data.Stream/o-n-space.bind_MonadInstance_ToList"
             `isPrefixOf` benchName = "-K2M"
 
         -----------------------------------------------------------------------

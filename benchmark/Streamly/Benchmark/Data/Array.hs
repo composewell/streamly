@@ -16,32 +16,67 @@ import qualified Array.Stream as ArrayStream
 -- import qualified Streamly.Data.Array as A
 import qualified Streamly.Internal.Data.Array as A
 
+-- Imported for the types named in the fusion-plugin annotations below and in
+-- the included Array/Common.hs.
+import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.MutArray as MutArray
+import qualified Streamly.Internal.Data.RingArray as RingArray
+import GHC.Classes (IP)
+import GHC.Exts (SPEC)
+import GHC.Stack (CallStack, SrcLoc)
+
 import Array.Type
-    (typeCommonBenchmarks, benchIO, withRandomIntIO, withArray, withStream)
+    (typeCommonBenchmarks, benchIO, withArray, withStream)
+import Streamly.Internal.Data.Array (Array)
+import Streamly.Internal.Data.MutArray (MutArray)
+import Streamly.Internal.Data.SVar.Type (State)
 
 #if __GLASGOW_HASKELL__ >= 810
 type Arr :: Type -> Type
 #endif
 type Arr = A.Array
 
+-- Selects the unboxed-array variant of the fusion-plugin annotations in the
+-- shared include below.
+#define ARRAY_UNBOXED
 #include "Streamly/Benchmark/Data/Array/Common.hs"
 
 -------------------------------------------------------------------------------
 -- Bench Ops
 -------------------------------------------------------------------------------
 
-{-# INLINE sourceIsList #-}
-sourceIsList :: Int -> IO (Arr Int)
-sourceIsList value = withRandomIntIO $ \n -> return $! GHC.fromList [n..n+value]
+{-# ANN fromList_IsList (PermitPatternMatches
+    [ ''MutArray, ''[], ''Int, ''State, ''Array, ''IO
+    ]) #-}
+{-# ANN fromList_IsList (PermitConstructions
+    [ ''MutArray, ''State, ''Maybe, ''Bool, ''Int, ''[]
+    ]) #-}
+{-# ANN fromList_IsList (PermitTypeClasses []) #-}
+{-# NOINLINE fromList_IsList #-}
+fromList_IsList :: Int -> Int -> IO (Arr Int)
+fromList_IsList value n = return $! GHC.fromList [n..n+value]
 
-{-# INLINE sourceIsString #-}
-sourceIsString :: Int -> IO (Arr P.Char)
-sourceIsString value = withRandomIntIO $ \n ->
+{-# ANN fromString_IsString (PermitPatternMatches
+    [ ''MutArray, ''[], ''Char, ''Int, ''State, ''Array
+    , ''IO
+    ]) #-}
+{-# ANN fromString_IsString (PermitConstructions
+    [ ''MutArray, ''State, ''Maybe, ''Bool, ''Int, ''[]
+    , ''Char
+    ]) #-}
+{-# ANN fromString_IsString (PermitTypeClasses []) #-}
+{-# NOINLINE fromString_IsString #-}
+fromString_IsString :: Int -> Int -> IO (Arr P.Char)
+fromString_IsString value n =
     return $! GHC.fromString (P.replicate (n + value) 'a')
 
-{-# INLINE toListLength #-}
-toListLength :: Int -> IO Int
-toListLength value = withArray value $ \arr -> return $! length (GHC.toList arr)
+{-# ANN toList_length_IsList (PermitPatternMatches [''IO]) #-}
+{-# ANN toList_length_IsList (PermitConstructions []) #-}
+{-# ANN toList_length_IsList (PermitTypeClasses []) #-}
+{-# NOINLINE toList_length_IsList #-}
+toList_length_IsList :: Int -> Int -> IO Int
+toList_length_IsList value =
+    withArray value $ \arr -> return $! P.length (GHC.toList arr)
 
 -------------------------------------------------------------------------------
 -- Bench groups
@@ -53,6 +88,10 @@ moduleName = "Data.Array"
 defStreamSize :: Int
 defStreamSize = defaultStreamSize
 
+-- Note: Name each benchmark (and its IO action) after the exported function it
+-- benchmarks, using the format functionName_dimension1_dimension2..., where
+-- the dimensions are optional variants/type specializations. Keep extra info
+-- in parenthetical notes in the description.
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
     typeCommonBenchmarks size
@@ -62,9 +101,10 @@ benchmarks size =
     -- typeCommonBenchmarks (Array.Type source module common with
     -- Array.Generic) or commonBenchmarks (Array module common with
     -- Array.Generic) above.
-      [ (SpaceO_1, benchIO "writeN . IsList.fromList" $ sourceIsList size)
-      , (SpaceO_1, benchIO "writeN . IsString.fromString" $ sourceIsString size)
-      , (SpaceO_1, benchIO "length . IsList.toList" $ toListLength size)
+      [ (SpaceO_1, benchIO "fromList_IsList" $ fromList_IsList size)
+      , (SpaceO_1, benchIO "fromString_IsString" $ fromString_IsString size)
+      , (SpaceO_1, benchIO "toList_length_IsList"
+            $ toList_length_IsList size)
       ]
 
 main :: IO ()

@@ -28,13 +28,16 @@ module Streamly.Benchmark.Data.MutArray.Type
     ) where
 
 import Control.DeepSeq (NFData(..))
+import Control.Monad.IO.Class (MonadIO)
 #if __GLASGOW_HASKELL__ >= 810
 import Data.Kind (Type)
 #endif
 import System.Random (randomRIO)
-import Prelude
+import Prelude hiding (read)
 
-import Streamly.Internal.Data.MutArray (MutArray)
+import Streamly.Data.MutByteArray (MutByteArray, Unbox)
+import Streamly.Internal.Data.MutByteArray (PinnedState)
+import Streamly.Internal.Data.MutArray (MutArray, ArrayUnsafe)
 
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.MutArray as MArray
@@ -43,6 +46,8 @@ import qualified Streamly.Internal.Data.Stream as Stream
 
 import Test.Tasty.Bench
 import Streamly.Benchmark.Common hiding (benchPureSrc)
+import Fusion.Plugin.Types
+import Streamly.Internal.Data.Fold (Tuple'Fused)
 
 #if __GLASGOW_HASKELL__ >= 810
 type Stream :: Type -> Type
@@ -57,21 +62,17 @@ instance NFData (MutArray a) where
 -- Benchmark helpers
 -------------------------------------------------------------------------------
 
-{-# INLINE withRandomIntIO #-}
-withRandomIntIO :: (Int -> IO b) -> IO b
-withRandomIntIO f = randomRIO (1, 1 :: Int) >>= f
-
 {-# INLINE benchIO #-}
-benchIO :: NFData b => String -> IO b -> Benchmark
-benchIO name = bench name . nfIO
+benchIO :: NFData b => String -> (Int -> IO b) -> Benchmark
+benchIO name f = bench name $ nfIO $ randomRIO (1, 1 :: Int) >>= f
 
 {-# INLINE withArray #-}
-withArray :: Int -> (Stream Int -> IO b) -> IO b
-withArray value f = sourceIntFromTo value >>= f
+withArray :: Int -> (Stream Int -> IO b) -> Int -> IO b
+withArray value f n = sourceIntFromTo value n >>= f
 
 {-# INLINE withStream #-}
-withStream :: Int -> (Stream.Stream IO Int -> IO b) -> IO b
-withStream value f = withRandomIntIO $ \n -> f $ sourceUnfoldrM value n
+withStream :: Int -> (Stream.Stream IO Int -> IO b) -> Int -> IO b
+withStream value f = f . sourceUnfoldrM value
 
 drain :: Monad m => Stream.Stream m a -> m ()
 drain = Stream.fold Fold.drain
@@ -80,34 +81,10 @@ drain = Stream.fold Fold.drain
 -- Bench Ops
 -------------------------------------------------------------------------------
 
-{-# INLINE sourceUnfoldr #-}
-sourceUnfoldr :: Int -> IO (Stream Int)
-sourceUnfoldr value = withRandomIntIO $ \n ->
-    let step cnt =
-            if cnt > n + value
-            then Nothing
-            else Just (cnt, cnt + 1)
-    in Stream.fold (MArray.createOf value) $ Stream.unfoldr step n
-
 {-# INLINE sourceIntFromTo #-}
-sourceIntFromTo :: Int -> IO (Stream Int)
-sourceIntFromTo value = withRandomIntIO $ \n ->
+sourceIntFromTo :: Int -> Int -> IO (Stream Int)
+sourceIntFromTo value n =
     Stream.fold (MArray.createOf value) $ Stream.enumerateFromTo n (n + value)
-
-{-# INLINE sourceFromList #-}
-sourceFromList :: Int -> IO (Stream Int)
-sourceFromList value = withRandomIntIO $ \n ->
-    Stream.fold (MArray.createOf value) $ Stream.fromList [n .. n + value]
-
-{-# INLINE sourceIntFromToFromList #-}
-sourceIntFromToFromList :: Int -> IO (Stream Int)
-sourceIntFromToFromList value = withRandomIntIO $ \n ->
-    MArray.fromListN value [n..n + value]
-
-{-# INLINE sourceIntFromToFromStream #-}
-sourceIntFromToFromStream :: Int -> IO (Stream Int)
-sourceIntFromToFromStream value = withRandomIntIO $ \n ->
-    Stream.fold MArray.create $ Stream.enumerateFromTo n (n + value)
 
 {-# INLINE sourceUnfoldrM #-}
 sourceUnfoldrM :: Monad m => Int -> Int -> Stream.Stream m Int
@@ -118,37 +95,161 @@ sourceUnfoldrM value n = Stream.unfoldrM step n
         then return Nothing
         else return (Just (cnt, cnt + 1))
 
-{-# INLINE idArr #-}
-idArr :: Int -> IO (Stream Int)
-idArr value = withArray value return
+-- sourceIntFromTo is also the helper behind withArray, so it stays INLINE and
+-- the benchmark gets its own NOINLINE wrapper.
+{-# ANN createOf (PermitPatternMatches
+    [''Int,''Tuple'Fused,''ArrayUnsafe,''IO]) #-}
+{-# ANN createOf (PermitConstructions
+    [''Int,''MutArray,''Tuple'Fused,''ArrayUnsafe]) #-}
+{-# ANN createOf (PermitTypeClasses []) #-}
+{-# NOINLINE createOf #-}
+createOf :: Int -> Int -> IO (Stream Int)
+createOf = sourceIntFromTo
+
+{-# ANN createOf_Unfoldr (PermitPatternMatches [''IO]) #-}
+{-# ANN createOf_Unfoldr (PermitConstructions [''MutArray]) #-}
+{-# ANN createOf_Unfoldr (PermitTypeClasses []) #-}
+{-# NOINLINE createOf_Unfoldr #-}
+createOf_Unfoldr :: Int -> Int -> IO (Stream Int)
+createOf_Unfoldr value n =
+    let step cnt =
+            if cnt > n + value
+            then Nothing
+            else Just (cnt, cnt + 1)
+    in Stream.fold (MArray.createOf value) $ Stream.unfoldr step n
+
+{-# ANN createOf_FromList (PermitPatternMatches
+    [''Tuple'Fused,''[],''Int,''ArrayUnsafe,''IO]) #-}
+{-# ANN createOf_FromList (PermitConstructions
+    [''Int,''MutArray,''[],''Tuple'Fused,''ArrayUnsafe]) #-}
+{-# ANN createOf_FromList (PermitTypeClasses []) #-}
+{-# NOINLINE createOf_FromList #-}
+createOf_FromList :: Int -> Int -> IO (Stream Int)
+createOf_FromList value n =
+    Stream.fold (MArray.createOf value) $ Stream.fromList [n .. n + value]
+
+{-# ANN createOf_UnfoldrM (PermitPatternMatches [''IO]) #-}
+{-# ANN createOf_UnfoldrM (PermitConstructions [''MutArray]) #-}
+{-# ANN createOf_UnfoldrM (PermitTypeClasses []) #-}
+{-# NOINLINE createOf_UnfoldrM #-}
+createOf_UnfoldrM :: Int -> Int -> IO (Stream Int)
+createOf_UnfoldrM value =
+    withStream value (Stream.fold (MArray.createOf value))
+
+{-# ANN fromListN (PermitPatternMatches [''[],''Int,''IO]) #-}
+{-# ANN fromListN (PermitConstructions [''MutArray,''[],''Int]) #-}
+{-# ANN fromListN (PermitTypeClasses []) #-}
+{-# NOINLINE fromListN #-}
+fromListN :: Int -> Int -> IO (Stream Int)
+fromListN value n = MArray.fromListN value [n..n + value]
+
+{-# ANN create (PermitPatternMatches [''MutArray]) #-}
+{-# ANN create (PermitConstructions [''MutArray, ''PinnedState]) #-}
+{-# ANN create (PermitTypeClasses []) #-}
+{-# NOINLINE create #-}
+create :: Int -> Int -> IO (Stream Int)
+create value n =
+    Stream.fold MArray.create $ Stream.enumerateFromTo n (n + value)
+
+-------------------------------------------------------------------------------
+-- In-place transformation
+-------------------------------------------------------------------------------
+
+{-# ANN partitionBy_LT (PermitPatternMatches
+    [''Int,''Maybe,''(,)]) #-}
+{-# ANN partitionBy_LT (PermitConstructions
+    [''Maybe,''(,),''Int,''MutArray]) #-}
+{-# ANN partitionBy_LT (PermitTypeClasses []) #-}
+{-# NOINLINE partitionBy_LT #-}
+partitionBy_LT ::
+    Stream Int -> Int -> Int -> IO (Stream Int, Stream Int)
+partitionBy_LT array pivot _ = MArray.partitionBy (< pivot) array
+
+{-# ANN partitionBy_GT (PermitPatternMatches
+    [''Int,''Maybe,''(,)]) #-}
+{-# ANN partitionBy_GT (PermitConstructions
+    [''Maybe,''(,),''Int,''MutArray]) #-}
+{-# ANN partitionBy_GT (PermitTypeClasses []) #-}
+{-# NOINLINE partitionBy_GT #-}
+partitionBy_GT ::
+    Stream Int -> Int -> Int -> IO (Stream Int, Stream Int)
+partitionBy_GT array pivot _ = MArray.partitionBy (> pivot) array
+
+{-# ANN dropAround_GT (PermitPatternMatches [''MutByteArray]) #-}
+{-# ANN dropAround_GT (PermitConstructions [''MutArray]) #-}
+{-# ANN dropAround_GT (PermitTypeClasses []) #-}
+{-# NOINLINE dropAround_GT #-}
+dropAround_GT :: Stream Int -> Int -> Int -> IO (Stream Int)
+dropAround_GT array pivot _ = MArray.dropAround (> pivot) array
+
+{-# ANN dropAround_NotEq (PermitPatternMatches [''MutByteArray]) #-}
+{-# ANN dropAround_NotEq (PermitConstructions [''MutArray]) #-}
+{-# ANN dropAround_NotEq (PermitTypeClasses []) #-}
+{-# NOINLINE dropAround_NotEq #-}
+dropAround_NotEq :: Stream Int -> Int -> Int -> IO (Stream Int)
+dropAround_NotEq array pivot _ =
+    MArray.dropAround (\x -> x < pivot || x > pivot) array
+
+{-# ANN modifyIndices (PermitPatternMatches
+    [''Int,''()]) #-}
+{-# ANN modifyIndices (PermitConstructions [''(,),''Int,''()]) #-}
+{-# ANN modifyIndices (PermitTypeClasses [''MonadIO,''Unbox]) #-}
+{-# NOINLINE modifyIndices #-}
+modifyIndices :: Stream Int -> Array.Array Int -> Int -> IO ()
+modifyIndices array indices _ =
+    Stream.fold (MArray.modifyIndices array (\_idx val -> val + 1))
+        $ Stream.unfold Array.reader indices
 
 -------------------------------------------------------------------------------
 -- Elimination
 -------------------------------------------------------------------------------
 
-{-# INLINE unfoldReadDrain #-}
-unfoldReadDrain :: Int -> IO ()
-unfoldReadDrain value = withArray value $ drain . Stream.unfold MArray.reader
+{-# ANN reader (PermitPatternMatches
+    [''MutArray,''Int,''Tuple'Fused,''ArrayUnsafe,''IO]) #-}
+{-# ANN reader (PermitConstructions
+    [''(),''Int,''MutArray,''Tuple'Fused,''ArrayUnsafe]) #-}
+{-# ANN reader (PermitTypeClasses []) #-}
+{-# NOINLINE reader #-}
+reader :: Int -> Int -> IO ()
+reader value = withArray value $ drain . Stream.unfold MArray.reader
 
-{-# INLINE unfoldReadRevDrain #-}
-unfoldReadRevDrain :: Int -> IO ()
-unfoldReadRevDrain value = withArray value $ drain . Stream.unfold MArray.readerRev
+{-# ANN readerRev (PermitPatternMatches
+    [''MutArray,''Int,''Tuple'Fused,''ArrayUnsafe,''IO]) #-}
+{-# ANN readerRev (PermitConstructions
+    [''(),''Int,''MutArray,''Tuple'Fused,''ArrayUnsafe]) #-}
+{-# ANN readerRev (PermitTypeClasses []) #-}
+{-# NOINLINE readerRev #-}
+readerRev :: Int -> Int -> IO ()
+readerRev value = withArray value $ drain . Stream.unfold MArray.readerRev
 
-{-# INLINE toStreamDRevDrain #-}
-toStreamDRevDrain :: Int -> IO ()
-toStreamDRevDrain value = withArray value $ drain . MArray.readRev
+{-# ANN read (PermitPatternMatches
+    [''Tuple'Fused,''Int,''ArrayUnsafe,''IO]) #-}
+{-# ANN read (PermitConstructions
+    [''Int,''(),''Tuple'Fused,''ArrayUnsafe]) #-}
+{-# ANN read (PermitTypeClasses []) #-}
+{-# NOINLINE read #-}
+read :: Int -> Int -> IO ()
+read value = withArray value $ drain . MArray.read
 
-{-# INLINE toStreamDDrain #-}
-toStreamDDrain :: Int -> IO ()
-toStreamDDrain value = withArray value $ drain . MArray.read
+{-# ANN readRev (PermitPatternMatches
+    [''Tuple'Fused,''Int,''ArrayUnsafe,''IO]) #-}
+{-# ANN readRev (PermitConstructions
+    [''Int,''(),''Tuple'Fused,''ArrayUnsafe]) #-}
+{-# ANN readRev (PermitTypeClasses []) #-}
+{-# NOINLINE readRev #-}
+readRev :: Int -> Int -> IO ()
+readRev value = withArray value $ drain . MArray.readRev
 
-{-# INLINE unfoldFold #-}
-unfoldFold :: Int -> IO Int
-unfoldFold value = withArray value $ Stream.fold (Fold.foldl' (+) 0) . Stream.unfold MArray.reader
-
-{-# INLINE writeN #-}
-writeN :: Int -> IO (Stream Int)
-writeN value = withStream value (Stream.fold (MArray.createOf value))
+{-# ANN foldl'_Reader (PermitPatternMatches
+    [''MutArray,''Int,''Tuple'Fused,''ArrayUnsafe,''IO]) #-}
+{-# ANN foldl'_Reader (PermitConstructions
+    [''Int,''MutArray,''Tuple'Fused,''ArrayUnsafe]) #-}
+{-# ANN foldl'_Reader (PermitTypeClasses []) #-}
+{-# NOINLINE foldl'_Reader #-}
+foldl'_Reader :: Int -> Int -> IO Int
+foldl'_Reader value =
+    withArray value
+        $ Stream.fold (Fold.foldl' (+) 0) . Stream.unfold MArray.reader
 
 -------------------------------------------------------------------------------
 -- Bench groups
@@ -157,31 +258,31 @@ writeN value = withStream value (Stream.fold (MArray.createOf value))
 typeCommonBenchmarks ::
     (MutArray Int, Array.Array Int) -> Int -> [(SpaceComplexity, Benchmark)]
 typeCommonBenchmarks ~(array, indices) value =
-      [ (SpaceO_1, benchIO "partitionBy (< 0)" $ MArray.partitionBy (< 0) array)
-      , (SpaceO_1, benchIO "partitionBy (> 0)" $ MArray.partitionBy (> 0) array)
-      , (SpaceO_1, benchIO "partitionBy (< value/2)" $
-            MArray.partitionBy (< (value `div` 2)) array)
-      , (SpaceO_1, benchIO "partitionBy (> value/2)" $
-            MArray.partitionBy (> (value `div` 2)) array)
-      , (SpaceO_1, benchIO "strip (< value/2 || > value/2)" $
-            MArray.dropAround (\x -> x < value `div` 2 || x > value `div` 2) array)
-      , (SpaceO_1, benchIO "strip (> 0)" $ MArray.dropAround (> 0) array)
-      , (SpaceO_1, benchIO "modifyIndices (+ 1)" $
-            Stream.fold (MArray.modifyIndices array (\_idx val -> val + 1))
-            $ Stream.unfold Array.reader indices)
+    let half = value `div` 2
+    in
+      [ (SpaceO_1, benchIO "partitionBy_LT (0)" $ partitionBy_LT array 0)
+      , (SpaceO_1, benchIO "partitionBy_GT (0)" $ partitionBy_GT array 0)
+      , (SpaceO_1, benchIO "partitionBy_LT (value div 2)"
+            $ partitionBy_LT array half)
+      , (SpaceO_1, benchIO "partitionBy_GT (value div 2)"
+            $ partitionBy_GT array half)
+      , (SpaceO_1, benchIO "dropAround_NotEq (value div 2)"
+            $ dropAround_NotEq array half)
+      , (SpaceO_1, benchIO "dropAround_GT (0)" $ dropAround_GT array 0)
+      , (SpaceO_1, benchIO "modifyIndices (+ 1)"
+            $ modifyIndices array indices)
 
-      , (SpaceO_1, benchIO "createOf . intFromTo" $ sourceIntFromTo value)
-      , (SpaceO_1, benchIO "fromList . intFromTo" $ sourceIntFromToFromList value)
-      , (SpaceO_1, benchIO "createOf . unfoldr" $ sourceUnfoldr value)
-      , (SpaceO_1, benchIO "createOf . fromList" $ sourceFromList value)
-      , (SpaceO_1, benchIO "write . intFromTo" $ sourceIntFromToFromStream value)
+      , (SpaceO_1, benchIO "createOf (enumerateFromTo)" $ createOf value)
+      , (SpaceO_1, benchIO "fromListN (enumerateFromTo)" $ fromListN value)
+      , (SpaceO_1, benchIO "createOf_Unfoldr" $ createOf_Unfoldr value)
+      , (SpaceO_1, benchIO "createOf_FromList" $ createOf_FromList value)
+      , (SpaceO_1, benchIO "create (enumerateFromTo)" $ create value)
 
-      , (SpaceO_1, benchIO "id" $ idArr value)
-      , (SpaceO_1, benchIO "foldl'" $ unfoldFold value)
-      , (SpaceO_1, benchIO "read" $ unfoldReadDrain value)
-      , (SpaceO_1, benchIO "readRev" $ unfoldReadRevDrain value)
-      , (SpaceO_1, benchIO "toStream" $ toStreamDDrain value)
-      , (SpaceO_1, benchIO "toStreamRev" $ toStreamDRevDrain value)
+      , (SpaceO_1, benchIO "foldl'_Reader" $ foldl'_Reader value)
+      , (SpaceO_1, benchIO "reader" $ reader value)
+      , (SpaceO_1, benchIO "readerRev" $ readerRev value)
+      , (SpaceO_1, benchIO "read" $ read value)
+      , (SpaceO_1, benchIO "readRev" $ readRev value)
 
-      , (HeapO_n, benchIO "createOf" $ writeN value)
+      , (HeapO_n, benchIO "createOf_UnfoldrM" $ createOf_UnfoldrM value)
       ]

@@ -103,6 +103,7 @@ common default-extensions
         CPP
         MagicHash
         RecordWildCards
+        TemplateHaskellQuotes
 
 common compile-options
     import: default-extensions
@@ -157,10 +158,14 @@ common optimization-options
     if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
       ghc-options:
          -fplugin Fusion.Plugin
-         -fplugin-opt=Fusion.Plugin:werror
-         -ddump-simpl
          -ddump-to-file
          -dsuppress-all
+         -fplugin-opt=Fusion.Plugin:dump-core-sizes
+         -fplugin-opt=Fusion.Plugin:dump-core-if-violated
+
+    if flag(inspection) && flag(fusion-plugin)
+      ghc-options: -fplugin-opt=Fusion.Plugin:werror
+
   else
     ghc-options: -O0
 
@@ -282,7 +287,7 @@ benchmark Data.Fold
     buildable: False
   else
     buildable: True
-  if flag(limit-build-mem) && !flag(fusion-plugin)
+  if flag(limit-build-mem)
     ghc-options: +RTS -M600M -RTS
   -- MonoLocalBinds increases the memory requirement from 400MB to 1000MB,
   -- observed on macOS.
@@ -467,6 +472,7 @@ benchmark Data.Stream
       Stream.Parse
       Stream.Parse.Group
       Stream.Transform
+      -- XXX this takes most memory to build, break it up
       Stream.Transform.Basic
       Stream.Transform.Composed
       Stream.Type
@@ -475,7 +481,7 @@ benchmark Data.Stream
       Stream.Type.Nested
       Stream.Type.Logic
   if flag(limit-build-mem)
-    ghc-options: +RTS -M500M -RTS
+    ghc-options: +RTS -M600M -RTS
 
 benchmark Data.Stream.Adaptive
   import: bench-options-threaded

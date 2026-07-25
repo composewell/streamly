@@ -13,12 +13,15 @@ module Stream.Nesting.LogicConcat (benchmarks) where
 
 import Streamly.Data.Stream (Stream)
 
+import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.StreamK as StreamK
+import qualified Streamly.Internal.Data.SVar.Type as SVar
 
 import Test.Tasty.Bench
-import Stream.Type (benchIO, withRandomIntIO)
+import Stream.Type (benchIO)
 import Streamly.Benchmark.Common
+import Fusion.Plugin.Types
 import qualified Stream.Type as Type
 import Prelude hiding (concatMap, zipWith)
 
@@ -35,7 +38,8 @@ import Prelude hiding (concatMap, zipWith)
 -- then we might go through more than maxVal x maxVal cases.
 --
 {-# INLINE checkStreamK #-}
-checkStreamK :: Int -> Int -> Int -> StreamK.StreamK m (Maybe (Maybe (Int, Int)))
+checkStreamK :: Int -> Int -> Int
+    -> StreamK.StreamK m (Maybe (Maybe (Int, Int)))
 checkStreamK maxVal x y =
     let eq1 = x + y == 0
         eq2 = x - y == 2 * maxVal
@@ -78,44 +82,96 @@ _schedForEqn maxVal input =
               Stream.schedForM input $ \y -> do
                 return $ Type.checkStream maxVal x y
 
-{-# NOINLINE fairConcatForBounded #-}
-fairConcatForBounded :: Int -> IO ()
-fairConcatForBounded maxVal = withRandomIntIO $ \n ->
+{-# ANN fairConcatFor_Bounded (PermitPatternMatches
+    [''Maybe,''Bool,''Int,''[],''Producer.InterleaveState
+    ,''Stream.EnumToState,''Stream.Step,''Stream.FairUnfoldState,''Stream]) #-}
+{-# ANN fairConcatFor_Bounded (PermitConstructions
+    [''Producer.InterleaveState,''Stream.EnumToState,''Int,''Maybe
+    ,''Stream.Step,''Stream,''(,),''[],''Stream.FairUnfoldState
+    ,''SVar.State,''(),''Bool]) #-}
+{-# ANN fairConcatFor_Bounded (PermitTypeClasses []) #-}
+{-# NOINLINE fairConcatFor_Bounded #-}
+fairConcatFor_Bounded :: Int -> Int -> IO ()
+fairConcatFor_Bounded maxVal n =
     fairConcatForEqn maxVal (Type.boundedInts maxVal n)
 
-{-# NOINLINE fairConcatForKBounded #-}
-fairConcatForKBounded :: Int -> IO ()
-fairConcatForKBounded maxVal = withRandomIntIO $ \n ->
+{-# ANN fairConcatForK_Bounded (PermitPatternMatches
+    [''Maybe,''Bool,''Int,''[],''Producer.InterleaveState,''SVar.State
+    ,''Stream.EnumToState,''Stream.Step]) #-}
+{-# ANN fairConcatForK_Bounded (PermitConstructions
+    [''Maybe,''[],''Producer.InterleaveState,''Int,''Stream.EnumToState
+    ,''SVar.State,''Stream.Step,''(,),''(),''Bool]) #-}
+{-# ANN fairConcatForK_Bounded (PermitTypeClasses []) #-}
+{-# NOINLINE fairConcatForK_Bounded #-}
+fairConcatForK_Bounded :: Int -> Int -> IO ()
+fairConcatForK_Bounded maxVal n =
     fairConcatForEqnK maxVal (Type.boundedInts maxVal n)
 
-{-# NOINLINE fairConcatForInfinite #-}
-fairConcatForInfinite :: Int -> IO ()
-fairConcatForInfinite maxVal = withRandomIntIO $ \n ->
+{-# ANN fairConcatFor_Infinite (PermitPatternMatches
+    [''Maybe,''Bool,''Int,''[],''Producer.InterleaveState
+    ,''Stream.EnumToState,''Stream.Step,''Stream.FairUnfoldState,''Stream]) #-}
+{-# ANN fairConcatFor_Infinite (PermitConstructions
+    [''Int,''Producer.InterleaveState,''Stream.EnumToState,''Maybe
+    ,''Stream.Step,''Stream,''(,),''[],''Stream.FairUnfoldState
+    ,''SVar.State,''(),''Bool]) #-}
+{-# ANN fairConcatFor_Infinite (PermitTypeClasses []) #-}
+{-# NOINLINE fairConcatFor_Infinite #-}
+fairConcatFor_Infinite :: Int -> Int -> IO ()
+fairConcatFor_Infinite maxVal n =
     fairConcatForEqn maxVal (Type.infiniteInts maxVal n)
 
-{-# NOINLINE fairSchedForBounded #-}
-fairSchedForBounded :: Int -> IO ()
-fairSchedForBounded maxVal = withRandomIntIO $ \n ->
+{-# ANN fairSchedFor_Bounded (PermitPatternMatches
+    [''Maybe,''Bool,''Int,''[],''Producer.InterleaveState
+    ,''Stream.EnumToState,''Stream.Step,''Stream.FairUnfoldState,''Stream]) #-}
+{-# ANN fairSchedFor_Bounded (PermitConstructions
+    [''Producer.InterleaveState,''Stream.EnumToState,''Int,''Maybe
+    ,''Stream.Step,''Stream,''(,),''[],''Stream.FairUnfoldState
+    ,''SVar.State,''(),''Bool]) #-}
+{-# ANN fairSchedFor_Bounded (PermitTypeClasses []) #-}
+{-# NOINLINE fairSchedFor_Bounded #-}
+fairSchedFor_Bounded :: Int -> Int -> IO ()
+fairSchedFor_Bounded maxVal n =
     fairSchedForEqn maxVal (Type.boundedInts maxVal n)
 
-{-# NOINLINE fairSchedForInfinite #-}
-fairSchedForInfinite :: Int -> IO ()
-fairSchedForInfinite maxVal = withRandomIntIO $ \n ->
+{-# ANN fairSchedFor_Infinite (PermitPatternMatches
+    [''Maybe,''Bool,''Int,''[],''Producer.InterleaveState
+    ,''Stream.EnumToState,''Stream.Step,''Stream.FairUnfoldState,''Stream]) #-}
+{-# ANN fairSchedFor_Infinite (PermitConstructions
+    [''Int,''Producer.InterleaveState,''Stream.EnumToState,''Maybe
+    ,''Stream.Step,''Stream,''(,),''[],''Stream.FairUnfoldState
+    ,''SVar.State,''(),''Bool]) #-}
+{-# ANN fairSchedFor_Infinite (PermitTypeClasses []) #-}
+{-# NOINLINE fairSchedFor_Infinite #-}
+fairSchedFor_Infinite :: Int -> Int -> IO ()
+fairSchedFor_Infinite maxVal n =
     fairSchedForEqn maxVal (Type.infiniteInts maxVal n)
 
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
 
+-- XXX Move StreamK functions to StreamK module
+-- Benchmark naming: name each benchmark (and its IO action) after the exported
+-- function it benchmarks, using combinator_dimension1_dimension2..., where the
+-- dimensions are optional variants/type specializations (used esp. when more
+-- than one specialization is benchmarked). Keep extra info in parenthetical
+-- notes in the description; these also disambiguate benchmarks that reuse a
+-- single IO action with different arguments. If the name has a trailing
+-- underscore, add one more underscore.
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
     -- Solve simultaneous equations by exploring all possibilities
     -- Concat
-      [ (SpaceO_1, benchIO "equations/fairConcatFor (bounded)" $ fairConcatForBounded sqrtVal)
-      , (SpaceO_1, benchIO "equations/fairConcatForK (bounded)" $ fairConcatForKBounded sqrtVal)
-      , (SpaceO_1, benchIO "equations/fairConcatFor (infinite)" $ fairConcatForInfinite sqrtVal)
-      , (SpaceO_1, benchIO "equations/fairSchedFor (bounded)" $ fairSchedForBounded sqrtVal)
-      , (SpaceO_1, benchIO "equations/fairSchedFor (infinite)" $ fairSchedForInfinite sqrtVal)
+      [ (SpaceO_1, benchIO "fairConcatFor_Bounded (equations)" $
+            fairConcatFor_Bounded sqrtVal)
+      , (SpaceO_1, benchIO "fairConcatForK_Bounded (equations)" $
+            fairConcatForK_Bounded sqrtVal)
+      , (SpaceO_1, benchIO "fairConcatFor_Infinite (equations)" $
+            fairConcatFor_Infinite sqrtVal)
+      , (SpaceO_1, benchIO "fairSchedFor_Bounded (equations)" $
+            fairSchedFor_Bounded sqrtVal)
+      , (SpaceO_1, benchIO "fairSchedFor_Infinite (equations)" $
+            fairSchedFor_Infinite sqrtVal)
       ]
 
     where

@@ -4,23 +4,7 @@
 -- License     : MIT
 -- Maintainer  : streamly@composewell.com
 
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-
-#undef FUSION_CHECK
-#ifdef FUSION_CHECK
-{-# OPTIONS_GHC -ddump-simpl -ddump-to-file -dsuppress-all #-}
-#endif
-
-#ifdef __HADDOCK_VERSION__
-#undef INSPECTION
-#endif
-
-#ifdef INSPECTION
-{-# LANGUAGE TemplateHaskell #-}
-{-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
-#endif
 
 module Unfold.Enumeration (benchmarks) where
 
@@ -31,16 +15,11 @@ import System.Random (randomRIO)
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as UF
 
-
+import Fusion.Plugin.Types
 import Test.Tasty.Bench hiding (env)
-import Prelude hiding (take, filter, zipWith, map, mapM, takeWhile, scanl, repeat, dropWhile)
+import Prelude hiding
+    (take, filter, zipWith, map, mapM, takeWhile, scanl, repeat, dropWhile)
 import Streamly.Benchmark.Common
-
-#ifdef INSPECTION
-import GHC.Types (SPEC(..))
-import Test.Inspection
-import qualified Streamly.Internal.Data.Stream as S
-#endif
 
 {-# INLINE benchIO #-}
 benchIO :: (NFData b) => String -> (Int -> IO b) -> Benchmark
@@ -54,67 +33,39 @@ drainGeneration = UF.fold FL.drain
 -- Stream generation
 -------------------------------------------------------------------------------
 
-{-# INLINE enumerateFromThenIntegral #-}
-enumerateFromThenIntegral :: Int -> Int -> IO ()
-enumerateFromThenIntegral size start =
+{-# ANN enumerateFromNum (PermitPatternMatches []) #-}
+{-# ANN enumerateFromNum (PermitConstructions []) #-}
+{-# ANN enumerateFromNum (PermitTypeClasses []) #-}
+{-# NOINLINE enumerateFromNum #-}
+enumerateFromNum :: Int -> Int -> IO ()
+enumerateFromNum size = drainGeneration (UF.take size UF.enumerateFromNum)
+
+{-# ANN enumerateFromThenNum (PermitPatternMatches []) #-}
+{-# ANN enumerateFromThenNum (PermitConstructions []) #-}
+{-# ANN enumerateFromThenNum (PermitTypeClasses []) #-}
+{-# NOINLINE enumerateFromThenNum #-}
+enumerateFromThenNum :: Int -> Int -> IO ()
+enumerateFromThenNum size start =
     drainGeneration (UF.take size UF.enumerateFromThenNum) (start, 1)
 
-#ifdef INSPECTION
-inspect $ 'enumerateFromThenIntegral `hasNoType` ''S.Step
-inspect $ 'enumerateFromThenIntegral `hasNoType` ''FL.Step
-inspect $ 'enumerateFromThenIntegral `hasNoType` ''SPEC
-#endif
-
-{-# INLINE enumerateFromToIntegral #-}
-enumerateFromToIntegral :: Int -> Int -> IO ()
-enumerateFromToIntegral size start =
+{-# ANN enumerateFromToNum (PermitPatternMatches []) #-}
+{-# ANN enumerateFromToNum (PermitConstructions []) #-}
+{-# ANN enumerateFromToNum (PermitTypeClasses []) #-}
+{-# NOINLINE enumerateFromToNum #-}
+enumerateFromToNum :: Int -> Int -> IO ()
+enumerateFromToNum size start =
     drainGeneration
     ( UF.supplySecond
       (size + start)
       UF.enumerateFromToNum
     ) start
 
-#ifdef INSPECTION
-inspect $ 'enumerateFromToIntegral `hasNoType` ''S.Step
-inspect $ 'enumerateFromToIntegral `hasNoType` ''FL.Step
-inspect $ 'enumerateFromToIntegral `hasNoType` ''SPEC
-#endif
-
-{-# INLINE enumerateFromIntegral #-}
-enumerateFromIntegral :: Int -> Int -> IO ()
-enumerateFromIntegral size =
-    drainGeneration (UF.take size UF.enumerateFromNum)
-
-#ifdef INSPECTION
-inspect $ 'enumerateFromIntegral `hasNoType` ''S.Step
-inspect $ 'enumerateFromIntegral `hasNoType` ''FL.Step
-inspect $ 'enumerateFromIntegral `hasNoType` ''SPEC
-#endif
-
-{-# INLINE enumerateFromStepNum #-}
-enumerateFromStepNum :: Int -> Int -> IO ()
-enumerateFromStepNum size start =
-    drainGeneration (UF.take size UF.enumerateFromThenNum) (start, 1)
-
-#ifdef INSPECTION
-inspect $ 'enumerateFromStepNum `hasNoType` ''S.Step
-inspect $ 'enumerateFromStepNum `hasNoType` ''FL.Step
-inspect $ 'enumerateFromStepNum `hasNoType` ''SPEC
-#endif
-
-{-# INLINE enumerateFromNum #-}
-enumerateFromNum :: Int -> Int -> IO ()
-enumerateFromNum size = drainGeneration (UF.take size UF.enumerateFromNum)
-
-#ifdef INSPECTION
-inspect $ 'enumerateFromNum `hasNoType` ''S.Step
-inspect $ 'enumerateFromNum `hasNoType` ''FL.Step
-inspect $ 'enumerateFromNum `hasNoType` ''SPEC
-#endif
-
-{-# INLINE enumerateFromToFractional #-}
-enumerateFromToFractional :: Int -> Int -> IO ()
-enumerateFromToFractional size start =
+{-# ANN enumerateFromToRealFloat (PermitPatternMatches []) #-}
+{-# ANN enumerateFromToRealFloat (PermitConstructions []) #-}
+{-# ANN enumerateFromToRealFloat (PermitTypeClasses []) #-}
+{-# NOINLINE enumerateFromToRealFloat #-}
+enumerateFromToRealFloat :: Int -> Int -> IO ()
+enumerateFromToRealFloat size start =
     let intToDouble x = fromInteger (fromIntegral x) :: Double
      in drainGeneration
             ( UF.supplySecond
@@ -123,22 +74,22 @@ enumerateFromToFractional size start =
             )
             (intToDouble start)
 
-#ifdef INSPECTION
-inspect $ 'enumerateFromToFractional `hasNoType` ''S.Step
-inspect $ 'enumerateFromToFractional `hasNoType` ''FL.Step
-inspect $ 'enumerateFromToFractional `hasNoType` ''SPEC
-#endif
-
 -------------------------------------------------------------------------------
 -- Benchmarks
 -------------------------------------------------------------------------------
 
+-- Benchmark naming: name each benchmark (and its IO action) after the exported
+-- function it benchmarks, using combinator_dimension1_dimension2..., where the
+-- dimensions are optional variants/type specializations (used esp. when more
+-- than one specialization is benchmarked). Keep extra info in parenthetical
+-- notes in the description; these also disambiguate benchmarks that reuse a
+-- single IO action with different arguments. If the name has a trailing
+-- underscore, add one more underscore.
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
-    [ (SpaceO_1, benchIO "enumerateFromThenIntegral" $ enumerateFromThenIntegral size)
-    , (SpaceO_1, benchIO "enumerateFromToIntegral" $ enumerateFromToIntegral size)
-    , (SpaceO_1, benchIO "enumerateFromIntegral" $ enumerateFromIntegral size)
-    , (SpaceO_1, benchIO "enumerateFromStepNum" $ enumerateFromStepNum size)
-    , (SpaceO_1, benchIO "enumerateFromNum" $ enumerateFromNum size)
-    , (SpaceO_1, benchIO "enumerateFromToFractional" $ enumerateFromToFractional size)
+    [ (SpaceO_1, benchIO "enumerateFromNum" $ enumerateFromNum size)
+    , (SpaceO_1, benchIO "enumerateFromThenNum" $ enumerateFromThenNum size)
+    , (SpaceO_1, benchIO "enumerateFromToNum" $ enumerateFromToNum size)
+    , (SpaceO_1, benchIO "enumerateFromToRealFloat" $
+          enumerateFromToRealFloat size)
     ]

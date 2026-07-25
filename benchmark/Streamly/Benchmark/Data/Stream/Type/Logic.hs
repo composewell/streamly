@@ -25,12 +25,15 @@ import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Data.Unfold (Unfold)
 
 import qualified Streamly.Internal.Data.Fold as Fold
+import qualified Streamly.Internal.Data.Producer as Producer
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Unfold as Unfold
 
 import Test.Tasty.Bench
-import Stream.Type.Basic (benchIO, withRandomIntIO)
+import Stream.Type.Basic (benchIO)
 import Streamly.Benchmark.Common
+import Fusion.Plugin.Types
+import qualified Streamly.Internal.Data.SVar.Type as SVar
 import Prelude hiding (concatMap, mapM, zipWith)
 
 -- search space |x| = 1000, |y| = 1000
@@ -108,34 +111,63 @@ fairStreamCrossEqn maxVal input =
 {-# INLINE unfoldEachEqn #-}
 unfoldEachEqn :: Monad m => Int -> Unfold m ((), ()) Int -> Stream m Int -> m ()
 unfoldEachEqn maxVal input ints =
-    let intu = Unfold.carryInput $ Unfold.lmap (const (undefined, undefined)) input
+    let intu =
+            Unfold.carryInput
+                $ Unfold.lmap (const (undefined, undefined)) input
      in result
         $ Stream.mapM (checkPair maxVal)
         $ Stream.unfoldEach intu ints
 
-{-# NOINLINE concatForBounded #-}
-concatForBounded :: Int -> IO ()
-concatForBounded maxVal = withRandomIntIO $ \n ->
+{-# ANN concatFor_Bounded (PermitPatternMatches
+    [''Either,''Maybe,''(,),''Bool,''Int,''Producer.InterleaveState
+    ,''Stream.EnumToState,''Stream.Step,''Stream]) #-}
+{-# ANN concatFor_Bounded (PermitConstructions
+    [''Producer.InterleaveState,''Stream.EnumToState,''Either,''Int
+    ,''Maybe,''Stream.Step,''Stream,''(,),''SVar.State,''(),''Bool]) #-}
+{-# ANN concatFor_Bounded (PermitTypeClasses []) #-}
+{-# NOINLINE concatFor_Bounded #-}
+concatFor_Bounded :: Int -> Int -> IO ()
+concatFor_Bounded maxVal n =
     concatForEqn maxVal (boundedInts maxVal n)
 
-{-# NOINLINE streamCrossBounded #-}
-streamCrossBounded :: Int -> IO ()
-streamCrossBounded maxVal = withRandomIntIO $ \n ->
+{-# ANN cross_Bounded (PermitPatternMatches [''Maybe,''Int]) #-}
+{-# ANN cross_Bounded (PermitConstructions [''Maybe,''Int,''(,),''()]) #-}
+{-# ANN cross_Bounded (PermitTypeClasses []) #-}
+{-# NOINLINE cross_Bounded #-}
+cross_Bounded :: Int -> Int -> IO ()
+cross_Bounded maxVal n =
     streamCrossEqn maxVal (boundedInts maxVal n)
 
-{-# NOINLINE fairStreamCrossBounded #-}
-fairStreamCrossBounded :: Int -> IO ()
-fairStreamCrossBounded maxVal = withRandomIntIO $ \n ->
+{-# ANN fairCross_Bounded (PermitPatternMatches
+    [''Maybe,''(,),''Int,''[],''Producer.InterleaveState
+    ,''Stream.EnumToState]) #-}
+{-# ANN fairCross_Bounded (PermitConstructions
+    [''Maybe,''Int,''Stream.EnumToState,''Producer.InterleaveState,''(,)
+    ,''[],''()]) #-}
+{-# ANN fairCross_Bounded (PermitTypeClasses []) #-}
+{-# NOINLINE fairCross_Bounded #-}
+fairCross_Bounded :: Int -> Int -> IO ()
+fairCross_Bounded maxVal n =
     fairStreamCrossEqn maxVal (boundedInts maxVal n)
 
-{-# NOINLINE fairStreamCrossInfinite #-}
-fairStreamCrossInfinite :: Int -> IO ()
-fairStreamCrossInfinite maxVal = withRandomIntIO $ \n ->
+{-# ANN fairCross_Infinite (PermitPatternMatches
+    [''Maybe,''(,),''Int,''[],''Producer.InterleaveState
+    ,''Stream.EnumToState]) #-}
+{-# ANN fairCross_Infinite (PermitConstructions
+    [''Int,''Maybe,''Producer.InterleaveState,''(,),''[]
+    ,''Stream.EnumToState,''()]) #-}
+{-# ANN fairCross_Infinite (PermitTypeClasses []) #-}
+{-# NOINLINE fairCross_Infinite #-}
+fairCross_Infinite :: Int -> Int -> IO ()
+fairCross_Infinite maxVal n =
     fairStreamCrossEqn maxVal (infiniteInts maxVal n)
 
-{-# NOINLINE unfoldEachBounded #-}
-unfoldEachBounded :: Int -> IO ()
-unfoldEachBounded maxVal = withRandomIntIO $ \n ->
+{-# ANN unfoldEach_Bounded (PermitPatternMatches [''Maybe,''Int]) #-}
+{-# ANN unfoldEach_Bounded (PermitConstructions [''Maybe,''Int,''(,),''()]) #-}
+{-# ANN unfoldEach_Bounded (PermitTypeClasses []) #-}
+{-# NOINLINE unfoldEach_Bounded #-}
+unfoldEach_Bounded :: Int -> Int -> IO ()
+unfoldEach_Bounded maxVal n =
     unfoldEachEqn maxVal (boundedIntsUnfold maxVal 0) (boundedInts maxVal n)
 
 -------------------------------------------------------------------------------
@@ -143,20 +175,27 @@ unfoldEachBounded maxVal = withRandomIntIO $ \n ->
 -------------------------------------------------------------------------------
 
 {-# ANN benchmarks "HLint: ignore" #-}
+-- Benchmark naming: name each benchmark (and its IO action) after the exported
+-- function it benchmarks, using combinator_dimension1_dimension2..., where the
+-- dimensions are optional variants/type specializations (used esp. when more
+-- than one specialization is benchmarked). Keep extra info in parenthetical
+-- notes in the description; these also disambiguate benchmarks that reuse a
+-- single IO action with different arguments. If the name has a trailing
+-- underscore, add one more underscore.
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
     -- Logic Programming
     -- Solve simultaneous equations by exploring all possibilities
-    [ (SpaceO_1, benchIO "equations/concatFor (bounded)" $
-          concatForBounded sqrtVal)
-    , (SpaceO_1, benchIO "equations/streamCross (bounded)" $
-          streamCrossBounded sqrtVal)
-    , (SpaceO_1, benchIO "equations/fairStreamCross (bounded)" $
-          fairStreamCrossBounded sqrtVal)
-    , (SpaceO_1, benchIO "equations/fairStreamCross (infinite)" $
-          fairStreamCrossInfinite sqrtVal)
-    , (SpaceO_1, benchIO "equations/unfoldEach (bounded)" $
-          unfoldEachBounded sqrtVal)
+    [ (SpaceO_1, benchIO "concatFor_Bounded (equations)" $
+          concatFor_Bounded sqrtVal)
+    , (SpaceO_1, benchIO "cross_Bounded (equations)" $
+          cross_Bounded sqrtVal)
+    , (SpaceO_1, benchIO "fairCross_Bounded (equations)" $
+          fairCross_Bounded sqrtVal)
+    , (SpaceO_1, benchIO "fairCross_Infinite (equations)" $
+          fairCross_Infinite sqrtVal)
+    , (SpaceO_1, benchIO "unfoldEach_Bounded (equations)" $
+          unfoldEach_Bounded sqrtVal)
     ]
 
     where

@@ -31,9 +31,13 @@ module Streamly.Benchmark.Data.Parser.Alternative
 
 import Control.Applicative ((<|>))
 import Control.DeepSeq (NFData(..))
+import GHC.Classes (IP)
+import GHC.Stack (CallStack, SrcLoc)
+import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Fold (Fold(..))
 import Streamly.Internal.Data.Parser
-    (ParseError(..), Parser(..), Initial(..), Step(..), Final(..))
+    ( ParseError(..), Parser(..), Initial(..), Step(..), Final(..)
+    , AltParseState, SeqAState)
 import Streamly.Internal.Data.Stream (Stream)
 import System.Random (randomRIO)
 import Test.Tasty.Bench (Benchmark, bench, nfIO)
@@ -45,9 +49,9 @@ import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Data.Stream as Stream
 
 import Streamly.Benchmark.Common
+import Fusion.Plugin.Types
 
 #ifdef INSPECTION
-import GHC.Types (SPEC(..))
 import Test.Inspection
 
 import qualified Streamly.Internal.Data.Fold as FL
@@ -55,47 +59,62 @@ import qualified Streamly.Internal.Data.Stream as S
 #endif
 
 {-# INLINE benchIO #-}
-benchIO :: NFData b => String -> IO b -> Benchmark
-benchIO name = bench name . nfIO
+benchIO :: NFData b => String -> (Int -> IO b) -> Benchmark
+benchIO name f = bench name $ nfIO $ randomRIO (1, 1 :: Int) >>= f
 
 {-# INLINE withStream #-}
-withStream :: Int -> (Stream IO Int -> IO b) -> IO b
-withStream value f = randomRIO (1,1) >>= f . streamUnfoldrM value
+withStream :: Int -> (Stream IO Int -> IO b) -> Int -> IO b
+withStream value f = f . streamUnfoldrM value
 
 -------------------------------------------------------------------------------
 -- Parsers
 -------------------------------------------------------------------------------
 
-{-# INLINE splitManyWordByEven #-}
-splitManyWordByEven :: Int -> IO (Either ParseError ())
-splitManyWordByEven value =
-    withStream value $ Stream.parse (PR.splitMany (PR.wordBy even Fold.drain) Fold.drain)
+{-# ANN splitMany_WordBy (PermitPatternMatches [''()]) #-}
+{-# ANN splitMany_WordBy (PermitConstructions [''()]) #-}
+{-# ANN splitMany_WordBy (PermitTypeClasses []) #-}
+{-# NOINLINE splitMany_WordBy #-}
+splitMany_WordBy :: Int -> Int -> IO (Either ParseError ())
+splitMany_WordBy value =
+    withStream value
+        $ Stream.parse
+            (PR.splitMany (PR.wordBy even Fold.drain) Fold.drain)
 
 #ifdef INSPECTION
-inspect $ 'splitManyWordByEven `hasNoType` ''S.Step
-inspect $ 'splitManyWordByEven `hasNoType` ''PR.Step
-inspect $ 'splitManyWordByEven `hasNoType` ''PR.Initial
-inspect $ 'splitManyWordByEven `hasNoType` ''FL.Step
-inspect $ 'splitManyWordByEven `hasNoType` ''SPEC
-inspect $ 'splitManyWordByEven `hasNoType` ''PR.Fused3
+inspect $ 'splitMany_WordBy `hasNoType` ''S.Step
+inspect $ 'splitMany_WordBy `hasNoType` ''PR.Step
+inspect $ 'splitMany_WordBy `hasNoType` ''PR.Initial
+inspect $ 'splitMany_WordBy `hasNoType` ''FL.Step
+inspect $ 'splitMany_WordBy `hasNoType` ''SPEC
+inspect $ 'splitMany_WordBy `hasNoType` ''PR.Fused3
 #endif
 
-{-# INLINE splitMany #-}
-splitMany :: Int -> IO (Either ParseError Int)
-splitMany value = withStream value $ Stream.parse (PR.splitMany (PR.satisfy (> 0)) Fold.length)
+{-# ANN splitMany_Satisfy (PermitPatternMatches []) #-}
+{-# ANN splitMany_Satisfy (PermitConstructions [''Int]) #-}
+{-# ANN splitMany_Satisfy (PermitTypeClasses []) #-}
+{-# NOINLINE splitMany_Satisfy #-}
+splitMany_Satisfy :: Int -> Int -> IO (Either ParseError Int)
+splitMany_Satisfy value =
+    withStream value
+        $ Stream.parse (PR.splitMany (PR.satisfy (> 0)) Fold.length)
 
 #ifdef INSPECTION
-inspect $ 'splitMany `hasNoType` ''S.Step
-inspect $ 'splitMany `hasNoType` ''PR.Step
-inspect $ 'splitMany `hasNoType` ''PR.Initial
-inspect $ 'splitMany `hasNoType` ''FL.Step
-inspect $ 'splitMany `hasNoType` ''SPEC
-inspect $ 'splitMany `hasNoType` ''PR.Fused3
+inspect $ 'splitMany_Satisfy `hasNoType` ''S.Step
+inspect $ 'splitMany_Satisfy `hasNoType` ''PR.Step
+inspect $ 'splitMany_Satisfy `hasNoType` ''PR.Initial
+inspect $ 'splitMany_Satisfy `hasNoType` ''FL.Step
+inspect $ 'splitMany_Satisfy `hasNoType` ''SPEC
+inspect $ 'splitMany_Satisfy `hasNoType` ''PR.Fused3
 #endif
 
-{-# INLINE splitSome #-}
-splitSome :: Int -> IO (Either ParseError Int)
-splitSome value = withStream value $ Stream.parse (PR.splitSome (PR.satisfy (> 0)) Fold.length)
+{-# ANN splitSome (PermitPatternMatches []) #-}
+{-# ANN splitSome (PermitConstructions [''Either, ''Int]) #-}
+{-# ANN splitSome (PermitTypeClasses []) #-}
+{-# NOINLINE splitSome #-}
+splitSome :: Int -> Int -> IO (Either ParseError Int)
+splitSome value =
+    withStream value
+        $ Stream.parse (PR.splitSome (PR.satisfy (> 0)) Fold.length)
 
 #ifdef INSPECTION
 inspect $ 'splitSome `hasNoType` ''S.Step
@@ -106,16 +125,22 @@ inspect $ 'splitSome `hasNoType` ''SPEC
 inspect $ 'splitSome `hasNoType` ''PR.Fused3
 #endif
 
-{-# INLINE manyAlt #-}
-manyAlt :: Int -> IO Int
-manyAlt value = do
-    x <- withStream value $ Stream.parse (AP.many (PR.satisfy (> 0)))
+{-# ANN many_AlternativeInstance (PermitPatternMatches [''[]]) #-}
+{-# ANN many_AlternativeInstance (PermitConstructions [''[], ''Int]) #-}
+{-# ANN many_AlternativeInstance (PermitTypeClasses []) #-}
+{-# NOINLINE many_AlternativeInstance #-}
+many_AlternativeInstance :: Int -> Int -> IO Int
+many_AlternativeInstance value start = do
+    x <- withStream value (Stream.parse (AP.many (PR.satisfy (> 0)))) start
     return $ Prelude.length x
 
-{-# INLINE someAlt #-}
-someAlt :: Int -> IO Int
-someAlt value = do
-    x <- withStream value $ Stream.parse (AP.some (PR.satisfy (> 0)))
+{-# ANN some_AlternativeInstance (PermitPatternMatches [''[]]) #-}
+{-# ANN some_AlternativeInstance (PermitConstructions [''[], ''Int]) #-}
+{-# ANN some_AlternativeInstance (PermitTypeClasses []) #-}
+{-# NOINLINE some_AlternativeInstance #-}
+some_AlternativeInstance :: Int -> Int -> IO Int
+some_AlternativeInstance value start = do
+    x <- withStream value (Stream.parse (AP.some (PR.satisfy (> 0)))) start
     return $ Prelude.length x
 
 -- XXX dropWhile with applicative does not fuse
@@ -145,9 +170,14 @@ takeWhileFail predicate (Fold fstep finitial _ ffinal) =
 
     extract s = fmap (FDone 0) (ffinal s)
 
-{-# INLINE alt2 #-}
-alt2 :: Int -> IO (Either ParseError ())
-alt2 value =
+{-# ANN alt_x2 (PermitPatternMatches
+    [''[], ''Int, ''(,), ''SPEC, ''AltParseState]) #-}
+{-# ANN alt_x2 (PermitConstructions
+    [''[], ''Int, ''SrcLoc, ''CallStack, ''(), ''(,), ''AltParseState]) #-}
+{-# ANN alt_x2 (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE alt_x2 #-}
+alt_x2 :: Int -> Int -> IO (Either ParseError ())
+alt_x2 value =
     withStream value $
         Stream.parse
             (PR.alt
@@ -156,18 +186,23 @@ alt2 value =
             )
 
 #ifdef INSPECTION
-inspect $ 'alt2 `hasNoType` ''S.Step
-inspect $ 'alt2 `hasNoType` ''PR.Step
-inspect $ 'alt2 `hasNoType` ''PR.Initial
-inspect $ 'alt2 `hasNoType` ''FL.Step
--- inspect $ 'alt2 `hasNoType` ''SPEC
--- inspect $ 'alt2 `hasNoType` ''PR.AltParseState
+inspect $ 'alt_x2 `hasNoType` ''S.Step
+inspect $ 'alt_x2 `hasNoType` ''PR.Step
+inspect $ 'alt_x2 `hasNoType` ''PR.Initial
+inspect $ 'alt_x2 `hasNoType` ''FL.Step
+-- inspect $ 'alt_x2 `hasNoType` ''SPEC
+-- inspect $ 'alt_x2 `hasNoType` ''AltParseState
 #endif
 
 {- HLINT ignore "Evaluate"-}
-{-# INLINE alt4 #-}
-alt4 :: Int -> IO (Either ParseError ())
-alt4 value =
+{-# ANN alt_AlternativeInstance_x4 (PermitPatternMatches
+    [''[], ''Int, ''(,), ''SPEC, ''AltParseState]) #-}
+{-# ANN alt_AlternativeInstance_x4 (PermitConstructions
+    [''[], ''Int, ''SrcLoc, ''CallStack, ''AltParseState, ''(), ''(,)]) #-}
+{-# ANN alt_AlternativeInstance_x4 (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE alt_AlternativeInstance_x4 #-}
+alt_AlternativeInstance_x4 :: Int -> Int -> IO (Either ParseError ())
+alt_AlternativeInstance_x4 value =
     withStream value $
         Stream.parse
             (   takeWhileFail (<= (value * 1 `div` 4)) Fold.drain
@@ -176,9 +211,14 @@ alt4 value =
             <|> PR.dropWhile (<= value)
             )
 
-{-# INLINE alt8 #-}
-alt8 :: Int -> IO (Either ParseError ())
-alt8 value =
+{-# ANN alt_AlternativeInstance_x8 (PermitPatternMatches
+    [''[], ''Int, ''(,), ''SPEC, ''AltParseState]) #-}
+{-# ANN alt_AlternativeInstance_x8 (PermitConstructions
+    [''[], ''Int, ''SrcLoc, ''CallStack, ''AltParseState, ''(), ''(,)]) #-}
+{-# ANN alt_AlternativeInstance_x8 (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE alt_AlternativeInstance_x8 #-}
+alt_AlternativeInstance_x8 :: Int -> Int -> IO (Either ParseError ())
+alt_AlternativeInstance_x8 value =
     withStream value $
         Stream.parse
             (   takeWhileFail (<= (value * 1 `div` 8)) Fold.drain
@@ -191,9 +231,14 @@ alt8 value =
             <|> PR.dropWhile (<= value)
             )
 
-{-# INLINE alt16 #-}
-alt16 :: Int -> IO (Either ParseError ())
-alt16 value =
+{-# ANN alt_AlternativeInstance_x16 (PermitPatternMatches
+    [''[], ''Int, ''(,), ''SPEC, ''AltParseState]) #-}
+{-# ANN alt_AlternativeInstance_x16 (PermitConstructions
+    [''[], ''Int, ''SrcLoc, ''CallStack, ''AltParseState, ''(), ''(,)]) #-}
+{-# ANN alt_AlternativeInstance_x16 (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE alt_AlternativeInstance_x16 #-}
+alt_AlternativeInstance_x16 :: Int -> Int -> IO (Either ParseError ())
+alt_AlternativeInstance_x16 value =
     withStream value $
         Stream.parse
             (   takeWhileFail (<= (value * 1 `div` 16)) Fold.drain
@@ -213,9 +258,14 @@ alt16 value =
             <|> PR.dropWhile (<= value)
             )
 
-{-# INLINE altSmall #-}
-altSmall :: Int -> IO ()
-altSmall value =
+{-# ANN alt_ParseMany_x2 (PermitPatternMatches
+    [''[], ''(,), ''AltParseState, ''SeqAState, ''Int]) #-}
+{-# ANN alt_ParseMany_x2 (PermitConstructions
+    [''[], ''Int, ''SrcLoc, ''CallStack, ''AltParseState, ''(), ''(,)]) #-}
+{-# ANN alt_ParseMany_x2 (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE alt_ParseMany_x2 #-}
+alt_ParseMany_x2 :: Int -> Int -> IO ()
+alt_ParseMany_x2 value =
     withStream value $
         Stream.fold Fold.drain .
             Stream.parseMany
@@ -273,9 +323,18 @@ longestAllAny value =
 -- choice using the "Alternative" instance with direct style parser type has
 -- quadratic performance complexity.
 --
-{-# INLINE choiceAsum #-}
-choiceAsum :: Int -> IO (Either ParseError Int)
-choiceAsum value =
+{-# ANN asum (PermitPatternMatches
+    [ ''AltParseState, ''Int, ''Parser, ''Initial, ''Step, ''Final, ''[], ''IO
+    , ''(,)
+    ]) #-}
+{-# ANN asum (PermitConstructions
+    [ ''Final, ''AltParseState, ''(), ''Initial, ''Step, ''Parser, ''[]
+    , ''Int, ''SrcLoc, ''CallStack, ''Char, ''(,), ''Either
+    ]) #-}
+{-# ANN asum (PermitTypeClasses [''IP]) #-}
+{-# NOINLINE asum #-}
+asum :: Int -> Int -> IO (Either ParseError Int)
+asum value =
     withStream value $
         Stream.parse
             (F.asum (replicate value (PR.satisfy (< 0)))
@@ -286,7 +345,8 @@ choiceAsum value =
 choice :: Monad m => Int -> Stream m Int -> m (Either ParseError Int)
 choice value =
     Stream.parse
-        (PR.choice (replicate value (PR.satisfy (< 0))) AP.<|> PR.satisfy (> 0))
+        (PR.choice (replicate value (PR.satisfy (< 0)))
+            AP.<|> PR.satisfy (> 0))
 -}
 
 -------------------------------------------------------------------------------
@@ -297,26 +357,37 @@ instance NFData ParseError where
     {-# INLINE rnf #-}
     rnf (ParseError x) = rnf x
 
+-- Note: Name each benchmark (and its IO action) after the exported function it
+-- benchmarks, using the format functionName_dimension1_dimension2..., where
+-- the dimensions are optional variants/type specializations. Keep extra info
+-- in parenthetical notes in the description.
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks value =
     [
     -- Alternative
-      (SpaceO_1, benchIO "alt2parseMany" $ altSmall value)
-    , (SpaceO_1, benchIO "alt2" $ alt2 value)
-    , (SpaceO_1, benchIO "alt4" $ alt4 value)
-    , (SpaceO_1, benchIO "alt8" $ alt8 value)
-    , (SpaceO_1, benchIO "alt16" $ alt16 value)
+      (SpaceO_1, benchIO "alt_ParseMany_x2 (small parses)"
+          $ alt_ParseMany_x2 value)
+    , (SpaceO_1, benchIO "alt_x2" $ alt_x2 value)
+    , (SpaceO_1, benchIO "alt_AlternativeInstance_x4 (<|>)"
+          $ alt_AlternativeInstance_x4 value)
+    , (SpaceO_1, benchIO "alt_AlternativeInstance_x8 (<|>)"
+          $ alt_AlternativeInstance_x8 value)
+    , (SpaceO_1, benchIO "alt_AlternativeInstance_x16 (<|>)"
+          $ alt_AlternativeInstance_x16 value)
 
     -- O_n as they accumulate the results in a list.
-    , (HeapO_n, benchIO "manyAlt" $ manyAlt value)
-    , (HeapO_n, benchIO "someAlt" $ someAlt value)
-    , (SpaceO_n, benchIO "choice (asum)/100" $ choiceAsum (value `div` 100))
-    -- , benchIO "choice/100" $ choice (value `div` 100)
+    , (HeapO_n, benchIO "many_AlternativeInstance"
+          $ many_AlternativeInstance value)
+    , (HeapO_n, benchIO "some_AlternativeInstance"
+          $ some_AlternativeInstance value)
+    , (SpaceO_n, benchIO "asum (value div 100)" $ asum (value `div` 100))
+    -- , benchIO "choice (value div 100)" $ choice (value `div` 100)
 
     -- Sequential Repetition
     -- XXX requires @-fspec-constr-recursive=12@.
-    , (SpaceO_1, benchIO "splitMany" $ splitMany value)
-    , (SpaceO_1, benchIO "splitMany (wordBy even)" $ splitManyWordByEven value)
+    , (SpaceO_1, benchIO "splitMany_Satisfy" $ splitMany_Satisfy value)
+    , (SpaceO_1, benchIO "splitMany_WordBy (wordBy even)"
+          $ splitMany_WordBy value)
     , (SpaceO_1, benchIO "splitSome" $ splitSome value)
 
     {-
