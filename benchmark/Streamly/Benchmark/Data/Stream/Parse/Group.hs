@@ -22,9 +22,9 @@ module Stream.Parse.Group (benchmarks) where
 
 #ifdef INSPECTION
 import Test.Inspection
+import GHC.Types (SPEC(..))
 #endif
 
-import GHC.Types (SPEC(..))
 import Data.Monoid (Sum(..))
 
 import Streamly.Internal.Data.Fold (Tuple'Fused)

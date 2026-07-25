@@ -22,6 +22,7 @@ module Stream.Nesting.Basic (benchmarks) where
 
 #ifdef INSPECTION
 import qualified Streamly.Internal.Data.Fold as Fold
+import qualified Streamly.Internal.Data.Producer as Producer
 import Test.Inspection
 #endif
 
@@ -35,7 +36,6 @@ import Stream.Common hiding (benchIO)
 import Stream.Type (benchIO)
 import Streamly.Benchmark.Common
 import Fusion.Plugin.Types
-import qualified Streamly.Internal.Data.Producer as Producer
 import GHC.Stack (SrcLoc, CallStack)
 import GHC.Classes (IP)
 import Prelude hiding (concatMap, zipWith)

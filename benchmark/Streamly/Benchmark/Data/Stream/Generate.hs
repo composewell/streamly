@@ -22,11 +22,11 @@ module Stream.Generate (benchmarks) where
 
 #ifdef INSPECTION
 import Test.Inspection
+import GHC.Types (SPEC(..))
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Producer as Producer
 #endif
 
-import GHC.Types (SPEC(..))
 import Control.Monad.IO.Class (MonadIO)
 import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Time.Units (AbsTime)

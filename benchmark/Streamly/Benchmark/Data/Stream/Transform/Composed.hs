@@ -24,9 +24,9 @@ module Stream.Transform.Composed (benchmarks) where
 
 #ifdef INSPECTION
 import Test.Inspection
+import GHC.Types (SPEC(..))
 #endif
 
-import GHC.Types (SPEC(..))
 import Control.DeepSeq (NFData(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import GHC.Generics (Generic)

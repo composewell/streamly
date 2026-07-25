@@ -20,12 +20,11 @@
 
 module Stream.Lift (benchmarks) where
 
-import GHC.Types (SPEC(..))
 import Control.Monad.State.Strict (StateT, get, put)
 import Data.Functor.Identity (Identity(..), runIdentity)
 import Stream.Common (sourceUnfoldr, sourceUnfoldrM)
 import Stream.Type (benchIO, withPureStream)
-import Streamly.Internal.Data.Stream (Stream, Step(..))
+import Streamly.Internal.Data.Stream (Stream)
 
 import qualified Stream.Common as Common
 import qualified Streamly.Internal.Data.Fold as Fold
@@ -39,6 +38,8 @@ import Prelude hiding (reverse, tail)
 #ifdef INSPECTION
 
 import Test.Inspection
+import GHC.Types (SPEC(..))
+import Streamly.Internal.Data.Stream (Step(..))
 #endif
 
 -------------------------------------------------------------------------------

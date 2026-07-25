@@ -36,7 +36,6 @@ module Scanl.Type
     , sourceEnumerate
     ) where
 
-import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Scanl (Scanl)
 import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.StreamK (StreamK)
@@ -54,6 +53,7 @@ import Prelude hiding (length, maximum, minimum, take, filter)
 #ifdef INSPECTION
 import Streamly.Internal.Data.Stream (Step(..))
 import Test.Inspection
+import GHC.Types (SPEC(..))
 #endif
 
 -------------------------------------------------------------------------------

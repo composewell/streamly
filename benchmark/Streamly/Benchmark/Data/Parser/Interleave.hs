@@ -30,9 +30,6 @@ module Streamly.Benchmark.Data.Parser.Interleave
   ) where
 
 import Control.DeepSeq (NFData(..))
-import GHC.Classes (IP)
-import GHC.Stack (CallStack, SrcLoc)
-import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.Stream (Stream)
 import System.Random (randomRIO)
@@ -46,6 +43,9 @@ import Streamly.Benchmark.Common
 import Fusion.Plugin.Types
 
 #ifdef INSPECTION
+import GHC.Classes (IP)
+import GHC.Stack (CallStack, SrcLoc)
+import GHC.Types (SPEC(..))
 import Test.Inspection
 
 import qualified Streamly.Internal.Data.Fold as FL
@@ -200,14 +200,17 @@ inspect $ 'deintercalateAll `hasNoType` ''SPEC
 inspect $ 'deintercalateAll `hasNoType` ''PR.DeintercalateAllState
 #endif
 
+#ifdef INSPECTION
 {-# ANN manyTill (PermitPatternMatches
-    [''[], ''Int, ''(,)]) #-}
+    [''[], ''Int, ''(,),''SPEC]) #-}
 {-# ANN manyTill (PermitConstructions
-    [''[], ''Int, ''SrcLoc, ''CallStack, ''Either, ''(,)]) #-}
+    [''[], ''Int, ''SrcLoc, ''CallStack, ''Either, ''(,),''()]) #-}
 {-# ANN manyTill (PermitTypeClasses [''IP]) #-}
 
--- XXX NOINLINE makes the inspection tests fail.
+-- XXX NOINLINE makes the inspection tests fail and INLINE makes non-inspection
+-- build fail.
 {-# INLINE manyTill #-}
+#endif
 manyTill :: Int -> Int -> IO (Either ParseError Int)
 manyTill value x =
     (withStream value $

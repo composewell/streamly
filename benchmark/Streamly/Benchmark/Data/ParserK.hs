@@ -23,9 +23,12 @@ import Control.DeepSeq (NFData(..))
 import Control.Monad.IO.Class (MonadIO)
 #ifdef BENCH_CHUNKED
 import Streamly.Data.Array (Array, Unbox)
+import Streamly.Data.MutByteArray (MutByteArray)
+import Streamly.Internal.Data.MutArray (GroupState)
 #endif
 #ifdef BENCH_CHUNKED_GENERIC
 import Streamly.Data.Array.Generic (Array)
+import Streamly.Internal.Data.MutArray.Generic (GroupState)
 #endif
 import Streamly.Internal.Data.Fold (Fold(..))
 import Streamly.Data.StreamK (StreamK)
@@ -72,6 +75,14 @@ import Fusion.Plugin.Types
 #define CONSTRAINT (Monad m, Unbox a)
 #define MODULE_NAME "Data.ParserK.Chunked"
 
+-- Adapt annotations for BENCH_CHUNKED type
+#define STATE_PM
+#define ARR_PM , ''Array, ''IO, ''MutByteArray, ''GroupState
+#define ARR_PC , ''Array, ''MutByteArray, ''GroupState
+#define ARR_TC , ''Show
+#define DRAIN_PC
+#define DRAIN_TC
+
 #endif
 
 #ifdef BENCH_CHUNKED_GENERIC
@@ -84,6 +95,14 @@ import Fusion.Plugin.Types
 #define CONSTRAINT (Monad m)
 #define MODULE_NAME "Data.ParserK.Chunked.Generic"
 
+-- Adapt annotations for BENCH_CHUNKED_GENERIC type
+#define STATE_PM
+#define ARR_PM , ''Array, ''IO, ''GroupState
+#define ARR_PC , ''Array, ''Char, ''GroupState
+#define ARR_TC , ''Show
+#define DRAIN_PC , ''[], ''Char, ''Int, ''SrcLoc, ''CallStack
+#define DRAIN_TC ''IP
+
 #endif
 
 #ifdef BENCH_SINGULAR
@@ -95,6 +114,14 @@ import Fusion.Plugin.Types
 #define CONSTRAINT_IO (MonadIO m)
 #define CONSTRAINT (Monad m)
 #define MODULE_NAME "Data.ParserK"
+
+-- Adapt annotations for BENCH_SINGULAR type
+#define STATE_PM , ''SVar.State
+#define ARR_PM
+#define ARR_PC
+#define ARR_TC
+#define DRAIN_PC
+#define DRAIN_TC
 
 #endif
 
@@ -134,19 +161,19 @@ withStreamK value f =
 -------------------------------------------------------------------------------
 
 {-# ANN drain (PermitPatternMatches []) #-}
-{-# ANN drain (PermitConstructions [''()]) #-}
-{-# ANN drain (PermitTypeClasses []) #-}
+{-# ANN drain (PermitConstructions [''() DRAIN_PC]) #-}
+{-# ANN drain (PermitTypeClasses [DRAIN_TC]) #-}
 {-# NOINLINE drain #-}
 drain :: Int -> Int -> IO ()
 drain value = withStreamK value $ Stream.fold Fold.drain . StreamK.toStream
 
 {-# ANN one (PermitPatternMatches
-    [''[], ''PR.Step, ''SVar.State, ''(,), ''PR.ParseResult, ''Int
-    , ''PR.Input, ''Maybe]) #-}
+    [''[], ''PR.Step, ''(,), ''PR.ParseResult, ''Int
+    , ''PR.Input, ''Maybe STATE_PM ARR_PM]) #-}
 {-# ANN one (PermitConstructions
     [''SVar.State, ''Maybe, ''Bool, ''[], ''(,), ''Either, ''Int, ''SrcLoc
-    , ''CallStack, ''PR.Step, ''PR.Input, ''PR.ParseResult]) #-}
-{-# ANN one (PermitTypeClasses [''IP]) #-}
+    , ''CallStack, ''PR.Step, ''PR.Input, ''PR.ParseResult ARR_PC]) #-}
+{-# ANN one (PermitTypeClasses [''IP ARR_TC]) #-}
 {-# NOINLINE one #-}
 one :: Int -> Int -> IO (Either ParseError (Maybe Int))
 one value = withStreamK value $ PARSE_OP p
@@ -168,21 +195,21 @@ takeWhileParser :: CONSTRAINT_IO => (a -> Bool) -> PR.ParserK INPUT m ()
 takeWhileParser p = FROM_PARSER $ PRD.takeWhile p FL.drain
 
 {-# ANN takeWhile (PermitPatternMatches
-    [''[], ''PR.Step, ''SVar.State, ''(,), ''Int, ''(), ''PR.Input]) #-}
+    [''[], ''PR.Step, ''(,), ''Int, ''(), ''PR.Input STATE_PM ARR_PM]) #-}
 {-# ANN takeWhile (PermitConstructions
     [''Int, ''[], ''(,), ''Either, ''SVar.State, ''Maybe, ''SrcLoc
-    , ''CallStack, ''Bool, ''PR.Step, ''(), ''PR.Input]) #-}
-{-# ANN takeWhile (PermitTypeClasses [''IP]) #-}
+    , ''CallStack, ''Bool, ''PR.Step, ''(), ''PR.Input ARR_PC]) #-}
+{-# ANN takeWhile (PermitTypeClasses [''IP ARR_TC]) #-}
 {-# NOINLINE takeWhile #-}
 takeWhile :: Int -> Int -> IO (Either ParseError ())
 takeWhile value = withStreamK value $ PARSE_OP (takeWhileParser (<= value))
 
 {-# ANN ap_ApplicativeInstance_x2 (PermitPatternMatches
-    [''[], ''PR.Step, ''SVar.State, ''(,), ''Int, ''(), ''PR.Input]) #-}
+    [''[], ''PR.Step, ''(,), ''Int, ''(), ''PR.Input STATE_PM ARR_PM]) #-}
 {-# ANN ap_ApplicativeInstance_x2 (PermitConstructions
     [''[], ''(,), ''Either, ''SVar.State, ''Maybe, ''Int, ''SrcLoc
-    , ''CallStack, ''Bool, ''(), ''PR.Step, ''PR.Input]) #-}
-{-# ANN ap_ApplicativeInstance_x2 (PermitTypeClasses [''IP]) #-}
+    , ''CallStack, ''Bool, ''(), ''PR.Step, ''PR.Input ARR_PC]) #-}
+{-# ANN ap_ApplicativeInstance_x2 (PermitTypeClasses [''IP ARR_TC]) #-}
 {-# NOINLINE ap_ApplicativeInstance_x2 #-}
 ap_ApplicativeInstance_x2 :: Int -> Int -> IO (Either ParseError ((), ()))
 ap_ApplicativeInstance_x2 value =
@@ -193,11 +220,11 @@ ap_ApplicativeInstance_x2 value =
         )
 
 {-# ANN ap_ApplicativeInstance_x8 (PermitPatternMatches
-    [''[], ''PR.Step, ''SVar.State, ''(,), ''Int, ''(), ''PR.Input]) #-}
+    [''[], ''PR.Step, ''(,), ''Int, ''(), ''PR.Input STATE_PM ARR_PM]) #-}
 {-# ANN ap_ApplicativeInstance_x8 (PermitConstructions
     [''[], ''(,), ''Either, ''SVar.State, ''Maybe, ''Int, ''SrcLoc
-    , ''CallStack, ''Bool, ''(), ''PR.Step, ''PR.Input]) #-}
-{-# ANN ap_ApplicativeInstance_x8 (PermitTypeClasses [''IP]) #-}
+    , ''CallStack, ''Bool, ''(), ''PR.Step, ''PR.Input ARR_PC]) #-}
+{-# ANN ap_ApplicativeInstance_x8 (PermitTypeClasses [''IP ARR_TC]) #-}
 {-# NOINLINE ap_ApplicativeInstance_x8 #-}
 ap_ApplicativeInstance_x8 :: Int -> Int -> IO (Either ParseError ())
 ap_ApplicativeInstance_x8 value =
@@ -214,12 +241,12 @@ ap_ApplicativeInstance_x8 value =
         )
 
 {-# ANN sequenceA (PermitPatternMatches
-    [''Int, ''PR.Input, ''(), ''PR.ParseResult, ''[], ''PR.Step, ''SVar.State
-    , ''(,), ''Either]) #-}
+    [''Int, ''PR.Input, ''(), ''PR.ParseResult, ''[], ''PR.Step
+    , ''(,), ''Either STATE_PM ARR_PM]) #-}
 {-# ANN sequenceA (PermitConstructions
     [''PR.ParseResult, ''PR.Input, ''Int, ''PR.Step, ''(), ''[], ''(,)
-    , ''Either, ''SVar.State, ''Maybe, ''SrcLoc, ''CallStack, ''Bool]) #-}
-{-# ANN sequenceA (PermitTypeClasses [''IP]) #-}
+    , ''Either, ''SVar.State, ''Maybe, ''SrcLoc, ''CallStack, ''Bool ARR_PC]) #-}
+{-# ANN sequenceA (PermitTypeClasses [''IP ARR_TC]) #-}
 {-# NOINLINE sequenceA #-}
 sequenceA :: Int -> Int -> IO Int
 sequenceA value = withStreamK value $ \xs -> do
@@ -229,12 +256,12 @@ sequenceA value = withStreamK value $ \xs -> do
     return $ Prelude.length x
 
 {-# ANN sequenceA_ (PermitPatternMatches
-    [''Int, ''PR.Input, ''(), ''PR.ParseResult, ''[], ''PR.Step, ''SVar.State
-    , ''(,)]) #-}
+    [''Int, ''PR.Input, ''(), ''PR.ParseResult, ''[], ''PR.Step
+    , ''(,) STATE_PM ARR_PM]) #-}
 {-# ANN sequenceA_ (PermitConstructions
     [''PR.ParseResult, ''PR.Input, ''Int, ''PR.Step, ''(), ''[], ''(,)
-    , ''Either, ''SVar.State, ''Maybe, ''SrcLoc, ''CallStack, ''Bool]) #-}
-{-# ANN sequenceA_ (PermitTypeClasses [''IP]) #-}
+    , ''Either, ''SVar.State, ''Maybe, ''SrcLoc, ''CallStack, ''Bool ARR_PC]) #-}
+{-# ANN sequenceA_ (PermitTypeClasses [''IP ARR_TC]) #-}
 {-# NOINLINE sequenceA_ #-}
 sequenceA_ :: Int -> Int -> IO (Either ParseError ())
 sequenceA_ value = withStreamK value $ \xs -> do
@@ -243,13 +270,13 @@ sequenceA_ value = withStreamK value $ \xs -> do
     PARSE_OP (F.sequenceA_ list) xs
 
 {-# ANN sequence (PermitPatternMatches
-    [''[], ''PR.Step, ''SVar.State, ''(,), ''Int, ''PR.Input, ''()
-    , ''PR.ParseResult, ''Either]) #-}
+    [''[], ''PR.Step, ''(,), ''Int, ''PR.Input, ''()
+    , ''PR.ParseResult, ''Either STATE_PM ARR_PM]) #-}
 {-# ANN sequence (PermitConstructions
     [''[], ''(,), ''Either, ''SVar.State, ''Maybe, ''Int, ''SrcLoc
     , ''CallStack, ''Bool, ''PR.ParseResult, ''PR.Input, ''PR.Step
-    , ''()]) #-}
-{-# ANN sequence (PermitTypeClasses [''IP]) #-}
+    , ''() ARR_PC]) #-}
+{-# ANN sequence (PermitTypeClasses [''IP ARR_TC]) #-}
 {-# NOINLINE sequence #-}
 sequence :: Int -> Int -> IO Int
 sequence value = withStreamK value $ \xs -> do
@@ -259,13 +286,13 @@ sequence value = withStreamK value $ \xs -> do
     return $ Prelude.length x
 
 {-# ANN sequence_ (PermitPatternMatches
-    [''[], ''PR.Step, ''SVar.State, ''(,), ''Int, ''PR.Input, ''()
-    , ''PR.ParseResult]) #-}
+    [''[], ''PR.Step, ''(,), ''Int, ''PR.Input, ''()
+    , ''PR.ParseResult STATE_PM ARR_PM]) #-}
 {-# ANN sequence_ (PermitConstructions
     [''[], ''(,), ''Either, ''SVar.State, ''Maybe, ''Int, ''SrcLoc
     , ''CallStack, ''Bool, ''PR.ParseResult, ''PR.Input, ''PR.Step
-    , ''()]) #-}
-{-# ANN sequence_ (PermitTypeClasses [''IP]) #-}
+    , ''() ARR_PC]) #-}
+{-# ANN sequence_ (PermitTypeClasses [''IP ARR_TC]) #-}
 {-# NOINLINE sequence_ #-}
 sequence_ :: Int -> Int -> IO (Either ParseError ())
 sequence_ value =
@@ -305,11 +332,11 @@ takeWhileFail :: CONSTRAINT =>
 takeWhileFail p f = FROM_PARSER (takeWhileFailD p f)
 
 {-# ANN alt_AlternativeInstance_x2 (PermitPatternMatches
-    [''[], ''PR.Step, ''SVar.State, ''(,), ''Int, ''(), ''PR.Input]) #-}
+    [''[], ''PR.Step, ''(,), ''Int, ''(), ''PR.Input STATE_PM ARR_PM]) #-}
 {-# ANN alt_AlternativeInstance_x2 (PermitConstructions
     [''[], ''(,), ''Either, ''SVar.State, ''Maybe, ''Int, ''SrcLoc
-    , ''CallStack, ''Bool, ''PR.Step, ''(), ''PR.Input]) #-}
-{-# ANN alt_AlternativeInstance_x2 (PermitTypeClasses [''IP]) #-}
+    , ''CallStack, ''Bool, ''PR.Step, ''(), ''PR.Input ARR_PC]) #-}
+{-# ANN alt_AlternativeInstance_x2 (PermitTypeClasses [''IP ARR_TC]) #-}
 {-# NOINLINE alt_AlternativeInstance_x2 #-}
 alt_AlternativeInstance_x2 :: Int -> Int -> IO (Either ParseError ())
 alt_AlternativeInstance_x2 value =
@@ -319,11 +346,11 @@ alt_AlternativeInstance_x2 value =
         )
 
 {-# ANN alt_AlternativeInstance_x8 (PermitPatternMatches
-    [''[], ''PR.Step, ''SVar.State, ''(,), ''Int, ''(), ''PR.Input]) #-}
+    [''[], ''PR.Step, ''(,), ''Int, ''(), ''PR.Input STATE_PM ARR_PM]) #-}
 {-# ANN alt_AlternativeInstance_x8 (PermitConstructions
     [''[], ''(,), ''Either, ''SVar.State, ''Maybe, ''Int, ''SrcLoc
-    , ''CallStack, ''Bool, ''PR.Step, ''(), ''PR.Input]) #-}
-{-# ANN alt_AlternativeInstance_x8 (PermitTypeClasses [''IP]) #-}
+    , ''CallStack, ''Bool, ''PR.Step, ''(), ''PR.Input ARR_PC]) #-}
+{-# ANN alt_AlternativeInstance_x8 (PermitTypeClasses [''IP ARR_TC]) #-}
 {-# NOINLINE alt_AlternativeInstance_x8 #-}
 alt_AlternativeInstance_x8 :: Int -> Int -> IO (Either ParseError ())
 alt_AlternativeInstance_x8 value =
@@ -339,11 +366,11 @@ alt_AlternativeInstance_x8 value =
         )
 
 {-# ANN alt_AlternativeInstance_x16 (PermitPatternMatches
-    [''[], ''PR.Step, ''SVar.State, ''(,), ''Int, ''(), ''PR.Input]) #-}
+    [''[], ''PR.Step, ''(,), ''Int, ''(), ''PR.Input STATE_PM ARR_PM]) #-}
 {-# ANN alt_AlternativeInstance_x16 (PermitConstructions
     [''[], ''(,), ''Either, ''SVar.State, ''Maybe, ''Int, ''SrcLoc
-    , ''CallStack, ''Bool, ''PR.Step, ''(), ''PR.Input]) #-}
-{-# ANN alt_AlternativeInstance_x16 (PermitTypeClasses [''IP]) #-}
+    , ''CallStack, ''Bool, ''PR.Step, ''(), ''PR.Input ARR_PC]) #-}
+{-# ANN alt_AlternativeInstance_x16 (PermitTypeClasses [''IP ARR_TC]) #-}
 {-# NOINLINE alt_AlternativeInstance_x16 #-}
 alt_AlternativeInstance_x16 :: Int -> Int -> IO (Either ParseError ())
 alt_AlternativeInstance_x16 value =
@@ -367,12 +394,12 @@ alt_AlternativeInstance_x16 value =
         )
 
 {-# ANN many_AlternativeInstance (PermitPatternMatches
-    [''PR.Input, ''Int, ''PR.ParseResult, ''(), ''[], ''PR.Step, ''SVar.State
-    , ''(,), ''Either]) #-}
+    [''PR.Input, ''Int, ''PR.ParseResult, ''(), ''[], ''PR.Step
+    , ''(,), ''Either STATE_PM ARR_PM]) #-}
 {-# ANN many_AlternativeInstance (PermitConstructions
     [''Int, ''PR.ParseResult, ''[], ''PR.Input, ''PR.Step, ''(), ''(,)
-    , ''Either, ''SVar.State, ''Maybe, ''SrcLoc, ''CallStack, ''Bool]) #-}
-{-# ANN many_AlternativeInstance (PermitTypeClasses [''IP]) #-}
+    , ''Either, ''SVar.State, ''Maybe, ''SrcLoc, ''CallStack, ''Bool ARR_PC]) #-}
+{-# ANN many_AlternativeInstance (PermitTypeClasses [''IP ARR_TC]) #-}
 {-# NOINLINE many_AlternativeInstance #-}
 many_AlternativeInstance :: Int -> Int -> IO Int
 many_AlternativeInstance value = withStreamK value $ \xs -> do
@@ -380,12 +407,12 @@ many_AlternativeInstance value = withStreamK value $ \xs -> do
     return $ Prelude.length x
 
 {-# ANN some_AlternativeInstance (PermitPatternMatches
-    [''PR.Input, ''Int, ''PR.ParseResult, ''(), ''[], ''PR.Step, ''SVar.State
-    , ''(,), ''Either]) #-}
+    [''PR.Input, ''Int, ''PR.ParseResult, ''(), ''[], ''PR.Step
+    , ''(,), ''Either STATE_PM ARR_PM]) #-}
 {-# ANN some_AlternativeInstance (PermitConstructions
     [''Int, ''PR.ParseResult, ''[], ''PR.Input, ''PR.Step, ''(), ''(,)
-    , ''Either, ''SVar.State, ''Maybe, ''SrcLoc, ''CallStack, ''Bool]) #-}
-{-# ANN some_AlternativeInstance (PermitTypeClasses [''IP]) #-}
+    , ''Either, ''SVar.State, ''Maybe, ''SrcLoc, ''CallStack, ''Bool ARR_PC]) #-}
+{-# ANN some_AlternativeInstance (PermitTypeClasses [''IP ARR_TC]) #-}
 {-# NOINLINE some_AlternativeInstance #-}
 some_AlternativeInstance :: Int -> Int -> IO Int
 some_AlternativeInstance value = withStreamK value $ \xs -> do
@@ -393,12 +420,12 @@ some_AlternativeInstance value = withStreamK value $ \xs -> do
     return $ Prelude.length x
 
 {-# ANN asum (PermitPatternMatches
-    [''Int, ''(), ''PR.Input, ''PR.ParseResult, ''[], ''PR.Step, ''SVar.State
-    , ''(,)]) #-}
+    [''Int, ''(), ''PR.Input, ''PR.ParseResult, ''[], ''PR.Step
+    , ''(,) STATE_PM ARR_PM]) #-}
 {-# ANN asum (PermitConstructions
     [''PR.Step, ''(), ''PR.ParseResult, ''PR.Input, ''Int, ''[], ''(,)
-    , ''Either, ''SVar.State, ''Maybe, ''SrcLoc, ''CallStack, ''Bool]) #-}
-{-# ANN asum (PermitTypeClasses [''IP]) #-}
+    , ''Either, ''SVar.State, ''Maybe, ''SrcLoc, ''CallStack, ''Bool ARR_PC]) #-}
+{-# ANN asum (PermitTypeClasses [''IP ARR_TC]) #-}
 {-# NOINLINE asum #-}
 asum :: Int -> Int -> IO (Either ParseError Int)
 asum value =
@@ -408,11 +435,11 @@ asum value =
                 AP.<|> satisfy (> 0))
 
 {-# ANN then_MonadInstance_x2 (PermitPatternMatches
-    [''[], ''PR.Step, ''SVar.State, ''(,), ''Int, ''(), ''PR.Input]) #-}
+    [''[], ''PR.Step, ''(,), ''Int, ''(), ''PR.Input STATE_PM ARR_PM]) #-}
 {-# ANN then_MonadInstance_x2 (PermitConstructions
     [''[], ''(,), ''Either, ''SVar.State, ''Maybe, ''Int, ''SrcLoc
-    , ''CallStack, ''Bool, ''PR.Step, ''(), ''PR.Input]) #-}
-{-# ANN then_MonadInstance_x2 (PermitTypeClasses [''IP]) #-}
+    , ''CallStack, ''Bool, ''PR.Step, ''(), ''PR.Input ARR_PC]) #-}
+{-# ANN then_MonadInstance_x2 (PermitTypeClasses [''IP ARR_TC]) #-}
 {-# NOINLINE then_MonadInstance_x2 #-}
 then_MonadInstance_x2 :: Int -> Int -> IO (Either ParseError ())
 then_MonadInstance_x2 value =
@@ -421,11 +448,11 @@ then_MonadInstance_x2 value =
         takeWhileParser (<= value)
 
 {-# ANN then_MonadInstance_x4 (PermitPatternMatches
-    [''[], ''PR.Step, ''SVar.State, ''(,), ''Int, ''(), ''PR.Input]) #-}
+    [''[], ''PR.Step, ''(,), ''Int, ''(), ''PR.Input STATE_PM ARR_PM]) #-}
 {-# ANN then_MonadInstance_x4 (PermitConstructions
     [''[], ''(,), ''Either, ''SVar.State, ''Maybe, ''Int, ''SrcLoc
-    , ''CallStack, ''Bool, ''PR.Step, ''(), ''PR.Input]) #-}
-{-# ANN then_MonadInstance_x4 (PermitTypeClasses [''IP]) #-}
+    , ''CallStack, ''Bool, ''PR.Step, ''(), ''PR.Input ARR_PC]) #-}
+{-# ANN then_MonadInstance_x4 (PermitTypeClasses [''IP ARR_TC]) #-}
 {-# NOINLINE then_MonadInstance_x4 #-}
 then_MonadInstance_x4 :: Int -> Int -> IO (Either ParseError ())
 then_MonadInstance_x4 value =
@@ -436,11 +463,11 @@ then_MonadInstance_x4 value =
         takeWhileParser (<= value)
 
 {-# ANN then_MonadInstance_x8 (PermitPatternMatches
-    [''[], ''PR.Step, ''SVar.State, ''(,), ''Int, ''(), ''PR.Input]) #-}
+    [''[], ''PR.Step, ''(,), ''Int, ''(), ''PR.Input STATE_PM ARR_PM]) #-}
 {-# ANN then_MonadInstance_x8 (PermitConstructions
     [''[], ''(,), ''Either, ''SVar.State, ''Maybe, ''Int, ''SrcLoc
-    , ''CallStack, ''Bool, ''PR.Step, ''(), ''PR.Input]) #-}
-{-# ANN then_MonadInstance_x8 (PermitTypeClasses [''IP]) #-}
+    , ''CallStack, ''Bool, ''PR.Step, ''(), ''PR.Input ARR_PC]) #-}
+{-# ANN then_MonadInstance_x8 (PermitTypeClasses [''IP ARR_TC]) #-}
 {-# NOINLINE then_MonadInstance_x8 #-}
 then_MonadInstance_x8 :: Int -> Int -> IO (Either ParseError ())
 then_MonadInstance_x8 value =
@@ -455,11 +482,11 @@ then_MonadInstance_x8 value =
         takeWhileParser (<= value)
 
 {-# ANN then_MonadInstance_x16 (PermitPatternMatches
-    [''[], ''PR.Step, ''SVar.State, ''(,), ''Int, ''(), ''PR.Input]) #-}
+    [''[], ''PR.Step, ''(,), ''Int, ''(), ''PR.Input STATE_PM ARR_PM]) #-}
 {-# ANN then_MonadInstance_x16 (PermitConstructions
     [''[], ''(,), ''Either, ''SVar.State, ''Maybe, ''Int, ''SrcLoc
-    , ''CallStack, ''Bool, ''PR.Step, ''(), ''PR.Input]) #-}
-{-# ANN then_MonadInstance_x16 (PermitTypeClasses [''IP]) #-}
+    , ''CallStack, ''Bool, ''PR.Step, ''(), ''PR.Input ARR_PC]) #-}
+{-# ANN then_MonadInstance_x16 (PermitTypeClasses [''IP ARR_TC]) #-}
 {-# NOINLINE then_MonadInstance_x16 #-}
 then_MonadInstance_x16 :: Int -> Int -> IO (Either ParseError ())
 then_MonadInstance_x16 value =
@@ -507,12 +534,12 @@ o_1_space_serial value =
     ]
 
 {-# ANN sepBy1 (PermitPatternMatches
-    [''PR.Input, ''Int, ''PR.ParseResult, ''(), ''[], ''PR.Step, ''SVar.State
-    , ''(,), ''Either]) #-}
+    [''PR.Input, ''Int, ''PR.ParseResult, ''(), ''[], ''PR.Step
+    , ''(,), ''Either STATE_PM ARR_PM]) #-}
 {-# ANN sepBy1 (PermitConstructions
     [''PR.ParseResult, ''[], ''PR.Input, ''PR.Step, ''Int, ''(), ''(,)
-    , ''Either, ''SVar.State, ''Maybe, ''SrcLoc, ''CallStack, ''Bool]) #-}
-{-# ANN sepBy1 (PermitTypeClasses [''IP]) #-}
+    , ''Either, ''SVar.State, ''Maybe, ''SrcLoc, ''CallStack, ''Bool ARR_PC]) #-}
+{-# ANN sepBy1 (PermitTypeClasses [''IP ARR_TC]) #-}
 {-# NOINLINE sepBy1 #-}
 sepBy1 :: Int -> Int -> IO Int
 sepBy1 value = withStreamK value $ \xs -> do

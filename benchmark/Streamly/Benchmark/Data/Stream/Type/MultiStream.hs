@@ -27,11 +27,11 @@ module Stream.Type.MultiStream
 
 #ifdef INSPECTION
 import Test.Inspection
+import GHC.Types (SPEC(..))
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Producer as Producer
 #endif
 
-import GHC.Types (SPEC(..))
 import Data.Monoid (Sum(..))
 import Streamly.Internal.Data.Stream (Stream, Step)
 import Streamly.Data.Unfold (Unfold)

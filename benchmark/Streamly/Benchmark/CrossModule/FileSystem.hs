@@ -26,12 +26,14 @@ module CrossModule.FileSystem (benchmarks) where
 
 import Data.Functor.Identity (runIdentity)
 import Data.Word (Word8)
+import Foreign.Ptr (Ptr)
 import GHC.Classes (IP)
 import GHC.Magic (inline)
 import GHC.Magic (noinline)
 import GHC.Stack (CallStack, SrcLoc)
 import Streamly.Internal.Data.Array (Array)
 import Streamly.Internal.Data.MutArray (MutArray)
+import Streamly.Internal.Data.MutByteArray (PinnedState)
 import System.IO (Handle)
 import Unsafe.Coerce (UnsafeEquality)
 
@@ -50,8 +52,7 @@ import Streamly.Benchmark.Common
 import Streamly.Benchmark.Common.Handle
 
 #ifdef INSPECTION
-import Foreign.Ptr (Ptr)
-import Streamly.Internal.Data.MutByteArray (Unbox, PinnedState)
+import Streamly.Internal.Data.MutByteArray (Unbox)
 import Streamly.Internal.Data.Stream (Step(..), FoldMany)
 
 import qualified Streamly.Internal.Data.MutArray as MutArray
