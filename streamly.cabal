@@ -551,7 +551,7 @@ library
                     -- concurrency
                      , lockfree-queue    >= 0.2.4 && < 0.3
 
-                     , unicode-data      >= 0.1 && < 0.9
+                     , unicode-data      >= 0.1 && < 0.10
 
                     -- Network
                     -- network version 3.2.8 is broken on windows
