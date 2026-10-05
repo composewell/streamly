@@ -23,6 +23,7 @@ cabal.project
 cabal.project.coverage
 cabal.project.doctest
 cabal.project.ghc-head
+cabal.project.ghcjs
 cabal.project.hpc-coveralls
 cabal.project.O0
 cabal.project.report

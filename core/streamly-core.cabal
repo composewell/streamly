@@ -276,8 +276,11 @@ common optimization-options
   if flag(opt)
     ghc-options: -O2
                  -fdicts-strict
-                 -fspec-constr-recursive=16
                  -fmax-worker-args=16
+    -- With the JavaScript backend this takes more than 15 minutes and
+    -- several GB to compile Streamly.Internal.Data.Array.Stream.
+    if !arch(javascript)
+      ghc-options: -fspec-constr-recursive=16
 
   -- For this to be effective it must come after the -O2 option
   if flag(debug) || !flag(opt)

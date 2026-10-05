@@ -1,0 +1,17 @@
+packages: core/streamly-core.cabal
+
+-- Cap GHC heap usage so that builds do not exhaust the machine memory
+flags: +limit-build-mem
+jobs: 1
+
+with-compiler: javascript-unknown-ghcjs-ghc
+with-hc-pkg: javascript-unknown-ghcjs-ghc-pkg
+
+package *
+  hsc2hs-location: javascript-unknown-ghcjs-hsc2hs
+
+-- The JS backend needs more than the 500M that limit-build-mem sets for
+-- streamly-core, the build peaks at about 1.6GB in use. A later -M
+-- overrides the earlier one.
+package streamly-core
+  ghc-options: +RTS -M2000M -RTS
