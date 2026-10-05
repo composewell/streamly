@@ -42,7 +42,9 @@ import Foreign.C
     , CInt(..), CString, CChar, CSize(..)
     )
 import Foreign.Storable (poke)
+#if !defined(javascript_HOST_ARCH)
 import Fusion.Plugin.Types (Fuse(..))
+#endif
 import Streamly.Internal.Data.Array (Array(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.MutByteArray (MutByteArray)
@@ -374,7 +376,9 @@ eitherReader confMod =
     -- chunked read to avoid the overhead.
     UF.bracketIO before after (streamEitherReader confMod)
 
+#if !defined(javascript_HOST_ARCH)
 {-# ANN type ChunkStreamState Fuse #-}
+#endif
 data ChunkStreamState =
       ChunkStreamInit [PosixPath] [PosixPath] Int [PosixPath] Int
     | ChunkStreamLoop
@@ -482,7 +486,9 @@ readEitherChunks confMod alldirs =
                 then return $ Skip (ChunkStreamInit xs dirs ndirs files nfiles)
                 else liftIO $ throwErrno "readEitherChunks"
 
+#if !defined(javascript_HOST_ARCH)
 {-# ANN type ChunkFoldStreamState Fuse #-}
+#endif
 data ChunkFoldStreamState fs b =
       -- | Fold not yet initialized. Fields: input dirs, buffered output
       -- dirs, output dir count.
@@ -659,7 +665,9 @@ splitHalf xxs = split xxs xxs
          in (x:f, s)
     split xs _ = ([], xs)
 
+#if !defined(javascript_HOST_ARCH)
 {-# ANN type ChunkStreamByteState Fuse #-}
+#endif
 data ChunkStreamByteState =
       ChunkStreamByteInit
     | ChunkStreamByteStop
@@ -880,7 +888,9 @@ readEitherByteChunks confMod alldirs =
                         EntryIsDir -> handleDirEnt pos dname
                         EntryIgnored -> nextEntry pos
 
+#if !defined(javascript_HOST_ARCH)
 {-# ANN type ByteChunksAt Fuse #-}
+#endif
 data ByteChunksAt =
       ByteChunksAtInit0
     | ByteChunksAtInit

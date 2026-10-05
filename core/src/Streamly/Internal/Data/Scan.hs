@@ -72,11 +72,14 @@ module Streamly.Internal.Data.Scan
     )
 where
 
+#include "fusion-annotations.h"
 #include "inline.hs"
 import Control.Arrow (Arrow(..))
 import Control.Category (Category(..))
 import Data.Maybe (isJust, fromJust)
+#ifdef FUSE_ANNOTATIONS
 import Fusion.Plugin.Types (Fuse(..))
+#endif
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Stream.Step (Step (..))
 
@@ -307,7 +310,7 @@ instance Monad m => Category (Scan m) where
 -- Applicative Zip
 -------------------------------------------------------------------------------
 
-{-# ANN type TeeWith Fuse #-}
+FUSE_TYPE(TeeWith)
 data TeeWith sL sR = TeeWith !sL !sR
 
 -- XXX zipWith?

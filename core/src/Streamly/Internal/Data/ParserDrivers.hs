@@ -25,12 +25,15 @@ module Streamly.Internal.Data.ParserDrivers
     )
     where
 
+#include "fusion-annotations.h"
 #include "assert.hs"
 #include "inline.hs"
 #include "ArrayMacros.h"
 
 import Data.Proxy (Proxy(..))
+#ifdef FUSE_ANNOTATIONS
 import Fusion.Plugin.Types (Fuse(..))
+#endif
 import GHC.Exts (SpecConstrAnnotation(..))
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Array.Type (Array(..))

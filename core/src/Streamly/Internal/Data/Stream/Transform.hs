@@ -210,6 +210,7 @@ module Streamly.Internal.Data.Stream.Transform
     )
 where
 
+#include "fusion-annotations.h"
 #include "deprecation.h"
 #include "inline.hs"
 
@@ -219,7 +220,9 @@ import Control.Monad.IO.Class (MonadIO (liftIO))
 import Data.Either (fromLeft, isLeft, isRight, fromRight)
 import Data.Functor ((<&>))
 import Data.Maybe (fromJust, isJust)
+#ifdef FUSE_ANNOTATIONS
 import Fusion.Plugin.Types (Fuse(..))
+#endif
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Pipe.Type (Pipe(..))
@@ -252,7 +255,7 @@ import Streamly.Internal.Data.Stream.Type
 -- Piping
 ------------------------------------------------------------------------------
 
-{-# ANN type PipeState Fuse #-}
+FUSE_TYPE(PipeState)
 data PipeState st sc ps = PipeConsume st sc | PipeProduce st ps
 
 -- | Use a 'Pipe' to transform a stream.
@@ -292,7 +295,7 @@ pipe (Pipe consume produce initial) (Stream stream_step state) =
                 Pipe.YieldP ps1 b -> Yield b (PipeProduce st ps1)
                 Pipe.SkipP ps1 -> Skip (PipeProduce st ps1)
 
-{-# ANN type RunScanState Fuse #-}
+FUSE_TYPE(RunScanState)
 data RunScanState st sc ps = ScanConsume st sc
 
 -- | Use a lazy right 'Scan' to transform a stream.
@@ -865,7 +868,7 @@ postscanlM' fstep begin (Stream step state) =
 postscanl' :: Monad m => (a -> b -> a) -> a -> Stream m b -> Stream m a
 postscanl' f seed = postscanlM' (\a b -> return (f a b)) (return seed)
 
-{-# ANN type PScanAfterState Fuse #-}
+FUSE_TYPE(PScanAfterState)
 data PScanAfterState m st acc =
       PScanAfterStep st (m acc)
     | PScanAfterYield acc (PScanAfterState m st acc)
@@ -2128,7 +2131,7 @@ rollingMap2 f = catMaybes . rollingMap g
 -- Selective Map
 ------------------------------------------------------------------------------
 
-{-# ANN type ModifyLastState Fuse #-}
+FUSE_TYPE(ModifyLastState)
 data ModifyLastState s a =
       ModifyLastInit s
     | ModifyLastBuf s a
@@ -2323,7 +2326,7 @@ catEithers = fmap (either id id)
 -- empty stream to empty stream is consistent with splitEndBy operation as
 -- well.
 
-{-# ANN type SplitSepBy Fuse #-}
+FUSE_TYPE(SplitSepBy)
 data SplitSepBy s fs b a
     = SplitSepByInit s
     | SplitSepByInitFold0 s

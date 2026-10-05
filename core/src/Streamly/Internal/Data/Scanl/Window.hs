@@ -69,9 +69,13 @@ module Streamly.Internal.Data.Scanl.Window
     )
 where
 
+#include "fusion-annotations.h"
+
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Data.Proxy (Proxy(..))
+#ifdef FUSE_ANNOTATIONS
 import Fusion.Plugin.Types (Fuse(..))
+#endif
 import Streamly.Internal.Data.RingArray (RingArray(..))
 import Streamly.Internal.Data.Scanl.Type (Scanl(..), Step(..))
 import Streamly.Internal.Data.Tuple.Strict
@@ -121,7 +125,7 @@ instance Functor Incr where
 -- Utilities
 -------------------------------------------------------------------------------
 
-{-# ANN type SlidingWindow Fuse #-}
+FUSE_TYPE(SlidingWindow)
 data SlidingWindow a r s = SWArray !a !Int !s | SWRing !r !s
 -- data SlidingWindow a s = SWArray !a !Int !s !Int | SWRing !a !Int !s
 

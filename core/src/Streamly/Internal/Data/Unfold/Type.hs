@@ -135,6 +135,7 @@ module Streamly.Internal.Data.Unfold.Type
     )
 where
 
+#include "fusion-annotations.h"
 #include "deprecation.h"
 #include "inline.hs"
 
@@ -142,7 +143,9 @@ where
 import Control.Category (Category(id, (.)))
 import Control.Monad ((>=>))
 import Data.Void (Void)
+#ifdef FUSE_ANNOTATIONS
 import Fusion.Plugin.Types (Fuse(..))
+#endif
 import Streamly.Internal.Data.Stream.Step (Step(..))
 
 import qualified Streamly.Internal.Data.Producer as Producer
@@ -501,7 +504,7 @@ carryInput (Unfold ustep uinject) = Unfold step (\a -> (a,) <$> uinject a)
 
 RENAME(carry,carryInput)
 
-{-# ANN type ConsInputState Fuse #-}
+FUSE_TYPE(ConsInputState)
 data ConsInputState a s = ConsInputFirst a s | ConsInputRest s
 
 -- | Prepend @f a@ to the output of the unfold, where @a@ is the input seed.
@@ -639,7 +642,7 @@ crossApplyFst (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
     step st = Producer.crossApplyFst inject2 step1 step2 st
 
 {-
-{-# ANN type Many2State Fuse #-}
+FUSE_TYPE(Many2State)
 data Many2State x s1 s2 = Many2Outer x s1 | Many2Inner x s1 s2
 -}
 

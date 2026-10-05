@@ -13,12 +13,16 @@ module Streamly.Internal.Data.Stream.Step
     )
 where
 
+#include "fusion-annotations.h"
+
+#ifdef FUSE_ANNOTATIONS
 import Fusion.Plugin.Types (Fuse(..))
+#endif
 
 -- | A stream is a succession of 'Step's. A 'Yield' produces a single value and
 -- the next state of the stream. 'Stop' indicates there are no more values in
 -- the stream.
-{-# ANN type Step Fuse #-}
+FUSE_TYPE(Step)
 data Step s a = Yield a s | Skip s | Stop
 
 instance Functor (Step s) where

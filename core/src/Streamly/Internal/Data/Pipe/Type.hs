@@ -32,6 +32,7 @@ module Streamly.Internal.Data.Pipe.Type
     )
 where
 
+#include "fusion-annotations.h"
 #include "inline.hs"
 -- import Control.Arrow (Arrow(..))
 import Control.Category (Category(..))
@@ -39,7 +40,9 @@ import Data.Functor ((<&>))
 #if __GLASGOW_HASKELL__ >= 810
 import Data.Kind (Type)
 #endif
+#ifdef FUSE_ANNOTATIONS
 import Fusion.Plugin.Types (Fuse(..))
+#endif
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Scan (Scan(..))
 import Streamly.Internal.Data.Stream.Type (Stream(..))
@@ -75,7 +78,7 @@ import Prelude hiding (filter, zipWith, map, mapM, id, unzip, null)
 -- flat structure the pointer tag from the Step constructor itself can identiy
 -- any of the 5 constructors.
 --
-{-# ANN type Step Fuse #-}
+FUSE_TYPE(Step)
 data Step cs ps b =
       YieldC cs b -- ^ Yield and consume
     | SkipC cs -- ^ Skip and consume
@@ -148,14 +151,14 @@ instance Functor m => Functor (Pipe m a) where
 -- Category
 -------------------------------------------------------------------------------
 
-{-# ANN type ComposeConsume Fuse #-}
+FUSE_TYPE(ComposeConsume)
 #if __GLASGOW_HASKELL__ >= 810
 type ComposeConsume :: Type -> Type -> Type -> Type
 #endif
 data ComposeConsume csL psL csR =
       ComposeConsume csL csR
 
-{-# ANN type ComposeProduce Fuse #-}
+FUSE_TYPE(ComposeProduce)
 data ComposeProduce csL psL csR psR =
       ComposeProduceR csL psR
     | ComposeProduceL psL csR
@@ -288,13 +291,13 @@ instance Monad m => Category (Pipe m) where
     {-# INLINE (.) #-}
     (.) = compose
 
-{-# ANN type TeeMergeConsume Fuse #-}
+FUSE_TYPE(TeeMergeConsume)
 data TeeMergeConsume csL csR
     = TeeMergeConsume !csL !csR
     | TeeMergeConsumeOnlyL !csL
     | TeeMergeConsumeOnlyR !csR
 
-{-# ANN type TeeMergeProduce Fuse #-}
+FUSE_TYPE(TeeMergeProduce)
 data TeeMergeProduce csL csR psL psR x
     = TeeMergeProduce !csL !csR !x
     | TeeMergeProduceL !psL !csR !x
@@ -619,13 +622,13 @@ filter f = filterM (return Prelude.. f)
 -- With "Continue s" and "Partial s b" instead of using "extract" we can do
 -- that.
 
-{-# ANN type FromFoldConsume Fuse #-}
+FUSE_TYPE(FromFoldConsume)
 #if __GLASGOW_HASKELL__ >= 810
 type FromFoldConsume :: Type -> Type -> Type
 #endif
 data FromFoldConsume s x = FoldConsumeInit | FoldConsumeGo s
 
-{-# ANN type FromFoldProduce Fuse #-}
+FUSE_TYPE(FromFoldProduce)
 data FromFoldProduce s x = FoldProduceInit s x | FoldProduceStop
 
 -- XXX This should be removed once we remove "extract" from folds.

@@ -18,8 +18,12 @@ module Streamly.Internal.Data.Scanl.Step
     )
 where
 
+#include "fusion-annotations.h"
+
 import Data.Bifunctor (Bifunctor(..))
+#ifdef FUSE_ANNOTATIONS
 import Fusion.Plugin.Types (Fuse(..))
+#endif
 
 import qualified Streamly.Internal.Data.Fold.Step as Fold
 
@@ -29,7 +33,7 @@ import qualified Streamly.Internal.Data.Fold.Step as Fold
 
 -- | Represents the result of the @step@ of a 'Scanl'.
 --
-{-# ANN type Step Fuse #-}
+FUSE_TYPE(Step)
 data Step s b
     = Partial !s
     -- ^ Returns the next state of the scan accumulator indicating a new

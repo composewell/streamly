@@ -37,7 +37,9 @@ import Foreign.C
     ( CInt(..), CSize(..), CWchar(..), Errno(..)
     , errnoToIOError, peekCWString
     )
+#if !defined(javascript_HOST_ARCH)
 import Fusion.Plugin.Types (Fuse(..))
+#endif
 import Numeric (showHex)
 import Streamly.Internal.Data.Array (Array(..))
 import Streamly.Internal.Data.Fold.Type (Fold(..))
@@ -322,7 +324,9 @@ eitherReader f =
 -- Chunked path-list reads
 ------------------------------------------------------------------------------
 
+#if !defined(javascript_HOST_ARCH)
 {-# ANN type ChunkStreamState Fuse #-}
+#endif
 data ChunkStreamState =
       ChunkStreamInit [WindowsPath] [WindowsPath] Int [WindowsPath] Int
     | ChunkStreamLoop
@@ -419,7 +423,9 @@ readEitherChunks _confMod alldirs =
                 liftIO $ closeDirStream ds
                 return $ Skip (ChunkStreamInit xs dirs ndirs files nfiles)
 
+#if !defined(javascript_HOST_ARCH)
 {-# ANN type ChunkFoldStreamState Fuse #-}
+#endif
 data ChunkFoldStreamState fs b =
       -- | Fold not yet initialized. Fields: input dirs, buffered output
       -- dirs, output dir count.
@@ -592,7 +598,9 @@ splitHalf xxs = split xxs xxs
          in (x:f, s)
     split xs _ = ([], xs)
 
+#if !defined(javascript_HOST_ARCH)
 {-# ANN type ChunkStreamByteState Fuse #-}
+#endif
 data ChunkStreamByteState =
       ChunkStreamByteInit
     | ChunkStreamByteStop

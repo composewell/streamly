@@ -252,12 +252,15 @@ module Streamly.Internal.Data.Parser
     )
 where
 
+#include "fusion-annotations.h"
 #include "inline.hs"
 #include "deprecation.h"
 #include "assert.hs"
 
 import Data.Bifunctor (first)
+#ifdef FUSE_ANNOTATIONS
 import Fusion.Plugin.Types (Fuse(..))
+#endif
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.SVar.Type (defState)
 import Streamly.Internal.Data.Either.Strict (Either'(..))
@@ -599,7 +602,9 @@ noneOf xs = satisfy (`Foldable.notElem` xs)
 -------------------------------------------------------------------------------
 
 -- Required to fuse "take" with "many" in "chunksOf", for ghc-9.x
+#ifdef FUSE_ANNOTATIONS
 {-# ANN type Tuple'Fused Fuse #-}
+#endif
 data Tuple'Fused a b = Tuple'Fused !a !b deriving Show
 
 -- | @takeBetween m n@ takes a minimum of @m@ and a maximum of @n@ input
@@ -780,7 +785,7 @@ takeEQ n (Fold fstep finitial _ ffinal) = Parser step initial extract
             $ "takeEQ: Expecting exactly " ++ show n
                 ++ " elements, input terminated on " ++ show (i - 1)
 
-{-# ANN type TakeGEState Fuse #-}
+FUSE_TYPE(TakeGEState)
 data TakeGEState s =
       TakeGELT !Int !s
     | TakeGEGE !s
@@ -1002,7 +1007,7 @@ dropWhile p = takeWhile p FL.drain
 -- Separators
 -------------------------------------------------------------------------------
 
-{-# ANN type FramedEscState Fuse #-}
+FUSE_TYPE(FramedEscState)
 data FramedEscState s =
     FrameEscInit !s | FrameEscGo !s !Int | FrameEscEsc !s !Int
 
@@ -1917,7 +1922,7 @@ wordProcessQuotes =
     -- Escape the quote char itself
     wordWithQuotes False (\q x -> if q == x then Just x else Nothing)
 
-{-# ANN type GroupByState Fuse #-}
+FUSE_TYPE(GroupByState)
 data GroupByState a s
     = GroupByInit !s
     | GroupByGrouping !a !s
@@ -2038,7 +2043,7 @@ groupByRolling eq (Fold fstep finitial _ ffinal) = Parser step initial extract
     extract (GroupByInit s) = fmap (FDone 0) $ ffinal s
     extract (GroupByGrouping _ s) = fmap (FDone 0) $ ffinal s
 
-{-# ANN type GroupByStatePair Fuse #-}
+FUSE_TYPE(GroupByStatePair)
 data GroupByStatePair a s1 s2
     = GroupByInitPair !s1 !s2
     | GroupByGroupingPair !a !s1 !s2
@@ -2571,7 +2576,7 @@ lookAhead (Parser step1 initial1 _) = Parser step initial extract
 -- all the three parsers. One parser can count the line numbers to provide the
 -- line number info.
 
-{-# ANN type DeintercalateAllState Fuse #-}
+FUSE_TYPE(DeintercalateAllState)
 data DeintercalateAllState fs sp ss =
       DeintercalateAllInitL !fs
     | DeintercalateAllL !fs !sp
@@ -2699,7 +2704,7 @@ deintercalateAll
     extract (DeintercalateAllR _ _) =
         return $ FError "deintercalateAll: input ended at 'Right' value"
 
-{-# ANN type DeintercalateState Fuse #-}
+FUSE_TYPE(DeintercalateState)
 data DeintercalateState b fs sp ss =
       DeintercalateInitL !fs
     | DeintercalateL !Int !fs !sp
@@ -2859,7 +2864,7 @@ deintercalate
                 xs <- ffinal fs
                 return $ FDone (- cnt) xs
 
-{-# ANN type Deintercalate1State Fuse #-}
+FUSE_TYPE(Deintercalate1State)
 data Deintercalate1State b fs sp ss =
       Deintercalate1InitL !Int !fs !sp
     | Deintercalate1InitR !fs
@@ -3004,7 +3009,7 @@ deintercalate1
                 xs <- ffinal fs
                 return $ FDone (- cnt) xs
 
-{-# ANN type SepByState Fuse #-}
+FUSE_TYPE(SepByState)
 data SepByState fs sp ss =
       SepByInitL !fs
     | SepByL !Int !fs !sp
@@ -3139,7 +3144,7 @@ sepByAll p1 p2 f = deintercalateAll p1 p2 (FL.catLefts f)
 -- XXX This can be implemented using refold, parse one and then continue
 -- collecting the rest in that.
 
-{-# ANN type SepBy1State Fuse #-}
+FUSE_TYPE(SepBy1State)
 data SepBy1State fs sp ss =
       SepBy1InitL !Int !fs sp
     | SepBy1L !Int !fs !sp
@@ -3501,7 +3506,7 @@ manyTillP :: -- Monad m =>
 manyTillP _p1 _p2 _f = undefined
     -- D.toParserK $ D.manyTillP (D.fromParserK p1) (D.fromParserK p2) f
 
-{-# ANN type ManyTillState Fuse #-}
+FUSE_TYPE(ManyTillState)
 data ManyTillState fs sr sl
     = ManyTillR !Int !fs !sr
     | ManyTillL !fs !sl

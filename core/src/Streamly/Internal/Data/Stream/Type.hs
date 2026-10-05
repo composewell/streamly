@@ -196,6 +196,7 @@ module Streamly.Internal.Data.Stream.Type
     )
 where
 
+#include "fusion-annotations.h"
 #include "deprecation.h"
 #include "inline.hs"
 
@@ -214,7 +215,9 @@ import Data.Kind (Type)
 #endif
 import Data.Maybe (fromMaybe)
 import Data.Semigroup (Endo(..))
+#ifdef FUSE_ANNOTATIONS
 import Fusion.Plugin.Types (Fuse(..))
+#endif
 import GHC.Base (build)
 import GHC.Exts (IsList(..), IsString(..), oneShot)
 import GHC.Types (SPEC(..))
@@ -1248,7 +1251,7 @@ append (Stream step1 state1) (Stream step2 state2) =
 -- Branching
 ------------------------------------------------------------------------------
 
-{-# ANN type IfThenElseState Fuse #-}
+FUSE_TYPE(IfThenElseState)
 data IfThenElseState s1 s2 =
       IfThenElseInit
     | IfThenElseThen s1
@@ -2052,7 +2055,7 @@ concatIterate f stream = Stream step (stream, [])
 
 RENAME(concatIterateDfs,concatIterate)
 
-{-# ANN type IterateUnfoldState Fuse #-}
+FUSE_TYPE(IterateUnfoldState)
 data IterateUnfoldState o i =
       IterateUnfoldOuter o
     | IterateUnfoldInner o i [i]
@@ -2100,7 +2103,7 @@ unfoldIterate (Unfold istep inject) (Stream ostep ost) =
 
 RENAME(unfoldIterateDfs,unfoldIterate)
 
-{-# ANN type IterateUnfoldBFSRevState Fuse #-}
+FUSE_TYPE(IterateUnfoldBFSRevState)
 data IterateUnfoldBFSRevState o i =
       IterateUnfoldBFSRevOuter o [i]
     | IterateUnfoldBFSRevInner i [i]
@@ -2146,7 +2149,7 @@ altBfsUnfoldIterate (Unfold istep inject) (Stream ostep ost) =
 
 RENAME(unfoldIterateBfsRev,altBfsUnfoldIterate)
 
-{-# ANN type IterateUnfoldBFSState Fuse #-}
+FUSE_TYPE(IterateUnfoldBFSState)
 data IterateUnfoldBFSState o i =
       IterateUnfoldBFSOuter o [i]
     | IterateUnfoldBFSInner i [i] [i]
@@ -2257,7 +2260,7 @@ bfsFoldIterate = undefined
 ------------------------------------------------------------------------------
 
 -- s = stream state, fs = fold state
-{-# ANN type FoldManyPost Fuse #-}
+FUSE_TYPE(FoldManyPost)
 #if __GLASGOW_HASKELL__ >= 810
 type FoldManyPost :: Type -> Type -> Type -> Type -> Type
 #endif
@@ -2341,7 +2344,7 @@ foldManySepBy :: -- Monad m =>
     Fold m a b -> Fold m a b -> Stream m a -> Stream m b
 foldManySepBy _f1 _f2 = undefined
 
-{-# ANN type FoldMany Fuse #-}
+FUSE_TYPE(FoldMany)
 #if __GLASGOW_HASKELL__ >= 810
 type FoldMany :: Type -> Type -> Type -> Type -> Type
 #endif
@@ -2491,7 +2494,7 @@ refoldMany (Refold fstep inject extract) action (Stream step state) =
     step' _ (FoldManyYield b next) = return $ Yield b next
     step' _ FoldManyDone = return Stop
 
-{-# ANN type CIterState Fuse #-}
+FUSE_TYPE(CIterState)
 data CIterState s f fs b
     = CIterInit s f
     | CIterConsume s fs Bool

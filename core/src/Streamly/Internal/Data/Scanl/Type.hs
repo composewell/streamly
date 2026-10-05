@@ -201,6 +201,7 @@ module Streamly.Internal.Data.Scanl.Type
     )
 where
 
+#include "fusion-annotations.h"
 #include "inline.hs"
 #include "deprecation.h"
 
@@ -212,7 +213,9 @@ import Control.Monad ((>=>))
 import Data.Either (fromLeft, fromRight, isLeft, isRight)
 import Data.Functor ((<&>))
 import Data.Functor.Identity (Identity(..))
+#ifdef FUSE_ANNOTATIONS
 import Fusion.Plugin.Types (Fuse(..))
+#endif
 import Streamly.Internal.Data.Maybe.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.Refold.Type (Refold(..))
 -- import Streamly.Internal.Data.Scan (Scan(..))
@@ -788,7 +791,7 @@ constM :: Applicative m => m b -> Scanl m a b
 constM b = Scanl (\s _ -> pure $ Partial s) (Fold.Partial <$> b) pure pure
 
 {-
-{-# ANN type SeqFoldState Fuse #-}
+FUSE_TYPE(SeqFoldState)
 data SeqFoldState sl f sr = SeqFoldL !sl | SeqFoldR !f !sr
 
 -- | Sequential fold application. Apply two folds sequentially to an input
@@ -855,7 +858,7 @@ splitWith func
                 Partial sR -> finalR sR
                 Done rR -> return rR
 
-{-# ANN type SeqFoldState_ Fuse #-}
+FUSE_TYPE(SeqFoldState_)
 data SeqFoldState_ sl sr = SeqFoldL_ !sl | SeqFoldR_ !sr
 
 -- | Same as applicative '*>'. Run two folds serially one after the other
@@ -920,7 +923,7 @@ instance Monad m => Applicative (Fold m a) where
     {-# INLINE liftA2 #-}
     liftA2 f x = (<*>) (fmap f x)
 
-{-# ANN type TeeState Fuse #-}
+FUSE_TYPE(TeeState)
 data TeeState sL sR bL bR
     = TeeBoth !sL !sR
     | TeeLeft !bR !sL
@@ -975,7 +978,7 @@ teeWithMax f
     final (TeeLeft bR sL) = (`f` bR) <$> finalL sL
     final (TeeRight bL sR) = f bL <$> finalR sR
 
-{-# ANN type TeeFstState Fuse #-}
+FUSE_TYPE(TeeFstState)
 data TeeFstState sL sR b
     = TeeFstBoth !sL !sR
     | TeeFstLeft !b !sL
@@ -1145,7 +1148,7 @@ shortest (Scanl stepL initialL extractL finalL) (Scanl stepR initialR _ finalR) 
 
     final (Tuple' sL sR) = Left <$> finalL sL <* finalR sR
 
-{-# ANN type LongestState Fuse #-}
+FUSE_TYPE(LongestState)
 data LongestState sL sR
     = LongestBoth !sL !sR
     | LongestLeft !sL
@@ -1585,7 +1588,9 @@ catEithers = lmap (either id id)
 ------------------------------------------------------------------------------
 
 -- Required to fuse "take" with "many" in "groupsOf", for ghc-9.x
+#ifdef FUSE_ANNOTATIONS
 {-# ANN type Tuple'Fused Fuse #-}
+#endif
 data Tuple'Fused a b = Tuple'Fused !a !b deriving Show
 
 {-# INLINE taking #-}
@@ -1930,7 +1935,7 @@ isClosed (Scanl _ initial _ _) = do
 -- completes and is fed to the second fold.
 
 {-
-{-# ANN type ManyState Fuse #-}
+FUSE_TYPE(ManyState)
 data ManyState s1 s2
     = ManyFirst !s1 !s2
     | ManyLoop !s1 !s2
@@ -2137,7 +2142,7 @@ refoldMany
             Partial s -> cextract s
             Done b -> return b
 
-{-# ANN type ConsumeManyState Fuse #-}
+FUSE_TYPE(ConsumeManyState)
 data ConsumeManyState x cs ss = ConsumeMany x cs (Either ss ss)
 
 -- | Like 'many' but uses a 'Refold' for splitting.

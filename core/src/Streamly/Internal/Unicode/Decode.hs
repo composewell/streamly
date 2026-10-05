@@ -68,6 +68,7 @@ module Streamly.Internal.Unicode.Decode
 where
 
 
+#include "fusion-annotations.h"
 #include "inline.hs"
 
 -- MachDeps.h includes ghcautoconf.h that defines WORDS_BIGENDIAN for big endian
@@ -80,7 +81,7 @@ import Data.Bits (shiftR, shiftL, (.|.), (.&.))
 import Data.Word (Word8, Word16)
 import Foreign.Marshal.Alloc (mallocBytes)
 import Foreign.Storable (Storable(..))
-#ifndef __GHCJS__
+#ifdef FUSE_ANNOTATIONS
 import Fusion.Plugin.Types (Fuse(..))
 #endif
 import GHC.Base (assert, unsafeChr)
@@ -251,10 +252,7 @@ decode1 table state codep byte =
 -- Resumable UTF-8 decoding
 -------------------------------------------------------------------------------
 
--- Strangely, GHCJS hangs linking template-haskell with this
-#ifndef __GHCJS__
-{-# ANN type UTF8DecodeState Fuse #-}
-#endif
+FUSE_TYPE(UTF8DecodeState)
 data UTF8DecodeState s a
     = UTF8DecodeInit s
     | UTF8DecodeInit1 s Word8
@@ -806,9 +804,7 @@ decodeUtf16le =
 -- Decoding Array Streams
 -------------------------------------------------------------------------------
 
-#ifndef __GHCJS__
-{-# ANN type FlattenState Fuse #-}
-#endif
+FUSE_TYPE(FlattenState)
 data FlattenState s
     = OuterLoop s !(Maybe (DecodeState, CodePoint))
     | InnerLoopDecodeInit s MutByteArray !Int !Int

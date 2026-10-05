@@ -44,8 +44,12 @@ module Streamly.Internal.Data.Refold.Type
     )
 where
 
+#include "fusion-annotations.h"
+
 import Control.Monad ((>=>))
+#ifdef FUSE_ANNOTATIONS
 import Fusion.Plugin.Types (Fuse(..))
+#endif
 import Streamly.Internal.Data.Fold.Step (Step(..), mapMStep)
 
 import Prelude hiding (Foldable(..), take, iterate)
@@ -216,7 +220,9 @@ iterate (Refold step1 inject1 extract1) =
 ------------------------------------------------------------------------------
 
 -- Required to fuse "take" with "many" in "chunksOf", for ghc-9.x
+#ifdef FUSE_ANNOTATIONS
 {-# ANN type Tuple'Fused Fuse #-}
+#endif
 data Tuple'Fused a b = Tuple'Fused !a !b deriving Show
 
 -- | Take at most @n@ input elements and fold them using the supplied fold. A

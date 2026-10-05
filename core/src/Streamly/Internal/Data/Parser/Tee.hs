@@ -1,5 +1,6 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
+#include "fusion-annotations.h"
 #include "inline.hs"
 
 -- |
@@ -45,7 +46,9 @@ import Control.Monad.Catch (MonadCatch, try)
 import Prelude
        hiding (any, all, takeWhile)
 
+#ifdef FUSE_ANNOTATIONS
 import Fusion.Plugin.Types (Fuse(..))
+#endif
 import Streamly.Internal.Data.Parser.ParserD.Type
        (Initial(..), Parser(..), Step(..), ParseError)
 
@@ -85,17 +88,17 @@ import Streamly.Internal.Data.Parser.ParserD.Type
 -- consumed.
 --
   -- XXX We can use Initial instead of StepState
-{-# ANN type StepState Fuse #-}
+FUSE_TYPE(StepState)
 data StepState s a = StepState s | StepResult a
 
 -- | State of the pair of parsers in a tee composition
 -- Note: strictness annotation is important for fusing the constructors
-{-# ANN type TeeState Fuse #-}
+FUSE_TYPE(TeeState)
 data TeeState sL sR x a b =
 -- @TeePair (past buffer, parser state, future-buffer1, future-buffer2) ...@
     TeePair !([x], StepState sL a, [x], [x]) !([x], StepState sR b, [x], [x])
 
-{-# ANN type Res Fuse #-}
+FUSE_TYPE(Res)
 data Res = Yld Int | Stp Int | Skp | Err String
 
 -- | See 'Streamly.Internal.Data.Parser.teeWith'.

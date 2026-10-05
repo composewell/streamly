@@ -87,6 +87,7 @@ module Streamly.Internal.Data.Stream.Enumeration
     )
 where
 
+#include "fusion-annotations.h"
 #include "inline.hs"
 
 import Data.Fixed
@@ -95,7 +96,9 @@ import Data.Int
 import Data.Ord (Down(..))
 import Data.Ratio
 import Data.Word
+#ifdef FUSE_ANNOTATIONS
 import Fusion.Plugin.Types (Fuse(..))
+#endif
 import Numeric.Natural
 import Streamly.Internal.Data.Stream.Type
 
@@ -164,7 +167,7 @@ enumerateFromNum from = enumerateFromStepNum from 1
 enumerateDownFromNum :: (Applicative m, Num a) => a -> Stream m a
 enumerateDownFromNum from = enumerateFromStepNum from (-1)
 
-{-# ANN type EnumState Fuse #-}
+FUSE_TYPE(EnumState)
 data EnumState a =
       EnumInit
     | EnumYieldUpward a a a
@@ -241,7 +244,7 @@ enumerateFromThenToNum from next to = Stream step EnumInit
 
     step _ EnumStop = pure Stop
 
-{-# ANN type EnumStateUp Fuse #-}
+FUSE_TYPE(EnumStateUp)
 data EnumStateUp a =
       EnumUpInit
     | EnumUpYield a a a
@@ -303,7 +306,7 @@ enumerateDownFromThenToNum
 enumerateDownFromThenToNum from next to =
     fmap getDown $ enumerateUpFromThenToNum (Down from) (Down next) (Down to)
 
-{-# ANN type EnumToState Fuse #-}
+FUSE_TYPE(EnumToState)
 data EnumToState a =
       EnumToInit
     | EnumToYield !a

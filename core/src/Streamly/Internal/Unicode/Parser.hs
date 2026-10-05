@@ -65,11 +65,15 @@ module Streamly.Internal.Unicode.Parser
     )
 where
 
+#include "fusion-annotations.h"
+
 import Control.Applicative (Alternative(..))
 import Data.Bits (Bits, (.|.), shiftL, (.&.))
 import Data.Char (ord)
 import Data.Ratio ((%))
+#ifdef FUSE_ANNOTATIONS
 import Fusion.Plugin.Types (Fuse(..))
+#endif
 import Streamly.Internal.Data.Parser (Parser(..), Initial(..), Step(..), Final(..))
 
 import qualified Data.Char as Char
@@ -289,7 +293,7 @@ type DecimalPlaces = Int
 type PowerMultiplier = Int
 type Power = Int
 
-{-# ANN type ScientificParseState Fuse #-}
+FUSE_TYPE(ScientificParseState)
 data ScientificParseState
   = SPInitial
   | SPSign !Multiplier
@@ -424,7 +428,7 @@ number =  Parser (\s a -> return $ step s a) initial (return . extract)
 type MantissaInt = Int
 type OverflowPower = Int
 
-{-# ANN type DoubleParseState Fuse #-}
+FUSE_TYPE(DoubleParseState)
 data DoubleParseState
   = DPInitial
   | DPSign !Multiplier

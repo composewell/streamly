@@ -74,6 +74,7 @@ module Streamly.Internal.Data.Array.Stream
     )
 where
 
+#include "fusion-annotations.h"
 #include "ArrayMacros.h"
 #include "inline.hs"
 
@@ -85,7 +86,9 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Proxy (Proxy(..))
 import Data.Word (Word8)
 import Streamly.Internal.Data.Unbox (Unbox(..))
+#ifdef FUSE_ANNOTATIONS
 import Fusion.Plugin.Types (Fuse(..))
+#endif
 import GHC.Exts (SpecConstrAnnotation(..))
 import GHC.Types (SPEC(..))
 import Prelude hiding (null, last, (!!), read, concat, unlines)
@@ -474,7 +477,7 @@ runArrayFoldBreak :: (MonadIO m, Unbox a) =>
 runArrayFoldBreak (ChunkFold p) s =
     second fromStream <$> runArrayParserDBreak p (toStream s)
 
-{-# ANN type ParseChunksState Fuse #-}
+FUSE_TYPE(ParseChunksState)
 data ParseChunksState x inpBuf st pst =
       ParseChunksInit inpBuf st
     | ParseChunksInitBuf inpBuf

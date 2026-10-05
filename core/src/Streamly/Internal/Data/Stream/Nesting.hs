@@ -169,11 +169,14 @@ module Streamly.Internal.Data.Stream.Nesting
     )
 where
 
+#include "fusion-annotations.h"
 #include "deprecation.h"
 #include "inline.hs"
 #include "ArrayMacros.h"
 
+#ifdef FUSE_ANNOTATIONS
 import Fusion.Plugin.Types (Fuse(..))
+#endif
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
@@ -203,7 +206,7 @@ import Prelude hiding (concatMap, zipWith)
 -- second stream is appended to the first's effects if there is no visible
 -- output.
 
-{-# ANN type AppendIfEmptyState Fuse #-}
+FUSE_TYPE(AppendIfEmptyState)
 data AppendIfEmptyState s1 s2 =
       AppendIfEmptyFirstUnseen s1
     | AppendIfEmptyFirstSeen s1
@@ -251,7 +254,7 @@ appendIfEmpty (Stream step1 state1) (Stream step2 state2) =
             Stop      -> Stop
         ) <$> step2 gst st
 
-{-# ANN type AppendUnfoldLastState Fuse #-}
+FUSE_TYPE(AppendUnfoldLastState)
 data AppendUnfoldLastState o i b =
       AppendUnfoldLastInput o (Maybe b)
     | AppendUnfoldLastInject (Maybe b)
@@ -805,7 +808,7 @@ mergeFstBy _f _m1 _m2 = undefined
 -- Selective unfold
 ------------------------------------------------------------------------------
 
-{-# ANN type UnfoldFirstState Fuse #-}
+FUSE_TYPE(UnfoldFirstState)
 data UnfoldFirstState o i a =
       UnfoldFirstWaitInput o
     | UnfoldFirstInjectEmpty
@@ -876,7 +879,7 @@ unfoldFirst (Unfold ustep inject) (Stream ostep ost) =
             Stop       -> Stop
         ) <$> ostep (adaptState gst) o
 
-{-# ANN type UnfoldLastState Fuse #-}
+FUSE_TYPE(UnfoldLastState)
 data UnfoldLastState o i a =
       UnfoldLastInput o (Maybe a)
     | UnfoldLastInject (Maybe a)
@@ -1690,7 +1693,7 @@ fairConcatFor = flip fairConcatMap
 -- Combine N Streams - interpose
 ------------------------------------------------------------------------------
 
-{-# ANN type InterposeSuffixState Fuse #-}
+FUSE_TYPE(InterposeSuffixState)
 data InterposeSuffixState s1 i1 =
       InterposeSuffixFirst s1
     -- | InterposeSuffixFirstYield s1 i1
@@ -1770,7 +1773,7 @@ unfoldEachEndBy x = unfoldEachEndByM (return x)
 RENAME(interposeSuffix,unfoldEachEndBy)
 RENAME(interposeSuffixM,unfoldEachEndByM)
 
-{-# ANN type InterposeState Fuse #-}
+FUSE_TYPE(InterposeState)
 data InterposeState s1 i1 a =
       InterposeFirst s1
     -- | InterposeFirstYield s1 i1

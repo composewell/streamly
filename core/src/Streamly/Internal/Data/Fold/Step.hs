@@ -16,8 +16,12 @@ module Streamly.Internal.Data.Fold.Step
     )
 where
 
+#include "fusion-annotations.h"
+
 import Data.Bifunctor (Bifunctor(..))
+#ifdef FUSE_ANNOTATIONS
 import Fusion.Plugin.Types (Fuse(..))
+#endif
 
 ------------------------------------------------------------------------------
 -- Step of a fold
@@ -47,7 +51,7 @@ import Fusion.Plugin.Types (Fuse(..))
 --
 -- /Pre-release/
 --
-{-# ANN type Step Fuse #-}
+FUSE_TYPE(Step)
 data Step s b
     = Partial !s
     | Done !b

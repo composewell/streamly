@@ -28,7 +28,11 @@ module Streamly.Internal.Data.Tuple.Strict
     )
 where
 
+#include "fusion-annotations.h"
+
+#ifdef FUSE_ANNOTATIONS
 import Fusion.Plugin.Types (Fuse(..))
+#endif
 
 -- | A strict '(,)'
 data Tuple' a b = Tuple' !a !b deriving Show
@@ -36,7 +40,9 @@ data Tuple' a b = Tuple' !a !b deriving Show
 -- XXX Add TupleFused'
 
 -- | A strict '(,,)'
+#ifdef FUSE_ANNOTATIONS
 {-# ANN type Tuple3Fused' Fuse #-}
+#endif
 data Tuple3' a b c = Tuple3' !a !b !c deriving Show
 
 -- | A strict '(,,)'

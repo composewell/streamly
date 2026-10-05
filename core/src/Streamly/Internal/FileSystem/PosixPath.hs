@@ -218,6 +218,8 @@ module Streamly.Internal.FileSystem.OS_PATH_TYPE
     )
 where
 
+#include "fusion-annotations.h"
+
 import Control.Exception (throw)
 import Control.Monad.Catch (MonadThrow(..))
 import Control.Monad.IO.Class (MonadIO(..))
@@ -235,7 +237,9 @@ import Foreign (castPtr)
 import Data.Word (Word16)
 import Foreign (Ptr)
 #endif
+#ifdef FUSE_ANNOTATIONS
 import Fusion.Plugin.Types (Fuse(..))
+#endif
 import Language.Haskell.TH.Syntax (lift)
 import Streamly.Internal.Data.Array (Array(..))
 import Streamly.Internal.Data.Fold (Fold(..))
@@ -1973,7 +1977,7 @@ stripPrefix cfg (OS_PATH prefix) (OS_PATH p) =
 
 #ifndef IS_WINDOWS
 
-{-# ANN type PackPathsState Fuse #-}
+FUSE_TYPE(PackPathsState)
 data PackPathsState =
     PackPathsState !MutByteArray !Int !Int -- buf, pos, cap
 

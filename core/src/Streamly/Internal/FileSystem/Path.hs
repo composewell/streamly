@@ -55,6 +55,10 @@
 
 #define IS_PORTABLE
 
+-- The included file has its own CPP pragma, needed when docspec compiles it
+-- standalone.
+{- HLINT ignore "Use fewer LANGUAGE pragmas" -}
+
 #if defined(mingw32_HOST_OS) || defined(__MINGW32__)
 #define IS_WINDOWS
 #include "Streamly/Internal/FileSystem/WindowsPath.hs"

@@ -57,11 +57,14 @@ module Streamly.Internal.Data.Producer
     )
 where
 
+#include "fusion-annotations.h"
 #include "inline.hs"
 
 import Data.Functor ((<&>))
 import Data.Ord (Down(..))
+#ifdef FUSE_ANNOTATIONS
 import Fusion.Plugin.Types (Fuse(..))
+#endif
 import Streamly.Internal.Data.Stream.Step (Step(..))
 
 import Prelude hiding (mapM)
@@ -633,7 +636,7 @@ enumerateFromStep (x, stride) =
 -- or 'EnumYieldDownward', which carry the current value, the stride and
 -- @to - stride@ (checked against before incrementing, so that the increment
 -- itself cannot overflow past the bound).
-{-# ANN type EnumState Fuse #-}
+FUSE_TYPE(EnumState)
 data EnumState a =
       EnumInit a a a
     | EnumYieldUpward a a a
@@ -694,7 +697,7 @@ enumerateFromThenTo EnumStop = pure Stop
 -- | State for 'enumerateUpFromThenToIntegral'. Same as 'EnumState' but
 -- without the downward direction, since the function only ever moves
 -- upward.
-{-# ANN type EnumStateUp Fuse #-}
+FUSE_TYPE(EnumStateUp)
 data EnumStateUp a =
       EnumUpInit a a a
     | EnumUpYield a a a
@@ -740,7 +743,7 @@ enumerateDownFromThenTo ::
 enumerateDownFromThenTo s = fmap (fmap getDown) (enumerateUpFromThenTo s)
 
 -- This has one less item to thread around in the state compared to fromThenTo
-{-# ANN type EnumToState Fuse #-}
+FUSE_TYPE(EnumToState)
 data EnumToState a =
       EnumToInit a a
     | EnumToYield !a a

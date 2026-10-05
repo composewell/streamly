@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP #-}
 #define IS_WINDOWS
+#include "fusion-annotations.h"
 #include "Streamly/Internal/FileSystem/PosixPath.hs"
 
 -- See docs/Developer/FileSystem.Path.md for design doc.
@@ -461,7 +462,7 @@ splitExtension (OS_PATH a) =
 -- Packing paths into a UTF-8 byte array
 ------------------------------------------------------------------------------
 
-{-# ANN type PackPathsState Fuse #-}
+FUSE_TYPE(PackPathsState)
 data PackPathsState =
     PackPathsState !MutByteArray !Int !Int -- buf, pos, cap
 

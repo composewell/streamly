@@ -84,6 +84,7 @@ extra-source-files:
     src/assert.hs
     src/inline.hs
     src/deprecation.h
+    src/fusion-annotations.h
 
     src/Streamly/Internal/Data/Time/Clock/config-clock.h
     src/config.h.in

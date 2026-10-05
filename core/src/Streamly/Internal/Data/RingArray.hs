@@ -89,6 +89,7 @@ module Streamly.Internal.Data.RingArray
     , slidingWindowWith
     ) where
 
+#include "fusion-annotations.h"
 #include "ArrayMacros.h"
 #include "inline.hs"
 
@@ -96,7 +97,9 @@ import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Proxy (Proxy(..))
 import Data.Word (Word8)
+#ifdef FUSE_ANNOTATIONS
 import Fusion.Plugin.Types (Fuse(..))
+#endif
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Array.Type (Array)
 import Streamly.Internal.Data.MutArray.Type (MutArray(..))
@@ -889,7 +892,7 @@ toList = Stream.toList . read
 showRing :: (Unbox a, Show a) => RingArray a -> IO String
 showRing rb = show <$> toList rb
 
-{-# ANN type SlidingWindow Fuse #-}
+FUSE_TYPE(SlidingWindow)
 data SlidingWindow a s = SWArray !a !Int !s !Int | SWRing !a !Int !s
 
 -- | Like slidingWindow but also provides the entire ring contents as an Array.
