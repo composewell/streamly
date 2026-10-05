@@ -70,7 +70,9 @@ where
 import Control.Applicative (Alternative(..))
 import Data.Bits (Bits, (.|.), shiftL, (.&.))
 import Data.Char (ord)
+import Data.Int (Int64)
 import Data.Ratio ((%))
+import Data.Word (Word64)
 #ifdef FUSE_ANNOTATIONS
 import Fusion.Plugin.Types (Fuse(..))
 #endif
@@ -425,7 +427,7 @@ number =  Parser (\s a -> return $ step s a) initial (return . extract)
     extract (SPAfterExponent mult num decimalPlaces powerMult powerNum) =
         FDone 0 $ exitSPAfterExponent mult num decimalPlaces powerMult powerNum
 
-type MantissaInt = Int
+type MantissaInt = Int64
 type OverflowPower = Int
 
 FUSE_TYPE(DoubleParseState)
@@ -441,31 +443,29 @@ data DoubleParseState
 
 -- | A fast, custom parser for double precision flaoting point numbers. Returns
 -- (mantissa, exponent) tuple. This is much faster than 'number' because it
--- assumes the number will fit in a 'Double' type and uses 'Int' representation
--- to store mantissa.
+-- assumes the number will fit in a 'Double' type and uses 'Int64'
+-- representation to store mantissa.
 --
 -- Number larger than 'Double' may overflow. Int overflow is not checked in the
 -- exponent.
 --
 {-# INLINE doubleParser #-}
-doubleParser :: Monad m => Parser Char m (Int, Int)
+doubleParser :: Monad m => Parser Char m (Int64, Int)
 doubleParser =  Parser (\s a -> return $ step s a) initial (return . extract)
 
     where
 
-    -- XXX Assuming Int = Int64
-
-    -- Up to 58 bits Int won't overflow
-    -- ghci> (2^59-1)*10+9 :: Int
+    -- Up to 58 bits Int64 won't overflow
+    -- ghci> (2^59-1)*10+9 :: Int64
     -- 5764607523034234879
-    mask :: Word
+    mask :: Word64
     mask = 0x7c00000000000000 -- 58 bits, ignore the sign bit
 
     {-# INLINE combineNum #-}
-    combineNum :: Int -> Int -> Int -> (Int, Int)
+    combineNum :: Int64 -> Int -> Int -> (Int64, Int)
     combineNum mantissa power num =
          if fromIntegral mantissa .&. mask == 0
-         then (mantissa * 10 + num, power)
+         then (mantissa * 10 + fromIntegral num, power)
          else (mantissa, power + 1)
 
     {-# INLINE initial #-}
@@ -489,12 +489,12 @@ doubleParser =  Parser (\s a -> return $ step s a) initial (return . extract)
           _ -> do
               let num = ord val - 48
               if num >= 0 && num <= 9
-              then SPartial 1 $ DPAfterSign 1 num 0
+              then SPartial 1 $ DPAfterSign 1 (fromIntegral num) 0
               else SError $ exitDPInitial $ show val
     step (DPSign multiplier) val =
         let num = ord val - 48
          in if num >= 0 && num <= 9
-            then SPartial 1 $ DPAfterSign multiplier num 0
+            then SPartial 1 $ DPAfterSign multiplier (fromIntegral num) 0
             else SError $ exitDPSign $ show val
     step (DPAfterSign multiplier buf opower) val =
         case val of

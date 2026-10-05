@@ -22,6 +22,7 @@ module Main
 
 import Control.DeepSeq (NFData(..))
 import Control.Monad (replicateM_)
+import Data.Int (Int64)
 import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.Stream (Stream)
 import Prelude hiding
@@ -47,7 +48,7 @@ benchIOSink :: Int -> String -> (Stream IO Char -> IO b) -> Benchmark
 benchIOSink value name f = bench name $ nfIO $ runParser value f
 
 {-# INLINE doubleParser #-}
-doubleParser :: Monad m => Stream m Char -> m (Either ParseError (Int, Int))
+doubleParser :: Monad m => Stream m Char -> m (Either ParseError (Int64, Int))
 doubleParser = Stream.parse PRU.doubleParser
 
 {-# INLINE number #-}
