@@ -4,6 +4,9 @@ packages:   streamly.cabal
           , benchmark/streamly-benchmarks.cabal
           , bench-test-lib/bench-test-lib.cabal
 
+-- Cap GHC heap usage so that builds do not exhaust the machine memory
+flags: +limit-build-mem
+
 -- For compiling standalone programs
 -- write-ghc-environment-files: always
 

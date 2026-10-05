@@ -5,6 +5,9 @@ packages:
   core
   bench-test-lib
 
+-- Cap GHC heap usage so that builds do not exhaust the machine memory
+flags: +limit-build-mem
+
 -- Keep the flags same as cabal.project.doctest because we utilize the
 -- same build for doctests in CI.
 

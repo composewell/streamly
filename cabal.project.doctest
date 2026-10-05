@@ -4,6 +4,9 @@ packages:   streamly.cabal
           , test/streamly-tests.cabal
           , bench-test-lib/bench-test-lib.cabal
 
+-- Cap GHC heap usage so that builds do not exhaust the machine memory
+flags: +limit-build-mem
+
 -- Keep the flags same as cabal.project.O0 because we utilize the same build
 -- for doctest in CI.
 

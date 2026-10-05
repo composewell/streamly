@@ -237,7 +237,7 @@ jobs:
             # WARNING! cannot use # comments inside pack_options.
             pack_options: >-
               CABAL_PROJECT=cabal.project
-              CABAL_BUILD_OPTIONS="--flag fusion-plugin --flag inspection"
+              CABAL_BUILD_OPTIONS="--flag -limit-build-mem --flag fusion-plugin --flag inspection"
               DISABLE_BENCH="n"
               DISABLE_TEST="y"
             ignore_error: false

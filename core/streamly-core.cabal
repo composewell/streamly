@@ -194,6 +194,10 @@ common compile-options
       ghc-options: -fllvm
 
     if flag(limit-build-mem)
+      -- GHC 8.10 needs more than 500M to compile ParserDrivers
+      if impl(ghc < 9.0)
+        ghc-options: -j1 +RTS -M1000M -RTS
+      else
         ghc-options: -j1 +RTS -M500M -RTS
 
     if flag(internal-use-unliftio)
