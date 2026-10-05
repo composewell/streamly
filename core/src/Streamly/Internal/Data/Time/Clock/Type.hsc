@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wno-identities          #-}
 {-# OPTIONS_GHC -fno-warn-unused-imports #-}
 
-#ifndef __GHCJS__
+#ifndef javascript_HOST_ARCH
 #include "config.h"
 #endif
 

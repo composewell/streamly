@@ -1,4 +1,4 @@
-#if __GHCJS__
+#if defined(javascript_HOST_ARCH)
 #define HS_CLOCK_GHCJS 1
 #elif defined(_WIN32)
 #define HS_CLOCK_WINDOWS 1

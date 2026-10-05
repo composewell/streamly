@@ -426,7 +426,7 @@ library
                      , Streamly.Network.Socket
                      , Streamly.Network.Inet.TCP
 
-    if !impl(ghcjs) && flag(internal-dev)
+    if !arch(javascript) && flag(internal-dev)
         other-modules:
                Streamly.Internal.System.IOVec.Type
              , Streamly.Internal.System.IOVec

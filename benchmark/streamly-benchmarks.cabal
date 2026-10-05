@@ -154,7 +154,7 @@ common optimization-options
     if flag(debug)
       ghc-options: -fno-ignore-asserts
 
-    if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
+    if flag(fusion-plugin) && !arch(javascript) && !impl(ghc < 8.6)
       ghc-options:
          -fplugin Fusion.Plugin
          -fplugin-opt=Fusion.Plugin:werror
@@ -196,7 +196,7 @@ common bench-depends
           streamly
         , bench-test-lib
 
-  if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
+  if flag(fusion-plugin) && !arch(javascript) && !impl(ghc < 8.6)
     build-depends:
         fusion-plugin     >= 0.2   && < 0.3
       , fusion-plugin-types >= 0.1 && < 0.2
@@ -278,7 +278,7 @@ benchmark Data.Fold
   hs-source-dirs: Streamly/Benchmark/Data
                 , Streamly/Benchmark/Data/Fold
   main-is: Fold.hs
-  if impl(ghcjs)
+  if arch(javascript)
     buildable: False
   else
     buildable: True
@@ -295,7 +295,7 @@ benchmark Data.Fold.Prelude
   hs-source-dirs: Streamly/Benchmark/Data/Fold
   -- XXX Using the name Prelude.hs causes compilation error
   main-is: Prelood.hs
-  if flag(use-streamly-core) || impl(ghcjs)
+  if flag(use-streamly-core) || arch(javascript)
     buildable: False
   else
     buildable: True
@@ -352,7 +352,7 @@ benchmark Data.Parser
     , Streamly.Benchmark.Data.Parser.Interleave
     , Streamly.Benchmark.Data.Parser.Sequence
     , Streamly.Benchmark.Data.Parser.Groups
-  if impl(ghcjs)
+  if arch(javascript)
     buildable: False
   else
     buildable: True
@@ -369,7 +369,7 @@ benchmark Data.ParserK
   hs-source-dirs: Streamly/Benchmark/Data
   cpp-options: -DBENCH_SINGULAR
   main-is: ParserK.hs
-  if impl(ghcjs)
+  if arch(javascript)
     buildable: False
   else
     buildable: True
@@ -381,7 +381,7 @@ benchmark Data.ParserK.Chunked
   hs-source-dirs: Streamly/Benchmark/Data
   cpp-options: -DBENCH_CHUNKED
   main-is: ParserK.hs
-  if impl(ghcjs)
+  if arch(javascript)
     buildable: False
   else
     buildable: True
@@ -393,7 +393,7 @@ benchmark Data.ParserK.Chunked.Generic
   hs-source-dirs: Streamly/Benchmark/Data
   cpp-options: -DBENCH_CHUNKED_GENERIC
   main-is: ParserK.hs
-  if impl(ghcjs)
+  if arch(javascript)
     buildable: False
   else
     buildable: True
@@ -432,7 +432,7 @@ benchmark Data.Scanl.Concurrent
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data/Scanl
   main-is: Concurrent.hs
-  if flag(use-streamly-core) || impl(ghcjs)
+  if flag(use-streamly-core) || arch(javascript)
     buildable: False
   else
     buildable: True
@@ -482,7 +482,7 @@ benchmark Data.Stream.Adaptive
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data/Stream/Prelude
   main-is: Adaptive.hs
-  if flag(use-streamly-core) || impl(ghcjs)
+  if flag(use-streamly-core) || arch(javascript)
     buildable: False
   else
     buildable: True
@@ -495,7 +495,7 @@ benchmark Data.Stream.Concurrent
   other-modules:
       ConcurrentCommon
       Stream.Common
-  if flag(use-streamly-core) || impl(ghcjs)
+  if flag(use-streamly-core) || arch(javascript)
     buildable: False
   else
     buildable: True
@@ -508,7 +508,7 @@ benchmark Data.Stream.ConcurrentEager
   other-modules:
       ConcurrentCommon
       Stream.Common
-  if flag(use-streamly-core) || impl(ghcjs)
+  if flag(use-streamly-core) || arch(javascript)
     buildable: False
   else
     buildable: True
@@ -521,7 +521,7 @@ benchmark Data.Stream.ConcurrentInterleaved
   other-modules:
       ConcurrentCommon
       Stream.Common
-  if flag(use-streamly-core) || impl(ghcjs)
+  if flag(use-streamly-core) || arch(javascript)
     buildable: False
   else
     buildable: True
@@ -534,7 +534,7 @@ benchmark Data.Stream.ConcurrentOrdered
   other-modules:
       ConcurrentCommon
       Stream.Common
-  if flag(use-streamly-core) || impl(ghcjs)
+  if flag(use-streamly-core) || arch(javascript)
     buildable: False
   else
     buildable: True
@@ -544,7 +544,7 @@ benchmark Data.Stream.ConcurrentThreadHeavy
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data/Stream/Prelude
   main-is: ConcurrentThreadHeavy.hs
-  if flag(use-streamly-core) || impl(ghcjs)
+  if flag(use-streamly-core) || arch(javascript)
     buildable: False
   else
     buildable: True
@@ -556,7 +556,7 @@ benchmark Data.Stream.Prelude
   main-is: Exceptions.hs
   other-modules:
       Stream.Common
-  if flag(use-streamly-core) || impl(ghcjs)
+  if flag(use-streamly-core) || arch(javascript)
     buildable: False
   else
     buildable: True
@@ -569,7 +569,7 @@ benchmark Data.Stream.Rate
   other-modules:
       ConcurrentCommon
       Stream.Common
-  if flag(use-streamly-core) || impl(ghcjs)
+  if flag(use-streamly-core) || arch(javascript)
     buildable: False
   else
     buildable: True
@@ -579,7 +579,7 @@ benchmark Data.StreamK
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data
   main-is: StreamK.hs
-  if impl(ghcjs)
+  if arch(javascript)
     buildable: False
 
 -- XXX This needs to be cleaned up
@@ -588,7 +588,7 @@ benchmark Data.StreamK.FromStream
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data/StreamK
   main-is: FromStream.hs
-  if !flag(dev) || impl(ghcjs)
+  if !flag(dev) || arch(javascript)
     buildable: False
 
 benchmark Data.StreamK.StreamKAlt
@@ -596,7 +596,7 @@ benchmark Data.StreamK.StreamKAlt
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data/StreamK
   main-is: StreamKAlt.hs
-  if !flag(dev) || impl(ghcjs)
+  if !flag(dev) || arch(javascript)
     buildable: False
 
 benchmark Data.Unfold
@@ -607,7 +607,7 @@ benchmark Data.Unfold
   other-modules:
       Unfold.Type
       Unfold.Enumeration
-  if impl(ghcjs)
+  if arch(javascript)
     buildable: False
   else
     buildable: True
@@ -617,7 +617,7 @@ benchmark Data.Unfold.Prelude
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Data/Unfold
   main-is: Prelude1.hs
-  if flag(use-streamly-core) || impl(ghcjs)
+  if flag(use-streamly-core) || arch(javascript)
     buildable: False
   else
     buildable: True
@@ -664,7 +664,7 @@ benchmark Unicode.Char
   hs-source-dirs: Streamly/Benchmark/Unicode
   main-is: Char.hs
   -- Takes too much memory for ghcjs
-  if flag(use-streamly-core) || impl(ghcjs)
+  if flag(use-streamly-core) || arch(javascript)
     buildable: False
 
 benchmark Unicode.Parser

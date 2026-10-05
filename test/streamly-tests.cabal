@@ -147,7 +147,7 @@ common optimization-options
                  -fspec-constr-recursive=16
                  -- This must come after -O2
                  -fno-ignore-asserts
-    if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
+    if flag(fusion-plugin) && !arch(javascript) && !impl(ghc < 8.6)
       ghc-options: -fplugin Fusion.Plugin
   else
     ghc-options: -O0
@@ -174,7 +174,7 @@ common test-dependencies
   if !flag(use-streamly-core)
     build-depends: streamly
 
-  if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
+  if flag(fusion-plugin) && !arch(javascript) && !impl(ghc < 8.6)
      build-depends:
          fusion-plugin     >= 0.2   && < 0.3
 
@@ -232,7 +232,7 @@ common always-optimized
                -fno-ignore-asserts
   if flag(limit-test-mem)
     ghc-options: -with-rtsopts=-M2G
-  if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
+  if flag(fusion-plugin) && !arch(javascript) && !impl(ghc < 8.6)
     ghc-options: -fplugin Fusion.Plugin
 
 -------------------------------------------------------------------------------

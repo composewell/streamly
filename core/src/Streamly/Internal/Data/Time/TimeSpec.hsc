@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wno-identities          #-}
 
-#ifndef __GHCJS__
+#ifndef javascript_HOST_ARCH
 #include "config.h"
 #endif
 
@@ -28,8 +28,8 @@ import Data.Int (Int32)
 #endif
 import Foreign.Storable (Storable(..), peek)
 
-#ifdef HS_CLOCK_GHCJS
-import Foreign.C (CTime(..), CLong(..))
+#if defined(HS_CLOCK_GHCJS) && (WORD_SIZE_IN_BITS != 32)
+import Data.Int (Int32)
 #endif
 
 -------------------------------------------------------------------------------
@@ -114,16 +114,17 @@ instance Num TimeSpec where
 #endif
 
 #ifdef HS_CLOCK_GHCJS
+-- Layout shared with h$clock_gettime_js in jsbits/clock.js.
 instance Storable TimeSpec where
   sizeOf _ = 8
   alignment _ = 4
   peek p = do
-    CTime  s <- peekByteOff p 0
-    CLong ns <- peekByteOff p 4
+    s <- peekByteOff p 0 :: IO Int32
+    ns <- peekByteOff p 4 :: IO Int32
     return (TimeSpec (fromIntegral s) (fromIntegral ns))
   poke p (TimeSpec s ns) = do
-    pokeByteOff p 0 ((fromIntegral s) :: CTime)
-    pokeByteOff p 4 ((fromIntegral ns) :: CLong)
+    pokeByteOff p 0 (fromIntegral s :: Int32)
+    pokeByteOff p 4 (fromIntegral ns :: Int32)
 
 #elif HS_CLOCK_WINDOWS
 instance Storable TimeSpec where
