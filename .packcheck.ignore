@@ -40,6 +40,7 @@ flake.nix
 hie.yaml
 hls.yaml
 packages.nix
+packages-js.nix
 sources.nix
 stack.yaml
 targets/cabal.project

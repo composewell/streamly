@@ -8,10 +8,21 @@
   };
 
   outputs = { self, nixpkgs, nixpkgs-darwin, basepkgs }:
-    basepkgs.nixpack.mkOutputs {
-      inherit nixpkgs nixpkgs-darwin basepkgs;
-      name = "streamly";
-      sources = import ./sources.nix;
-      packages = import ./packages.nix;
+    let
+      outputs = basepkgs.nixpack.mkOutputs {
+        inherit nixpkgs nixpkgs-darwin basepkgs;
+        name = "streamly";
+        sources = import ./sources.nix;
+        packages = import ./packages.nix;
+      };
+    in outputs // {
+      # GHC JavaScript backend shell: nix develop .#js
+      # It uses nixpkgs without the overlays of the default shell, so that
+      # its packages come from the binary cache where available.
+      devShells = builtins.mapAttrs (system: shells:
+        shells // {
+          js = import ./packages-js.nix
+            { nixpkgs = nixpkgs.legacyPackages.${system}; };
+        }) outputs.devShells;
     };
 }
