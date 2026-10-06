@@ -23,7 +23,9 @@ import Control.Concurrent (newEmptyMVar, takeMVar, throwTo)
 import Control.Monad.Catch (throwM)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.IORef (newIORef, readIORef, atomicModifyIORef)
+#if !defined(javascript_HOST_ARCH)
 import Fusion.Plugin.Types (Fuse(..))
+#endif
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS)
 import Streamly.Internal.Data.Scanl (Scanl(..), Step (..))
@@ -159,7 +161,9 @@ parTeeWith cfg f c1 c2 = Scanl step initial extract final
 -- 2. A monolithic implementation of concurrent Stream->Stream scan, using a
 -- custom implementation of the scan and the driver.
 
+#if !defined(javascript_HOST_ARCH)
 {-# ANN type ScanState Fuse #-}
+#endif
 data ScanState s q db f =
       ScanInit
     | ScanGo s q db [f]
@@ -299,7 +303,9 @@ parDistributeScan cfg getFolds stream =
         let action = liftIO $ atomicModifyIORef ref (\xs -> ([], xs))
         return $ parDistributeScanM cfg action stream
 
+#if !defined(javascript_HOST_ARCH)
 {-# ANN type DemuxState Fuse #-}
+#endif
 data DemuxState s q db f =
       DemuxInit
     | DemuxGo s q db f

@@ -53,7 +53,11 @@ import Control.Monad.State.Class (MonadState(..))
 #if !(MIN_VERSION_transformers(0,6,0))
 import Control.Monad.Trans.Class (MonadTrans(lift))
 #endif
+#if defined(javascript_HOST_ARCH)
+import Streamly.Internal.Data.LinkedQueue (LinkedQueue, newQ, nullQ, tryPopR, pushL)
+#else
 import Data.Concurrent.Queue.MichaelScott (LinkedQueue, newQ, nullQ, tryPopR, pushL)
+#endif
 import Data.IORef (IORef, newIORef, readIORef)
 import Data.Maybe (fromJust)
 

@@ -17,13 +17,13 @@ module Streamly.Internal.Data.Atomics
 where
 
 import Data.IORef (IORef, atomicModifyIORef)
-#ifdef ghcjs_HOST_OS
+#if defined(javascript_HOST_ARCH)
 import Data.IORef (modifyIORef)
 #else
 import qualified Data.Atomics as A
 #endif
 
-#ifndef ghcjs_HOST_OS
+#if !defined(javascript_HOST_ARCH)
 
 -- XXX Does it make sense to have replacements for atomicModifyIORef etc. on a
 -- single threaded system.

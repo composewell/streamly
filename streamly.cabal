@@ -412,17 +412,17 @@ library
                      , Streamly.Internal.Unicode.Utf8
                      , Streamly.Internal.Unicode.Char
 
-                     -- streamly-network
-                     , Streamly.Internal.Network.Socket
-                     , Streamly.Internal.Network.Inet.TCP
-
                      -- Exposed modules
                      , Streamly.Data.Stream.MkType
                      , Streamly.Data.Stream.Prelude
                      , Streamly.Data.Fold.Prelude
                      , Streamly.Data.Scanl.Prelude
 
-                     -- Network/IO
+    -- The network package does not build with the JavaScript backend
+    if !arch(javascript)
+        exposed-modules:
+                       Streamly.Internal.Network.Socket
+                     , Streamly.Internal.Network.Inet.TCP
                      , Streamly.Network.Socket
                      , Streamly.Network.Inet.TCP
 
@@ -543,20 +543,24 @@ library
                      , unordered-containers >= 0.2 && < 0.3
                      , heaps             >= 0.3     && < 0.5
 
-                    -- concurrency
-                     , lockfree-queue    >= 0.2.4 && < 0.3
-
                      , unicode-data      >= 0.1 && < 0.9
+
+    -- atomic-primops has Cmm sources, which the JavaScript backend cannot
+    -- compile, lockfree-queue depends on it.
+    if arch(javascript)
+      other-modules: Streamly.Internal.Data.LinkedQueue
+    else
+      build-depends:
+                    -- concurrency
+                       lockfree-queue    >= 0.2.4 && < 0.3
 
                     -- Network
                     -- network version 3.2.8 is broken on windows
                      , network           >= 2.6 && < 3.3
-
-
-    if impl(ghc < 9.10)
-      build-depends:   atomic-primops    >= 0.8   && < 0.9
-    else
-      build-depends:   atomic-primops    >= 0.8.8 && < 0.9
+      if impl(ghc < 9.10)
+        build-depends: atomic-primops    >= 0.8   && < 0.9
+      else
+        build-depends: atomic-primops    >= 0.8.8 && < 0.9
 
     if impl(ghc < 9.6)
       build-depends:   transformers-base >= 0.4   && < 0.5

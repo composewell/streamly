@@ -17,7 +17,11 @@ where
 import Control.Concurrent (myThreadId)
 import Control.Concurrent.MVar (newEmptyMVar, newMVar)
 import Control.Monad.IO.Class (MonadIO(liftIO))
+#if defined(javascript_HOST_ARCH)
+import Streamly.Internal.Data.LinkedQueue (LinkedQueue, newQ, nullQ, tryPopR, pushL)
+#else
 import Data.Concurrent.Queue.MichaelScott (LinkedQueue, newQ, nullQ, tryPopR, pushL)
+#endif
 import Data.IORef (newIORef, readIORef)
 import Streamly.Internal.Control.Concurrent
     (MonadRunInIO, MonadAsync, RunInIO(..), askRunInIO, restoreM)

@@ -71,7 +71,9 @@ import Control.Monad.Catch (throwM)
 import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.IORef (newIORef, readIORef)
+#if !defined(javascript_HOST_ARCH)
 import Fusion.Plugin.Types (Fuse(..))
+#endif
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import Streamly.Internal.Data.Channel.Worker (sendEvent)
 import Streamly.Internal.Data.Fold (Fold(..), Step (..))
@@ -341,7 +343,9 @@ parUnzip cfg c1 c2 = Fold.unzip (parBuffered cfg c1) (parBuffered cfg c2)
 -- 2. A monolithic implementation of concurrent Stream->Stream scan, using a
 -- custom implementation of the scan and the driver.
 
+#if !defined(javascript_HOST_ARCH)
 {-# ANN type ScanState Fuse #-}
+#endif
 data ScanState s q db f =
       ScanInit
     | ScanGo s q db [f]
@@ -456,7 +460,9 @@ parDistributeScan cfg getFolds (Stream sstep state) =
                 else return $ Yield outputs (ScanDrain q db running)
     step _ ScanStop = return Stop
 
+#if !defined(javascript_HOST_ARCH)
 {-# ANN type DemuxState Fuse #-}
+#endif
 data DemuxState s q db f =
       DemuxInit
     | DemuxGo s q db f

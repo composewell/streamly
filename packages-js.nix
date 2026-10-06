@@ -1,7 +1,7 @@
 # Shell for building with the GHC JavaScript backend, use "nix develop .#js".
 # Provides javascript-unknown-ghcjs-ghc, its ghc-pkg and hsc2hs, with the
-# non-boot dependencies of streamly-core and streamly-tests installed, and
-# node to run the generated code. Use with cabal.project.ghcjs.
+# non-boot dependencies of streamly-core, streamly and streamly-tests
+# installed, and node to run the generated code. Use with cabal.project.ghcjs.
 { nixpkgs }:
 let
   # nixpkgs enables iserv-proxy for cross compiled Template Haskell. It does
@@ -20,6 +20,11 @@ let
     fusion-plugin-types
     heaps
     monad-control
+
+    # streamly, atomic-primops, lockfree-queue and network do not build for JS
+    hashable
+    unicode-data
+    unordered-containers
 
     # streamly-tests, network does not build for JS
     QuickCheck
