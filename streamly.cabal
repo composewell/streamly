@@ -549,6 +549,7 @@ library
     -- compile, lockfree-queue depends on it.
     if arch(javascript)
       other-modules: Streamly.Internal.Data.LinkedQueue
+      js-sources: jsbits/eq_thread.js
     else
       build-depends:
                     -- concurrency
