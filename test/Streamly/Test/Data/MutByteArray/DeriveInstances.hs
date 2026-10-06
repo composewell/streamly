@@ -1,6 +1,10 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE DeriveAnyClass #-}
+-- The JavaScript backend recompiles modules with TemplateHaskell enabled every
+-- time (GHC #23013), enable it only when the instances are derived using TH.
+#if defined(TEST_DERIVE_SERIALIZE) || defined(TEST_DERIVE_UNBOX)
 {-# LANGUAGE TemplateHaskell #-}
+#endif
 
 -- This module has a lot of orphan instances as we are deriving it here. We can
 -- ignore this warning.
