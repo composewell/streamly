@@ -30,11 +30,5 @@ package streamly-core
 package streamly
   ghc-options: +RTS -M2000M -RTS
 
--- The tests and bench-test-lib use only streamly-core with the JS backend for
--- now
-package bench-test-lib
-  flags: +use-streamly-core
-
 package streamly-tests
-  flags: +use-streamly-core
   ghc-options: +RTS -M3000M -RTS

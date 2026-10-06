@@ -136,8 +136,10 @@ common default-extensions
         NoMonoLocalBinds
 
 common threading-options
-  ghc-options:  -threaded
-                -with-rtsopts=-N
+  -- The JavaScript backend has no threaded runtime
+  if !arch(javascript)
+    ghc-options:  -threaded
+                  -with-rtsopts=-N
 
 common optimization-options
   if flag(opt) || flag(fusion-plugin)
@@ -587,9 +589,10 @@ test-suite Network.Inet.TCP
       streamly-tests
     , network           >= 3.1   && < 3.3
   -- Cannot killThread in listen/accept on Windows threaded runtime
-  if !os(windows)
+  if !os(windows) && !arch(javascript)
     ghc-options: -threaded -with-rtsopts=-N
-  if flag(use-streamly-core)
+  -- The network package does not build with the JavaScript backend
+  if flag(use-streamly-core) || arch(javascript)
     buildable: False
 
 test-suite Network.Socket
@@ -604,9 +607,10 @@ test-suite Network.Socket
       streamly-tests
     , network           >= 3.1   && < 3.3
   -- Cannot killThread in listen/accept on Windows threaded runtime
-  if !os(windows)
+  if !os(windows) && !arch(javascript)
     ghc-options: -threaded -with-rtsopts=-N
-  if flag(use-streamly-core)
+  -- The network package does not build with the JavaScript backend
+  if flag(use-streamly-core) || arch(javascript)
     buildable: False
 
 test-suite Unicode.Char
