@@ -6,6 +6,8 @@
 
 * Filtering support for `Scanl`.
 * FileSystem.Path now does not treat paths with leading "./" as rooted paths.
+* `streamly-core` now builds with GHC's JavaScript backend (GHC 9.10 and
+  later), replacing the support for the old GHCJS compiler.
 
 ### Bug Fixes
 
