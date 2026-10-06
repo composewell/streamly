@@ -195,9 +195,6 @@ common lib-options
 library
     import: lib-options, test-dependencies
     hs-source-dirs: lib
-    if arch(javascript)
-      js-sources: jsbits/readlink.js
-                , jsbits/symlink.js
     exposed-modules:
         Streamly.Test.Common
         Streamly.Test.Data.Scanl.Common

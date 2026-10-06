@@ -1,7 +1,6 @@
-// The GHC 9.10 JavaScript backend does not provide readlink, which the unix
-// package uses for readSymbolicLink. hspec reaches it through
-// canonicalizePath when it looks for its config files, so every hspec
-// program fails at startup without it.
+// The GHC JavaScript runtime does not provide readlink, which the unix package
+// uses for readSymbolicLink, e.g. canonicalizePath of the directory package
+// fails without it.
 function h$readlink(path, path_off, buf, buf_off, buf_size) {
   if (h$isNode()) {
     try {

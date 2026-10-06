@@ -311,6 +311,8 @@ library
               , jsbits/memchr.js
               , jsbits/chdir.js
               , jsbits/readdir.js
+              , jsbits/readlink.js
+              , jsbits/symlink.js
 
     include-dirs:
           src

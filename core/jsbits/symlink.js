@@ -1,6 +1,6 @@
-// The GHC 9.10 JavaScript backend does not provide symlink, which the unix
-// package uses for createSymbolicLink. The DirIO tests create symbolic links
-// using createDirectoryLink from the directory package.
+// The GHC JavaScript runtime does not provide symlink, which the unix package
+// uses for createSymbolicLink, e.g. createFileLink and createDirectoryLink of
+// the directory package fail without it.
 function h$symlink(target, target_off, path, path_off) {
   if (h$isNode()) {
     try {
