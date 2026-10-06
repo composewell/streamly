@@ -252,6 +252,13 @@ openFileTests =
 moduleName :: String
 moduleName = "FileSystem.Handle"
 
+-- XXX On the JS backend, closing a file while another file is being opened
+-- can remove the descriptor of the new file from the runtime's table of open
+-- files, and closing the new file then fails with EINVAL. The callback of the
+-- asynchronous close in base.js (h$base_closeFile) deletes the table entry of
+-- the descriptor without checking whether it still belongs to the closed file.
+-- Fixed in GHC 9.14.1 (commit 9995c2b70f deletes the entry before the close).
+-- On older versions, running these tests in parallel can trigger the failure.
 main :: IO ()
 main = do
     hspec $ describe moduleName openFileTests
