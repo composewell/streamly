@@ -12,7 +12,9 @@ tests: True
 flags: +limit-build-mem
 jobs: 1
 
-with-compiler: javascript-unknown-ghcjs-ghc
+-- ghcjs-ghc is bin/ghcjs-ghc, which calls javascript-unknown-ghcjs-ghc, see
+-- the script for why. The js nix shell and the JS CI put it in PATH.
+with-compiler: ghcjs-ghc
 with-hc-pkg: javascript-unknown-ghcjs-ghc-pkg
 
 package *

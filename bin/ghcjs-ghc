@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+
+# Wrapper for the GHC JavaScript backend compiler, used as with-compiler in
+# cabal.project.ghcjs. Set GHCJS_GHC to use a compiler other than the
+# javascript-unknown-ghcjs-ghc in PATH.
+#
+# GHC adds the .jsexe extension to the "-o" name of an executable only if it
+# has no extension, and names the launcher script after the "-o" name without
+# its extension. Linking a test suite with "-o Data.Fold" produces a
+# directory "Data.Fold" and a launcher "Data", and cabal test cannot find the
+# program. This wrapper appends .jsexe to such names when linking. cabal
+# passes the arguments in a response file (@file), one per line.
+
+ghc=${GHCJS_GHC:-javascript-unknown-ghcjs-ghc}
+
+fixOutput='
+  FNR == 1 { prev = "" }
+  prev == "-o" {
+    n = split($0, parts, "/")
+    if (parts[n] ~ /\./ && parts[n] !~ /\.jsexe$/) $0 = $0 ".jsexe"
+  }
+  { print; prev = $0 }'
+
+isLink() {
+  grep -qx -e --make "$@" && ! grep -qx -e -c -e -no-link -e -E -e -M "$@"
+}
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+args=()
+i=0
+for a in "$@"; do
+  case $a in
+    @*)
+      if isLink "${a#@}"; then
+        i=$((i + 1))
+        awk "$fixOutput" "${a#@}" > "$tmp/$i.rsp"
+        a=@$tmp/$i.rsp
+      fi
+      ;;
+  esac
+  args+=("$a")
+done
+
+printf '%s\n' "${args[@]}" > "$tmp/args"
+if isLink "$tmp/args"; then
+  mapfile -t args < <(awk "$fixOutput" "$tmp/args")
+fi
+
+"$ghc" "${args[@]}"

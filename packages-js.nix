@@ -34,6 +34,7 @@ let
   # the plain names for the JS tools so that they are found first.
   ghcAliases = nixpkgs.runCommand "ghcjs-aliases" {} ''
     mkdir -p $out/bin
+    install -m 755 ${./bin/ghcjs-ghc} $out/bin/ghcjs-ghc
     for t in ghc ghc-pkg hsc2hs; do
       ln -s ${ghc}/bin/javascript-unknown-ghcjs-$t $out/bin/$t
     done
