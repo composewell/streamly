@@ -547,6 +547,14 @@ test-suite FileSystem.Handle
   if flag(use-streamly-core)
     buildable: False
 
+test-suite FileSystem.PathIO
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/FileSystem/PathIO.hs
+  ghc-options: -main-is Streamly.Test.FileSystem.PathIO.main
+  if os(windows)
+    buildable: False
+
 test-suite FileSystem.PosixPath
   import: test-options
   type: exitcode-stdio-1.0
