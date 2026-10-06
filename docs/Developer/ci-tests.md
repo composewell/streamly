@@ -58,7 +58,12 @@ Other GHC versions:
 * build lib, test, bench, docs, run tests, on Linux platform, using
   cabal build
 
-## GHCJS
+## GHC JavaScript backend
 
-GHCJS:
-* Latest version ghcjs build (lib, test, bench), run tests
+The JS workflow (`.github/workflows/js.yml`):
+* Install the JavaScript cross compiler using the ghcup cross release
+  channel, with emscripten.
+* Build `streamly-core`, `streamly` and the test suites using
+  `cabal.project.ghcjs`, run the tests with `node`. The `Network.*`
+  test suites are not built, the `network` package does not build for
+  JavaScript.

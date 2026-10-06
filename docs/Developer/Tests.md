@@ -92,6 +92,22 @@ $ cd test; cabal run Prelude.Serial
 Note you could use `cabal test Prelude.Serial` but that unfortunately builds
 all the test suites before running `Prelude.Serial`.
 
+## Running tests with the GHC JavaScript backend
+
+`cabal.project.ghcjs` builds the packages and the tests with the JavaScript
+backend. It uses `bin/ghcjs-ghc` as the compiler, which must be in `PATH` as
+`ghcjs-ghc`, along with the `javascript-unknown-ghcjs-ghc`, `-ghc-pkg` and
+`-hsc2hs` tools. The `js` nix shell of the repository provides all of them:
+
+```
+$ nix develop .#js
+$ cabal test --project-file=cabal.project.ghcjs --builddir=dist-newstyle-js all
+```
+
+To use the compiler installed by ghcup instead, see the JavaScript section in
+the build guide (`docs/User/HowTo/Compiling.md`) and
+`.github/workflows/js.yml`.
+
 ## Writing doctests
 
 * We use `cabal-docspec` to run all the code snippets in a source module

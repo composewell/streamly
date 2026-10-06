@@ -140,7 +140,7 @@
 
     * Wait for final CI tests to pass:
 
-        * Manually run packcheck for ghcjs, `bin/run-ci.sh --targets ghcjs`.
+        * Check that the JS workflow, the GHC JavaScript backend build, passes.
         * Mask out the build status lines from the
           [README](/docs/User/ProjectRelated/README.md)
         * Upload to hackage

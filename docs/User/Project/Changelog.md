@@ -42,6 +42,15 @@
   * Streamly.Internal.Data.SVar.Dispatch
   * Streamly.Internal.Data.SVar.Pull
 
+### Enhancements
+
+* `streamly` now supports GHC's JavaScript backend (GHC 9.10), the full test
+  suite passes with it. The `Streamly.Network.*` modules are not available
+  with the JavaScript backend, the `network` package does not build for it.
+  See
+  [Building with the JavaScript backend](https://github.com/composewell/streamly/blob/master/docs/User/HowTo/Compiling.md#javascript)
+  for instructions.
+
 ## 0.11.1 (May 2026)
 
 * Fix `parDemuxScan` deadlock when a worker throws an exception while the

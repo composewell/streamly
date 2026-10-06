@@ -97,8 +97,9 @@ multi-core parallelism use the following GHC options:
 
 ## Platform Specific Features
 
-Streamly supports Linux, macOS and Windows operating systems. Some
-modules and functionality may depend on specific OS kernel features.
+Streamly supports Linux, macOS and Windows operating systems, and
+JavaScript using the GHC JavaScript backend. Some modules and
+functionality may depend on specific OS kernel features.
 Features/modules may get disabled if the kernel/OS does not support it.
 
 ### Linux
@@ -149,3 +150,63 @@ derivation from Hackage:
               else [];
           });
 ```
+
+### JavaScript
+
+`streamly-core` and `streamly` build with the GHC JavaScript backend,
+they are tested with GHC 9.10. The generated program runs with `node`.
+
+#### Installing the compiler
+
+The JavaScript cross compiler, `javascript-unknown-ghcjs-ghc`, is
+available from the ghcup cross release channel. It requires a specific
+version of emscripten, given in the ghcup metadata for each compiler
+version; GHC 9.10.2 requires emscripten 3.1.74:
+
+```
+emsdk install 3.1.74
+emsdk activate 3.1.74
+source ./emsdk_env.sh
+
+ghcup config add-release-channel https://raw.githubusercontent.com/haskell/ghcup-metadata/master/ghcup-cross-0.1.0.yaml
+emconfigure ghcup install ghc --set javascript-unknown-ghcjs-9.10.2
+```
+
+#### Building
+
+Use the cross compiler and its tools in a `cabal.project` file:
+
+```
+with-compiler: javascript-unknown-ghcjs-ghc
+with-hc-pkg: javascript-unknown-ghcjs-ghc-pkg
+
+package *
+  hsc2hs-location: javascript-unknown-ghcjs-hsc2hs
+```
+
+An executable is built as a script that can be run with `node`, along
+with a directory with the `.jsexe` extension containing the generated
+JavaScript.
+
+GHC names the script after the executable name without its extension. For
+an executable or test suite whose name contains a dot, e.g. `Data.Fold`, the
+script is named `Data`, and `cabal run` or `cabal test` cannot find it. The
+`bin/ghcjs-ghc` compiler wrapper in the streamly repository passes `-o
+Data.Fold.jsexe` to GHC instead, which names the script `Data.Fold`.
+
+The `cabal.project.ghcjs` file in the streamly repository builds
+`streamly-core`, `streamly` and the test suites with the JavaScript
+backend.
+
+#### Limitations
+
+* The JavaScript backend has no threaded runtime. Concurrent streams
+  run concurrently, but not in parallel, on a single capability.
+* The `Streamly.Network.*` modules are not available, the `network`
+  package does not build with the JavaScript backend.
+* The fusion-plugin does not run with the JavaScript backend.
+* Compiling modules that use Template Haskell, e.g. deriving
+  `Serialize` instances, uses more memory than with the native backend,
+  the JavaScript backend retains memory for each splice it evaluates.
+  Deriving several instances in a single splice uses less memory than
+  one splice for each.
