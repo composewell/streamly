@@ -1,4 +1,11 @@
+-- Build with GHC's JavaScript backend. Run inside the "nix develop .#js"
+-- shell, which provides javascript-unknown-ghcjs-ghc with the non-boot
+-- dependencies of streamly-core and streamly-tests installed.
+
 packages: core/streamly-core.cabal
+        , test/streamly-tests.cabal
+
+tests: True
 
 -- Cap GHC heap usage so that builds do not exhaust the machine memory
 flags: +limit-build-mem
@@ -15,3 +22,8 @@ package *
 -- overrides the earlier one.
 package streamly-core
   ghc-options: +RTS -M2000M -RTS
+
+-- Only streamly-core builds with the JS backend for now
+package streamly-tests
+  flags: +use-streamly-core
+  ghc-options: +RTS -M3000M -RTS
