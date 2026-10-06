@@ -8,6 +8,9 @@
 
 module Streamly.Test.FileSystem.Handle (main) where
 
+import Control.Exception (IOException, try)
+import Control.Monad (replicateM_)
+import Data.Either (isLeft)
 import Data.Functor.Identity (runIdentity)
 import Data.Word (Word8)
 import Streamly.Internal.Data.Stream (Stream)
@@ -22,6 +25,7 @@ import System.IO
     , hSeek
     , hPutStr
     )
+import System.Directory (doesDirectoryExist, listDirectory)
 import System.IO.Temp (withSystemTempDirectory)
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
 import Streamly.Internal.Syscall.Posix.File (openFile, withFile)
@@ -38,6 +42,7 @@ import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Unicode.Stream as Unicode
 import qualified Streamly.Internal.FileSystem.Path as Path
+import qualified System.IO as IO
 
 import Prelude hiding (writeFile)
 import Test.Hspec as H
@@ -205,35 +210,75 @@ testReadChunksFromToWithMultiBuff =
 testReadChunksFromToWithRangeInvalid :: Property
 testReadChunksFromToWithRangeInvalid = testReadChunksFromToWith 15 5 15 []
 
+-------------------------------------------------------------------------------
+-- openFile
+-------------------------------------------------------------------------------
+
+testWriteModeTruncates :: IO ()
+testWriteModeTruncates =
+    withSystemTempDirectory "fs_handle" $ \dir -> do
+        let fp = dir </> "truncate.txt"
+        IO.writeFile fp "hello world\n"
+        p <- Path.fromString fp
+        withFile p WriteMode (`hPutStr` "hi\n")
+        IO.readFile fp >>= \str -> length str `seq` str `shouldBe` "hi\n"
+
+-- | Opening a directory fails after the file descriptor is opened, when the
+-- Handle is made.
+testNoFdLeak :: IO ()
+testNoFdLeak = do
+    hasProc <- doesDirectoryExist "/proc/self/fd"
+    if not hasProc
+    then pendingWith "/proc/self/fd is not available"
+    else
+        withSystemTempDirectory "fs_handle" $ \dir -> do
+            p <- Path.fromString dir
+            fdsBefore <- length <$> listDirectory "/proc/self/fd"
+            replicateM_ 10 $ do
+                r <- try (openFile p ReadMode >>= hClose)
+                    :: IO (Either IOException ())
+                r `shouldSatisfy` isLeft
+            fdsAfter <- length <$> listDirectory "/proc/self/fd"
+            fdsAfter `shouldBe` fdsBefore
+
+-- These tests count the open file descriptors, they must not run concurrently
+-- with other tests.
+openFileTests :: Spec
+openFileTests =
+    describe "openFile" $ do
+        it "WriteMode truncates the file" testWriteModeTruncates
+        it "No fd leak when the Handle cannot be made" testNoFdLeak
+
 moduleName :: String
 moduleName = "FileSystem.Handle"
 
 main :: IO ()
-main =
+main = do
+    hspec $ describe moduleName openFileTests
     hspec $
-    H.parallel $
-    modifyMaxSuccess (const maxTestCount) $ do
-      describe moduleName $ do
-        describe "Read From Handle" $ do
-            prop "read" $ testRead readFromHandle
-            prop "readWith" $ testRead readWithBufferFromHandle
-            prop "readChunks" $ testRead readChunksFromHandle
-            prop "readChunksWith" $ testRead readChunksWithBuffer
-            prop "readChunksFromToWith (0,0,n)"
-                testReadChunksFromToWithFirstByte
-            prop "readChunksFromToWith (1,1,n)"
-                testReadChunksFromToWithSecondByte
-            prop "readChunksFromToWith (1,10,n)"
-                testReadChunksFromToWithSecondToTenthBytes
-            prop "readChunksFromToWith (n,<2n,n)"
-                testReadChunksFromToWithBuffSizeOffset
-            prop "readChunksFromToWith (n,>2n,n)"
-                testReadChunksFromToWithMultiBuff
-            prop "readChunksFromToWith (n,<n,n)"
-                testReadChunksFromToWithRangeInvalid
-        describe "Write To Handle" $ do
-            prop "write" $ testWrite Handle.write
-            prop "writeWith"
-                $ testWrite $ Handle.writeWith 1024
-            -- XXX This test needs a lot of stack when built with -O0
-            prop "writeChunks" testWriteWithChunk
+        H.parallel $
+        modifyMaxSuccess (const maxTestCount) $ do
+          describe moduleName $ do
+            describe "Read From Handle" $ do
+                prop "read" $ testRead readFromHandle
+                prop "readWith" $ testRead readWithBufferFromHandle
+                prop "readChunks" $ testRead readChunksFromHandle
+                prop "readChunksWith" $ testRead readChunksWithBuffer
+                prop "readChunksFromToWith (0,0,n)"
+                    testReadChunksFromToWithFirstByte
+                prop "readChunksFromToWith (1,1,n)"
+                    testReadChunksFromToWithSecondByte
+                prop "readChunksFromToWith (1,10,n)"
+                    testReadChunksFromToWithSecondToTenthBytes
+                prop "readChunksFromToWith (n,<2n,n)"
+                    testReadChunksFromToWithBuffSizeOffset
+                prop "readChunksFromToWith (n,>2n,n)"
+                    testReadChunksFromToWithMultiBuff
+                prop "readChunksFromToWith (n,<n,n)"
+                    testReadChunksFromToWithRangeInvalid
+            describe "Write To Handle" $ do
+                prop "write" $ testWrite Handle.write
+                prop "writeWith"
+                    $ testWrite $ Handle.writeWith 1024
+                -- XXX This test needs a lot of stack when built with -O0
+                prop "writeChunks" testWriteWithChunk

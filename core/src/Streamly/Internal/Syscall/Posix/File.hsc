@@ -80,11 +80,14 @@ module Streamly.Internal.Syscall.Posix.File
 -- Imports
 -------------------------------------------------------------------------------
 
+import Control.Exception (onException)
+import Control.Monad (when)
 import Data.Bits ((.|.), (.&.), complement)
 import Foreign.C.Error (throwErrnoIfMinus1_)
 import Foreign.C.String (CString)
 import Foreign.C.Types (CInt(..))
-import GHC.IO.Handle.FD (fdToHandle)
+import GHC.IO.Device (IODeviceType(..))
+import GHC.IO.Handle.FD (mkHandleFromFD)
 import Streamly.Internal.Syscall.Posix.Errno (throwErrnoPathIfMinus1Retry)
 import Streamly.Internal.FileSystem.PosixPath (PosixPath)
 import System.IO (IOMode(..), Handle)
@@ -96,8 +99,11 @@ import System.Posix.Internals
 import qualified System.Posix.Internals as Posix (c_close, c_open)
 ##endif
 
+import qualified GHC.IO.Device as Device
+import qualified GHC.IO.FD as FD
 import qualified Streamly.Internal.FileSystem.File.Common as File
 import qualified Streamly.Internal.FileSystem.PosixPath as Path
+import qualified System.Posix.Internals as Posix
 
 -- We want to remain close to the Posix C API. A function based API to set and
 -- clear the modes is simple, type safe and directly mirrors the C API. It does
@@ -282,32 +288,25 @@ openAt fdMay path flags cmode =
         $ openAtCString fdMay cstr flags cmode
 
 
--- | Open a regular file, return an Fd.
+-- | The open flags and the create mode for opening a regular file in the given
+-- 'IOMode'.
 --
 -- Sets O_NOCTTY, O_NONBLOCK flags to be compatible with the base openFile
 -- behavior. O_NOCTTY affects opening of terminal special files and O_NONBLOCK
 -- affects fifo special files, and mandatory locking.
 --
-openFileFdWith :: OpenFlags -> PosixPath -> IOMode -> IO Fd
-openFileFdWith oflags path iomode = do
+openFileFlags :: OpenFlags -> IOMode -> (OpenFlags, Maybe FileMode)
+openFileFlags oflags iomode =
     case iomode of
-        ReadMode -> open1 (setReadOnly oflags1) Nothing
-        WriteMode ->
-            open1 (setWriteOnly oflags1) (Just defaultCreateMode)
+        ReadMode -> (setReadOnly oflags1, Nothing)
+        WriteMode -> (setWriteOnly oflags1, Just defaultCreateMode)
         AppendMode ->
-            open1
-                ((setAppend True . setWriteOnly) oflags1)
-                (Just defaultCreateMode)
-        ReadWriteMode ->
-            open1 (setReadWrite oflags) (Just defaultCreateMode)
+            ((setAppend True . setWriteOnly) oflags1, Just defaultCreateMode)
+        ReadWriteMode -> (setReadWrite oflags1, Just defaultCreateMode)
 
     where
 
     oflags1 = setNoCtty True $ setNonBlock True oflags
-    open1 = openAt Nothing path
-
-openFileFd :: PosixPath -> IOMode -> IO Fd
-openFileFd = openFileFdWith defaultOpenFlags
 
 foreign import ccall unsafe "unistd.h close"
    c_close_ :: CInt -> IO CInt
@@ -326,11 +325,33 @@ close (Fd fd) = throwErrnoIfMinus1_ ("close " ++ show fd) (c_close fd)
 -- base openFile compatible, Handle returning, APIs
 -------------------------------------------------------------------------------
 
--- | Open a regular file, return a Handle. The file is locked, the Handle is
--- NOT set up to close the file on garbage collection.
-{-# INLINE openFileHandle #-}
+-- | Like openFile in base. open() can be slow, e.g. on NFS or FUSE file
+-- systems, or block, so use an interruptible foreign call for it.
+interruptibleOpen :: CString -> CInt -> CMode -> IO CInt
+##if MIN_VERSION_base(4,16,0)
+interruptibleOpen = Posix.c_interruptible_open
+##else
+interruptibleOpen = Posix.c_safe_open
+##endif
+
+-- | Open a file and return a Handle in binary mode. Like openFile in base,
+-- the file is locked and a file opened in 'WriteMode' is truncated.
 openFileHandle :: PosixPath -> IOMode -> IO Handle
-openFileHandle p x = openFileFd p x >>= fdToHandle . fromIntegral
+openFileHandle path iomode = do
+    let (flags, cmode) = openFileFlags defaultOpenFlags iomode
+        OpenFlags flags1 = maybe flags (\_ -> setCreat True flags) cmode
+        FileMode mode = maybe defaultCreateMode id cmode
+    fd <- Path.asCString path $ \cstr ->
+        throwErrnoPathIfMinus1Retry "openFile" path
+            $ interruptibleOpen cstr flags1 mode
+    (fD, fdType) <-
+        FD.mkFD fd iomode Nothing False True `onException` c_close fd
+    -- Like base, truncate after locking the file, ftruncate fails on special
+    -- files like /dev/null.
+    when (iomode == WriteMode && fdType == RegularFile)
+        $ Device.setSize fD 0 `onException` Device.close fD
+    mkHandleFromFD fD fdType (Path.toString path) iomode False Nothing
+        `onException` Device.close fD
 
 -- | Like openFile in base package but using Path instead of FilePath.
 -- Use hSetBinaryMode on the handle if you want to use binary mode.

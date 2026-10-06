@@ -22,6 +22,12 @@
   is the separator without its last element, and it follows an earlier
   separator, e.g. separator `"abc"` and input `"abcab"`.
 
+* On POSIX platforms, the `Path` based APIs that open an existing file in
+  `WriteMode`, e.g. `write` and `withFile` in `Streamly.FileSystem.FileIO`,
+  did not truncate it, the old contents beyond the newly written data
+  remained. The file descriptor leaked when the file could not be opened as
+  a Handle, e.g. if it was a directory or was locked.
+
 ### Breaking changes
 
 * In Scanl module, `filter` and any other filtering operations like
