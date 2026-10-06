@@ -1,0 +1,123 @@
+name: JS
+
+# Build streamly-core and its tests with GHC's JavaScript backend and run the
+# tests with node. See cabal.project.ghcjs.
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - master
+
+jobs:
+  js:
+    name: "GHC JavaScript backend"
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    env:
+      # The JS cross compilers are in the ghcup cross release channel, each
+      # requires a specific emscripten version, see the channel metadata.
+      GHCVER: 9.12.2
+      GHCUP_CROSS_CHANNEL: https://raw.githubusercontent.com/haskell/ghcup-metadata/master/ghcup-cross-0.1.0.yaml
+      EMSDK_VERSION: 3.1.74
+      BUILDDIR: dist-newstyle-js
+      # Test suites known to fail on the JS backend, separated by spaces
+      KNOWN_FAILURES: ""
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+
+    - name: Install emscripten
+      uses: mymindstorm/setup-emsdk@v14
+      with:
+        version: ${{ env.EMSDK_VERSION }}
+        actions-cache-folder: emsdk-cache
+
+    - name: Install the GHC JS cross compiler
+      run: |
+        ghcup config add-release-channel $GHCUP_CROSS_CHANNEL
+        emconfigure ghcup install ghc --set javascript-unknown-ghcjs-$GHCVER
+        javascript-unknown-ghcjs-ghc --version
+        javascript-unknown-ghcjs-hsc2hs --version
+
+    # cabal.project.ghcjs uses the bin/ghcjs-ghc wrapper as the compiler. When
+    # cabal reuses a build directory it looks up ghc-pkg by its plain name,
+    # provide the plain names for the JS tools.
+    - name: Put the compiler wrapper and the JS tools in PATH
+      run: |
+        dir=$HOME/ghcjs-bin
+        mkdir -p $dir
+        cp bin/ghcjs-ghc $dir/
+        for t in ghc ghc-pkg hsc2hs; do
+          ln -s "$(command -v javascript-unknown-ghcjs-$t)" $dir/$t
+        done
+        echo $dir >> $GITHUB_PATH
+
+    - name: Cache cabal packages and store
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/cabal/packages
+          ~/.local/state/cabal/store
+        key: cabal-js-${{ env.GHCVER }}-${{ hashFiles('core/streamly-core.cabal', 'test/streamly-tests.cabal', 'bench-test-lib/bench-test-lib.cabal', 'cabal.project.ghcjs') }}
+        restore-keys: cabal-js-${{ env.GHCVER }}-
+
+    - name: Cache cabal build directory
+      uses: actions/cache@v4
+      with:
+        path: ${{ env.BUILDDIR }}
+        key: build-js-${{ env.GHCVER }}-${{ github.sha }}
+        restore-keys: build-js-${{ env.GHCVER }}-
+
+    # The splitmix release uses C code for its initial seed, which does not
+    # work on the JS backend. Use our fork, branch ghc-js-backend, which has
+    # the fix from the upstream PR
+    # https://github.com/haskellari/splitmix/pull/75. This is not in
+    # cabal.project.ghcjs because the nix shell gets splitmix patched from
+    # nixpkgs and cannot build it from source.
+    - name: Use the splitmix fork
+      run: |
+        cat > cabal.project.ghcjs.local <<'EOF'
+        source-repository-package
+          type: git
+          location: https://github.com/composewell/splitmix
+          tag: 6404d3c088904d07c2709f8f80a85e7182d4547e
+
+        package splitmix
+          tests: False
+        EOF
+
+    - name: Build
+      run: |
+        cabal update
+        cabal build --project-file=cabal.project.ghcjs \
+          --builddir=$BUILDDIR all
+
+    - name: Test
+      run: |
+        set +e
+        cabal test --keep-going --project-file=cabal.project.ghcjs \
+          --builddir=$BUILDDIR all 2>&1 | tee test.log
+        set -e
+        grep -E "^Test suite .*: (PASS|FAIL)$" test.log
+        failed=$(sed -n 's/^Test suite \(.*\): FAIL$/\1/p' test.log)
+        unexpected=
+        for t in $failed; do
+          case " $KNOWN_FAILURES " in
+            *" $t "*) echo "Known failure: $t" ;;
+            *) unexpected="$unexpected $t" ;;
+          esac
+        done
+        if [ -n "$unexpected" ]; then
+          echo "Unexpected failures:$unexpected"
+          exit 1
+        fi
+        # A test suite that fails to build is not reported as FAIL
+        if grep -q "^Error: \[Cabal-" test.log; then
+          echo "cabal test failed to build some test suites"
+          exit 1
+        fi
