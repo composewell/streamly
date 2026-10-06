@@ -245,7 +245,7 @@ instance forall a. Serialize a => Serialize [a] where
 
     -- {-# INLINE addSizeTo #-}
     addSizeTo acc xs =
-        foldl' addSizeTo (acc + Unbox.sizeOf (Proxy :: Proxy Int)) xs
+        foldl' addSizeTo (acc + Unbox.sizeOf (Proxy :: Proxy Int64)) xs
 
     -- Inlining this causes large compilation times for tests
     {-# INLINABLE deserializeAt #-}
@@ -277,12 +277,13 @@ instance forall a. Serialize a => Serialize [a] where
 
 instance Serialize (Array a) where
     {-# INLINE addSizeTo #-}
-    addSizeTo i (Array {..}) = i + (arrEnd - arrStart) + 8
+    addSizeTo i (Array {..}) =
+        i + (arrEnd - arrStart) + Unbox.sizeOf (Proxy :: Proxy Int64)
 
     {-# INLINE deserializeAt #-}
     deserializeAt off arr len = do
-        (off1, byteLen) <- deserializeAt off arr len :: IO (Int, Int)
-        let off2 = off1 + byteLen
+        (off1, byteLen64) <- deserializeAt off arr len :: IO (Int, Int64)
+        let off2 = off1 + (fromIntegral :: Int64 -> Int) byteLen64
         when (off2 > len) $
             error
                 $ "deserializeAt: accessing array at offset = "
@@ -296,7 +297,7 @@ instance Serialize (Array a) where
     {-# INLINE serializeAt #-}
     serializeAt off arr (Array {..}) = do
         let arrLen = arrEnd - arrStart
-        off1 <- serializeAt off arr arrLen
+        off1 <- serializeAt off arr ((fromIntegral :: Int -> Int64) arrLen)
         MBA.unsafePutSlice arrContents arrStart arr off1 arrLen
         pure (off1 + arrLen)
 
