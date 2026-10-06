@@ -25,7 +25,7 @@ import System.IO.Temp (withSystemTempDirectory)
 
 import qualified Streamly.Unicode.Stream as Unicode
 import qualified Streamly.Internal.Unicode.Stream as Unicode (lines)
-import qualified Streamly.Data.Stream.Prelude as Stream
+import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Data.StreamK as StreamK
 
@@ -180,12 +180,14 @@ runTests tmpDir = do
                testCorrectness pathsBig (listDirAppend id bigTree)
             it "listDirInterleave" $
                testCorrectness pathsBig (listDirInterleave id bigTree)
+#ifndef USE_STREAMLY_CORE
             it "listDirPar" $
                testCorrectness pathsBig (listDirPar id bigTree)
             it "listDirParInterleaved" $
                testCorrectness pathsBig (listDirParInterleaved id bigTree)
             it "listDirParOrdered" $
                testCorrectness pathsBig (listDirParOrdered id bigTree)
+#endif
             it "listDirChunkDfs" $
                testCorrectness pathsBig (listDirChunkDfs id bigTree)
             it "listDirChunkBfs" $
@@ -196,12 +198,14 @@ runTests tmpDir = do
                testCorrectness pathsBig (listDirChunkAppend id bigTree)
             it "listDirChunkInterleave" $
                testCorrectness pathsBig (listDirChunkInterleave id bigTree)
+#ifndef USE_STREAMLY_CORE
             it "listDirChunkPar" $
                testCorrectness pathsBig (listDirChunkPar id bigTree)
             it "listDirChunkParInterleaved" $
                testCorrectness pathsBig (listDirChunkParInterleaved id bigTree)
             it "listDirChunkParOrdered" $
                testCorrectness pathsBig (listDirChunkParOrdered id bigTree)
+#endif
             it "listDirChunkFoldDfs" $
                testCorrectness (tail pathsBig) (listDirChunkFoldDfs id bigTree)
             it "listDirChunkFoldBfs" $
@@ -212,6 +216,7 @@ runTests tmpDir = do
                testCorrectness (tail pathsBig) (listDirChunkFoldAppend id bigTree)
             it "listDirChunkFoldInterleave" $
                testCorrectness (tail pathsBig) (listDirChunkFoldInterleave id bigTree)
+#ifndef USE_STREAMLY_CORE
             it "listDirChunkFoldPar" $
                testCorrectness (tail pathsBig) (listDirChunkFoldPar id bigTree)
             it "listDirChunkFoldParInterleaved" $
@@ -219,6 +224,7 @@ runTests tmpDir = do
                    (tail pathsBig) (listDirChunkFoldParInterleaved id bigTree)
             it "listDirChunkFoldParOrdered" $
                testCorrectness (tail pathsBig) (listDirChunkFoldParOrdered id bigTree)
+#endif
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
         testSymLinkFollow tmpDir
 #endif

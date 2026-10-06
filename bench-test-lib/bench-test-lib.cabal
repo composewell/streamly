@@ -3,6 +3,11 @@ name:               bench-test-lib
 version:            0.1.0.0
 build-type:         Simple
 
+flag use-streamly-core
+  description: Depend only on streamly-core, leave out the concurrent listings
+  manual: True
+  default: False
+
 common compile-options
     default-language: Haskell2010
     ghc-options:    -Weverything
@@ -61,8 +66,11 @@ library
     exposed-modules:  BenchTestLib.DirIO
     build-depends:    base
                     , streamly-core
-                    , streamly
                     , directory
                     , filepath
+    if flag(use-streamly-core)
+      cpp-options: -DUSE_STREAMLY_CORE
+    else
+      build-depends: streamly
     hs-source-dirs:   src
     default-language: Haskell2010

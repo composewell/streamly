@@ -18,25 +18,31 @@ module BenchTestLib.DirIO
     , listDirConcatBfsRev
     , listDirAppend
     , listDirInterleave
+#ifndef USE_STREAMLY_CORE
     , listDirPar
     , listDirParInterleaved
     , listDirParOrdered
+#endif
     , listDirChunkDfs
     , listDirChunkBfs
     , listDirChunkBfsRev
     , listDirChunkAppend
     , listDirChunkInterleave
+#ifndef USE_STREAMLY_CORE
     , listDirChunkPar
     , listDirChunkParInterleaved
     , listDirChunkParOrdered
+#endif
     , listDirChunkFoldDfs
     , listDirChunkFoldBfs
     , listDirChunkFoldBfsRev
     , listDirChunkFoldAppend
     , listDirChunkFoldInterleave
+#ifndef USE_STREAMLY_CORE
     , listDirChunkFoldPar
     , listDirChunkFoldParInterleaved
     , listDirChunkFoldParOrdered
+#endif
     , listDirByteChunked
     , listDirByteChunkedFold
     ) where
@@ -60,7 +66,9 @@ import Streamly.Unicode.String (str)
 import System.Directory (createDirectoryIfMissing)
 import System.FilePath ((</>))
 
+#ifndef USE_STREAMLY_CORE
 import qualified Streamly.Data.Stream.Prelude as Stream
+#endif
 import qualified Streamly.Data.Array as Array
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream as Stream
@@ -304,6 +312,7 @@ listDirInterleave
 listDirInterleave f =
     listDirWith (mergeIterateWith (streamDir f) StreamK.interleave)
 
+#ifndef USE_STREAMLY_CORE
 {-# INLINE listDirPar #-}
 listDirPar
     :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
@@ -321,6 +330,7 @@ listDirParOrdered
     :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
 listDirParOrdered f =
     listDirWith (Stream.parConcatIterate (Stream.ordered True) (streamDir f))
+#endif
 
 --------------------------------------------------------------------------------
 -- Chunked
@@ -357,6 +367,7 @@ listDirChunkInterleave f =
     listDirChunkedWith
         (mergeIterateWith (streamDirChunked f) StreamK.interleave)
 
+#ifndef USE_STREAMLY_CORE
 {-# INLINE listDirChunkPar #-}
 listDirChunkPar
     :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
@@ -376,6 +387,7 @@ listDirChunkParOrdered
 listDirChunkParOrdered f =
     listDirChunkedWith
         (Stream.parConcatIterate (Stream.ordered True) (streamDirChunked f))
+#endif
 
 --------------------------------------------------------------------------------
 -- Chunked via readEitherFold + Fold.toList
@@ -420,6 +432,7 @@ listDirChunkFoldInterleave f =
     listDirChunkedFoldWith
         (mergeIterateWith (streamDirChunkedFold f) StreamK.interleave)
 
+#ifndef USE_STREAMLY_CORE
 {-# INLINE listDirChunkFoldPar #-}
 listDirChunkFoldPar
     :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
@@ -442,3 +455,4 @@ listDirChunkFoldParOrdered f =
     listDirChunkedFoldWith
         (Stream.parConcatIterate
             (Stream.ordered True) (streamDirChunkedFold f))
+#endif

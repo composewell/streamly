@@ -171,7 +171,9 @@ common test-dependencies
       , scientific        >= 0.0   && < 0.4
       , template-haskell  >= 2.12  && < 2.25
 
-  if !flag(use-streamly-core)
+  if flag(use-streamly-core)
+    cpp-options: -DUSE_STREAMLY_CORE
+  else
     build-depends: streamly
 
   if flag(fusion-plugin) && !arch(javascript) && !impl(ghc < 8.6)
@@ -193,6 +195,7 @@ library
     hs-source-dirs: lib
     if arch(javascript)
       js-sources: jsbits/readlink.js
+                , jsbits/symlink.js
     exposed-modules:
         Streamly.Test.Common
         Streamly.Test.Data.Scanl.Common
@@ -569,8 +572,6 @@ test-suite FileSystem.DirIO
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/FileSystem/DirIO.hs
-  if flag(use-streamly-core)
-    buildable: False
   build-depends:
       bench-test-lib
 
