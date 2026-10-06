@@ -310,6 +310,7 @@ library
     js-sources: jsbits/clock.js
               , jsbits/memchr.js
               , jsbits/chdir.js
+              , jsbits/readdir.js
 
     include-dirs:
           src

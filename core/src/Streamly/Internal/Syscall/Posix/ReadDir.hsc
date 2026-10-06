@@ -21,7 +21,9 @@ module Streamly.Internal.Syscall.Posix.ReadDir
     , readEitherChunks
     , readEitherFold
     , readEitherByteChunks
+#if !defined(javascript_HOST_ARCH)
     , readEitherByteChunksAt
+#endif
     , eitherReader
     , reader
 #endif
@@ -53,10 +55,14 @@ import Streamly.Internal.Data.Stream (Stream(..), Step(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
 import Streamly.Internal.FileSystem.Path (Path)
 import Streamly.Internal.Syscall.Posix.Errno (throwErrnoPathIfNullRetry)
+#if !defined(javascript_HOST_ARCH)
 import Streamly.Internal.Syscall.Posix.File
     (defaultOpenFlags, openAt, close)
+#endif
 import Streamly.Internal.FileSystem.PosixPath (PosixPath(..))
+#if !defined(javascript_HOST_ARCH)
 import System.Posix.Types (Fd(..))
+#endif
 
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Fold.Type as Fold
@@ -131,8 +137,10 @@ foreign import capi unsafe "closedir"
 foreign import capi unsafe "dirent.h opendir"
     c_opendir :: CString  -> IO (Ptr CDir)
 
+#if !defined(javascript_HOST_ARCH)
 foreign import capi unsafe "dirent.h fdopendir"
     c_fdopendir :: CInt  -> IO (Ptr CDir)
+#endif
 
 -- XXX The "unix" package uses a wrapper over readdir __hscore_readdir (see
 -- cbits/HsUnix.c in unix package) which uses readdir_r in some cases where
@@ -141,6 +149,38 @@ foreign import capi unsafe "dirent.h fdopendir"
 -- unix systems.
 foreign import capi unsafe "dirent.h readdir"
     c_readdir  :: Ptr CDir -> IO (Ptr CDirent)
+
+-- The JavaScript runtime returns a node fs.Dirent object as the struct dirent
+-- pointer, its fields are read using functions instead of offsets.
+#if defined(javascript_HOST_ARCH)
+foreign import ccall unsafe "__hscore_d_name"
+    c_direntName :: Ptr CDirent -> IO (Ptr CChar)
+
+foreign import ccall unsafe "streamly_dirent_type"
+    c_direntType :: Ptr CDirent -> IO CInt
+
+{-# INLINE direntName #-}
+direntName :: Ptr CDirent -> IO (Ptr CChar)
+direntName = c_direntName
+
+{-# INLINE direntType #-}
+direntType :: Ptr CDirent -> IO #{type unsigned char}
+direntType ptr = do
+    t <- c_direntType ptr
+    pure $ case t of
+        1 -> #const DT_DIR
+        2 -> #const DT_LNK
+        3 -> #const DT_REG
+        _ -> #const DT_UNKNOWN
+#else
+{-# INLINE direntName #-}
+direntName :: Ptr CDirent -> IO (Ptr CChar)
+direntName ptr = pure $ #{ptr struct dirent, d_name} ptr
+
+{-# INLINE direntType #-}
+direntType :: Ptr CDirent -> IO #{type unsigned char}
+direntType = #{peek struct dirent, d_type}
+#endif
 
 --------------------------------------------------------------------------------
 -- Functions
@@ -165,6 +205,7 @@ openDirStream p =
         dirp <- throwErrnoPathIfNullRetry "openDirStream" p $ c_opendir s
         return (DirStream dirp)
 
+#if !defined(javascript_HOST_ARCH)
 -- | Note that the supplied Fd is used by DirStream and when we close the
 -- DirStream the fd will be closed.
 openDirStreamAt :: Fd -> PosixPath -> IO DirStream
@@ -178,6 +219,7 @@ openDirStreamAt fd p = do
         $ c_fdopendir (fromIntegral fd1)
     -- XXX can we somehow clone fd1 instead of opening again?
     return (DirStream dirp)
+#endif
 
 -- | @closeDirStream dp@ calls @closedir@ to close
 --   the directory stream @dp@.
@@ -298,8 +340,8 @@ readDirStreamEither confMod (curdir, (DirStream dirp)) = loop
     ptr <- c_readdir dirp
     if (ptr /= nullPtr)
     then do
-        let dname = #{ptr struct dirent, d_name} ptr
-        dtype :: #{type unsigned char} <- #{peek struct dirent, d_type} ptr
+        dname <- direntName ptr
+        dtype <- direntType ptr
         -- dreclen :: #{type unsigned short} <- #{peek struct dirent, d_reclen} ptr
         -- It is possible to find the name length using dreclen and then use
         -- fromPtrN, but it is not straightforward because the reclen is
@@ -449,9 +491,8 @@ readEitherChunks confMod alldirs =
         dentPtr <- liftIO $ c_readdir dirp
         if (dentPtr /= nullPtr)
         then do
-            let dname = #{ptr struct dirent, d_name} dentPtr
-            dtype :: #{type unsigned char} <-
-                liftIO $ #{peek struct dirent, d_type} dentPtr
+            dname <- liftIO $ direntName dentPtr
+            dtype <- liftIO $ direntType dentPtr
 
             etype <- liftIO $ getEntryType conf curdir dname dtype
             case etype of
@@ -591,9 +632,8 @@ readEitherFold confMod alldirs (Fold fstep finitial _ ffinal) =
         dentPtr <- liftIO $ c_readdir dirp
         if (dentPtr /= nullPtr)
         then do
-            let dname = #{ptr struct dirent, d_name} dentPtr
-            dtype :: #{type unsigned char} <-
-                liftIO $ #{peek struct dirent, d_type} dentPtr
+            dname <- liftIO $ direntName dentPtr
+            dtype <- liftIO $ direntType dentPtr
 
             etype <- liftIO $ getEntryType conf curdir dname dtype
             case etype of
@@ -878,9 +918,8 @@ readEitherByteChunks confMod alldirs =
                         Nothing -> splitAndRealloc pos dname dirs1
 
                 handleDentry pos dentPtr = do
-                    let dname = #{ptr struct dirent, d_name} dentPtr
-                    dtype :: #{type unsigned char} <-
-                        liftIO $ #{peek struct dirent, d_type} dentPtr
+                    dname <- liftIO $ direntName dentPtr
+                    dtype <- liftIO $ direntType dentPtr
 
                     etype <- liftIO $ getEntryType conf curdir dname dtype
                     case etype of
@@ -888,6 +927,10 @@ readEitherByteChunks confMod alldirs =
                         EntryIsDir -> handleDirEnt pos dname
                         EntryIgnored -> nextEntry pos
 
+-- The JavaScript runtime supports neither opening a file relative to a
+-- directory descriptor nor fdopendir, readEitherByteChunksAt is not available
+-- with the JavaScript backend.
+#if !defined(javascript_HOST_ARCH)
 #if !defined(javascript_HOST_ARCH)
 {-# ANN type ByteChunksAt Fuse #-}
 #endif
@@ -998,9 +1041,8 @@ readEitherByteChunksAt confMod (ppath, alldirs) =
         dentPtr <- liftIO $ c_readdir dirp
         if (dentPtr /= nullPtr)
         then do
-            let dname = #{ptr struct dirent, d_name} dentPtr
-            dtype :: #{type unsigned char} <-
-                liftIO $ #{peek struct dirent, d_type} dentPtr
+            dname <- liftIO $ direntName dentPtr
+            dtype <- liftIO $ direntType dentPtr
 
             -- Keep the file check first as it is more likely
             etype <- liftIO $ getEntryType conf curdir dname dtype
@@ -1065,4 +1107,5 @@ readEitherByteChunksAt confMod (ppath, alldirs) =
                             (ByteChunksAtInit pfd xs mbarr pos)
                     else return $ Skip (ByteChunksAtInit pfd xs mbarr pos)
                 else liftIO $ throwErrno "readEitherByteChunks"
+#endif
 #endif
