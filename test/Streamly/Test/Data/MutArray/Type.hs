@@ -134,7 +134,10 @@ testPinUnpin = do
     pinned <- MArray.pin arr
     MArray.isPinned pinned `shouldBe` True
     unpinned <- MArray.unpin pinned
+    -- All byte arrays are pinned on the JavaScript backend
+#ifndef javascript_HOST_ARCH
     MArray.isPinned unpinned `shouldBe` False
+#endif
     lst <- MArray.toList unpinned
     lst `shouldBe` [1..5]
 

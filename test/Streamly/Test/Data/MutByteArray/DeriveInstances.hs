@@ -287,6 +287,10 @@ testGenericConsistency val = do
 checkSizeOf :: forall a. Unbox a => Proxy a -> Int -> IO ()
 checkSizeOf _ sz = sizeOf (Proxy :: Proxy a) `shouldBe` sz
 
+-- Int is 4 bytes on 32-bit platforms, e.g. the JavaScript backend
+intSize :: Int
+intSize = sizeOf (Proxy :: Proxy Int)
+
 #endif
 
 --------------------------------------------------------------------------------
@@ -294,7 +298,7 @@ checkSizeOf _ sz = sizeOf (Proxy :: Proxy a) `shouldBe` sz
 --------------------------------------------------------------------------------
 
 #define CHECK_SIZE(type, expectation) \
- it "checkSizeOf type" $ checkSizeOf (Proxy :: Proxy type) expectation
+ it "checkSizeOf type" $ checkSizeOf (Proxy :: Proxy type) (expectation)
 
 --------------------------------------------------------------------------------
 -- Tests
@@ -322,14 +326,14 @@ testCases = do
     CHECK_SIZE(Unit, 1)
     CHECK_SIZE(Unit1, 1)
     CHECK_SIZE(Unit2, 2)
-    CHECK_SIZE(Unit3, 17)
-    CHECK_SIZE(Unit4, 17)
+    CHECK_SIZE(Unit3, 2 * intSize + 1)
+    CHECK_SIZE(Unit4, 2 * intSize + 1)
     CHECK_SIZE(UnarySum, 1)
     CHECK_SIZE(UnarySum2, 2)
-    CHECK_SIZE(Single, 8)
-    CHECK_SIZE(Product2, 12)
-    CHECK_SIZE(SumOfProducts, 25)
-    CHECK_SIZE(NestedSOP, 26)
+    CHECK_SIZE(Single, intSize)
+    CHECK_SIZE(Product2, intSize + 4)
+    CHECK_SIZE(SumOfProducts, 3 * intSize + 1)
+    CHECK_SIZE(NestedSOP, 3 * intSize + 2)
 #endif
 
     it "Bool" $ testSerialization True

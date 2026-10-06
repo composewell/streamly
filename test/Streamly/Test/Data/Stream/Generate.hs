@@ -12,7 +12,7 @@ module Streamly.Test.Data.Stream.Generate (main) where
 
 import Data.Functor.Identity (Identity(..))
 import Data.IORef (newIORef, readIORef, writeIORef)
-import Data.Int (Int8)
+import Data.Int (Int8, Int64)
 import Data.Word (Word8, Word16)
 import Foreign.Marshal.Alloc (alloca)
 import Foreign.Marshal.Array (withArray)
@@ -202,7 +202,7 @@ testEnumerateFromThenToIntegral = do
         (Stream.enumerateFromThenToIntegral
             (-7537527385297985025)
             5092559113693760989
-            (6977257977275108264 :: Int))
+            (6977257977275108264 :: Int64))
         `shouldReturn` [-7537527385297985025, 5092559113693760989]
 
 testEnumerateFromThenToFractional :: Expectation

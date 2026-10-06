@@ -27,7 +27,7 @@ import Control.Exception (Exception, SomeException, try)
 import Control.Monad.Catch (throwM)
 import Control.Monad.Trans.State.Strict
 import Data.Functor.Identity
-import Data.Int (Int8)
+import Data.Int (Int8, Int64)
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Word (Word8)
 import Foreign.Marshal.Array (withArray)
@@ -281,7 +281,7 @@ enumerateFromThenToIntegralLargeStride :: Expectation
 enumerateFromThenToIntegralLargeStride =
     testUnfold
         UF.enumerateFromThenToIntegral
-        ( -7537527385297985025 :: Int
+        ( -7537527385297985025 :: Int64
         , 5092559113693760989
         , 6977257977275108264
         )
