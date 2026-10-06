@@ -573,6 +573,9 @@ getInterleaved = _interleaved
 -- | Spawn bound threads (i.e., spawn threads using 'forkOS' instead of
 -- 'forkIO'). The default value is 'False'.
 --
+-- Bound threads require the threaded runtime, they are not supported with
+-- the JavaScript backend.
+--
 -- /Unimplemented/
 boundThreads :: Bool -> Config -> Config
 boundThreads flag st = st { _bound = flag }

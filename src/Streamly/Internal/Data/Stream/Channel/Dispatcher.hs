@@ -298,6 +298,11 @@ dispatchWorkerPaced sv = do
                 done <- allThreadsDone (workerThreads sv)
                 when done $ void $ do
                     let us = fromRelTime64 (toRelTime64 s) :: MicroSecond64
+                    -- threadDelay takes an Int. On the JavaScript backend,
+                    -- and other platforms with a 32-bit Int, a delay longer
+                    -- than 35.8 minutes overflows. The delay is the time to
+                    -- the next element, it is that long only when the rate
+                    -- is lower than one element in 35.8 minutes.
                     liftIO $ threadDelay (fromIntegral us)
                     dispatchWorker 1 sv
                 return False

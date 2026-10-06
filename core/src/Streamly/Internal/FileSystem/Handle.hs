@@ -261,6 +261,9 @@ readChunksWithBufferOf = chunkReaderWith
 -- | The input to the unfold is @(from, to, bufferSize, handle)@. It starts
 -- reading from the offset `from` in the file and reads up to the offset `to`.
 --
+-- The offsets are 'Int'. On the JavaScript backend, and other platforms with a
+-- 32-bit 'Int', offsets beyond 2 GiB cannot be specified.
+--
 {-# INLINE_NORMAL chunkReaderFromToWith #-}
 chunkReaderFromToWith :: MonadIO m =>
     Unfold m (Int, Int, Int, Handle) (Array Word8)

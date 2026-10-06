@@ -943,6 +943,10 @@ genericLength = fromScanl Scanl.genericLength
 
 -- | Determine the length of the input stream.
 --
+-- The length is an 'Int'. On the JavaScript backend, and other platforms with
+-- a 32-bit 'Int', it overflows after @2^31 - 1@ elements, use 'genericLength'
+-- with a larger type, e.g. @Int64@, for longer streams.
+--
 -- Definition:
 --
 -- >>> length = Fold.genericLength
