@@ -26,12 +26,12 @@ module Streamly.Internal.Data.Time.Clock
     )
 where
 
-import Control.Concurrent (threadDelay, ThreadId)
+import Control.Concurrent (forkIO, threadDelay, ThreadId)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, takeMVar, tryPutMVar)
-import Control.Monad (forever, when, void)
+import Control.Monad (when, void)
 import Streamly.Internal.Data.Time.Units
     (MicroSecond64(..), fromAbsTime, addToAbsTime, toRelTime)
-import Streamly.Internal.Control.ForkIO (forkIOManaged)
+import System.Mem.Weak (Weak, deRefWeak)
 
 import qualified Streamly.Internal.Data.IORef as Unboxed
 
@@ -47,12 +47,16 @@ updateTimeVar clock timeVar = do
     t <- fromAbsTime <$> getTime clock
     Unboxed.modifyIORef' timeVar (const t)
 
+-- Returns False if the IORef is no longer reachable.
 {-# INLINE updateWithDelay #-}
 updateWithDelay :: RealFrac a =>
-    Clock -> a -> Unboxed.IORef MicroSecond64 -> IO ()
-updateWithDelay clock precision timeVar = do
+    Clock -> a -> Weak (Unboxed.IORef MicroSecond64) -> IO Bool
+updateWithDelay clock precision weakVar = do
     threadDelay (delayTime precision)
-    updateTimeVar clock timeVar
+    r <- deRefWeak weakVar
+    case r of
+        Nothing -> return False
+        Just timeVar -> updateTimeVar clock timeVar >> return True
 
     where
 
@@ -69,8 +73,8 @@ updateWithDelay clock precision timeVar = do
 
 -- | @asyncClock g@ starts a clock thread that updates an IORef with current
 -- time as a 64-bit value in microseconds, every 'g' seconds. The IORef can be
--- read asynchronously.  The thread exits automatically when the reference to
--- the returned 'ThreadId' is lost.
+-- read asynchronously.  The thread exits automatically when the IORef is no
+-- longer reachable.
 --
 -- Minimum granularity of clock update is 1 ms. Higher is better for
 -- performance.
@@ -82,8 +86,18 @@ asyncClock :: Clock -> Double -> IO (ThreadId, Unboxed.IORef MicroSecond64)
 asyncClock clock g = do
     timeVar <- Unboxed.newIORef 0
     updateTimeVar clock timeVar
-    tid <- forkIOManaged $ forever (updateWithDelay clock g timeVar)
+    -- The thread holds only a weak reference to timeVar. The consumers may
+    -- drop the returned ThreadId, so a finalizer on the ThreadId may kill the
+    -- thread at the next GC while timeVar is still being read.
+    weakVar <- Unboxed.mkWeakIORef timeVar (return ())
+    tid <- forkIO $ loop weakVar
     return (tid, timeVar)
+
+    where
+
+    loop weakVar = do
+        continue <- updateWithDelay clock g weakVar
+        when continue $ loop weakVar
 
 {-# INLINE readClock #-}
 readClock :: (ThreadId, Unboxed.IORef MicroSecond64) -> IO MicroSecond64
@@ -94,7 +108,7 @@ readClock (_, timeVar) = Unboxed.readIORef timeVar
 ------------------------------------------------------------------------------
 
 -- | Adjustable periodic timer.
-data Timer = Timer ThreadId (MVar ()) (IO ())
+data Timer = Timer ThreadId (MVar ()) (Unboxed.IORef MicroSecond64) (IO ())
 
 -- Set the expiry to current time + timer period
 {-# INLINE resetTimerExpiry #-}
@@ -104,18 +118,29 @@ resetTimerExpiry clock period timeVar = do
     let t1 = addToAbsTime t (toRelTime period)
     Unboxed.modifyIORef' timeVar (const (fromAbsTime t1))
 
+-- Returns False if the IORef is no longer reachable.
 {-# INLINE processTimerTick #-}
 processTimerTick :: RealFrac a =>
-    Clock -> a -> Unboxed.IORef MicroSecond64 -> MVar () -> IO () -> IO ()
-processTimerTick clock precision timeVar mvar reset = do
+       Clock
+    -> a
+    -> MicroSecond64
+    -> Weak (Unboxed.IORef MicroSecond64)
+    -> MVar ()
+    -> IO Bool
+processTimerTick clock precision period weakVar mvar = do
     threadDelay (delayTime precision)
-    t <- fromAbsTime <$> getTime clock
-    expiry <- Unboxed.readIORef timeVar
-    when (t >= expiry) $ do
-        -- non-blocking put so that we can process multiple timers in a
-        -- non-blocking manner in future.
-        void $ tryPutMVar mvar ()
-        reset
+    r <- deRefWeak weakVar
+    case r of
+        Nothing -> return False
+        Just timeVar -> do
+            t <- fromAbsTime <$> getTime clock
+            expiry <- Unboxed.readIORef timeVar
+            when (t >= expiry) $ do
+                -- non-blocking put so that we can process multiple timers in
+                -- a non-blocking manner in future.
+                void $ tryPutMVar mvar ()
+                resetTimerExpiry clock period timeVar
+            return True
 
     where
 
@@ -142,21 +167,33 @@ timer clock g period = do
     timeVar <- Unboxed.newIORef 0
     let p = round (period * 1e6) :: Int
         p1 = fromIntegral p :: MicroSecond64
-        reset = resetTimerExpiry clock p1 timeVar
-        process = processTimerTick clock g timeVar mvar reset
-    reset
-    tid <- forkIOManaged $ forever process
-    return $ Timer tid mvar reset
+    resetTimerExpiry clock p1 timeVar
+    -- The thread holds only a weak reference to timeVar, and exits when the
+    -- Timer is no longer reachable. It holds mvar strongly, otherwise a thread
+    -- blocked in waitTimer would be unreachable and get
+    -- BlockedIndefinitelyOnMVar.
+    weakVar <- Unboxed.mkWeakIORef timeVar (return ())
+    tid <- forkIO $ loop p1 weakVar mvar
+    return $ Timer tid mvar timeVar (resetTimerExpiry clock p1 timeVar)
+
+    where
+
+    loop p1 weakVar mvar = do
+        continue <- processTimerTick clock g p1 weakVar mvar
+        when continue $ loop p1 weakVar mvar
 
 -- | Blocking wait for a timer tick.
 {-# INLINE waitTimer #-}
 waitTimer :: Timer -> IO ()
-waitTimer (Timer _ mvar _) = takeMVar mvar
+waitTimer (Timer _ mvar timeVar _) = do
+    takeMVar mvar
+    -- Keep timeVar reachable, so that the timer thread keeps running
+    Unboxed.touchIORef timeVar
 
 -- | Resets the current period.
 {-# INLINE resetTimer #-}
 resetTimer :: Timer -> IO ()
-resetTimer (Timer _ _ reset) = reset
+resetTimer (Timer _ _ _ reset) = reset
 
 -- | Elongates the current period by specified amount.
 --
