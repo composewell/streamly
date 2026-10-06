@@ -28,6 +28,10 @@
   remained. The file descriptor leaked when the file could not be opened as
   a Handle, e.g. if it was a directory or was locked.
 
+* Fix `timesWith`, `absTimesWith`, `relTimesWith`, `timestamped` and the
+  other operations using `asyncClock`, the clock stopped advancing after a
+  major GC. Fix the same bug in `timer`, the timer stopped producing ticks.
+
 ### Breaking changes
 
 * In Scanl module, `filter` and any other filtering operations like

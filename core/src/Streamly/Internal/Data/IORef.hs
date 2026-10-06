@@ -1,3 +1,5 @@
+{-# LANGUAGE UnboxedTuples #-}
+
 -- |
 -- Module      : Streamly.Internal.Data.IORef
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -25,6 +27,8 @@ module Streamly.Internal.Data.IORef
 
     -- Construction
     , newIORef
+    , mkWeakIORef
+    , touchIORef
 
     -- Write
     , writeIORef
@@ -45,7 +49,10 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Kind (Type)
 #endif
 import Data.Proxy (Proxy(..))
-import Streamly.Internal.Data.MutByteArray.Type (MutByteArray)
+import GHC.Exts (mkWeak#)
+import GHC.IO (IO(..))
+import GHC.Weak (Weak(..))
+import Streamly.Internal.Data.MutByteArray.Type (MutByteArray(..))
 import Streamly.Internal.Data.Unbox (Unbox(..), sizeOf)
 
 import qualified Streamly.Internal.Data.MutByteArray.Type as MBA
@@ -66,6 +73,23 @@ newIORef x = do
     var <- MBA.new (sizeOf (Proxy :: Proxy a))
     pokeAt 0 var x
     return $ IORef var
+
+-- | Make a 'Weak' pointer to an 'IORef', with a finalizer that runs when the
+-- 'IORef' is no longer reachable. The key is the underlying mutable byte
+-- array, not the 'IORef' box, which the compiler may unbox and discard.
+--
+-- /Pre-release/
+mkWeakIORef :: IORef a -> IO () -> IO (Weak (IORef a))
+mkWeakIORef ref@(IORef (MutByteArray arr#)) (IO finalizer) = IO $ \s ->
+    case mkWeak# arr# ref finalizer s of
+        (# s1, w #) -> (# s1, Weak w #)
+
+-- | Keep the 'IORef' reachable at least up to this point, see 'mkWeakIORef'.
+--
+-- /Pre-release/
+{-# INLINE touchIORef #-}
+touchIORef :: IORef a -> IO ()
+touchIORef (IORef var) = MBA.touch var
 
 -- | Write a value to an 'IORef'.
 --

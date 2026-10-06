@@ -10,6 +10,7 @@
 
 module Streamly.Test.Data.Stream.Generate (main) where
 
+import Control.Concurrent (threadDelay)
 import Data.Functor.Identity (Identity(..))
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Int (Int8, Int64)
@@ -18,6 +19,7 @@ import Foreign.Marshal.Alloc (alloca)
 import Foreign.Marshal.Array (withArray)
 import Foreign.Storable (poke)
 import GHC.Ptr (Ptr(..))
+import System.Mem (performMajorGC)
 
 import qualified Streamly.Internal.Data.Stream as Stream
 
@@ -425,6 +427,14 @@ testAbsTimes = do
     xs <- toList (Stream.take 3 Stream.absTimes)
     length xs `shouldBe` 3
 
+-- The clock thread must keep running after a GC.
+testRelTimesWithGC :: Expectation
+testRelTimesWithGC = do
+    xs <- toList
+        $ Stream.mapM (\x -> performMajorGC >> threadDelay 20000 >> return x)
+        $ Stream.take 3 (Stream.relTimesWith 0.001)
+    and (zipWith (<) xs (drop 1 xs)) `shouldBe` True
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -513,5 +523,6 @@ main = hspec $ describe moduleName $ do
         it "times produces elements" testTimes
         it "relTimesWith produces elements" testRelTimesWith
         it "relTimes produces elements" testRelTimes
+        it "relTimesWith advances after a GC" testRelTimesWithGC
         it "absTimesWith produces elements" testAbsTimesWith
         it "absTimes produces elements" testAbsTimes
