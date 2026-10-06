@@ -89,6 +89,11 @@ import Streamly.Internal.Syscall.Posix.Errno (throwErrnoPathIfMinus1Retry)
 import Streamly.Internal.FileSystem.PosixPath (PosixPath)
 import System.IO (IOMode(..), Handle)
 import System.Posix.Types (Fd(..), CMode(..))
+##if defined(javascript_HOST_ARCH)
+import System.Posix.Internals
+    ( o_APPEND, o_CREAT, o_EXCL, o_NOCTTY, o_NONBLOCK, o_RDONLY, o_RDWR
+    , o_TRUNC, o_WRONLY )
+##endif
 
 import qualified Streamly.Internal.FileSystem.File.Common as File
 import qualified Streamly.Internal.FileSystem.PosixPath as Path
@@ -173,11 +178,19 @@ newtype OpenFlags = OpenFlags CInt
 name :: OpenFlags -> OpenFlags; \
 name (OpenFlags flags) = OpenFlags (flags .|. x)
 
--- foreign import ccall unsafe "HsBase.h __hscore_o_rdonly" o_RDONLY :: CInt
+-- The open of the JavaScript runtime interprets the flags using the values
+-- in System.Posix.Internals, not those in the C headers, and ignores the
+-- flags that it does not support.
+##if defined(javascript_HOST_ARCH)
+##define O_FLAG(c,js) (js)
+##else
+##define O_FLAG(c,js) (c)
+##endif
+
 -- These affect the first two bits in flags.
-MK_FLAG_API(setReadOnly,#{const O_RDONLY})
-MK_FLAG_API(setWriteOnly,#{const O_WRONLY})
-MK_FLAG_API(setReadWrite,#{const O_RDWR})
+MK_FLAG_API(setReadOnly,O_FLAG(#{const O_RDONLY},o_RDONLY))
+MK_FLAG_API(setWriteOnly,O_FLAG(#{const O_WRONLY},o_WRONLY))
+MK_FLAG_API(setReadWrite,O_FLAG(#{const O_RDWR},o_RDWR))
 
 ##define MK_BOOL_FLAG_API(name,x) \
 {-# INLINE name #-}; \
@@ -187,17 +200,17 @@ name False (OpenFlags flags) = OpenFlags (flags .&. complement x)
 
 -- setCreat is internal only, do not export this. This is automatically set
 -- when create mode is passed, otherwise cleared.
-MK_BOOL_FLAG_API(setCreat,#{const O_CREAT})
+MK_BOOL_FLAG_API(setCreat,O_FLAG(#{const O_CREAT},o_CREAT))
 
-MK_BOOL_FLAG_API(setExcl,#{const O_EXCL})
-MK_BOOL_FLAG_API(setNoCtty,#{const O_NOCTTY})
-MK_BOOL_FLAG_API(setTrunc,#{const O_TRUNC})
-MK_BOOL_FLAG_API(setAppend,#{const O_APPEND})
-MK_BOOL_FLAG_API(setNonBlock,#{const O_NONBLOCK})
-MK_BOOL_FLAG_API(setDirectory,#{const O_DIRECTORY})
-MK_BOOL_FLAG_API(setNoFollow,#{const O_NOFOLLOW})
-MK_BOOL_FLAG_API(setCloExec,#{const O_CLOEXEC})
-MK_BOOL_FLAG_API(setSync,#{const O_SYNC})
+MK_BOOL_FLAG_API(setExcl,O_FLAG(#{const O_EXCL},o_EXCL))
+MK_BOOL_FLAG_API(setNoCtty,O_FLAG(#{const O_NOCTTY},o_NOCTTY))
+MK_BOOL_FLAG_API(setTrunc,O_FLAG(#{const O_TRUNC},o_TRUNC))
+MK_BOOL_FLAG_API(setAppend,O_FLAG(#{const O_APPEND},o_APPEND))
+MK_BOOL_FLAG_API(setNonBlock,O_FLAG(#{const O_NONBLOCK},o_NONBLOCK))
+MK_BOOL_FLAG_API(setDirectory,O_FLAG(#{const O_DIRECTORY},0))
+MK_BOOL_FLAG_API(setNoFollow,O_FLAG(#{const O_NOFOLLOW},0))
+MK_BOOL_FLAG_API(setCloExec,O_FLAG(#{const O_CLOEXEC},0))
+MK_BOOL_FLAG_API(setSync,O_FLAG(#{const O_SYNC},0))
 
 -- | Default values for the 'OpenFlags'.
 --
