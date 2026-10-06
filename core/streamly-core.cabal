@@ -308,6 +308,7 @@ library
     import: lib-options
 
     js-sources: jsbits/clock.js
+              , jsbits/memchr.js
 
     include-dirs:
           src
