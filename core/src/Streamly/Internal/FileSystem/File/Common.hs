@@ -58,6 +58,11 @@ withOpenFile binary close_finally f fp iomode action =
         -- XXX In case of withFile it will be closed anyway, so do we even need
         -- this?
         addHandleFinalizer h handleFinalizer
+        -- XXX The Handles made by openFileHandle on POSIX and on Windows
+        -- (without WinIO) are already in binary mode, this is a no-op for
+        -- them. If that holds for WinIO as well, the binary argument and this
+        -- hSetBinaryMode can be removed, and openBinaryFile/withBinaryFile can
+        -- be made the same as openFile/withFile.
         when binary $ hSetBinaryMode h True
         r <- restore (action h) `onException` hClose h
         when close_finally $ hClose h

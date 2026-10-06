@@ -185,19 +185,35 @@ openFileHandle :: WindowsPath -> IOMode -> IO Handle
 openFileHandle p x = openFileFd False p x >>= fdToHandle p x
 
 -- | Like withFile in base package but using Path instead of FilePath.
--- Use hSetBinaryMode on the handle if you want to use binary mode.
+--
+-- Unlike base, the Handle is in binary mode, there is no character encoding
+-- or newline translation, it is the same as withBinaryFile.
+-- Streamly encodes and decodes text explicitly, e.g. using
+-- "Streamly.Unicode.Stream". Use 'System.IO.hSetEncoding' and
+-- 'System.IO.hSetNewlineMode' on the Handle to read or write text using
+-- System.IO functions like 'System.IO.hPutStr'.
 withFile :: WindowsPath -> IOMode -> (Handle -> IO r) -> IO r
 withFile = File.withFile False openFileHandle
 
 -- | Like openFile in base package but using Path instead of FilePath.
--- Use hSetBinaryMode on the handle if you want to use binary mode.
+--
+-- Unlike base, the Handle is in binary mode, there is no character encoding
+-- or newline translation, it is the same as openBinaryFile.
+-- Streamly encodes and decodes text explicitly, e.g. using
+-- "Streamly.Unicode.Stream". Use 'System.IO.hSetEncoding' and
+-- 'System.IO.hSetNewlineMode' on the Handle to read or write text using
+-- System.IO functions like 'System.IO.hPutStr'.
 openFile :: WindowsPath -> IOMode -> IO Handle
 openFile = File.openFile False openFileHandle
 
+-- XXX Without WinIO this is the same as withFile, the Handle is in binary
+-- mode in both cases. If that holds for WinIO as well, it can be removed.
 -- | Like withBinaryFile in base package but using Path instead of FilePath.
 withBinaryFile :: WindowsPath -> IOMode -> (Handle -> IO r) -> IO r
 withBinaryFile = File.withFile True openFileHandle
 
+-- XXX Without WinIO this is the same as openFile, the Handle is in binary
+-- mode in both cases. If that holds for WinIO as well, it can be removed.
 -- | Like openBinaryFile in base package but using Path instead of FilePath.
 openBinaryFile :: WindowsPath -> IOMode -> IO Handle
 openBinaryFile = File.openFile True openFileHandle
