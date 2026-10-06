@@ -21,6 +21,7 @@ module Streamly.Test.Data.MutByteArray.Serialize (main) where
 -- Imports
 --------------------------------------------------------------------------------
 
+import Data.Bits (finiteBitSize)
 import Data.Foldable (forM_)
 import Data.Word (Word8)
 import System.Random (randomRIO)
@@ -30,6 +31,7 @@ import Streamly.Data.MutByteArray (Serialize)
 import Streamly.Test.Data.MutByteArray.TH (genDatatype)
 
 import Data.Functor.Identity (Identity (..))
+import GHC.ByteOrder (ByteOrder(..), targetByteOrder)
 
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.MutByteArray as Serialize
@@ -237,6 +239,20 @@ testSerializeList sizeOfA val = do
 
     roundtrip val
 
+-- | Little endian bytes of a 64-bit word.
+word64 :: Integer -> [Word8]
+word64 n = [fromIntegral (n `div` (256 ^ i) `mod` 256) | i <- [0..7 :: Int]]
+
+-- | Little endian bytes of a 32-bit word.
+word32 :: Integer -> [Word8]
+word32 = take 4 . word64
+
+whenLittleEndian :: IO () -> IO ()
+whenLittleEndian act =
+    case targetByteOrder of
+        LittleEndian -> act
+        BigEndian -> pendingWith "the bytes are little endian"
+
 -- | The serialized bytes must be the same on all platforms of the same byte
 -- ordering, e.g. native 64-bit and the JavaScript backend. The expected bytes
 -- are little endian.
@@ -253,10 +269,68 @@ testPortableBytes = do
                        , 6, 0, 0, 0, 0, 0, 0, 0
                        ]
 
+    it "Integer" $ do
+        bytes (5 :: Integer) `shouldBe` [0, 5, 0, 0, 0, 0, 0, 0, 0]
+
+    -- A large Integer is serialized as the words of its BigNat, the tag
+    -- records the word size. On 64-bit platforms the bytes are the same as in
+    -- earlier releases.
+    it "large Integer" $
+        whenLittleEndian $
+            if finiteBitSize (0 :: Int) == 64
+            then do
+                bytes (2^(70 :: Int) :: Integer)
+                    `shouldBe` [1] ++ word64 16 ++ word64 0 ++ word64 64
+                bytes (-(2^(70 :: Int)) :: Integer)
+                    `shouldBe` [2] ++ word64 16 ++ word64 0 ++ word64 64
+            else do
+                bytes (2^(70 :: Int) :: Integer)
+                    `shouldBe` [3] ++ word64 12 ++ word32 0 ++ word32 0
+                                   ++ word32 64
+                bytes (-(2^(70 :: Int)) :: Integer)
+                    `shouldBe` [4] ++ word64 12 ++ word32 0 ++ word32 0
+                                   ++ word32 64
+
     where
 
     bytes :: Serialize a => a -> [Word8]
     bytes = Array.toList . Array.serialize'
+
+-- | Deserialize Integers serialized on platforms with different word sizes.
+-- A large Integer serialized on a 64-bit platform has tag 1 or 2 and 64-bit
+-- words, on a 32-bit platform tag 3 or 4 and 32-bit words. A value that fits
+-- in an Int64 is serialized as Int64.
+testIntegerAcrossWordSizes :: Spec
+testIntegerAcrossWordSizes = do
+    it "2^40 from a 32-bit platform" $
+        whenLittleEndian $
+            decode ([3] ++ word64 8 ++ word32 0 ++ word32 256)
+                `shouldBe` (2^(40 :: Int) :: Integer)
+    it "-(2^40) from a 32-bit platform" $
+        whenLittleEndian $
+            decode ([4] ++ word64 8 ++ word32 0 ++ word32 256)
+                `shouldBe` (-(2^(40 :: Int)) :: Integer)
+    it "2^70 from a 32-bit platform" $
+        whenLittleEndian $
+            decode ([3] ++ word64 12 ++ word32 0 ++ word32 0 ++ word32 64)
+                `shouldBe` (2^(70 :: Int) :: Integer)
+    it "2^70 from a 64-bit platform" $
+        whenLittleEndian $
+            decode ([1] ++ word64 16 ++ word64 0 ++ word64 64)
+                `shouldBe` (2^(70 :: Int) :: Integer)
+    it "-(2^70) from a 64-bit platform" $
+        whenLittleEndian $
+            decode ([2] ++ word64 16 ++ word64 0 ++ word64 64)
+                `shouldBe` (-(2^(70 :: Int)) :: Integer)
+    it "2^40 as Int64 from a 64-bit platform" $
+        whenLittleEndian $
+            decode ([0] ++ word64 (2^(40 :: Int)))
+                `shouldBe` (2^(40 :: Int) :: Integer)
+
+    where
+
+    decode :: [Word8] -> Integer
+    decode = fst . Array.deserialize . Array.fromList
 
 --------------------------------------------------------------------------------
 -- Tests
@@ -272,6 +346,7 @@ testCases = do
               (8 + 3 * 8 + 6 * 8)
               ([[1], [1, 2], [1, 2, 3]] :: [[Int]])
     describe "Portable bytes" testPortableBytes
+    describe "Integer across word sizes" testIntegerAcrossWordSizes
 
     describe "Edge Cases" $ do
         it "Unit" $ roundtrip Unit
