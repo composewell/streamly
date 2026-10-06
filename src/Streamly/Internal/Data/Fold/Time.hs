@@ -14,7 +14,7 @@ module Streamly.Internal.Data.Fold.Time
     )
 where
 
-import Control.Concurrent (threadDelay, forkIO, killThread)
+import Control.Concurrent (forkIO, killThread)
 import Control.Concurrent.MVar (MVar, newMVar, swapMVar, readMVar)
 import Control.Exception (SomeException(..), catch, mask)
 import Control.Monad (void)
@@ -23,6 +23,8 @@ import Streamly.Data.Fold (many)
 import Streamly.Internal.Data.Fold (Fold(..), Step (..))
 import Streamly.Internal.Control.Concurrent (MonadAsync, withRunInIO)
 import Streamly.Internal.Data.Tuple.Strict (Tuple3'(..))
+
+import qualified Streamly.Internal.Data.Stream as Stream (sleep)
 
 #include "DocTestDataFold.hs"
 
@@ -96,7 +98,7 @@ takeInterval n (Fold step initial done final) =
     final' (Tuple3' s _ _) = final s
 
     timerThread mv = do
-        liftIO $ threadDelay (round $ n * 1000000)
+        Stream.sleep n
         -- Use IORef + CAS? instead of MVar since its a Bool?
         liftIO $ void $ swapMVar mv True
 

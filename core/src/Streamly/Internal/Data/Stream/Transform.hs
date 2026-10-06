@@ -150,6 +150,7 @@ module Streamly.Internal.Data.Stream.Transform
     , intersperseEndByM_
     , intersperseBeginByM_
 
+    , sleep
     , delay
     , delayPre
     , delayPost
@@ -1795,16 +1796,28 @@ RENAME(intersperseMPrefix_,intersperseBeginByM_)
 -- XXX This should be in Prelude, should we export this as a helper function?
 
 -- | Block the current thread for specified number of seconds.
+--
+-- threadDelay takes the delay in microseconds as an Int. On the JavaScript
+-- backend, and other platforms with a 32-bit Int, it overflows after 35.8
+-- minutes, longer delays are split into multiple threadDelay calls.
 {-# INLINE sleep #-}
 sleep :: MonadIO m => Double -> m ()
-sleep n = liftIO $ threadDelay $ round $ n * 1000000
+sleep n = liftIO $ go (round (n * 1000000))
+
+    where
+
+    maxDelay :: Integer
+    maxDelay = fromIntegral (maxBound :: Int)
+
+    go us
+        | us > maxDelay = threadDelay maxBound >> go (us - maxDelay)
+        | otherwise = threadDelay (fromInteger us)
 
 -- | Introduce a delay of specified seconds between elements of the stream.
 --
 -- Definition:
 --
--- >>> sleep n = liftIO $ threadDelay $ round $ n * 1000000
--- >>> delay = Stream.intersperseM_ . sleep
+-- >>> delay = Stream.intersperseM_ . Stream.sleep
 --
 -- Example:
 --
@@ -1823,8 +1836,7 @@ delay = intersperseM_ . sleep
 --
 -- Definition:
 --
--- >>> sleep n = liftIO $ threadDelay $ round $ n * 1000000
--- >>> delayPost = Stream.intersperseEndByM_ . sleep
+-- >>> delayPost = Stream.intersperseEndByM_ . Stream.sleep
 --
 -- Example:
 --
@@ -1838,15 +1850,14 @@ delay = intersperseM_ . sleep
 --
 {-# INLINE delayPost #-}
 delayPost :: MonadIO m => Double -> Stream m a -> Stream m a
-delayPost n = intersperseMSuffix_ $ liftIO $ threadDelay $ round $ n * 1000000
+delayPost = intersperseMSuffix_ . sleep
 
 -- | Introduce a delay of specified seconds before consuming an element of a
 -- stream.
 --
 -- Definition:
 --
--- >>> sleep n = liftIO $ threadDelay $ round $ n * 1000000
--- >>> delayPre = Stream.intersperseBeginByM_ . sleep
+-- >>> delayPre = Stream.intersperseBeginByM_ . Stream.sleep
 --
 -- Example:
 --

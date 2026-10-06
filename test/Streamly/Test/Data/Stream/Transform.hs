@@ -10,6 +10,7 @@ module Streamly.Test.Data.Stream.Transform (main) where
 
 import Control.Exception (ErrorCall(..), catch)
 import Data.IORef (IORef, modifyIORef, newIORef, readIORef, writeIORef)
+import System.Timeout (timeout)
 import Streamly.Internal.Data.Stream (Stream)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units (NanoSecond64(..), fromRelTime64, diffAbsTime64)
@@ -444,6 +445,15 @@ testIndexedR =
         `shouldReturn` [(3, 10), (2, 20), (1, 30)]
 
 -------------------------------------------------------------------------------
+-- Inserting Time
+-------------------------------------------------------------------------------
+
+-- | One hour in microseconds does not fit in a 32-bit Int, e.g. on the
+-- JavaScript backend, sleep must not return early.
+testSleepLong :: Expectation
+testSleepLong = timeout 1000000 (Stream.sleep 3600) `shouldReturn` Nothing
+
+-------------------------------------------------------------------------------
 -- Time Indexing (smoke tests)
 -------------------------------------------------------------------------------
 
@@ -680,6 +690,9 @@ main = hspec
         it "indexed" testIndexed
         it "indexed empty" testIndexedEmpty
         it "indexedR" testIndexedR
+
+    describe "Inserting Time" $ do
+        it "sleep for an hour does not return early" testSleepLong
 
     describe "Time Indexing" $ do
         it "timestampWith produces elements" testTimestampWith

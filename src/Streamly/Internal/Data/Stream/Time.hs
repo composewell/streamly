@@ -57,7 +57,6 @@ module Streamly.Internal.Data.Stream.Time
     )
 where
 
-import Control.Concurrent (threadDelay)
 import Control.Exception (assert)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Heap (Entry(..))
@@ -92,6 +91,7 @@ import qualified Streamly.Internal.Data.Fold as Fold (Step(..))
 import qualified Streamly.Internal.Data.IsMap as IsMap
 import qualified Streamly.Internal.Data.Stream as Stream
     ( scanlMAfter'
+    , sleep
     , timeIndexed
     , timestamped
     )
@@ -133,7 +133,7 @@ periodic action n = Stream.repeatM timed
 
     where
 
-    timed = liftIO (threadDelay (round $ n * 1000000)) >> action
+    timed = Stream.sleep n >> action
 
 -- | Generate a tick stream consisting of '()' elements, each tick is generated
 -- after the specified time delay given in seconds.
