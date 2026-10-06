@@ -28,10 +28,6 @@ data Rec a =
 instance Arbitrary a => Arbitrary (Rec a) where
     arbitrary = Rec <$> arbitrary <*> arbitrary <*> arbitrary
 
-$(Serialize.deriveSerializeWith
-      (Serialize.encodeRecordFields True)
-      [d|instance Serialize a => Serialize (Rec a)|])
-
 data River
     = Ganga
     | Yamuna
@@ -41,6 +37,12 @@ data River
 instance Arbitrary River where
     arbitrary = elements [Ganga, Yamuna, Godavari]
 
-$(Serialize.deriveSerializeWith
-      (Serialize.encodeConstrNames True)
-      [d|instance Serialize River|])
+-- One splice, the JavaScript backend retains linker state for each splice.
+$(concat <$> sequence
+    [ Serialize.deriveSerializeWith
+          (Serialize.encodeRecordFields True)
+          [d|instance Serialize a => Serialize (Rec a)|]
+    , Serialize.deriveSerializeWith
+          (Serialize.encodeConstrNames True)
+          [d|instance Serialize River|]
+    ])

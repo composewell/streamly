@@ -56,7 +56,8 @@ import Test.Hspec as H
 -- Tests for Serialize type class
 #define TYPE_CLASS Serialize
 #define MODULE_NAME "Data.Serialize.Deriving.TH"
-#define DERIVE_UNBOX(typ) $(deriveSerialize [d|instance Serialize typ|])
+-- All Serialize instances are derived by a single splice, see SERIALIZE_ALL.
+#define DERIVE_UNBOX(typ)
 #define PEEK(i, arr, sz) (deserializeAt i arr sz)
 #define POKE(i, arr, val) (serializeAt i arr val)
 
@@ -189,14 +190,26 @@ deriving instance Generic (Fingerprint)
 #endif
 
 #if defined(TEST_DERIVE_SERIALIZE)
-$(deriveSerialize
-    [d|instance Serialize a => Serialize (Complex a)|])
-$(deriveSerialize
-    [d|instance Serialize a => Serialize (Ratio a)|])
-$(deriveSerialize
-    [d|instance Serialize a => Serialize (Const a b)|])
-$(deriveSerialize
-    [d|instance Serialize a => Serialize (Identity a)|])
+-- SERIALIZE_ALL: The JavaScript backend retains several tens of MB of linker
+-- state for each splice it evaluates, one splice keeps the compilation
+-- within the memory limit.
+$(concat <$> mapM deriveSerialize
+    [ [d|instance Serialize Unit|]
+    , [d|instance Serialize UnarySum|]
+    , [d|instance Serialize UnarySum2|]
+    , [d|instance Serialize Unit1|]
+    , [d|instance Serialize Unit2|]
+    , [d|instance Serialize Unit3|]
+    , [d|instance Serialize Unit4|]
+    , [d|instance Serialize Single|]
+    , [d|instance Serialize Product2|]
+    , [d|instance Serialize SumOfProducts|]
+    , [d|instance Serialize NestedSOP|]
+    , [d|instance Serialize a => Serialize (Complex a)|]
+    , [d|instance Serialize a => Serialize (Ratio a)|]
+    , [d|instance Serialize a => Serialize (Const a b)|]
+    , [d|instance Serialize a => Serialize (Identity a)|]
+    ])
 #endif
 
 --------------------------------------------------------------------------------

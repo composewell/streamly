@@ -54,25 +54,22 @@ import Test.Hspec as H
 #endif
 
 --------------------------------------------------------------------------------
+-- Generated types
+--------------------------------------------------------------------------------
+
+$(genDatatype "CustomDatatype" 15)
+
+--------------------------------------------------------------------------------
 -- Edge case types
 --------------------------------------------------------------------------------
 
 data Unit =
     Unit
     deriving (Eq, Show)
-$(Serialize.deriveSerializeWith CONF [d|instance Serialize Unit|])
 
 data The =
     The Unit Int Char
     deriving (Eq, Show)
-$(Serialize.deriveSerializeWith CONF [d|instance Serialize The|])
-
---------------------------------------------------------------------------------
--- Generated types
---------------------------------------------------------------------------------
-
-$(genDatatype "CustomDatatype" 15)
-$(Serialize.deriveSerializeWith CONF [d|instance Serialize CustomDatatype|])
 
 --------------------------------------------------------------------------------
 -- Types with functional parameters
@@ -90,11 +87,6 @@ instance (Eq (f Int), Eq (f Char)) => Eq (HigherOrderType f) where
 instance (Show (f Int), Show (f Char)) => Show (HigherOrderType f) where
     show a = "HigherOrderType " ++ show (field0 a) ++ " " ++ show (field1 a)
 
-$(Serialize.deriveSerializeWith CONF
-      [d|instance Serialize a => Serialize (Identity a)|])
-$(Serialize.deriveSerializeWith CONF
-      [d|instance Serialize (HigherOrderType Identity)|])
-
 --------------------------------------------------------------------------------
 -- Recursive type
 --------------------------------------------------------------------------------
@@ -105,9 +97,21 @@ data BinTree a
   | Leaf a
   deriving (Show, Read, Eq, Generic)
 
-$(Serialize.deriveSerializeWith
-      CONF
-      [d|instance Serialize a => Serialize (BinTree a)|])
+--------------------------------------------------------------------------------
+-- Serialize instances
+--------------------------------------------------------------------------------
+
+-- The JavaScript backend retains several tens of MB of linker state for each
+-- splice it evaluates, one splice keeps the compilation within the memory
+-- limit.
+$(concat <$> mapM (Serialize.deriveSerializeWith CONF)
+    [ [d|instance Serialize Unit|]
+    , [d|instance Serialize The|]
+    , [d|instance Serialize CustomDatatype|]
+    , [d|instance Serialize a => Serialize (Identity a)|]
+    , [d|instance Serialize (HigherOrderType Identity)|]
+    , [d|instance Serialize a => Serialize (BinTree a)|]
+    ])
 
 -- XXX This may not terminate, or could become really large.
 instance Arbitrary a => Arbitrary (BinTree a) where
