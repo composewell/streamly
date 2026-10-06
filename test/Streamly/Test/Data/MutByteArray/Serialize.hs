@@ -237,6 +237,27 @@ testSerializeList sizeOfA val = do
 
     roundtrip val
 
+-- | The serialized bytes must be the same on all platforms of the same byte
+-- ordering, e.g. native 64-bit and the JavaScript backend. The expected bytes
+-- are little endian.
+testPortableBytes :: Spec
+testPortableBytes = do
+    it "Int" $ do
+        bytes (1 :: Int) `shouldBe` [1, 0, 0, 0, 0, 0, 0, 0]
+        bytes (-2 :: Int) `shouldBe` [254, 255, 255, 255, 255, 255, 255, 255]
+    it "Word" $ bytes (3 :: Word) `shouldBe` [3, 0, 0, 0, 0, 0, 0, 0]
+    it "[Int]" $
+        bytes ([5, 6] :: [Int])
+            `shouldBe` [ 2, 0, 0, 0, 0, 0, 0, 0
+                       , 5, 0, 0, 0, 0, 0, 0, 0
+                       , 6, 0, 0, 0, 0, 0, 0, 0
+                       ]
+
+    where
+
+    bytes :: Serialize a => a -> [Word8]
+    bytes = Array.toList . Array.serialize'
+
 --------------------------------------------------------------------------------
 -- Tests
 --------------------------------------------------------------------------------
@@ -250,6 +271,7 @@ testCases = do
         $ testSerializeList
               (8 + 3 * 8 + 6 * 8)
               ([[1], [1, 2], [1, 2, 3]] :: [[Int]])
+    describe "Portable bytes" testPortableBytes
 
     describe "Edge Cases" $ do
         it "Unit" $ roundtrip Unit

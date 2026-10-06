@@ -37,6 +37,7 @@ import Data.Functor.Const (Const (..))
 import Data.Functor.Identity (Identity (..))
 import Data.Proxy (Proxy(..))
 import GHC.Generics (Generic, Rep)
+import Data.Int (Int64)
 import GHC.Real (Ratio(..))
 
 import Streamly.Internal.Data.MutByteArray
@@ -189,6 +190,7 @@ DERIVE_UNBOX(NestedSOP)
 
 -- The following types don't have a Generic instance by default
 deriving instance Generic (Ratio Int)
+deriving instance Generic (Ratio Int64)
 #if !MIN_VERSION_base(4,15,0)
 deriving instance Generic (Fingerprint)
 #endif
@@ -360,14 +362,16 @@ testCases = do
     it "Identity Int" $ testSerialization (Identity 56760 :: Identity Int)
 
     it "GenericConsistency Bool" $ testGenericConsistency True
-    it "GenericConsistency (Complex Int)"
-        $ testGenericConsistency (5 :+ 3 :: Complex Int)
-    it "GenericConsistency (Ratio Int)"
-        $ testGenericConsistency (5 :% 3 :: Ratio Int)
+    -- Int64, not Int, the serialized size of Int is 8 bytes on all platforms,
+    -- its size in memory is 4 bytes on 32-bit platforms.
+    it "GenericConsistency (Complex Int64)"
+        $ testGenericConsistency (5 :+ 3 :: Complex Int64)
+    it "GenericConsistency (Ratio Int64)"
+        $ testGenericConsistency (5 :% 3 :: Ratio Int64)
     it "GenericConsistency (Const Float Int)"
         $ testGenericConsistency (Const 333.5678 :: Const Float Int)
-    it "GenericConsistency (Identity Int)"
-        $ testGenericConsistency (Identity 56760 :: Identity Int)
+    it "GenericConsistency (Identity Int64)"
+        $ testGenericConsistency (Identity 56760 :: Identity Int64)
 
     it "Fingerprint" $ testSerialization (Fingerprint 123456 876588)
     it "GenericConsistency Fingerprint"

@@ -16,7 +16,13 @@ module Streamly.Internal.Data.Serialize.Type
 -- Imports
 --------------------------------------------------------------------------------
 
+-- For WORD_SIZE_IN_BITS
+#include "MachDeps.h"
+
 import Control.Monad (when)
+#if WORD_SIZE_IN_BITS != 64
+import Data.Bits (toIntegralSized)
+#endif
 import Data.List (foldl')
 import Data.Proxy (Proxy (..))
 import Streamly.Internal.Data.Unbox (Unbox)
@@ -74,6 +80,15 @@ import Prelude hiding (Foldable(..))
 -- IMPORTANT: The serialized data's byte ordering remains the same as the host
 -- machine's byte order. Therefore, it can not be deserialized from host
 -- machines with a different byte ordering.
+--
+-- 'Int' and 'Word' are serialized as 8 bytes on all platforms, therefore,
+-- data serialized by a program built with the JavaScript backend, or on
+-- another platform with a 32-bit 'Int', can be deserialized by a native
+-- 64-bit program and vice versa, if the byte ordering is the same. On the
+-- JavaScript backend, deserializing a value that does not fit in a 32-bit
+-- 'Int' or 'Word' is an error. The serialization of an 'Array' contains the
+-- bytes of its elements as they are in memory, the size of 'Int' elements is
+-- 4 bytes on the JavaScript backend and 8 bytes on 64-bit platforms.
 --
 -- Instances can be derived via Template Haskell, or written manually.
 --
@@ -227,9 +242,7 @@ DERIVE_SERIALIZE_FROM_UNBOX(Char)
 DERIVE_SERIALIZE_FROM_UNBOX(Int8)
 DERIVE_SERIALIZE_FROM_UNBOX(Int16)
 DERIVE_SERIALIZE_FROM_UNBOX(Int32)
-DERIVE_SERIALIZE_FROM_UNBOX(Int)
 DERIVE_SERIALIZE_FROM_UNBOX(Int64)
-DERIVE_SERIALIZE_FROM_UNBOX(Word)
 DERIVE_SERIALIZE_FROM_UNBOX(Word8)
 DERIVE_SERIALIZE_FROM_UNBOX(Word16)
 DERIVE_SERIALIZE_FROM_UNBOX(Word32)
@@ -240,6 +253,44 @@ DERIVE_SERIALIZE_FROM_UNBOX((StablePtr a))
 DERIVE_SERIALIZE_FROM_UNBOX((Ptr a))
 DERIVE_SERIALIZE_FROM_UNBOX((FunPtr a))
 DERIVE_SERIALIZE_FROM_UNBOX(Fingerprint)
+
+-- Int and Word are serialized as 8 bytes on all platforms so that data
+-- serialized on the JavaScript backend, which has a 32-bit Int, can be
+-- deserialized by native 64-bit code and vice versa.
+#if WORD_SIZE_IN_BITS == 64
+DERIVE_SERIALIZE_FROM_UNBOX(Int)
+DERIVE_SERIALIZE_FROM_UNBOX(Word)
+#else
+instance Serialize Int where
+    {-# INLINE addSizeTo #-}
+    addSizeTo acc _ = acc + Unbox.sizeOf (Proxy :: Proxy Int64)
+
+    {-# INLINE deserializeAt #-}
+    deserializeAt off arr end = do
+        (off1, val) <- deserializeAt off arr end :: IO (Int, Int64)
+        case toIntegralSized val of
+            Just x -> pure (off1, x)
+            Nothing -> error $ "deserializeAt: Int value out of range: " ++ show val
+
+    {-# INLINE serializeAt #-}
+    serializeAt off arr val =
+        serializeAt off arr ((fromIntegral :: Int -> Int64) val)
+
+instance Serialize Word where
+    {-# INLINE addSizeTo #-}
+    addSizeTo acc _ = acc + Unbox.sizeOf (Proxy :: Proxy Word64)
+
+    {-# INLINE deserializeAt #-}
+    deserializeAt off arr end = do
+        (off1, val) <- deserializeAt off arr end :: IO (Int, Word64)
+        case toIntegralSized val of
+            Just x -> pure (off1, x)
+            Nothing -> error $ "deserializeAt: Word value out of range: " ++ show val
+
+    {-# INLINE serializeAt #-}
+    serializeAt off arr val =
+        serializeAt off arr ((fromIntegral :: Word -> Word64) val)
+#endif
 
 instance forall a. Serialize a => Serialize [a] where
 
