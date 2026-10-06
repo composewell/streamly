@@ -544,8 +544,6 @@ test-suite FileSystem.Handle
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/FileSystem/Handle.hs
   ghc-options: -main-is Streamly.Test.FileSystem.Handle.main
-  if flag(use-streamly-core)
-    buildable: False
 
 test-suite FileSystem.PathIO
   import: test-options
@@ -560,16 +558,12 @@ test-suite FileSystem.PosixPath
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/FileSystem/PosixPath.hs
   ghc-options: -main-is Streamly.Test.FileSystem.PosixPath.main
-  if flag(use-streamly-core)
-    buildable: False
 
 test-suite FileSystem.WindowsPath
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/FileSystem/WindowsPath.hs
   ghc-options: -main-is Streamly.Test.FileSystem.WindowsPath.main
-  if flag(use-streamly-core)
-    buildable: False
 
 test-suite FileSystem.DirIO
   import: test-options
@@ -627,16 +621,12 @@ test-suite Unicode.Parser
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Unicode/Parser.hs
   ghc-options: -main-is Streamly.Test.Unicode.Parser.main
-  if flag(use-streamly-core)
-    buildable: False
 
 test-suite Unicode.Stream
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Unicode/Stream.hs
   ghc-options: -main-is Streamly.Test.Unicode.Stream.main
-  if flag(use-streamly-core)
-    buildable: False
 
 test-suite version-bounds
   import: test-options
