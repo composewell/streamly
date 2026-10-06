@@ -34,7 +34,9 @@ import Data.Proxy (Proxy(..))
 #ifdef FUSE_ANNOTATIONS
 import Fusion.Plugin.Types (Fuse(..))
 #endif
+#ifdef SPEC_CONSTR_ANNOTATIONS
 import GHC.Exts (SpecConstrAnnotation(..))
+#endif
 import GHC.Types (SPEC(..))
 import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.Data.Parser (ParseError(..), ParseErrorPos(..))
@@ -58,7 +60,7 @@ import Prelude hiding (splitAt)
 
 -- GHC parser does not accept {-# ANN type [] NoSpecConstr #-}, so we need
 -- to make a newtype.
-{-# ANN type List NoSpecConstr #-}
+NO_SPEC_CONSTR_TYPE(List)
 newtype List a = List {getList :: [a]}
 
 -- The backracking buffer consists of arrays in the most-recent-first order. We

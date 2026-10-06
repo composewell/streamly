@@ -89,7 +89,9 @@ import Streamly.Internal.Data.Unbox (Unbox(..))
 #ifdef FUSE_ANNOTATIONS
 import Fusion.Plugin.Types (Fuse(..))
 #endif
+#ifdef SPEC_CONSTR_ANNOTATIONS
 import GHC.Exts (SpecConstrAnnotation(..))
+#endif
 import GHC.Types (SPEC(..))
 import Prelude hiding (null, last, (!!), read, concat, unlines)
 
@@ -271,7 +273,7 @@ splitAtArrayListRev n ls
 
 -- GHC parser does not accept {-# ANN type [] NoSpecConstr #-}, so we need
 -- to make a newtype.
-{-# ANN type List NoSpecConstr #-}
+NO_SPEC_CONSTR_TYPE(List)
 newtype List a = List {getList :: [a]}
 
 -- | Parse an array stream using the supplied 'Parser'.  Returns the parse
