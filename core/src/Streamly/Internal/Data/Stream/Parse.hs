@@ -1860,11 +1860,8 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
                             let jump c = SplitOnSuffixSeqKRInit c s mba
                             yieldReinit jump b
                 Skip s -> go SPEC offset s fs
-                Stop -> do
-                    -- do not issue a blank segment when we end at pattern
-                    if offset == maxOffset && A.byteEq arr patArr
-                    then final fs >> return Stop
-                    else if withSep
+                Stop ->
+                    if withSep
                     then do
                         r <- final fs
                         skip $ SplitOnSuffixSeqYield r SplitOnSuffixSeqDone

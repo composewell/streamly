@@ -17,6 +17,10 @@
   Unfold modules.
 * Fix `Unfold.enumerateFromTo` for the `Identity` type, it was incorrectly
   calling `enumerateFromThen` instead of `enumerateFromTo`.
+* Fix `Stream.splitEndBySeq` and `Stream.splitEndBySeq_` dropping the last
+  segment when the separator is longer than a machine word, the last segment
+  is the separator without its last element, and it follows an earlier
+  separator, e.g. separator `"abc"` and input `"abcab"`.
 
 ### Breaking changes
 

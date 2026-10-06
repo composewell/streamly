@@ -448,6 +448,12 @@ groupSplitOps desc = do
         f "..." "..." ["..."]
         f "." ".a" [".","a"]
         f "." "a." ["a."]
+        -- Patterns longer than a Word use the Karp-Rabin search, Char is 4
+        -- bytes, a 3 Char pattern is longer than a 64-bit Word.
+        f "abc" "abcab" ["abc","ab"]
+        f "abc" "abcabc" ["abc","abc"]
+        f "abc" "xabcab" ["xabc","ab"]
+        f "abcdefghi" "abcdefghiabcdefgh" ["abcdefghi","abcdefgh"]
 
     it "splitEndBySeq_ word hash cases" $ do
         let f sep input result =
@@ -471,6 +477,12 @@ groupSplitOps desc = do
         f "..." "..." [""]
         f "." ".a" ["","a"]
         f "." "a." ["a"]
+        -- Patterns longer than a Word use the Karp-Rabin search, Char is 4
+        -- bytes, a 3 Char pattern is longer than a 64-bit Word.
+        f "abc" "abcab" ["","ab"]
+        f "abc" "abcabc" ["",""]
+        f "abc" "xabcab" ["x","ab"]
+        f "abcdefghi" "abcdefghiabcdefgh" ["","abcdefgh"]
 
     it "splitSepBySeq_ word hash cases" $ do
         let f sep input result =
