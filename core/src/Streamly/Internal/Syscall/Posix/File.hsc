@@ -93,6 +93,7 @@ import System.Posix.Types (Fd(..), CMode(..))
 import System.Posix.Internals
     ( o_APPEND, o_CREAT, o_EXCL, o_NOCTTY, o_NONBLOCK, o_RDONLY, o_RDWR
     , o_TRUNC, o_WRONLY )
+import qualified System.Posix.Internals as Posix (c_close, c_open)
 ##endif
 
 import qualified Streamly.Internal.FileSystem.File.Common as File
@@ -225,7 +226,22 @@ defaultOpenFlags = OpenFlags 0
 
 -- XXX Should we use interruptible open as in base openFile?
 foreign import capi unsafe "fcntl.h openat"
-   c_openat :: CInt -> CString -> CInt -> CMode -> IO CInt
+   c_openat_ :: CInt -> CString -> CInt -> CMode -> IO CInt
+
+-- The JavaScript runtime opens a file synchronously when called via openat,
+-- and closes it asynchronously when called by base. The callback of the
+-- asynchronous close removes the descriptor from the runtime's table of open
+-- files after the descriptor is freed, when a synchronous open has reused the
+-- descriptor by then the new entry is removed, and closing the new file fails
+-- with EINVAL. Open and close the way base does, asynchronously.
+c_openat :: CInt -> CString -> CInt -> CMode -> IO CInt
+##if defined(javascript_HOST_ARCH)
+c_openat dirfd path flags mode
+    | dirfd == #{const AT_FDCWD} = Posix.c_open path flags mode
+    | otherwise = c_openat_ dirfd path flags mode
+##else
+c_openat = c_openat_
+##endif
 
 -- | Open and optionally create (when create mode is specified) a file relative
 -- to an optional directory file descriptor. If directory fd is not specified
@@ -294,7 +310,14 @@ openFileFd :: PosixPath -> IOMode -> IO Fd
 openFileFd = openFileFdWith defaultOpenFlags
 
 foreign import ccall unsafe "unistd.h close"
-   c_close :: CInt -> IO CInt
+   c_close_ :: CInt -> IO CInt
+
+c_close :: CInt -> IO CInt
+##if defined(javascript_HOST_ARCH)
+c_close = Posix.c_close
+##else
+c_close = c_close_
+##endif
 
 close :: Fd -> IO ()
 close (Fd fd) = throwErrnoIfMinus1_ ("close " ++ show fd) (c_close fd)
