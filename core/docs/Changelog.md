@@ -62,9 +62,9 @@
   item parser gives back some input, instead of parsing it with the next item.
 * Fix `Parser.filter` preventing backtracking over the elements it rejects,
   e.g. in an `Alternative` composition.
-* Fix `Stream.parseMany` and `parseIterate` running the parser once more
-  on empty input, emitting an error, when the parser backtracked at the end
-  of the stream.
+* Fix `Stream.parseMany` emitting a spurious result at the end, from a parser
+  run on no input, when the last item is parsed from the input given back by
+  the previous parser at the end of the stream.
 * Fix `Parser.streamEqBy` failing when the pattern stream skips, e.g. a
   filtered stream, and when the input ends after the last pattern element
   that is followed by a skip.

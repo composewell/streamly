@@ -5,6 +5,7 @@
 #endif
 module Main (main) where
 
+import Control.Applicative ((<|>))
 import Control.Exception (displayException)
 import Data.Char (isSpace)
 import Data.Foldable (for_)
@@ -179,6 +180,24 @@ parseMany2Events =
                 }
          in listEquals (==) xs (replicate 2 ev)
 
+-- The last item is parsed from the input given back by the previous parser at
+-- the end of the stream. A parser is not run on the empty input after it.
+parseManyBacktrackEOF :: SpecWith ()
+parseManyBacktrackEOF = do
+    let rights = map (either (const Nothing) Just)
+        input = S.fromList [1, 2, 3 :: Int]
+        takeEQ2 = P.takeEQ 2 FL.toList
+        expected = [Just [1, 2], Just [3]]
+    it "item failing on empty input" $ do
+        r <- S.toList $ S.parseMany (takeEQ2 <|> P.takeEQ 1 FL.toList) input
+        rights r `shouldBe` expected
+    it "item succeeding on empty input" $ do
+        r <- S.toList $ S.parseMany (takeEQ2 <|> P.takeBetween 0 1 FL.toList) input
+        rights r `shouldBe` expected
+    it "parseManyPos" $ do
+        r <- S.toList $ SI.parseManyPos (takeEQ2 <|> P.takeEQ 1 FL.toList) input
+        rights r `shouldBe` expected
+
 --------------------------------------------------------------------------------
 -- Parser sequence tests
 --------------------------------------------------------------------------------
@@ -315,6 +334,8 @@ main = do
         describe "Stream parsing" $ do
             prop "parseMany" parseMany
             prop "parseMany2Events" parseMany2Events
+            describe "parseMany, input given back at the end"
+                parseManyBacktrackEOF
 
         describe "test for sequence parser" $ do
             parseManyWordQuotedBy

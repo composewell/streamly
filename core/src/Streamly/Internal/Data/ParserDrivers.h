@@ -118,7 +118,9 @@ PARSE_MANY (PRD.Parser pstep initial extract) (Stream step state) =
                         (Left (PARSE_ERROR(i) err))
                         (ParseChunksInitLeftOver OPTIONAL(i) [])
 
-    -- The stream has stopped and there is no more input
+    -- The stream has ended and all the input given back by the last parser
+    -- has been parsed. As at the end of the stream in ParseChunksInit, a new
+    -- parser is not started without input.
     stepOuter _ (ParseChunksInitBuf OPTIONAL(_) []) = return Stop
 
     -- This is simplified ParseChunksInit
