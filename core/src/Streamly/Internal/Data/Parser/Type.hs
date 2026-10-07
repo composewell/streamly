@@ -1101,6 +1101,17 @@ splitMany (Parser step1 initial1 extract1) (Fold fstep finitial _ ffinal) =
                 assertM((- n) <= cnt)
                 fs1 <- fstep fs b
                 case fs1 of
+                    -- As in step, the input backtracked by the item parser
+                    -- is given to the next item. Unless the item consumed
+                    -- some input the next one would do the same, so we stop.
+                    FL.Partial s1 | n < 0, cnt + n > 0 -> do
+                        pres <- initial1
+                        case pres of
+                            IPartial ps ->
+                                return $ FContinue n (Fused3 ps 0 s1)
+                            -- An item that needs no input would repeat
+                            -- forever
+                            _ -> fmap (FDone n) (ffinal s1)
                     FL.Partial s1 -> fmap (FDone n) (ffinal s1)
                     FL.Done b1 -> return (FDone n b1)
             FContinue n s1 -> do
@@ -1162,6 +1173,17 @@ splitManyPost (Parser step1 initial1 extract1) (Fold fstep finitial _ ffinal) =
                 assertM((- n) <= cnt)
                 fs1 <- fstep fs b
                 case fs1 of
+                    -- As in step, the input backtracked by the item parser
+                    -- is given to the next item. Unless the item consumed
+                    -- some input the next one would do the same, so we stop.
+                    FL.Partial s1 | n < 0, cnt + n > 0 -> do
+                        pres <- initial1
+                        case pres of
+                            IPartial ps ->
+                                return $ FContinue n (Fused3 ps 0 s1)
+                            -- An item that needs no input would repeat
+                            -- forever
+                            _ -> fmap (FDone n) (ffinal s1)
                     FL.Partial s1 -> fmap (FDone n) (ffinal s1)
                     FL.Done b1 -> return (FDone n b1)
             FContinue n s1 -> do
@@ -1248,6 +1270,17 @@ splitSome (Parser step1 initial1 extract1) (Fold fstep finitial _ ffinal) =
                 assertM((- n) <= cnt)
                 fs1 <- fstep fs b
                 case fs1 of
+                    -- As in step, the input backtracked by the item parser
+                    -- is given to the next item. Unless the item consumed
+                    -- some input the next one would do the same, so we stop.
+                    FL.Partial s1 | n < 0, cnt + n > 0 -> do
+                        pres <- initial1
+                        case pres of
+                            IPartial ps ->
+                                return $ FContinue n (Fused3 ps 0 (Right s1))
+                            -- An item that needs no input would repeat
+                            -- forever
+                            _ -> fmap (FDone n) (ffinal s1)
                     FL.Partial s1 -> fmap (FDone n) (ffinal s1)
                     FL.Done b1 -> return (FDone n b1)
             FContinue n s1 -> do
@@ -1261,6 +1294,17 @@ splitSome (Parser step1 initial1 extract1) (Fold fstep finitial _ ffinal) =
                 assertM((- n) <= cnt)
                 fs1 <- fstep fs b
                 case fs1 of
+                    -- As in step, the input backtracked by the item parser
+                    -- is given to the next item. Unless the item consumed
+                    -- some input the next one would do the same, so we stop.
+                    FL.Partial s1 | n < 0, cnt + n > 0 -> do
+                        pres <- initial1
+                        case pres of
+                            IPartial ps ->
+                                return $ FContinue n (Fused3 ps 0 (Right s1))
+                            -- An item that needs no input would repeat
+                            -- forever
+                            _ -> fmap (FDone n) (ffinal s1)
                     FL.Partial s1 -> fmap (FDone n) (ffinal s1)
                     FL.Done b1 -> return (FDone n b1)
             FContinue n s1 -> do

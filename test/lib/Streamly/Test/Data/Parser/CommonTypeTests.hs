@@ -287,6 +287,34 @@ backtrackEOF p consumer =
             (Right xs, rest) -> xs == [1] && null rest
             (Left _, _) -> False
 
+-- An item of many or some that backtracks at the end of input. The input it
+-- gives back has to be parsed by the next item.
+
+itemBacktrackEOF :: Monad m => Parser Int m Int
+itemBacktrackEOF = P.satisfy (== 1) <* optionalPair
+
+repeatBacktrackEOF ::
+    (Parser Int Identity Int -> Fold Identity Int [Int] -> Parser Int Identity [Int])
+    -> ParserTestCase Int Identity [Int] Property
+repeatBacktrackEOF combinator consumer =
+    forAll (chooseInt (1, 10)) $ \len ->
+        let ins = replicate len 1
+         in case runIdentity
+                    $ consumer (combinator itemBacktrackEOF FL.toList) ins of
+                (Right xs, rest) -> xs == ins && null rest
+                (Left _, _) -> False
+
+-- The item gives back all of its input, the next item would do the same, so
+-- the repetition stops instead of looping.
+repeatNoProgressEOF ::
+    (Parser Int Identity (Maybe Int) -> Fold Identity (Maybe Int) [Maybe Int] -> Parser Int Identity [Maybe Int])
+    -> ParserTestCase Int Identity [Maybe Int] Property
+repeatNoProgressEOF combinator consumer =
+    property $
+        case runIdentity $ consumer (combinator optionalPair FL.toList) [1] of
+            (Right xs, rest) -> xs == [Nothing] && rest == [1]
+            (Left _, _) -> False
+
 backtrackEOFThenEOF :: ParserTestCase Int Identity (Maybe Int) Property
 backtrackEOFThenEOF consumer =
     property $
@@ -339,6 +367,15 @@ mainCommonType ptt = do
         prop "noErrorUnsafeConcatMap" $ runParserTC ptt $
             backtrackEOF (P.noErrorUnsafeConcatMap (const rest) optionalPair)
         prop "eof fails" $ runParserTC ptt backtrackEOFThenEOF
+        prop "splitMany" $ runParserTC ptt $ repeatBacktrackEOF P.splitMany
+        prop "splitManyPost" $ runParserTC ptt $ repeatBacktrackEOF P.splitManyPost
+        prop "splitSome" $ runParserTC ptt $ repeatBacktrackEOF P.splitSome
+        prop "splitMany, item consuming nothing" $ runParserTC ptt $
+            repeatNoProgressEOF P.splitMany
+        prop "splitManyPost, item consuming nothing" $ runParserTC ptt $
+            repeatNoProgressEOF P.splitManyPost
+        prop "splitSome, item consuming nothing" $ runParserTC ptt $
+            repeatNoProgressEOF P.splitSome
 
     describe "test for sequence parser" $ do
         prop "parse 0, then 1, else fail" $ runParserTC_temp ptt splitWith
