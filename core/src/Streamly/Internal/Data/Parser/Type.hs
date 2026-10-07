@@ -694,14 +694,14 @@ splitWith func (Parser stepL initialL extractL)
                 -- XXX Use bimap here if we use Step type in Initial
                 iR <- initialR
                 case iR of
-                    -- Feed the leftover of the left parser to the right one
-                    IPartial sR
-                        | n == 0 ->
-                            fmap
-                                (bimap (SeqParseR (func bL)) (func bL))
-                                (extractR sR)
-                        | otherwise ->
-                            return $ FContinue n (SeqParseR (func bL) sR)
+                    -- The input backtracked by the left parser has to be fed
+                    -- to the right parser before extracting it.
+                    IPartial sR | n < 0 ->
+                        return $ FContinue n (SeqParseR (func bL) sR)
+                    IPartial sR -> do
+                        fmap
+                            (bimap (SeqParseR (func bL)) (func bL))
+                            (extractR sR)
                     IDone bR -> return $ FDone n $ func bL bR
                     IError err -> return $ FError err
             FError err -> return $ FError err
@@ -774,13 +774,12 @@ noErrorUnsafeSplitWith func (Parser stepL initialL extractL)
             FDone n bL -> do
                 iR <- initialR
                 case iR of
-                    IPartial sR
-                        | n == 0 ->
-                            fmap
-                                (bimap (SeqParseR (func bL)) (func bL))
-                                (extractR sR)
-                        | otherwise ->
-                            return $ FContinue n (SeqParseR (func bL) sR)
+                    IPartial sR | n < 0 ->
+                        return $ FContinue n (SeqParseR (func bL) sR)
+                    IPartial sR -> do
+                        fmap
+                            (bimap (SeqParseR (func bL)) (func bL))
+                            (extractR sR)
                     IDone bR -> return $ FDone n $ func bL bR
                     IError err -> errMsg err
             FError err -> errMsg err
@@ -853,9 +852,10 @@ split_ (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
                 iR <- initialR
                 -- XXX For initial we can have a bimap with leftover.
                 case iR of
-                    IPartial sR
-                        | n == 0 -> fmap (first SeqAR) (extractR sR)
-                        | otherwise -> return $ FContinue n (SeqAR sR)
+                    -- The input backtracked by the left parser has to be fed
+                    -- to the right parser before extracting it.
+                    IPartial sR | n < 0 -> return $ FContinue n (SeqAR sR)
+                    IPartial sR -> fmap (first SeqAR) (extractR sR)
                     IDone bR -> return $ FDone n bR
                     IError err -> return $ FError err
             FError err -> return $ FError err
@@ -913,9 +913,8 @@ noErrorUnsafeSplit_
             FDone n _ -> do
                 iR <- initialR
                 case iR of
-                    IPartial sR
-                        | n == 0 -> fmap (first SeqAR) (extractR sR)
-                        | otherwise -> return $ FContinue n (SeqAR sR)
+                    IPartial sR | n < 0 -> return $ FContinue n (SeqAR sR)
+                    IPartial sR -> fmap (first SeqAR) (extractR sR)
                     IDone bR -> return $ FDone n bR
                     IError err -> errMsg err
             FError err -> errMsg err
@@ -1375,14 +1374,14 @@ concatMap func (Parser stepL initialL extractL) = Parser step initial extract
     extractP n (Parser stepR initialR extractR) = do
         res <- initialR
         case res of
-            IPartial s
-                | n == 0 ->
-                    fmap
-                        (first (\s1 -> ConcatParseR stepR s1 extractR))
-                        (extractR s)
-                -- Feed the leftover of the left parser to the right one
-                | otherwise ->
-                    return $ FContinue n (ConcatParseR stepR s extractR)
+            -- The input backtracked by the left parser has to be fed to the
+            -- right parser before extracting it.
+            IPartial s | n < 0 ->
+                return $ FContinue n (ConcatParseR stepR s extractR)
+            IPartial s ->
+                fmap
+                    (first (\s1 -> ConcatParseR stepR s1 extractR))
+                    (extractR s)
             IDone b -> return (FDone n b)
             IError err -> return $ FError err
 
@@ -1452,14 +1451,14 @@ noErrorUnsafeConcatMap func (Parser stepL initialL extractL) =
     extractP n (Parser stepR initialR extractR) = do
         res <- initialR
         case res of
-            IPartial s
-                | n == 0 ->
-                    fmap
-                        (first (\s1 -> ConcatParseR stepR s1 extractR))
-                        (extractR s)
-                -- Feed the leftover of the left parser to the right one
-                | otherwise ->
-                    return $ FContinue n (ConcatParseR stepR s extractR)
+            -- The input backtracked by the left parser has to be fed to the
+            -- right parser before extracting it.
+            IPartial s | n < 0 ->
+                return $ FContinue n (ConcatParseR stepR s extractR)
+            IPartial s ->
+                fmap
+                    (first (\s1 -> ConcatParseR stepR s1 extractR))
+                    (extractR s)
             IDone b -> return (FDone n b)
             IError err -> return $ FError err
 

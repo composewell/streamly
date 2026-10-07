@@ -51,11 +51,10 @@
   fold terminates on the last element.
 * Fix `Stream.wordsBy` running the initial action of the fold for leading
   and repeated separators without running its final action.
-* Fix the `Applicative` and `Monad` instances of `Parser`, and
-  `Parser.splitWith`, dropping the input that the first parser left
-  unconsumed at the end of input, e.g. `(,) <$> Parser.many (Parser.takeEQ 2
-  Fold.toList) Fold.toList <*> Parser.fromFold Fold.toList` on `[1,2,3]` gave
-  `([[1,2]],[])` instead of `([[1,2]],[3])`.
+* Fix the parser sequencing operations (`splitWith`, `split_`, `concatMap`,
+  the `Applicative` and `Monad` instances and their `noErrorUnsafe` variants)
+  losing the input backtracked by the first parser at the end of input. For
+  example, `optional (char '.' *> char 'a') <* eof` succeeded on ".".
 * Fix `Parser.many`, `Parser.some` and the `Alternative` instance of
   `Parser` backtracking too little at the end of input when the inner parser
   had backtracked over a part of its input, the elements were lost.

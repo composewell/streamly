@@ -4,7 +4,7 @@
 -- instances and the primitive combinators defined alongside it).
 module Streamly.Test.Data.Parser.CommonTypeTests (mainCommonType) where
 
-import Control.Applicative ((<|>))
+import Control.Applicative ((<|>), optional)
 import Streamly.Internal.Data.Fold (Fold(..))
 import Streamly.Internal.Data.Parser
        (ParseErrorPos(..), Parser(..), Step(..), Initial(..), Final(..))
@@ -273,6 +273,27 @@ monad producer consumer =
                             Right (olist1, olist2) -> olist1 == list1 && olist2 == list2
                             Left _ -> False
 
+-- The left parser of a sequence consumes the 1, fails at the end of the input
+-- and is backtracked to return Nothing. The 1 must then be given to the right
+-- parser.
+
+optionalPair :: Monad m => Parser Int m (Maybe Int)
+optionalPair = optional (P.satisfy (== 1) *> P.satisfy (== 2))
+
+backtrackEOF :: Parser Int Identity [Int] -> ParserTestCase Int Identity [Int] Property
+backtrackEOF p consumer =
+    property $
+        case runIdentity $ consumer p [1] of
+            (Right xs, rest) -> xs == [1] && null rest
+            (Left _, _) -> False
+
+backtrackEOFThenEOF :: ParserTestCase Int Identity (Maybe Int) Property
+backtrackEOFThenEOF consumer =
+    property $
+        case runIdentity $ consumer (optionalPair <* P.eof) [1] of
+            (Right _, _) -> False
+            (Left _, rest) -> rest == [1]
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -302,6 +323,22 @@ mainCommonType ptt = do
 
     describe "filter" $ do
         prop "filter backtracks in alternative" $ runParserTC ptt filterAlt
+
+    describe "input backtracked at the end of input, to the next parser" $ do
+        let rest = P.fromFold FL.toList
+        prop "splitWith" $ runParserTC ptt $
+            backtrackEOF (P.splitWith (const id) optionalPair rest)
+        prop "noErrorUnsafeSplitWith" $ runParserTC ptt $
+            backtrackEOF (P.noErrorUnsafeSplitWith (const id) optionalPair rest)
+        prop "split_" $ runParserTC ptt $
+            backtrackEOF (P.split_ optionalPair rest)
+        prop "noErrorUnsafeSplit_" $ runParserTC ptt $
+            backtrackEOF (P.noErrorUnsafeSplit_ optionalPair rest)
+        prop "concatMap" $ runParserTC ptt $
+            backtrackEOF (P.concatMap (const rest) optionalPair)
+        prop "noErrorUnsafeConcatMap" $ runParserTC ptt $
+            backtrackEOF (P.noErrorUnsafeConcatMap (const rest) optionalPair)
+        prop "eof fails" $ runParserTC ptt backtrackEOFThenEOF
 
     describe "test for sequence parser" $ do
         prop "parse 0, then 1, else fail" $ runParserTC_temp ptt splitWith
