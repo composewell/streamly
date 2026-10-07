@@ -483,7 +483,7 @@ adaptCGWith pstep initial extract cont !offset0 !usedCount !input = do
             ParserD.FDone n b ->
                 assert (n <= 0) (cont (Success n b) (count + n) None)
             ParserD.FContinue n pst1 ->
-                assert (n <= 1)
+                assert (n <= 0)
                     (return $ Continue n (parseCont (count + n) pst1))
             ParserD.FError err ->
                 -- XXX It is called only when there is no input arr. So using 0
