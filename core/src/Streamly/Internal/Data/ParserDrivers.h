@@ -798,11 +798,13 @@ PARSE_BREAK_STREAMK parser input = do
             -- then immediately we have to call extract on it.
             ParserK.Partial 0 cont1 ->
                  go OPTIONAL(pos) [] cont1 StreamK.nil
+            -- The input before the new position is committed, drop it from
+            -- the backtrack buffer as in yieldk.
             ParserK.Partial n cont1 -> do
                 let n1 = negate n
                 assertM(n1 >= 0 && n1 <= length backBuf)
-                let (s1, backBuf1) = backtrck n1 backBuf StreamK.nil
-                 in go OPTIONAL(pos + n) backBuf1 cont1 s1
+                let (s1, _) = backtrck n1 backBuf StreamK.nil
+                 in go OPTIONAL(pos + n) [] cont1 s1
             ParserK.Continue 0 cont1 ->
                 go OPTIONAL(pos) backBuf cont1 StreamK.nil
             ParserK.Continue n cont1 -> do
@@ -906,11 +908,12 @@ PARSE_BREAK_CHUNKS parser input = do
             -- then immediately we have to call extract on it.
             ParserK.Partial 0 cont1 ->
                  go OPTIONAL(pos) [] cont1 StreamK.nil
+            -- See goStop in PARSE_BREAK_STREAMK
             ParserK.Partial n cont1 -> do
                 let n1 = negate n
                 assertM(n1 >= 0 && n1 <= sum (Prelude.map Array.length backBuf))
-                let (s1, backBuf1) = backtrack n1 backBuf StreamK.nil
-                 in go OPTIONAL(pos + n) backBuf1 cont1 s1
+                let (s1, _) = backtrack n1 backBuf StreamK.nil
+                 in go OPTIONAL(pos + n) [] cont1 s1
             ParserK.Continue 0 cont1 ->
                 go OPTIONAL(pos) backBuf cont1 StreamK.nil
             ParserK.Continue n cont1 -> do
@@ -1009,11 +1012,12 @@ PARSE_BREAK_CHUNKS_GENERIC parser input = do
             -- then immediately we have to call extract on it.
             ParserK.Partial 0 cont1 ->
                  go OPTIONAL(pos) [] cont1 StreamK.nil
+            -- See goStop in PARSE_BREAK_STREAMK
             ParserK.Partial n cont1 -> do
                 let n1 = negate n
                 assertM(n1 >= 0 && n1 <= sum (Prelude.map GArray.length backBuf))
-                let (s1, backBuf1) = backtrackGeneric n1 backBuf StreamK.nil
-                 in go OPTIONAL(pos + n) backBuf1 cont1 s1
+                let (s1, _) = backtrackGeneric n1 backBuf StreamK.nil
+                 in go OPTIONAL(pos + n) [] cont1 s1
             ParserK.Continue 0 cont1 ->
                 go OPTIONAL(pos) backBuf cont1 StreamK.nil
             ParserK.Continue n cont1 -> do
