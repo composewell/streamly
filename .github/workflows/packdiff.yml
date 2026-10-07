@@ -17,6 +17,11 @@ jobs:
         GHCVER=9.8.1
         ./ghcup install ghc $GHCVER
         ./ghcup set ghc $GHCVER
+        # cabal-3.18 requires a packages field in cabal.project.packdiff
+        CABALVER=3.16.1.0
+        ./ghcup install cabal $CABALVER
+        ./ghcup set cabal $CABALVER
+        cabal --version
         cabal update
 
     - uses: actions/cache@v4
