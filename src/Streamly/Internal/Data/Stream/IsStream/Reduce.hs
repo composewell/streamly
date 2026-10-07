@@ -330,7 +330,7 @@ foldSequence _f _m = undefined
 -- >>> f x = return (Fold.take 2 (Fold.sconcat x))
 -- >>> s = Stream.map Sum $ Stream.fromList [1..10]
 -- >>> Stream.toList $ Stream.map getSum $ Stream.foldIterateM f (pure 0) s
--- [3,10,21,36,55,55]
+-- [3,10,21,36,55]
 --
 -- @
 --

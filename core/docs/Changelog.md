@@ -83,6 +83,10 @@
   from a parser run on no input. For example, with `Parser.takeBetween 0 2`
   on `[1..10]` the output ended with a duplicate of the last result, and with
   `Parser.takeEQ 2` it ended with a parse error.
+* `Stream.foldIterateM` no longer emits the result of the last fold if it is
+  empty, as in `Stream.foldMany`. For example, with `Fold.take 2` on
+  `[1..10]` the output ended with a duplicate of the last result, and on an
+  empty stream the output was the result of a fold of no input.
 * In Scanl module, `filter` and any other filtering operations like
   `filterM`, `catMaybes`, `catLefts` etc. used to emit the previous
   value of accumulator for filtered-out elements, now they do not emit

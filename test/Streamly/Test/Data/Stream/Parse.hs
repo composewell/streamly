@@ -677,6 +677,32 @@ foldIterateM =
             Nothing -> assert $ s1 == 0
             Just s2 -> assert $ s1 == s2
 
+-- The result of the last fold is not emitted if it is empty, as in foldMany.
+foldIterateMEnd :: Spec
+foldIterateMEnd = do
+    let sums xs =
+            Stream.toList
+                $ fmap getSum
+                $ Stream.foldIterateM
+                    (return . Fold.take 2 . Fold.sconcat)
+                    (return (Sum 0))
+                $ fmap Sum (Stream.fromList xs)
+    it "last fold ending at the end" $
+        sums [1 .. 10 :: Int] `shouldReturn` [3, 10, 21, 36, 55]
+    it "last fold ending before the end" $
+        sums [1 .. 9 :: Int] `shouldReturn` [3, 10, 21, 36, 45]
+    it "empty stream" $ sums ([] :: [Int]) `shouldReturn` []
+
+foldIterateMEqFoldMany :: Property
+foldIterateMEqFoldMany =
+    forAll (listOf (chooseInt (0, max_length))) $ \lst ->
+    forAll (chooseInt (1, 5)) $ \n -> monadicIO $ do
+        let f = Fold.take n Fold.toList
+        r1 <- run $ Stream.toList
+                $ Stream.foldIterateM (const (return f)) (return []) (Stream.fromList lst)
+        r2 <- run $ Stream.toList $ Stream.foldMany f (Stream.fromList lst)
+        assert $ r1 == r2
+
 -------------------------------------------------------------------------------
 -- groupsRollingBy
 -------------------------------------------------------------------------------
@@ -1257,6 +1283,8 @@ main = hspec
 
     describe "Nesting" $ do
         prop "foldIterateM" foldIterateM
+        describe "foldIterateM, end of the stream" foldIterateMEnd
+        prop "foldIterateM == foldMany" foldIterateMEqFoldMany
 
     describe "groupsRollingBy" $ do
         it "groups equal consecutive elements" testGroupsRollingBy

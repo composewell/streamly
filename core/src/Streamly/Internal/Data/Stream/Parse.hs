@@ -171,14 +171,17 @@ foldSequence _f _m = undefined
 ANN_TYPE(FIterState,Fuse)
 data FIterState s f m a b
     = FIterInit s f
+    -- The Bool is True if the fold has consumed any input
     | forall fs. FIterStream s (fs -> a -> m (FL.Step fs b)) fs (fs -> m b)
-        (fs -> m b)
+        (fs -> m b) Bool
     | FIterYield b (FIterState s f m a b)
     | FIterStop
 
 -- | Iterate a fold generator on a stream. The initial value @b@ is used to
 -- generate the first fold, the fold is applied on the stream and the result of
--- the fold is used to generate the next fold and so on.
+-- the fold is used to generate the next fold and so on. As in 'foldMany', if
+-- the last fold is empty its result is not emitted, therefore, if the input
+-- stream is empty the output stream is also empty.
 --
 -- Usage:
 --
@@ -186,7 +189,7 @@ data FIterState s f m a b
 -- >>> f x = return (Fold.take 2 (Fold.sconcat x))
 -- >>> s = fmap Sum $ Stream.fromList [1..10]
 -- >>> Stream.fold Fold.toList $ fmap getSum $ Stream.foldIterateM f (pure 0) s
--- [3,10,21,36,55,55]
+-- [3,10,21,36,55]
 --
 -- This is the streaming equivalent of monad like sequenced application of
 -- folds where next fold is dependent on the previous fold.
@@ -202,27 +205,30 @@ foldIterateM func seed0 (Stream step state) =
     where
 
     {-# INLINE iterStep #-}
-    iterStep from st fstep extract final = do
+    iterStep from st fstep extract final consumed = do
         res <- from
         return
             $ Skip
             $ case res of
-                  FL.Partial fs -> FIterStream st fstep fs extract final
+                  FL.Partial fs -> FIterStream st fstep fs extract final consumed
                   FL.Done fb -> FIterYield fb $ FIterInit st (return fb)
 
     {-# INLINE_LATE stepOuter #-}
     stepOuter _ (FIterInit st seed) = do
         (FL.Fold fstep initial extract final) <- seed >>= func
-        iterStep initial st fstep extract final
-    stepOuter gst (FIterStream st fstep fs extract final) = do
+        iterStep initial st fstep extract final False
+    stepOuter gst (FIterStream st fstep fs extract final consumed) = do
         r <- step (adaptState gst) st
         case r of
             Yield x s -> do
-                iterStep (fstep fs x) s fstep extract final
-            Skip s -> return $ Skip $ FIterStream s fstep fs extract final
+                iterStep (fstep fs x) s fstep extract final True
+            Skip s ->
+                return $ Skip $ FIterStream s fstep fs extract final consumed
             Stop -> do
                 b <- final fs
-                return $ Skip $ FIterYield b FIterStop
+                return
+                    $ Skip
+                    $ if consumed then FIterYield b FIterStop else FIterStop
     stepOuter _ (FIterYield a next) = return $ Yield a next
     stepOuter _ FIterStop = return Stop
 
