@@ -33,7 +33,7 @@ import qualified Streamly.Internal.Data.Fold.Step as Fold
 
 -- | Represents the result of the @step@ of a 'Scanl'.
 --
-FUSE_TYPE(Step)
+ANN_TYPE(Step,Fuse)
 data Step s b
     = Partial !s
     -- ^ Returns the next state of the scan accumulator indicating a new

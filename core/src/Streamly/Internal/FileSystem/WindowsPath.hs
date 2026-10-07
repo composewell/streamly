@@ -462,7 +462,7 @@ splitExtension (OS_PATH a) =
 -- Packing paths into a UTF-8 byte array
 ------------------------------------------------------------------------------
 
-FUSE_TYPE(PackPathsState)
+ANN_TYPE(PackPathsState,Fuse)
 data PackPathsState =
     PackPathsState !MutByteArray !Int !Int -- buf, pos, cap
 

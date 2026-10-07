@@ -785,7 +785,7 @@ takeEQ n (Fold fstep finitial _ ffinal) = Parser step initial extract
             $ "takeEQ: Expecting exactly " ++ show n
                 ++ " elements, input terminated on " ++ show (i - 1)
 
-FUSE_TYPE(TakeGEState)
+ANN_TYPE(TakeGEState,Fuse)
 data TakeGEState s =
       TakeGELT !Int !s
     | TakeGEGE !s
@@ -1007,7 +1007,7 @@ dropWhile p = takeWhile p FL.drain
 -- Separators
 -------------------------------------------------------------------------------
 
-FUSE_TYPE(FramedEscState)
+ANN_TYPE(FramedEscState,Fuse)
 data FramedEscState s =
     FrameEscInit !s | FrameEscGo !s !Int | FrameEscEsc !s !Int
 
@@ -1922,7 +1922,7 @@ wordProcessQuotes =
     -- Escape the quote char itself
     wordWithQuotes False (\q x -> if q == x then Just x else Nothing)
 
-FUSE_TYPE(GroupByState)
+ANN_TYPE(GroupByState,Fuse)
 data GroupByState a s
     = GroupByInit !s
     | GroupByGrouping !a !s
@@ -2043,7 +2043,7 @@ groupByRolling eq (Fold fstep finitial _ ffinal) = Parser step initial extract
     extract (GroupByInit s) = fmap (FDone 0) $ ffinal s
     extract (GroupByGrouping _ s) = fmap (FDone 0) $ ffinal s
 
-FUSE_TYPE(GroupByStatePair)
+ANN_TYPE(GroupByStatePair,Fuse)
 data GroupByStatePair a s1 s2
     = GroupByInitPair !s1 !s2
     | GroupByGroupingPair !a !s1 !s2
@@ -2576,7 +2576,7 @@ lookAhead (Parser step1 initial1 _) = Parser step initial extract
 -- all the three parsers. One parser can count the line numbers to provide the
 -- line number info.
 
-FUSE_TYPE(DeintercalateAllState)
+ANN_TYPE(DeintercalateAllState,Fuse)
 data DeintercalateAllState fs sp ss =
       DeintercalateAllInitL !fs
     | DeintercalateAllL !fs !sp
@@ -2704,7 +2704,7 @@ deintercalateAll
     extract (DeintercalateAllR _ _) =
         return $ FError "deintercalateAll: input ended at 'Right' value"
 
-FUSE_TYPE(DeintercalateState)
+ANN_TYPE(DeintercalateState,Fuse)
 data DeintercalateState b fs sp ss =
       DeintercalateInitL !fs
     | DeintercalateL !Int !fs !sp
@@ -2864,7 +2864,7 @@ deintercalate
                 xs <- ffinal fs
                 return $ FDone (- cnt) xs
 
-FUSE_TYPE(Deintercalate1State)
+ANN_TYPE(Deintercalate1State,Fuse)
 data Deintercalate1State b fs sp ss =
       Deintercalate1InitL !Int !fs !sp
     | Deintercalate1InitR !fs
@@ -3009,7 +3009,7 @@ deintercalate1
                 xs <- ffinal fs
                 return $ FDone (- cnt) xs
 
-FUSE_TYPE(SepByState)
+ANN_TYPE(SepByState,Fuse)
 data SepByState fs sp ss =
       SepByInitL !fs
     | SepByL !Int !fs !sp
@@ -3144,7 +3144,7 @@ sepByAll p1 p2 f = deintercalateAll p1 p2 (FL.catLefts f)
 -- XXX This can be implemented using refold, parse one and then continue
 -- collecting the rest in that.
 
-FUSE_TYPE(SepBy1State)
+ANN_TYPE(SepBy1State,Fuse)
 data SepBy1State fs sp ss =
       SepBy1InitL !Int !fs sp
     | SepBy1L !Int !fs !sp
@@ -3506,7 +3506,7 @@ manyTillP :: -- Monad m =>
 manyTillP _p1 _p2 _f = undefined
     -- D.toParserK $ D.manyTillP (D.fromParserK p1) (D.fromParserK p2) f
 
-FUSE_TYPE(ManyTillState)
+ANN_TYPE(ManyTillState,Fuse)
 data ManyTillState fs sr sl
     = ManyTillR !Int !fs !sr
     | ManyTillL !fs !sl

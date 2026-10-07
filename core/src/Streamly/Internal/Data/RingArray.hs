@@ -892,7 +892,7 @@ toList = Stream.toList . read
 showRing :: (Unbox a, Show a) => RingArray a -> IO String
 showRing rb = show <$> toList rb
 
-FUSE_TYPE(SlidingWindow)
+ANN_TYPE(SlidingWindow,Fuse)
 data SlidingWindow a s = SWArray !a !Int !s !Int | SWRing !a !Int !s
 
 -- | Like slidingWindow but also provides the entire ring contents as an Array.

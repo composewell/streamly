@@ -1251,7 +1251,7 @@ append (Stream step1 state1) (Stream step2 state2) =
 -- Branching
 ------------------------------------------------------------------------------
 
-FUSE_TYPE(IfThenElseState)
+ANN_TYPE(IfThenElseState,Fuse)
 data IfThenElseState s1 s2 =
       IfThenElseInit
     | IfThenElseThen s1
@@ -2055,7 +2055,7 @@ concatIterate f stream = Stream step (stream, [])
 
 RENAME(concatIterateDfs,concatIterate)
 
-FUSE_TYPE(IterateUnfoldState)
+ANN_TYPE(IterateUnfoldState,Fuse)
 data IterateUnfoldState o i =
       IterateUnfoldOuter o
     | IterateUnfoldInner o i [i]
@@ -2103,7 +2103,7 @@ unfoldIterate (Unfold istep inject) (Stream ostep ost) =
 
 RENAME(unfoldIterateDfs,unfoldIterate)
 
-FUSE_TYPE(IterateUnfoldBFSRevState)
+ANN_TYPE(IterateUnfoldBFSRevState,Fuse)
 data IterateUnfoldBFSRevState o i =
       IterateUnfoldBFSRevOuter o [i]
     | IterateUnfoldBFSRevInner i [i]
@@ -2149,7 +2149,7 @@ altBfsUnfoldIterate (Unfold istep inject) (Stream ostep ost) =
 
 RENAME(unfoldIterateBfsRev,altBfsUnfoldIterate)
 
-FUSE_TYPE(IterateUnfoldBFSState)
+ANN_TYPE(IterateUnfoldBFSState,Fuse)
 data IterateUnfoldBFSState o i =
       IterateUnfoldBFSOuter o [i]
     | IterateUnfoldBFSInner i [i] [i]
@@ -2260,7 +2260,7 @@ bfsFoldIterate = undefined
 ------------------------------------------------------------------------------
 
 -- s = stream state, fs = fold state
-FUSE_TYPE(FoldManyPost)
+ANN_TYPE(FoldManyPost,Fuse)
 #if __GLASGOW_HASKELL__ >= 810
 type FoldManyPost :: Type -> Type -> Type -> Type -> Type
 #endif
@@ -2344,7 +2344,7 @@ foldManySepBy :: -- Monad m =>
     Fold m a b -> Fold m a b -> Stream m a -> Stream m b
 foldManySepBy _f1 _f2 = undefined
 
-FUSE_TYPE(FoldMany)
+ANN_TYPE(FoldMany,Fuse)
 #if __GLASGOW_HASKELL__ >= 810
 type FoldMany :: Type -> Type -> Type -> Type -> Type
 #endif
@@ -2494,7 +2494,7 @@ refoldMany (Refold fstep inject extract) action (Stream step state) =
     step' _ (FoldManyYield b next) = return $ Yield b next
     step' _ FoldManyDone = return Stop
 
-FUSE_TYPE(CIterState)
+ANN_TYPE(CIterState,Fuse)
 data CIterState s f fs b
     = CIterInit s f
     | CIterConsume s fs Bool

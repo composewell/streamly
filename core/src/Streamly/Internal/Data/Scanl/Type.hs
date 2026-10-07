@@ -795,7 +795,7 @@ constM :: Applicative m => m b -> Scanl m a b
 constM b = Scanl (\s _ -> pure $ Partial s) (Fold.Partial <$> b) pure pure
 
 {-
-FUSE_TYPE(SeqFoldState)
+ANN_TYPE(SeqFoldState,Fuse)
 data SeqFoldState sl f sr = SeqFoldL !sl | SeqFoldR !f !sr
 
 -- | Sequential fold application. Apply two folds sequentially to an input
@@ -862,7 +862,7 @@ splitWith func
                 Partial sR -> finalR sR
                 Done rR -> return rR
 
-FUSE_TYPE(SeqFoldState_)
+ANN_TYPE(SeqFoldState_,Fuse)
 data SeqFoldState_ sl sr = SeqFoldL_ !sl | SeqFoldR_ !sr
 
 -- | Same as applicative '*>'. Run two folds serially one after the other
@@ -927,7 +927,7 @@ instance Monad m => Applicative (Fold m a) where
     {-# INLINE liftA2 #-}
     liftA2 f x = (<*>) (fmap f x)
 
-FUSE_TYPE(TeeState)
+ANN_TYPE(TeeState,Fuse)
 data TeeState sL sR bL bR
     = TeeBoth !sL !sR
     | TeeLeft !bR !sL
@@ -982,7 +982,7 @@ teeWithMax f
     final (TeeLeft bR sL) = (`f` bR) <$> finalL sL
     final (TeeRight bL sR) = f bL <$> finalR sR
 
-FUSE_TYPE(TeeFstState)
+ANN_TYPE(TeeFstState,Fuse)
 data TeeFstState sL sR b
     = TeeFstBoth !sL !sR
     | TeeFstLeft !b !sL
@@ -1152,7 +1152,7 @@ shortest (Scanl stepL initialL extractL finalL) (Scanl stepR initialR _ finalR) 
 
     final (Tuple' sL sR) = Left <$> finalL sL <* finalR sR
 
-FUSE_TYPE(LongestState)
+ANN_TYPE(LongestState,Fuse)
 data LongestState sL sR
     = LongestBoth !sL !sR
     | LongestLeft !sL
@@ -1939,7 +1939,7 @@ isClosed (Scanl _ initial _ _) = do
 -- completes and is fed to the second fold.
 
 {-
-FUSE_TYPE(ManyState)
+ANN_TYPE(ManyState,Fuse)
 data ManyState s1 s2
     = ManyFirst !s1 !s2
     | ManyLoop !s1 !s2
@@ -2146,7 +2146,7 @@ refoldMany
             Partial s -> cextract s
             Done b -> return b
 
-FUSE_TYPE(ConsumeManyState)
+ANN_TYPE(ConsumeManyState,Fuse)
 data ConsumeManyState x cs ss = ConsumeMany x cs (Either ss ss)
 
 -- | Like 'many' but uses a 'Refold' for splitting.

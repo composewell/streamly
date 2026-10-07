@@ -636,7 +636,7 @@ enumerateFromStep (x, stride) =
 -- or 'EnumYieldDownward', which carry the current value, the stride and
 -- @to - stride@ (checked against before incrementing, so that the increment
 -- itself cannot overflow past the bound).
-FUSE_TYPE(EnumState)
+ANN_TYPE(EnumState,Fuse)
 data EnumState a =
       EnumInit a a a
     | EnumYieldUpward a a a
@@ -697,7 +697,7 @@ enumerateFromThenTo EnumStop = pure Stop
 -- | State for 'enumerateUpFromThenToIntegral'. Same as 'EnumState' but
 -- without the downward direction, since the function only ever moves
 -- upward.
-FUSE_TYPE(EnumStateUp)
+ANN_TYPE(EnumStateUp,Fuse)
 data EnumStateUp a =
       EnumUpInit a a a
     | EnumUpYield a a a
@@ -743,7 +743,7 @@ enumerateDownFromThenTo ::
 enumerateDownFromThenTo s = fmap (fmap getDown) (enumerateUpFromThenTo s)
 
 -- This has one less item to thread around in the state compared to fromThenTo
-FUSE_TYPE(EnumToState)
+ANN_TYPE(EnumToState,Fuse)
 data EnumToState a =
       EnumToInit a a
     | EnumToYield !a a

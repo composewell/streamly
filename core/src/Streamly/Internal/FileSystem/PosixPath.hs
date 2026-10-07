@@ -1977,7 +1977,7 @@ stripPrefix cfg (OS_PATH prefix) (OS_PATH p) =
 
 #ifndef IS_WINDOWS
 
-FUSE_TYPE(PackPathsState)
+ANN_TYPE(PackPathsState,Fuse)
 data PackPathsState =
     PackPathsState !MutByteArray !Int !Int -- buf, pos, cap
 

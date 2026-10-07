@@ -252,7 +252,7 @@ decode1 table state codep byte =
 -- Resumable UTF-8 decoding
 -------------------------------------------------------------------------------
 
-FUSE_TYPE(UTF8DecodeState)
+ANN_TYPE(UTF8DecodeState,Fuse)
 data UTF8DecodeState s a
     = UTF8DecodeInit s
     | UTF8DecodeInit1 s Word8
@@ -804,7 +804,7 @@ decodeUtf16le =
 -- Decoding Array Streams
 -------------------------------------------------------------------------------
 
-FUSE_TYPE(FlattenState)
+ANN_TYPE(FlattenState,Fuse)
 data FlattenState s
     = OuterLoop s !(Maybe (DecodeState, CodePoint))
     | InnerLoopDecodeInit s MutByteArray !Int !Int

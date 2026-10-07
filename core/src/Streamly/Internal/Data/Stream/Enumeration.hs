@@ -167,7 +167,7 @@ enumerateFromNum from = enumerateFromStepNum from 1
 enumerateDownFromNum :: (Applicative m, Num a) => a -> Stream m a
 enumerateDownFromNum from = enumerateFromStepNum from (-1)
 
-FUSE_TYPE(EnumState)
+ANN_TYPE(EnumState,Fuse)
 data EnumState a =
       EnumInit
     | EnumYieldUpward a a a
@@ -244,7 +244,7 @@ enumerateFromThenToNum from next to = Stream step EnumInit
 
     step _ EnumStop = pure Stop
 
-FUSE_TYPE(EnumStateUp)
+ANN_TYPE(EnumStateUp,Fuse)
 data EnumStateUp a =
       EnumUpInit
     | EnumUpYield a a a
@@ -306,7 +306,7 @@ enumerateDownFromThenToNum
 enumerateDownFromThenToNum from next to =
     fmap getDown $ enumerateUpFromThenToNum (Down from) (Down next) (Down to)
 
-FUSE_TYPE(EnumToState)
+ANN_TYPE(EnumToState,Fuse)
 data EnumToState a =
       EnumToInit
     | EnumToYield !a

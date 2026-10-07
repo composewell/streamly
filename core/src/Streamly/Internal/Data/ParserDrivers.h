@@ -53,7 +53,7 @@
 
 {- HLINT ignore -}
 
-FUSE_TYPE(ParseChunksState)
+ANN_TYPE(ParseChunksState,Fuse)
 data ParseChunksState x inpBuf st pst =
       ParseChunksInit OPTIONAL(Int) inpBuf st
     | ParseChunksInitBuf OPTIONAL(Int) inpBuf
@@ -294,7 +294,7 @@ PARSE_MANY (PRD.Parser pstep initial extract) (Stream step state) =
 
     stepOuter _ (ParseChunksYield a next) = return $ Yield a next
 
-FUSE_TYPE(ConcatParseState)
+ANN_TYPE(ConcatParseState,Fuse)
 data ConcatParseState c b inpBuf st p m a =
       ConcatParseInit OPTIONAL(Int) inpBuf st p
     | ConcatParseInitBuf OPTIONAL(Int) inpBuf p

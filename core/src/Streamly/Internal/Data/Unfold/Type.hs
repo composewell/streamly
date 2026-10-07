@@ -504,7 +504,7 @@ carryInput (Unfold ustep uinject) = Unfold step (\a -> (a,) <$> uinject a)
 
 RENAME(carry,carryInput)
 
-FUSE_TYPE(ConsInputState)
+ANN_TYPE(ConsInputState,Fuse)
 data ConsInputState a s = ConsInputFirst a s | ConsInputRest s
 
 -- | Prepend @f a@ to the output of the unfold, where @a@ is the input seed.
@@ -642,7 +642,7 @@ crossApplyFst (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
     step st = Producer.crossApplyFst inject2 step1 step2 st
 
 {-
-FUSE_TYPE(Many2State)
+ANN_TYPE(Many2State,Fuse)
 data Many2State x s1 s2 = Many2Outer x s1 | Many2Inner x s1 s2
 -}
 

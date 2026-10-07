@@ -1015,7 +1015,7 @@ fromPure b = Fold undefined (pure $ Done b) pure pure
 fromEffect :: Applicative m => m b -> Fold m a b
 fromEffect b = Fold undefined (Done <$> b) pure pure
 
-FUSE_TYPE(SeqFoldState)
+ANN_TYPE(SeqFoldState,Fuse)
 data SeqFoldState sl f sr = SeqFoldL !sl | SeqFoldR !f !sr
 
 -- dual of Stream.append
@@ -1090,7 +1090,7 @@ splitWith func
 serialWith :: Monad m => (a -> b -> c) -> Fold m x a -> Fold m x b -> Fold m x c
 serialWith = splitWith
 
-FUSE_TYPE(SeqFoldState_)
+ANN_TYPE(SeqFoldState_,Fuse)
 data SeqFoldState_ sl sr = SeqFoldL_ !sl | SeqFoldR_ !sr
 
 -- | Same as applicative '*>'. Run two folds serially one after the other
@@ -1155,7 +1155,7 @@ instance Monad m => Applicative (Fold m a) where
     {-# INLINE liftA2 #-}
     liftA2 f x = (<*>) (fmap f x)
 
-FUSE_TYPE(TeeState)
+ANN_TYPE(TeeState,Fuse)
 data TeeState sL sR bL bR
     = TeeBoth !sL !sR
     | TeeLeft !bR !sL
@@ -1217,7 +1217,7 @@ teeWith f
     final (TeeLeft bR sL) = (`f` bR) <$> finalL sL
     final (TeeRight bL sR) = f bL <$> finalR sR
 
-FUSE_TYPE(TeeFstState)
+ANN_TYPE(TeeFstState,Fuse)
 data TeeFstState sL sR b
     = TeeFstBoth !sL !sR
     | TeeFstLeft !b !sL
@@ -1343,7 +1343,7 @@ shortest (Fold stepL initialL extractL finalL) (Fold stepR initialR _ finalR) =
 
     final (Tuple' sL sR) = Left <$> finalL sL <* finalR sR
 
-FUSE_TYPE(LongestState)
+ANN_TYPE(LongestState,Fuse)
 data LongestState sL sR
     = LongestBoth !sL !sR
     | LongestLeft !sL
@@ -2319,7 +2319,7 @@ isClosed (Fold _ initial _ _) = do
 -- applied to a fold input stream. groupBy et al can be written as terminating
 -- folds and then we can apply "many" to use those repeatedly on a stream.
 
-FUSE_TYPE(ManyState)
+ANN_TYPE(ManyState,Fuse)
 data ManyState s1 s2
     = ManyFirst !s1 !s2
     | ManyLoop !s1 !s2
@@ -2526,7 +2526,7 @@ refoldMany
             Partial s -> cextract s
             Done b -> return b
 
-FUSE_TYPE(ConsumeManyState)
+ANN_TYPE(ConsumeManyState,Fuse)
 data ConsumeManyState x cs ss = ConsumeMany x cs (Either ss ss)
 
 -- | Like 'many' but uses a 'Refold' for splitting.

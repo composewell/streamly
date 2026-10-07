@@ -169,7 +169,7 @@ foldSequence
     -> Stream m b
 foldSequence _f _m = undefined
 
-FUSE_TYPE(FIterState)
+ANN_TYPE(FIterState,Fuse)
 data FIterState s f m a b
     = FIterInit s f
     | forall fs. FIterStream s (fs -> a -> m (FL.Step fs b)) fs (fs -> m b)
@@ -790,7 +790,7 @@ wordsBy predicate (Fold fstep initial _ final) (Stream step state) =
 -- i.e.g single element, word hash, karp-rabin as different functions and then
 -- be able to combine them into a single state machine?
 
-FUSE_TYPE(TakeEndBySeqState)
+ANN_TYPE(TakeEndBySeqState,Fuse)
 data TakeEndBySeqState mba rb rh ck w s b x =
       TakeEndBySeqInit
     | TakeEndBySeqYield !b (TakeEndBySeqState mba rb rh ck w s b x)
@@ -1122,7 +1122,7 @@ data SplitOptions = SplitOptions
 -- XXX using "fs" as the last arg in Constructors may simplify the code a bit,
 -- because we can use the constructor directly without having to create "jump"
 -- functions.
-FUSE_TYPE(SplitOnSeqState)
+ANN_TYPE(SplitOnSeqState,Fuse)
 data SplitOnSeqState mba rb rh ck w fs s b x =
       SplitOnSeqInit
     | SplitOnSeqYield b (SplitOnSeqState mba rb rh ck w fs s b x)
@@ -1548,7 +1548,7 @@ splitSepBySeq_ patArr (Fold fstep initial _ final) (Stream step state) =
 
 RENAME(splitOnSeq,splitSepBySeq_)
 
-FUSE_TYPE(SplitOnSuffixSeqState)
+ANN_TYPE(SplitOnSuffixSeqState,Fuse)
 data SplitOnSuffixSeqState mba rb rh ck w fs s b x =
       SplitOnSuffixSeqInit
     | SplitOnSuffixSeqYield b (SplitOnSuffixSeqState mba rb rh ck w fs s b x)
@@ -2124,7 +2124,7 @@ splitBeginBy_ _predicate _f = undefined
 -- >>> splitList [1,2,3,3,4] [1,2,3,3,4]
 -- > [[],[]]
 
-FUSE_TYPE(SplitOnSeqOneOfState)
+ANN_TYPE(SplitOnSeqOneOfState,Fuse)
 data SplitOnSeqOneOfState fs s b =
       SOOInit
     | SOOYield b (SplitOnSeqOneOfState fs s b)
@@ -2474,7 +2474,7 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
 -- Nested Container Transformation
 ------------------------------------------------------------------------------
 
-FUSE_TYPE(SplitState)
+ANN_TYPE(SplitState,Fuse)
 data SplitState s arr
     = SplitInitial s
     | SplitBuffering s arr
@@ -2634,7 +2634,7 @@ dropCommonPrefixBy eq (Stream stepa ta) (Stream stepb tb) =
             Skip sb'    -> Skip (DCPPassThrough sb')
             Stop        -> Stop
 
-FUSE_TYPE(DropPrefixState)
+ANN_TYPE(DropPrefixState,Fuse)
 data DropPrefixState sa sb a
     = DPInit sa sb !Int
     | DPMatchWith !a sa sb !Int
@@ -2692,7 +2692,7 @@ dropPrefix (Stream stepa ta) (Stream stepb tb) =
             Skip sb'    -> Skip (DPPassThrough sb')
             Stop        -> Stop
 
-FUSE_TYPE(DropInfixState)
+ANN_TYPE(DropInfixState,Fuse)
 data DropInfixState mba rb rh ck w s a =
       DropInfixInit s
 
@@ -2940,7 +2940,7 @@ dropMatches patArr (Stream step state) =
         let rb1 = RB.moveForward rb
         return $ Yield old (DropInfixKRDone (len - SIZE_OF(a)) rb1)
 
-FUSE_TYPE(ReplaceInfixState)
+ANN_TYPE(ReplaceInfixState,Fuse)
 data ReplaceInfixState mba rb rh ck w s a =
       ReplaceInfixInit s
 
@@ -3216,7 +3216,7 @@ replaceMatches patArr replArr (Stream step state) =
             r <- liftIO $ A.unsafeGetIndexIO i replArr
             return $ Yield r (ReplaceInfixEmitKR (i + 1) s mba)
 
-FUSE_TYPE(DropSuffixState)
+ANN_TYPE(DropSuffixState,Fuse)
 data DropSuffixState mba rb rh w s a =
       DropSuffixInit s
     | DropSuffixDone

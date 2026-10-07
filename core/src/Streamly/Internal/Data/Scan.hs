@@ -310,7 +310,7 @@ instance Monad m => Category (Scan m) where
 -- Applicative Zip
 -------------------------------------------------------------------------------
 
-FUSE_TYPE(TeeWith)
+ANN_TYPE(TeeWith,Fuse)
 data TeeWith sL sR = TeeWith !sL !sR
 
 -- XXX zipWith?

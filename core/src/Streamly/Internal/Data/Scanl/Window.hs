@@ -125,7 +125,7 @@ instance Functor Incr where
 -- Utilities
 -------------------------------------------------------------------------------
 
-FUSE_TYPE(SlidingWindow)
+ANN_TYPE(SlidingWindow,Fuse)
 data SlidingWindow a r s = SWArray !a !Int !s | SWRing !r !s
 -- data SlidingWindow a s = SWArray !a !Int !s !Int | SWRing !a !Int !s
 

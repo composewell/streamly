@@ -256,7 +256,7 @@ import Streamly.Internal.Data.Stream.Type
 -- Piping
 ------------------------------------------------------------------------------
 
-FUSE_TYPE(PipeState)
+ANN_TYPE(PipeState,Fuse)
 data PipeState st sc ps = PipeConsume st sc | PipeProduce st ps
 
 -- | Use a 'Pipe' to transform a stream.
@@ -296,7 +296,7 @@ pipe (Pipe consume produce initial) (Stream stream_step state) =
                 Pipe.YieldP ps1 b -> Yield b (PipeProduce st ps1)
                 Pipe.SkipP ps1 -> Skip (PipeProduce st ps1)
 
-FUSE_TYPE(RunScanState)
+ANN_TYPE(RunScanState,Fuse)
 data RunScanState st sc ps = ScanConsume st sc
 
 -- | Use a lazy right 'Scan' to transform a stream.
@@ -869,7 +869,7 @@ postscanlM' fstep begin (Stream step state) =
 postscanl' :: Monad m => (a -> b -> a) -> a -> Stream m b -> Stream m a
 postscanl' f seed = postscanlM' (\a b -> return (f a b)) (return seed)
 
-FUSE_TYPE(PScanAfterState)
+ANN_TYPE(PScanAfterState,Fuse)
 data PScanAfterState m st acc =
       PScanAfterStep st (m acc)
     | PScanAfterYield acc (PScanAfterState m st acc)
@@ -2142,7 +2142,7 @@ rollingMap2 f = catMaybes . rollingMap g
 -- Selective Map
 ------------------------------------------------------------------------------
 
-FUSE_TYPE(ModifyLastState)
+ANN_TYPE(ModifyLastState,Fuse)
 data ModifyLastState s a =
       ModifyLastInit s
     | ModifyLastBuf s a
@@ -2337,7 +2337,7 @@ catEithers = fmap (either id id)
 -- empty stream to empty stream is consistent with splitEndBy operation as
 -- well.
 
-FUSE_TYPE(SplitSepBy)
+ANN_TYPE(SplitSepBy,Fuse)
 data SplitSepBy s fs b a
     = SplitSepByInit s
     | SplitSepByInitFold0 s

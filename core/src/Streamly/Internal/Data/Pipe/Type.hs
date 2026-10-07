@@ -78,7 +78,7 @@ import Prelude hiding (filter, zipWith, map, mapM, id, unzip, null)
 -- flat structure the pointer tag from the Step constructor itself can identiy
 -- any of the 5 constructors.
 --
-FUSE_TYPE(Step)
+ANN_TYPE(Step,Fuse)
 data Step cs ps b =
       YieldC cs b -- ^ Yield and consume
     | SkipC cs -- ^ Skip and consume
@@ -151,14 +151,14 @@ instance Functor m => Functor (Pipe m a) where
 -- Category
 -------------------------------------------------------------------------------
 
-FUSE_TYPE(ComposeConsume)
+ANN_TYPE(ComposeConsume,Fuse)
 #if __GLASGOW_HASKELL__ >= 810
 type ComposeConsume :: Type -> Type -> Type -> Type
 #endif
 data ComposeConsume csL psL csR =
       ComposeConsume csL csR
 
-FUSE_TYPE(ComposeProduce)
+ANN_TYPE(ComposeProduce,Fuse)
 data ComposeProduce csL psL csR psR =
       ComposeProduceR csL psR
     | ComposeProduceL psL csR
@@ -291,13 +291,13 @@ instance Monad m => Category (Pipe m) where
     {-# INLINE (.) #-}
     (.) = compose
 
-FUSE_TYPE(TeeMergeConsume)
+ANN_TYPE(TeeMergeConsume,Fuse)
 data TeeMergeConsume csL csR
     = TeeMergeConsume !csL !csR
     | TeeMergeConsumeOnlyL !csL
     | TeeMergeConsumeOnlyR !csR
 
-FUSE_TYPE(TeeMergeProduce)
+ANN_TYPE(TeeMergeProduce,Fuse)
 data TeeMergeProduce csL csR psL psR x
     = TeeMergeProduce !csL !csR !x
     | TeeMergeProduceL !psL !csR !x
@@ -622,13 +622,13 @@ filter f = filterM (return Prelude.. f)
 -- With "Continue s" and "Partial s b" instead of using "extract" we can do
 -- that.
 
-FUSE_TYPE(FromFoldConsume)
+ANN_TYPE(FromFoldConsume,Fuse)
 #if __GLASGOW_HASKELL__ >= 810
 type FromFoldConsume :: Type -> Type -> Type
 #endif
 data FromFoldConsume s x = FoldConsumeInit | FoldConsumeGo s
 
-FUSE_TYPE(FromFoldProduce)
+ANN_TYPE(FromFoldProduce,Fuse)
 data FromFoldProduce s x = FoldProduceInit s x | FoldProduceStop
 
 -- XXX This should be removed once we remove "extract" from folds.

@@ -51,7 +51,7 @@ import Fusion.Plugin.Types (Fuse(..))
 --
 -- /Pre-release/
 --
-FUSE_TYPE(Step)
+ANN_TYPE(Step,Fuse)
 data Step s b
     = Partial !s
     | Done !b

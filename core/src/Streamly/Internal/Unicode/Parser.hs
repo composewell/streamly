@@ -295,7 +295,7 @@ type DecimalPlaces = Int
 type PowerMultiplier = Int
 type Power = Int
 
-FUSE_TYPE(ScientificParseState)
+ANN_TYPE(ScientificParseState,Fuse)
 data ScientificParseState
   = SPInitial
   | SPSign !Multiplier
@@ -430,7 +430,7 @@ number =  Parser (\s a -> return $ step s a) initial (return . extract)
 type MantissaInt = Int64
 type OverflowPower = Int
 
-FUSE_TYPE(DoubleParseState)
+ANN_TYPE(DoubleParseState,Fuse)
 data DoubleParseState
   = DPInitial
   | DPSign !Multiplier

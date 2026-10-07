@@ -272,7 +272,7 @@ import Prelude hiding (concatMap, filter)
 --
 -- /Internal/
 --
-FUSE_TYPE(Initial)
+ANN_TYPE(Initial,Fuse)
 data Initial s b
     = IPartial !s   -- ^ Wait for step function to be called with state @s@.
     | IDone !b      -- ^ Return a result right away without an input.
@@ -354,7 +354,7 @@ instance Functor (Initial s) where
 --
 -- /Pre-release/
 --
-FUSE_TYPE(Step)
+ANN_TYPE(Step,Fuse)
 data Step s b =
         SPartial !Int !s
     -- ^ @SPartial count state@. The following statements hold on an SPartial
@@ -388,7 +388,7 @@ data Step s b =
     -- alternative.
     deriving (Show)
 
-FUSE_TYPE(Final)
+ANN_TYPE(Final,Fuse)
 data Final s b
     = FDone !Int !b      -- ^ Return a result right away without an input.
     | FContinue !Int !s
@@ -598,7 +598,7 @@ fromEffect b = Parser undefined (IDone <$> b) undefined
 -- Sequential applicative
 -------------------------------------------------------------------------------
 
-FUSE_TYPE(SeqParseState)
+ANN_TYPE(SeqParseState,Fuse)
 data SeqParseState sl f sr = SeqParseL !sl | SeqParseR !f !sr
 
 -- Note: this implementation of splitWith is fast because of stream fusion but
@@ -787,7 +787,7 @@ noErrorUnsafeSplitWith func (Parser stepL initialL extractL)
             FError err -> errMsg err
             FContinue n s -> return $ FContinue n (SeqParseL s)
 
-FUSE_TYPE(SeqAState)
+ANN_TYPE(SeqAState,Fuse)
 data SeqAState sl sr = SeqAL !sl | SeqAR !sr
 
 -- This turns out to be slightly faster than splitWith
@@ -942,7 +942,7 @@ instance Monad m => Applicative (Parser a m) where
 -- Sequential Alternative
 -------------------------------------------------------------------------------
 
-FUSE_TYPE(AltParseState)
+ANN_TYPE(AltParseState,Fuse)
 data AltParseState sl sr = AltParseL !Int !sl | AltParseR !sr
 
 -- Note: this implementation of alt is fast because of stream fusion but has
@@ -1040,7 +1040,7 @@ alt (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
                 assertM(n == (- cnt))
                 return $ FContinue n (AltParseL 0 s)
 
-FUSE_TYPE(Fused3)
+ANN_TYPE(Fused3,Fuse)
 data Fused3 a b c = Fused3 !a !b !c
 
 -- | See documentation of 'Streamly.Internal.Data.Parser.many'.
@@ -1310,7 +1310,7 @@ instance Monad m => Alternative (Parser a m) where
     {-# INLINE some #-}
     some = flip splitSome toList
 
-FUSE_TYPE(ConcatParseState)
+ANN_TYPE(ConcatParseState,Fuse)
 data ConcatParseState sl m a b =
       ConcatParseL !sl
     | forall s. ConcatParseR (s -> a -> m (Step s b)) s (s -> m (Final s b))

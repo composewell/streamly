@@ -206,7 +206,7 @@ import Prelude hiding (concatMap, zipWith)
 -- second stream is appended to the first's effects if there is no visible
 -- output.
 
-FUSE_TYPE(AppendIfEmptyState)
+ANN_TYPE(AppendIfEmptyState,Fuse)
 data AppendIfEmptyState s1 s2 =
       AppendIfEmptyFirstUnseen s1
     | AppendIfEmptyFirstSeen s1
@@ -254,7 +254,7 @@ appendIfEmpty (Stream step1 state1) (Stream step2 state2) =
             Stop      -> Stop
         ) <$> step2 gst st
 
-FUSE_TYPE(AppendUnfoldLastState)
+ANN_TYPE(AppendUnfoldLastState,Fuse)
 data AppendUnfoldLastState o i b =
       AppendUnfoldLastInput o (Maybe b)
     | AppendUnfoldLastInject (Maybe b)
@@ -808,7 +808,7 @@ mergeFstBy _f _m1 _m2 = undefined
 -- Selective unfold
 ------------------------------------------------------------------------------
 
-FUSE_TYPE(UnfoldFirstState)
+ANN_TYPE(UnfoldFirstState,Fuse)
 data UnfoldFirstState o i a =
       UnfoldFirstWaitInput o
     | UnfoldFirstInjectEmpty
@@ -879,7 +879,7 @@ unfoldFirst (Unfold ustep inject) (Stream ostep ost) =
             Stop       -> Stop
         ) <$> ostep (adaptState gst) o
 
-FUSE_TYPE(UnfoldLastState)
+ANN_TYPE(UnfoldLastState,Fuse)
 data UnfoldLastState o i a =
       UnfoldLastInput o (Maybe a)
     | UnfoldLastInject (Maybe a)
@@ -1693,7 +1693,7 @@ fairConcatFor = flip fairConcatMap
 -- Combine N Streams - interpose
 ------------------------------------------------------------------------------
 
-FUSE_TYPE(InterposeSuffixState)
+ANN_TYPE(InterposeSuffixState,Fuse)
 data InterposeSuffixState s1 i1 =
       InterposeSuffixFirst s1
     -- | InterposeSuffixFirstYield s1 i1
@@ -1773,7 +1773,7 @@ unfoldEachEndBy x = unfoldEachEndByM (return x)
 RENAME(interposeSuffix,unfoldEachEndBy)
 RENAME(interposeSuffixM,unfoldEachEndByM)
 
-FUSE_TYPE(InterposeState)
+ANN_TYPE(InterposeState,Fuse)
 data InterposeState s1 i1 a =
       InterposeFirst s1
     -- | InterposeFirstYield s1 i1

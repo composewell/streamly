@@ -88,17 +88,17 @@ import Streamly.Internal.Data.Parser.ParserD.Type
 -- consumed.
 --
   -- XXX We can use Initial instead of StepState
-FUSE_TYPE(StepState)
+ANN_TYPE(StepState,Fuse)
 data StepState s a = StepState s | StepResult a
 
 -- | State of the pair of parsers in a tee composition
 -- Note: strictness annotation is important for fusing the constructors
-FUSE_TYPE(TeeState)
+ANN_TYPE(TeeState,Fuse)
 data TeeState sL sR x a b =
 -- @TeePair (past buffer, parser state, future-buffer1, future-buffer2) ...@
     TeePair !([x], StepState sL a, [x], [x]) !([x], StepState sR b, [x], [x])
 
-FUSE_TYPE(Res)
+ANN_TYPE(Res,Fuse)
 data Res = Yld Int | Stp Int | Skp | Err String
 
 -- | See 'Streamly.Internal.Data.Parser.teeWith'.
