@@ -398,6 +398,11 @@ adaptCGWith pstep initial extract cont !offset0 !usedCount !input = do
         ParserD.IPartial pst -> do
             case input of
                 Chunk arr -> parseContChunk usedCount offset0 pst arr
+                -- At the end of input the previous parser may have given back
+                -- some input, it has to be fed to this parser before
+                -- extracting it.
+                None | offset0 < 0 ->
+                    return $ Continue offset0 (parseCont usedCount pst)
                 None -> parseContNothing usedCount pst
         ParserD.IDone b -> cont (Success offset0 b) usedCount input
         ParserD.IError err -> cont (Failure offset0 err) usedCount input

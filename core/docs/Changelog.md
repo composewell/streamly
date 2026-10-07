@@ -76,6 +76,9 @@
   separators when it fails later, e.g. on a missing closing quote.
 * Fix `Parser.wordWithQuotes` dropping an element when the fold terminates
   on an escape character inside quotes.
+* Fix parsers composed with the `ParserK` instances on array streams
+  (`Array.toParserK`, `Array.Generic.toParserK`) losing the input given back
+  by a parser at the end of input, e.g. in `p1 *> p2` or `p1 <|> p2`.
 
 ### Breaking changes
 

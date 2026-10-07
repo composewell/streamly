@@ -1,6 +1,6 @@
 module Streamly.Test.Data.ParserK.Type (spec) where
 
-import Control.Applicative ((<|>), empty)
+import Control.Applicative ((<|>), empty, optional)
 import Data.Either (fromRight)
 import Test.Hspec
        (Spec, describe, it, expectationFailure, shouldBe)
@@ -113,6 +113,20 @@ toParserAlt =
         r <- Stream.parse p (Stream.fromList [1, 2 :: Int])
         fromRight undefined r `shouldBe` [1, 2]
 
+-- Parsers composed with the ParserK instances, not converted from a composed
+-- Parser.
+nativeParserK :: Spec
+nativeParserK = do
+    let k = ParserK.toParserK
+        -- Gives back the 1 at the end of input
+        optionalPair =
+            optional (Parser.satisfy (== 1) *> Parser.satisfy (== (2 :: Int)))
+        p = k optionalPair *> k (Parser.fromFold FL.toList)
+    it "input given back at the end goes to the next parser" $ do
+        (r, rest) <- StreamK.parseBreak p (StreamK.fromList [1])
+        rest1 <- StreamK.toList rest
+        (either (const Nothing) Just r, rest1) `shouldBe` (Just [1], [])
+
 {-# NOINLINE fusionBreaker #-}
 fusionBreaker :: a -> a
 fusionBreaker = id
@@ -127,3 +141,4 @@ spec = do
     toParser
     toParserAlt
     alternative
+    describe "ParserK instances" nativeParserK
