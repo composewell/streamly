@@ -441,7 +441,7 @@ parseManyTill = undefined
 --
 -- >>> import Data.Monoid (Sum(..))
 -- >>> Stream.toList $ fmap getSum $ Stream.rights $ Stream.parseIterate (\b -> Parser.takeBetween 0 2 (Fold.sconcat b)) (Sum 0) $ fmap Sum $ Stream.fromList [1..10]
--- [3,10,21,36,55,55]
+-- [3,10,21,36,55]
 --
 -- This is the streaming equivalent of monad like sequenced application of
 -- parsers where next parser is dependent on the previous parser.

@@ -330,21 +330,15 @@ PARSE_ITERATE func seed (Stream step state) =
     splitAt = Stream.splitAt "Data.StreamK.parseIterate"
 
     {-# INLINE_LATE stepOuter #-}
-    -- Buffer is empty, go to stream processing loop
-    stepOuter _ (ConcatParseInit OPTIONAL(i) [] st (PRD.Parser pstep initial extract)) = do
-        res <- initial
-        case res of
-            PRD.IPartial ps ->
-                return $ Skip $ ConcatParseStream OPTIONAL(i) st [] pstep ps extract
-            PRD.IDone pb ->
-                let next = ConcatParseInit OPTIONAL(i) [] st (func pb)
-                 in return $ Skip $ ConcatParseYield (Right pb) next
-            PRD.IError err ->
-                return
-                    $ Skip
-                    $ ConcatParseYield
-                        (Left (PARSE_ERROR(i) err))
-                        (ConcatParseInitLeftOver OPTIONAL(i) [])
+    -- Buffer is empty, get the first element from the stream before starting
+    -- the parser, as in parseMany. A parser is not started at the end of the
+    -- stream.
+    stepOuter gst (ConcatParseInit OPTIONAL(i) [] st p) = do
+        r <- step (adaptState gst) st
+        return $ case r of
+            Yield x s -> Skip $ ConcatParseInit OPTIONAL(i) [x] s p
+            Skip s -> Skip $ ConcatParseInit OPTIONAL(i) [] s p
+            Stop -> Stop
 
     -- Buffer is not empty, go to buffered processing loop
     stepOuter _ (ConcatParseInit OPTIONAL(i) src st
@@ -363,10 +357,11 @@ PARSE_ITERATE func seed (Stream step state) =
                         (Left (PARSE_ERROR(i) err))
                         (ConcatParseInitLeftOver OPTIONAL(i) [])
 
-    -- This is simplified ConcatParseInit
-    -- The stream has stopped and there is no more input
+    -- The stream has ended and all the input given back by the last parser
+    -- has been parsed, see ParseChunksInitBuf in parseMany.
     stepOuter _ (ConcatParseInitBuf OPTIONAL(_) [] _) = return Stop
 
+    -- This is simplified ConcatParseInit
     stepOuter _ (ConcatParseInitBuf OPTIONAL(i) src
                     (PRD.Parser pstep initial extract)) = do
         res <- initial

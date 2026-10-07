@@ -79,6 +79,10 @@
 
 ### Breaking changes
 
+* `Stream.parseIterate` no longer emits a result at the end of the stream
+  from a parser run on no input. For example, with `Parser.takeBetween 0 2`
+  on `[1..10]` the output ended with a duplicate of the last result, and with
+  `Parser.takeEQ 2` it ended with a parse error.
 * In Scanl module, `filter` and any other filtering operations like
   `filterM`, `catMaybes`, `catLefts` etc. used to emit the previous
   value of accumulator for filtered-out elements, now they do not emit

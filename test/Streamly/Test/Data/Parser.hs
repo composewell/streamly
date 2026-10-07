@@ -198,6 +198,31 @@ parseManyBacktrackEOF = do
         r <- S.toList $ SI.parseManyPos (takeEQ2 <|> P.takeEQ 1 FL.toList) input
         rights r `shouldBe` expected
 
+-- A parser is not run on the empty input at the end of the stream, whether the
+-- last item ends at the end of the stream or is parsed from the input given
+-- back by the previous parser.
+parseIterateEOF :: SpecWith ()
+parseIterateEOF = do
+    let rights = map (either (const Nothing) Just)
+        takeEQ2 = P.takeEQ 2 FL.toList
+        iter p xs = S.toList $ SI.parseIterate (const p) [] (S.fromList xs)
+    it "item ending at the end" $ do
+        r <- iter takeEQ2 [1, 2, 3, 4 :: Int]
+        rights r `shouldBe` [Just [1, 2], Just [3, 4]]
+    it "empty stream" $ do
+        r <- iter takeEQ2 ([] :: [Int])
+        rights r `shouldBe` []
+    it "item from the input given back at the end" $ do
+        r <- iter (takeEQ2 <|> P.takeEQ 1 FL.toList) [1, 2, 3 :: Int]
+        rights r `shouldBe` [Just [1, 2], Just [3]]
+    it "item succeeding on empty input" $ do
+        r <- iter (P.takeBetween 0 2 FL.toList) [1, 2, 3, 4 :: Int]
+        rights r `shouldBe` [Just [1, 2], Just [3, 4]]
+    it "parseIteratePos" $ do
+        r <- S.toList
+                $ SI.parseIteratePos (const takeEQ2) [] (S.fromList [1, 2, 3, 4 :: Int])
+        rights r `shouldBe` [Just [1, 2], Just [3, 4]]
+
 --------------------------------------------------------------------------------
 -- Parser sequence tests
 --------------------------------------------------------------------------------
@@ -336,6 +361,7 @@ main = do
             prop "parseMany2Events" parseMany2Events
             describe "parseMany, input given back at the end"
                 parseManyBacktrackEOF
+            describe "parseIterate, end of the stream" parseIterateEOF
 
         describe "test for sequence parser" $ do
             parseManyWordQuotedBy
