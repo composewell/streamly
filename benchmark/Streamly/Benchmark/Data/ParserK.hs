@@ -21,12 +21,14 @@ module Main
 import Control.Applicative ((<|>))
 import Control.DeepSeq (NFData(..))
 import Control.Monad.IO.Class (MonadIO)
-import Data.Foldable (asum)
 #ifdef BENCH_CHUNKED
 import Streamly.Data.Array (Array, Unbox)
+import Streamly.Data.MutByteArray (MutByteArray)
+import Streamly.Internal.Data.MutArray (GroupState)
 #endif
 #ifdef BENCH_CHUNKED_GENERIC
 import Streamly.Data.Array.Generic (Array)
+import Streamly.Internal.Data.MutArray.Generic (GroupState)
 #endif
 import Streamly.Internal.Data.Fold (Fold(..))
 import Streamly.Data.StreamK (StreamK)
@@ -46,6 +48,9 @@ import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Data.Parser as PRD
 import qualified Streamly.Internal.Data.ParserK as PR
 import qualified Streamly.Internal.Data.StreamK as StreamK
+import qualified Streamly.Internal.Data.SVar.Type as SVar
+import GHC.Classes (IP)
+import GHC.Stack (SrcLoc, CallStack)
 #ifdef BENCH_CHUNKED
 import qualified Streamly.Internal.Data.Array as Array
 #elif defined(BENCH_CHUNKED_GENERIC)
@@ -54,6 +59,7 @@ import qualified Streamly.Internal.Data.Array.Generic as GenArr
 
 import Test.Tasty.Bench
 import Streamly.Benchmark.Common
+import Fusion.Plugin.Types
 
 -------------------------------------------------------------------------------
 -- CPP Helpers
@@ -69,6 +75,14 @@ import Streamly.Benchmark.Common
 #define CONSTRAINT (Monad m, Unbox a)
 #define MODULE_NAME "Data.ParserK.Chunked"
 
+-- Adapt annotations for BENCH_CHUNKED type
+#define STATE_PM
+#define ARR_PM , ''Array, ''IO, ''MutByteArray, ''GroupState
+#define ARR_PC , ''Array, ''MutByteArray, ''GroupState
+#define ARR_TC , ''Show
+#define DRAIN_PC
+#define DRAIN_TC
+
 #endif
 
 #ifdef BENCH_CHUNKED_GENERIC
@@ -81,6 +95,14 @@ import Streamly.Benchmark.Common
 #define CONSTRAINT (Monad m)
 #define MODULE_NAME "Data.ParserK.Chunked.Generic"
 
+-- Adapt annotations for BENCH_CHUNKED_GENERIC type
+#define STATE_PM
+#define ARR_PM , ''Array, ''IO, ''GroupState
+#define ARR_PC , ''Array, ''Char, ''GroupState
+#define ARR_TC , ''Show
+#define DRAIN_PC , ''[], ''Char, ''Int, ''SrcLoc, ''CallStack
+#define DRAIN_TC ''IP
+
 #endif
 
 #ifdef BENCH_SINGULAR
@@ -92,6 +114,14 @@ import Streamly.Benchmark.Common
 #define CONSTRAINT_IO (MonadIO m)
 #define CONSTRAINT (Monad m)
 #define MODULE_NAME "Data.ParserK"
+
+-- Adapt annotations for BENCH_SINGULAR type
+#define STATE_PM , ''SVar.State
+#define ARR_PM
+#define ARR_PC
+#define ARR_TC
+#define DRAIN_PC
+#define DRAIN_TC
 
 #endif
 
@@ -111,14 +141,13 @@ sourceUnfoldrM value n = Stream.unfoldrM step n
         else return (Just (cnt, cnt + 1))
 
 {-# INLINE benchIO #-}
-benchIO :: NFData b => String -> IO b -> Benchmark
-benchIO name = bench name . nfIO
+benchIO :: NFData b => String -> (Int -> IO b) -> Benchmark
+benchIO name f = bench name $ nfIO $ randomRIO (1, 1 :: Int) >>= f
 
 {-# INLINE withStreamK #-}
-withStreamK :: Int -> (StreamK IO PARSE_ELEM -> IO b) -> IO b
+withStreamK :: Int -> (StreamK IO PARSE_ELEM -> IO b) -> Int -> IO b
 withStreamK value f =
-    randomRIO (1,1) >>=
-        f . StreamK.fromStream
+    f . StreamK.fromStream
 #ifdef BENCH_CHUNKED
           . Array.chunksOf 4000
 #endif
@@ -131,12 +160,22 @@ withStreamK value f =
 -- Parsers
 -------------------------------------------------------------------------------
 
-{-# INLINE drain #-}
-drain :: Int -> IO ()
+{-# ANN drain (PermitPatternMatches []) #-}
+{-# ANN drain (PermitConstructions [''() DRAIN_PC]) #-}
+{-# ANN drain (PermitTypeClasses [DRAIN_TC]) #-}
+{-# NOINLINE drain #-}
+drain :: Int -> Int -> IO ()
 drain value = withStreamK value $ Stream.fold Fold.drain . StreamK.toStream
 
-{-# INLINE one #-}
-one :: Int -> IO (Either ParseError (Maybe Int))
+{-# ANN one (PermitPatternMatches
+    [''[], ''PR.Step, ''(,), ''PR.ParseResult, ''Int
+    , ''PR.Input, ''Maybe STATE_PM ARR_PM]) #-}
+{-# ANN one (PermitConstructions
+    [''SVar.State, ''Maybe, ''Bool, ''[], ''(,), ''Either, ''Int, ''SrcLoc
+    , ''CallStack, ''PR.Step, ''PR.Input, ''PR.ParseResult ARR_PC]) #-}
+{-# ANN one (PermitTypeClasses [''IP ARR_TC]) #-}
+{-# NOINLINE one #-}
+one :: Int -> Int -> IO (Either ParseError (Maybe Int))
 one value = withStreamK value $ PARSE_OP p
 
     where
@@ -151,63 +190,111 @@ one value = withStreamK value $ PARSE_OP p
 satisfy :: CONSTRAINT_IO => (a -> Bool) -> PR.ParserK INPUT m a
 satisfy = FROM_PARSER . PRD.satisfy
 
-{-# INLINE takeWhile #-}
-takeWhile :: CONSTRAINT_IO => (a -> Bool) -> PR.ParserK INPUT m ()
-takeWhile p = FROM_PARSER $ PRD.takeWhile p FL.drain
+{-# INLINE takeWhileParser #-}
+takeWhileParser :: CONSTRAINT_IO => (a -> Bool) -> PR.ParserK INPUT m ()
+takeWhileParser p = FROM_PARSER $ PRD.takeWhile p FL.drain
 
-{-# INLINE takeWhileK #-}
-takeWhileK :: Int -> IO (Either ParseError ())
-takeWhileK value = withStreamK value $ PARSE_OP (takeWhile (<= value))
+{-# ANN takeWhile (PermitPatternMatches
+    [''[], ''PR.Step, ''(,), ''Int, ''(), ''PR.Input STATE_PM ARR_PM]) #-}
+{-# ANN takeWhile (PermitConstructions
+    [''Int, ''[], ''(,), ''Either, ''SVar.State, ''Maybe, ''SrcLoc
+    , ''CallStack, ''Bool, ''PR.Step, ''(), ''PR.Input ARR_PC]) #-}
+{-# ANN takeWhile (PermitTypeClasses [''IP ARR_TC]) #-}
+{-# NOINLINE takeWhile #-}
+takeWhile :: Int -> Int -> IO (Either ParseError ())
+takeWhile value = withStreamK value $ PARSE_OP (takeWhileParser (<= value))
 
-{-# INLINE splitAp2 #-}
-splitAp2 :: Int -> IO (Either ParseError ((), ()))
-splitAp2 value =
+{-# ANN ap_ApplicativeInstance_x2 (PermitPatternMatches
+    [''[], ''PR.Step, ''(,), ''Int, ''(), ''PR.Input STATE_PM ARR_PM]) #-}
+{-# ANN ap_ApplicativeInstance_x2 (PermitConstructions
+    [''[], ''(,), ''Either, ''SVar.State, ''Maybe, ''Int, ''SrcLoc
+    , ''CallStack, ''Bool, ''(), ''PR.Step, ''PR.Input ARR_PC]) #-}
+{-# ANN ap_ApplicativeInstance_x2 (PermitTypeClasses [''IP ARR_TC]) #-}
+{-# NOINLINE ap_ApplicativeInstance_x2 #-}
+ap_ApplicativeInstance_x2 :: Int -> Int -> IO (Either ParseError ((), ()))
+ap_ApplicativeInstance_x2 value =
     withStreamK value $ PARSE_OP
         ((,)
-            <$> takeWhile (<= (value `div` 2))
-            <*> takeWhile (<= value)
+            <$> takeWhileParser (<= (value `div` 2))
+            <*> takeWhileParser (<= value)
         )
 
-{-# INLINE splitAp8 #-}
-splitAp8 :: Int -> IO (Either ParseError ())
-splitAp8 value =
+{-# ANN ap_ApplicativeInstance_x8 (PermitPatternMatches
+    [''[], ''PR.Step, ''(,), ''Int, ''(), ''PR.Input STATE_PM ARR_PM]) #-}
+{-# ANN ap_ApplicativeInstance_x8 (PermitConstructions
+    [''[], ''(,), ''Either, ''SVar.State, ''Maybe, ''Int, ''SrcLoc
+    , ''CallStack, ''Bool, ''(), ''PR.Step, ''PR.Input ARR_PC]) #-}
+{-# ANN ap_ApplicativeInstance_x8 (PermitTypeClasses [''IP ARR_TC]) #-}
+{-# NOINLINE ap_ApplicativeInstance_x8 #-}
+ap_ApplicativeInstance_x8 :: Int -> Int -> IO (Either ParseError ())
+ap_ApplicativeInstance_x8 value =
     withStreamK value $ PARSE_OP
         (      (\() () () () () () () () -> ())
-            <$> takeWhile (<= ( value      `div` 8))
-            <*> takeWhile (<= ((value * 2) `div` 8))
-            <*> takeWhile (<= ((value * 3) `div` 8))
-            <*> takeWhile (<= ((value * 4) `div` 8))
-            <*> takeWhile (<= ((value * 5) `div` 8))
-            <*> takeWhile (<= ((value * 6) `div` 8))
-            <*> takeWhile (<= ((value * 7) `div` 8))
-            <*> takeWhile (<= value)
+            <$> takeWhileParser (<= ( value      `div` 8))
+            <*> takeWhileParser (<= ((value * 2) `div` 8))
+            <*> takeWhileParser (<= ((value * 3) `div` 8))
+            <*> takeWhileParser (<= ((value * 4) `div` 8))
+            <*> takeWhileParser (<= ((value * 5) `div` 8))
+            <*> takeWhileParser (<= ((value * 6) `div` 8))
+            <*> takeWhileParser (<= ((value * 7) `div` 8))
+            <*> takeWhileParser (<= value)
         )
 
-{-# INLINE sequenceA #-}
-sequenceA :: Int -> IO Int
+{-# ANN sequenceA (PermitPatternMatches
+    [''Int, ''PR.Input, ''(), ''PR.ParseResult, ''[], ''PR.Step
+    , ''(,), ''Either STATE_PM ARR_PM]) #-}
+{-# ANN sequenceA (PermitConstructions
+    [''PR.ParseResult, ''PR.Input, ''Int, ''PR.Step, ''(), ''[], ''(,)
+    , ''Either, ''SVar.State, ''Maybe, ''SrcLoc, ''CallStack, ''Bool ARR_PC]) #-}
+{-# ANN sequenceA (PermitTypeClasses [''IP ARR_TC]) #-}
+{-# NOINLINE sequenceA #-}
+sequenceA :: Int -> Int -> IO Int
 sequenceA value = withStreamK value $ \xs -> do
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
     x <- PARSE_OP (TR.sequenceA list) xs
     return $ Prelude.length x
 
-{-# INLINE sequenceA_ #-}
-sequenceA_ :: Int -> IO (Either ParseError ())
+{-# ANN sequenceA_ (PermitPatternMatches
+    [''Int, ''PR.Input, ''(), ''PR.ParseResult, ''[], ''PR.Step
+    , ''(,) STATE_PM ARR_PM]) #-}
+{-# ANN sequenceA_ (PermitConstructions
+    [''PR.ParseResult, ''PR.Input, ''Int, ''PR.Step, ''(), ''[], ''(,)
+    , ''Either, ''SVar.State, ''Maybe, ''SrcLoc, ''CallStack, ''Bool ARR_PC]) #-}
+{-# ANN sequenceA_ (PermitTypeClasses [''IP ARR_TC]) #-}
+{-# NOINLINE sequenceA_ #-}
+sequenceA_ :: Int -> Int -> IO (Either ParseError ())
 sequenceA_ value = withStreamK value $ \xs -> do
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
     PARSE_OP (F.sequenceA_ list) xs
 
-{-# INLINE sequence #-}
-sequence :: Int -> IO Int
+{-# ANN sequence (PermitPatternMatches
+    [''[], ''PR.Step, ''(,), ''Int, ''PR.Input, ''()
+    , ''PR.ParseResult, ''Either STATE_PM ARR_PM]) #-}
+{-# ANN sequence (PermitConstructions
+    [''[], ''(,), ''Either, ''SVar.State, ''Maybe, ''Int, ''SrcLoc
+    , ''CallStack, ''Bool, ''PR.ParseResult, ''PR.Input, ''PR.Step
+    , ''() ARR_PC]) #-}
+{-# ANN sequence (PermitTypeClasses [''IP ARR_TC]) #-}
+{-# NOINLINE sequence #-}
+sequence :: Int -> Int -> IO Int
 sequence value = withStreamK value $ \xs -> do
     let parser = satisfy (> 0)
         list = Prelude.replicate value parser
     x <- PARSE_OP (TR.sequence list) xs
     return $ Prelude.length x
 
-{-# INLINE sequence_ #-}
-sequence_ :: Int -> IO (Either ParseError ())
+{-# ANN sequence_ (PermitPatternMatches
+    [''[], ''PR.Step, ''(,), ''Int, ''PR.Input, ''()
+    , ''PR.ParseResult STATE_PM ARR_PM]) #-}
+{-# ANN sequence_ (PermitConstructions
+    [''[], ''(,), ''Either, ''SVar.State, ''Maybe, ''Int, ''SrcLoc
+    , ''CallStack, ''Bool, ''PR.ParseResult, ''PR.Input, ''PR.Step
+    , ''() ARR_PC]) #-}
+{-# ANN sequence_ (PermitTypeClasses [''IP ARR_TC]) #-}
+{-# NOINLINE sequence_ #-}
+sequence_ :: Int -> Int -> IO (Either ParseError ())
 sequence_ value =
     withStreamK value $
         let parser = satisfy (> 0)
@@ -244,17 +331,29 @@ takeWhileFail :: CONSTRAINT =>
     (a -> Bool) -> Fold m a b -> PR.ParserK INPUT m b
 takeWhileFail p f = FROM_PARSER (takeWhileFailD p f)
 
-{-# INLINE alt2 #-}
-alt2 :: Int -> IO (Either ParseError ())
-alt2 value =
+{-# ANN alt_AlternativeInstance_x2 (PermitPatternMatches
+    [''[], ''PR.Step, ''(,), ''Int, ''(), ''PR.Input STATE_PM ARR_PM]) #-}
+{-# ANN alt_AlternativeInstance_x2 (PermitConstructions
+    [''[], ''(,), ''Either, ''SVar.State, ''Maybe, ''Int, ''SrcLoc
+    , ''CallStack, ''Bool, ''PR.Step, ''(), ''PR.Input ARR_PC]) #-}
+{-# ANN alt_AlternativeInstance_x2 (PermitTypeClasses [''IP ARR_TC]) #-}
+{-# NOINLINE alt_AlternativeInstance_x2 #-}
+alt_AlternativeInstance_x2 :: Int -> Int -> IO (Either ParseError ())
+alt_AlternativeInstance_x2 value =
     withStreamK value $ PARSE_OP
         (   takeWhileFail (<= (value `div` 2)) Fold.drain
-        <|> takeWhile (<= value)
+        <|> takeWhileParser (<= value)
         )
 
-{-# INLINE alt8 #-}
-alt8 :: Int -> IO (Either ParseError ())
-alt8 value =
+{-# ANN alt_AlternativeInstance_x8 (PermitPatternMatches
+    [''[], ''PR.Step, ''(,), ''Int, ''(), ''PR.Input STATE_PM ARR_PM]) #-}
+{-# ANN alt_AlternativeInstance_x8 (PermitConstructions
+    [''[], ''(,), ''Either, ''SVar.State, ''Maybe, ''Int, ''SrcLoc
+    , ''CallStack, ''Bool, ''PR.Step, ''(), ''PR.Input ARR_PC]) #-}
+{-# ANN alt_AlternativeInstance_x8 (PermitTypeClasses [''IP ARR_TC]) #-}
+{-# NOINLINE alt_AlternativeInstance_x8 #-}
+alt_AlternativeInstance_x8 :: Int -> Int -> IO (Either ParseError ())
+alt_AlternativeInstance_x8 value =
     withStreamK value $ PARSE_OP
         (   takeWhileFail (<= ( value      `div` 8)) Fold.drain
         <|> takeWhileFail (<= ((value * 2) `div` 8)) Fold.drain
@@ -263,12 +362,18 @@ alt8 value =
         <|> takeWhileFail (<= ((value * 5) `div` 8)) Fold.drain
         <|> takeWhileFail (<= ((value * 6) `div` 8)) Fold.drain
         <|> takeWhileFail (<= ((value * 7) `div` 8)) Fold.drain
-        <|> takeWhile (<= value)
+        <|> takeWhileParser (<= value)
         )
 
-{-# INLINE alt16 #-}
-alt16 :: Int -> IO (Either ParseError ())
-alt16 value =
+{-# ANN alt_AlternativeInstance_x16 (PermitPatternMatches
+    [''[], ''PR.Step, ''(,), ''Int, ''(), ''PR.Input STATE_PM ARR_PM]) #-}
+{-# ANN alt_AlternativeInstance_x16 (PermitConstructions
+    [''[], ''(,), ''Either, ''SVar.State, ''Maybe, ''Int, ''SrcLoc
+    , ''CallStack, ''Bool, ''PR.Step, ''(), ''PR.Input ARR_PC]) #-}
+{-# ANN alt_AlternativeInstance_x16 (PermitTypeClasses [''IP ARR_TC]) #-}
+{-# NOINLINE alt_AlternativeInstance_x16 #-}
+alt_AlternativeInstance_x16 :: Int -> Int -> IO (Either ParseError ())
+alt_AlternativeInstance_x16 value =
     withStreamK value $ PARSE_OP
         (   takeWhileFail (<= ( value      `div` 16)) Fold.drain
         <|> takeWhileFail (<= ((value * 2) `div` 16)) Fold.drain
@@ -285,76 +390,123 @@ alt16 value =
         <|> takeWhileFail (<= ((value * 13) `div` 16)) Fold.drain
         <|> takeWhileFail (<= ((value * 14) `div` 16)) Fold.drain
         <|> takeWhileFail (<= ((value * 15) `div` 16)) Fold.drain
-        <|> takeWhile (<= value)
+        <|> takeWhileParser (<= value)
         )
 
-{-# INLINE manyAlt #-}
-manyAlt :: Int -> IO Int
-manyAlt value = withStreamK value $ \xs -> do
+{-# ANN many_AlternativeInstance (PermitPatternMatches
+    [''PR.Input, ''Int, ''PR.ParseResult, ''(), ''[], ''PR.Step
+    , ''(,), ''Either STATE_PM ARR_PM]) #-}
+{-# ANN many_AlternativeInstance (PermitConstructions
+    [''Int, ''PR.ParseResult, ''[], ''PR.Input, ''PR.Step, ''(), ''(,)
+    , ''Either, ''SVar.State, ''Maybe, ''SrcLoc, ''CallStack, ''Bool ARR_PC]) #-}
+{-# ANN many_AlternativeInstance (PermitTypeClasses [''IP ARR_TC]) #-}
+{-# NOINLINE many_AlternativeInstance #-}
+many_AlternativeInstance :: Int -> Int -> IO Int
+many_AlternativeInstance value = withStreamK value $ \xs -> do
     x <- PARSE_OP (AP.many (satisfy (> 0))) xs
     return $ Prelude.length x
 
-{-# INLINE someAlt #-}
-someAlt :: Int -> IO Int
-someAlt value = withStreamK value $ \xs -> do
+{-# ANN some_AlternativeInstance (PermitPatternMatches
+    [''PR.Input, ''Int, ''PR.ParseResult, ''(), ''[], ''PR.Step
+    , ''(,), ''Either STATE_PM ARR_PM]) #-}
+{-# ANN some_AlternativeInstance (PermitConstructions
+    [''Int, ''PR.ParseResult, ''[], ''PR.Input, ''PR.Step, ''(), ''(,)
+    , ''Either, ''SVar.State, ''Maybe, ''SrcLoc, ''CallStack, ''Bool ARR_PC]) #-}
+{-# ANN some_AlternativeInstance (PermitTypeClasses [''IP ARR_TC]) #-}
+{-# NOINLINE some_AlternativeInstance #-}
+some_AlternativeInstance :: Int -> Int -> IO Int
+some_AlternativeInstance value = withStreamK value $ \xs -> do
     x <- PARSE_OP (AP.some (satisfy (> 0))) xs
     return $ Prelude.length x
 
-{-# INLINE choice #-}
-choice :: Int -> IO (Either ParseError Int)
-choice value =
-    withStreamK value $ PARSE_OP (asum (replicate value (satisfy (< 0)))
-        AP.<|> satisfy (> 0))
+{-# ANN asum (PermitPatternMatches
+    [''Int, ''(), ''PR.Input, ''PR.ParseResult, ''[], ''PR.Step
+    , ''(,) STATE_PM ARR_PM]) #-}
+{-# ANN asum (PermitConstructions
+    [''PR.Step, ''(), ''PR.ParseResult, ''PR.Input, ''Int, ''[], ''(,)
+    , ''Either, ''SVar.State, ''Maybe, ''SrcLoc, ''CallStack, ''Bool ARR_PC]) #-}
+{-# ANN asum (PermitTypeClasses [''IP ARR_TC]) #-}
+{-# NOINLINE asum #-}
+asum :: Int -> Int -> IO (Either ParseError Int)
+asum value =
+    withStreamK value
+        $ PARSE_OP
+            (F.asum (replicate value (satisfy (< 0)))
+                AP.<|> satisfy (> 0))
 
-{-# INLINE monad2 #-}
-monad2 :: Int -> IO (Either ParseError ())
-monad2 value =
+{-# ANN then_MonadInstance_x2 (PermitPatternMatches
+    [''[], ''PR.Step, ''(,), ''Int, ''(), ''PR.Input STATE_PM ARR_PM]) #-}
+{-# ANN then_MonadInstance_x2 (PermitConstructions
+    [''[], ''(,), ''Either, ''SVar.State, ''Maybe, ''Int, ''SrcLoc
+    , ''CallStack, ''Bool, ''PR.Step, ''(), ''PR.Input ARR_PC]) #-}
+{-# ANN then_MonadInstance_x2 (PermitTypeClasses [''IP ARR_TC]) #-}
+{-# NOINLINE then_MonadInstance_x2 #-}
+then_MonadInstance_x2 :: Int -> Int -> IO (Either ParseError ())
+then_MonadInstance_x2 value =
     withStreamK value $ PARSE_OP $ do
-        takeWhile (<= (value `div` 2))
-        takeWhile (<= value)
+        takeWhileParser (<= (value `div` 2))
+        takeWhileParser (<= value)
 
-{-# INLINE monad4 #-}
-monad4 :: Int -> IO (Either ParseError ())
-monad4 value =
+{-# ANN then_MonadInstance_x4 (PermitPatternMatches
+    [''[], ''PR.Step, ''(,), ''Int, ''(), ''PR.Input STATE_PM ARR_PM]) #-}
+{-# ANN then_MonadInstance_x4 (PermitConstructions
+    [''[], ''(,), ''Either, ''SVar.State, ''Maybe, ''Int, ''SrcLoc
+    , ''CallStack, ''Bool, ''PR.Step, ''(), ''PR.Input ARR_PC]) #-}
+{-# ANN then_MonadInstance_x4 (PermitTypeClasses [''IP ARR_TC]) #-}
+{-# NOINLINE then_MonadInstance_x4 #-}
+then_MonadInstance_x4 :: Int -> Int -> IO (Either ParseError ())
+then_MonadInstance_x4 value =
     withStreamK value $ PARSE_OP $ do
-        takeWhile (<= ( value      `div` 4))
-        takeWhile (<= ((value * 2) `div` 4))
-        takeWhile (<= ((value * 3) `div` 4))
-        takeWhile (<= value)
+        takeWhileParser (<= ( value      `div` 4))
+        takeWhileParser (<= ((value * 2) `div` 4))
+        takeWhileParser (<= ((value * 3) `div` 4))
+        takeWhileParser (<= value)
 
-{-# INLINE monad8 #-}
-monad8 :: Int -> IO (Either ParseError ())
-monad8 value =
+{-# ANN then_MonadInstance_x8 (PermitPatternMatches
+    [''[], ''PR.Step, ''(,), ''Int, ''(), ''PR.Input STATE_PM ARR_PM]) #-}
+{-# ANN then_MonadInstance_x8 (PermitConstructions
+    [''[], ''(,), ''Either, ''SVar.State, ''Maybe, ''Int, ''SrcLoc
+    , ''CallStack, ''Bool, ''PR.Step, ''(), ''PR.Input ARR_PC]) #-}
+{-# ANN then_MonadInstance_x8 (PermitTypeClasses [''IP ARR_TC]) #-}
+{-# NOINLINE then_MonadInstance_x8 #-}
+then_MonadInstance_x8 :: Int -> Int -> IO (Either ParseError ())
+then_MonadInstance_x8 value =
     withStreamK value $ PARSE_OP $ do
-        takeWhile (<= ( value      `div` 8))
-        takeWhile (<= ((value * 2) `div` 8))
-        takeWhile (<= ((value * 3) `div` 8))
-        takeWhile (<= ((value * 4) `div` 8))
-        takeWhile (<= ((value * 5) `div` 8))
-        takeWhile (<= ((value * 6) `div` 8))
-        takeWhile (<= ((value * 7) `div` 8))
-        takeWhile (<= value)
+        takeWhileParser (<= ( value      `div` 8))
+        takeWhileParser (<= ((value * 2) `div` 8))
+        takeWhileParser (<= ((value * 3) `div` 8))
+        takeWhileParser (<= ((value * 4) `div` 8))
+        takeWhileParser (<= ((value * 5) `div` 8))
+        takeWhileParser (<= ((value * 6) `div` 8))
+        takeWhileParser (<= ((value * 7) `div` 8))
+        takeWhileParser (<= value)
 
-{-# INLINE monad16 #-}
-monad16 :: Int -> IO (Either ParseError ())
-monad16 value =
+{-# ANN then_MonadInstance_x16 (PermitPatternMatches
+    [''[], ''PR.Step, ''(,), ''Int, ''(), ''PR.Input STATE_PM ARR_PM]) #-}
+{-# ANN then_MonadInstance_x16 (PermitConstructions
+    [''[], ''(,), ''Either, ''SVar.State, ''Maybe, ''Int, ''SrcLoc
+    , ''CallStack, ''Bool, ''PR.Step, ''(), ''PR.Input ARR_PC]) #-}
+{-# ANN then_MonadInstance_x16 (PermitTypeClasses [''IP ARR_TC]) #-}
+{-# NOINLINE then_MonadInstance_x16 #-}
+then_MonadInstance_x16 :: Int -> Int -> IO (Either ParseError ())
+then_MonadInstance_x16 value =
     withStreamK value $ PARSE_OP $ do
-        takeWhile (<= ( value      `div` 16))
-        takeWhile (<= ((value * 2) `div` 16))
-        takeWhile (<= ((value * 3) `div` 16))
-        takeWhile (<= ((value * 4) `div` 16))
-        takeWhile (<= ((value * 5) `div` 16))
-        takeWhile (<= ((value * 6) `div` 16))
-        takeWhile (<= ((value * 7) `div` 16))
-        takeWhile (<= ((value * 8) `div` 16))
-        takeWhile (<= ((value * 9) `div` 16))
-        takeWhile (<= ((value * 10) `div` 16))
-        takeWhile (<= ((value * 11) `div` 16))
-        takeWhile (<= ((value * 12) `div` 16))
-        takeWhile (<= ((value * 13) `div` 16))
-        takeWhile (<= ((value * 14) `div` 16))
-        takeWhile (<= ((value * 15) `div` 16))
-        takeWhile (<= value)
+        takeWhileParser (<= ( value      `div` 16))
+        takeWhileParser (<= ((value * 2) `div` 16))
+        takeWhileParser (<= ((value * 3) `div` 16))
+        takeWhileParser (<= ((value * 4) `div` 16))
+        takeWhileParser (<= ((value * 5) `div` 16))
+        takeWhileParser (<= ((value * 6) `div` 16))
+        takeWhileParser (<= ((value * 7) `div` 16))
+        takeWhileParser (<= ((value * 8) `div` 16))
+        takeWhileParser (<= ((value * 9) `div` 16))
+        takeWhileParser (<= ((value * 10) `div` 16))
+        takeWhileParser (<= ((value * 11) `div` 16))
+        takeWhileParser (<= ((value * 12) `div` 16))
+        takeWhileParser (<= ((value * 13) `div` 16))
+        takeWhileParser (<= ((value * 14) `div` 16))
+        takeWhileParser (<= ((value * 15) `div` 16))
+        takeWhileParser (<= value)
 
 -------------------------------------------------------------------------------
 -- Benchmarks
@@ -370,16 +522,26 @@ instance NFData ParseError where
 o_1_space_serial :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_serial value =
     [ (SpaceO_1, benchIO "drain" $ drain value)
-    , (SpaceO_1, benchIO "takeWhile" $ takeWhileK value)
-    , (SpaceO_1, benchIO "splitAp2" $ splitAp2 value)
-    , (SpaceO_1, benchIO "splitAp8" $ splitAp8 value)
-    , (SpaceO_1, benchIO "alt2" $ alt2 value)
-    , (SpaceO_1, benchIO "monad2" $ monad2 value)
-    , (SpaceO_1, benchIO "monad4" $ monad4 value)
+    , (SpaceO_1, benchIO "takeWhile" $ takeWhile value)
+    , (SpaceO_1, benchIO "ap_ApplicativeInstance_x2 (<*>)"
+          $ ap_ApplicativeInstance_x2 value)
+    , (SpaceO_1, benchIO "ap_ApplicativeInstance_x8 (<*>)"
+          $ ap_ApplicativeInstance_x8 value)
+    , (SpaceO_1, benchIO "alt_AlternativeInstance_x2 (<|>)"
+          $ alt_AlternativeInstance_x2 value)
+    , (SpaceO_1, benchIO "then_MonadInstance_x2" $ then_MonadInstance_x2 value)
+    , (SpaceO_1, benchIO "then_MonadInstance_x4" $ then_MonadInstance_x4 value)
     ]
 
-{-# INLINE sepBy1 #-}
-sepBy1 :: Int -> IO Int
+{-# ANN sepBy1 (PermitPatternMatches
+    [''PR.Input, ''Int, ''PR.ParseResult, ''(), ''[], ''PR.Step
+    , ''(,), ''Either STATE_PM ARR_PM]) #-}
+{-# ANN sepBy1 (PermitConstructions
+    [''PR.ParseResult, ''[], ''PR.Input, ''PR.Step, ''Int, ''(), ''(,)
+    , ''Either, ''SVar.State, ''Maybe, ''SrcLoc, ''CallStack, ''Bool ARR_PC]) #-}
+{-# ANN sepBy1 (PermitTypeClasses [''IP ARR_TC]) #-}
+{-# NOINLINE sepBy1 #-}
+sepBy1 :: Int -> Int -> IO Int
 sepBy1 value = withStreamK value $ \xs -> do
     x <- PARSE_OP (parser (satisfy odd) (satisfy even)) xs
     return $ Prelude.length x
@@ -400,16 +562,21 @@ o_n_heap_serial value =
     , (HeapO_n, benchIO "sequenceA_" $ sequenceA_ value)
     , (HeapO_n, benchIO "sequence" $ sequence value)
     , (HeapO_n, benchIO "sequenceA" $ sequenceA value)
-    , (HeapO_n, benchIO "manyAlt" $ manyAlt value)
-    , (HeapO_n, benchIO "sepBy1" $ sepBy1 value)
-    , (HeapO_n, benchIO "someAlt" $ someAlt value)
-    , (HeapO_n, benchIO "choice" $ choice value)
+    , (HeapO_n, benchIO "many_AlternativeInstance"
+          $ many_AlternativeInstance value)
+    , (HeapO_n, benchIO "sepBy1 (odd & even, hand written)" $ sepBy1 value)
+    , (HeapO_n, benchIO "some_AlternativeInstance"
+          $ some_AlternativeInstance value)
+    , (HeapO_n, benchIO "asum" $ asum value)
 
     -- XXX these take too much memory with --long, need to investigate
-    , (HeapO_n, benchIO "alt8" $ alt8 value)
-    , (HeapO_n, benchIO "alt16" $ alt16 value)
-    , (HeapO_n, benchIO "monad8" $ monad8 value)
-    , (HeapO_n, benchIO "monad16" $ monad16 value)
+    , (HeapO_n, benchIO "alt_AlternativeInstance_x8 (<|>)"
+          $ alt_AlternativeInstance_x8 value)
+    , (HeapO_n, benchIO "alt_AlternativeInstance_x16 (<|>)"
+          $ alt_AlternativeInstance_x16 value)
+    , (HeapO_n, benchIO "then_MonadInstance_x8" $ then_MonadInstance_x8 value)
+    , (HeapO_n, benchIO "then_MonadInstance_x16"
+          $ then_MonadInstance_x16 value)
     ]
 
 -- O(n) heap beacuse of accumulation of the list in strict IO monad?

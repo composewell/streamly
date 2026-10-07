@@ -141,7 +141,8 @@ jobs:
     - name: Run benchmarks for "master" branch
       run: |
         # --cabal-build-options "-j1"
-        ./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --targets "$CI_BENCHMARKS" --raw
+        ./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --targets "$CI_BENCHMARKS" --core-sizes
+        ./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --targets "$CI_BENCHMARKS" --raw --keep-going || true
         # XXX Print dependencies of streamly-core and streamly for comparison
         # in case there is a regression due to version changes.
         # ghc-pkg --package-db=./dist-newstyle/packagedb/ghc-9.10.3/ field streamly depends
@@ -159,6 +160,7 @@ jobs:
     - name: Run benchmarks and append
       run: |
         # --cabal-build-options "-j1"
+        ./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --targets "$CI_BENCHMARKS" --core-sizes --append
         ./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --targets "$CI_BENCHMARKS" --raw --append
 
     # -----------------------------------------------------------------
@@ -167,6 +169,7 @@ jobs:
 
     - name: List all benchmarks
       run: |
+        ./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --targets "$CI_BENCHMARKS" --core-sizes --no-measure
         ./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --targets "$CI_BENCHMARKS" --no-measure
 
     - name: Compare benchmarks

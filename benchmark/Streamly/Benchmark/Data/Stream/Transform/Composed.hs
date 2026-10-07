@@ -11,8 +11,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RankNTypes #-}
 
--- {-# OPTIONS_GHC -fforce-recomp #-}
-
 #ifdef __HADDOCK_VERSION__
 #undef INSPECTION
 #endif
@@ -25,14 +23,14 @@
 module Stream.Transform.Composed (benchmarks) where
 
 #ifdef INSPECTION
-import GHC.Types (SPEC(..))
 import Test.Inspection
+import GHC.Types (SPEC(..))
 #endif
 
 import Control.DeepSeq (NFData(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import GHC.Generics (Generic)
-import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Internal.Data.Stream (Stream, Step, DropWhileState, ScanState)
 
 import qualified Stream.Common as Common
 import qualified Streamly.Internal.Data.Fold as FL
@@ -42,8 +40,10 @@ import qualified Streamly.Internal.Data.Stream as Stream
 
 import Test.Tasty.Bench
 import Streamly.Benchmark.Common
+import Fusion.Plugin.Types
+import Streamly.Internal.Data.SVar.Type (State)
 import Stream.Common hiding (benchIO)
-import Stream.Type (benchIO, withRandomIntIO, withStream)
+import Stream.Type (benchIO, withStream)
 import Prelude hiding (tail)
 
 -- Apply transformation g count times on a stream of length len
@@ -66,414 +66,511 @@ iterateSource g count len n = f count (sourceUnfoldrM len n)
 -- Mixed Transformation
 -------------------------------------------------------------------------------
 
-{-# INLINE scanMap #-}
-scanMap :: MonadIO m => Int -> Stream m Int -> m ()
-scanMap n = composeN n $ fmap (subtract 1) . Common.scanl' (+) 0
+{-# INLINE scanl'_fmap #-}
+scanl'_fmap :: MonadIO m => Int -> Stream m Int -> m ()
+scanl'_fmap n = composeN n $ fmap (subtract 1) . Common.scanl' (+) 0
 
-{-# NOINLINE scanMap1 #-}
-scanMap1 :: Int -> IO ()
-scanMap1 value = withStream value (scanMap 1)
+{-# ANN scanl'_fmap_x1 (PermitPatternMatches []) #-}
+{-# ANN scanl'_fmap_x1 (PermitConstructions []) #-}
+{-# ANN scanl'_fmap_x1 (PermitTypeClasses []) #-}
+{-# NOINLINE scanl'_fmap_x1 #-}
+scanl'_fmap_x1 :: Int -> Int -> IO ()
+scanl'_fmap_x1 value = withStream value (scanl'_fmap 1)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'scanMap1
-inspect $ 'scanMap1 `hasNoType` ''S.Step
-inspect $ 'scanMap1 `hasNoType` ''S.ScanState
-inspect $ 'scanMap1 `hasNoType` ''FL.Step
-inspect $ 'scanMap1 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'scanl'_fmap_x1
+inspect $ 'scanl'_fmap_x1 `hasNoType` ''S.Step
+inspect $ 'scanl'_fmap_x1 `hasNoType` ''S.ScanState
+inspect $ 'scanl'_fmap_x1 `hasNoType` ''FL.Step
+inspect $ 'scanl'_fmap_x1 `hasNoType` ''SPEC
 #endif
 
-{-# NOINLINE scanMap2 #-}
-scanMap2 :: Int -> IO ()
-scanMap2 value = withStream value (scanMap 2)
+{-# ANN scanl'_fmap_x2 (PermitPatternMatches []) #-}
+{-# ANN scanl'_fmap_x2 (PermitConstructions []) #-}
+{-# ANN scanl'_fmap_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE scanl'_fmap_x2 #-}
+scanl'_fmap_x2 :: Int -> Int -> IO ()
+scanl'_fmap_x2 value = withStream value (scanl'_fmap 2)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'scanMap2
-inspect $ 'scanMap2 `hasNoType` ''S.Step
-inspect $ 'scanMap2 `hasNoType` ''S.ScanState
-inspect $ 'scanMap2 `hasNoType` ''FL.Step
-inspect $ 'scanMap2 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'scanl'_fmap_x2
+inspect $ 'scanl'_fmap_x2 `hasNoType` ''S.Step
+inspect $ 'scanl'_fmap_x2 `hasNoType` ''S.ScanState
+inspect $ 'scanl'_fmap_x2 `hasNoType` ''FL.Step
+inspect $ 'scanl'_fmap_x2 `hasNoType` ''SPEC
 #endif
 
-{-# NOINLINE scanMap4 #-}
-scanMap4 :: Int -> IO ()
-scanMap4 value = withStream value (scanMap 4)
+{-# ANN scanl'_fmap_x4 (PermitPatternMatches []) #-}
+{-# ANN scanl'_fmap_x4 (PermitConstructions []) #-}
+{-# ANN scanl'_fmap_x4 (PermitTypeClasses []) #-}
+{-# NOINLINE scanl'_fmap_x4 #-}
+scanl'_fmap_x4 :: Int -> Int -> IO ()
+scanl'_fmap_x4 value = withStream value (scanl'_fmap 4)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'scanMap4
-inspect $ 'scanMap4 `hasNoType` ''S.Step
-inspect $ 'scanMap4 `hasNoType` ''S.ScanState
-inspect $ 'scanMap4 `hasNoType` ''FL.Step
-inspect $ 'scanMap4 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'scanl'_fmap_x4
+inspect $ 'scanl'_fmap_x4 `hasNoType` ''S.Step
+inspect $ 'scanl'_fmap_x4 `hasNoType` ''S.ScanState
+inspect $ 'scanl'_fmap_x4 `hasNoType` ''FL.Step
+inspect $ 'scanl'_fmap_x4 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE dropMap #-}
-dropMap :: MonadIO m => Int -> Stream m Int -> m ()
-dropMap n = composeN n $ fmap (subtract 1) . S.drop 1
+{-# INLINE drop_fmap #-}
+drop_fmap :: MonadIO m => Int -> Stream m Int -> m ()
+drop_fmap n = composeN n $ fmap (subtract 1) . S.drop 1
 
-{-# NOINLINE dropMap1 #-}
-dropMap1 :: Int -> IO ()
-dropMap1 value = withStream value (dropMap 1)
+{-# ANN drop_fmap_x1 (PermitPatternMatches []) #-}
+{-# ANN drop_fmap_x1 (PermitConstructions []) #-}
+{-# ANN drop_fmap_x1 (PermitTypeClasses []) #-}
+{-# NOINLINE drop_fmap_x1 #-}
+drop_fmap_x1 :: Int -> Int -> IO ()
+drop_fmap_x1 value = withStream value (drop_fmap 1)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'dropMap1
-inspect $ 'dropMap1 `hasNoType` ''S.Step
-inspect $ 'dropMap1 `hasNoType` ''FL.Step
-inspect $ 'dropMap1 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'drop_fmap_x1
+inspect $ 'drop_fmap_x1 `hasNoType` ''S.Step
+inspect $ 'drop_fmap_x1 `hasNoType` ''FL.Step
+inspect $ 'drop_fmap_x1 `hasNoType` ''SPEC
 #endif
 
-{-# NOINLINE dropMap2 #-}
-dropMap2 :: Int -> IO ()
-dropMap2 value = withStream value (dropMap 2)
+{-# ANN drop_fmap_x2 (PermitPatternMatches []) #-}
+{-# ANN drop_fmap_x2 (PermitConstructions []) #-}
+{-# ANN drop_fmap_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE drop_fmap_x2 #-}
+drop_fmap_x2 :: Int -> Int -> IO ()
+drop_fmap_x2 value = withStream value (drop_fmap 2)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'dropMap2
-inspect $ 'dropMap2 `hasNoType` ''S.Step
-inspect $ 'dropMap2 `hasNoType` ''FL.Step
-inspect $ 'dropMap2 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'drop_fmap_x2
+inspect $ 'drop_fmap_x2 `hasNoType` ''S.Step
+inspect $ 'drop_fmap_x2 `hasNoType` ''FL.Step
+inspect $ 'drop_fmap_x2 `hasNoType` ''SPEC
 #endif
 
-{-# NOINLINE dropMap4 #-}
-dropMap4 :: Int -> IO ()
-dropMap4 value = withStream value (dropMap 4)
+{-# ANN drop_fmap_x4 (PermitPatternMatches []) #-}
+{-# ANN drop_fmap_x4 (PermitConstructions []) #-}
+{-# ANN drop_fmap_x4 (PermitTypeClasses []) #-}
+{-# NOINLINE drop_fmap_x4 #-}
+drop_fmap_x4 :: Int -> Int -> IO ()
+drop_fmap_x4 value = withStream value (drop_fmap 4)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'dropMap4
-inspect $ 'dropMap4 `hasNoType` ''S.Step
-inspect $ 'dropMap4 `hasNoType` ''FL.Step
-inspect $ 'dropMap4 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'drop_fmap_x4
+inspect $ 'drop_fmap_x4 `hasNoType` ''S.Step
+inspect $ 'drop_fmap_x4 `hasNoType` ''FL.Step
+inspect $ 'drop_fmap_x4 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE dropScan #-}
-dropScan :: MonadIO m => Int -> Stream m Int -> m ()
-dropScan n = composeN n $ Common.scanl' (+) 0 . S.drop 1
+{-# INLINE drop_scanl' #-}
+drop_scanl' :: MonadIO m => Int -> Stream m Int -> m ()
+drop_scanl' n = composeN n $ Common.scanl' (+) 0 . S.drop 1
 
-{-# NOINLINE dropScan1 #-}
-dropScan1 :: Int -> IO ()
-dropScan1 value = withStream value (dropScan 1)
+{-# ANN drop_scanl'_x1 (PermitPatternMatches []) #-}
+{-# ANN drop_scanl'_x1 (PermitConstructions []) #-}
+{-# ANN drop_scanl'_x1 (PermitTypeClasses []) #-}
+{-# NOINLINE drop_scanl'_x1 #-}
+drop_scanl'_x1 :: Int -> Int -> IO ()
+drop_scanl'_x1 value = withStream value (drop_scanl' 1)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'dropScan1
-inspect $ 'dropScan1 `hasNoType` ''S.Step
-inspect $ 'dropScan1 `hasNoType` ''S.ScanState
-inspect $ 'dropScan1 `hasNoType` ''FL.Step
-inspect $ 'dropScan1 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'drop_scanl'_x1
+inspect $ 'drop_scanl'_x1 `hasNoType` ''S.Step
+inspect $ 'drop_scanl'_x1 `hasNoType` ''S.ScanState
+inspect $ 'drop_scanl'_x1 `hasNoType` ''FL.Step
+inspect $ 'drop_scanl'_x1 `hasNoType` ''SPEC
 #endif
 
-{-# NOINLINE dropScan2 #-}
-dropScan2 :: Int -> IO ()
-dropScan2 value = withStream value (dropScan 2)
+{-# ANN drop_scanl'_x2 (PermitPatternMatches []) #-}
+{-# ANN drop_scanl'_x2 (PermitConstructions []) #-}
+{-# ANN drop_scanl'_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE drop_scanl'_x2 #-}
+drop_scanl'_x2 :: Int -> Int -> IO ()
+drop_scanl'_x2 value = withStream value (drop_scanl' 2)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'dropScan2
-inspect $ 'dropScan2 `hasNoType` ''S.Step
-inspect $ 'dropScan2 `hasNoType` ''S.ScanState
-inspect $ 'dropScan2 `hasNoType` ''FL.Step
-inspect $ 'dropScan2 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'drop_scanl'_x2
+inspect $ 'drop_scanl'_x2 `hasNoType` ''S.Step
+inspect $ 'drop_scanl'_x2 `hasNoType` ''S.ScanState
+inspect $ 'drop_scanl'_x2 `hasNoType` ''FL.Step
+inspect $ 'drop_scanl'_x2 `hasNoType` ''SPEC
 #endif
 
-{-# NOINLINE dropScan4 #-}
-dropScan4 :: Int -> IO ()
-dropScan4 value = withStream value (dropScan 4)
+{-# ANN drop_scanl'_x4 (PermitPatternMatches []) #-}
+{-# ANN drop_scanl'_x4 (PermitConstructions []) #-}
+{-# ANN drop_scanl'_x4 (PermitTypeClasses []) #-}
+{-# NOINLINE drop_scanl'_x4 #-}
+drop_scanl'_x4 :: Int -> Int -> IO ()
+drop_scanl'_x4 value = withStream value (drop_scanl' 4)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'dropScan4
-inspect $ 'dropScan4 `hasNoType` ''S.Step
-inspect $ 'dropScan4 `hasNoType` ''S.ScanState
-inspect $ 'dropScan4 `hasNoType` ''FL.Step
-inspect $ 'dropScan4 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'drop_scanl'_x4
+inspect $ 'drop_scanl'_x4 `hasNoType` ''S.Step
+inspect $ 'drop_scanl'_x4 `hasNoType` ''S.ScanState
+inspect $ 'drop_scanl'_x4 `hasNoType` ''FL.Step
+inspect $ 'drop_scanl'_x4 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE takeDrop #-}
-takeDrop :: MonadIO m => Int -> Int -> Stream m Int -> m ()
-takeDrop value n = composeN n $ S.drop 1 . S.take (value + 1)
+{-# INLINE take_drop #-}
+take_drop :: MonadIO m => Int -> Int -> Stream m Int -> m ()
+take_drop value n = composeN n $ S.drop 1 . S.take (value + 1)
 
-{-# NOINLINE takeDrop1 #-}
-takeDrop1 :: Int -> IO ()
-takeDrop1 value = withStream value (takeDrop value 1)
+{-# ANN take_drop_x1 (PermitPatternMatches []) #-}
+{-# ANN take_drop_x1 (PermitConstructions []) #-}
+{-# ANN take_drop_x1 (PermitTypeClasses []) #-}
+{-# NOINLINE take_drop_x1 #-}
+take_drop_x1 :: Int -> Int -> IO ()
+take_drop_x1 value = withStream value (take_drop value 1)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'takeDrop1
-inspect $ 'takeDrop1 `hasNoType` ''S.Step
-inspect $ 'takeDrop1 `hasNoType` ''FL.Step
-inspect $ 'takeDrop1 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'take_drop_x1
+inspect $ 'take_drop_x1 `hasNoType` ''S.Step
+inspect $ 'take_drop_x1 `hasNoType` ''FL.Step
+inspect $ 'take_drop_x1 `hasNoType` ''SPEC
 #endif
 
-{-# NOINLINE takeDrop2 #-}
-takeDrop2 :: Int -> IO ()
-takeDrop2 value = withStream value (takeDrop value 2)
+{-# ANN take_drop_x2 (PermitPatternMatches []) #-}
+{-# ANN take_drop_x2 (PermitConstructions []) #-}
+{-# ANN take_drop_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE take_drop_x2 #-}
+take_drop_x2 :: Int -> Int -> IO ()
+take_drop_x2 value = withStream value (take_drop value 2)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'takeDrop2
-inspect $ 'takeDrop2 `hasNoType` ''S.Step
-inspect $ 'takeDrop2 `hasNoType` ''FL.Step
-inspect $ 'takeDrop2 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'take_drop_x2
+inspect $ 'take_drop_x2 `hasNoType` ''S.Step
+inspect $ 'take_drop_x2 `hasNoType` ''FL.Step
+inspect $ 'take_drop_x2 `hasNoType` ''SPEC
 #endif
 
-{-# NOINLINE takeDrop4 #-}
-takeDrop4 :: Int -> IO ()
-takeDrop4 value = withStream value (takeDrop value 4)
+{-# ANN take_drop_x4 (PermitPatternMatches []) #-}
+{-# ANN take_drop_x4 (PermitConstructions []) #-}
+{-# ANN take_drop_x4 (PermitTypeClasses []) #-}
+{-# NOINLINE take_drop_x4 #-}
+take_drop_x4 :: Int -> Int -> IO ()
+take_drop_x4 value = withStream value (take_drop value 4)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'takeDrop4
-inspect $ 'takeDrop4 `hasNoType` ''S.Step
-inspect $ 'takeDrop4 `hasNoType` ''FL.Step
-inspect $ 'takeDrop4 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'take_drop_x4
+inspect $ 'take_drop_x4 `hasNoType` ''S.Step
+inspect $ 'take_drop_x4 `hasNoType` ''FL.Step
+inspect $ 'take_drop_x4 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE takeScan #-}
-takeScan :: MonadIO m => Int -> Int -> Stream m Int -> m ()
-takeScan value n = composeN n $ Common.scanl' (+) 0 . S.take (value + 1)
+{-# INLINE take_scanl' #-}
+take_scanl' :: MonadIO m => Int -> Int -> Stream m Int -> m ()
+take_scanl' value n = composeN n $ Common.scanl' (+) 0 . S.take (value + 1)
 
-{-# NOINLINE takeScan1 #-}
-takeScan1 :: Int -> IO ()
-takeScan1 value = withStream value (takeScan value 1)
+{-# ANN take_scanl'_x1 (PermitPatternMatches []) #-}
+{-# ANN take_scanl'_x1 (PermitConstructions []) #-}
+{-# ANN take_scanl'_x1 (PermitTypeClasses []) #-}
+{-# NOINLINE take_scanl'_x1 #-}
+take_scanl'_x1 :: Int -> Int -> IO ()
+take_scanl'_x1 value = withStream value (take_scanl' value 1)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'takeScan1
-inspect $ 'takeScan1 `hasNoType` ''S.Step
-inspect $ 'takeScan1 `hasNoType` ''S.ScanState
-inspect $ 'takeScan1 `hasNoType` ''FL.Step
-inspect $ 'takeScan1 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'take_scanl'_x1
+inspect $ 'take_scanl'_x1 `hasNoType` ''S.Step
+inspect $ 'take_scanl'_x1 `hasNoType` ''S.ScanState
+inspect $ 'take_scanl'_x1 `hasNoType` ''FL.Step
+inspect $ 'take_scanl'_x1 `hasNoType` ''SPEC
 #endif
 
-{-# NOINLINE takeScan2 #-}
-takeScan2 :: Int -> IO ()
-takeScan2 value = withStream value (takeScan value 2)
+{-# ANN take_scanl'_x2 (PermitPatternMatches []) #-}
+{-# ANN take_scanl'_x2 (PermitConstructions []) #-}
+{-# ANN take_scanl'_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE take_scanl'_x2 #-}
+take_scanl'_x2 :: Int -> Int -> IO ()
+take_scanl'_x2 value = withStream value (take_scanl' value 2)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'takeScan2
-inspect $ 'takeScan2 `hasNoType` ''S.Step
-inspect $ 'takeScan2 `hasNoType` ''S.ScanState
-inspect $ 'takeScan2 `hasNoType` ''FL.Step
-inspect $ 'takeScan2 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'take_scanl'_x2
+inspect $ 'take_scanl'_x2 `hasNoType` ''S.Step
+inspect $ 'take_scanl'_x2 `hasNoType` ''S.ScanState
+inspect $ 'take_scanl'_x2 `hasNoType` ''FL.Step
+inspect $ 'take_scanl'_x2 `hasNoType` ''SPEC
 #endif
 
-{-# NOINLINE takeScan4 #-}
-takeScan4 :: Int -> IO ()
-takeScan4 value = withStream value (takeScan value 4)
+{-# ANN take_scanl'_x4 (PermitPatternMatches []) #-}
+{-# ANN take_scanl'_x4 (PermitConstructions []) #-}
+{-# ANN take_scanl'_x4 (PermitTypeClasses []) #-}
+{-# NOINLINE take_scanl'_x4 #-}
+take_scanl'_x4 :: Int -> Int -> IO ()
+take_scanl'_x4 value = withStream value (take_scanl' value 4)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'takeScan4
-inspect $ 'takeScan4 `hasNoType` ''S.Step
-inspect $ 'takeScan4 `hasNoType` ''S.ScanState
-inspect $ 'takeScan4 `hasNoType` ''FL.Step
-inspect $ 'takeScan4 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'take_scanl'_x4
+inspect $ 'take_scanl'_x4 `hasNoType` ''S.Step
+inspect $ 'take_scanl'_x4 `hasNoType` ''S.ScanState
+inspect $ 'take_scanl'_x4 `hasNoType` ''FL.Step
+inspect $ 'take_scanl'_x4 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE takeMap #-}
-takeMap :: MonadIO m => Int -> Int -> Stream m Int -> m ()
-takeMap value n = composeN n $ fmap (subtract 1) . S.take (value + 1)
+{-# INLINE take_fmap #-}
+take_fmap :: MonadIO m => Int -> Int -> Stream m Int -> m ()
+take_fmap value n = composeN n $ fmap (subtract 1) . S.take (value + 1)
 
-{-# NOINLINE takeMap1 #-}
-takeMap1 :: Int -> IO ()
-takeMap1 value = withStream value (takeMap value 1)
+{-# ANN take_fmap_x1 (PermitPatternMatches []) #-}
+{-# ANN take_fmap_x1 (PermitConstructions []) #-}
+{-# ANN take_fmap_x1 (PermitTypeClasses []) #-}
+{-# NOINLINE take_fmap_x1 #-}
+take_fmap_x1 :: Int -> Int -> IO ()
+take_fmap_x1 value = withStream value (take_fmap value 1)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'takeMap1
-inspect $ 'takeMap1 `hasNoType` ''S.Step
-inspect $ 'takeMap1 `hasNoType` ''FL.Step
-inspect $ 'takeMap1 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'take_fmap_x1
+inspect $ 'take_fmap_x1 `hasNoType` ''S.Step
+inspect $ 'take_fmap_x1 `hasNoType` ''FL.Step
+inspect $ 'take_fmap_x1 `hasNoType` ''SPEC
 #endif
 
-{-# NOINLINE takeMap2 #-}
-takeMap2 :: Int -> IO ()
-takeMap2 value = withStream value (takeMap value 2)
+{-# ANN take_fmap_x2 (PermitPatternMatches []) #-}
+{-# ANN take_fmap_x2 (PermitConstructions []) #-}
+{-# ANN take_fmap_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE take_fmap_x2 #-}
+take_fmap_x2 :: Int -> Int -> IO ()
+take_fmap_x2 value = withStream value (take_fmap value 2)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'takeMap2
-inspect $ 'takeMap2 `hasNoType` ''S.Step
-inspect $ 'takeMap2 `hasNoType` ''FL.Step
-inspect $ 'takeMap2 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'take_fmap_x2
+inspect $ 'take_fmap_x2 `hasNoType` ''S.Step
+inspect $ 'take_fmap_x2 `hasNoType` ''FL.Step
+inspect $ 'take_fmap_x2 `hasNoType` ''SPEC
 #endif
 
-{-# NOINLINE takeMap4 #-}
-takeMap4 :: Int -> IO ()
-takeMap4 value = withStream value (takeMap value 4)
+{-# ANN take_fmap_x4 (PermitPatternMatches []) #-}
+{-# ANN take_fmap_x4 (PermitConstructions []) #-}
+{-# ANN take_fmap_x4 (PermitTypeClasses []) #-}
+{-# NOINLINE take_fmap_x4 #-}
+take_fmap_x4 :: Int -> Int -> IO ()
+take_fmap_x4 value = withStream value (take_fmap value 4)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'takeMap4
-inspect $ 'takeMap4 `hasNoType` ''S.Step
-inspect $ 'takeMap4 `hasNoType` ''FL.Step
-inspect $ 'takeMap4 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'take_fmap_x4
+inspect $ 'take_fmap_x4 `hasNoType` ''S.Step
+inspect $ 'take_fmap_x4 `hasNoType` ''FL.Step
+inspect $ 'take_fmap_x4 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE filterDrop #-}
-filterDrop :: MonadIO m => Int -> Int -> Stream m Int -> m ()
-filterDrop value n = composeN n $ S.drop 1 . S.filter (<= (value + 1))
+{-# INLINE filter_drop #-}
+filter_drop :: MonadIO m => Int -> Int -> Stream m Int -> m ()
+filter_drop value n = composeN n $ S.drop 1 . S.filter (<= (value + 1))
 
-{-# NOINLINE filterDrop1 #-}
-filterDrop1 :: Int -> IO ()
-filterDrop1 value = withStream value (filterDrop value 1)
+{-# ANN filter_drop_x1 (PermitPatternMatches []) #-}
+{-# ANN filter_drop_x1 (PermitConstructions []) #-}
+{-# ANN filter_drop_x1 (PermitTypeClasses []) #-}
+{-# NOINLINE filter_drop_x1 #-}
+filter_drop_x1 :: Int -> Int -> IO ()
+filter_drop_x1 value = withStream value (filter_drop value 1)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'filterDrop1
-inspect $ 'filterDrop1 `hasNoType` ''S.Step
-inspect $ 'filterDrop1 `hasNoType` ''FL.Step
-inspect $ 'filterDrop1 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'filter_drop_x1
+inspect $ 'filter_drop_x1 `hasNoType` ''S.Step
+inspect $ 'filter_drop_x1 `hasNoType` ''FL.Step
+inspect $ 'filter_drop_x1 `hasNoType` ''SPEC
 #endif
 
-{-# NOINLINE filterDrop2 #-}
-filterDrop2 :: Int -> IO ()
-filterDrop2 value = withStream value (filterDrop value 2)
+{-# ANN filter_drop_x2 (PermitPatternMatches []) #-}
+{-# ANN filter_drop_x2 (PermitConstructions []) #-}
+{-# ANN filter_drop_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE filter_drop_x2 #-}
+filter_drop_x2 :: Int -> Int -> IO ()
+filter_drop_x2 value = withStream value (filter_drop value 2)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'filterDrop2
-inspect $ 'filterDrop2 `hasNoType` ''S.Step
-inspect $ 'filterDrop2 `hasNoType` ''FL.Step
-inspect $ 'filterDrop2 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'filter_drop_x2
+inspect $ 'filter_drop_x2 `hasNoType` ''S.Step
+inspect $ 'filter_drop_x2 `hasNoType` ''FL.Step
+inspect $ 'filter_drop_x2 `hasNoType` ''SPEC
 #endif
 
-{-# NOINLINE filterDrop4 #-}
-filterDrop4 :: Int -> IO ()
-filterDrop4 value = withStream value (filterDrop value 4)
+{-# ANN filter_drop_x4 (PermitPatternMatches []) #-}
+{-# ANN filter_drop_x4 (PermitConstructions []) #-}
+{-# ANN filter_drop_x4 (PermitTypeClasses []) #-}
+{-# NOINLINE filter_drop_x4 #-}
+filter_drop_x4 :: Int -> Int -> IO ()
+filter_drop_x4 value = withStream value (filter_drop value 4)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'filterDrop4
-inspect $ 'filterDrop4 `hasNoType` ''S.Step
-inspect $ 'filterDrop4 `hasNoType` ''FL.Step
-inspect $ 'filterDrop4 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'filter_drop_x4
+inspect $ 'filter_drop_x4 `hasNoType` ''S.Step
+inspect $ 'filter_drop_x4 `hasNoType` ''FL.Step
+inspect $ 'filter_drop_x4 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE filterTake #-}
-filterTake :: MonadIO m => Int -> Int -> Stream m Int -> m ()
-filterTake value n = composeN n $ S.take (value + 1) . S.filter (<= (value + 1))
+{-# INLINE filter_take #-}
+filter_take :: MonadIO m => Int -> Int -> Stream m Int -> m ()
+filter_take value n =
+    composeN n $ S.take (value + 1) . S.filter (<= (value + 1))
 
-{-# NOINLINE filterTake1 #-}
-filterTake1 :: Int -> IO ()
-filterTake1 value = withStream value (filterTake value 1)
+{-# ANN filter_take_x1 (PermitPatternMatches []) #-}
+{-# ANN filter_take_x1 (PermitConstructions []) #-}
+{-# ANN filter_take_x1 (PermitTypeClasses []) #-}
+{-# NOINLINE filter_take_x1 #-}
+filter_take_x1 :: Int -> Int -> IO ()
+filter_take_x1 value = withStream value (filter_take value 1)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'filterTake1
-inspect $ 'filterTake1 `hasNoType` ''S.Step
-inspect $ 'filterTake1 `hasNoType` ''FL.Step
-inspect $ 'filterTake1 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'filter_take_x1
+inspect $ 'filter_take_x1 `hasNoType` ''S.Step
+inspect $ 'filter_take_x1 `hasNoType` ''FL.Step
+inspect $ 'filter_take_x1 `hasNoType` ''SPEC
 #endif
 
-{-# NOINLINE filterTake2 #-}
-filterTake2 :: Int -> IO ()
-filterTake2 value = withStream value (filterTake value 2)
+{-# ANN filter_take_x2 (PermitPatternMatches []) #-}
+{-# ANN filter_take_x2 (PermitConstructions []) #-}
+{-# ANN filter_take_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE filter_take_x2 #-}
+filter_take_x2 :: Int -> Int -> IO ()
+filter_take_x2 value = withStream value (filter_take value 2)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'filterTake2
-inspect $ 'filterTake2 `hasNoType` ''S.Step
-inspect $ 'filterTake2 `hasNoType` ''FL.Step
-inspect $ 'filterTake2 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'filter_take_x2
+inspect $ 'filter_take_x2 `hasNoType` ''S.Step
+inspect $ 'filter_take_x2 `hasNoType` ''FL.Step
+inspect $ 'filter_take_x2 `hasNoType` ''SPEC
 #endif
 
-{-# NOINLINE filterTake4 #-}
-filterTake4 :: Int -> IO ()
-filterTake4 value = withStream value (filterTake value 4)
+{-# ANN filter_take_x4 (PermitPatternMatches []) #-}
+{-# ANN filter_take_x4 (PermitConstructions []) #-}
+{-# ANN filter_take_x4 (PermitTypeClasses []) #-}
+{-# NOINLINE filter_take_x4 #-}
+filter_take_x4 :: Int -> Int -> IO ()
+filter_take_x4 value = withStream value (filter_take value 4)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'filterTake4
-inspect $ 'filterTake4 `hasNoType` ''S.Step
-inspect $ 'filterTake4 `hasNoType` ''FL.Step
-inspect $ 'filterTake4 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'filter_take_x4
+inspect $ 'filter_take_x4 `hasNoType` ''S.Step
+inspect $ 'filter_take_x4 `hasNoType` ''FL.Step
+inspect $ 'filter_take_x4 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE filterScan #-}
-filterScan :: MonadIO m => Int -> Stream m Int -> m ()
-filterScan n = composeN n $ Common.scanl' (+) 0 . S.filter (<= maxBound)
+{-# INLINE filter_scanl' #-}
+filter_scanl' :: MonadIO m => Int -> Stream m Int -> m ()
+filter_scanl' n = composeN n $ Common.scanl' (+) 0 . S.filter (<= maxBound)
 
-{-# NOINLINE filterScan1 #-}
-filterScan1 :: Int -> IO ()
-filterScan1 value = withStream value (filterScan 1)
+{-# ANN filter_scanl'_x1 (PermitPatternMatches []) #-}
+{-# ANN filter_scanl'_x1 (PermitConstructions []) #-}
+{-# ANN filter_scanl'_x1 (PermitTypeClasses []) #-}
+{-# NOINLINE filter_scanl'_x1 #-}
+filter_scanl'_x1 :: Int -> Int -> IO ()
+filter_scanl'_x1 value = withStream value (filter_scanl' 1)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'filterScan1
-inspect $ 'filterScan1 `hasNoType` ''S.Step
-inspect $ 'filterScan1 `hasNoType` ''S.ScanState
-inspect $ 'filterScan1 `hasNoType` ''FL.Step
-inspect $ 'filterScan1 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'filter_scanl'_x1
+inspect $ 'filter_scanl'_x1 `hasNoType` ''S.Step
+inspect $ 'filter_scanl'_x1 `hasNoType` ''S.ScanState
+inspect $ 'filter_scanl'_x1 `hasNoType` ''FL.Step
+inspect $ 'filter_scanl'_x1 `hasNoType` ''SPEC
 #endif
 
-{-# NOINLINE filterScan2 #-}
-filterScan2 :: Int -> IO ()
-filterScan2 value = withStream value (filterScan 2)
+{-# ANN filter_scanl'_x2 (PermitPatternMatches []) #-}
+{-# ANN filter_scanl'_x2 (PermitConstructions []) #-}
+{-# ANN filter_scanl'_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE filter_scanl'_x2 #-}
+filter_scanl'_x2 :: Int -> Int -> IO ()
+filter_scanl'_x2 value = withStream value (filter_scanl' 2)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'filterScan2
-inspect $ 'filterScan2 `hasNoType` ''S.Step
-inspect $ 'filterScan2 `hasNoType` ''S.ScanState
-inspect $ 'filterScan2 `hasNoType` ''FL.Step
-inspect $ 'filterScan2 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'filter_scanl'_x2
+inspect $ 'filter_scanl'_x2 `hasNoType` ''S.Step
+inspect $ 'filter_scanl'_x2 `hasNoType` ''S.ScanState
+inspect $ 'filter_scanl'_x2 `hasNoType` ''FL.Step
+inspect $ 'filter_scanl'_x2 `hasNoType` ''SPEC
 #endif
 
-{-# NOINLINE filterScan4 #-}
-filterScan4 :: Int -> IO ()
-filterScan4 value = withStream value (filterScan 4)
+{-# ANN filter_scanl'_x4 (PermitPatternMatches []) #-}
+{-# ANN filter_scanl'_x4 (PermitConstructions []) #-}
+{-# ANN filter_scanl'_x4 (PermitTypeClasses []) #-}
+{-# NOINLINE filter_scanl'_x4 #-}
+filter_scanl'_x4 :: Int -> Int -> IO ()
+filter_scanl'_x4 value = withStream value (filter_scanl' 4)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'filterScan4
-inspect $ 'filterScan4 `hasNoType` ''S.Step
-inspect $ 'filterScan4 `hasNoType` ''S.ScanState
-inspect $ 'filterScan4 `hasNoType` ''FL.Step
-inspect $ 'filterScan4 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'filter_scanl'_x4
+inspect $ 'filter_scanl'_x4 `hasNoType` ''S.Step
+inspect $ 'filter_scanl'_x4 `hasNoType` ''S.ScanState
+inspect $ 'filter_scanl'_x4 `hasNoType` ''FL.Step
+inspect $ 'filter_scanl'_x4 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE filterScanl1 #-}
-filterScanl1 :: MonadIO m => Int -> Stream m Int -> m ()
-filterScanl1 n = composeN n $ S.scanl1' (+) . S.filter (<= maxBound)
+{-# INLINE filter_scanl1' #-}
+filter_scanl1' :: MonadIO m => Int -> Stream m Int -> m ()
+filter_scanl1' n = composeN n $ S.scanl1' (+) . S.filter (<= maxBound)
 
-{-# NOINLINE filterScanl12 #-}
-filterScanl12 :: Int -> IO ()
-filterScanl12 value = withStream value (filterScanl1 2)
+{-# ANN filter_scanl1'_x2 (PermitPatternMatches []) #-}
+{-# ANN filter_scanl1'_x2 (PermitConstructions []) #-}
+{-# ANN filter_scanl1'_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE filter_scanl1'_x2 #-}
+filter_scanl1'_x2 :: Int -> Int -> IO ()
+filter_scanl1'_x2 value = withStream value (filter_scanl1' 2)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'filterScanl12
-inspect $ 'filterScanl12 `hasNoType` ''S.Step
-inspect $ 'filterScanl12 `hasNoType` ''S.ScanState
-inspect $ 'filterScanl12 `hasNoType` ''FL.Step
-inspect $ 'filterScanl12 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'filter_scanl1'_x2
+inspect $ 'filter_scanl1'_x2 `hasNoType` ''S.Step
+inspect $ 'filter_scanl1'_x2 `hasNoType` ''S.ScanState
+inspect $ 'filter_scanl1'_x2 `hasNoType` ''FL.Step
+inspect $ 'filter_scanl1'_x2 `hasNoType` ''SPEC
 #endif
 
-{-# NOINLINE filterScanl14 #-}
-filterScanl14 :: Int -> IO ()
-filterScanl14 value = withStream value (filterScanl1 4)
+{-# ANN filter_scanl1'_x4 (PermitPatternMatches []) #-}
+{-# ANN filter_scanl1'_x4 (PermitConstructions []) #-}
+{-# ANN filter_scanl1'_x4 (PermitTypeClasses []) #-}
+{-# NOINLINE filter_scanl1'_x4 #-}
+filter_scanl1'_x4 :: Int -> Int -> IO ()
+filter_scanl1'_x4 value = withStream value (filter_scanl1' 4)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'filterScanl14
-inspect $ 'filterScanl14 `hasNoType` ''S.Step
-inspect $ 'filterScanl14 `hasNoType` ''S.ScanState
-inspect $ 'filterScanl14 `hasNoType` ''FL.Step
-inspect $ 'filterScanl14 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'filter_scanl1'_x4
+inspect $ 'filter_scanl1'_x4 `hasNoType` ''S.Step
+inspect $ 'filter_scanl1'_x4 `hasNoType` ''S.ScanState
+inspect $ 'filter_scanl1'_x4 `hasNoType` ''FL.Step
+inspect $ 'filter_scanl1'_x4 `hasNoType` ''SPEC
 #endif
 
-{-# INLINE filterMap #-}
-filterMap :: MonadIO m => Int -> Int -> Stream m Int -> m ()
-filterMap value n = composeN n $ fmap (subtract 1) . S.filter (<= (value + 1))
+{-# INLINE filter_fmap #-}
+filter_fmap :: MonadIO m => Int -> Int -> Stream m Int -> m ()
+filter_fmap value n = composeN n $ fmap (subtract 1) . S.filter (<= (value + 1))
 
-{-# NOINLINE filterMap1 #-}
-filterMap1 :: Int -> IO ()
-filterMap1 value = withStream value (filterMap value 1)
+{-# ANN filter_fmap_x1 (PermitPatternMatches []) #-}
+{-# ANN filter_fmap_x1 (PermitConstructions []) #-}
+{-# ANN filter_fmap_x1 (PermitTypeClasses []) #-}
+{-# NOINLINE filter_fmap_x1 #-}
+filter_fmap_x1 :: Int -> Int -> IO ()
+filter_fmap_x1 value = withStream value (filter_fmap value 1)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'filterMap1
-inspect $ 'filterMap1 `hasNoType` ''S.Step
-inspect $ 'filterMap1 `hasNoType` ''FL.Step
-inspect $ 'filterMap1 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'filter_fmap_x1
+inspect $ 'filter_fmap_x1 `hasNoType` ''S.Step
+inspect $ 'filter_fmap_x1 `hasNoType` ''FL.Step
+inspect $ 'filter_fmap_x1 `hasNoType` ''SPEC
 #endif
 
-{-# NOINLINE filterMap2 #-}
-filterMap2 :: Int -> IO ()
-filterMap2 value = withStream value (filterMap value 2)
+{-# ANN filter_fmap_x2 (PermitPatternMatches []) #-}
+{-# ANN filter_fmap_x2 (PermitConstructions []) #-}
+{-# ANN filter_fmap_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE filter_fmap_x2 #-}
+filter_fmap_x2 :: Int -> Int -> IO ()
+filter_fmap_x2 value = withStream value (filter_fmap value 2)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'filterMap2
-inspect $ 'filterMap2 `hasNoType` ''S.Step
-inspect $ 'filterMap2 `hasNoType` ''FL.Step
-inspect $ 'filterMap2 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'filter_fmap_x2
+inspect $ 'filter_fmap_x2 `hasNoType` ''S.Step
+inspect $ 'filter_fmap_x2 `hasNoType` ''FL.Step
+inspect $ 'filter_fmap_x2 `hasNoType` ''SPEC
 #endif
 
-{-# NOINLINE filterMap4 #-}
-filterMap4 :: Int -> IO ()
-filterMap4 value = withStream value (filterMap value 4)
+{-# ANN filter_fmap_x4 (PermitPatternMatches []) #-}
+{-# ANN filter_fmap_x4 (PermitConstructions []) #-}
+{-# ANN filter_fmap_x4 (PermitTypeClasses []) #-}
+{-# NOINLINE filter_fmap_x4 #-}
+filter_fmap_x4 :: Int -> Int -> IO ()
+filter_fmap_x4 value = withStream value (filter_fmap value 4)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'filterMap4
-inspect $ 'filterMap4 `hasNoType` ''S.Step
-inspect $ 'filterMap4 `hasNoType` ''FL.Step
-inspect $ 'filterMap4 `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'filter_fmap_x4
+inspect $ 'filter_fmap_x4 `hasNoType` ''S.Step
+inspect $ 'filter_fmap_x4 `hasNoType` ''FL.Step
+inspect $ 'filter_fmap_x4 `hasNoType` ''SPEC
 #endif
 
 -------------------------------------------------------------------------------
@@ -484,43 +581,52 @@ data Pair a b =
     Pair !a !b
     deriving (Generic, NFData)
 
-{-# NOINLINE sumProductFold #-}
-sumProductFold :: Int -> IO (Pair Int Int)
-sumProductFold value =
+{-# ANN foldl'_SumProduct (PermitPatternMatches []) #-}
+{-# ANN foldl'_SumProduct (PermitConstructions [''Pair,''Int]) #-}
+{-# ANN foldl'_SumProduct (PermitTypeClasses []) #-}
+{-# NOINLINE foldl'_SumProduct #-}
+foldl'_SumProduct :: Int -> Int -> IO (Pair Int Int)
+foldl'_SumProduct value =
     withStream value $
         Common.foldl' (\(Pair s p) x -> Pair (s + x) (p * x)) (Pair 0 1)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'sumProductFold
-inspect $ 'sumProductFold `hasNoType` ''S.Step
-inspect $ 'sumProductFold `hasNoType` ''FL.Step
-inspect $ 'sumProductFold `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'foldl'_SumProduct
+inspect $ 'foldl'_SumProduct `hasNoType` ''S.Step
+inspect $ 'foldl'_SumProduct `hasNoType` ''FL.Step
+inspect $ 'foldl'_SumProduct `hasNoType` ''SPEC
 #endif
 
-{-# NOINLINE sumProductScan #-}
-sumProductScan :: Int -> IO (Pair Int Int)
-sumProductScan value =
+{-# ANN scanl'_foldl'_SumProduct (PermitPatternMatches []) #-}
+{-# ANN scanl'_foldl'_SumProduct (PermitConstructions [''Int,''Pair]) #-}
+{-# ANN scanl'_foldl'_SumProduct (PermitTypeClasses []) #-}
+{-# NOINLINE scanl'_foldl'_SumProduct #-}
+scanl'_foldl'_SumProduct :: Int -> Int -> IO (Pair Int Int)
+scanl'_foldl'_SumProduct value =
     withStream value $
         Common.foldl' (\(Pair _ p) (s0, x) -> Pair s0 (p * x)) (Pair 0 1) .
         Common.scanl' (\(s, _) x -> (s + x, x)) (0, 0)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'sumProductScan
-inspect $ 'sumProductScan `hasNoType` ''S.Step
-inspect $ 'sumProductScan `hasNoType` ''S.ScanState
-inspect $ 'sumProductScan `hasNoType` ''FL.Step
-inspect $ 'sumProductScan `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'scanl'_foldl'_SumProduct
+inspect $ 'scanl'_foldl'_SumProduct `hasNoType` ''S.Step
+inspect $ 'scanl'_foldl'_SumProduct `hasNoType` ''S.ScanState
+inspect $ 'scanl'_foldl'_SumProduct `hasNoType` ''FL.Step
+inspect $ 'scanl'_foldl'_SumProduct `hasNoType` ''SPEC
 #endif
 
-{-# NOINLINE foldl'ReduceMap #-}
-foldl'ReduceMap :: Int -> IO Int
-foldl'ReduceMap value = withStream value $ fmap (+ 1) . Common.foldl' (+) 0
+{-# ANN foldl'_fmap (PermitPatternMatches []) #-}
+{-# ANN foldl'_fmap (PermitConstructions [''Int]) #-}
+{-# ANN foldl'_fmap (PermitTypeClasses []) #-}
+{-# NOINLINE foldl'_fmap #-}
+foldl'_fmap :: Int -> Int -> IO Int
+foldl'_fmap value = withStream value $ fmap (+ 1) . Common.foldl' (+) 0
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'foldl'ReduceMap
-inspect $ 'foldl'ReduceMap `hasNoType` ''S.Step
-inspect $ 'foldl'ReduceMap `hasNoType` ''FL.Step
-inspect $ 'foldl'ReduceMap `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'foldl'_fmap
+inspect $ 'foldl'_fmap `hasNoType` ''S.Step
+inspect $ 'foldl'_fmap `hasNoType` ''FL.Step
+inspect $ 'foldl'_fmap `hasNoType` ''SPEC
 #endif
 
 -------------------------------------------------------------------------------
@@ -528,48 +634,90 @@ inspect $ 'foldl'ReduceMap `hasNoType` ''SPEC
 -------------------------------------------------------------------------------
 
 -- this is quadratic
-{-# NOINLINE iterateScan #-}
-iterateScan :: Int -> Int -> IO ()
-iterateScan value iterCount =
-    withRandomIntIO $ Common.drain . iterateSource (Common.scanl' (+) 0) (value `div` iterCount) iterCount
+{-# ANN scanl'_Iterated (PermitPatternMatches
+    [''Int,''Step,''ScanState,''Stream,''State]) #-}
+{-# ANN scanl'_Iterated (PermitConstructions
+    [''Int,''Stream,''ScanState,''Step,''State,''Maybe
+    ,''(),''Bool]) #-}
+{-# ANN scanl'_Iterated (PermitTypeClasses []) #-}
+{-# NOINLINE scanl'_Iterated #-}
+scanl'_Iterated :: Int -> Int -> Int -> IO ()
+scanl'_Iterated value iterCount =
+    Common.drain . iterateSource (Common.scanl' (+) 0) (value `div` iterCount)
+        iterCount
 
 -- this is quadratic
-{-# NOINLINE iterateScanl1 #-}
-iterateScanl1 :: Int -> Int -> IO ()
-iterateScanl1 value iterCount =
-    withRandomIntIO $ Common.drain . iterateSource (S.scanl1' (+)) (value `div` iterCount) iterCount
+{-# ANN scanl1'_Iterated (PermitPatternMatches
+    [''Maybe,''(,),''Int,''Step,''Stream,''State]) #-}
+{-# ANN scanl1'_Iterated (PermitConstructions
+    [''Int,''Maybe,''Stream,''(,),''Step,''State,''(),''Bool]) #-}
+{-# ANN scanl1'_Iterated (PermitTypeClasses []) #-}
+{-# NOINLINE scanl1'_Iterated #-}
+scanl1'_Iterated :: Int -> Int -> Int -> IO ()
+scanl1'_Iterated value iterCount =
+    Common.drain . iterateSource (S.scanl1' (+)) (value `div` iterCount)
+        iterCount
 
-{-# NOINLINE iterateMapM #-}
-iterateMapM :: Int -> Int -> IO ()
-iterateMapM value iterCount =
-    withRandomIntIO $ Common.drain . iterateSource (S.mapM return) (value `div` iterCount) iterCount
+{-# ANN mapM_Iterated (PermitPatternMatches
+    [''Int,''Step,''Stream,''State]) #-}
+{-# ANN mapM_Iterated (PermitConstructions
+    [''Int,''Stream,''State,''Maybe,''Step,''(),''Bool]) #-}
+{-# ANN mapM_Iterated (PermitTypeClasses []) #-}
+{-# NOINLINE mapM_Iterated #-}
+mapM_Iterated :: Int -> Int -> Int -> IO ()
+mapM_Iterated value iterCount =
+    Common.drain . iterateSource (S.mapM return) (value `div` iterCount)
+        iterCount
 
-{-# NOINLINE iterateFilterEven #-}
-iterateFilterEven :: Int -> Int -> IO ()
-iterateFilterEven value iterCount =
-    withRandomIntIO $ Common.drain . iterateSource (S.filter even) (value `div` iterCount) iterCount
+{-# ANN filter_Even_Iterated (PermitPatternMatches
+    [''Int,''Step,''Stream,''State]) #-}
+{-# ANN filter_Even_Iterated (PermitConstructions
+    [''Int,''Step,''Stream,''State,''Maybe,''(),''Bool]) #-}
+{-# ANN filter_Even_Iterated (PermitTypeClasses []) #-}
+{-# NOINLINE filter_Even_Iterated #-}
+filter_Even_Iterated :: Int -> Int -> Int -> IO ()
+filter_Even_Iterated value iterCount =
+    Common.drain . iterateSource (S.filter even) (value `div` iterCount)
+        iterCount
 
-{-# NOINLINE iterateTakeAll #-}
-iterateTakeAll :: Int -> Int -> IO ()
-iterateTakeAll value iterCount =
-    withRandomIntIO
-        $ Common.drain . iterateSource (S.take (value + 1)) (value `div` iterCount) iterCount
+{-# ANN take_All_Iterated (PermitPatternMatches
+    [''(,),''Int,''Step,''State]) #-}
+{-# ANN take_All_Iterated (PermitConstructions
+    [''Int,''State,''Maybe,''Step,''(,),''(),''Bool]) #-}
+{-# ANN take_All_Iterated (PermitTypeClasses []) #-}
+{-# NOINLINE take_All_Iterated #-}
+take_All_Iterated :: Int -> Int -> Int -> IO ()
+take_All_Iterated value iterCount =
+    Common.drain . iterateSource (S.take (value + 1)) (value `div` iterCount)
+        iterCount
 
-{-# NOINLINE iterateDropOne #-}
-iterateDropOne :: Int -> Int -> IO ()
-iterateDropOne value iterCount =
-    withRandomIntIO $ Common.drain . iterateSource (S.drop 1) (value `div` iterCount) iterCount
+{-# ANN drop_One_Iterated (PermitPatternMatches
+    [''Maybe,''(,),''Bool,''Int,''Step,''Stream,''State]) #-}
+{-# ANN drop_One_Iterated (PermitConstructions
+    [''Int,''Integer,''Maybe,''Stream,''(,),''Step,''State
+    ,''(),''Bool]) #-}
+{-# ANN drop_One_Iterated (PermitTypeClasses [''Ord,''Num]) #-}
+{-# NOINLINE drop_One_Iterated #-}
+drop_One_Iterated :: Int -> Int -> Int -> IO ()
+drop_One_Iterated value iterCount =
+    Common.drain . iterateSource (S.drop 1) (value `div` iterCount) iterCount
 
-{-# NOINLINE iterateDropWhileTrue #-}
-iterateDropWhileTrue :: Int -> Int -> IO ()
-iterateDropWhileTrue value iterCount =
-    withRandomIntIO
-        $ Common.drain . iterateSource (S.dropWhile (<= (value + 1))) (value `div` iterCount) iterCount
+{-# ANN dropWhile_True_Iterated (PermitPatternMatches
+    [''Int,''Step,''DropWhileState,''State]) #-}
+{-# ANN dropWhile_True_Iterated (PermitConstructions
+    [''Int,''State,''Maybe,''Step,''DropWhileState,''()
+    ,''Bool]) #-}
+{-# ANN dropWhile_True_Iterated (PermitTypeClasses []) #-}
+{-# NOINLINE dropWhile_True_Iterated #-}
+dropWhile_True_Iterated :: Int -> Int -> Int -> IO ()
+dropWhile_True_Iterated value iterCount =
+    Common.drain . iterateSource (S.dropWhile (<= (value + 1)))
+        (value `div` iterCount) iterCount
 
-_iterateDropWhileFalse :: Int -> Int -> IO ()
-_iterateDropWhileFalse value iterCount =
-    withRandomIntIO
-        $ Common.drain . iterateSource (S.dropWhile (> (value + 1))) (value `div` iterCount) iterCount
+_dropWhile_False_Iterated :: Int -> Int -> Int -> IO ()
+_dropWhile_False_Iterated value iterCount =
+    Common.drain . iterateSource (S.dropWhile (> (value + 1)))
+        (value `div` iterCount) iterCount
 
 -------------------------------------------------------------------------------
 -- Iteration/looping utilities
@@ -609,19 +757,31 @@ _iterateSingleton ::
 _iterateSingleton g value n = S.foldrM g (return n) $ sourceIntFromTo value n
 -}
 
-{-# NOINLINE iteratePlusBaseline #-}
-iteratePlusBaseline :: Int -> IO Int
-iteratePlusBaseline value =
-    withRandomIntIO $ \i0 ->
-        iterateN (\i acc -> acc >>= \n -> return $ i + n) (return i0) value
+{-# ANN ioAction_Iterated (PermitPatternMatches [''Int]) #-}
+{-# ANN ioAction_Iterated (PermitConstructions [''Int]) #-}
+{-# ANN ioAction_Iterated (PermitTypeClasses []) #-}
+{-# NOINLINE ioAction_Iterated #-}
+ioAction_Iterated :: Int -> Int -> IO Int
+ioAction_Iterated value i0 =
+    iterateN (\i acc -> acc >>= \n -> return $ i + n) (return i0) value
 
-{-# NOINLINE iterateSubMap #-}
-iterateSubMap :: Int -> IO ()
-iterateSubMap value = withRandomIntIO $ drain . iterateSingleton (<$) value
+{-# ANN submap_Iterated (PermitPatternMatches
+    [''Bool,''Step,''Stream,''State]) #-}
+{-# ANN submap_Iterated (PermitConstructions
+    [''Int,''Step,''Stream,''State,''Maybe,''Bool]) #-}
+{-# ANN submap_Iterated (PermitTypeClasses []) #-}
+{-# NOINLINE submap_Iterated #-}
+submap_Iterated :: Int -> Int -> IO ()
+submap_Iterated value = drain . iterateSingleton (<$) value
 
-{-# NOINLINE iterateFmap #-}
-iterateFmap :: Int -> IO ()
-iterateFmap value = withRandomIntIO $ drain . iterateSingleton (fmap . (+)) value
+{-# ANN fmap_Iterated (PermitPatternMatches
+    [''Int,''Step,''Stream,''State,''Bool]) #-}
+{-# ANN fmap_Iterated (PermitConstructions
+    [''Int,''Step,''Stream,''State,''Maybe,''Bool]) #-}
+{-# ANN fmap_Iterated (PermitTypeClasses []) #-}
+{-# NOINLINE fmap_Iterated #-}
+fmap_Iterated :: Int -> Int -> IO ()
+fmap_Iterated value = drain . iterateSingleton (fmap . (+)) value
 
 -------------------------------------------------------------------------------
 -- Composed transformations (scan + mapMaybe)
@@ -638,11 +798,13 @@ sieveScan =
                     then (primes ++ [n], Just n)
                     else (primes, Nothing)) (return ([2], Just 2)))
 
+{-# ANN naivePrimeSieve (PermitPatternMatches [''Int,''[]]) #-}
+{-# ANN naivePrimeSieve (PermitConstructions [''[],''Int]) #-}
+{-# ANN naivePrimeSieve (PermitTypeClasses []) #-}
 {-# NOINLINE naivePrimeSieve #-}
-naivePrimeSieve :: Int -> IO Int
-naivePrimeSieve value =
-    withRandomIntIO $ \n ->
-        Stream.fold FL.sum $ sieveScan $ Stream.enumerateFromTo 2 (value + n)
+naivePrimeSieve :: Int -> Int -> IO Int
+naivePrimeSieve value n =
+    Stream.fold FL.sum $ sieveScan $ Stream.enumerateFromTo 2 (value + n)
 
 -------------------------------------------------------------------------------
 -- Main
@@ -651,64 +813,75 @@ naivePrimeSieve value =
 -- In addition to gauge options, the number of elements in the stream can be
 -- passed using the --stream-size option.
 --
+-- Benchmark naming: name each benchmark (and its IO action) after the exported
+-- function it benchmarks, using combinator_dimension1_dimension2..., where the
+-- dimensions are optional variants/type specializations (used esp. when more
+-- than one specialization is benchmarked). Keep extra info in parenthetical
+-- notes in the description; these also disambiguate benchmarks that reuse a
+-- single IO action with different arguments. If the name has a trailing
+-- underscore, add one more underscore.
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
     -- scanl-map and foldl-map are equivalent to the scan and fold in the foldl
     -- library. If scan/fold followed by a map is efficient enough we may not
     -- need monolithic implementations of these.
-    [ (SpaceO_1, benchIO "scanl-map" $ scanMap1 size)
-    , (SpaceO_1, benchIO "drop-map" $ dropMap1 size)
-    , (SpaceO_1, benchIO "drop-scan" $ dropScan1 size)
-    , (SpaceO_1, benchIO "take-drop" $ takeDrop1 size)
-    , (SpaceO_1, benchIO "take-scan" $ takeScan1 size)
-    , (SpaceO_1, benchIO "take-map" $ takeMap1 size)
-    , (SpaceO_1, benchIO "filter-drop" $ filterDrop1 size)
-    , (SpaceO_1, benchIO "filter-take" $ filterTake1 size)
-    , (SpaceO_1, benchIO "filter-scan" $ filterScan1 size)
-    , (SpaceO_1, benchIO "filter-map" $ filterMap1 size)
-    , (SpaceO_1, benchIO "foldl-map" $ foldl'ReduceMap size)
-    , (SpaceO_1, benchIO "sum-product-fold" $ sumProductFold size)
-    , (SpaceO_1, benchIO "sum-product-scan" $ sumProductScan size)
-    , (SpaceO_1, benchIO "scan-map x 2" $ scanMap2 size)
-    , (SpaceO_1, benchIO "drop-map x 2" $ dropMap2 size)
-    , (SpaceO_1, benchIO "drop-scan x 2" $ dropScan2 size)
-    , (SpaceO_1, benchIO "take-drop x 2" $ takeDrop2 size)
-    , (SpaceO_1, benchIO "take-scan x 2" $ takeScan2 size)
-    , (SpaceO_1, benchIO "take-map x 2" $ takeMap2 size)
-    , (SpaceO_1, benchIO "filter-drop x 2" $ filterDrop2 size)
-    , (SpaceO_1, benchIO "filter-take x 2" $ filterTake2 size)
-    , (SpaceO_1, benchIO "filter-scan x 2" $ filterScan2 size)
-    , (SpaceO_1, benchIO "filter-scanl1 x 2" $ filterScanl12 size)
-    , (SpaceO_1, benchIO "filter-map x 2" $ filterMap2 size)
-    , (SpaceO_1, benchIO "scan-map x 4" $ scanMap4 size)
-    , (SpaceO_1, benchIO "drop-map x 4" $ dropMap4 size)
-    , (SpaceO_1, benchIO "drop-scan x 4" $ dropScan4 size)
-    , (SpaceO_1, benchIO "take-drop x 4" $ takeDrop4 size)
-    , (SpaceO_1, benchIO "take-scan x 4" $ takeScan4 size)
-    , (SpaceO_1, benchIO "take-map x 4" $ takeMap4 size)
-    , (SpaceO_1, benchIO "filter-drop x 4" $ filterDrop4 size)
-    , (SpaceO_1, benchIO "filter-take x 4" $ filterTake4 size)
-    , (SpaceO_1, benchIO "filter-scan x 4" $ filterScan4 size)
-    , (SpaceO_1, benchIO "filter-scanl1 x 4" $ filterScanl14 size)
-    , (SpaceO_1, benchIO "filter-map x 4" $ filterMap4 size)
+    [ (SpaceO_1, benchIO "scanl'_fmap_x1" $ scanl'_fmap_x1 size)
+    , (SpaceO_1, benchIO "drop_fmap_x1" $ drop_fmap_x1 size)
+    , (SpaceO_1, benchIO "drop_scanl'_x1" $ drop_scanl'_x1 size)
+    , (SpaceO_1, benchIO "take_drop_x1" $ take_drop_x1 size)
+    , (SpaceO_1, benchIO "take_scanl'_x1" $ take_scanl'_x1 size)
+    , (SpaceO_1, benchIO "take_fmap_x1" $ take_fmap_x1 size)
+    , (SpaceO_1, benchIO "filter_drop_x1" $ filter_drop_x1 size)
+    , (SpaceO_1, benchIO "filter_take_x1" $ filter_take_x1 size)
+    , (SpaceO_1, benchIO "filter_scanl'_x1" $ filter_scanl'_x1 size)
+    , (SpaceO_1, benchIO "filter_fmap_x1" $ filter_fmap_x1 size)
+    , (SpaceO_1, benchIO "foldl'_fmap" $ foldl'_fmap size)
+    , (SpaceO_1, benchIO "foldl'_SumProduct" $ foldl'_SumProduct size)
+    , (SpaceO_1, benchIO "scanl'_foldl'_SumProduct" $
+          scanl'_foldl'_SumProduct size)
+    , (SpaceO_1, benchIO "scanl'_fmap_x2" $ scanl'_fmap_x2 size)
+    , (SpaceO_1, benchIO "drop_fmap_x2" $ drop_fmap_x2 size)
+    , (SpaceO_1, benchIO "drop_scanl'_x2" $ drop_scanl'_x2 size)
+    , (SpaceO_1, benchIO "take_drop_x2" $ take_drop_x2 size)
+    , (SpaceO_1, benchIO "take_scanl'_x2" $ take_scanl'_x2 size)
+    , (SpaceO_1, benchIO "take_fmap_x2" $ take_fmap_x2 size)
+    , (SpaceO_1, benchIO "filter_drop_x2" $ filter_drop_x2 size)
+    , (SpaceO_1, benchIO "filter_take_x2" $ filter_take_x2 size)
+    , (SpaceO_1, benchIO "filter_scanl'_x2" $ filter_scanl'_x2 size)
+    , (SpaceO_1, benchIO "filter_scanl1'_x2" $ filter_scanl1'_x2 size)
+    , (SpaceO_1, benchIO "filter_fmap_x2" $ filter_fmap_x2 size)
+    , (SpaceO_1, benchIO "scanl'_fmap_x4" $ scanl'_fmap_x4 size)
+    , (SpaceO_1, benchIO "drop_fmap_x4" $ drop_fmap_x4 size)
+    , (SpaceO_1, benchIO "drop_scanl'_x4" $ drop_scanl'_x4 size)
+    , (SpaceO_1, benchIO "take_drop_x4" $ take_drop_x4 size)
+    , (SpaceO_1, benchIO "take_scanl'_x4" $ take_scanl'_x4 size)
+    , (SpaceO_1, benchIO "take_fmap_x4" $ take_fmap_x4 size)
+    , (SpaceO_1, benchIO "filter_drop_x4" $ filter_drop_x4 size)
+    , (SpaceO_1, benchIO "filter_take_x4" $ filter_take_x4 size)
+    , (SpaceO_1, benchIO "filter_scanl'_x4" $ filter_scanl'_x4 size)
+    , (SpaceO_1, benchIO "filter_scanl1'_x4" $ filter_scanl1'_x4 size)
+    , (SpaceO_1, benchIO "filter_fmap_x4" $ filter_fmap_x4 size)
 
-    , (StackO_n, benchIO "iterated/mapM (n/10 x 10)" $ iterateMapM size 10)
-    , (StackO_n, benchIO "iterated/scanl' (quadratic) (n/100 x 100)" $ iterateScan size 100)
-    , (StackO_n, benchIO "iterated/scanl1' (n/10 x 10)" $ iterateScanl1 size 10)
-    , (StackO_n, benchIO "iterated/filterEven (n/10 x 10)" $ iterateFilterEven size 10)
-    , (StackO_n, benchIO "iterated/takeAll (n/10 x 10)" $ iterateTakeAll size 10)
-    , (StackO_n, benchIO "iterated/dropOne (n/10 x 10)" $ iterateDropOne size 10)
-    , (StackO_n, benchIO "iterated/dropWhileTrue (n/10 x 10)" $ iterateDropWhileTrue size 10)
+    , (StackO_n, benchIO "mapM_Iterated" $ mapM_Iterated size 10)
+    , (StackO_n, benchIO "scanl'_Iterated" $ scanl'_Iterated size 100)
+    , (StackO_n, benchIO "scanl1'_Iterated" $ scanl1'_Iterated size 10)
+    , (StackO_n, benchIO "filter_Even_Iterated" $ filter_Even_Iterated size 10)
+    , (StackO_n, benchIO "take_All_Iterated" $ take_All_Iterated size 10)
+    , (StackO_n, benchIO "drop_One_Iterated" $ drop_One_Iterated size 10)
+    , (StackO_n, benchIO "dropWhile_True_Iterated" $
+          dropWhile_True_Iterated size 10)
     -- XXX tasty-bench hangs on this sometimes
-    -- , (StackO_n, benchIO "iterated/dropWhileFalse (n/10 x 10)" $ _iterateDropWhileFalse size 10)
-    , (SpaceO_n, benchIO "iterated/(+) (n times) (baseline)" $ iteratePlusBaseline size)
-    , (SpaceO_n, benchIO "iterated/(<$) (n times)" $ iterateSubMap size)
-    , (SpaceO_n, benchIO "iterated/fmap (n times)" $ iterateFmap size)
+    -- , (StackO_n, benchIO "dropWhile_False_Iterated" $
+    --       _dropWhile_False_Iterated size 10)
+    , (SpaceO_n, benchIO "ioAction_Iterated (plain IO for baseline)" $
+          ioAction_Iterated size)
+    , (SpaceO_n, benchIO "submap_Iterated (<$)" $ submap_Iterated size)
+    , (SpaceO_n, benchIO "fmap_Iterated" $ fmap_Iterated size)
     {-
     , benchIOSrc fromSerial "_(<$) (n times)" $
         _iterateSingleton (<$) value
     , benchIOSrc fromSerial "_fmap (n times)" $
         _iterateSingleton (fmap . (+)) value
     -}
-    , (SpaceO_n, benchIO "naive prime sieve" $ naivePrimeSieve size)
+    , (SpaceO_n, benchIO "naivePrimeSieve" $ naivePrimeSieve size)
     ]

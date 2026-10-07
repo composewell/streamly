@@ -215,6 +215,9 @@ module Streamly.Internal.Data.Fold.Combinators
     , indexingWith
     , indexing
     , indexingRev
+
+    -- * Internal
+    , SplitOnSeqState (..)
     )
 where
 

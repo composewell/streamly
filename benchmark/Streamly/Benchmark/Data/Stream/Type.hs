@@ -17,7 +17,6 @@ module Stream.Type
     , withDrain
     , withDrainPure
     , withRandomInt
-    , withRandomIntIO
     , benchIO
     ) where
 
@@ -26,7 +25,6 @@ import Streamly.Benchmark.Common (SpaceComplexity)
 
 import Stream.Type.Basic
     ( benchIO
-    , withRandomIntIO
     , withDrain
     , withDrainPure
     , withRandomInt

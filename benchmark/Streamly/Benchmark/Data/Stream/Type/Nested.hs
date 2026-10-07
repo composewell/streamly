@@ -15,15 +15,17 @@ module Stream.Type.Nested
     ( benchmarks
     ) where
 
-import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Internal.Data.Stream (Stream, Step)
 
 import qualified Streamly.Internal.Data.Stream as Stream
 
 import Test.Tasty.Bench
 import Stream.Common hiding (benchIO)
-import Stream.Type.Basic (benchIO, withRandomIntIO, withStream)
+import Stream.Type.Basic (benchIO, withStream)
 import Streamly.Benchmark.Common
+import Fusion.Plugin.Types
 import Prelude hiding (concatMap, mapM, zipWith)
+import Streamly.Internal.Data.SVar.Type (State)
 
 mkCross :: Stream m a -> Stream.Nested m a
 mkCross = Stream.Nested
@@ -35,9 +37,12 @@ unCross = Stream.unNested
 -- Applicative
 -------------------------------------------------------------------------------
 
-{-# INLINE toNullApPure #-}
-toNullApPure :: Int -> Int -> IO ()
-toNullApPure linearCount start = drain $ unCross $
+{-# ANN ap_ApplicativeInstance_Pure_x2 (PermitPatternMatches [''Int]) #-}
+{-# ANN ap_ApplicativeInstance_Pure_x2 (PermitConstructions [''Int]) #-}
+{-# ANN ap_ApplicativeInstance_Pure_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE ap_ApplicativeInstance_Pure_x2 #-}
+ap_ApplicativeInstance_Pure_x2 :: Int -> Int -> IO ()
+ap_ApplicativeInstance_Pure_x2 linearCount start = drain $ unCross $
     (+) <$> mkCross (sourceUnfoldr nestedCount2 start)
         <*> mkCross (sourceUnfoldr nestedCount2 start)
 
@@ -45,9 +50,15 @@ toNullApPure linearCount start = drain $ unCross $
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
-{-# INLINE toNullMPure #-}
-toNullMPure :: Int -> Int -> IO ()
-toNullMPure linearCount start = drain $ unCross $ do
+{-# ANN bind_MonadInstance_Pure_x2 (PermitPatternMatches
+    [''Int,''Either,''Bool,''(,),''Stream,''Step]) #-}
+{-# ANN bind_MonadInstance_Pure_x2 (PermitConstructions
+    [''State,''Maybe,''Bool,''Step,''Either,''(,),''Int
+    ,''Stream]) #-}
+{-# ANN bind_MonadInstance_Pure_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE bind_MonadInstance_Pure_x2 #-}
+bind_MonadInstance_Pure_x2 :: Int -> Int -> IO ()
+bind_MonadInstance_Pure_x2 linearCount start = drain $ unCross $ do
     x <- mkCross (sourceUnfoldr nestedCount2 start)
     y <- mkCross (sourceUnfoldr nestedCount2 start)
     return $ x + y
@@ -56,9 +67,15 @@ toNullMPure linearCount start = drain $ unCross $ do
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
-{-# INLINE toNullM3Pure #-}
-toNullM3Pure :: Int -> Int -> IO ()
-toNullM3Pure linearCount start = drain $ unCross $ do
+{-# ANN bind_MonadInstance_Pure_x3 (PermitPatternMatches
+    [''Int,''Either,''Bool,''(,),''Stream,''Step]) #-}
+{-# ANN bind_MonadInstance_Pure_x3 (PermitConstructions
+    [''State,''Maybe,''Bool,''Either,''Step,''(,),''Int
+    ,''Stream]) #-}
+{-# ANN bind_MonadInstance_Pure_x3 (PermitTypeClasses []) #-}
+{-# NOINLINE bind_MonadInstance_Pure_x3 #-}
+bind_MonadInstance_Pure_x3 :: Int -> Int -> IO ()
+bind_MonadInstance_Pure_x3 linearCount start = drain $ unCross $ do
     x <- mkCross (sourceUnfoldr nestedCount3 start)
     y <- mkCross (sourceUnfoldr nestedCount3 start)
     z <- mkCross (sourceUnfoldr nestedCount3 start)
@@ -68,9 +85,15 @@ toNullM3Pure linearCount start = drain $ unCross $ do
 
     nestedCount3 = round (fromIntegral linearCount**(1/3::Double))
 
-{-# INLINE filterAllOutMPure #-}
-filterAllOutMPure :: Int -> Int -> IO ()
-filterAllOutMPure linearCount start = drain $ unCross $ do
+{-# ANN bind_MonadInstance_FilterAllOut_Pure_x2 (PermitPatternMatches
+    [''Int,''Either,''Bool,''(,),''Stream,''Step]) #-}
+{-# ANN bind_MonadInstance_FilterAllOut_Pure_x2 (PermitConstructions
+    [''State,''Maybe,''Bool,''Step,''Stream,''(),''Either
+    ,''(,),''Int]) #-}
+{-# ANN bind_MonadInstance_FilterAllOut_Pure_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE bind_MonadInstance_FilterAllOut_Pure_x2 #-}
+bind_MonadInstance_FilterAllOut_Pure_x2 :: Int -> Int -> IO ()
+bind_MonadInstance_FilterAllOut_Pure_x2 linearCount start = drain $ unCross $ do
     x <- mkCross (sourceUnfoldr nestedCount2 start)
     y <- mkCross (sourceUnfoldr nestedCount2 start)
     let s = x + y
@@ -82,9 +105,15 @@ filterAllOutMPure linearCount start = drain $ unCross $ do
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
-{-# INLINE filterAllInMPure #-}
-filterAllInMPure :: Int -> Int -> IO ()
-filterAllInMPure linearCount start = drain $ unCross $ do
+{-# ANN bind_MonadInstance_FilterAllIn_Pure_x2 (PermitPatternMatches
+    [''Int,''Either,''Bool,''(,),''Stream,''Step]) #-}
+{-# ANN bind_MonadInstance_FilterAllIn_Pure_x2 (PermitConstructions
+    [''State,''Maybe,''Bool,''Step,''Stream,''(),''Either
+    ,''(,),''Int]) #-}
+{-# ANN bind_MonadInstance_FilterAllIn_Pure_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE bind_MonadInstance_FilterAllIn_Pure_x2 #-}
+bind_MonadInstance_FilterAllIn_Pure_x2 :: Int -> Int -> IO ()
+bind_MonadInstance_FilterAllIn_Pure_x2 linearCount start = drain $ unCross $ do
     x <- mkCross (sourceUnfoldr nestedCount2 start)
     y <- mkCross (sourceUnfoldr nestedCount2 start)
     let s = x + y
@@ -96,9 +125,12 @@ filterAllInMPure linearCount start = drain $ unCross $ do
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
-{-# NOINLINE cross2 #-}
-cross2 :: Int -> IO ()
-cross2 linearCount = withRandomIntIO $ \start -> drain $
+{-# ANN crossWith (PermitPatternMatches []) #-}
+{-# ANN crossWith (PermitConstructions []) #-}
+{-# ANN crossWith (PermitTypeClasses []) #-}
+{-# NOINLINE crossWith #-}
+crossWith :: Int -> Int -> IO ()
+crossWith linearCount start = drain $
     Stream.crossWith (+)
         (sourceUnfoldr nestedCount2 start)
         (sourceUnfoldr nestedCount2 start)
@@ -107,9 +139,12 @@ cross2 linearCount = withRandomIntIO $ \start -> drain $
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
+{-# ANN crossApply (PermitPatternMatches [''Int]) #-}
+{-# ANN crossApply (PermitConstructions [''Int]) #-}
+{-# ANN crossApply (PermitTypeClasses []) #-}
 {-# NOINLINE crossApply #-}
-crossApply :: Int -> IO ()
-crossApply linearCount = withRandomIntIO $ \start -> drain $
+crossApply :: Int -> Int -> IO ()
+crossApply linearCount start = drain $
     Stream.crossApply
         ((+) <$> sourceUnfoldrM nestedCount2 start)
         (sourceUnfoldrM nestedCount2 start)
@@ -118,9 +153,12 @@ crossApply linearCount = withRandomIntIO $ \start -> drain $
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
+{-# ANN crossApplyFst (PermitPatternMatches []) #-}
+{-# ANN crossApplyFst (PermitConstructions []) #-}
+{-# ANN crossApplyFst (PermitTypeClasses []) #-}
 {-# NOINLINE crossApplyFst #-}
-crossApplyFst :: Int -> IO ()
-crossApplyFst linearCount = withRandomIntIO $ \start -> drain $
+crossApplyFst :: Int -> Int -> IO ()
+crossApplyFst linearCount start = drain $
     Stream.crossApplyFst
         (sourceUnfoldrM nestedCount2 start)
         (sourceUnfoldrM nestedCount2 start)
@@ -129,9 +167,12 @@ crossApplyFst linearCount = withRandomIntIO $ \start -> drain $
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
+{-# ANN crossApplySnd (PermitPatternMatches []) #-}
+{-# ANN crossApplySnd (PermitConstructions []) #-}
+{-# ANN crossApplySnd (PermitTypeClasses []) #-}
 {-# NOINLINE crossApplySnd #-}
-crossApplySnd :: Int -> IO ()
-crossApplySnd linearCount = withRandomIntIO $ \start -> drain $
+crossApplySnd :: Int -> Int -> IO ()
+crossApplySnd linearCount start = drain $
     Stream.crossApplySnd
         (sourceUnfoldrM nestedCount2 start)
         (sourceUnfoldrM nestedCount2 start)
@@ -144,40 +185,68 @@ crossApplySnd linearCount = withRandomIntIO $ \start -> drain $
 -- Monad
 -------------------------------------------------------------------------------
 
-{-# NOINLINE drainConcatFor1 #-}
-drainConcatFor1 :: Int -> IO ()
-drainConcatFor1 count = withStream count $ \s ->
+{-# ANN concatFor_x1 (PermitPatternMatches [''Bool,''Step]) #-}
+{-# ANN concatFor_x1 (PermitConstructions
+    [''Int,''Step,''State,''Maybe,''Bool]) #-}
+{-# ANN concatFor_x1 (PermitTypeClasses []) #-}
+{-# NOINLINE concatFor_x1 #-}
+concatFor_x1 :: Int -> Int -> IO ()
+concatFor_x1 count = withStream count $ \s ->
     drain $ Stream.concatFor s $ \x ->
         Stream.fromPure $ x + 1
 
-{-# NOINLINE drainConcatFor #-}
-drainConcatFor :: Int -> IO ()
-drainConcatFor count = withStream count $ \s ->
+{-# ANN concatFor_x2 (PermitPatternMatches
+    [''Either,''(,),''Bool,''Int,''Step,''Stream]) #-}
+{-# ANN concatFor_x2 (PermitConstructions
+    [''Int,''Step,''Either,''State,''Maybe,''(,),''Stream
+    ,''Bool]) #-}
+{-# ANN concatFor_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE concatFor_x2 #-}
+concatFor_x2 :: Int -> Int -> IO ()
+concatFor_x2 count = withStream count $ \s ->
     drain $ do
         Stream.concatFor s $ \x ->
             Stream.concatFor s $ \y ->
                 Stream.fromPure $ x + y
 
-{-# NOINLINE drainConcatForM #-}
-drainConcatForM :: Int -> IO ()
-drainConcatForM count = withStream count $ \s ->
+{-# ANN concatForM_x2 (PermitPatternMatches
+    [''Either,''(,),''Bool,''Int,''Step,''Stream]) #-}
+{-# ANN concatForM_x2 (PermitConstructions
+    [''Int,''Step,''Either,''State,''Maybe,''(,),''Stream
+    ,''Bool]) #-}
+{-# ANN concatForM_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE concatForM_x2 #-}
+concatForM_x2 :: Int -> Int -> IO ()
+concatForM_x2 count = withStream count $ \s ->
     drain $ do
         Stream.concatForM s $ \x ->
             pure $ Stream.concatForM s $ \y ->
                 pure $ Stream.fromPure $ x + y
 
-{-# NOINLINE drainConcatFor3 #-}
-drainConcatFor3 :: Int -> IO ()
-drainConcatFor3 count = withStream count $ \s ->
+{-# ANN concatFor_x3 (PermitPatternMatches
+    [''Either,''(,),''Bool,''Int,''Step,''Stream]) #-}
+{-# ANN concatFor_x3 (PermitConstructions
+    [''Int,''Step,''Either,''Stream,''State,''Maybe,''(,)
+    ,''Bool]) #-}
+{-# ANN concatFor_x3 (PermitTypeClasses []) #-}
+{-# NOINLINE concatFor_x3 #-}
+concatFor_x3 :: Int -> Int -> IO ()
+concatFor_x3 count = withStream count $ \s ->
     drain $ do
         Stream.concatFor s $ \x ->
             Stream.concatFor s $ \y ->
                 Stream.concatFor s $ \z ->
                     Stream.fromPure $ x + y + z
 
-{-# NOINLINE drainConcatFor4 #-}
-drainConcatFor4 :: Int -> IO ()
-drainConcatFor4 count = withStream count $ \s ->
+{-# ANN concatFor_x4 (PermitPatternMatches
+    [''Either,''(,),''Bool,''Int,''Step,''Stream]) #-}
+{-# ANN concatFor_x4 (PermitConstructions
+    [''Int,''Step,''Either,''Stream,''State,''Maybe,''(,)
+    ,''Bool]) #-}
+{-# ANN concatFor_x4 (PermitTypeClasses []) #-}
+{-# NOINLINE concatFor_x4 #-}
+concatFor_x4 :: Int -> Int -> IO ()
+concatFor_x4 count = withStream count $ \s ->
     drain $ do
         Stream.concatFor s $ \x ->
             Stream.concatFor s $ \y ->
@@ -185,9 +254,15 @@ drainConcatFor4 count = withStream count $ \s ->
                     Stream.concatFor s $ \w ->
                         Stream.fromPure $ x + y + z + w
 
-{-# NOINLINE drainConcatFor5 #-}
-drainConcatFor5 :: Int -> IO ()
-drainConcatFor5 count = withStream count $ \s ->
+{-# ANN concatFor_x5 (PermitPatternMatches
+    [''Either,''(,),''Bool,''Int,''Step,''Stream]) #-}
+{-# ANN concatFor_x5 (PermitConstructions
+    [''Int,''Step,''Either,''Stream,''State,''Maybe,''(,)
+    ,''Bool]) #-}
+{-# ANN concatFor_x5 (PermitTypeClasses []) #-}
+{-# NOINLINE concatFor_x5 #-}
+concatFor_x5 :: Int -> Int -> IO ()
+concatFor_x5 count = withStream count $ \s ->
     drain $ do
         Stream.concatFor s $ \x ->
             Stream.concatFor s $ \y ->
@@ -196,18 +271,30 @@ drainConcatFor5 count = withStream count $ \s ->
                         Stream.concatFor s $ \u ->
                             Stream.fromPure $ x + y + z + w + u
 
-{-# NOINLINE drainConcatFor3M #-}
-drainConcatFor3M :: Int -> IO ()
-drainConcatFor3M count = withStream count $ \s ->
+{-# ANN concatForM_x3 (PermitPatternMatches
+    [''Either,''(,),''Bool,''Int,''Step,''Stream]) #-}
+{-# ANN concatForM_x3 (PermitConstructions
+    [''Int,''Step,''Either,''Stream,''State,''Maybe,''(,)
+    ,''Bool]) #-}
+{-# ANN concatForM_x3 (PermitTypeClasses []) #-}
+{-# NOINLINE concatForM_x3 #-}
+concatForM_x3 :: Int -> Int -> IO ()
+concatForM_x3 count = withStream count $ \s ->
     drain $ do
         Stream.concatForM s $ \x ->
             pure $ Stream.concatForM s $ \y ->
                 pure $ Stream.concatForM s $ \z ->
                     pure $ Stream.fromPure $ x + y + z
 
-{-# NOINLINE filterAllInConcatFor #-}
-filterAllInConcatFor :: Int -> IO ()
-filterAllInConcatFor count = withStream count $ \s ->
+{-# ANN concatFor_FilterAllIn_x2 (PermitPatternMatches
+    [''Either,''(,),''Bool,''Int,''Step,''Stream]) #-}
+{-# ANN concatFor_FilterAllIn_x2 (PermitConstructions
+    [''Stream,''Int,''Step,''Either,''State,''Maybe,''(,),''()
+    ,''Bool]) #-}
+{-# ANN concatFor_FilterAllIn_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE concatFor_FilterAllIn_x2 #-}
+concatFor_FilterAllIn_x2 :: Int -> Int -> IO ()
+concatFor_FilterAllIn_x2 count = withStream count $ \s ->
     drain $ do
         Stream.concatFor s $ \x ->
             Stream.concatFor s $ \y ->
@@ -216,9 +303,15 @@ filterAllInConcatFor count = withStream count $ \s ->
                     then Stream.fromPure s1
                     else Stream.nil
 
-{-# NOINLINE filterAllOutConcatFor #-}
-filterAllOutConcatFor :: Int -> IO ()
-filterAllOutConcatFor count = withStream count $ \s ->
+{-# ANN concatFor_FilterAllOut_x2 (PermitPatternMatches
+    [''Either,''(,),''Bool,''Int,''Step,''Stream]) #-}
+{-# ANN concatFor_FilterAllOut_x2 (PermitConstructions
+    [''Stream,''Int,''Step,''Either,''State,''Maybe,''(,),''()
+    ,''Bool]) #-}
+{-# ANN concatFor_FilterAllOut_x2 (PermitTypeClasses []) #-}
+{-# NOINLINE concatFor_FilterAllOut_x2 #-}
+concatFor_FilterAllOut_x2 :: Int -> Int -> IO ()
+concatFor_FilterAllOut_x2 count = withStream count $ \s ->
     drain $ do
         Stream.concatFor s $ \x ->
             Stream.concatFor s $ \y ->
@@ -232,44 +325,71 @@ filterAllOutConcatFor count = withStream count $ \s ->
 -------------------------------------------------------------------------------
 
 {-# ANN benchmarks "HLint: ignore" #-}
+-- Benchmark naming: name each benchmark (and its IO action) after the exported
+-- function it benchmarks, using combinator_dimension1_dimension2..., where the
+-- dimensions are optional variants/type specializations (used esp. when more
+-- than one specialization is benchmarked). Keep extra info in parenthetical
+-- notes in the description; these also disambiguate benchmarks that reuse a
+-- single IO action with different arguments. If the name has a trailing
+-- underscore, add one more underscore.
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
     -- Applicative
-    [ (SpaceO_1, benchIO "(*>)" $ withRandomIntIO (apDiscardFst size))
-    , (SpaceO_1, benchIO "(<*)" $ withRandomIntIO (apDiscardSnd size))
-    , (SpaceO_1, benchIO "(<*>)" $ withRandomIntIO (toNullAp size))
-    , (SpaceO_1, benchIO "liftA2" $ withRandomIntIO (apLiftA2 size))
+    [ (SpaceO_1, benchIO "discardFst_ApplicativeInstance_x2 (*>)"
+          $ discardFst_ApplicativeInstance_x2 size)
+    , (SpaceO_1, benchIO "discardSnd_ApplicativeInstance_x2 (<*)"
+          $ discardSnd_ApplicativeInstance_x2 size)
+    , (SpaceO_1, benchIO "ap_ApplicativeInstance_x2 (<*>)"
+          $ ap_ApplicativeInstance_x2 size)
+    , (SpaceO_1, benchIO "liftA2_ApplicativeInstance_x2 (liftA2)"
+          $ liftA2_ApplicativeInstance_x2 size)
     , (SpaceO_1, benchIO "crossApply" $ crossApply size)
     , (SpaceO_1, benchIO "crossApplyFst" $ crossApplyFst size)
     , (SpaceO_1, benchIO "crossApplySnd" $ crossApplySnd size)
-    , (SpaceO_1, benchIO "pureDrain2" $ withRandomIntIO (toNullApPure size))
-    , (SpaceO_1, benchIO "pureCross2" $ cross2 size)
+    , (SpaceO_1, benchIO "ap_ApplicativeInstance_Pure_x2 (<*>)"
+          $ ap_ApplicativeInstance_Pure_x2 size)
+    , (SpaceO_1, benchIO "crossWith" $ crossWith size)
 
     -- Monad
-    , (SpaceO_1, benchIO "then2M" $ withRandomIntIO (monadThen size))
-    , (SpaceO_1, benchIO "drain2M" $ withRandomIntIO (toNullM size))
-    , (SpaceO_1, benchIO "drain3M" $ withRandomIntIO (toNullM3 size))
-    , (SpaceO_1, benchIO "filterAllOut2M" $ withRandomIntIO (filterAllOutM size))
-    , (SpaceO_1, benchIO "filterAllIn2M" $ withRandomIntIO (filterAllInM size))
-    , (SpaceO_1, benchIO "filterSome2M" $ withRandomIntIO (filterSome size))
-    , (SpaceO_1, benchIO "breakAfterSome2M" $ withRandomIntIO (breakAfterSome size))
-    , (SpaceO_1, benchIO "pureDrain2M" $ withRandomIntIO (toNullMPure size))
-    , (SpaceO_1, benchIO "pureDrain3M" $ withRandomIntIO (toNullM3Pure size))
-    , (SpaceO_1, benchIO "pureFilterAllIn2M" $ withRandomIntIO (filterAllInMPure size))
-    , (SpaceO_1, benchIO "pureFilterAllOut2M" $ withRandomIntIO (filterAllOutMPure size))
-    , (SpaceO_n, benchIO "toList2M" $ withRandomIntIO (toListM size))
-    , (SpaceO_n, benchIO "toListSome2M" $ withRandomIntIO (toListSome size))
+    , (SpaceO_1, benchIO "then_MonadInstance_x2 (>>)"
+          $ then_MonadInstance_x2 size)
+    , (SpaceO_1, benchIO "bind_MonadInstance_x2 (>>=)"
+          $ bind_MonadInstance_x2 size)
+    , (SpaceO_1, benchIO "bind_MonadInstance_x3 (>>=)"
+          $ bind_MonadInstance_x3 size)
+    , (SpaceO_1, benchIO "bind_MonadInstance_FilterAllOut_x2 (>>=)"
+          $ bind_MonadInstance_FilterAllOut_x2 size)
+    , (SpaceO_1, benchIO "bind_MonadInstance_FilterAllIn_x2 (>>=)"
+          $ bind_MonadInstance_FilterAllIn_x2 size)
+    , (SpaceO_1, benchIO "bind_MonadInstance_FilterSome_x2 (>>=)"
+          $ bind_MonadInstance_FilterSome_x2 size)
+    , (SpaceO_1, benchIO "bind_MonadInstance_BreakAfterSome_x2 (>>=)"
+          $ bind_MonadInstance_BreakAfterSome_x2 size)
+    , (SpaceO_1, benchIO "bind_MonadInstance_Pure_x2 (>>=)"
+          $ bind_MonadInstance_Pure_x2 size)
+    , (SpaceO_1, benchIO "bind_MonadInstance_Pure_x3 (>>=)"
+          $ bind_MonadInstance_Pure_x3 size)
+    , (SpaceO_1, benchIO "bind_MonadInstance_FilterAllIn_Pure_x2 (>>=)"
+          $ bind_MonadInstance_FilterAllIn_Pure_x2 size)
+    , (SpaceO_1, benchIO "bind_MonadInstance_FilterAllOut_Pure_x2 (>>=)"
+          $ bind_MonadInstance_FilterAllOut_Pure_x2 size)
+    , (SpaceO_n, benchIO "bind_MonadInstance_ToList_x2 (>>=)"
+          $ bind_MonadInstance_ToList_x2 size)
+    , (SpaceO_n, benchIO "bind_MonadInstance_ToListSome_x2 (>>=)"
+          $ bind_MonadInstance_ToListSome_x2 size)
 
     -- concatFor (bind)
-    , (SpaceO_1, benchIO "concatFor/drain1" $ drainConcatFor1 size)
-    , (SpaceO_1, benchIO "concatFor/drain2" $ drainConcatFor sqrtVal)
-    , (SpaceO_1, benchIO "concatFor/drain3" $ drainConcatFor3 cubertVal)
-    , (SpaceO_1, benchIO "concatFor/drain4" $ drainConcatFor4 size4)
-    , (SpaceO_1, benchIO "concatFor/drain5" $ drainConcatFor5 size5)
-    , (SpaceO_1, benchIO "concatFor/drainM2" $ drainConcatForM sqrtVal)
-    , (SpaceO_1, benchIO "concatFor/drainM3" $ drainConcatFor3M cubertVal)
-    , (SpaceO_1, benchIO "concatFor/filterAllIn2" $ filterAllInConcatFor sqrtVal)
-    , (SpaceO_1, benchIO "concatFor/filterAllOut2" $ filterAllOutConcatFor sqrtVal)
+    , (SpaceO_1, benchIO "concatFor_x1" $ concatFor_x1 size)
+    , (SpaceO_1, benchIO "concatFor_x2" $ concatFor_x2 sqrtVal)
+    , (SpaceO_1, benchIO "concatFor_x3" $ concatFor_x3 cubertVal)
+    , (SpaceO_1, benchIO "concatFor_x4" $ concatFor_x4 size4)
+    , (SpaceO_1, benchIO "concatFor_x5" $ concatFor_x5 size5)
+    , (SpaceO_1, benchIO "concatForM_x2" $ concatForM_x2 sqrtVal)
+    , (SpaceO_1, benchIO "concatForM_x3" $ concatForM_x3 cubertVal)
+    , (SpaceO_1, benchIO "concatFor_FilterAllIn_x2" $
+          concatFor_FilterAllIn_x2 sqrtVal)
+    , (SpaceO_1, benchIO "concatFor_FilterAllOut_x2" $
+          concatFor_FilterAllOut_x2 sqrtVal)
     ]
 
     where

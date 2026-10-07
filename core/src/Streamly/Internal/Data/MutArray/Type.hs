@@ -369,6 +369,7 @@ module Streamly.Internal.Data.MutArray.Type
     , chunksOf
     , chunksOf' -- chunksOf'
     -- , timedChunksOf -- see the Streamly.Data.Stream.Prelude module
+    , GroupState(..)
     , buildChunks
     , chunksEndBy
     , chunksEndBy'
@@ -449,6 +450,7 @@ module Streamly.Internal.Data.MutArray.Type
     , writeChunks
     , flattenArrays
     , flattenArraysRev
+    , FlattenState (..)
     , fromArrayStreamK
     , fromStreamDN
     , fromStreamD

@@ -33,9 +33,12 @@ module Streamly.Internal.Data.Stream.Enumeration
     , enumerateFromNum
     , enumerateDownFromNum
     , enumerateFromThenNum
+    , EnumToState (..)
     , enumerateFromToNum
     , enumerateDownFromToNum
+    , EnumState (..)
     , enumerateFromThenToNum
+    , EnumStateUp (..)
     , enumerateUpFromThenToNum
     , enumerateDownFromThenToNum
 

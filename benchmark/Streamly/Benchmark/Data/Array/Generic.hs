@@ -12,8 +12,20 @@ import qualified Stream.Common as P
 
 import qualified Streamly.Internal.Data.Array.Generic as A
 
+-- Imported for the types named in the fusion-plugin annotations in the
+-- included Array/TypeCommon.hs and Array/Common.hs.
+import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.MutArray.Generic as MutArray
+import GHC.Classes (IP)
+import GHC.Exts (SPEC)
+import GHC.Stack (CallStack, SrcLoc)
+
+-- Select the array type in the common includes below
 type Arr = A.Array
 
+-- Selects the generic-array variant of the fusion-plugin annotations in the
+-- shared includes below.
+#define ARRAY_GENERIC
 #include "Streamly/Benchmark/Data/Array/TypeCommon.hs"
 
 #include "Streamly/Benchmark/Data/Array/Common.hs"
@@ -26,9 +38,12 @@ instance NFData a => NFData (A.Array a) where
 -- Bench Ops
 -------------------------------------------------------------------------------
 
-{-# INLINE sourceIntFromToFromList #-}
-sourceIntFromToFromList :: Int -> IO (Arr Int)
-sourceIntFromToFromList value = withRandomIntIO $ \n ->
+{-# ANN fromListN (PermitPatternMatches []) #-}
+{-# ANN fromListN (PermitConstructions [''[], ''Int]) #-}
+{-# ANN fromListN (PermitTypeClasses []) #-}
+{-# NOINLINE fromListN #-}
+fromListN :: Int -> Int -> IO (Arr Int)
+fromListN value n =
     P.return $ A.fromListN value [n..n + value]
 
 #ifdef DEVBUILD
@@ -53,6 +68,10 @@ moduleName = "Data.Array.Generic"
 defStreamSize :: Int
 defStreamSize = defaultStreamSize
 
+-- Note: Name each benchmark (and its IO action) after the exported function it
+-- benchmarks, using the format functionName_dimension1_dimension2..., where
+-- the dimensions are optional variants/type specializations. Keep extra info
+-- in parenthetical notes in the description.
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
 benchmarks size =
     typeCommonBenchmarks size

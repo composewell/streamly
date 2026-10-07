@@ -101,6 +101,9 @@ module Streamly.Internal.Data.Stream.Parse
     -- * Internal
     , FIterState (..)
     , GroupByState (..)
+    , WordsByState (..)
+    , SplitOnSeqState (..)
+    , SplitOnSuffixSeqState (..)
 
     -- * Deprecated
     , parseManyD
