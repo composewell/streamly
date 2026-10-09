@@ -3333,7 +3333,7 @@ spliceWith sizer dst@(MutArray _ start end bound) src = do
     let srcBytes = arrEnd src - arrStart src
 
     dst1 <-
-        if end + srcBytes >= bound
+        if end + srcBytes > bound
         then do
             let dstBytes = end - start
                 newSizeInBytes = sizer dstBytes srcBytes
