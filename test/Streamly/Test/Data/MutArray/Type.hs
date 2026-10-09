@@ -672,6 +672,20 @@ testSpliceWith = do
     lst <- MArray.toList arr3
     lst `shouldBe` [1..6]
 
+-- The second array exactly fills the reserved space of the first, the first
+-- array is not reallocated.
+testSpliceExactFit :: IO ()
+testSpliceExactFit = do
+    arr0 <- MArray.emptyOf 6
+    arr1 <- MArray.fromList ([1,2,3] :: [Int]) >>= MArray.splice arr0
+    arr2 <- MArray.fromList ([4,5,6] :: [Int])
+    arr3 <- MArray.splice arr1 arr2
+    MArray.toList arr3 `shouldReturn` [1..6]
+    -- A write through the result is visible through the first array if they
+    -- share the memory.
+    MArray.putIndex 0 arr3 0
+    MArray.toList arr1 `shouldReturn` [0,2,3]
+
 testSpliceExp :: IO ()
 testSpliceExp = do
     arr1 <- MArray.fromList ([1,2,3] :: [Int])
@@ -965,6 +979,7 @@ typeMain = do
     -- Splicing
     describe "spliceCopy" $ do it "copies and splices" testSpliceCopy
     describe "spliceWith" $ do it "splices with growth fn" testSpliceWith
+    describe "splice" $ do it "does not reallocate on an exact fit" testSpliceExactFit
     describe "spliceExp" $ do it "splices exponentially" testSpliceExp
     describe "unsafeSplice" $ do it "unsafe splice" testUnsafeSplice
 

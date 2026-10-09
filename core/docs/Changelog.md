@@ -51,6 +51,12 @@
   `c:` and `c:` on Windows) now compare equal. Pass
   `allowRelativeEquality False` to restore the previous strict behaviour.
 
+### Performance
+
+* `MutArray.splice`, `spliceWith` and `spliceExp` reallocated the first
+  array when the second array exactly filled its reserved space. The result
+  was a copy instead of the first array extended in place.
+
 ### Internal changes
 
 * `Scanl`'s Step type is now different from Fold's `Step` type
