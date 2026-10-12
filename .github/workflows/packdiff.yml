@@ -44,8 +44,9 @@ jobs:
         path: |
             ~/.local/bin
             ~/.local/state/cabal
-        # Bump the key version to clear the cache
-        key: packdiff-ghc-${{ env.GHCVER }}
+        # The packdiff commit is in cabal.project.packdiff, changing it
+        # installs the new packdiff.
+        key: packdiff-ghc-${{ env.GHCVER }}-${{ hashFiles('cabal.project.packdiff') }}
 
     - name: Checkout the current branch
       uses: actions/checkout@v4
@@ -82,16 +83,12 @@ jobs:
 
     - name: Run packdiff on streamly-core
       run: |
-        cabal run packdiff --project-file=cabal.project.packdiff -- \
-          diff streamly-core \
+        packdiff diff -p streamly-core \
           ${{ github.event.pull_request.base.sha }} \
-          streamly-core \
-          $(git rev-parse HEAD)
+          ${{ github.event.pull_request.head.sha }}
 
     - name: Run packdiff on streamly
       run: |
-        cabal run packdiff --project-file=cabal.project.packdiff -- \
-          diff streamly \
+        packdiff diff -p streamly \
           ${{ github.event.pull_request.base.sha }} \
-          streamly \
-          $(git rev-parse HEAD)
+          ${{ github.event.pull_request.head.sha }}
