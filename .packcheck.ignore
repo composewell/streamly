@@ -5,6 +5,7 @@
 .github/workflows/js.yml
 .github/workflows/regression-check.yml
 .github/workflows/packdiff.yml
+.github/workflows/packdiff-comment.yml
 .github/workflows/markdown-doctest.yml
 .gitignore
 .hlint.ignore
