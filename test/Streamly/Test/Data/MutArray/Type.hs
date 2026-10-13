@@ -6,7 +6,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Test.Data.MutArray.Type (typeMain, main) where
+module Streamly.Test.Data.MutArray.Type (arrayCommon, typeCommon, typeMain) where
 
 import Control.Monad.IO.Class (liftIO)
 import Data.Char (isLower, ord)
@@ -20,7 +20,7 @@ import Streamly.Internal.Data.MutArray (MutArray)
 import Streamly.Internal.Data.MutByteArray (Unbox, sizeOf)
 import Streamly.Test.Common (chooseInt)
 import System.Mem (performMajorGC)
-import Test.Hspec (hspec, describe, it, shouldBe, shouldReturn, SpecWith)
+import Test.Hspec (describe, it, shouldBe, shouldReturn, SpecWith)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck (forAll, listOf, Property, vectorOf, Gen, arbitrary)
 import Test.QuickCheck.Monadic (monadicIO, assert)
@@ -28,10 +28,6 @@ import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.Data.MutArray as MArray
 import qualified Streamly.Internal.Data.MutArray as Arr
 import qualified Streamly.Internal.Data.Stream as Stream
-import qualified Test.Hspec as Hspec
-
-moduleName :: String
-moduleName = "Data.MutArray"
 
 #include "Streamly/Test/Data/MutArray/Common.hs"
 #include "Streamly/Test/Data/MutArray/TypeCommon.hs"
@@ -1008,13 +1004,3 @@ typeMain = do
     -- Utilities
     describe "isPower2" $ do it "identifies powers of 2" testIsPower2
     describe "roundUpToPower2" $ do it "rounds up" testRoundUpToPower2
-
-main :: IO ()
-main =
-    hspec $
-    Hspec.parallel $
-    modifyMaxSuccess (const maxTestCount) $
-    describe moduleName $ do
-        arrayCommon
-        typeCommon
-        typeMain

@@ -20,7 +20,7 @@ import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Test.Hspec as Hspec
 
 import Streamly.Test.Common (chooseInt)
-import Streamly.Test.Data.MutArray.Type (typeMain)
+import Streamly.Test.Data.MutArray.Type (arrayCommon, typeCommon, typeMain)
 
 moduleName :: String
 moduleName = "Data.MutArray"
@@ -160,5 +160,7 @@ main =
     Hspec.parallel $
     modifyMaxSuccess (const maxTestCount) $
     describe moduleName $ do
+        arrayCommon
+        typeCommon
         typeMain
         mutArrayMain

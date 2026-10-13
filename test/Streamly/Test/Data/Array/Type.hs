@@ -6,7 +6,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Test.Data.Array.Type (typeMain, main) where
+module Streamly.Test.Data.Array.Type (arrayCommon, typeCommon, typeMain) where
 
 import Data.Proxy (Proxy(..))
 import Data.Word (Word8, Word16)
@@ -15,7 +15,7 @@ import Foreign.Storable (peek)
 import GHC.Ptr (plusPtr, Ptr(..))
 import Streamly.Internal.Data.MutByteArray (sizeOf)
 import System.Mem (performMajorGC)
-import Test.Hspec (hspec, describe, it, shouldBe, shouldReturn, SpecWith)
+import Test.Hspec (describe, it, shouldBe, shouldReturn, SpecWith)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck (Property, forAll, Gen, vectorOf, arbitrary, choose)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
@@ -31,12 +31,8 @@ import qualified Streamly.Internal.Data.Array as Arr
 import qualified Streamly.Internal.Data.MutArray as MA
 import qualified Streamly.Internal.Data.Stream as S
 import qualified Streamly.Internal.Data.Stream as Stream
-import qualified Test.Hspec as Hspec
 
 type Array = A.Array
-
-moduleName :: String
-moduleName = "Data.Array"
 
 #include "Streamly/Test/Data/MutArray/Common.hs"
 #include "Streamly/Test/Data/Array/TypeCommon.hs"
@@ -145,13 +141,3 @@ typeMain = do
 
     -- Stream of Arrays
     prop "concat" testConcatArrayW8
-
-main :: IO ()
-main =
-    hspec $
-    Hspec.parallel $
-    modifyMaxSuccess (const maxTestCount) $
-    describe moduleName $ do
-        arrayCommon
-        typeCommon
-        typeMain

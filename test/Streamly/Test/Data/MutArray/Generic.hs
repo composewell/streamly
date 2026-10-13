@@ -21,6 +21,14 @@ import qualified Streamly.Internal.Data.Stream as Stream
 moduleName :: String
 moduleName = "Data.MutArray.Generic"
 
+-- Coverage build takes too long with default number of tests
+maxTestCount :: Int
+#ifdef DEVBUILD
+maxTestCount = 100
+#else
+maxTestCount = 10
+#endif
+
 #include "Streamly/Test/Data/MutArray/Common.hs"
 #include "Streamly/Test/Data/MutArray/TypeCommon.hs"
 

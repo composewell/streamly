@@ -30,6 +30,14 @@ type Array = A.Array
 moduleName :: String
 moduleName = "Data.Array"
 
+-- Coverage build takes too long with default number of tests
+maxTestCount :: Int
+#ifdef DEVBUILD
+maxTestCount = 100
+#else
+maxTestCount = 10
+#endif
+
 #include "Streamly/Test/Data/MutArray/Common.hs"
 #include "Streamly/Test/Data/Array/TypeCommon.hs"
 

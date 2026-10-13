@@ -16,7 +16,7 @@ import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
 import Streamly.Internal.Data.MutByteArray (Serialize)
 import Streamly.Test.Common (listEquals)
-import Streamly.Test.Data.Array.Type (typeMain)
+import Streamly.Test.Data.Array.Type (arrayCommon, typeCommon, typeMain)
 
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Array as A
@@ -132,6 +132,8 @@ main =
     H.parallel $
     modifyMaxSuccess (const maxTestCount) $
     describe moduleName $ do
+        arrayCommon
+        typeCommon
         typeMain
         -- IMPORTANT NOTE: Before adding any test here first consider if it can
         -- be added to the Array/Common test module. Only those tests which are
