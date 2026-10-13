@@ -2395,8 +2395,9 @@ unsafeAppendMax n arr@MutArray{..} =
     where
 
     free_ = arrBound - arrEnd
-    needed = n * SIZE_OF(a)
-    bound = arrBound + needed - free_
+    -- Keep "needed" to be at least free_ otherwise when recompute the bound in
+    -- "final" we may lose some reserve space.
+    needed = max (n * SIZE_OF(a)) free_
 
     initial = do
         assert (n >= 0) (return ())
@@ -2411,8 +2412,9 @@ unsafeAppendMax n arr@MutArray{..} =
         liftIO $ pokeAt end contents x
         return $ ArrayUnsafe contents start (INDEX_NEXT(end,a))
 
+    -- If the array gets reallocated the original bound does not remain valid.
     final (ArrayUnsafe contents start end) =
-        MutArray contents start end bound
+        MutArray contents start end (start + arrEnd - arrStart + needed)
 
 {-# DEPRECATED writeAppendNUnsafe "Please use unsafeAppendN instead." #-}
 {-# INLINE writeAppendNUnsafe #-}
