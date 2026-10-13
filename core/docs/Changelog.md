@@ -64,6 +64,7 @@
   enumerateFrom*RealFloat for that.
 * Fix `MutArray.appendMax` on a slice returning an array with a capacity
   beyond its allocation, appending to it could corrupt memory.
+* Fix `MutArray.createMinOf 0` writing beyond its allocation.
 
 ## 0.3.1 (May 2026)
 

@@ -2856,7 +2856,7 @@ writeWithAs ps elemCount =
     step arr@(MutArray _ start end bound) x
         | INDEX_NEXT(end,a) > bound = do
         let oldSize = end - start
-            newSize = max (oldSize * 2) 1
+            newSize = max (oldSize * 2) (SIZE_OF(a))
         arr1 <- liftIO $ reallocExplicitAs ps (SIZE_OF(a)) newSize arr
         unsafeSnoc arr1 x
     step arr x = unsafeSnoc arr x

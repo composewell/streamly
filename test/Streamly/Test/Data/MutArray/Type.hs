@@ -243,6 +243,14 @@ testCreate' = do
     lst <- MArray.toList arr
     lst `shouldBe` [1..5]
 
+-- Growing from an initial capacity of 0 must allocate at least one element.
+testCreateMinOf0 :: IO ()
+testCreateMinOf0 = do
+    arr <- Stream.fold (MArray.createMinOf 0) $ Stream.fromList ([1] :: [Int])
+    MArray.toList arr `shouldReturn` [1]
+    n <- MBA.length (MArray.arrContents arr)
+    MArray.arrEnd arr `shouldSatisfy` (<= n)
+
 testUnsafeCreateOf' :: IO ()
 testUnsafeCreateOf' = do
     arr <- Stream.fold (MArray.unsafeCreateOf' 5) $ Stream.fromList ([1..5] :: [Int])
@@ -901,6 +909,7 @@ typeMain = do
     it "fromListN'" testFromListN'
     it "createOf'" testCreateOf'
     it "create'" testCreate'
+    it "createMinOf 0" testCreateMinOf0
     it "unsafeCreateOf'" testUnsafeCreateOf'
 
     -- Reverse creation
