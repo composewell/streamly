@@ -21,6 +21,8 @@
   segment when the separator is longer than a machine word, the last segment
   is the separator without its last element, and it follows an earlier
   separator, e.g. separator `"abc"` and input `"abcab"`.
+* Fix `chunksOf` in the array modules emitting a trailing empty array when
+  the stream length is a multiple of the chunk size.
 
 * On POSIX platforms, the `Path` based APIs that open an existing file in
   `WriteMode`, e.g. `write` and `withFile` in `Streamly.FileSystem.FileIO`,

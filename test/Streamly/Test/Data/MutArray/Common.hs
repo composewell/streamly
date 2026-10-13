@@ -80,6 +80,16 @@ testChunksOf = do
     lsts <- mapM (Stream.fold Fold.toList . Arr.read) chunks
     lsts `shouldBe` [[1, 2, 3], [4, 5, 6], [7, 8, 9], [10]]
 
+-- No empty array at the end when the stream length is a multiple of the chunk
+-- size or the stream is empty.
+testChunksOfExact :: IO ()
+testChunksOfExact = do
+    let chunks xs =
+            Stream.fold Fold.toList (Arr.chunksOf 3 (Stream.fromList xs))
+                >>= mapM (Stream.fold Fold.toList . Arr.read)
+    chunks ([1..9] :: [Int]) `shouldReturn` [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+    chunks ([] :: [Int]) `shouldReturn` []
+
 -- Tests common to all array variants: unboxed/boxed and mutable/immutable. Only
 -- tests whose functions are present and have the same (monadic) shape in every
 -- variant should be added here. Arrays are constructed and read back via the
@@ -102,3 +112,4 @@ arrayCommon = do
     it "reader" testReader
     -- Stream of arrays
     it "chunksOf" testChunksOf
+    it "chunksOf exact multiple" testChunksOfExact

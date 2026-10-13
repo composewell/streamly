@@ -799,7 +799,10 @@ chunksOf n (D.Stream step state) =
                 return $ D.Skip (GroupBuffer s contents start end bound)
             D.Stop ->
                 return
-                    $ D.Skip (GroupYield contents start end bound GroupFinish)
+                    $ if end == start
+                      then D.Stop
+                      else D.Skip
+                            (GroupYield contents start end bound GroupFinish)
 
     step' _ (GroupYield contents start end bound next) =
          return $ D.Yield (MutArray contents start end bound) next
