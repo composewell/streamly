@@ -20,13 +20,15 @@ import Streamly.Internal.Data.MutArray (MutArray)
 import Streamly.Internal.Data.MutByteArray (Unbox, sizeOf)
 import Streamly.Test.Common (chooseInt)
 import System.Mem (performMajorGC)
-import Test.Hspec (describe, it, shouldBe, shouldReturn, SpecWith)
+import Test.Hspec
+    (describe, it, shouldBe, shouldReturn, shouldSatisfy, SpecWith)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck (forAll, listOf, Property, vectorOf, Gen, arbitrary)
 import Test.QuickCheck.Monadic (monadicIO, assert)
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.Data.MutArray as MArray
 import qualified Streamly.Internal.Data.MutArray as Arr
+import qualified Streamly.Internal.Data.MutByteArray as MBA
 import qualified Streamly.Internal.Data.Stream as Stream
 
 #include "Streamly/Test/Data/MutArray/Common.hs"
@@ -621,6 +623,18 @@ testAppendMax = do
     lst <- MArray.toList result
     lst `shouldBe` [1..6]
 
+-- Appending to a slice starting at a non-zero offset reallocates it, the
+-- capacity of the result must be within the new allocation.
+testAppendMaxSlice :: IO ()
+testAppendMaxSlice = do
+    arr <- MArray.fromList ([0..9] :: [Int])
+    let slice = MArray.sliceOffLen 5 2 arr
+    result <- Stream.fold (MArray.appendMax 3 slice) $ Stream.fromList [7,8,9]
+    MArray.toList result `shouldReturn` [5..9]
+    n <- MBA.length (MArray.arrContents result)
+    MArray.arrBound result `shouldSatisfy` (<= n)
+    MArray.byteCapacity result `shouldBe` 5 * sizeOf (Proxy :: Proxy Int)
+
 testAppendGrowBy :: IO ()
 testAppendGrowBy = do
     arr <- MArray.fromList ([1,2,3] :: [Int])
@@ -966,6 +980,7 @@ typeMain = do
     describe "appendWith" $ do it "appends with growth function" testAppendWith
     describe "unsafeAppendMax" $ do it "appends n elements" testUnsafeAppendMax
     describe "appendMax" $ do it "appends at most n elements" testAppendMax
+    describe "appendMax" $ do it "appends to a slice" testAppendMaxSlice
     describe "appendGrowBy" $ do it "appends with grow by n" testAppendGrowBy
 
     -- Append streams

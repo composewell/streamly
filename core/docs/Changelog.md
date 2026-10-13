@@ -62,6 +62,8 @@
   Use `Streamly.Internal.Data.Stream` instead.
 * enumerateFrom*Num are not numerically stable any more, use
   enumerateFrom*RealFloat for that.
+* Fix `MutArray.appendMax` on a slice returning an array with a capacity
+  beyond its allocation, appending to it could corrupt memory.
 
 ## 0.3.1 (May 2026)
 
