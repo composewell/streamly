@@ -51,7 +51,6 @@ module Streamly.Data.MutArray
     , snoc
 
     -- * Appending streams
-    , appendN
     , append2
 
     -- * Inplace mutation
@@ -104,6 +103,7 @@ module Streamly.Data.MutArray
     , modifyIndexUnsafe
     , getIndexUnsafe
     , append
+    , appendN
     )
 where
 
