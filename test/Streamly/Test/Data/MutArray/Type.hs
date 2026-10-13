@@ -461,6 +461,20 @@ testGrowExp = do
     lst <- MArray.toList arr1
     lst `shouldBe` [1..5]
 
+-- The array is not reallocated when the requested capacity is exactly the
+-- current capacity. A write through the result is visible through the
+-- original array if they share the memory.
+testGrowExactFit :: IO ()
+testGrowExactFit = do
+    let check grow = do
+            arr <- MArray.fromListN 5 ([1..5] :: [Int])
+            arr1 <- grow arr
+            MArray.putIndex 0 arr1 0
+            MArray.toList arr `shouldReturn` [0,2,3,4,5]
+    check (MArray.growTo 5)
+    check (MArray.growBy 0)
+    check (MArray.growExp 5)
+
 testRightSize :: IO ()
 testRightSize = do
     arr <- MArray.emptyOf' 100 :: IO (MutArray Int)
@@ -956,6 +970,7 @@ typeMain = do
     describe "growTo" $ do it "capacity increases" testGrowTo
     describe "growBy" $ do it "capacity grows by n" testGrowBy
     describe "growExp" $ do it "capacity grows" testGrowExp
+    describe "grow" $ do it "does not reallocate on an exact fit" testGrowExactFit
     describe "rightSize" $ do it "capacity shrinks to length" testRightSize
     describe "vacate" $ do it "resets length to 0" testVacate
 

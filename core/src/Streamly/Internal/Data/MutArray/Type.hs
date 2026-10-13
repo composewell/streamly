@@ -1206,7 +1206,7 @@ growTo, grow :: forall m a. (MonadIO m, Unbox a) =>
 growTo nElems arr@MutArray{..} = do
     let req = SIZE_OF(a) * nElems
         cap = arrBound - arrStart
-    if req < cap
+    if req <= cap
     then return arr
     else realloc req arr
 
@@ -1224,7 +1224,7 @@ growBy :: forall m a. (MonadIO m, Unbox a) =>
 growBy nElems arr@MutArray{..} = do
     let req = arrEnd - arrStart + SIZE_OF(a) * nElems
         cap = arrBound - arrStart
-    if req < cap
+    if req <= cap
     then return arr
     else realloc req arr
 
@@ -1250,7 +1250,7 @@ growExp nElems arr@MutArray{..} = do
             then roundUpToPower2 req
             else req
         cap = arrBound - arrStart
-    if req1 < cap
+    if req1 <= cap
     then return arr
     else realloc req1 arr
 
