@@ -1962,7 +1962,7 @@ chunksOfAs ps n (D.Stream step state) =
     step' _ (GroupStart st) = do
         when (n <= 0) $
             -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Internal.Data.MutArray.Mut.Type.chunksOf: "
+            error $ "Streamly.Internal.Data.MutArray.Type.chunksOf: "
                     ++ "the size of arrays [" ++ show n
                     ++ "] must be a natural number"
         (MutArray contents start end bound :: MutArray a) <- newAs ps n
