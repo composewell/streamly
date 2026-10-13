@@ -2001,7 +2001,6 @@ chunksOfAs ps n (D.Stream step state) =
 --
 -- >>> chunksOf n = Stream.foldMany (MutArray.createOf n)
 --
--- /Pre-release/
 {-# INLINE_NORMAL chunksOf #-}
 chunksOf :: forall m a. (MonadIO m, Unbox a)
     => Int -> D.Stream m a -> D.Stream m (MutArray a)
@@ -2625,13 +2624,8 @@ appendCString arr (Ptr addr) = appendCString# arr addr
 
 -- XXX Use "IO" instead of "m" in the alloc function
 
--- XXX We can carry bound as well in the state to make sure we do not lose the
--- remaining capacity. Need to check perf impact.
-
 -- | Like 'unsafeCreateOf' but takes a new array allocator @alloc size@
 -- function as argument.
---
--- >>> unsafeCreateWithOf alloc n = MutArray.unsafeAppendN (alloc n) n
 --
 -- /Pre-release/
 {-# INLINE_NORMAL unsafeCreateWithOf #-}
@@ -2647,6 +2641,26 @@ unsafeCreateWithOf alloc n = fromArrayUnsafe <$> FL.foldlM' step initial
         liftIO $ pokeAt end contents x
         return
           $ ArrayUnsafe contents start (INDEX_NEXT(end,a))
+
+    -- PERF: The bound is set to the end of the written elements, the unused
+    -- capacity is dropped.
+    --
+    -- Keeping the capacity for n elements, using the final function
+    -- "MutArray contents start end (max end (start + n * SIZE_OF(a)))",
+    -- made createOf of 100k Ints 5.7x slower (52us to 297us) in the CI
+    -- MutArray benchmarks with GHC 9.14.1, allocation did not change. The
+    -- Core of the loop is the same with either final function, n is used
+    -- only in the exits of the loop.
+    --
+    -- A local benchmark with GHC 9.10.3 was inconclusive: the same loop took
+    -- about 90us or 135-210us depending on the build, either version could
+    -- be the slower one, and building with -fproc-alignment=64 changed the
+    -- result. This points to the placement of the loop code rather than the
+    -- final function. Measure with an alignment control (e.g. a different
+    -- -fproc-alignment) before making this change.
+    --
+    -- Carrying the bound in ArrayUnsafe adds a loop argument instead, its perf
+    -- needs to be measured as well.
 
 {-# DEPRECATED writeNWithUnsafe "Please use unsafeCreateWithOf instead." #-}
 {-# INLINE writeNWithUnsafe #-}
@@ -2696,10 +2710,11 @@ pinnedWriteNUnsafe = unsafeCreateOf'
 -- | @createWithOf alloc n@ folds a maximum of @n@ elements into an array
 -- allocated using the @alloc@ function.
 --
--- The array capacity is guranteed to be at least @n@.
+-- The capacity of the resulting array is the number of elements written, the
+-- unused capacity of the allocation is not available for appending. Use
+-- 'appendMax' to keep the reserved capacity.
 --
 -- >>> createWithOf alloc n = Fold.take n (MutArray.unsafeCreateWithOf alloc n)
--- >>> createWithOf alloc n = MutArray.appendN (alloc n) n
 --
 {-# INLINE_NORMAL createWithOf #-}
 createOfWith, createWithOf :: forall m a. (MonadIO m, Unbox a)
@@ -2723,7 +2738,10 @@ writeNAs ps = createWithOf (newAs ps)
 -- | @createOf n@ folds a maximum of @n@ elements from the input stream to an
 -- 'MutArray'.
 --
--- The array capacity is guranteed to be at least @n@.
+-- The capacity of the resulting array is the number of elements written, if
+-- the input has fewer than @n@ elements the unused capacity is not available
+-- for appending. The memory allocated for @n@ elements is not released, use
+-- 'rightSize' to release it.
 --
 -- /WARNING/: this is a truncating fold. If the input stream has more than @n@
 -- elements, the trailing elements are silently dropped. Pass an @n@ that is
@@ -2882,9 +2900,8 @@ writeWithAs ps elemCount =
 
 -- | @createMinOf count@ folds the whole input to a single array. The array
 -- starts at a size big enough to hold minCount elements, the size is doubled
--- every time the array needs to be grown.
---
--- The array capacity is guaranteed to be at least count.
+-- every time the array needs to be grown. The array is resized using
+-- 'rightSize' at the end.
 --
 -- /Caution! Do not use this on infinite streams./
 --

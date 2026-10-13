@@ -746,7 +746,6 @@ bufferChunks = buildChunks
 --
 -- >>> chunksOf n = Stream.foldMany (Array.createOf n)
 --
--- /Pre-release/
 {-# INLINE_NORMAL chunksOf #-}
 chunksOf :: forall m a. (MonadIO m, Unbox a)
     => Int -> D.Stream m a -> D.Stream m (Array a)
