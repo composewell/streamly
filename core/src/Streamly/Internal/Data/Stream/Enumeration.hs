@@ -337,10 +337,16 @@ enumerateFromToNum from to = Stream step EnumToInit
             if to < from
             then Stop
             else Skip $ EnumToYield from
+    -- x + 1 cannot overflow because x < to. For a non-integral gap between
+    -- from and to, x + 1 can exceed to, so it is checked before continuing.
     step _ (EnumToYield x) =
         pure $
             if to > x
-            then Yield x (EnumToYield (x + 1))
+            then
+                let !nxt = x + 1
+                 in if nxt <= to
+                    then Yield x (EnumToYield nxt)
+                    else Yield x EnumToStop
             else Yield x EnumToStop
     step _ EnumToStop = pure Stop
 
@@ -359,7 +365,11 @@ enumerateDownFromToNum from to = Stream step EnumToInit
     step _ (EnumToYield x) =
         pure $
             if to < x
-            then Yield x (EnumToYield (x - 1))
+            then
+                let !nxt = x - 1
+                 in if nxt >= to
+                    then Yield x (EnumToYield nxt)
+                    else Yield x EnumToStop
             else Yield x EnumToStop
     step _ EnumToStop = pure Stop
 

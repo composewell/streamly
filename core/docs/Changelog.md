@@ -36,6 +36,8 @@
   `foldr1 (-)` on `[1,2,3]` returned `0` instead of `2`.
 * Fix `Stream.isInfixOf` returning `False` for an empty infix when the
   stream has fewer than two elements.
+* Fix `enumerateFromTo` for `Ratio` and `Fixed` emitting one element beyond
+  the limit.
 
 * On POSIX platforms, the `Path` based APIs that open an existing file in
   `WriteMode`, e.g. `write` and `withFile` in `Streamly.FileSystem.FileIO`,

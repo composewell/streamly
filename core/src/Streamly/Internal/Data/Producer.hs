@@ -760,7 +760,13 @@ enumerateFromTo (EnumToInit from to) =
 enumerateFromTo (EnumToYield from to) =
     pure $
         if to > from
-        then Yield from (EnumToYield (from + 1) to)
+        then
+            -- from + 1 cannot overflow because from < to. For a non-integral
+            -- gap between from and to, from + 1 can exceed to.
+            let !next = from + 1
+             in if next <= to
+                then Yield from (EnumToYield next to)
+                else Yield from EnumToStop
         -- Note: Usually multiple yields are problematic for fusion, but only
         -- if we are looping further, for a terminal yield it is in fact better
         -- to yield here rather than skipping to another state. We used to skip
@@ -782,6 +788,10 @@ enumerateDownFromTo (EnumToInit from to) =
 enumerateDownFromTo (EnumToYield from to) =
     pure $
         if to < from
-        then Yield from (EnumToYield (from - 1) to)
+        then
+            let !next = from - 1
+             in if next >= to
+                then Yield from (EnumToYield next to)
+                else Yield from EnumToStop
         else Yield from EnumToStop
 enumerateDownFromTo EnumToStop = pure Stop

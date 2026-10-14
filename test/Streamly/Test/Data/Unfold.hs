@@ -29,6 +29,7 @@ import Control.Monad.Trans.State.Strict
 import Data.Functor.Identity
 import Data.Int (Int8, Int64)
 import Data.IORef (newIORef, readIORef, writeIORef)
+import Data.Ratio ((%))
 import Data.Word (Word8)
 import Foreign.Marshal.Array (withArray)
 import Prelude hiding (const, take, drop, concat, mapM, either, filter, dropWhile, repeat, scanl)
@@ -323,6 +324,17 @@ enumerateDownFromThenToNum = do
         UF.enumerateDownFromThenToNum
         (6 :: Int, 4, -1)
         (Prelude.takeWhile (>= (-1)) [6, 4 ..])
+        `shouldBe` True
+
+-- The last element must not exceed "to" when "to - from" is not a whole
+-- number.
+enumerateFromToNumFractional :: Expectation
+enumerateFromToNumFractional = do
+    testUnfold UF.enumerateFromToNum (1.1 :: Double, 3.2) [1.1, 2.1, 3.1]
+        `shouldBe` True
+    testUnfold UF.enumerateDownFromToNum (3.5 :: Double, 1.7) [3.5, 2.5]
+        `shouldBe` True
+    testUnfold UF.enumerateFromTo (1 :: Rational, 12 % 5) [1, 2]
         `shouldBe` True
 
 enumerateDownFromNum :: Property
@@ -1286,6 +1298,7 @@ testGeneration =
             it "enumerateDownFromThenToNum" enumerateDownFromThenToNum
             prop "enumerateDownFromNum" enumerateDownFromNum
             prop "enumerateDownFromToNum" enumerateDownFromToNum
+            it "enumerateFromToNum fractional" enumerateFromToNumFractional
             it "enumerateDownFromBoundedNum" enumerateDownFromBoundedNum
 
             prop "enumerateFromIntegral" enumerateFromIntegral

@@ -14,6 +14,7 @@ import Control.Concurrent (threadDelay)
 import Data.Functor.Identity (Identity(..))
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Int (Int8, Int64)
+import Data.Ratio ((%))
 import Data.Word (Word8, Word16)
 import Foreign.Marshal.Alloc (alloca)
 import Foreign.Marshal.Array (withArray)
@@ -245,6 +246,17 @@ testEnumerateDownFromToNum = do
     -- to > from returns an empty stream
     toList (Stream.enumerateDownFromToNum (2 :: Int) 6)
         `shouldReturn` []
+
+-- The last element must not exceed "to" when "to - from" is not a whole
+-- number.
+testEnumerateFromToNumFractional :: Expectation
+testEnumerateFromToNumFractional = do
+    toList (Stream.enumerateFromToNum (1.1 :: Double) 3.2)
+        `shouldReturn` [1.1, 2.1, 3.1]
+    toList (Stream.enumerateDownFromToNum (3.5 :: Double) 1.7)
+        `shouldReturn` [3.5, 2.5]
+    toList (Stream.enumerateFromTo (1 :: Rational) (12 % 5))
+        `shouldReturn` [1, 2]
 
 testEnumerateDownFromBoundedNum :: Expectation
 testEnumerateDownFromBoundedNum = do
@@ -487,6 +499,7 @@ main = hspec $ describe moduleName $ do
         it "enumerateDownFromThenToNum" testEnumerateFromThenDownToNum
         it "enumerateDownFromNum" testEnumerateDownFromNum
         it "enumerateDownFromToNum" testEnumerateDownFromToNum
+        it "enumerateFromToNum fractional" testEnumerateFromToNumFractional
         it "enumerateDownFromBoundedNum" testEnumerateDownFromBoundedNum
         it "enumerateFromThenSmall" testEnumerateFromThenSmall
         it "enumerateFromToSmall" testEnumerateFromToSmall
