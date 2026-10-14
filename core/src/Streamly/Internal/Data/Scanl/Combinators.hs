@@ -2110,7 +2110,7 @@ with f comb g = f . comb g . lmap snd
 {-# INLINE sampleFromthen #-}
 sampleFromthen :: Monad m => Int -> Int -> Scanl m a b -> Scanl m a b
 sampleFromthen offset size =
-    with indexed filter (\(i, _) -> (i + offset) `mod` size == 0)
+    with indexed filter (\(i, _) -> i >= offset && (i - offset) `mod` size == 0)
 
 ------------------------------------------------------------------------------
 -- Nesting
