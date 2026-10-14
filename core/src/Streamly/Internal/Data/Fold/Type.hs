@@ -905,7 +905,7 @@ toListRev = foldl' (flip (:)) []
 -- | Buffers the input stream to a pure stream in the reverse order of the
 -- input.
 --
--- >>> toStreamKRev = Foldable.foldl' (flip StreamK.cons) StreamK.nil
+-- >>> toStreamKRev = Fold.foldl' (flip StreamK.cons) StreamK.nil
 --
 -- This is more efficient than 'toStreamK'. toStreamK has exactly the same
 -- performance as reversing the stream after toStreamKRev.
@@ -921,7 +921,7 @@ toStreamKRev = fromScanl Scanl.toStreamKRev
 
 -- | A fold that buffers its input to a pure stream.
 --
--- >>> toStreamK = foldr StreamK.cons StreamK.nil
+-- >>> toStreamK = Fold.foldr' StreamK.cons StreamK.nil
 -- >>> toStreamK = fmap StreamK.reverse Fold.toStreamKRev
 --
 -- /Internal/
