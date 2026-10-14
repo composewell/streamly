@@ -69,6 +69,8 @@
   and not running the release action if the stream ends there.
 * Fix `Fold.finallyIO` running the action only on GC when the inner fold
   terminates.
+* Fix `Fold.distributeScan` losing the result of a fold that terminates on
+  the last input.
 
 ## 0.3.1 (May 2026)
 

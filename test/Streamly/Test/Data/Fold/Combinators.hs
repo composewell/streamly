@@ -421,7 +421,16 @@ distributeScan = do
     r <- Stream.fold Fold.toList
              $ Stream.postscanl (Fold.distributeScan gen)
              $ Stream.fromList [1..5 :: Int]
-    r `shouldBe` [[], [], [2, 3], [], []]
+    r `shouldBe` [[], [3, 2], [], [], []]
+
+-- The results of the folds that terminate on the last input must not be lost.
+distributeScanLast :: Expectation
+distributeScanLast = do
+    ref <- newIORef [Fold.take 2 Fold.sum, Fold.take 2 Fold.length :: Fold.Fold IO Int Int]
+    let gen = atomicModifyIORef ref (\xs -> ([], xs))
+    Stream.fold (Fold.fromScanl (Fold.distributeScan gen))
+        (Stream.fromList [1, 2 :: Int])
+        `shouldReturn` [3, 2]
 
 unzipWithFstM :: Property
 unzipWithFstM =
@@ -505,6 +514,7 @@ main = hspec $ do
         it "takeEndBySeq" takeEndBySeq
         it "takeEndBySeq_" takeEndBySeq_
         it "distributeScan" distributeScan
+        it "distributeScan last input" distributeScanLast
         it "sampleFromthen offset" sampleFromthenOffset
         prop "unzipWithFstM" unzipWithFstM
         prop "unzipWithMinM" unzipWithMinM
