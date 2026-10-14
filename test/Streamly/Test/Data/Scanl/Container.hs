@@ -178,6 +178,35 @@ classifyGenericIOS =
                     (IO (Map.Map String Int), Maybe (String, Int))))
         classifyInput classifyExpected
 
+-- The inner scan terminates on the first input of a key, further inputs of
+-- that key must be ignored.
+classifyDoneOnFirstInput :: [(String, Int)]
+classifyDoneOnFirstInput = [("A", 1), ("B", 5), ("A", 2), ("B", 6)]
+
+classifyDoneOnFirstExpected :: [Maybe (String, Int)]
+classifyDoneOnFirstExpected = [Just ("A", 1), Just ("B", 5), Nothing, Nothing]
+
+classifyDoneOnFirstInner :: F.Scanl IO (String, Int) Int
+classifyDoneOnFirstInner = F.lmap snd (F.take 1 F.sum)
+
+classifyDoneOnFirst :: Expectation
+classifyDoneOnFirst = do
+    let check1 scn =
+            checkPostscanl scn
+                classifyDoneOnFirstInput classifyDoneOnFirstExpected
+    check1 (F.classify fst classifyDoneOnFirstInner)
+    check1 (F.classifyIO fst classifyDoneOnFirstInner)
+    check1
+        (fmap snd
+            (F.classifyGeneric fst classifyDoneOnFirstInner
+                :: F.Scanl IO (String, Int)
+                    (IO (Map.Map String Int), Maybe (String, Int))))
+    check1
+        (fmap snd
+            (F.classifyGenericIO fst classifyDoneOnFirstInner
+                :: F.Scanl IO (String, Int)
+                    (IO (Map.Map String Int), Maybe (String, Int))))
+
 moduleName :: String
 moduleName = "Data.Scanl.Container"
 
@@ -207,4 +236,5 @@ main = hspec $
         it "classifyGeneric" classifyGenericS
         it "classifyGeneric: filter" classifyGenericFilterS
         it "classifyGenericIO" classifyGenericIOS
+        it "classify: done on first input" classifyDoneOnFirst
         it "classifyGenericIO: filter" classifyGenericFilterIOS

@@ -23,8 +23,9 @@
   separator, e.g. separator `"abc"` and input `"abcab"`.
 * Fix `chunksOf` in the array modules emitting a trailing empty array when
   the stream length is a multiple of the chunk size.
-* Fix `Fold.classifyScan`, `classifyScanIO`, `classify` and `classifyIO`
-  restarting the fold for a key that terminated on its first input.
+* Fix `classify` and `classifyIO` in Fold and Scanl, and
+  `Fold.classifyScan` and `classifyScanIO`, restarting the fold for a key
+  that terminated on its first input.
 * Fix the `Arrow` instance of `Scan` failing when a scan skips an input.
 * Fix `RingArray.ringsOf` and `scanRingsOf` producing rings of a wrong size
   after `2^31` bytes when `Int` is 32-bit, e.g. on the JavaScript backend.
