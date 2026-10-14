@@ -600,7 +600,7 @@ classifyGeneric f (Scanl step1 initial1 extract1 final1) =
                     return
                         $ Tuple3' (IsMap.mapInsert k s1 kv) set (Just (k, b))
                   Done b ->
-                    return $ Tuple3' kv set (Just (k, b))
+                    return $ Tuple3' kv (Set.insert k set) (Just (k, b))
               Done b -> return (Tuple3' kv (Set.insert k set) (Just (k, b)))
 
     step (Tuple3' kv set _) a = do
@@ -685,7 +685,7 @@ classifyGenericIO f (Scanl step1 initial1 extract1 final1) =
                             $ Tuple3'
                                 (IsMap.mapInsert k ref kv) set (Just (k, b))
                       Done b ->
-                        return $ Tuple3' kv set (Just (k, b))
+                        return $ Tuple3' kv (Set.insert k set) (Just (k, b))
               Done b -> return (Tuple3' kv (Set.insert k set) (Just (k, b)))
 
     step (Tuple3' kv set _) a = do
