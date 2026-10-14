@@ -364,6 +364,26 @@ jobs:
 
     - uses: actions/checkout@v4
 
+    # The macOS image may ship Command Line Tools newer than the default
+    # Xcode (e.g. CLT 27.0 with Xcode 26.6). Linking against the CLT SDK then
+    # fails with "tapi error: malformed file ... unknown architecture
+    # arm64e.x1-macos". Select the default Xcode so that the compiler, linker
+    # and SDK come from the same toolchain. packcheck clears the environment,
+    # so SDKROOT or DEVELOPER_DIR cannot be used instead.
+    #
+    # GHC records the SDK library path when it is installed, so the GHC and
+    # dependency cache keys include the Xcode version and build. A runner
+    # image with a different Xcode then installs GHC afresh.
+    - name: Select default Xcode (macOS)
+      id: xcode
+      if: runner.os == 'macOS'
+      run: |
+        sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+        xcode-select -p
+        xcrun --show-sdk-path
+        ver=$(xcodebuild -version | awk 'NR==1{v=$2} /Build version/{b=$3} END{print v "-" b}')
+        echo "toolchain=-xcode-$ver" >> "$GITHUB_OUTPUT"
+
     # This should happen before cache restore.
     - name: Remove ~/.ghcup symlink (non-Windows)
       if: runner.os != 'Windows'
@@ -391,7 +411,7 @@ jobs:
       with:
         path: |
           ~/.ghcup
-        key: ghc-${{ matrix.ghc_version }}-v${{ matrix.ghc_salt }}-${{ matrix.runner }}
+        key: ghc-${{ matrix.ghc_version }}-v${{ matrix.ghc_salt }}-${{ matrix.runner }}${{ steps.xcode.outputs.toolchain }}
 
     # GHC is not test/options specific
     #- name: Restore ghcup and ghc (Windows)
@@ -422,7 +442,7 @@ jobs:
           ~/.local/bin
           ~/.local/state/cabal
           ~/.stack
-        key: ${{ matrix.command }}-deps-ghc-${{ matrix.ghc_version }}-v${{ matrix.ghc_salt }}-${{ matrix.runner }}-${{ matrix.name }}
+        key: ${{ matrix.command }}-deps-ghc-${{ matrix.ghc_version }}-v${{ matrix.ghc_salt }}-${{ matrix.runner }}-${{ matrix.name }}${{ steps.xcode.outputs.toolchain }}
 
     # Deps are test/options specific
     - name: Restore build dependencies, hackage index, local/bin (Windows)
@@ -493,7 +513,8 @@ jobs:
               ARGS="$ARGS CABAL_BUILDDIR=\"/c/b\" WINVER=$WINVER"
               ARGS="$ARGS NUMBER_OF_PROCESSORS=$NUMBER_OF_PROCESSORS"
               ARGS="$ARGS PROCESSOR_IDENTIFIER=\"$PROCESSOR_IDENTIFIER\""
-              PATH_VAR="$PATH_VAR:/c/ghcup:/c/Program Files/7-Zip:/mingw64/bin"
+              # Git for Windows 2.56 moved /mingw64 to /ucrt64
+              PATH_VAR="$PATH_VAR:/c/ghcup:/c/Program Files/7-Zip:/ucrt64/bin:/mingw64/bin"
               ;;
           esac
           ARGS="$ARGS PATH=\"$PATH_VAR\""
@@ -528,7 +549,7 @@ jobs:
       if: always() && steps.deps-only.outcome == 'success' && runner.os != 'Windows' && steps.restore-ghcup.outputs.cache-hit != 'true'
       with:
         path: ~/.ghcup
-        key: ghc-${{ matrix.ghc_version }}-v${{ matrix.ghc_salt }}-${{ matrix.runner }}
+        key: ghc-${{ matrix.ghc_version }}-v${{ matrix.ghc_salt }}-${{ matrix.runner }}${{ steps.xcode.outputs.toolchain }}
 
     # On Windows, ghc restore step takes 2-3 minutes whereas installing
     # GHC takes less than 2 minutes. On top of this saving the ghc cache
@@ -550,7 +571,7 @@ jobs:
           ~/.local/bin
           ~/.local/state/cabal
           ~/.stack
-        key: ${{ matrix.command }}-deps-ghc-${{ matrix.ghc_version }}-v${{ matrix.ghc_salt }}-${{ matrix.runner }}-${{ matrix.name }}
+        key: ${{ matrix.command }}-deps-ghc-${{ matrix.ghc_version }}-v${{ matrix.ghc_salt }}-${{ matrix.runner }}-${{ matrix.name }}${{ steps.xcode.outputs.toolchain }}
 
     # hackage package index is part of C:/cabal
     # Deps are test/options specific, hence, matrix.name in the key
