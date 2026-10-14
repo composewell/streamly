@@ -360,16 +360,12 @@ unsafeByteCmp
     :: MutByteArray -> Int -> MutByteArray -> Int -> Int -> IO Int
 unsafeByteCmp
     (MutByteArray marr1) (I# st1#) (MutByteArray marr2) (I# st2#) (I# len#) =
+    -- compareByteArrays# must be evaluated here, a lazy result would read the
+    -- arrays after later mutations.
     IO $ \s# ->
-        let res =
-                I#
-                    (compareByteArrays#
-                         (unsafeCoerce# marr1)
-                         st1#
-                         (unsafeCoerce# marr2)
-                         st2#
-                         len#)
-         in (# s#, res #)
+        case compareByteArrays#
+                (unsafeCoerce# marr1) st1# (unsafeCoerce# marr2) st2# len# of
+            res# -> (# s#, I# res# #)
 
 -------------------------------------------------------------------------------
 -- Pinning & Unpinning
