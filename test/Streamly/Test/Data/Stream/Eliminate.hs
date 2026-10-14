@@ -34,6 +34,13 @@ testFoldr1Single =
     Stream.foldr1 (+) (Stream.fromList [42 :: Int])
         `shouldReturn` Just 42
 
+testFoldr1NonCommutative :: Expectation
+testFoldr1NonCommutative = do
+    Stream.foldr1 (-) (Stream.fromList [1, 2, 3 :: Int])
+        `shouldReturn` Just (foldr1 (-) [1, 2, 3])
+    Stream.foldr1 const (Stream.fromList [1, 2, 3 :: Int])
+        `shouldReturn` Just 1
+
 testFoldr1Empty :: Expectation
 testFoldr1Empty =
     Stream.foldr1 (+) (Stream.fromList ([] :: [Int]))
@@ -263,6 +270,7 @@ main = hspec $ describe moduleName $ do
         it "foldr1" testFoldr1
         it "foldr1 single element" testFoldr1Single
         it "foldr1 empty" testFoldr1Empty
+        it "foldr1 non-commutative" testFoldr1NonCommutative
 
     describe "Fold Maybes" $ do
         it "foldMaybes all Just" testFoldMaybesAllJust

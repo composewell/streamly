@@ -32,6 +32,8 @@
 * Fix `Scanl.uniq` and `uniqBy` failing before the first input.
 * Fix `Scanl.partition`, `partitionBy` and `partitionByM` not finalizing one
   scan when the other terminates.
+* Fix `Stream.foldr1` combining the first element last, e.g.
+  `foldr1 (-)` on `[1,2,3]` returned `0` instead of `2`.
 
 * On POSIX platforms, the `Path` based APIs that open an existing file in
   `WriteMode`, e.g. `write` and `withFile` in `Streamly.FileSystem.FileIO`,

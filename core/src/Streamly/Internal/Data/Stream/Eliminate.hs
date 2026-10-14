@@ -104,11 +104,12 @@ import Streamly.Internal.Data.Stream.Type hiding (splitAt)
 
 {-# INLINE_NORMAL foldr1 #-}
 foldr1 :: Monad m => (a -> a -> a) -> Stream m a -> m (Maybe a)
-foldr1 f m = do
-     r <- uncons m
-     case r of
-         Nothing   -> return Nothing
-         Just (h, t) -> fmap Just (foldr f h t)
+foldr1 f = foldr step Nothing
+
+    where
+
+    step x Nothing = Just x
+    step x (Just acc) = Just (f x acc)
 
 -- | Fold a stream of optional values.
 --
