@@ -27,7 +27,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - release: "14.3"
+          - release: "14.5"
             command: cabal
             ghc_version: 9.14.1
             ignore_error: true
