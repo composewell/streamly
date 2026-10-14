@@ -180,15 +180,19 @@ finallyIO aft (Fold step1 initial1 extract1 final1) =
     initial = do
         ref <- liftIO $ newIOFinalizer aft
         res <- initial1 `MC.onException` liftIO (runIOFinalizer ref)
-        pure $ case res of
-            Done b -> Done b
-            Partial s -> Partial $ Tuple' ref s
+        case res of
+            Done b -> do
+                liftIO $ runIOFinalizer ref
+                pure $ Done b
+            Partial s -> pure $ Partial $ Tuple' ref s
 
     step (Tuple' ref s) a = do
         res <- step1 s a `MC.onException` liftIO (runIOFinalizer ref)
-        pure $ case res of
-            Done b -> Done b
-            Partial s1 -> Partial $ Tuple' ref s1
+        case res of
+            Done b -> do
+                liftIO $ runIOFinalizer ref
+                pure $ Done b
+            Partial s1 -> pure $ Partial $ Tuple' ref s1
 
     extract (Tuple' ref s) =
         extract1 s `MC.onException` liftIO (runIOFinalizer ref)

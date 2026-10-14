@@ -67,6 +67,8 @@
 * Fix `MutArray.createMinOf 0` writing beyond its allocation.
 * Fix `Fold.bracketIO` losing the input after the inner fold terminates,
   and not running the release action if the stream ends there.
+* Fix `Fold.finallyIO` running the action only on GC when the inner fold
+  terminates.
 
 ## 0.3.1 (May 2026)
 

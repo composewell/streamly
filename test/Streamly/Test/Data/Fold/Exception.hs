@@ -37,6 +37,20 @@ finallyIOFold = do
     val <- readIORef ref
     val `shouldBe` 1
 
+finallyIOInnerDone :: Expectation
+finallyIOInnerDone = do
+    ref <- newIORef (0 :: Int)
+    let fld = Fold.finallyIO (writeIORef ref 1) (Fold.take 1 Fold.drain)
+    Stream.fold fld (Stream.fromList [1,2,3 :: Int])
+    readIORef ref `shouldReturn` 1
+
+finallyIOInitDone :: Expectation
+finallyIOInitDone = do
+    ref <- newIORef (0 :: Int)
+    let fld = Fold.finallyIO (writeIORef ref 1) (Fold.take 0 Fold.drain)
+    Stream.fold fld (Stream.fromList [1 :: Int])
+    readIORef ref `shouldReturn` 1
+
 bracketIOFold :: Expectation
 bracketIOFold = do
     ref <- newIORef (0 :: Int)
@@ -92,6 +106,8 @@ main = hspec $ do
     describe moduleName $ do
         it "before" beforeFold
         it "finallyIO" finallyIOFold
+        it "finallyIO inner fold done" finallyIOInnerDone
+        it "finallyIO inner fold done in initial" finallyIOInitDone
         it "bracketIO" bracketIOFold
         it "bracketIO inner fold done" bracketIOInnerDone
         it "bracketIO inner fold done at end" bracketIOInnerDoneAtEnd
