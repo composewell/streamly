@@ -723,7 +723,7 @@ unsnoc :: Unbox a => Array a -> Maybe (Array a, a)
 unsnoc arr =
     if null arr
     then Nothing
-    else Just (unsafeTail arr, unsafeGetIndexRev 0 arr)
+    else Just (unsafeInit arr, unsafeGetIndexRev 0 arr)
 
 -------------------------------------------------------------------------------
 -- Streams of arrays

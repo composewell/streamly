@@ -117,6 +117,12 @@ testConcatArrayW8 =
               f2 <- S.fold Fold.toList $ A.concat $ S.fromList w8ArrList
               w8List `shouldBe` f2
 
+testUnsnoc :: IO ()
+testUnsnoc = do
+    A.unsnoc (A.fromList [1, 2, 3 :: Int])
+        `shouldBe` Just (A.fromList [1, 2], 3)
+    A.unsnoc (A.fromList ([] :: [Int])) `shouldBe` Nothing
+
 -- Tests for exports of the Streamly.Internal.Data.Array.Type source module.
 typeMain :: SpecWith ()
 typeMain = do
@@ -125,6 +131,7 @@ typeMain = do
     -- specific to the Unboxed Array module and do not apply to the Generic
     -- Array module should be added here.
 
+    it "unsnoc" testUnsnoc
     it "unsafePinnedAsPtr" testUnsafePinnedAsPtr
     describe "unsafeAsForeignPtr" $ do
         it "read via Ptr" testUnsafeAsForeignPtr
