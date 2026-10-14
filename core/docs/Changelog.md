@@ -29,6 +29,7 @@
 * Fix the `Arrow` instance of `Scan` failing when a scan skips an input.
 * Fix `RingArray.ringsOf` and `scanRingsOf` producing rings of a wrong size
   after `2^31` bytes when `Int` is 32-bit, e.g. on the JavaScript backend.
+* Fix `Scanl.uniq` and `uniqBy` failing before the first input.
 
 * On POSIX platforms, the `Path` based APIs that open an existing file in
   `WriteMode`, e.g. `write` and `withFile` in `Streamly.FileSystem.FileIO`,

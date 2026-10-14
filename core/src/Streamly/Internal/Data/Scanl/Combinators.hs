@@ -551,8 +551,11 @@ rollingMapM f = Scanl step initial extract extract
 
     where
 
-    -- XXX We need just a postscan. We do not need an initial result here.
-    -- Or we can supply a default initial result as an argument to rollingMapM.
+    -- TODO: The initial result is an error, so rollingMapM works only as a
+    -- postscan. Stream.scanl emits the error as its first output,
+    -- Scanl.compose fails when initialized, and Fold.rollingMap fails on an
+    -- empty stream. Change the result type to Maybe b, with Nothing before
+    -- the first input.
     initial = return $ Fold.Partial (Nothing, error "Empty stream")
 
     step (prev, _) cur = do
@@ -585,14 +588,20 @@ rollingMap f = rollingMapM (\x y -> return $ f x y)
 --
 {-# INLINE uniqBy #-}
 uniqBy :: Monad m => (a -> a -> Bool) -> Scanl m a (Maybe a)
-uniqBy eq = rollingMap f
+uniqBy eq = fmap (\(Tuple' _ x) -> x) $ scanl' step (Tuple' Nothing Nothing)
 
     where
 
-    f pre curr =
-        case pre of
-            Nothing -> Just curr
-            Just x -> if x `eq` curr then Nothing else Just curr
+    -- TODO: When rollingMap returns Maybe b, Nothing before the first input,
+    -- define uniqBy as "fmap join (rollingMap f)", with f the case expression
+    -- in step. Make the rollingMap state strict (Tuple') first, so that it
+    -- does not hold the result as a thunk.
+    step (Tuple' pre _) curr =
+        let out =
+                case pre of
+                    Just x | x `eq` curr -> Nothing
+                    _ -> Just curr
+         in Tuple' (Just curr) out
 
 -- | See 'uniqBy'.
 --

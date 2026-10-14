@@ -261,6 +261,13 @@ pipeSkipS =
             (F.pipe (Pipe.filter even) F.sum) (Stream.fromList [1 .. 4 :: Int]))
         `shouldReturn` [2, 6]
 
+-- uniq has a valid result before any input.
+uniqInitialS :: Expectation
+uniqInitialS = do
+    check F.uniq "aab" [Nothing, Just 'a', Nothing, Just 'b']
+    check (F.compose F.uniq F.toList) "ab"
+        [[Nothing], [Nothing, Just 'a'], [Nothing, Just 'a', Just 'b']]
+
 -------------------------------------------------------------------------------
 -- Deprecated combinators (aliases for compose / composeMany)
 -------------------------------------------------------------------------------
@@ -320,6 +327,7 @@ main = hspec $
 
         it "partition" partitionS
         it "sampleFromthen: offset" sampleFromthenOffsetS
+        it "uniq: initial" uniqInitialS
         it "with" withS
         it "topBy" topByS
         it "bottomBy" bottomByS
