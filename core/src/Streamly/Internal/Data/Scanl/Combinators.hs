@@ -393,39 +393,48 @@ pipe (Pipe consume produce pinitial) (Scanl fstep finitial fextract ffinal) =
 
     step (Tuple' cs fs) x = do
         r <- consume cs x
-        go fs r
+        go False fs r
 
         where
 
+        -- "emitted" is True if the scan returned Partial for an earlier
+        -- output of the pipe for the same input. If the pipe yields nothing
+        -- for this input, or the scan returns Continue on all the outputs,
+        -- we return Continue so that the driver does not emit an output.
+        next emitted cs1 s =
+            if emitted
+            then Partial $ Tuple' cs1 s
+            else Continue $ Tuple' cs1 s
+
         -- XXX use SPEC?
-        go acc (Pipe.YieldC cs1 b) = do
+        go emitted acc (Pipe.YieldC cs1 b) = do
             acc1 <- fstep acc b
             return
                 $ case acc1 of
                       Partial s -> Partial $ Tuple' cs1 s
-                      Continue s -> Continue $ Tuple' cs1 s
+                      Continue s -> next emitted cs1 s
                       Done b1 -> Done b1
         -- XXX this case is recursive may cause fusion issues.
         -- To remove recursion we will need a produce mode in scans which makes
         -- scans similar to pipes except that they do not yield intermediate
         -- values.
-        go acc (Pipe.YieldP ps1 b) = do
+        go emitted acc (Pipe.YieldP ps1 b) = do
             acc1 <- fstep acc b
             r <- produce ps1
             case acc1 of
-                Partial s -> go s r
-                Continue s -> go s r
+                Partial s -> go True s r
+                Continue s -> go emitted s r
                 Done b1 -> return $ Done b1
-        go acc (Pipe.SkipC cs1) =
-            return $ Partial $ Tuple' cs1 acc
+        go emitted acc (Pipe.SkipC cs1) =
+            return $ next emitted cs1 acc
         -- XXX this case is recursive may cause fusion issues.
-        go acc (Pipe.SkipP ps1) = do
+        go emitted acc (Pipe.SkipP ps1) = do
             r <- produce ps1
-            go acc r
+            go emitted acc r
         -- XXX a Stop in consumer means we dropped the input.
         -- XXX Need to use a "Done b" in pipes as well to represent the same
         -- behavior as scans.
-        go acc Pipe.Stop = Done <$> ffinal acc
+        go _ acc Pipe.Stop = Done <$> ffinal acc
 
     extract (Tuple' _ fs) = fextract fs
 

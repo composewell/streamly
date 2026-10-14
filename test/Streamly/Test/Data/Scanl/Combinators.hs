@@ -253,6 +253,14 @@ sampleFromthenOffsetS = do
     run 1 3 `shouldReturn` [[1], [1, 4], [1, 4, 7]]
     run 5 3 `shouldReturn` [[5], [5, 8]]
 
+-- An input that the pipe consumes without yielding must not emit an output.
+pipeSkipS :: Expectation
+pipeSkipS =
+    Stream.toList
+        (Stream.postscanl
+            (F.pipe (Pipe.filter even) F.sum) (Stream.fromList [1 .. 4 :: Int]))
+        `shouldReturn` [2, 6]
+
 -------------------------------------------------------------------------------
 -- Deprecated combinators (aliases for compose / composeMany)
 -------------------------------------------------------------------------------
@@ -295,6 +303,7 @@ main = hspec $
         -- pipe
         it "pipe" pipeS
         it "pipe: filter" pipeFilter
+        it "pipe: skip" pipeSkipS
         prop "pipe: filterLaw" $ filterLawScanModifier (F.pipe (Pipe.map id))
 
         it "tee" teeS
