@@ -401,12 +401,16 @@ instance Serialize (Array a) where
     {-# INLINE deserializeAt #-}
     deserializeAt off arr len = do
         (off1, byteLen64) <- deserializeAt off arr len :: IO (Int, Int64)
-        let off2 = off1 + (fromIntegral :: Int64 -> Int) byteLen64
-        when (off2 > len) $
+        let byteLen = (fromIntegral :: Int64 -> Int) byteLen64
+        when (byteLen64 < 0) $
+            error $ "deserializeAt: negative array length " ++ show byteLen64
+        -- Compare with the remaining length, off1 + byteLen can overflow.
+        when (byteLen > len - off1) $
             error
-                $ "deserializeAt: accessing array at offset = "
-                    ++ show (off2 - 1)
-                    ++ " max valid offset = " ++ show (len - 1)
+                $ "deserializeAt: array length = " ++ show byteLen
+                    ++ " at offset = " ++ show off1
+                    ++ " exceeds the buffer length = " ++ show len
+        let off2 = off1 + byteLen
         -- XXX Use MutByteArray.cloneSliceUnsafe
         let slice = MutArray.MutArray arr off1 off2 off2
         newArr <- MutArray.clone slice
