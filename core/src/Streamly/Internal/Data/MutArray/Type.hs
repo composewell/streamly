@@ -2633,36 +2633,33 @@ appendCString arr (Ptr addr) = appendCString# arr addr
 {-# INLINE_NORMAL unsafeCreateWithOf #-}
 unsafeCreateWithOf :: forall m a. (MonadIO m, Unbox a)
     => (Int -> m (MutArray a)) -> Int -> Fold m a (MutArray a)
-unsafeCreateWithOf alloc n = fromArrayUnsafe <$> FL.foldlM' step initial
+unsafeCreateWithOf alloc n = final <$> FL.foldlM' step initial
 
     where
 
-    initial = toArrayUnsafe <$> alloc (max n 0)
+    n1 = max n 0
+
+    initial = toArrayUnsafe <$> alloc n1
 
     step (ArrayUnsafe contents start end) x = do
         liftIO $ pokeAt end contents x
         return
           $ ArrayUnsafe contents start (INDEX_NEXT(end,a))
 
-    -- PERF: The bound is set to the end of the written elements, the unused
-    -- capacity is dropped.
+    -- alloc provides space for at least n1 elements beyond the initial end,
+    -- so the bound below cannot exceed the allocated capacity. The "max" is
+    -- needed only if alloc returns a non-empty array.
     --
-    -- Keeping the capacity for n elements, using the final function
-    -- "MutArray contents start end (max end (start + n * SIZE_OF(a)))",
-    -- made createOf of 100k Ints 5.7x slower (52us to 297us) in the CI
-    -- MutArray benchmarks with GHC 9.14.1, allocation did not change. The
-    -- Core of the loop is the same with either final function, n is used
-    -- only in the exits of the loop.
-    --
-    -- A local benchmark with GHC 9.10.3 was inconclusive: the same loop took
-    -- about 90us or 135-210us depending on the build, either version could
-    -- be the slower one, and building with -fproc-alignment=64 changed the
-    -- result. This points to the placement of the loop code rather than the
-    -- final function. Measure with an alignment control (e.g. a different
-    -- -fproc-alignment) before making this change.
-    --
-    -- Carrying the bound in ArrayUnsafe adds a loop argument instead, its perf
-    -- needs to be measured as well.
+    -- PERF: With this final function createOf of 100k Ints was 5.7x slower
+    -- (52us to 297us) in the CI MutArray benchmarks with GHC 9.14.1 than with
+    -- fromArrayUnsafe, allocation did not change. The Core of the loop is the
+    -- same with either final function, n1 is used only in the exits of the
+    -- loop. A local benchmark with GHC 9.10.3 was inconclusive, the same loop
+    -- took about 90us or 135-210us depending on the build, which points to
+    -- the placement of the loop code. Measure with an alignment control (e.g.
+    -- a different -fproc-alignment) before merging this.
+    final (ArrayUnsafe contents start end) =
+        MutArray contents start end (max end (start + n1 * SIZE_OF(a)))
 
 {-# DEPRECATED writeNWithUnsafe "Please use unsafeCreateWithOf instead." #-}
 {-# INLINE writeNWithUnsafe #-}
@@ -2712,9 +2709,7 @@ pinnedWriteNUnsafe = unsafeCreateOf'
 -- | @createWithOf alloc n@ folds a maximum of @n@ elements into an array
 -- allocated using the @alloc@ function.
 --
--- The capacity of the resulting array is the number of elements written, the
--- unused capacity of the allocation is not available for appending. Use
--- 'appendMax' to keep the reserved capacity.
+-- The array capacity is guaranteed to be at least @n@.
 --
 -- >>> createWithOf alloc n = Fold.take n (MutArray.unsafeCreateWithOf alloc n)
 --
@@ -2740,10 +2735,7 @@ writeNAs ps = createWithOf (newAs ps)
 -- | @createOf n@ folds a maximum of @n@ elements from the input stream to an
 -- 'MutArray'.
 --
--- The capacity of the resulting array is the number of elements written, if
--- the input has fewer than @n@ elements the unused capacity is not available
--- for appending. The memory allocated for @n@ elements is not released, use
--- 'rightSize' to release it.
+-- The array capacity is guaranteed to be at least @n@.
 --
 -- /WARNING/: this is a truncating fold. If the input stream has more than @n@
 -- elements, the trailing elements are silently dropped. Pass an @n@ that is
