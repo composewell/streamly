@@ -640,14 +640,16 @@ rollingMap f = rollingMapM (\x y -> return $ f x y)
 --
 {-# INLINE uniqBy #-}
 uniqBy :: Monad m => (a -> a -> Bool) -> Scanl m a (Maybe a)
-uniqBy eq = rollingMap f
+uniqBy eq = fmap (\(Tuple' _ x) -> x) $ mkScanl step (Tuple' Nothing Nothing)
 
     where
 
-    f pre curr =
-        case pre of
-            Nothing -> Just curr
-            Just x -> if x `eq` curr then Nothing else Just curr
+    step (Tuple' pre _) curr =
+        let out =
+                case pre of
+                    Just x | x `eq` curr -> Nothing
+                    _ -> Just curr
+         in Tuple' (Just curr) out
 
 -- | See 'uniqBy'.
 --
