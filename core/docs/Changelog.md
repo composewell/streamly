@@ -34,6 +34,8 @@
   scan when the other terminates.
 * Fix `Stream.foldr1` combining the first element last, e.g.
   `foldr1 (-)` on `[1,2,3]` returned `0` instead of `2`.
+* Fix `Stream.isInfixOf` returning `False` for an empty infix when the
+  stream has fewer than two elements.
 
 * On POSIX platforms, the `Path` based APIs that open an existing file in
   `WriteMode`, e.g. `write` and `withFile` in `Streamly.FileSystem.FileIO`,

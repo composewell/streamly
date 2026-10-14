@@ -168,6 +168,12 @@ testIsInfixOf = do
     Stream.isInfixOf
         (Stream.fromList ([] :: [Int]))
         (Stream.fromList [1, 2, 3]) `shouldReturn` True
+    Stream.isInfixOf
+        (Stream.fromList ([] :: [Int]))
+        (Stream.fromList []) `shouldReturn` True
+    Stream.isInfixOf
+        (Stream.fromList ([] :: [Int]))
+        (Stream.fromList [1]) `shouldReturn` True
 
 testIsSuffixOf :: Expectation
 testIsSuffixOf = do
