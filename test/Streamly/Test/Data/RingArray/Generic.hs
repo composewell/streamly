@@ -149,6 +149,15 @@ testCopyToMutArray = do
     _ <- RingArray.unsafeInsertRingWith rng 99
     MutArray.toList marr `shouldReturn` [3, 4, 5]
 
+-- Copy fewer elements than the ring has, without wrapping around.
+testCopyToMutArrayPartial :: IO ()
+testCopyToMutArrayPartial = do
+    rng <- fromListLastN 5 [1 .. 5 :: Int]
+    marr <- RingArray.copyToMutArray 0 2 rng
+    MutArray.toList marr `shouldReturn` [1, 2]
+    marr1 <- RingArray.copyToMutArray 1 3 rng
+    MutArray.toList marr1 `shouldReturn` [2, 3, 4]
+
 testCopyToMutArrayEmpty :: IO ()
 testCopyToMutArrayEmpty = do
     rng <- RingArray.emptyOf 0 :: IO (RingArray Int)
@@ -183,4 +192,5 @@ main = hspec $ do
             it "toMutArray (wrap around)" testToMutArrayWrap
             it "toMutArray (empty ring)" testToMutArrayEmpty
             it "copyToMutArray" testCopyToMutArray
+            it "copyToMutArray (partial)" testCopyToMutArrayPartial
             it "copyToMutArray (empty ring)" testCopyToMutArrayEmpty

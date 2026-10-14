@@ -165,8 +165,12 @@ copyToMutArray adj n RingArray{..} = do
             end = idx + len
         arr <- MutArray.emptyOf len
         arr1 <- MutArray.uninit arr len
-        MutArray.unsafePutSlice ringArr idx arr1 0 (ringMax - idx)
-        MutArray.unsafePutSlice ringArr 0 arr1 (ringMax - idx) (end - ringMax)
+        if end <= ringMax
+        then MutArray.unsafePutSlice ringArr idx arr1 0 len
+        else do
+            MutArray.unsafePutSlice ringArr idx arr1 0 (ringMax - idx)
+            MutArray.unsafePutSlice
+                ringArr 0 arr1 (ringMax - idx) (end - ringMax)
         return arr1
 
 -- This would be theoretically slower than toMutArray because of a branch
