@@ -584,9 +584,16 @@ isInfixOf :: (MonadIO m, Eq a, Enum a, Unbox a)
     => Stream m a -> Stream m a -> m Bool
 isInfixOf infx stream = do
     arr <- fold Array.create infx
-    -- XXX can use breakOnSeq instead (when available)
-    r <- null $ StreamD.drop 1 $ Nesting.splitSepBySeq_ arr Fold.drain stream
-    return (not r)
+    -- An empty infix occurs in every stream. The split below cannot detect
+    -- it in a stream of fewer than two elements, which has fewer than two
+    -- segments.
+    if Array.length arr == 0
+    then return True
+    else do
+        -- XXX can use breakOnSeq instead (when available)
+        r <- null
+            $ StreamD.drop 1 $ Nesting.splitSepBySeq_ arr Fold.drain stream
+        return (not r)
 
 -- Note: isPrefixOf uses the prefix stream only once. In contrast, isSuffixOf
 -- may use the suffix stream many times. To run in optimal memory we do not
