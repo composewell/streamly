@@ -337,12 +337,11 @@ sortedIntersectBy cmp (Stream stepa ta) (Stream stepb tb) =
 --
 -- The following holds:
 --
--- > deleteFirstsBy (==) (Stream.ordNub s2 `append` s1) s2 === s1
--- > deleteFirstsBy (==) (Stream.ordNub s2 `interleave` s1) s2 === s1
+-- > deleteFirstsBy (==) (s2 `append` s1) s2 === s1
 --
 -- First stream can be infinite, second stream must be finite.
 --
--- Space: O(m) where @m@ is the number of elements in the first stream.
+-- Space: O(n) where @n@ is the number of elements in the second stream.
 --
 -- Time: O(m x n) where @m@ is the number of elements in the first stream and
 -- @n@ is the number of elements in the second stream.
@@ -399,7 +398,7 @@ sortedDeleteFirstsBy _eq _s1 _s2 = undefined
 --
 -- Equivalent to the following except that @s2@ is evaluated only once:
 --
--- >>> unionBy eq s1 s2 = s1 `Stream.append` Stream.deleteFirstsBy eq s1 (Stream.ordNub s2)
+-- >>> unionBy eq s1 s2 = s1 `Stream.append` Stream.deleteFirstsBy eq (Stream.ordNub s2) s1
 --
 -- Example:
 --

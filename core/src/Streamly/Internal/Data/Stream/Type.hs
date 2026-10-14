@@ -1875,8 +1875,7 @@ concat = concatMap id
 -- Note: When the stream being generated is composed of statically known
 -- streams, prefer composing them using a fused operation instead of
 -- 'concatEffect', as fusion avoids the overhead of going through the
--- stream-of-streams machinery. For example, prefer
--- 'Streamly.Internal.Data.Stream.Nesting.ifThenElse' over using
+-- stream-of-streams machinery. For example, prefer 'ifThenElse' over using
 -- 'concatEffect' to compose two statically known streams based on a monadic
 -- predicate.
 --

@@ -1507,8 +1507,9 @@ dropWhileAround = undefined -- fromStreamD $ D.dropWhileAround n $ toStreamD m
 -- Inserting Elements
 ------------------------------------------------------------------------------
 
--- | @insertBy cmp elem stream@ inserts @elem@ before the first element in
--- @stream@ that is less than @elem@ when compared using @cmp@.
+-- | @insertBy cmp elem stream@ inserts @elem@ before the first element @x@ in
+-- @stream@ that is greater than or equal to @elem@, i.e. @cmp elem x /= GT@.
+-- If there is no such element, @elem@ is appended at the end.
 --
 -- >>> insertBy cmp x = Stream.mergeBy cmp (Stream.fromPure x)
 --

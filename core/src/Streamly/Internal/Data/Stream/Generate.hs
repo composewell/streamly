@@ -542,7 +542,8 @@ fromFoldable = Prelude.foldr cons nil
 -- |
 -- >>> fromFoldableM = Prelude.foldr Stream.consM Stream.nil
 --
--- Construct a stream from a 'Foldable' containing pure values:
+-- Construct a stream from a 'Foldable' containing monadic actions. The
+-- actions are run in order when the stream is evaluated:
 --
 -- /WARNING: O(n^2), suitable only for a small number of
 -- elements in the stream/
