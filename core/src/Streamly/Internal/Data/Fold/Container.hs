@@ -929,7 +929,7 @@ classifyGeneric f (Fold step1 initial1 extract1 final1) =
                           Partial s1 ->
                             Tuple3' (IsMap.mapInsert k s1 kv) set Nothing
                           Done b ->
-                            Tuple3' kv set (Just (k, b))
+                            Tuple3' kv (Set.insert k set) (Just (k, b))
               Done b -> return (Tuple3' kv (Set.insert k set) (Just (k, b)))
 
     step (Tuple3' kv set _) a = do
@@ -1034,7 +1034,7 @@ classifyScanGeneric f (Fold step1 initial1 extract1 final1) =
                           Partial s1 ->
                             Tuple3' (IsMap.mapInsert k s1 kv) set Nothing
                           Done b ->
-                            Tuple3' kv set (Just (k, b))
+                            Tuple3' kv (Set.insert k set) (Just (k, b))
               Done b -> return (Tuple3' kv (Set.insert k set) (Just (k, b)))
 
     step (Tuple3' kv set _) a = do
@@ -1124,7 +1124,7 @@ classifyGenericIO f (Fold step1 initial1 extract1 final1) =
                         ref <- liftIO $ newIORef s1
                         return $ Tuple3' (IsMap.mapInsert k ref kv) set Nothing
                       Done b ->
-                        return $ Tuple3' kv set (Just (k, b))
+                        return $ Tuple3' kv (Set.insert k set) (Just (k, b))
               Done b -> return (Tuple3' kv (Set.insert k set) (Just (k, b)))
 
     step (Tuple3' kv set _) a = do
@@ -1240,7 +1240,7 @@ classifyScanGenericIO f (Fold step1 initial1 extract1 final1) =
                         ref <- liftIO $ newIORef s1
                         return $ Tuple3' (IsMap.mapInsert k ref kv) set Nothing
                       Done b ->
-                        return $ Tuple3' kv set (Just (k, b))
+                        return $ Tuple3' kv (Set.insert k set) (Just (k, b))
               Done b -> return (Tuple3' kv (Set.insert k set) (Just (k, b)))
 
     step (Tuple3' kv set _) a = do
