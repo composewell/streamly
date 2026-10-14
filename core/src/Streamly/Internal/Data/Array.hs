@@ -522,10 +522,17 @@ encodeAs ps a =
         assertM(len == off)
         pure $ Array mbarr 0 off
 
--- |
+-- | Serialize a Haskell type to an unpinned byte array.
+--
 -- Properties:
--- 1. Identity: @deserialize . serialize == id@
--- 2. Encoded equivalence: @serialize a == serialize a@
+--
+-- 1. Round trip: @fst (deserialize (serialize a)) == a@
+-- 2. Deterministic encoding: if @a == b@ then @serialize a == serialize b@,
+--    therefore serialized values can be compared byte by byte.
+--
+-- Property 2 does not hold if the value contains an @Array e@ whose 'Unbox'
+-- instance for @e@ does not write every byte of @sizeOf e@, for example
+-- @Array ()@. See "Streamly.Data.MutByteArray" for the cases.
 {-# INLINE serialize #-}
 serialize :: Serialize a => a -> Array Word8
 serialize = encodeAs Unpinned
@@ -536,8 +543,9 @@ serialize = encodeAs Unpinned
 --
 -- Properties:
 --
--- 1. Identity: @deserialize . serialize' == id@
--- 2. Encoded equivalence: @serialize' a == serialize' a@
+-- 1. Round trip: @fst (deserialize (serialize' a)) == a@
+-- 2. Deterministic encoding: if @a == b@ then @serialize' a == serialize' b@,
+--    with the same exception as 'serialize'.
 {-# INLINE serialize' #-}
 pinnedSerialize, serialize' :: Serialize a => a -> Array Word8
 serialize' = encodeAs Pinned

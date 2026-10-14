@@ -53,6 +53,41 @@ import Prelude hiding (Foldable(..))
 --
 -- They will only work if the start offset of the Array when encoding and
 -- decoding is the same. This is almost never the case.
+--
+-- Deterministic encoding
+-- ======================
+--
+-- serializeAt must write every byte it advances the offset over, so that the
+-- same value is always serialized to the same bytes. This is the deterministic
+-- encoding property of the serialize functions in Streamly.Internal.Data.Array.
+-- The Unbox type class does not guarantee this, see "Unwritten bytes" in
+-- Streamly.Internal.Data.Unbox.
+--
+-- Instances derived from Unbox using DERIVE_SERIALIZE_FROM_UNBOX are correct
+-- only if the Unbox instance writes every byte. The Unbox instance of () does
+-- not write its byte, therefore () has its own instance.
+--
+-- Unit types: (), Proxy and the TH derived instances of types with one
+-- constructor and no fields are serialized as a single 0 byte:
+--
+-- * The size is 1, not 0, the same as in Unbox. A list of a unit type with a
+-- corrupt length then consumes a byte per element and fails the bounds check
+-- at the end of the buffer instead of producing a huge or endless list.
+-- * The byte is 0 so that the encoding is deterministic. Before
+-- streamly-core 0.4.0 the instances of () and Proxy did not write the byte,
+-- it was left uninitialized.
+-- * deserializeAt checks the bounds but ignores the value of the byte. Data
+-- serialized by older versions may have any value in the byte, checking for 0
+-- would fail to deserialize it.
+--
+-- Array: the Serialize instance of Array copies the bytes of the elements as
+-- stored by Unbox. It is deterministic only if the Unbox instance of the
+-- element type writes every byte.
+--
+-- TODO: make Array serialization deterministic for all element types. Either
+-- make the Unbox instances write every byte (zero the unit byte and the sum
+-- type padding in pokeAt, at the cost of extra stores), or zero the memory of
+-- arrays created by Unbox based writes.
 
 --------------------------------------------------------------------------------
 -- Types
@@ -76,6 +111,18 @@ import Prelude hiding (Foldable(..))
 -- value and then stores these bytes into the mutable byte array. The
 -- programmer is expected to use the @addSizeTo@ operation and allocate an
 -- array of sufficient length before calling 'serializeAt'.
+--
+-- 'serializeAt' writes every byte of the representation, therefore, the same
+-- value is always serialized to the same bytes. A type with one constructor
+-- and no fields, including @()@ and 'Proxy', is serialized as a single 0 byte;
+-- 'deserializeAt' ignores the value of this byte. The exception is 'Array',
+-- its serialization contains the bytes of its elements as stored by 'Unbox',
+-- which does not write every byte of some types. The serialization of an
+-- @Array a@ is the same for the same value only if the 'Unbox' instance of @a@
+-- writes every byte.
+--
+-- An instance written manually must also write every byte to keep this
+-- guarantee.
 --
 -- IMPORTANT: The serialized data's byte ordering remains the same as the host
 -- machine's byte order. Therefore, it can not be deserialized from host
@@ -236,7 +283,6 @@ instance Serialize _type where \
 ;    serializeAt =  \
         serializeUnsafe :: Int -> MutByteArray -> _type -> IO Int
 
-DERIVE_SERIALIZE_FROM_UNBOX(())
 DERIVE_SERIALIZE_FROM_UNBOX(Bool)
 DERIVE_SERIALIZE_FROM_UNBOX(Char)
 DERIVE_SERIALIZE_FROM_UNBOX(Int8)
@@ -253,6 +299,22 @@ DERIVE_SERIALIZE_FROM_UNBOX((StablePtr a))
 DERIVE_SERIALIZE_FROM_UNBOX((Ptr a))
 DERIVE_SERIALIZE_FROM_UNBOX((FunPtr a))
 DERIVE_SERIALIZE_FROM_UNBOX(Fingerprint)
+
+-- The Unbox instance of () does not write its byte, write a 0 so that the
+-- serialized bytes are always the same. See "Deterministic encoding" in the
+-- developer note at the top of this module.
+instance Serialize () where
+    {-# INLINE addSizeTo #-}
+    addSizeTo acc _ = acc + 1
+
+    {-# INLINE deserializeAt #-}
+    deserializeAt off arr end = do
+        -- Read the byte only to check the bounds, its value is not checked.
+        (off1, _ :: Word8) <- deserializeAt off arr end
+        pure (off1, ())
+
+    {-# INLINE serializeAt #-}
+    serializeAt off arr _ = serializeAt off arr (0 :: Word8)
 
 -- Int and Word are serialized as 8 bytes on all platforms so that data
 -- serialized on the JavaScript backend, which has a 32-bit Int, can be
@@ -326,6 +388,9 @@ instance forall a. Serialize a => Serialize [a] where
               pokeList (acc + 1) o1 xs
         pokeList 0 off1 val
 
+-- The element bytes are copied as stored by Unbox, they are deterministic only
+-- if the Unbox instance of the element writes every byte. See the TODO under
+-- "Deterministic encoding" in the developer note at the top of this module.
 instance Serialize (Array a) where
     {-# INLINE addSizeTo #-}
     addSizeTo i (Array {..}) =

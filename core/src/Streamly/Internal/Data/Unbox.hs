@@ -101,6 +101,25 @@ import qualified Streamly.Internal.Data.MutByteArray.Type as MutByteArray
 -- want to serialize a list. This type class can be considered a special case
 -- of a more general serialization type class.
 --
+-- == Unwritten bytes ==
+--
+-- pokeAt does not write every byte of the sizeOf bytes of a value, it does not
+-- guarantee that the same value is always stored as the same bytes:
+--
+-- * A unit type, i.e. () or a type with one constructor and no fields, has
+-- size 1 (see "Fixed length data types"), but no information to store.
+-- pokeAt does not write its byte and peekAt does not read it. This holds for
+-- the instance of (), the TH derived instances and the Generic instances.
+-- * A sum type has the size of its largest constructor plus the tag. pokeAt
+-- writes the tag and the fields of the constructor, the bytes after the
+-- fields of a smaller constructor are not written.
+--
+-- Writing these bytes would cost a store on every poke for no information.
+-- The Serialize type class does guarantee the same bytes for the same value,
+-- see "Deterministic encoding" in Streamly.Internal.Data.Serialize.Type. The
+-- Serialize instance of Array copies the Unbox bytes of its elements, so it
+-- inherits the unwritten bytes of this type class.
+--
 -- == Stream vs Array ==
 --
 -- In theory we could convert a type to and from a byte stream and use that
@@ -177,6 +196,12 @@ import qualified Streamly.Internal.Data.MutByteArray.Type as MutByteArray
 -- these bytes into the mutable byte array. These operations do not check the
 -- bounds of the array, the user of the type class is expected to check the
 -- bounds before peeking or poking.
+--
+-- 'pokeAt' does not write every one of the @size@ bytes. It does not write
+-- the byte of @()@ or of a type with one constructor and no fields, and it
+-- does not write the bytes after the fields of a sum type constructor that is
+-- smaller than the largest constructor. Those bytes keep whatever the memory
+-- held before, therefore, the same value may be stored as different bytes.
 --
 -- IMPORTANT: The serialized data's byte ordering remains the same as the host
 -- machine's byte order. Therefore, it can not be deserialized from host
@@ -457,6 +482,7 @@ DERIVE_BINARY_UNBOX(forall a. Unbox a =>,(Complex a),(:+),a)
 DERIVE_BINARY_UNBOX(forall a. Unbox a =>,(Ratio a),(:%),a)
 DERIVE_BINARY_UNBOX(,Fingerprint,Fingerprint,Word64)
 
+-- The byte is not written, see "Unwritten bytes" in the design notes.
 instance Unbox () where
 
     {-# INLINE peekAt #-}
@@ -761,6 +787,7 @@ instance PokeRep V1 where
     {-# INLINE pokeRep #-}
     pokeRep = error "pokeRep: a value of a Void type should not exist"
 
+-- The byte is not written, see "Unwritten bytes" in the design notes.
 instance PokeRep U1 where
     {-# INLINE pokeRep #-}
     pokeRep _ x = pure x

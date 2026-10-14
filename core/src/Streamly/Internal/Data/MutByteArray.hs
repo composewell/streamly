@@ -152,6 +152,8 @@ instance (Serialize a, Serialize b) => Serialize (Either a b) where
                 i0 <- serializeAt initialOffset arr (1 :: Word8)
                 serializeAt i0 arr field0
 
+-- Serialized as a single 0 byte, see "Deterministic encoding" in
+-- Streamly.Internal.Data.Serialize.Type.
 instance Serialize (Proxy a) where
 
     {-# INLINE addSizeTo #-}
@@ -161,7 +163,8 @@ instance Serialize (Proxy a) where
     deserializeAt initialOffset _ _ = pure (initialOffset + 1, Proxy)
 
     {-# INLINE serializeAt #-}
-    serializeAt initialOffset _ _ = pure (initialOffset + 1)
+    serializeAt initialOffset arr _ =
+        serializeAt initialOffset arr (0 :: Word8)
 
 --------------------------------------------------------------------------------
 -- Integer

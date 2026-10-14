@@ -221,8 +221,8 @@ mkDeserializeExpr True False headTy tyOfTy =
 
 mkDeserializeExpr False False headTy tyOfTy =
     case tyOfTy of
-        -- Unit constructor
-        -- XXX Should we peek and check if the byte value is 0?
+        -- Unit constructor. The value of the byte is not checked, see
+        -- "Deterministic encoding" in Streamly.Internal.Data.Serialize.Type.
         UnitType cname ->
             [|pure ($(varE _initialOffset) + 1, $(conE cname))|]
         -- Product type
@@ -345,7 +345,8 @@ mkSerializeExpr True False tyOfTy =
 
 mkSerializeExpr False False tyOfTy =
     case tyOfTy of
-        -- Unit type
+        -- Unit type, a single 0 byte, see "Deterministic encoding" in
+        -- Streamly.Internal.Data.Serialize.Type.
         UnitType _ ->
             [|serializeAt $(varE _initialOffset) $(varE _arr) (0 :: Word8)|]
         -- Product type

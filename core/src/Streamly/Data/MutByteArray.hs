@@ -86,12 +86,24 @@
 --
 -- == Comparing serialized values
 --
--- When using the `Unbox` type class the same value may result in differing
--- serialized bytes because of unused uninitialized data in case of sum types.
--- Therefore, byte comparison of serialized values is not reliable.
+-- In some cases, 'Unbox' does not write every byte of a value's @sizeOf@
+-- bytes. The bytes that are not written retain old values held in the memory.
+-- Such cases are listed below:
 --
--- However, the 'Serialize' type class guarantees that the serialized values
--- are always exactly the same and byte comparison of serialized is reliable.
+-- * the single byte of @()@ and of a type with one constructor and no fields,
+-- * the bytes after the fields of a sum type constructor that is smaller than
+--   the largest constructor.
+--
+-- Therefore, the same value may be stored as different bytes, and comparing
+-- the bytes of values stored using 'Unbox' is not reliable.
+--
+-- 'Serialize' writes every byte, a value is always serialized to the same
+-- bytes, and comparing serialized bytes is reliable. A type with one
+-- constructor and no fields, including @()@ and 'Data.Proxy.Proxy', is
+-- serialized as a single 0 byte. The exception is 'Streamly.Data.Array.Array':
+-- its serialization contains the bytes of its elements as stored by 'Unbox',
+-- so the serialization of an @Array a@ is the same for the same value only if
+-- 'Unbox' writes every byte of @a@.
 --
 module Streamly.Data.MutByteArray
     (

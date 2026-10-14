@@ -242,7 +242,8 @@ mkSizeOfExpr headTy constructors =
 mkPeekExprOne :: Int -> DataCon -> Q Exp
 mkPeekExprOne tagSize (DataCon cname _ _ fields) =
     case fields of
-        -- XXX Should we peek and check if the byte value is 0?
+        -- The byte is not read, see "Unwritten bytes" in
+        -- Streamly.Internal.Data.Unbox.
         [] -> [|pure $(conE cname)|]
         _ ->
             letE
@@ -338,9 +339,9 @@ mkPokeExpr headTy cons =
             [|error
                   ("Attempting to poke type with no constructors (" ++
                    $(lift (pprint headTy)) ++ ")")|]
-        -- XXX We don't gaurentee encoded equivalilty for Unbox. Does it still
-        -- make sense to encode a default value for unit constructor?
-        [DataCon _ _ _ []] -> [|pure ()|] -- mkPokeExprTag ''Word8 0
+        -- The byte is not written, see "Unwritten bytes" in
+        -- Streamly.Internal.Data.Unbox.
+        [DataCon _ _ _ []] -> [|pure ()|]
         [DataCon cname _ _ fields] ->
             caseE
                 (varE _val)
