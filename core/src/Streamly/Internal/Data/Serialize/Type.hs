@@ -251,6 +251,8 @@ instance forall a. Serialize a => Serialize [a] where
     {-# INLINABLE deserializeAt #-}
     deserializeAt off arr sz = do
         (off1, len64) <- deserializeAt off arr sz :: IO (Int, Int64)
+        when (len64 < 0) $
+            error $ "deserializeAt: negative list length " ++ show len64
         let len = (fromIntegral :: Int64 -> Int) len64
             peekList f o i | i >= 3 = do
               -- Unfold the loop three times
