@@ -1843,7 +1843,7 @@ foldMaybes (Fold step1 initial1 extract1 final1) =
 
     initial = fmap Just <$> initial1
 
-    step _ Nothing = pure $ Done Nothing
+    step st Nothing = Done Nothing <$ final1 st
     step st (Just x) = fmap Just <$> step1 st x
 
     extract st = Just <$> extract1 st
@@ -1870,7 +1870,7 @@ foldEithers (Fold step1 initial1 extract1 final1) =
 
     initial = fmap Right <$> initial1
 
-    step _ (Left x) = pure $ Done (Left x)
+    step st (Left x) = Done (Left x) <$ final1 st
     step st (Right x) = fmap Right <$> step1 st x
 
     extract st = Right <$> extract1 st

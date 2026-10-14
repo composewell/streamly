@@ -12,7 +12,7 @@ module Streamly.Test.Data.Fold.Type
 
 import Control.Exception (SomeException, evaluate, try)
 import Data.Functor.Identity (Identity(..), runIdentity)
-import Data.IORef (newIORef, readIORef, modifyIORef')
+import Data.IORef (IORef, newIORef, readIORef, modifyIORef')
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Fold as F
 import qualified Streamly.Internal.Data.Scanl as Scanl
@@ -408,6 +408,31 @@ foldEithers = do
              (Stream.fromList [Right 1, Right 2, Right 3 :: Either String Int])
     r `shouldBe` Right 6
 
+-- | A fold whose final sets the IORef to True.
+finalSetsRef :: IORef Bool -> Fold.Fold IO Int ()
+finalSetsRef ref =
+    Fold.Fold
+        (\s _ -> return (Fold.Partial s))
+        (return (Fold.Partial ()))
+        return
+        (\_ -> modifyIORef' ref (const True))
+
+foldMaybesFinal :: Expectation
+foldMaybesFinal = do
+    ref <- newIORef False
+    Stream.fold (Fold.foldMaybes (finalSetsRef ref))
+        (Stream.fromList [Just 1, Nothing])
+        `shouldReturn` Nothing
+    readIORef ref `shouldReturn` True
+
+foldEithersFinal :: Expectation
+foldEithersFinal = do
+    ref <- newIORef False
+    Stream.fold (Fold.foldEithers (finalSetsRef ref))
+        (Stream.fromList [Right 1, Left "e" :: Either String Int])
+        `shouldReturn` Left "e"
+    readIORef ref `shouldReturn` True
+
 -------------------------------------------------------------------------------
 -- Condition
 -------------------------------------------------------------------------------
@@ -683,6 +708,8 @@ main = hspec $ do
 
         it "foldMaybes" foldMaybes
         it "foldEithers" foldEithers
+        it "foldMaybes calls final" foldMaybesFinal
+        it "foldEithers calls final" foldEithersFinal
         it "ifThen" ifThen
         it "split_" split_
         prop "many" many
