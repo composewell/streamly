@@ -1780,7 +1780,7 @@ distribute = Prelude.foldr (teeWith (:)) (fromPure [])
 -- >>> ref <- newIORef [Fold.take 2 Fold.sum, Fold.take 2 Fold.length :: Fold IO Int Int]
 -- >>> gen = atomicModifyIORef ref (\xs -> ([], xs))
 -- >>> Stream.toList $ Stream.scanl (Fold.distributeScan gen) (Stream.enumerateFromTo 1 10)
--- [[],[],[],[2,3],[],[],[],[],[],[],[]]
+-- [[],[],[3,2],[],[],[],[],[],[],[],[]]
 --
 {-# INLINE distributeScan #-}
 distributeScan :: Monad m => m [Fold m a b] -> Scanl m a [b]
@@ -1796,7 +1796,11 @@ distributeScan getFolds = Scanl consume initial extract final
         case res of
             Partial fs -> do
               r <- step fs a
-              run (Tuple' (Fold step (return r) extr fin : ys) zs) xs a
+              case r of
+                  Partial fs1 ->
+                      let fld = Fold step (return (Partial fs1)) extr fin
+                       in run (Tuple' (fld : ys) zs) xs a
+                  Done b -> run (Tuple' ys (b : zs)) xs a
             Done b -> do
               run (Tuple' ys (b : zs)) xs a
 
