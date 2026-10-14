@@ -266,6 +266,14 @@ testCastNothing = do
     let r = RingArray.cast ring :: Maybe (RingArray Int)
     isNothing r `shouldBe` True
 
+-- The ring length (16 bytes) is a multiple of the Int size but the head (byte
+-- 3) is not, so the Int elements would straddle the end of the ring.
+testCastMisalignedHead :: IO ()
+testCastMisalignedHead = do
+    ring <- fromListW8 [1 .. 16]
+    let r = RingArray.cast (RingArray.moveBy 3 ring) :: Maybe (RingArray Int)
+    isNothing r `shouldBe` True
+
 -------------------------------------------------------------------------------
 -- Casting to MutArray
 -------------------------------------------------------------------------------
@@ -432,6 +440,7 @@ main = hspec $ do
             it "asBytes" testAsBytes
             it "cast (Just)" testCastJust
             it "cast (Nothing)" testCastNothing
+            it "cast (misaligned head)" testCastMisalignedHead
 
         describe "Casting to MutArray" $ do
             it "asMutArray" testAsMutArray

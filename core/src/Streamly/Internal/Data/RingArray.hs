@@ -627,15 +627,17 @@ asBytes :: RingArray a -> RingArray Word8
 asBytes = unsafeCast
 
 -- | Cast a ring having elements of type @a@ into a ring having elements of
--- type @b@. The length of the ring should be a multiple of the size of the
--- target element otherwise 'Nothing' is returned.
+-- type @b@. The byte length of the ring and the byte offset of the ring head
+-- must be multiples of the size of the target element otherwise 'Nothing' is
+-- returned.
 --
 {-# INLINE cast #-}
 cast :: forall a b. (Unbox b) => RingArray a -> Maybe (RingArray b)
 cast ring =
     let len = byteLength ring
         r = len `mod` SIZE_OF(b)
-     in if r /= 0
+        rh = ringHead ring `mod` SIZE_OF(b)
+     in if r /= 0 || rh /= 0
         then Nothing
         else Just $ unsafeCast ring
 
