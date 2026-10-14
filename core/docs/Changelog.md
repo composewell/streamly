@@ -30,6 +30,8 @@
 * Fix `RingArray.ringsOf` and `scanRingsOf` producing rings of a wrong size
   after `2^31` bytes when `Int` is 32-bit, e.g. on the JavaScript backend.
 * Fix `Scanl.uniq` and `uniqBy` failing before the first input.
+* Fix `Scanl.partition`, `partitionBy` and `partitionByM` not finalizing one
+  scan when the other terminates.
 
 * On POSIX platforms, the `Path` based APIs that open an existing file in
   `WriteMode`, e.g. `write` and `withFile` in `Streamly.FileSystem.FileIO`,

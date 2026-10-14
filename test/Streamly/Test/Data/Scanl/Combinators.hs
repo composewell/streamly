@@ -268,6 +268,23 @@ uniqInitialS = do
     check (F.compose F.uniq F.toList) "ab"
         [[Nothing], [Nothing, Just 'a'], [Nothing, Just 'a', Just 'b']]
 
+-- When one scan terminates the other one must be finalized.
+partitionFinalS :: Expectation
+partitionFinalS = do
+    ref <- newIORef (0 :: Int)
+    let right =
+            F.Scanl
+                (\s a -> return (F.Partial (s + a)))
+                (return (Fold.Partial 0))
+                return
+                (\s -> modifyIORef' ref (+ 1) >> return s)
+        left = F.take 1 F.length
+    r <- Stream.toList
+            $ Stream.postscanl (F.partition left right)
+            $ Stream.fromList [Right 1, Left 2 :: Either Int Int]
+    r `shouldBe` [1, 1]
+    readIORef ref `shouldReturn` 1
+
 -------------------------------------------------------------------------------
 -- Deprecated combinators (aliases for compose / composeMany)
 -------------------------------------------------------------------------------
@@ -326,6 +343,7 @@ main = hspec $
             $ filterLawScanModifier (\h -> F.partitionBy Right F.sum h)
 
         it "partition" partitionS
+        it "partition: final" partitionFinalS
         it "sampleFromthen: offset" sampleFromthenOffsetS
         it "uniq: initial" uniqInitialS
         it "with" withS

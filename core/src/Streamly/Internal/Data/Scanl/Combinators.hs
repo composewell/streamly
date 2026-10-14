@@ -1794,13 +1794,15 @@ partitionByM f
     initial = do
         resL <- initialL
         resR <- initialR
-        return
-            $ case resL of
-                  Fold.Done bl -> Fold.Done bl
-                  Fold.Partial sl ->
-                      case resR of
-                            Fold.Partial sr -> Fold.Partial $ PartLeft sl sr
-                            Fold.Done br -> Fold.Done br
+        case resL of
+            Fold.Done bl ->
+                case resR of
+                    Fold.Partial sr -> finalR sr >> return (Fold.Done bl)
+                    Fold.Done _ -> return $ Fold.Done bl
+            Fold.Partial sl ->
+                case resR of
+                    Fold.Partial sr -> return $ Fold.Partial $ PartLeft sl sr
+                    Fold.Done br -> finalL sl >> return (Fold.Done br)
 
     runBoth sL sR a = do
         pRes <- f a
@@ -1810,13 +1812,13 @@ partitionByM f
                 case resL of
                     Partial s -> return $ Partial $ PartLeft s sR
                     Continue s -> return $ Continue $ PartLeft s sR
-                    Done x -> return $ Done x
+                    Done x -> finalR sR >> return (Done x)
             Right c -> do
                 resR <- stepR sR c
                 case resR of
                     Partial s -> return $ Partial $ PartRight sL s
                     Continue s -> return $ Continue $ PartRight sL s
-                    Done x -> return $ Done x
+                    Done x -> finalL sL >> return (Done x)
 
     step (PartLeft sL sR) = runBoth sL sR
     step (PartRight sL sR) = runBoth sL sR
