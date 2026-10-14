@@ -294,7 +294,7 @@ windowRange n = Fold step initial extract extract
 
     initial =
         if n <= 0
-        then error "ringsOf: window size must be > 0"
+        then error "windowRange: window size must be > 0"
         else do
             arr :: MutArray.MutArray a <- liftIO $ MutArray.emptyOf n
             return $ Partial $ Tuple3Fused' (MutArray.arrContents arr) 0 0
