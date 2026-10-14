@@ -146,6 +146,14 @@ testReadShowInstance =
                     let arr = A.fromList list
                     assert (A.toList (read (show arr)) == list)
 
+testReadShowNested :: IO ()
+testReadShowNested = do
+    let arr = A.fromList [1, 2, 3 :: Int]
+    -- SmallArray shows as "fromListN 3 [..]", others as "fromList [..]"
+    show (Just arr) `shouldBe` "Just (" ++ show arr ++ ")"
+    read (show (Just arr)) `shouldBe` Just arr
+    read (" (" ++ show arr ++ ")") `shouldBe` arr
+
 typeCommon :: SpecWith ()
 typeCommon = do
     describe "createOf" $ do
@@ -177,6 +185,7 @@ typeCommon = do
         it "abc" (testFromToList "abc")
         it "\\22407" (testFromToList "\22407")
     prop "show/read roundtrip" testReadShowInstance
+    it "show/read nested" testReadShowNested
     -- Random Access
     describe "unsafeGetIndex" $ do
         it "abc" (testUnsafeGetIndex "abc")

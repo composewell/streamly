@@ -66,7 +66,6 @@ where
 #include "assert.hs"
 #include "deprecation.h"
 
-import Control.Monad (replicateM)
 import Control.Monad.IO.Class (MonadIO)
 import Data.Functor.Identity (Identity(..))
 import Data.Word (Word8)
@@ -74,7 +73,9 @@ import GHC.Base (MutableArray#, RealWorld)
 import GHC.Exts (Addr#)
 import GHC.Types (SPEC(..))
 import GHC.IO (unsafePerformIO)
-import Text.Read (readPrec)
+import Text.Read
+       ( Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec
+       , readListPrecDefault)
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.ParserK.Type
@@ -92,7 +93,6 @@ import qualified Streamly.Internal.Data.Stream.Type as D
 import qualified Streamly.Internal.Data.Stream.Enumeration as D
 import qualified Streamly.Internal.Data.Stream.Generate as D
 import qualified Streamly.Internal.Data.Unfold.Type as Unfold
-import qualified Text.ParserCombinators.ReadPrec as ReadPrec
 
 import Prelude hiding (Foldable(..), read)
 
@@ -354,16 +354,20 @@ instance Ord a => Ord (Array a) where
     min x y = if x <= y then x else y
 
 instance Show a => Show (Array a) where
+    {-# INLINE showsPrec #-}
+    showsPrec p arr = showParen (p > 10) $
+        showString "fromList " . shows (toList arr)
+
     {-# INLINE show #-}
     show arr = "fromList " ++ show (toList arr)
 
 instance Read a => Read (Array a) where
     {-# INLINE readPrec #-}
-    readPrec = do
-        fromListWord <- replicateM 9 ReadPrec.get
-        if fromListWord == "fromList "
-        then fromList <$> readPrec
-        else ReadPrec.pfail
+    readPrec = parens $ prec 10 $ do
+        Ident "fromList" <- lexP
+        fromList <$> readPrec
+
+    readListPrec = readListPrecDefault
 
 -------------------------------------------------------------------------------
 -- Backward Compatibility

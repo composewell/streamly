@@ -218,7 +218,7 @@ where
 #include "inline.hs"
 
 import Control.Exception (assert)
-import Control.Monad (replicateM, when)
+import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Char (ord)
 import Data.Functor.Identity (Identity(..))
@@ -240,7 +240,9 @@ import Streamly.Internal.Data.Stream.Type (Stream)
 import Streamly.Internal.Data.StreamK.Type (StreamK)
 import Streamly.Internal.Data.Unbox (Unbox(..))
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
-import Text.Read (readPrec)
+import Text.Read
+       ( Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec
+       , readListPrecDefault)
 
 import Prelude hiding
     ( Foldable(..), concat, head, init, last, read, tail, unlines, splitAt
@@ -254,7 +256,6 @@ import qualified Streamly.Internal.Data.StreamK.Type as K
 import qualified Streamly.Internal.Data.MutByteArray.Type as Unboxed
 import qualified Streamly.Internal.Data.Scanl.Type as Scanl
 import qualified Streamly.Internal.Data.Unfold.Type as Unfold
-import qualified Text.ParserCombinators.ReadPrec as ReadPrec
 
 import Streamly.Internal.System.IO (unsafeInlineIO, defaultChunkSize)
 
@@ -1456,16 +1457,20 @@ fromChunks s =
 -------------------------------------------------------------------------------
 
 instance (Show a, Unbox a) => Show (Array a) where
+    {-# INLINE showsPrec #-}
+    showsPrec p arr = showParen (p > 10) $
+        showString "fromList " . shows (toList arr)
+
     {-# INLINE show #-}
     show arr = "fromList " ++ show (toList arr)
 
 instance (Unbox a, Read a, Show a) => Read (Array a) where
     {-# INLINE readPrec #-}
-    readPrec = do
-        fromListWord <- replicateM 9 ReadPrec.get
-        if fromListWord == "fromList "
-        then fromList <$> readPrec
-        else ReadPrec.pfail
+    readPrec = parens $ prec 10 $ do
+        Ident "fromList" <- lexP
+        fromList <$> readPrec
+
+    readListPrec = readListPrecDefault
 
 instance (a ~ Char) => IsString (Array a) where
     {-# INLINE fromString #-}
