@@ -656,14 +656,15 @@ eqArrayN RingArray{..} Array.Array{..} nBytes
     | nBytes <= p1Len = do
           part1 <-
               MutByteArray.unsafeByteCmp
-                  arrContents 0 ringContents ringHead nBytes
+                  arrContents arrStart ringContents ringHead nBytes
           pure $ part1 == 0
     | otherwise = do
           part1 <-
               MutByteArray.unsafeByteCmp
-                  arrContents 0 ringContents ringHead p1Len
+                  arrContents arrStart ringContents ringHead p1Len
           part2 <-
-              MutByteArray.unsafeByteCmp arrContents p1Len ringContents 0 p2Len
+              MutByteArray.unsafeByteCmp
+                  arrContents (arrStart + p1Len) ringContents 0 p2Len
           pure $ part1 == 0 && part2 == 0
     where
     p1Len = ringSize - ringHead
@@ -683,10 +684,10 @@ eqArray RingArray{..} Array.Array{..}
     | otherwise = do
           part1 <-
               MutByteArray.unsafeByteCmp
-                  arrContents 0 ringContents ringHead p1Len
+                  arrContents arrStart ringContents ringHead p1Len
           part2 <-
               MutByteArray.unsafeByteCmp
-                  arrContents p1Len ringContents 0 p2Len
+                  arrContents (arrStart + p1Len) ringContents 0 p2Len
           pure $ part1 == 0 && part2 == 0
     where
     p1Len = ringSize - ringHead
