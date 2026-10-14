@@ -49,6 +49,27 @@ bracketIOFold = do
     val <- readIORef ref
     val `shouldBe` 2
 
+-- The fold must stop with the inner fold, without consuming another input,
+-- and release the resource.
+bracketIOInnerDone :: Expectation
+bracketIOInnerDone = do
+    ref <- newIORef (0 :: Int)
+    let fld = Fold.bracketIO (return ()) (\_ -> writeIORef ref 1)
+                (\_ -> Fold.take 2 Fold.toList)
+    (r, rest) <- Stream.foldBreak fld (Stream.fromList [1..5 :: Int])
+    r `shouldBe` [1,2]
+    Stream.toList rest `shouldReturn` [3,4,5]
+    readIORef ref `shouldReturn` 1
+
+bracketIOInnerDoneAtEnd :: Expectation
+bracketIOInnerDoneAtEnd = do
+    ref <- newIORef (0 :: Int)
+    let fld = Fold.bracketIO (return ()) (\_ -> writeIORef ref 1)
+                (\_ -> Fold.take 2 Fold.toList)
+    r <- Stream.fold fld (Stream.fromList [1,2 :: Int])
+    r `shouldBe` [1,2]
+    readIORef ref `shouldReturn` 1
+
 onExceptionFold :: Expectation
 onExceptionFold = do
     ref <- newIORef (0 :: Int)
@@ -72,4 +93,6 @@ main = hspec $ do
         it "before" beforeFold
         it "finallyIO" finallyIOFold
         it "bracketIO" bracketIOFold
+        it "bracketIO inner fold done" bracketIOInnerDone
+        it "bracketIO inner fold done at end" bracketIOInnerDoneAtEnd
         it "onException" onExceptionFold

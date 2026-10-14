@@ -65,6 +65,8 @@
 * Fix `MutArray.appendMax` on a slice returning an array with a capacity
   beyond its allocation, appending to it could corrupt memory.
 * Fix `MutArray.createMinOf 0` writing beyond its allocation.
+* Fix `Fold.bracketIO` losing the input after the inner fold terminates,
+  and not running the release action if the stream ends there.
 
 ## 0.3.1 (May 2026)
 

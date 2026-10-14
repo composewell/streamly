@@ -138,9 +138,14 @@ bracketIO bef aft bet = Fold step initial extract final
         res <- initial1
         case res of
             Partial s -> do
-                s1 <- step1 s a `MC.onException` liftIO (runIOFinalizer ref)
-                let fld1 = Fold step1 (pure s1) extract1 final1
-                pure $ Partial $ Tuple' ref fld1
+                r <- step1 s a `MC.onException` liftIO (runIOFinalizer ref)
+                case r of
+                    Partial s1 -> do
+                        let fld1 = Fold step1 (pure (Partial s1)) extract1 final1
+                        pure $ Partial $ Tuple' ref fld1
+                    Done b -> do
+                        liftIO $ runIOFinalizer ref
+                        pure $ Done b
             Done b -> do
                 liftIO $ runIOFinalizer ref
                 pure $ Done b
@@ -156,9 +161,11 @@ bracketIO bef aft bet = Fold step initial extract final
         case res of
             Partial s -> do
                 val <- final1 s `MC.onException` liftIO (runIOFinalizer ref)
-                runIOFinalizer ref
+                liftIO $ runIOFinalizer ref
                 pure val
-            Done b -> pure b
+            Done b -> do
+                liftIO $ runIOFinalizer ref
+                pure b
 
 -- | Run a side effect whenever the fold stops normally, aborts due to an
 -- exception or is garbage collected.
