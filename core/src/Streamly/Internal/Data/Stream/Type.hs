@@ -1059,6 +1059,8 @@ instance Show a => Show (Stream Identity a) where
     showsPrec p dl = showParen (p > 10) $
         showString "fromList " . shows (GHC.Exts.toList dl)
 
+    show dl = "fromList " ++ show (GHC.Exts.toList dl)
+
 instance Read a => Read (Stream Identity a) where
     readPrec = parens $ prec 10 $ do
         Ident "fromList" <- lexP
@@ -2680,6 +2682,9 @@ deriving instance Ord a => Ord (Nested Identity a)
 -- Do not use automatic derivation for this to show as "fromList" rather than
 -- "fromList Identity".
 instance Show a => Show (Nested Identity a) where
+    {-# INLINE showsPrec #-}
+    showsPrec p (Nested xs) = showsPrec p xs
+
     {-# INLINE show #-}
     show (Nested xs) = show xs
 

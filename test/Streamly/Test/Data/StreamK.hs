@@ -8,6 +8,7 @@
 
 module Streamly.Test.Data.StreamK (main) where
 
+import Data.Functor.Identity (Identity, runIdentity)
 import Data.Word (Word8)
 import Data.List (sort)
 import Streamly.Internal.Data.StreamK (StreamK)
@@ -74,6 +75,14 @@ sortBy =
                     )
             assert $ s1 == s2
 
+testNestedShowRead :: Expectation
+testNestedShowRead = do
+    let n = StreamK.Nested (StreamK.fromList [1, 2]) :: StreamK.Nested Identity Int
+    show (Just n) `shouldBe` "Just (fromList [1,2])"
+    fmap (runIdentity . StreamK.toList . StreamK.unNested)
+        (read (show (Just n)) :: Maybe (StreamK.Nested Identity Int))
+        `shouldBe` Just [1, 2]
+
 moduleName :: String
 moduleName = "Data.StreamK"
 
@@ -105,3 +114,4 @@ main = hspec
                 (reverse input)
                 [1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8]
         prop "sortBy" sortBy
+        it "Nested Show/Read" testNestedShowRead

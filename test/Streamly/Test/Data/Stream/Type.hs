@@ -9,6 +9,7 @@
 module Streamly.Test.Data.Stream.Type (main) where
 
 import Control.Exception (ErrorCall(..), catch)
+import Data.Functor.Identity (Identity)
 import Data.IORef (newIORef, readIORef, writeIORef, IORef)
 import Data.List (sort)
 import Streamly.Internal.Data.Stream (Stream)
@@ -544,6 +545,17 @@ checkFoldrLaziness = do
                         (Stream.fromList (2:4:5:undefined) :: Stream IO Int))
         `shouldReturn` [True]
 
+-------------------------------------------------------------------------------
+-- Nested
+-------------------------------------------------------------------------------
+
+testNestedShowRead :: Expectation
+testNestedShowRead = do
+    let n = Stream.Nested (Stream.fromList [1, 2]) :: Stream.Nested Identity Int
+    show (Just n) `shouldBe` "Just (fromList [1,2])"
+    fmap Stream.unNested (read (show (Just n)) :: Maybe (Stream.Nested Identity Int))
+        `shouldBe` Just (Stream.fromList [1, 2])
+
 moduleName :: String
 moduleName = "Data.Stream"
 
@@ -747,5 +759,6 @@ main = hspec
     -}
 
     it "concatIterateScan" testConcatIterateScan
+    it "Nested Show/Read" testNestedShowRead
     it "refoldIterateM" testRefoldIterateM
     it "bfsReduceIterate" testBfsReduceIterate
