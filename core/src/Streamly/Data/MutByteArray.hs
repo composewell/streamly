@@ -56,15 +56,49 @@
 -- during an unsafe call, even in the bytecode interpreter, and further
 -- guarantees that unsafe calls will be performed in the calling thread. Making
 -- it safe to pass heap-allocated objects to unsafe functions.
-
+--
+-- == Choosing between Unbox and Serialize
+--
+-- 'Unbox' stores Haskell values in memory in unboxed form, for example as the
+-- elements of the unboxed arrays in "Streamly.Data.Array" and
+-- "Streamly.Data.MutArray". It is designed for speed, for data written and
+-- read by the same program on the same machine:
+--
+-- * Only non-recursive types of a fixed size are supported, the size is
+--   determined by the type, not by the value.
+-- * 'peekAt' and 'pokeAt' do not check the bounds of the array, the caller
+--   checks them.
+-- * 'Int' and 'Word' use the native machine word size, e.g. 4 bytes on the
+--   JavaScript backend and 8 bytes on 64-bit platforms.
+-- * Bytes that carry no information are not written, see the section
+--   Comparing serialized values below.
+--
+-- 'Serialize' converts Haskell values to bytes for storing in files or
+-- sending to another program or machine. It may be slower than 'Unbox':
+--
+-- * Recursive and variable length types are supported, e.g. lists. The
+--   length of a variable length value is stored with the value.
+-- * 'deserializeAt' checks the bounds of the input buffer and fails on
+--   invalid lengths.
+-- * 'Int' and 'Word' are serialized as 8 bytes on all platforms.
+-- * Every byte is written, the same value is always serialized to the same
+--   bytes, except for 'Streamly.Data.Array.Array', see the section Comparing
+--   serialized values below.
+-- * Constructors and record fields can optionally be encoded by name, so
+--   that constructors or record fields can be reordered without changing the
+--   meaning of serialized data. This is experimental, see the section Fast
+--   serialization with schema above.
+--
+-- Both use the byte order of the host machine. Data written on a machine with
+-- one byte order cannot be read on a machine with the other.
+--
+-- 'Unbox' can be used for storing or transferring data if both ends use the
+-- same byte order and word size, and the unwritten bytes are acceptable.
+--
 -- == Serialization using Unbox
 --
--- The 'Unbox' type class is simple and used to serialize non-recursive fixed
--- size data types. This type class is primarily used to implement unboxed
--- arrays. Unboxed arrays are just a sequence of serialized fixed length
--- Haskell data types. Instances of this type class can be derived using
--- 'Generic' or template haskell based deriving functions provided in this
--- module.
+-- Instances of 'Unbox' can be derived using 'Generic' or the Template Haskell
+-- function 'deriveUnbox' provided in this module.
 --
 -- Writing a data type to an array using the array creation routines in
 -- "Streamly.Data.Array" or "Streamly.Data.MutArray" (e.g. @writeN@ or
@@ -74,11 +108,9 @@
 --
 -- == Serialization using Serialize
 --
--- The 'Serialize' type class is a superset of the 'Unbox' type class, it can
--- serialize variable length data types as well e.g. Haskell lists. Use
--- 'deriveSerialize' to derive the instances of the type class automatically
--- and then use the type class methods to serialize and deserialize to and from
--- a 'MutByteArray'.
+-- Use 'deriveSerialize' to derive the instances of the type class
+-- automatically and then use the type class methods to serialize and
+-- deserialize to and from a 'MutByteArray'.
 --
 -- See 'Streamly.Internal.Data.Array.pinnedSerialize' and
 -- 'Streamly.Internal.Data.Array.deserialize' for 'Array' type based

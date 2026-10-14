@@ -183,6 +183,9 @@ import qualified Streamly.Internal.Data.MutByteArray.Type as MutByteArray
 -- and deserialization (boxing) of fixed-length, non-recursive Haskell data
 -- types to and from their byte stream representation.
 --
+-- See the module "Streamly.Data.MutByteArray" for the differences between
+-- 'Unbox' and 'Serialize' and for choosing one of them.
+--
 -- Unbox uses fixed size encoding, therefore, size is independent of the value,
 -- it must be determined solely by the type. This restriction makes types with
 -- 'Unbox' instances suitable for storing in arrays. Note that sum types may

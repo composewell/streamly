@@ -97,6 +97,9 @@ import Prelude hiding (Foldable(..))
 -- deserialization of general Haskell data types to and from their byte stream
 -- representation.
 --
+-- See the module "Streamly.Data.MutByteArray" for the differences between
+-- 'Unbox' and 'Serialize' and for choosing one of them.
+--
 -- Unlike 'Unbox', 'Serialize' uses variable length encoding, therefore, it can
 -- serialize recursive and variable length data types like lists, or variable
 -- length sum types where the length of the value may vary depending on a
