@@ -247,6 +247,21 @@ postscanlBothFilter =
             (Stream.fromList [1 .. 4 :: Int]))
         `shouldReturn` ([] :: [Int])
 
+-- postscanlMany must not emit an output when the right scan filters the input
+-- on which the left scan terminates.
+--
+-- postscanlMany (take 1 sum) (filter even sum) on [1..4]:
+--   the left scan terminates on every input and feeds it to the right scan
+--   1, 3 are odd   -> right returns Continue -> no output (BUG: emits 0, 2)
+--   2, 4 are even  -> right returns Partial  -> output 2, then 6
+postscanlManyRightFilter :: Expectation
+postscanlManyRightFilter =
+    Stream.toList
+        (Stream.postscanl
+            (F.postscanlMany (F.take 1 F.sum) (F.filter even F.sum))
+            (Stream.fromList [1 .. 4 :: Int]))
+        `shouldReturn` [2, 6]
+
 -------------------------------------------------------------------------------
 -- Filter tests belonging to Scanl.Type
 -------------------------------------------------------------------------------
@@ -440,6 +455,7 @@ main = hspec $
         it "postscanl: filter right" postscanlRightFilter
         it "postscanl: filter left" postscanlLeftFilter
         it "postscanl: filter both" postscanlBothFilter
+        it "postscanlMany: filter right" postscanlManyRightFilter
         prop "postscanl: filterLaw compose"
             $ filterLawScanModifier (\h -> F.postscanl h F.sum)
 

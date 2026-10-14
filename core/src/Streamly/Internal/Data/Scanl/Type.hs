@@ -1419,7 +1419,13 @@ postscanlWith
                         else Done <$> finalR sR1
                     Continue sR1 ->
                         if isMany
-                        then fromFoldStep <$> runInitialL sR1
+                        then do
+                            -- runInitialL does not step the right scan, the
+                            -- right scan has filtered this input.
+                            r <- runInitialL sR1
+                            return $ case r of
+                                Fold.Partial s -> Continue s
+                                Fold.Done b -> Done b
                         else Done <$> finalR sR1
                     Done bR -> return $ Done bR
             Partial sL -> do
