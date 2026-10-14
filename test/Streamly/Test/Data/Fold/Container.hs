@@ -101,6 +101,29 @@ classifyScan =
         (Stream.postscanlMaybe (Fold.classifyScan getKey innerFold) input)
         `shouldReturn` [("ONE", 4), ("TWO", 6)]
 
+-- The inner fold terminates on the first input of a key, further inputs of
+-- that key must be ignored.
+classifyScanDoneOnFirst :: Expectation
+classifyScanDoneOnFirst = do
+    let innerFold = Fold.lmap snd (Fold.take 1 Fold.sum)
+        input = [("A", 1::Int), ("B", 5), ("A", 2), ("B", 6)]
+        expected = [("A", 1), ("B", 5)]
+        run scan = Stream.fold Fold.toList
+            $ Stream.postscanlMaybe scan (Stream.fromList input)
+        snd2 = fmap snd
+    run (Fold.classifyScan fst innerFold) `shouldReturn` expected
+    run (Fold.classifyScanIO fst innerFold) `shouldReturn` expected
+    Stream.fold Fold.toList
+        (Stream.catMaybes
+            $ Stream.postscan (snd2 (Fold.classify fst innerFold))
+            $ Stream.fromList input)
+        `shouldReturn` expected
+    Stream.fold Fold.toList
+        (Stream.catMaybes
+            $ Stream.postscan (snd2 (Fold.classifyIO fst innerFold))
+            $ Stream.fromList input)
+        `shouldReturn` expected
+
 frequency :: Expectation
 frequency =
     Stream.fold Fold.frequency
@@ -183,6 +206,7 @@ main = hspec $ do
         it "classifyWith" classifyWith
         it "classify" classify
         it "classifyScan" classifyScan
+        it "classifyScanDoneOnFirst" classifyScanDoneOnFirst
         it "frequency" frequency
         it "demuxerToMap" demuxerToMap
         it "demuxerToContainer" demuxerToContainer
