@@ -408,6 +408,12 @@ takeEndBySeq_ =
         (Stream.fromList [1,2,0,0,3,4])
     `shouldReturn` [1,2]
 
+sampleFromthenOffset :: Expectation
+sampleFromthenOffset =
+    Stream.fold (Fold.sampleFromthen 1 3 Fold.toList)
+        (Stream.fromList [0..9 :: Int])
+    `shouldReturn` [1,4,7]
+
 distributeScan :: Expectation
 distributeScan = do
     ref <- newIORef [Fold.take 2 Fold.sum, Fold.take 2 Fold.length :: Fold.Fold IO Int Int]
@@ -499,6 +505,7 @@ main = hspec $ do
         it "takeEndBySeq" takeEndBySeq
         it "takeEndBySeq_" takeEndBySeq_
         it "distributeScan" distributeScan
+        it "sampleFromthen offset" sampleFromthenOffset
         prop "unzipWithFstM" unzipWithFstM
         prop "unzipWithMinM" unzipWithMinM
         it "partitionBy" partitionBy
