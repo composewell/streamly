@@ -397,6 +397,17 @@ eqArray lstArr lstRing startR expected = do
     res <- RingArray.eqArray ring arr
     res `shouldBe` expected
 
+-- The array is a slice that does not start at offset 0 of its memory.
+eqArraySlice :: IO ()
+eqArraySlice = do
+    let arr = Array.unsafeSliceOffLen 2 5 (Array.fromList ([0, 0] ++ [1 .. 5]))
+    ring <- fromList [1 .. 5]
+    RingArray.eqArray ring arr `shouldReturn` True
+    RingArray.eqArrayN ring arr (3 * iSize) `shouldReturn` True
+    ring1 <- fromList [0 .. 4]
+    RingArray.eqArray ring1 arr `shouldReturn` False
+    RingArray.eqArrayN ring1 arr (3 * iSize) `shouldReturn` False
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -479,3 +490,4 @@ main = hspec $ do
                    $ eqArrayN lstArr lstRing 10 75 False
             it "eqArray True" $ eqArray lstArr lstRing 50 True
             it "eqArray False" $ eqArray lstArr lstRing 20 False
+            it "eqArray and eqArrayN on an array slice" eqArraySlice
