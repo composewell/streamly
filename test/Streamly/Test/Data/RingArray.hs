@@ -313,6 +313,13 @@ testFold = do
     RingArray.fold Fold.toList (RingArray.moveBy 2 ring)
         `shouldReturn` [30, 40, 50, 10, 20]
 
+testFoldEmpty :: IO ()
+testFoldEmpty = do
+    ring <- Stream.fold (RingArray.createOfLast 3) (Stream.fromList [])
+    RingArray.length ring `shouldBe` 0
+    RingArray.fold Fold.toList ring `shouldReturn` ([] :: [Int])
+    RingArray.foldlM' (\b a -> pure (b + a)) 0 ring `shouldReturn` 0
+
 -------------------------------------------------------------------------------
 -- Debugging
 -------------------------------------------------------------------------------
@@ -449,6 +456,7 @@ main = hspec $ do
         describe "Folds" $ do
             it "foldlM'" testFoldlM'
             it "fold" testFold
+            it "fold (empty ring)" testFoldEmpty
 
         describe "Debugging" $ do
             it "showRing" testShowRing

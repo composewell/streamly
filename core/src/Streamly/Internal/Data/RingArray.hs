@@ -713,7 +713,10 @@ fold :: forall m a b. (MonadIO m, Unbox a)
 fold (Fold step initial _ final) rb = do
     res <- initial
     case res of
-        Fold.Partial fs -> go SPEC rh fs
+        Fold.Partial fs ->
+            if ringSize rb == 0
+            then final fs
+            else go SPEC rh fs
         Fold.Done b -> return b
 
     where
@@ -773,8 +776,6 @@ unsafeFoldRingM !len f z rb = go z 0
             go acc1 (index + SIZE_OF(a))
 
 -- | Fold the entire length of a ring buffer starting at the current ring head.
---
--- Note, this will crash on ring of 0 size.
 --
 {-# INLINE foldlM' #-}
 foldlM' :: forall m a b. (MonadIO m, Unbox a)
