@@ -453,14 +453,16 @@ windowRange n = Scanl step initial extract extract
 
     initial =
         if n <= 0
-        then error "ringsOf: window size must be > 0"
+        then error "windowRange: window size must be > 0"
         else do
             arr :: MutArray.MutArray a <- liftIO $ MutArray.emptyOf n
             return $ Fold.Partial $ Tuple3Fused' (MutArray.arrContents arr) 0 0
 
     step (Tuple3Fused' mba rh i) a = do
         RingArray _ _ rh1 <- RingArray.replace_ (RingArray mba (n * SIZE_OF(a)) rh) a
-        return $ Partial $ Tuple3Fused' mba rh1 (i + 1)
+        -- i is the number of elements in the window, at most n
+        let i1 = min (i + 1) n
+        return $ Partial $ Tuple3Fused' mba rh1 i1
 
     -- XXX exitify optimization causes a problem here when modular scans are
     -- used. Sometimes inlining "extract" is helpful.
@@ -469,8 +471,8 @@ windowRange n = Scanl step initial extract extract
     -- XXX If newest is lower than the current min than new is the min.
     -- XXX Otherwise if exiting one was equal to min only then we need to find
     -- new min
-        let rs = min i n * SIZE_OF(a)
-            rh1 = if i <= n then 0 else rh
+        let rs = i * SIZE_OF(a)
+            rh1 = if i < n then 0 else rh
          in ringRange $ RingArray mba rs rh1
 
 -- | Find the minimum element in a rolling window.

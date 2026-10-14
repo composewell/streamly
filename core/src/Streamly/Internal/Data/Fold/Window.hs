@@ -301,7 +301,9 @@ windowRange n = Fold step initial extract extract
 
     step (Tuple3Fused' mba rh i) a = do
         RingArray _ _ rh1 <- RingArray.replace_ (RingArray mba (n * SIZE_OF(a)) rh) a
-        return $ Partial $ Tuple3Fused' mba rh1 (i + 1)
+        -- i is the number of elements in the window, at most n
+        let i1 = min (i + 1) n
+        return $ Partial $ Tuple3Fused' mba rh1 i1
 
     -- XXX exitify optimization causes a problem here when modular folds are
     -- used. Sometimes inlining "extract" is helpful.
@@ -311,8 +313,8 @@ windowRange n = Fold step initial extract extract
     -- XXX If exiting one was equal to min only then we need to find new min
     -- XXX We can supply a custom extract function to a generic window
     -- operation.
-        let rs = min i n * SIZE_OF(a)
-            rh1 = if i <= n then 0 else rh
+        let rs = i * SIZE_OF(a)
+            rh1 = if i < n then 0 else rh
          in ringRange $ RingArray mba rs rh1
 
 -- | Find the minimum element in a rolling window.

@@ -469,6 +469,24 @@ partitionBy = do
              (Stream.fromList [1,2,3,4,5 :: Int])
     r `shouldBe` (3, 2)
 
+-- Fold.windowRange (Fold/Window.hs, no separate test module): compare with a
+-- list reference on every prefix of an input longer than the window, for
+-- window sizes 1 to 4, covering the window filling up and the ring head
+-- wrapping around.
+windowRange :: Expectation
+windowRange = mapM_ checkWindow [1 .. 4]
+  where
+    xs = [5, 1, 4, 2, 8, 3, 7, 6, 0, 9] :: [Int]
+
+    range [] = Nothing
+    range ys = Just (Prelude.minimum ys, Prelude.maximum ys)
+
+    checkPrefix n k =
+        Stream.fold (Fold.windowRange n) (Stream.fromList (take k xs))
+            `shouldReturn` range (drop (max 0 (k - n)) (take k xs))
+
+    checkWindow n = mapM_ (checkPrefix n) [0 .. length xs]
+
 moduleName :: String
 moduleName = "Data.Fold.Combinators"
 
@@ -490,6 +508,7 @@ main = hspec $ do
         prop "findIndex" $ findIndex predicate
         prop "elemIndex" $ elemIndex 10
         prop "null" null
+        it "windowRange" windowRange
         prop "elem" $ elem 10
         prop "notElem" $ notElem 10
         prop "all" $ all predicate

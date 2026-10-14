@@ -8,6 +8,7 @@ import qualified Streamly.Internal.Data.Scanl as Scanl
 import qualified Streamly.Internal.Data.Stream as S
 
 import Prelude hiding (sum, maximum, minimum)
+import qualified Prelude
 
 -- Inner scan returns Continue for odd inputs and Partial (window sum) for even.
 -- Verifies that incrScanWith propagates Continue without emitting output.
@@ -35,6 +36,23 @@ incrScanWithFilterS = do
             (return (Fold.Partial 0))
             return
             return
+
+-- Compare windowRange with a list reference over inputs longer than the
+-- window, for window sizes 1 to 4, covering the window filling up and the ring
+-- head wrapping around.
+windowRangeRefS :: Expectation
+windowRangeRefS = mapM_ check [1 .. 4]
+  where
+    xs = [5, 1, 4, 2, 8, 3, 7, 6, 0, 9] :: [Int]
+
+    window n k = drop (max 0 (k - n)) (take k xs)
+
+    range [] = Nothing
+    range ys = Just (Prelude.minimum ys, Prelude.maximum ys)
+
+    check n =
+        S.toList (S.scanl (Scanl.windowRange n) (S.fromList xs))
+            `shouldReturn` [range (window n k) | k <- [0 .. length xs]]
 
 moduleName :: String
 moduleName = "Window"
@@ -158,6 +176,7 @@ main = hspec $ do
                 [ Nothing, Just (1, 1), Just (1, 2), Just (1, 3), Just (2, 4)
                 , Just (3, 5)
                 ]
+        it "windowRange: list reference" windowRangeRefS
         it "windowMinimum" $
             scl (Scanl.windowMinimum 3) ([1, 2, 3, 4, 5] :: [Int])
                 `shouldReturn`
