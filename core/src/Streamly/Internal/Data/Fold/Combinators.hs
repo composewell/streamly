@@ -617,12 +617,12 @@ the = fromScanl Scanl.the
 ------------------------------------------------------------------------------
 
 -- | Determine the sum of all elements of a stream of numbers. Returns additive
--- identity (@0@) when the stream is empty. Note that this is not numerically
--- stable for floating point numbers.
+-- identity (@0@) when the stream is empty. Uses Kahan-Babuska-Neumaier
+-- summation, which is numerically stable for floating point numbers.
 --
 -- >>> sum = Fold.fromScanl (Scanl.cumulativeScan Scanl.incrSum)
 --
--- Same as following but numerically stable:
+-- Same as the following, except that these are not numerically stable:
 --
 -- >>> sum = Fold.foldl' (+) 0
 -- >>> sum = fmap Data.Monoid.getSum $ Fold.foldMap Data.Monoid.Sum
@@ -699,9 +699,9 @@ minimumBy cmp = foldl1' min'
 -- >>> minimum = Fold.foldl1' min
 --
 -- Same as the following but without a default minimum. The 'Min' Monoid uses the
--- 'maxBound' as the default maximum:
+-- 'maxBound' as the default minimum:
 --
--- >>> maximum = fmap Data.Semigroup.getMin $ Fold.foldMap Data.Semigroup.Min
+-- >>> minimum = fmap Data.Semigroup.getMin $ Fold.foldMap Data.Semigroup.Min
 --
 {-# INLINE minimum #-}
 minimum :: (Monad m, Ord a) => Fold m a (Maybe a)
@@ -1098,7 +1098,7 @@ elemIndex a = findIndex (== a)
 --
 -- Definition:
 --
--- >>> null = fmap isJust Fold.one
+-- >>> null = fmap (not . isJust) Fold.one
 --
 {-# INLINE null #-}
 null :: Monad m => Fold m a Bool
