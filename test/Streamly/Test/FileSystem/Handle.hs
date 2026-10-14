@@ -76,47 +76,38 @@ testDataLarge = concat $ replicate 6000 testData
 testBinData :: String
 testBinData = "01234567890123456789012345678901234567890123456789"
 
-executor :: (Handle -> Stream IO Char) -> IO (Stream IO Char)
-executor f =
-    withSystemTempDirectory "fs_handle" $ \fp -> do
-        fpath <- Path.fromString $ fp </> "tmp_read.txt"
-        writeFile fpath testDataLarge
-        h <- openFile fpath ReadMode
-        return $ f h
+readFromHandle :: Handle -> Stream IO Char
+readFromHandle = Unicode.decodeUtf8 . Stream.unfold Handle.reader
 
-readFromHandle :: IO (Stream IO Char)
-readFromHandle =
-    let f = Unicode.decodeUtf8 . Stream.unfold Handle.reader
-    in executor f
+readWithBufferFromHandle :: Handle -> Stream IO Char
+readWithBufferFromHandle h =
+    Unicode.decodeUtf8 $ Stream.unfold Handle.readerWith (1024, h)
 
-readWithBufferFromHandle :: IO (Stream IO Char)
-readWithBufferFromHandle =
-    let f1 h = (1024, h)
-        f2 = Unicode.decodeUtf8 . Stream.unfold Handle.readerWith . f1
-    in executor f2
-
-readChunksFromHandle :: IO (Stream IO Char)
+readChunksFromHandle :: Handle -> Stream IO Char
 readChunksFromHandle =
-    let f =   Unicode.decodeUtf8
-            . Stream.concatMap Array.read
-            . Stream.unfold Handle.chunkReader
-    in executor f
+      Unicode.decodeUtf8
+    . Stream.concatMap Array.read
+    . Stream.unfold Handle.chunkReader
 
-readChunksWithBuffer :: IO (Stream IO Char)
-readChunksWithBuffer =
-    let f1 h = (1024, h)
-        f2 =
-              Unicode.decodeUtf8
-            . Stream.concatMap Array.read
-            . Stream.unfold Handle.chunkReaderWith
-            . f1
-    in executor f2
+readChunksWithBuffer :: Handle -> Stream IO Char
+readChunksWithBuffer h =
+      Unicode.decodeUtf8
+    $ Stream.concatMap Array.read
+    $ Stream.unfold Handle.chunkReaderWith (1024, h)
 
-testRead :: IO (Stream IO Char) -> Property
-testRead fn = monadicIO $ do
-    let v2 = Stream.fromList testDataLarge
-    v1 <- run fn
-    res <- run $ Stream.eqBy (==) v1 v2
+-- The tests close every Handle they open. A Handle left open is closed by its
+-- finalizer at an arbitrary time, on the JS backend that close can race with
+-- an openFile in the test running at that time, see the note above main.
+testRead :: (Handle -> Stream IO Char) -> Property
+testRead f = monadicIO $ do
+    res <- run $
+        withSystemTempDirectory "fs_handle" $ \fp -> do
+            fpath <- Path.fromString $ fp </> "tmp_read.txt"
+            writeFile fpath testDataLarge
+            h <- openFile fpath ReadMode
+            r <- Stream.eqBy (==) (f h) (Stream.fromList testDataLarge)
+            hClose h
+            return r
     assert res
 
 testWrite :: (Handle -> Fold.Fold IO Word8 ()) -> Property
@@ -164,6 +155,8 @@ testWriteWithChunk =
                 hFlush hw
                 hSeek hw AbsoluteSeek 0
                 ls <- toList $ Stream.unfold Handle.reader hw
+                hClose hr
+                hClose hw
                 let arr = Array.fromList ls
                 return (testDataLarge == utf8ToString arr)
 
@@ -181,6 +174,7 @@ testReadChunksFromToWith from to buffSize res = monadicIO $ run go
                 toList
                     $ Stream.unfold
                         Handle.chunkReaderFromToWith (from, to, buffSize, h)
+            hClose h
             return (res `shouldBe` fmap Array.toList ls)
 
 -- Test for first byte
@@ -259,11 +253,23 @@ moduleName = "FileSystem.Handle"
 -- the descriptor without checking whether it still belongs to the closed file.
 -- Fixed in GHC 9.14.1 (commit 9995c2b70f deletes the entry before the close).
 -- On older versions, running these tests in parallel can trigger the failure.
+-- A close by the finalizer of a Handle left open can trigger it as well, the
+-- tests close all the Handles they open.
+--
+-- XXX The tests run sequentially on the JS backend before GHC 9.14 because of
+-- this bug. Remove inParallel when the JS CI uses GHC 9.14 or later.
+inParallel :: SpecWith a -> SpecWith a
+#if defined(javascript_HOST_ARCH) && __GLASGOW_HASKELL__ < 914
+inParallel = id
+#else
+inParallel = H.parallel
+#endif
+
 main :: IO ()
 main = do
     hspec $ describe moduleName openFileTests
     hspec $
-        H.parallel $
+        inParallel $
         modifyMaxSuccess (const maxTestCount) $ do
           describe moduleName $ do
             describe "Read From Handle" $ do
