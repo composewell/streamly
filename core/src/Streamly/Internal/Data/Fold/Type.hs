@@ -2579,7 +2579,8 @@ refoldMany1
             Partial s -> cextract s
             Done b -> return b
 
--- | Extract the output of a fold and refold it using a 'Refold'.
+-- | Finalize a fold without any input and use its output as the initial
+-- value of a 'Refold'.
 --
 -- A fusible alternative to 'concatMap'.
 --
@@ -2587,7 +2588,7 @@ refoldMany1
 {-# INLINE refold #-}
 refold :: Monad m => Refold m b a c -> Fold m a b -> Fold m a c
 refold (Refold step inject extract) f =
-    Fold step (extractM f >>= inject) extract extract
+    Fold step (finalM f >>= inject) extract extract
 
 ------------------------------------------------------------------------------
 -- morphInner

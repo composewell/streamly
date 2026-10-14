@@ -15,6 +15,7 @@ import Data.Functor.Identity (Identity(..), runIdentity)
 import Data.IORef (IORef, newIORef, readIORef, modifyIORef')
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Fold as F
+import qualified Streamly.Internal.Data.Refold.Type as Refold
 import qualified Streamly.Internal.Data.Scanl as Scanl
 import qualified Streamly.Internal.Data.Stream as Stream
 
@@ -494,6 +495,17 @@ groupsOf = do
 -- Nested application
 -------------------------------------------------------------------------------
 
+-- | 'Fold.refold' must finalize the source fold, not extract it. The
+-- 'Fold.splitWith' fold has no extract.
+refoldFinal :: Expectation
+refoldFinal = do
+    let src =
+            Fold.splitWith (++)
+                (Fold.fromPure [1]) (Fold.take 1 (Fold.foldl' (++) []))
+    Stream.fold (Fold.refold Refold.sconcat src)
+        (Stream.fromList [[2 :: Int]])
+        `shouldReturn` [1,2]
+
 concatMap :: Expectation
 concatMap = do
     r <- Stream.fold
@@ -717,6 +729,7 @@ main = hspec $ do
         it "groupsOf" groupsOf
         it "concatMap" concatMap
         it "duplicate" duplicate
+        it "refold calls final" refoldFinal
         prop "teeWithFstLength" teeWithFstLength
         prop "teeWithMinLength1" teeWithMinLength1
         prop "teeWithMinLength2" teeWithMinLength2
