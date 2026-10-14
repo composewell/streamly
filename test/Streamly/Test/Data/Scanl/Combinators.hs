@@ -243,6 +243,16 @@ partitionS =
         ([Left 1, Right 2, Left 3, Right 4] :: [Either Int Int])
         [[], [1], [2], [1, 3], [2, 4]]
 
+-- The index of the first sampled element is the offset.
+sampleFromthenOffsetS :: Expectation
+sampleFromthenOffsetS = do
+    let run offset stride =
+            Stream.toList
+                $ Stream.postscanl (F.sampleFromthen offset stride F.toList)
+                $ Stream.fromList [0 .. 9 :: Int]
+    run 1 3 `shouldReturn` [[1], [1, 4], [1, 4, 7]]
+    run 5 3 `shouldReturn` [[5], [5, 8]]
+
 -------------------------------------------------------------------------------
 -- Deprecated combinators (aliases for compose / composeMany)
 -------------------------------------------------------------------------------
@@ -300,6 +310,7 @@ main = hspec $
             $ filterLawScanModifier (\h -> F.partitionBy Right F.sum h)
 
         it "partition" partitionS
+        it "sampleFromthen: offset" sampleFromthenOffsetS
         it "with" withS
         it "topBy" topByS
         it "bottomBy" bottomByS
