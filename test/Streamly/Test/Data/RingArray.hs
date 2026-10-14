@@ -351,6 +351,21 @@ testScanRingsOf = do
         $ Stream.postscanl (RingArray.scanRingsOf 3) (Stream.fromList [1 .. 5 :: Int])
     res `shouldBe` [[1], [1, 2], [1, 2, 3], [2, 3, 4], [3, 4, 5]]
 
+-- Compare scanRingsOf with a list reference over an input longer than the
+-- ring, for ring sizes 1 to 4, covering the ring filling up and the ring head
+-- wrapping around.
+testScanRingsOfRef :: IO ()
+testScanRingsOfRef = mapM_ check [1 .. 4]
+  where
+    xs = [5, 1, 4, 2, 8, 3, 7, 6, 0, 9] :: [Int]
+
+    check n = do
+        res <- Stream.toList
+            $ Stream.mapM RingArray.toList
+            $ Stream.postscanl (RingArray.scanRingsOf n) (Stream.fromList xs)
+        res `shouldBe`
+            [drop (max 0 (k - n)) (take k xs) | k <- [1 .. length xs]]
+
 testScanFoldRingsBy :: IO ()
 testScanFoldRingsBy = do
     res <- Stream.toList
@@ -475,6 +490,7 @@ main = hspec $ do
         describe "Stream of rings" $ do
             it "ringsOf" testRingsOf
             it "scanRingsOf" testScanRingsOf
+            it "scanRingsOf: list reference" testScanRingsOfRef
             it "scanFoldRingsBy" testScanFoldRingsBy
             it "scanCustomFoldRingsBy" testScanCustomFoldRingsBy
             it "createOfLast" testCreateOfLast

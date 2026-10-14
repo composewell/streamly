@@ -539,16 +539,17 @@ scanRingsOf n = Scanl step initial extract extract
 
     step (Tuple3Fused' mba rh offset) a = do
         RingArray _ _ rh1 <- replace_ (RingArray mba rSize rh) a
-        let offset1 = offset + SIZE_OF(a)
+        -- offset is the size of the ring in bytes, at most rSize
+        let offset1 =
+                if offset < rSize then offset + SIZE_OF(a) else offset
         return $ Scanl.Partial $ Tuple3Fused' mba rh1 offset1
 
     -- XXX exitify optimization causes a problem here when modular folds are
     -- used. Sometimes inlining "extract" is helpful.
     {-# INLINE extract #-}
     extract (Tuple3Fused' mba rh offset) =
-        let rs = min offset rSize
-            rh1 = if offset <= rSize then 0 else rh
-         in pure $ RingArray mba rs rh1
+        let rh1 = if offset < rSize then 0 else rh
+         in pure $ RingArray mba offset rh1
 
 -- | @ringsOf n stream@ groups the input stream into a stream of ring arrays of
 -- size up to n. See 'scanRingsOf' for more details.
