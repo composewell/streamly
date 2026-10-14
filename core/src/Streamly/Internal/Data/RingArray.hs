@@ -253,7 +253,7 @@ decrHeadByOffset rh rs n =
 -- the prev (older) item, when the ring head is at the oldest item it will move
 -- to the newest item.
 --
--- >>> moveForward = RingArray.moveBy (-1)
+-- >>> moveReverse = RingArray.moveBy (-1)
 --
 {-# INLINE moveReverse #-}
 moveReverse :: forall a. Unbox a => RingArray a -> RingArray a
@@ -399,7 +399,7 @@ replace :: forall m a. (MonadIO m, Unbox a) => RingArray a -> a -> m (RingArray 
 replace rb newVal = do
     -- Note: ring size cannot be zero.
     when (ringSize rb == 0) $
-        error "insert: cannot insert in 0 sized ring"
+        error "replace: cannot replace in 0 sized ring"
     old <- unsafeGetRawIndex (ringHead rb) rb
     liftIO $ pokeAt (ringHead rb) (ringContents rb) newVal
     pure (moveForward rb, old)
@@ -683,7 +683,7 @@ eqArrayN RingArray{..} Array.Array{..} nBytes
 eqArray :: RingArray a -> Array a -> IO Bool
 eqArray RingArray{..} Array.Array{..}
     | arrEnd - arrStart < ringSize =
-        error "eqArrayN: array is shorter than ring"
+        error "eqArray: array is shorter than ring"
     | otherwise = do
           part1 <-
               MutByteArray.unsafeByteCmp
