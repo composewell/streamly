@@ -1471,8 +1471,12 @@ postscanlMany = postscanlWith True
 -- | Scan the input of a 'Scanl' to change it in a stateful manner using
 -- another 'Scanl'. The scan stops as soon as any of the scans terminates.
 --
--- The composition of the scans works in postscan style i.e. the initial value
--- of the accumulator of the first scan does not drive the second scan.
+-- The initial value of the accumulator of the first scan is fed to the second
+-- scan, followed by its value after each input. Use 'postscanl' to compose
+-- without feeding the initial value.
+--
+-- >>> Stream.toList $ Stream.scanl (Scanl.compose Scanl.sum Scanl.toList) $ Stream.fromList [1,2,3]
+-- [[0],[0,1],[0,1,3],[0,1,3,6]]
 --
 {-# INLINE compose #-}
 compose, scanl :: Monad m => Scanl m a b -> Scanl m b c -> Scanl m a c
