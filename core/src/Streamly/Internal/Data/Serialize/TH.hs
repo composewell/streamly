@@ -201,7 +201,15 @@ mkDeserializeExpr True False headTy tyOfTy =
                      $(varE _initialOffset)
                      $(varE _arr)
                      $(varE _endOffset)
-             $(multiIfE (map (guardCon conLen off1) cons ++ [catchAll]))|]
+             -- xorCmp reads the constructor name without bounds checks, so
+             -- check that the name fits in the buffer before calling it.
+             if $(varE off1) + w8_int $(varE conLen) > $(varE _endOffset)
+             then error
+                 ("deserializeAt: constructor name at offset = "
+                     ++ show $(varE off1)
+                     ++ " exceeds the buffer length = "
+                     ++ show $(varE _endOffset))
+             else $(multiIfE (map (guardCon conLen off1) cons ++ [catchAll]))|]
 
     catchAll =
         normalGE

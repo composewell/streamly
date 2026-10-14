@@ -395,7 +395,11 @@ mkRecDeserializeExpr initialOff endOff deserializeWithKeys con = do
              deserializeAt $(varE initialOff) $(varE _arr) $(varE endOff)
          ($(varP hOff), hlen1 :: Word32) <-
              deserializeAt hlenOff $(varE _arr) $(varE endOff)
-         if (hlen1 == $(litIntegral hlen)) && $(xorCmp hval hOff _arr)
+         -- xorCmp reads the header without bounds checks, so check that the
+         -- header fits in the buffer before calling it.
+         if (hlen1 == $(litIntegral hlen))
+                && $(varE hOff) + $(litIntegral hlen) <= $(varE endOff)
+                && $(xorCmp hval hOff _arr)
          then do
              let $(varP (makeI 0)) =
                      $(varE initialOff) +
