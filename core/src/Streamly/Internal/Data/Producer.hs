@@ -633,9 +633,10 @@ enumerateFromStep (x, stride) =
 
 -- | State for 'enumerateFromThenToIntegral'. @EnumInit from next to@ is the
 -- starting state carrying the arguments; it transitions to 'EnumYieldUpward'
--- or 'EnumYieldDownward', which carry the current value, the stride and
--- @to - stride@ (checked against before incrementing, so that the increment
--- itself cannot overflow past the bound).
+-- or 'EnumYieldDownward', which carry the current value, the stride and the
+-- limit checked before each step, so that the step cannot overflow past the
+-- bound. 'EnumYieldUpward' carries @next - from@ and @to - stride@,
+-- 'EnumYieldDownward' carries @from - next@ and @to + stride@.
 ANN_TYPE(EnumState,Fuse)
 data EnumState a =
       EnumInit a a a
@@ -675,8 +676,10 @@ enumerateFromThenTo (EnumInit from next to) =
                 then Stop
                 else Skip (EnumSingle from)
             else -- from >= next >= to
-                let !stride = next - from
-                in Skip $ EnumYieldDownward from stride (to - stride)
+                -- Use a positive stride, next - from would underflow for
+                -- unsigned types like Natural.
+                let !stride = from - next
+                in Skip $ EnumYieldDownward from stride (to + stride)
 enumerateFromThenTo (EnumYieldUpward x stride toMinus) =
     pure $
         if x <= toMinus
@@ -684,12 +687,12 @@ enumerateFromThenTo (EnumYieldUpward x stride toMinus) =
             let !next = x + stride
              in Yield x $ EnumYieldUpward next stride toMinus
         else Skip (EnumSingle x)
-enumerateFromThenTo (EnumYieldDownward x stride toMinus) =
+enumerateFromThenTo (EnumYieldDownward x stride toPlus) =
     pure $
-        if x >= toMinus
+        if x >= toPlus
         then
-            let !next = x + stride
-             in Yield x $ EnumYieldDownward next stride toMinus
+            let !next = x - stride
+             in Yield x $ EnumYieldDownward next stride toPlus
         else Skip (EnumSingle x)
 enumerateFromThenTo (EnumSingle x) = pure $ Yield x EnumStop
 enumerateFromThenTo EnumStop = pure Stop

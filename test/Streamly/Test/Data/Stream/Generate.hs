@@ -20,6 +20,7 @@ import Foreign.Marshal.Alloc (alloca)
 import Foreign.Marshal.Array (withArray)
 import Foreign.Storable (poke)
 import GHC.Ptr (Ptr(..))
+import Numeric.Natural (Natural)
 import System.Mem (performMajorGC)
 
 import qualified Streamly.Internal.Data.Stream as Stream
@@ -257,6 +258,18 @@ testEnumerateFromToNumFractional = do
         `shouldReturn` [3.5, 2.5]
     toList (Stream.enumerateFromTo (1 :: Rational) (12 % 5))
         `shouldReturn` [1, 2]
+
+-- Downward enumeration of Natural must not compute "next - from".
+testEnumerateNaturalDown :: Expectation
+testEnumerateNaturalDown = do
+    toList (Stream.enumerateFromThenTo (5 :: Natural) 3 0)
+        `shouldReturn` [5, 3, 1]
+    toList (Stream.enumerateFromThen (5 :: Natural) 3)
+        `shouldReturn` [5, 3, 1]
+    toList (Stream.enumerateFromThen (6 :: Natural) 3)
+        `shouldReturn` [6, 3, 0]
+    toList (Stream.take 4 (Stream.enumerateFromThen (1 :: Natural) 3))
+        `shouldReturn` [1, 3, 5, 7]
 
 testEnumerateDownFromBoundedNum :: Expectation
 testEnumerateDownFromBoundedNum = do
@@ -500,6 +513,7 @@ main = hspec $ describe moduleName $ do
         it "enumerateDownFromNum" testEnumerateDownFromNum
         it "enumerateDownFromToNum" testEnumerateDownFromToNum
         it "enumerateFromToNum fractional" testEnumerateFromToNumFractional
+        it "enumerateFromThen Natural down" testEnumerateNaturalDown
         it "enumerateDownFromBoundedNum" testEnumerateDownFromBoundedNum
         it "enumerateFromThenSmall" testEnumerateFromThenSmall
         it "enumerateFromToSmall" testEnumerateFromToSmall

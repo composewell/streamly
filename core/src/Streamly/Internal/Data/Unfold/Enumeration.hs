@@ -653,7 +653,39 @@ instance (CONSTRAINT) => Enumerable TYPE_NAME where {       \
     enumerateFromThenTo = enumerateFromThenToNum }
 
 ENUMERABLE_UNBOUNDED_NUM(Integer,)
-ENUMERABLE_UNBOUNDED_NUM(Natural,)
+
+-- 'Natural' is bounded below by 0, a downward enumeration stops at 0. The
+-- stride is kept positive because subtracting a larger 'Natural' underflows.
+{-# INLINE enumerateFromThenNatural #-}
+enumerateFromThenNatural :: Applicative m => Unfold m (Natural, Natural) Natural
+enumerateFromThenNatural = Unfold step inject
+
+    where
+
+    inject (from, next) =
+        pure $
+            if next >= from
+            then Left (from, next - from)
+            else Right (Just from, from - next)
+
+    step (Left (x, stride)) = pure $ Yield x (Left (x + stride, stride))
+    step (Right (Just x, stride)) =
+        pure $
+            if x >= stride
+            then Yield x (Right (Just (x - stride), stride))
+            else Yield x (Right (Nothing, stride))
+    step (Right (Nothing, _)) = pure Stop
+
+instance Enumerable Natural where
+    {-# INLINE enumerateFrom #-}
+    enumerateFrom = enumerateFromNum
+    {-# INLINE enumerateFromThen #-}
+    enumerateFromThen = enumerateFromThenNatural
+    {-# INLINE enumerateFromTo #-}
+    enumerateFromTo = enumerateFromToNum
+    {-# INLINE enumerateFromThenTo #-}
+    enumerateFromThenTo = enumerateFromThenToNum
+
 ENUMERABLE_UNBOUNDED_NUM((Fixed a),HasResolution a)
 ENUMERABLE_UNBOUNDED_NUM((Ratio a),Integral a)
 

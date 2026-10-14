@@ -31,6 +31,7 @@ import Data.Int (Int8, Int64)
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Ratio ((%))
 import Data.Word (Word8)
+import Numeric.Natural (Natural)
 import Foreign.Marshal.Array (withArray)
 import Prelude hiding (const, take, drop, concat, mapM, either, filter, dropWhile, repeat, scanl)
 import Test.Hspec as H
@@ -335,6 +336,19 @@ enumerateFromToNumFractional = do
     testUnfold UF.enumerateDownFromToNum (3.5 :: Double, 1.7) [3.5, 2.5]
         `shouldBe` True
     testUnfold UF.enumerateFromTo (1 :: Rational, 12 % 5) [1, 2]
+        `shouldBe` True
+
+-- Downward enumeration of Natural must not compute "next - from".
+enumerateNaturalDown :: Expectation
+enumerateNaturalDown = do
+    testUnfold UF.enumerateFromThenTo (5 :: Natural, 3, 0) [5, 3, 1]
+        `shouldBe` True
+    testUnfold UF.enumerateFromThen (5 :: Natural, 3) [5, 3, 1]
+        `shouldBe` True
+    testUnfold UF.enumerateFromThen (6 :: Natural, 3) [6, 3, 0]
+        `shouldBe` True
+    testUnfold
+        (UF.take 4 UF.enumerateFromThen) (1 :: Natural, 3) [1, 3, 5, 7]
         `shouldBe` True
 
 enumerateDownFromNum :: Property
@@ -1299,6 +1313,7 @@ testGeneration =
             prop "enumerateDownFromNum" enumerateDownFromNum
             prop "enumerateDownFromToNum" enumerateDownFromToNum
             it "enumerateFromToNum fractional" enumerateFromToNumFractional
+            it "enumerateFromThen Natural down" enumerateNaturalDown
             it "enumerateDownFromBoundedNum" enumerateDownFromBoundedNum
 
             prop "enumerateFromIntegral" enumerateFromIntegral

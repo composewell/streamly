@@ -221,8 +221,10 @@ enumerateFromThenToNum from next to = Stream step EnumInit
                     then Stop
                     else Skip (EnumSingle from)
                 else -- from >= next >= to
-                    let !stride = next - from
-                    in Skip $ EnumYieldDownward from stride (to - stride)
+                    -- Use a positive stride, next - from would underflow for
+                    -- unsigned types like Natural.
+                    let !stride = from - next
+                    in Skip $ EnumYieldDownward from stride (to + stride)
 
     step _ (EnumYieldUpward x stride toMinus) =
         pure $
@@ -232,12 +234,12 @@ enumerateFromThenToNum from next to = Stream step EnumInit
                  in Yield x $ EnumYieldUpward nxt stride toMinus
             else Skip (EnumSingle x)
 
-    step _ (EnumYieldDownward x stride toMinus) =
+    step _ (EnumYieldDownward x stride toPlus) =
         pure $
-            if x >= toMinus
+            if x >= toPlus
             then
-                let !nxt = x + stride
-                 in Yield x $ EnumYieldDownward nxt stride toMinus
+                let !nxt = x - stride
+                 in Yield x $ EnumYieldDownward nxt stride toPlus
             else Skip (EnumSingle x)
 
     step _ (EnumSingle x) = pure $ Yield x EnumStop
@@ -854,7 +856,21 @@ instance (CONSTRAINT) => Enumerable TYPE_NAME where {       \
     enumerateFromThenTo = enumerateFromThenToNum }
 
 ENUMERABLE_UNBOUNDED_NUM(Integer,)
-ENUMERABLE_UNBOUNDED_NUM(Natural,)
+
+-- 'Natural' is bounded below by 0, a downward enumeration stops at 0.
+instance Enumerable Natural where
+    {-# INLINE enumerateFrom #-}
+    enumerateFrom = enumerateFromNum
+    {-# INLINE enumerateFromThen #-}
+    enumerateFromThen from next =
+        if next >= from
+        then enumerateFromThenNum from next
+        else enumerateFromThenToNum from next 0
+    {-# INLINE enumerateFromTo #-}
+    enumerateFromTo = enumerateFromToNum
+    {-# INLINE enumerateFromThenTo #-}
+    enumerateFromThenTo = enumerateFromThenToNum
+
 ENUMERABLE_UNBOUNDED_NUM((Fixed a),HasResolution a)
 ENUMERABLE_UNBOUNDED_NUM((Ratio a),Integral a)
 

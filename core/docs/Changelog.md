@@ -38,6 +38,8 @@
   stream has fewer than two elements.
 * Fix `enumerateFromTo` for `Ratio` and `Fixed` emitting one element beyond
   the limit.
+* Fix `enumerateFromThen` and `enumerateFromThenTo` for `Natural` failing
+  with an underflow when enumerating downwards.
 
 * On POSIX platforms, the `Path` based APIs that open an existing file in
   `WriteMode`, e.g. `write` and `withFile` in `Streamly.FileSystem.FileIO`,
