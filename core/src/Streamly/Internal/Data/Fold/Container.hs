@@ -880,7 +880,7 @@ demuxKvToContainer f = demuxerToContainer fst (fmap (fmap (lmap snd)) . f)
 --
 -- Definition:
 --
--- >>> demuxKvToMap f = Fold.demuxerToContainer fst (Fold.lmap snd . f)
+-- >>> demuxKvToMap f = Fold.demuxerToContainer fst (fmap (fmap (Fold.lmap snd)) . f)
 --
 -- Example:
 --

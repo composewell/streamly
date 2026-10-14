@@ -28,7 +28,7 @@
 -- >>> scan1 = Scan.function (\x -> x * x)
 -- >>> scan2 = Scan.function (\x -> 3 * x)
 -- >>> scan3 = Scan.teeWith (+) scan1 scan2 -- Compute x^2 + 3x
--- >>> scan4 = Scan.compose scan1 scan3     -- compute x^2 then pass it to scan3
+-- >>> scan4 = Scan.compose scan3 scan1     -- compute x^2 then pass it to scan3
 --
 -- >>> :{
 -- main =
@@ -37,6 +37,11 @@
 --       & fmap (+4)                          -- Stream IO Int
 --       & Stream.fold (Fold.drainMapM print) -- IO ()
 -- :}
+--
+-- >>> main
+-- 8
+-- 32
+-- 112
 --
 -- @scan3@ splits the computation into two parts, one part computes @x^2@ using
 -- @scan1@ and the other part computes @3x@ using @scan2@ and then it zips the
