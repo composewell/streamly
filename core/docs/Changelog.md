@@ -25,6 +25,7 @@
   the stream length is a multiple of the chunk size.
 * Fix `Fold.classifyScan`, `classifyScanIO`, `classify` and `classifyIO`
   restarting the fold for a key that terminated on its first input.
+* Fix the `Arrow` instance of `Scan` failing when a scan skips an input.
 
 * On POSIX platforms, the `Path` based APIs that open an existing file in
   `WriteMode`, e.g. `write` and `withFile` in `Streamly.FileSystem.FileIO`,

@@ -8,6 +8,7 @@
 
 module Streamly.Test.Data.Stream.Transform (main) where
 
+import Control.Arrow ((***))
 import Control.Exception (ErrorCall(..), catch)
 import Data.IORef (IORef, modifyIORef, newIORef, readIORef, writeIORef)
 import System.Timeout (timeout)
@@ -212,6 +213,15 @@ testScanr :: Expectation
 testScanr =
     toList (Stream.scanr Scan.sum (Stream.fromList [1, 2, 3 :: Int]))
         `shouldReturn` [1, 3, 6]
+
+-- An input is dropped when either scan skips it.
+testScanrUnzip :: Expectation
+testScanrUnzip =
+    toList
+        (Stream.scanr
+            (Scan.filter odd *** Scan.filter (> 1))
+            (Stream.fromList [(1, 1), (2, 2), (3, 3) :: (Int, Int)]))
+        `shouldReturn` [(3, 3)]
 
 testPipe :: Expectation
 testPipe =
@@ -639,6 +649,7 @@ main = hspec
         prop "filter law: id (driver)" $ filterLawScanModifier id
         prop "filter law: sum" $ filterLawScan Scanl.sum
         it "scanr" testScanr
+        it "scanr (***)" testScanrUnzip
         it "pipe map" testPipe
         it "pipe filter" testPipeFilter
 

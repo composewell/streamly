@@ -435,7 +435,11 @@ unzipMay (Scan stepL initialL) (Scan stepR initialR) =
 -- output. Other outputs are filtered out.
 {-# INLINE_NORMAL unzip #-}
 unzip :: Monad m => Scan m a x -> Scan m b y -> Scan m (a, b) (x, y)
-unzip s1 s2 = fmap (fromJust Prelude.. f) $ unzipMay s1 s2
+unzip s1 s2 =
+    fmap fromJust
+        $ compose (filter isJust)
+        $ fmap f
+        $ unzipMay s1 s2
 
     where
 
