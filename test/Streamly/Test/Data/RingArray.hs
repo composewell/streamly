@@ -115,6 +115,8 @@ testGetIndex = do
     RingArray.getIndex (-1) ring `shouldReturn` Just 50
     RingArray.getIndex (-5) ring `shouldReturn` Just 10
     -- Out of bounds.
+    RingArray.getIndex 5 ring `shouldReturn` Nothing
+    RingArray.getIndex (-6) ring `shouldReturn` Nothing
     RingArray.getIndex (5 * iSize) ring `shouldReturn` Nothing
     RingArray.getIndex (-5 * iSize) ring `shouldReturn` Nothing
 

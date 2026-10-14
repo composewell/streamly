@@ -419,13 +419,14 @@ unsafeGetIndex i ring =
 
 -- | /O(1)/ Lookup the element at the given index relative to the ring head.
 -- Index starts from 0, could be positive or negative. Returns Nothing if the
--- index is more than or equal to the size of the ring.
+-- index is more than or equal to the length of the ring, or less than the
+-- negated length.
 --
 {-# INLINE getIndex #-}
 getIndex :: forall m a. (MonadIO m, Unbox a) => Int -> RingArray a -> m (Maybe a)
 getIndex i ring =
-    let rs = ringSize ring
-     in if i < rs && i > -rs
+    let len = length ring
+     in if i < len && i >= -len
         then Just <$> unsafeGetIndex i ring
         else return Nothing
 
