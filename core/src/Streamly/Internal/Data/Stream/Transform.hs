@@ -813,12 +813,26 @@ postscanlx' :: Monad m
 postscanlx' fstep begin done =
     postscanlMx' (\b a -> return (fstep b a)) (return begin) (return . done)
 
--- XXX do we need consM strict to evaluate the begin value?
-{-# INLINE scanlMx' #-}
+{-# INLINE_NORMAL scanlMx' #-}
 scanlMx' :: Monad m
     => (x -> a -> m x) -> m x -> (x -> m b) -> Stream m a -> Stream m b
-scanlMx' fstep begin done s =
-    (begin >>= \x -> x `seq` done x) `consM` postscanlMx' fstep begin done s
+scanlMx' fstep begin done (Stream step state) =
+    Stream step' Nothing
+  where
+    {-# INLINE_LATE step' #-}
+    step' _ Nothing = do
+        !x <- begin
+        !v <- done x
+        return $ Yield v (Just (state, x))
+    step' gst (Just (st, acc)) = do
+        r <- step (adaptState gst) st
+        case r of
+            Yield x s -> do
+                y <- fstep acc x
+                v <- done y
+                v `seq` y `seq` return (Yield v (Just (s, y)))
+            Skip s -> return $ Skip (Just (s, acc))
+            Stop   -> return Stop
 
 {-# INLINE scanlx' #-}
 scanlx' :: Monad m
@@ -871,7 +885,8 @@ postscanl' f seed = postscanlM' (\a b -> return (f a b)) (return seed)
 
 ANN_TYPE(PScanAfterState,Fuse)
 data PScanAfterState m st acc =
-      PScanAfterStep st (m acc)
+      PScanAfterInit st
+    | PScanAfterStep st (m acc)
     | PScanAfterYield acc (PScanAfterState m st acc)
     | PScanAfterStop
 
@@ -880,15 +895,24 @@ data PScanAfterState m st acc =
 --
 -- TBD: use a single Yield point
 --
-{-# INLINE_NORMAL postscanlMAfter' #-}
-postscanlMAfter' :: Monad m
-    => (b -> a -> m b) -> m b -> (b -> m b) -> Stream m a -> Stream m b
-postscanlMAfter' fstep initial done (Stream step1 state1) = do
-    Stream step (PScanAfterStep state1 initial)
+-- When the first argument is True the initial value is also emitted, the
+-- initial action is run only once in either case.
+{-# INLINE_NORMAL scanlMAfterWith #-}
+scanlMAfterWith :: Monad m
+    => Bool
+    -> (b -> a -> m b) -> m b -> (b -> m b) -> Stream m a -> Stream m b
+scanlMAfterWith emitInitial fstep initial done (Stream step1 state1) =
+    Stream step
+        (if emitInitial
+         then PScanAfterInit state1
+         else PScanAfterStep state1 initial)
 
     where
 
     {-# INLINE_LATE step #-}
+    step _ (PScanAfterInit st) = do
+        !x <- initial
+        return $ Yield x (PScanAfterStep st (return x))
     step gst (PScanAfterStep st acc) = do
         r <- step1 (adaptState gst) st
         case r of
@@ -904,6 +928,11 @@ postscanlMAfter' fstep initial done (Stream step1 state1) = do
                 return (Skip $ PScanAfterYield res PScanAfterStop)
     step _ (PScanAfterYield acc next) = return $ Yield acc next
     step _ PScanAfterStop = return Stop
+
+{-# INLINE_NORMAL postscanlMAfter' #-}
+postscanlMAfter' :: Monad m
+    => (b -> a -> m b) -> m b -> (b -> m b) -> Stream m a -> Stream m b
+postscanlMAfter' = scanlMAfterWith False
 
 {-# INLINE_NORMAL postscanlM #-}
 postscanlM :: Monad m => (b -> a -> m b) -> m b -> Stream m a -> Stream m b
@@ -960,8 +989,7 @@ scanlM' fstep begin (Stream step state) = Stream step' Nothing
 {-# INLINE scanlMAfter' #-}
 scanlMAfter' :: Monad m
     => (b -> a -> m b) -> m b -> (b -> m b) -> Stream m a -> Stream m b
-scanlMAfter' fstep initial done s =
-    initial `consM` postscanlMAfter' fstep initial done s
+scanlMAfter' = scanlMAfterWith True
 
 -- >>> scanl' f z xs = z `Stream.cons` postscanl' f z xs
 

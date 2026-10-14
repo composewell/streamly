@@ -325,6 +325,31 @@ testScanlMAfter' =
                 (Stream.fromList [1, 2, 3 :: Int]))
         `shouldReturn` [0, 1, 3, 6, 60]
 
+-- The initial action must run once, the value it returns is emitted first and
+-- is also the seed of the accumulator.
+countingInit :: IO (IORef Int, IO Int)
+countingInit = do
+    ref <- newIORef 0
+    return (ref, modifyIORef ref (+ 1) >> readIORef ref)
+
+testScanlMAfterInitOnce :: Expectation
+testScanlMAfterInitOnce = do
+    (ref, initial) <- countingInit
+    xs <- toList
+        $ Stream.scanlMAfter' (\a b -> return (a + b)) initial return
+        $ Stream.fromList [1, 2]
+    n <- readIORef ref
+    (xs, n) `shouldBe` ([1, 2, 4, 4], 1)
+
+testScanlMxInitOnce :: Expectation
+testScanlMxInitOnce = do
+    (ref, initial) <- countingInit
+    xs <- toList
+        $ Stream.scanlMx' (\a b -> return (a + b)) initial return
+        $ Stream.fromList [1, 2]
+    n <- readIORef ref
+    (xs, n) `shouldBe` ([1, 2, 4], 1)
+
 -------------------------------------------------------------------------------
 -- Filtering
 -------------------------------------------------------------------------------
@@ -671,6 +696,8 @@ main = hspec
         it "scanlMx'" testScanlMx'
         it "postscanlMAfter'" testPostscanlMAfter'
         it "scanlMAfter'" testScanlMAfter'
+        it "scanlMAfter' runs initial once" testScanlMAfterInitOnce
+        it "scanlMx' runs initial once" testScanlMxInitOnce
         it "postscanlMx'" testPostscanlMx'
 
     describe "Filtering" $ do

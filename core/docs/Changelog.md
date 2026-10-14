@@ -194,6 +194,7 @@
 * Fix memory corruption in `MutArray.appendMax`, `MutArray.createMinOf` and
   `RingArray.Generic.copyToMutArray`, and resource release in
   `Fold.bracketIO` and `Fold.finallyIO`.
+* Fix `Stream.scanlMAfter'` and `scanlMx'` running the initial action twice.
 
 ## 0.3.1 (May 2026)
 
