@@ -221,10 +221,14 @@ mkDeserializeExpr True False headTy tyOfTy =
 
 mkDeserializeExpr False False headTy tyOfTy =
     case tyOfTy of
-        -- Unit constructor. The value of the byte is not checked, see
-        -- "Deterministic encoding" in Streamly.Internal.Data.Serialize.Type.
+        -- Unit constructor. Read the byte only to check the bounds, its value
+        -- is not checked, see "Deterministic encoding" in
+        -- Streamly.Internal.Data.Serialize.Type.
         UnitType cname ->
-            [|pure ($(varE _initialOffset) + 1, $(conE cname))|]
+            [|do (i0, _ :: Word8) <-
+                     deserializeAt
+                         $(varE _initialOffset) $(varE _arr) $(varE _endOffset)
+                 pure (i0, $(conE cname))|]
         -- Product type
         TheType con ->
             letE
@@ -290,9 +294,7 @@ mkDeserializeDec (SerializeConfig {..}) headTy cons = do
             [ FunD
               'deserializeAt
               [ Clause
-                    (if isUnitType cons && not cfgConstructorTagAsString
-                         then [VarP _initialOffset, WildP, WildP]
-                         else [VarP _initialOffset, VarP _arr, VarP _endOffset])
+                    [VarP _initialOffset, VarP _arr, VarP _endOffset]
                     (NormalB peekMethod)
                     []
               ]

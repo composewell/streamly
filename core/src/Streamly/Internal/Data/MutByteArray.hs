@@ -160,7 +160,10 @@ instance Serialize (Proxy a) where
     addSizeTo acc _ = acc + 1
 
     {-# INLINE deserializeAt #-}
-    deserializeAt initialOffset _ _ = pure (initialOffset + 1, Proxy)
+    deserializeAt initialOffset arr endOffset = do
+        -- Read the byte only to check the bounds, its value is not checked.
+        (i0, _ :: Word8) <- deserializeAt initialOffset arr endOffset
+        pure (i0, Proxy)
 
     {-# INLINE serializeAt #-}
     serializeAt initialOffset arr _ =
