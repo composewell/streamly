@@ -132,6 +132,19 @@ testSymLinkFollow tmpDir = do
                      fp)
 #endif
 
+-- XXX The concurrent listDir*Par* tests are disabled on the JS backend. They
+-- crash the JS runtime intermittently with errors like
+-- "h$ap_1_1_fast: unexpected closure type: 2" or "TypeError: Cannot read
+-- properties of undefined (reading 't')". Enable them when the crash is fixed.
+#ifndef USE_STREAMLY_CORE
+skipOnJS :: Expectation -> Expectation
+#ifdef javascript_HOST_ARCH
+skipOnJS _ = pendingWith "crashes the JS runtime"
+#else
+skipOnJS = id
+#endif
+#endif
+
 -- | List the current directory recursively
 runTests :: FilePath -> IO ()
 runTests tmpDir = do
@@ -181,11 +194,11 @@ runTests tmpDir = do
             it "listDirInterleave" $
                testCorrectness pathsBig (listDirInterleave id bigTree)
 #ifndef USE_STREAMLY_CORE
-            it "listDirPar" $
+            it "listDirPar" $ skipOnJS $
                testCorrectness pathsBig (listDirPar id bigTree)
-            it "listDirParInterleaved" $
+            it "listDirParInterleaved" $ skipOnJS $
                testCorrectness pathsBig (listDirParInterleaved id bigTree)
-            it "listDirParOrdered" $
+            it "listDirParOrdered" $ skipOnJS $
                testCorrectness pathsBig (listDirParOrdered id bigTree)
 #endif
             it "listDirChunkDfs" $
@@ -199,11 +212,11 @@ runTests tmpDir = do
             it "listDirChunkInterleave" $
                testCorrectness pathsBig (listDirChunkInterleave id bigTree)
 #ifndef USE_STREAMLY_CORE
-            it "listDirChunkPar" $
+            it "listDirChunkPar" $ skipOnJS $
                testCorrectness pathsBig (listDirChunkPar id bigTree)
-            it "listDirChunkParInterleaved" $
+            it "listDirChunkParInterleaved" $ skipOnJS $
                testCorrectness pathsBig (listDirChunkParInterleaved id bigTree)
-            it "listDirChunkParOrdered" $
+            it "listDirChunkParOrdered" $ skipOnJS $
                testCorrectness pathsBig (listDirChunkParOrdered id bigTree)
 #endif
             it "listDirChunkFoldDfs" $
@@ -217,12 +230,12 @@ runTests tmpDir = do
             it "listDirChunkFoldInterleave" $
                testCorrectness (tail pathsBig) (listDirChunkFoldInterleave id bigTree)
 #ifndef USE_STREAMLY_CORE
-            it "listDirChunkFoldPar" $
+            it "listDirChunkFoldPar" $ skipOnJS $
                testCorrectness (tail pathsBig) (listDirChunkFoldPar id bigTree)
-            it "listDirChunkFoldParInterleaved" $
+            it "listDirChunkFoldParInterleaved" $ skipOnJS $
                testCorrectness
                    (tail pathsBig) (listDirChunkFoldParInterleaved id bigTree)
-            it "listDirChunkFoldParOrdered" $
+            it "listDirChunkFoldParOrdered" $ skipOnJS $
                testCorrectness (tail pathsBig) (listDirChunkFoldParOrdered id bigTree)
 #endif
 #if !defined(mingw32_HOST_OS) && !defined(__MINGW32__)
