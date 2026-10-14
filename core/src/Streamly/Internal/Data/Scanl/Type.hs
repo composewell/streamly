@@ -687,8 +687,7 @@ minBy cmp x y =
 minimumBy :: Monad m => (a -> a -> Ordering) -> Scanl m a (Maybe a)
 minimumBy cmp = scanl1' (minBy cmp)
 
--- | Determine the minimum element in a stream using the supplied comparison
--- function.
+-- | Determine the minimum element in a stream.
 --
 -- Definitions:
 --
@@ -696,9 +695,9 @@ minimumBy cmp = scanl1' (minBy cmp)
 -- >>> minimum = Scanl.scanl1' min
 --
 -- Same as the following but without a default minimum. The 'Min' Monoid uses the
--- 'maxBound' as the default maximum:
+-- 'maxBound' as the default minimum:
 --
--- >>> maximum = fmap Data.Semigroup.getMin $ Scanl.foldMap Data.Semigroup.Min
+-- >>> minimum = fmap Data.Semigroup.getMin $ Scanl.foldMap Data.Semigroup.Min
 --
 {-# INLINE minimum #-}
 minimum :: (Monad m, Ord a) => Scanl m a (Maybe a)

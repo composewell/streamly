@@ -684,12 +684,12 @@ the = scant' step initial id
 ------------------------------------------------------------------------------
 
 -- | Determine the sum of all elements of a stream of numbers. Returns additive
--- identity (@0@) when the stream is empty. Note that this is not numerically
--- stable for floating point numbers.
+-- identity (@0@) when the stream is empty. Uses Kahan-Babuska-Neumaier
+-- summation, which is numerically stable for floating point numbers.
 --
 -- >>> sum = Scanl.cumulativeScan Scanl.incrSum
 --
--- Same as following but numerically stable:
+-- Same as the following, except that these are not numerically stable:
 --
 -- >>> sum = Scanl.scanl' (+) 0
 -- >>> sum = fmap Data.Monoid.getSum $ Scanl.foldMap Data.Monoid.Sum
@@ -2005,7 +2005,9 @@ zipStreamWithM = undefined
 zipStream :: Monad m => Stream m a -> Scanl m (a, b) x -> Scanl m b x
 zipStream = zipStreamWithM (curry return)
 
--- | Pair each element of a scan input with its index, starting from index 0.
+-- | @indexingWith i f@ pairs each element of a scan input with an index. The
+-- first element gets the index @i@, the index of each following element is
+-- @f@ applied to the previous index.
 --
 {-# INLINE indexingWith #-}
 indexingWith :: Monad m => Int -> (Int -> Int) -> Scanl m a (Maybe (Int, a))
@@ -2136,6 +2138,9 @@ toStreamRev = fmap StreamD.fromList toListRev
 
 -- | Get the bottom most @n@ elements using the supplied comparison function.
 --
+-- The returned 'MutArray' is the buffer of the scan, later inputs modify it in
+-- place. Convert or copy each output before the next input if it is retained.
+--
 {-# INLINE bottomBy #-}
 bottomBy :: (MonadIO m, Unbox a) =>
        (a -> a -> Ordering)
@@ -2177,8 +2182,11 @@ bottomBy cmp n = Scanl step initial extract extract
 -- Example:
 --
 -- >>> stream = Stream.fromList [2::Int,7,9,3,1,5,6,11,17]
--- >>> Stream.toList (Stream.scanl (Scanl.topBy compare 3) stream) >>= mapM MutArray.toList
--- [[],[17],[17,11],[17,11,9],[17,11,9],[17,11,9],[17,11,9],[17,11,9],[17,11,9],[17,11,9]]
+-- >>> Stream.toList $ Stream.scanl (Scanl.rmapM MutArray.toList (Scanl.topBy compare 3)) stream
+-- [[],[2],[7,2],[9,7,2],[9,7,3],[9,7,3],[9,7,5],[9,7,6],[11,9,7],[17,11,9]]
+--
+-- The returned 'MutArray' is the buffer of the scan, later inputs modify it in
+-- place. Convert or copy each output before the next input if it is retained.
 --
 -- /Pre-release/
 --
@@ -2196,8 +2204,8 @@ topBy cmp = bottomBy (flip cmp)
 -- >>> top = Scanl.topBy compare
 --
 -- >>> stream = Stream.fromList [2::Int,7,9,3,1,5,6,11,17]
--- >>> Stream.toList (Stream.scanl (Scanl.top 3) stream) >>= mapM MutArray.toList
--- [[],[17],[17,11],[17,11,9],[17,11,9],[17,11,9],[17,11,9],[17,11,9],[17,11,9],[17,11,9]]
+-- >>> Stream.toList $ Stream.scanl (Scanl.rmapM MutArray.toList (Scanl.top 3)) stream
+-- [[],[2],[7,2],[9,7,2],[9,7,3],[9,7,3],[9,7,5],[9,7,6],[11,9,7],[17,11,9]]
 --
 -- /Pre-release/
 {-# INLINE top #-}
@@ -2211,8 +2219,8 @@ top = bottomBy $ flip compare
 -- >>> bottom = Scanl.bottomBy compare
 --
 -- >>> stream = Stream.fromList [2::Int,7,9,3,1,5,6,11,17]
--- >>> Stream.toList (Stream.scanl (Scanl.bottom 3) stream) >>= mapM MutArray.toList
--- [[],[1],[1,2],[1,2,3],[1,2,3],[1,2,3],[1,2,3],[1,2,3],[1,2,3],[1,2,3]]
+-- >>> Stream.toList $ Stream.scanl (Scanl.rmapM MutArray.toList (Scanl.bottom 3)) stream
+-- [[],[2],[2,7],[2,7,9],[2,3,7],[1,2,3],[1,2,3],[1,2,3],[1,2,3],[1,2,3]]
 --
 -- /Pre-release/
 {-# INLINE bottom #-}

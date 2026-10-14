@@ -16,9 +16,10 @@
 -- the output of a scan is a stream. A fold is equivalent to a left scan which
 -- produces only the final value in the output stream.
 --
--- Like folds, a scan has an internal state. Unlike a fold, a scan produces an
--- output on each input, the output is a function of the scan state and the
--- input.
+-- Like folds, a scan has an internal state. Unlike a fold, a scan produces at
+-- most one output on each input, the output is a function of the scan state
+-- and the input. A scan may skip the output on an input using the 'Continue'
+-- step, e.g. 'filter'.
 --
 -- A @Scanl m a b@ can represent a @Fold m a b@ by discarding the intermediate
 -- outputs and keeping only the final output of the scan.
@@ -37,7 +38,8 @@
 -- == Scanl vs Pipe
 --
 -- A scan is a simpler version of the consumer side of pipes. A left scan
--- always produces an output whereas a pipe has an additional ability to skip
+-- consumes one input to produce at most one output, whereas a pipe can produce
+-- multiple outputs on one input or consume multiple inputs before producing an
 -- output. Scans are simpler abstractions to think about compared to pipes and
 -- easier for the compiler to optimize and fuse.
 --
