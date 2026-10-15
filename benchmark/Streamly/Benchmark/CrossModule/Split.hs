@@ -90,6 +90,13 @@ inspect $ 'wordsBy `hasNoType` ''Producer.ConcatState -- FH.read/UF.many
 inspect $ 'wordsBy `hasNoType` ''MutArray.ArrayUnsafe  -- FH.read/A.read
 #endif
 
+-- | Split on any of the word8 sequences.
+splitOneOf :: [String] -> Handle -> IO Int
+splitOneOf pats inh =
+    Stream.fold Fold.length
+        $ Stream.splitSepByOneOf (map toarr pats) Fold.drain
+        $ Handle.read inh
+
 -- | Split on a word8 sequence.
 splitOnSeq :: String -> Handle -> IO Int
 splitOnSeq str inh =
@@ -273,6 +280,18 @@ benchmarks env =
             env $ \inh _ -> splitOnSeq "abcdefghijklmnopqrstuvwxyz" inh)
       , (SpaceO_1, mkBench "splitOnSeq KR infix 100k long pattern"
             env $ \inh _ -> splitOnSeq100k inh)
+
+      -- Any of several patterns
+      , (SpaceO_1, mkBench "splitSepByOneOf lf" env $ \inh _ ->
+            splitOneOf ["\n"] inh)
+      , (SpaceO_1, mkBench "splitSepByOneOf crlf lf" env $ \inh _ ->
+            splitOneOf ["\r\n", "\n"] inh)
+      , (SpaceO_1, mkBench "splitSepByOneOf abcdefghi" env $ \inh _ ->
+            splitOneOf ["abcdefghi"] inh)
+      , (SpaceO_1, mkBench "splitSepByOneOf abc..z abcdefghi crlf"
+            env $ \inh _ ->
+                splitOneOf ["abcdefghijklmnopqrstuvwxyz", "abcdefghi", "\r\n"]
+                    inh)
 
       -- Suffix
       , (SpaceO_1, mkBench "splitOnSuffixSeq empty suffix" env $ \inh _ ->
