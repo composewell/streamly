@@ -15,7 +15,8 @@ module BenchTestLib.DirIO
     , listDirUnfoldBfsRev
     , listDirConcatDfs
     , listDirConcatBfs
-    , listDirConcatBfsRev
+    , listDirConcatWideDfsRev
+    , listDirConcatWideDfs
     , listDirAppend
     , listDirInterleave
 #ifndef USE_STREAMLY_CORE
@@ -25,7 +26,7 @@ module BenchTestLib.DirIO
 #endif
     , listDirChunkDfs
     , listDirChunkBfs
-    , listDirChunkBfsRev
+    , listDirChunkWideDfsRev
     , listDirChunkAppend
     , listDirChunkInterleave
 #ifndef USE_STREAMLY_CORE
@@ -35,7 +36,7 @@ module BenchTestLib.DirIO
 #endif
     , listDirChunkFoldDfs
     , listDirChunkFoldBfs
-    , listDirChunkFoldBfsRev
+    , listDirChunkFoldWideDfsRev
     , listDirChunkFoldAppend
     , listDirChunkFoldInterleave
 #ifndef USE_STREAMLY_CORE
@@ -295,11 +296,17 @@ listDirConcatBfs
     :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
 listDirConcatBfs f = listDirWith (Stream.bfsConcatIterate (streamDirMaybe f))
 
-{-# INLINE listDirConcatBfsRev #-}
-listDirConcatBfsRev
+{-# INLINE listDirConcatWideDfsRev #-}
+listDirConcatWideDfsRev
     :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
-listDirConcatBfsRev f =
-    listDirWith (Stream.altBfsConcatIterate (streamDirMaybe f))
+listDirConcatWideDfsRev f =
+    listDirWith (Stream.wideDfsConcatIterateRev (streamDirMaybe f))
+
+{-# INLINE listDirConcatWideDfs #-}
+listDirConcatWideDfs
+    :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
+listDirConcatWideDfs f =
+    listDirWith (Stream.wideDfsConcatIterate (streamDirMaybe f))
 
 {-# INLINE listDirAppend #-}
 listDirAppend
@@ -348,11 +355,12 @@ listDirChunkBfs
 listDirChunkBfs f =
     listDirChunkedWith (Stream.bfsConcatIterate (streamDirChunkedMaybe f))
 
-{-# INLINE listDirChunkBfsRev #-}
-listDirChunkBfsRev
+{-# INLINE listDirChunkWideDfsRev #-}
+listDirChunkWideDfsRev
     :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
-listDirChunkBfsRev f =
-    listDirChunkedWith (Stream.altBfsConcatIterate (streamDirChunkedMaybe f))
+listDirChunkWideDfsRev f =
+    listDirChunkedWith
+        (Stream.wideDfsConcatIterateRev (streamDirChunkedMaybe f))
 
 {-# INLINE listDirChunkAppend #-}
 listDirChunkAppend
@@ -411,12 +419,12 @@ listDirChunkFoldBfs f =
     listDirChunkedFoldWith
         (Stream.bfsConcatIterate (streamDirChunkedFoldMaybe f))
 
-{-# INLINE listDirChunkFoldBfsRev #-}
-listDirChunkFoldBfsRev
+{-# INLINE listDirChunkFoldWideDfsRev #-}
+listDirChunkFoldWideDfsRev
     :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
-listDirChunkFoldBfsRev f =
+listDirChunkFoldWideDfsRev f =
     listDirChunkedFoldWith
-        (Stream.altBfsConcatIterate (streamDirChunkedFoldMaybe f))
+        (Stream.wideDfsConcatIterateRev (streamDirChunkedFoldMaybe f))
 
 {-# INLINE listDirChunkFoldAppend #-}
 listDirChunkFoldAppend

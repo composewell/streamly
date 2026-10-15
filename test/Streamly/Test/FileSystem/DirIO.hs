@@ -187,8 +187,10 @@ runTests tmpDir = do
                testCorrectness pathsBig (listDirConcatDfs id bigTree)
             it "listDirConcatBfs" $
                testCorrectness pathsSmall (listDirConcatBfs id smallTree)
-            it "listDirConcatBfsRev" $
-               testCorrectness pathsSmall (listDirConcatBfsRev id smallTree)
+            it "listDirConcatWideDfsRev" $
+               testCorrectness pathsSmall (listDirConcatWideDfsRev id smallTree)
+            it "listDirConcatWideDfs" $
+               testCorrectness pathsBig (listDirConcatWideDfs id bigTree)
             it "listDirAppend" $
                testCorrectness pathsBig (listDirAppend id bigTree)
             it "listDirInterleave" $
@@ -205,8 +207,8 @@ runTests tmpDir = do
                testCorrectness pathsBig (listDirChunkDfs id bigTree)
             it "listDirChunkBfs" $
                testCorrectness pathsSmall (listDirChunkBfs id smallTree)
-            it "listDirChunkBfsRev" $
-               testCorrectness pathsSmall (listDirChunkBfsRev id smallTree)
+            it "listDirChunkWideDfsRev" $
+               testCorrectness pathsSmall (listDirChunkWideDfsRev id smallTree)
             it "listDirChunkAppend" $
                testCorrectness pathsBig (listDirChunkAppend id bigTree)
             it "listDirChunkInterleave" $
@@ -223,8 +225,9 @@ runTests tmpDir = do
                testCorrectness (tail pathsBig) (listDirChunkFoldDfs id bigTree)
             it "listDirChunkFoldBfs" $
                testCorrectness (tail pathsSmall) (listDirChunkFoldBfs id smallTree)
-            it "listDirChunkFoldBfsRev" $
-               testCorrectness (tail pathsSmall) (listDirChunkFoldBfsRev id smallTree)
+            it "listDirChunkFoldWideDfsRev" $
+               testCorrectness
+                   (tail pathsSmall) (listDirChunkFoldWideDfsRev id smallTree)
             it "listDirChunkFoldAppend" $
                testCorrectness (tail pathsBig) (listDirChunkFoldAppend id bigTree)
             it "listDirChunkFoldInterleave" $

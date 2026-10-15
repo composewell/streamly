@@ -148,7 +148,8 @@ module Streamly.Internal.Data.Stream.Type
     , concatIterateScan
     , concatIterate
     , bfsConcatIterate
-    , altBfsConcatIterate
+    , wideDfsConcatIterate
+    , wideDfsConcatIterateRev
 
     -- * Fold Many
     , FoldMany (..)
@@ -192,6 +193,7 @@ module Streamly.Internal.Data.Stream.Type
     , concatIterateDfs
     , concatIterateBfs
     , concatIterateBfsRev
+    , altBfsConcatIterate
     , foldEither -- XXX to be marked as deprecated
     )
 where
@@ -1943,17 +1945,80 @@ concatIterateScan scanner generate initial = Stream step (Left initial)
 -- have to store any state. This makes the stored state proportional to the
 -- number of non-leaf nodes rather than total number of nodes.
 
--- | Same as 'concatIterateBfs' except that the traversal of the last
--- element on a level is emitted first and then going backwards up to the first
--- element (reversed ordering). This may be slightly faster than
--- 'concatIterateBfs'.
+-- | A variant of depth first traversal. Like DFS, it goes depth first along a
+-- path in the tree, but at each node on the way down it expands the node's
+-- stream completely, emitting all its elements, whereas DFS emits one element
+-- and descends into it. For the tree 1->[2,3], 2->[4], 3->[5], 4->[7], 5->[6],
+-- the output is [1,2,3,4,7,5,6].
 --
-{-# INLINE_NORMAL altBfsConcatIterate #-}
-altBfsConcatIterate, concatIterateBfsRev :: Monad m =>
+-- Because each node along a path is fully expanded, the streams of the nodes
+-- on the current path do not have to be kept open; their elements are held in
+-- memory so that they can be expanded later. Their number is at most the sum
+-- of the number of children of the nodes on the current path, i.e. at most the
+-- depth of the path times the maximum number of children per node. Only one
+-- stream is open at a time, the stream of the node currently being expanded.
+--
+-- Use it instead of 'concatIterate' (DFS) when an open stream holds a resource
+-- that is scarcer than memory, for example, a file descriptor. It uses more
+-- memory than DFS but fewer stream resources: for example, a directory
+-- traversal keeps one file descriptor open, whereas DFS keeps one open for
+-- each directory on the current path. BFS and wide DFS both have only one
+-- stream open at a time. In terms of memory, wide DFS holds the pending
+-- elements along an entire path; BFS holds the elements of an entire level of
+-- the tree.
+--
+-- Example, list a directory tree:
+--
+-- >>> f = either (Just . Dir.readEitherPaths id) (const Nothing)
+-- >>> input = Stream.fromEffect (Left <$> Path.fromString ".")
+-- >>> ls = Stream.wideDfsConcatIterate f input
+--
+-- /Pre-release/
+{-# INLINE_NORMAL wideDfsConcatIterate #-}
+wideDfsConcatIterate :: Monad m =>
        (a -> Maybe (Stream m a))
     -> Stream m a
     -> Stream m a
-altBfsConcatIterate f stream = Stream step (stream, [])
+wideDfsConcatIterate f stream = Stream step (stream, [], [])
+
+    where
+
+    revOnto [] ys = ys
+    revOnto (x:xs) ys = revOnto xs (x:ys)
+
+    -- rcs: the streams of the children of the current stream in reverse
+    -- order, reversed onto xs when the current stream ends. In an in-memory
+    -- tree benchmark this was 3-7% faster than a difference list, with the
+    -- same allocation.
+    {-# INLINE_LATE step #-}
+    step gst (UnStream step1 st, xs, rcs) = do
+        r <- step1 (adaptState gst) st
+        case r of
+            Yield a s -> do
+                let rcs1 =
+                        case f a of
+                            Nothing -> rcs
+                            Just c -> c : rcs
+                return $ Yield a (Stream step1 s, xs, rcs1)
+            Skip s -> return $ Skip (Stream step1 s, xs, rcs)
+            Stop ->
+                case revOnto rcs xs of
+                    (y:ys) -> return $ Skip (y, ys, [])
+                    [] -> return Stop
+
+-- | Like 'wideDfsConcatIterate' but the children of a node are expanded in
+-- reverse order, the last child first. For the tree 1->[2,3], 2->[4], 3->[5],
+-- 4->[7], 5->[6], the output is [1,2,3,5,6,4,7]; 'wideDfsConcatIterate' gives
+-- [1,2,3,4,7,5,6]. This is slightly faster than 'wideDfsConcatIterate'. The
+-- resource use is the same as that of 'wideDfsConcatIterate'.
+--
+-- /Pre-release/
+{-# INLINE_NORMAL wideDfsConcatIterateRev #-}
+wideDfsConcatIterateRev, altBfsConcatIterate, concatIterateBfsRev :: Monad m =>
+       (a -> Maybe (Stream m a))
+    -> Stream m a
+    -> Stream m a
+wideDfsConcatIterateRev f stream = Stream step (stream, [])
 
     where
 
@@ -1973,11 +2038,27 @@ altBfsConcatIterate f stream = Stream step (stream, [])
                     (y:ys) -> return $ Skip (y, ys)
                     [] -> return Stop
 
-RENAME(concatIterateBfsRev,altBfsConcatIterate)
+RENAME(concatIterateBfsRev,wideDfsConcatIterateRev)
+RENAME(altBfsConcatIterate,wideDfsConcatIterateRev)
 
--- | Similar to 'concatIterate' except that it traverses the stream in
--- breadth first style (BFS). First, all the elements in the input stream are
--- emitted, and then their traversals are emitted.
+-- | Breadth first traversal (BFS) of a tree structure. The traversal proceeds
+-- strictly level by level: one level of the tree finishes completely before
+-- the next level starts. For the tree 1->[2,3], 2->[4], 3->[5], 4->[7],
+-- 5->[6], the output is [1,2,3,4,5,7,6].
+--
+-- Because the streams of the nodes on a level are run to completion one after
+-- another, they do not have to be kept open, but their elements are held in
+-- memory to be expanded later. Only one stream is open at a time, the stream
+-- of the node currently being expanded. The memory required is proportional
+-- to the width of the widest level of the tree.
+--
+-- For example, during a directory traversal BFS has only one file descriptor
+-- open but holds the entries of an entire level in memory. BFS is preferred
+-- when the tree is deep and narrow, and DFS when the tree is shallow and wide.
+--
+-- BFS and wide DFS both have only one stream open at a time. In terms of
+-- memory, wide DFS holds the pending elements along an entire path; BFS holds
+-- the elements of an entire level of the tree.
 --
 -- Example, list a directory tree using BFS:
 --
@@ -2016,9 +2097,18 @@ bfsConcatIterate f stream = Stream step (stream, [], [])
 
 RENAME(concatIterateBfs,bfsConcatIterate)
 
--- | Traverse the stream in depth first style (DFS). Map each element in the
--- input stream to a stream and flatten, recursively map the resulting elements
--- as well to a stream and flatten until no more streams are generated.
+-- | Depth first traversal (DFS) of a tree structure. The traversal opens the
+-- stream of a node, takes its first child, then the first child of that
+-- child, and so on until it reaches a leaf node; it then continues with the
+-- next sibling of the leaf. For the tree 1->[2,3], 2->[4], 3->[5], 4->[7],
+-- 5->[6], the output is [1,2,4,7,3,5,6].
+--
+-- Because the stream of each node on the current path is unfinished, the
+-- streams of all the nodes on the path have to be kept open; the number of
+-- open streams and the memory used are proportional to the depth of the
+-- current path. For example, during a directory traversal DFS keeps a file
+-- descriptor open for each directory on the current path. DFS is preferred
+-- when the tree is shallow and wide, and BFS when the tree is deep and narrow.
 --
 -- Example, list a directory tree using DFS:
 --

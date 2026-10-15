@@ -391,11 +391,43 @@ _testBfsConcatIterate = do
         Stream.bfsConcatIterate treeConcatF (Stream.fromPure (1 :: Int))
     result `shouldBe` [1, 2, 3, 4, 5, 6, 7]
 
-_testAltBfsConcatIterate :: Expectation
-_testAltBfsConcatIterate = do
+_testWideDfsConcatIterateRev :: Expectation
+_testWideDfsConcatIterateRev = do
     result <- Stream.toList $
-        Stream.altBfsConcatIterate treeConcatF (Stream.fromPure (1 :: Int))
+        Stream.wideDfsConcatIterateRev treeConcatF (Stream.fromPure (1 :: Int))
     result `shouldBe` [1, 2, 3, 6, 7, 4, 5]
+
+-- Tree: 1->[2,3], 2->[4], 3->[5], 4->[7], 5->[6].
+deepTreeChildren :: Int -> [Int]
+deepTreeChildren n =
+    case n of
+        1 -> [2, 3]
+        2 -> [4]
+        3 -> [5]
+        4 -> [7]
+        5 -> [6]
+        _ -> []
+
+deepTreeConcatF :: Int -> Maybe (Stream IO Int)
+deepTreeConcatF n =
+    case deepTreeChildren n of
+        [] -> Nothing
+        cs -> Just (Stream.fromList cs)
+
+{-# NOINLINE wideDfsConcatIterateDeep #-}
+wideDfsConcatIterateDeep :: Stream IO Int -> Stream IO Int
+wideDfsConcatIterateDeep = Stream.wideDfsConcatIterate deepTreeConcatF
+
+{-# NOINLINE wideDfsConcatIterateRevDeep #-}
+wideDfsConcatIterateRevDeep :: Stream IO Int -> Stream IO Int
+wideDfsConcatIterateRevDeep = Stream.wideDfsConcatIterateRev deepTreeConcatF
+
+testWideDfsConcatIterateDeep :: Expectation
+testWideDfsConcatIterateDeep = do
+    Stream.toList (wideDfsConcatIterateDeep (Stream.fromPure 1))
+        `shouldReturn` [1, 2, 3, 4, 7, 5, 6]
+    Stream.toList (wideDfsConcatIterateRevDeep (Stream.fromPure 1))
+        `shouldReturn` [1, 2, 3, 5, 6, 4, 7]
 
 testConcatIterateScan :: Expectation
 testConcatIterateScan = do
@@ -753,11 +785,12 @@ main = hspec
     {-
     it "concatIterate" _testConcatIterate
     it "bfsConcatIterate" _testBfsConcatIterate
-    it "altBfsConcatIterate" _testAltBfsConcatIterate
+    it "wideDfsConcatIterateRev" _testWideDfsConcatIterateRev
     it "bfsUnfoldIterate" _testBfsUnfoldIterate
     it "altBfsUnfoldIterate" _testAltBfsUnfoldIterate
     -}
 
+    it "wideDfsConcatIterate(Rev) deep" testWideDfsConcatIterateDeep
     it "concatIterateScan" testConcatIterateScan
     it "Nested Show/Read" testNestedShowRead
     it "refoldIterateM" testRefoldIterateM

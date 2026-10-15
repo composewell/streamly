@@ -92,6 +92,8 @@
   terminates.
 * Fix `Fold.distributeScan` losing the result of a fold that terminates on
   the last input.
+* Renamed `Stream.altBfsConcatIterate` to `wideDfsConcatIterateRev` and added
+  `wideDfsConcatIterate`.
 
 ## 0.3.1 (May 2026)
 

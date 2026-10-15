@@ -48,7 +48,8 @@ main = do
            $ bench "listDirByteChunked (big)" (nfIO $
                Stream.fold Fold.drain $ listDirByteChunked bigTree) :
 #endif
-            -- NOTE: The BFS traversal fails with:
+            -- NOTE: The unfold BFS traversals keep a directory open for every
+            -- pending entry and fail with:
             -- openDirStream: resource exhausted (Too many open files)
             -- if a bigger directory tree is used
             [ bench "listDirUnfoldDfs (big)" $ nfIO $
@@ -59,10 +60,12 @@ main = do
                   Stream.fold Fold.drain $ listDirUnfoldBfsRev id smallTree
             , bench "listDirConcatDfs (big)" $ nfIO $
                   Stream.fold Fold.drain $ listDirConcatDfs id bigTree
-            , bench "listDirConcatBfs (small)" $ nfIO $
-                  Stream.fold Fold.drain $ listDirConcatBfs id smallTree
-            , bench "listDirConcatBfsRev (small)" $ nfIO $
-                  Stream.fold Fold.drain $ listDirConcatBfsRev id smallTree
+            , bench "listDirConcatBfs (big)" $ nfIO $
+                  Stream.fold Fold.drain $ listDirConcatBfs id bigTree
+            , bench "listDirConcatWideDfsRev (big)" $ nfIO $
+                  Stream.fold Fold.drain $ listDirConcatWideDfsRev id bigTree
+            , bench "listDirConcatWideDfs (big)" $ nfIO $
+                  Stream.fold Fold.drain $ listDirConcatWideDfs id bigTree
             , bench "listDirAppend (big)" $ nfIO $
                   Stream.fold Fold.drain $ listDirAppend id bigTree
             , bench "listDirInterleave (big)" $ nfIO $
@@ -75,10 +78,10 @@ main = do
                   Stream.fold Fold.drain $ listDirParOrdered id bigTree
             , bench "listDirChunkDfs (big)" $ nfIO $
                   Stream.fold Fold.drain $ listDirChunkDfs id bigTree
-            , bench "listDirChunkBfs (small)" $ nfIO $
-                  Stream.fold Fold.drain $ listDirChunkBfs id smallTree
-            , bench "listDirChunkBfsRev (small)" $ nfIO $
-                  Stream.fold Fold.drain $ listDirChunkBfsRev id smallTree
+            , bench "listDirChunkBfs (big)" $ nfIO $
+                  Stream.fold Fold.drain $ listDirChunkBfs id bigTree
+            , bench "listDirChunkWideDfsRev (big)" $ nfIO $
+                  Stream.fold Fold.drain $ listDirChunkWideDfsRev id bigTree
             , bench "listDirChunkAppend (big)" $ nfIO $
                   Stream.fold Fold.drain $ listDirChunkAppend id bigTree
             , bench "listDirChunkInterleave (big)" $ nfIO $
