@@ -371,16 +371,28 @@ jobs:
     # and SDK come from the same toolchain. packcheck clears the environment,
     # so SDKROOT or DEVELOPER_DIR cannot be used instead.
     #
-    # GHC records the SDK library path when it is installed, so the GHC and
-    # dependency cache keys include the Xcode version and build. A runner
-    # image with a different Xcode then installs GHC afresh.
+    # The GHC bindists for macOS hardcode the CLT SDK path from their build
+    # machine, e.g. the rts and ghci package confs of GHC 9.14.1 have
+    # /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib in
+    # library-dirs, so the linker uses the CLT SDK even when Xcode is
+    # selected. Point the CLT MacOSX.sdk symlink at the Xcode SDK.
+    #
+    # The GHC and dependency cache keys include the Xcode version and build,
+    # so a runner image with a different Xcode installs GHC afresh.
     - name: Select default Xcode (macOS)
       id: xcode
       if: runner.os == 'macOS'
       run: |
         sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
         xcode-select -p
-        xcrun --show-sdk-path
+        sdk=$(xcrun --show-sdk-path)
+        echo "$sdk"
+        clt=/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
+        if test -L "$clt"; then
+          ls -ld "$clt"
+          sudo ln -sfn "$sdk" "$clt"
+          ls -ld "$clt"
+        fi
         ver=$(xcodebuild -version | awk 'NR==1{v=$2} /Build version/{b=$3} END{print v "-" b}')
         echo "toolchain=-xcode-$ver" >> "$GITHUB_OUTPUT"
 
