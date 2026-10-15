@@ -46,6 +46,9 @@ jobs:
         CABAL_REINIT_CONFIG: y
         CABAL_CHECK_RELAX: y
         CABAL_PROJECT: cabal.project
+        # With the default -j (4 CPUs) the VM (6 GB) killed cabal while it
+        # built fusion-plugin and other dependencies in parallel.
+        CABAL_BUILD_OPTIONS: "-j2"
         DISABLE_BENCH: "y"
         DISABLE_DOCS: "y"
         DISABLE_SDIST_BUILD: "y"
@@ -59,7 +62,7 @@ jobs:
         copyback: false
         envs: >-
           PACKCHECK_COMMAND GHCVER GHCUP_VERSION LC_ALL
-          CABAL_REINIT_CONFIG CABAL_CHECK_RELAX CABAL_PROJECT
+          CABAL_REINIT_CONFIG CABAL_CHECK_RELAX CABAL_PROJECT CABAL_BUILD_OPTIONS
           DISABLE_BENCH DISABLE_DOCS DISABLE_SDIST_BUILD DISABLE_DIST_CHECKS
           PACKCHECK PACKCHECK_GITHUB_URL PACKCHECK_GITHUB_COMMIT
         prepare: |
