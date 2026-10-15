@@ -1,3 +1,8 @@
+# DISABLED: The AppVeyor webhook is deactivated in the GitHub repository
+# settings because the network package fails to build on the old Windows
+# images that AppVeyor uses. The GitHub Actions Windows build covers Windows.
+# To enable it again, re-activate the webhook (Settings -> Webhooks).
+
 # packcheck-0.7.1
 # You can use any of the options supported by packcheck as environment
 # variables here.  See https://github.com/composewell/packcheck for all
