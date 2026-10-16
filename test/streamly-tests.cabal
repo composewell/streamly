@@ -35,6 +35,12 @@ flag dev
   manual: True
   default: False
 
+flag deprecated-tests
+  description: Include the tests of deprecated modules, requires the
+               internal-dev flag of streamly
+  manual: True
+  default: False
+
 flag has-llvm
   description: Use llvm backend for better performance
   manual: True
@@ -204,7 +210,7 @@ library
         Streamly.Test.Data.Parser.CommonTests
     if !flag(use-streamly-core)
       exposed-modules: Streamly.Test.Control.Exception.Common
-    if !flag(use-streamly-core) && flag(dev)
+    if !flag(use-streamly-core) && flag(deprecated-tests)
       exposed-modules: Streamly.Test.Prelude.Common
 
 -------------------------------------------------------------------------------
@@ -646,7 +652,7 @@ test-suite Prelude
   ghc-options: -main-is Streamly.Test.Prelude.main
   if flag(use-streamly-core)
     buildable: False
-  if !flag(dev)
+  if !flag(deprecated-tests)
     buildable: False
 
 test-suite Prelude.Ahead
@@ -656,7 +662,7 @@ test-suite Prelude.Ahead
   ghc-options: -main-is Streamly.Test.Prelude.Ahead.main
   if flag(use-streamly-core)
     buildable: False
-  if !flag(dev)
+  if !flag(deprecated-tests)
     buildable: False
 
 test-suite Prelude.Async
@@ -666,7 +672,7 @@ test-suite Prelude.Async
   ghc-options: -main-is Streamly.Test.Prelude.Async.main
   if flag(use-streamly-core)
     buildable: False
-  if !flag(dev)
+  if !flag(deprecated-tests)
     buildable: False
 
 test-suite Prelude.Concurrent
@@ -678,7 +684,7 @@ test-suite Prelude.Concurrent
     ghc-options: +RTS -M2000M -RTS
   if flag(use-streamly-core)
     buildable: False
-  if !flag(dev)
+  if !flag(deprecated-tests)
     buildable: False
 
 test-suite Prelude.Fold
@@ -688,7 +694,7 @@ test-suite Prelude.Fold
   ghc-options: -main-is Streamly.Test.Prelude.Fold.main
   if flag(use-streamly-core)
     buildable: False
-  if !flag(dev)
+  if !flag(deprecated-tests)
     buildable: False
 
 test-suite Prelude.Parallel
@@ -698,7 +704,7 @@ test-suite Prelude.Parallel
   ghc-options: -main-is Streamly.Test.Prelude.Parallel.main
   if flag(use-streamly-core)
     buildable: False
-  if !flag(dev)
+  if !flag(deprecated-tests)
     buildable: False
 
 test-suite Prelude.Rate
@@ -706,7 +712,7 @@ test-suite Prelude.Rate
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Prelude/Rate.hs
   ghc-options: -main-is Streamly.Test.Prelude.Rate.main
-  if flag(dev)
+  if flag(deprecated-tests)
     buildable: True
   else
     buildable: False
@@ -722,7 +728,7 @@ test-suite Prelude.Serial
     ghc-options: +RTS -M1500M -RTS
   if flag(use-streamly-core)
     buildable: False
-  if !flag(dev)
+  if !flag(deprecated-tests)
     buildable: False
 
 test-suite Prelude.Top
@@ -731,7 +737,7 @@ test-suite Prelude.Top
   main-is: Streamly/Test/Prelude/Top.hs
   if flag(use-streamly-core)
     buildable: False
-  if !flag(dev)
+  if !flag(deprecated-tests)
     buildable: False
 
 test-suite Prelude.WAsync
@@ -741,7 +747,7 @@ test-suite Prelude.WAsync
   ghc-options: -main-is Streamly.Test.Prelude.WAsync.main
   if flag(use-streamly-core)
     buildable: False
-  if !flag(dev)
+  if !flag(deprecated-tests)
     buildable: False
 
 test-suite Prelude.WSerial
@@ -751,7 +757,7 @@ test-suite Prelude.WSerial
   ghc-options: -main-is Streamly.Test.Prelude.WSerial.main
   if flag(use-streamly-core)
     buildable: False
-  if !flag(dev)
+  if !flag(deprecated-tests)
     buildable: False
 
 test-suite Prelude.ZipAsync
@@ -763,7 +769,7 @@ test-suite Prelude.ZipAsync
     ghc-options: +RTS -M750M -RTS
   if flag(use-streamly-core)
     buildable: False
-  if !flag(dev)
+  if !flag(deprecated-tests)
     buildable: False
 
 test-suite Prelude.ZipSerial
@@ -773,5 +779,5 @@ test-suite Prelude.ZipSerial
   ghc-options: -main-is Streamly.Test.Prelude.ZipSerial.main
   if flag(use-streamly-core)
     buildable: False
-  if !flag(dev)
+  if !flag(deprecated-tests)
     buildable: False
