@@ -12,7 +12,8 @@ module BenchTestLib.DirIO
     ( createDirStucture
     , listDirUnfoldDfs
     , listDirUnfoldBfs
-    , listDirUnfoldBfsRev
+    , listDirUnfoldWideDfsRev
+    , listDirUnfoldWideDfs
     , listDirConcatDfs
     , listDirConcatBfs
     , listDirConcatWideDfsRev
@@ -281,10 +282,17 @@ listDirUnfoldBfs
     :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
 listDirUnfoldBfs f = listDirWith (Stream.bfsUnfoldIterate (unfoldDir f))
 
-{-# INLINE listDirUnfoldBfsRev #-}
-listDirUnfoldBfsRev
+{-# INLINE listDirUnfoldWideDfsRev #-}
+listDirUnfoldWideDfsRev
     :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
-listDirUnfoldBfsRev f = listDirWith (Stream.altBfsUnfoldIterate (unfoldDir f))
+listDirUnfoldWideDfsRev f =
+    listDirWith (Stream.wideDfsUnfoldIterateRev (unfoldDir f))
+
+{-# INLINE listDirUnfoldWideDfs #-}
+listDirUnfoldWideDfs
+    :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
+listDirUnfoldWideDfs f =
+    listDirWith (Stream.wideDfsUnfoldIterate (unfoldDir f))
 
 {-# INLINE listDirConcatDfs #-}
 listDirConcatDfs

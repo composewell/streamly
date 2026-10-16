@@ -37,9 +37,7 @@ main :: IO ()
 main = do
     setLocaleEncoding utf8
 
-    let smallTree = "benchmark-tmp/dir-structure-small"
-        bigTree = "benchmark-tmp/dir-structure-big"
-    void $ createDirStucture smallTree 2 3
+    let bigTree = "benchmark-tmp/dir-structure-big"
     void $ createDirStucture bigTree 5 5
 
     defaultMain
@@ -48,16 +46,14 @@ main = do
            $ bench "listDirByteChunked (big)" (nfIO $
                Stream.fold Fold.drain $ listDirByteChunked bigTree) :
 #endif
-            -- NOTE: The unfold BFS traversals keep a directory open for every
-            -- pending entry and fail with:
-            -- openDirStream: resource exhausted (Too many open files)
-            -- if a bigger directory tree is used
             [ bench "listDirUnfoldDfs (big)" $ nfIO $
                   Stream.fold Fold.drain $ listDirUnfoldDfs id bigTree
-            , bench "listDirUnfoldBfs (small)" $ nfIO $
-                  Stream.fold Fold.drain $ listDirUnfoldBfs id smallTree
-            , bench "listDirUnfoldBfsRev (small)" $ nfIO $
-                  Stream.fold Fold.drain $ listDirUnfoldBfsRev id smallTree
+            , bench "listDirUnfoldBfs (big)" $ nfIO $
+                  Stream.fold Fold.drain $ listDirUnfoldBfs id bigTree
+            , bench "listDirUnfoldWideDfsRev (big)" $ nfIO $
+                  Stream.fold Fold.drain $ listDirUnfoldWideDfsRev id bigTree
+            , bench "listDirUnfoldWideDfs (big)" $ nfIO $
+                  Stream.fold Fold.drain $ listDirUnfoldWideDfs id bigTree
             , bench "listDirConcatDfs (big)" $ nfIO $
                   Stream.fold Fold.drain $ listDirConcatDfs id bigTree
             , bench "listDirConcatBfs (big)" $ nfIO $

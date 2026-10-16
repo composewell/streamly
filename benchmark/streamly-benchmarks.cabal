@@ -473,6 +473,7 @@ benchmark Data.Stream
       Stream.Type.Basic
       Stream.Type.MultiStream
       Stream.Type.Nested
+      Stream.Type.Iterate
       Stream.Type.Logic
   if flag(limit-build-mem)
     ghc-options: +RTS -M500M -RTS

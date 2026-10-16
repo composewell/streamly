@@ -180,9 +180,11 @@ runTests tmpDir = do
             it "listDirUnfoldDfs" $
                testCorrectness pathsBig (listDirUnfoldDfs id bigTree)
             it "listDirUnfoldBfs" $
-               testCorrectness pathsSmall (listDirUnfoldBfs id smallTree)
-            it "listDirUnfoldBfsRev" $
-               testCorrectness pathsSmall (listDirUnfoldBfsRev id smallTree)
+               testCorrectness pathsBig (listDirUnfoldBfs id bigTree)
+            it "listDirUnfoldWideDfsRev" $
+               testCorrectness pathsBig (listDirUnfoldWideDfsRev id bigTree)
+            it "listDirUnfoldWideDfs" $
+               testCorrectness pathsBig (listDirUnfoldWideDfs id bigTree)
             it "listDirConcatDfs" $
                testCorrectness pathsBig (listDirConcatDfs id bigTree)
             it "listDirConcatBfs" $

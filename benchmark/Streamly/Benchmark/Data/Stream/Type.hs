@@ -45,6 +45,7 @@ import Stream.Type.Logic
 import qualified Stream.Type.Basic as Basic
 import qualified Stream.Type.MultiStream as MultiStream
 import qualified Stream.Type.Nested as Nested
+import qualified Stream.Type.Iterate as Iterate
 import qualified Stream.Type.Logic as Logic
 
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
@@ -52,4 +53,5 @@ benchmarks size =
        Basic.benchmarks size
     ++ MultiStream.benchmarks size
     ++ Nested.benchmarks size
+    ++ Iterate.benchmarks size
     ++ Logic.benchmarks size

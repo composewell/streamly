@@ -94,6 +94,13 @@
   the last input.
 * Renamed `Stream.altBfsConcatIterate` to `wideDfsConcatIterateRev` and added
   `wideDfsConcatIterate`.
+* Renamed `Stream.altBfsUnfoldIterate` to `wideDfsUnfoldIterateRev` and added
+  `wideDfsUnfoldIterate`. `bfsUnfoldIterate` and `wideDfsUnfoldIterateRev` no
+  longer keep a stream open for every pending element, e.g. a directory open
+  for every subdirectory not yet read.
+* `Stream.unfoldIterate` is several times faster when the traversal cost
+  dominates, and no longer blows up compilation with
+  `-fspec-constr-recursive=16`.
 
 ## 0.3.1 (May 2026)
 
