@@ -344,6 +344,7 @@ testConcatForM =
 -- DFS order:               1, 2, 4, 5, 3, 6, 7
 -- BFS order:               1, 2, 3, 4, 5, 6, 7
 -- wideDfsRev order:        1, 2, 3, 6, 7, 4, 5
+-- bfsRev order:            1, 2, 3, 6, 7, 4, 5
 -------------------------------------------------------------------------------
 
 treeChildren :: Int -> [Int]
@@ -385,6 +386,18 @@ testConcatIterate = do
         Stream.concatIterate treeConcatF (Stream.fromPure (1 :: Int))
     result `shouldBe` [1, 2, 4, 5, 3, 6, 7]
 
+testBfsConcatIterateRev :: Expectation
+testBfsConcatIterateRev = do
+    result <- Stream.toList $
+        Stream.bfsConcatIterateRev treeConcatF (Stream.fromPure (1 :: Int))
+    result `shouldBe` [1, 2, 3, 6, 7, 4, 5]
+
+testBfsUnfoldIterateRev :: Expectation
+testBfsUnfoldIterateRev = do
+    result <- Stream.toList $
+        Stream.bfsUnfoldIterateRev treeUnfold (Stream.fromPure (1 :: Int))
+    result `shouldBe` [1, 2, 3, 6, 7, 4, 5]
+
 testBfsConcatIterate :: Expectation
 testBfsConcatIterate = do
     result <- Stream.toList $
@@ -422,12 +435,18 @@ wideDfsConcatIterateDeep = Stream.wideDfsConcatIterate deepTreeConcatF
 wideDfsConcatIterateRevDeep :: Stream IO Int -> Stream IO Int
 wideDfsConcatIterateRevDeep = Stream.wideDfsConcatIterateRev deepTreeConcatF
 
+{-# NOINLINE bfsConcatIterateRevDeep #-}
+bfsConcatIterateRevDeep :: Stream IO Int -> Stream IO Int
+bfsConcatIterateRevDeep = Stream.bfsConcatIterateRev deepTreeConcatF
+
 testWideDfsConcatIterateDeep :: Expectation
 testWideDfsConcatIterateDeep = do
     Stream.toList (wideDfsConcatIterateDeep (Stream.fromPure 1))
         `shouldReturn` [1, 2, 3, 4, 7, 5, 6]
     Stream.toList (wideDfsConcatIterateRevDeep (Stream.fromPure 1))
         `shouldReturn` [1, 2, 3, 5, 6, 4, 7]
+    Stream.toList (bfsConcatIterateRevDeep (Stream.fromPure 1))
+        `shouldReturn` [1, 2, 3, 5, 4, 7, 6]
 
 deepTreeUnfold :: Unfold IO Int Int
 deepTreeUnfold = Unfold.lmap deepTreeChildren Unfold.fromList
@@ -444,6 +463,10 @@ wideDfsUnfoldIterateRevDeep = Stream.wideDfsUnfoldIterateRev deepTreeUnfold
 bfsUnfoldIterateDeep :: Stream IO Int -> Stream IO Int
 bfsUnfoldIterateDeep = Stream.bfsUnfoldIterate deepTreeUnfold
 
+{-# NOINLINE bfsUnfoldIterateRevDeep #-}
+bfsUnfoldIterateRevDeep :: Stream IO Int -> Stream IO Int
+bfsUnfoldIterateRevDeep = Stream.bfsUnfoldIterateRev deepTreeUnfold
+
 testUnfoldIterateDeep :: Expectation
 testUnfoldIterateDeep = do
     Stream.toList (wideDfsUnfoldIterateDeep (Stream.fromPure 1))
@@ -452,6 +475,8 @@ testUnfoldIterateDeep = do
         `shouldReturn` [1, 2, 3, 5, 6, 4, 7]
     Stream.toList (bfsUnfoldIterateDeep (Stream.fromPure 1))
         `shouldReturn` [1, 2, 3, 4, 5, 7, 6]
+    Stream.toList (bfsUnfoldIterateRevDeep (Stream.fromPure 1))
+        `shouldReturn` [1, 2, 3, 5, 4, 7, 6]
 
 testConcatIterateScan :: Expectation
 testConcatIterateScan = do
@@ -805,11 +830,13 @@ main = hspec
     it "unfoldIterate" testUnfoldIterate
     it "concatIterate" testConcatIterate
     it "bfsConcatIterate" testBfsConcatIterate
+    it "bfsConcatIterateRev" testBfsConcatIterateRev
     it "wideDfsConcatIterateRev" testWideDfsConcatIterateRev
     it "bfsUnfoldIterate" testBfsUnfoldIterate
+    it "bfsUnfoldIterateRev" testBfsUnfoldIterateRev
     it "wideDfsUnfoldIterateRev" testWideDfsUnfoldIterateRev
-    it "wideDfsConcatIterate(Rev) deep" testWideDfsConcatIterateDeep
-    it "wideDfs/bfsUnfoldIterate deep" testUnfoldIterateDeep
+    it "wideDfs/bfsConcatIterate(Rev) deep" testWideDfsConcatIterateDeep
+    it "wideDfs/bfsUnfoldIterate(Rev) deep" testUnfoldIterateDeep
     it "concatIterateScan" testConcatIterateScan
     it "Nested Show/Read" testNestedShowRead
     it "refoldIterateM" testRefoldIterateM

@@ -81,6 +81,13 @@ bfsConcatIterate k limit =
     sumTree
         $ Stream.bfsConcatIterate (childrenStream k limit) (Stream.fromPure 0)
 
+{-# INLINE bfsConcatIterateRev #-}
+bfsConcatIterateRev :: Int -> Int -> IO Int
+bfsConcatIterateRev k limit =
+    sumTree
+        $ Stream.bfsConcatIterateRev
+            (childrenStream k limit) (Stream.fromPure 0)
+
 {-# INLINE unfoldIterate #-}
 unfoldIterate :: Int -> Int -> IO Int
 unfoldIterate k limit =
@@ -107,6 +114,13 @@ bfsUnfoldIterate k limit =
     sumTree
         $ Stream.bfsUnfoldIterate (childrenUnfold k limit) (Stream.fromPure 0)
 
+{-# INLINE bfsUnfoldIterateRev #-}
+bfsUnfoldIterateRev :: Int -> Int -> IO Int
+bfsUnfoldIterateRev k limit =
+    sumTree
+        $ Stream.bfsUnfoldIterateRev
+            (childrenUnfold k limit) (Stream.fromPure 0)
+
 -------------------------------------------------------------------------------
 -- Benchmarks
 -------------------------------------------------------------------------------
@@ -130,6 +144,8 @@ benchmarks size =
                 $ wideDfsConcatIterateRev k limit)
             , (SpaceO_n, benchIO (prefix "bfsConcatIterate")
                 $ bfsConcatIterate k limit)
+            , (SpaceO_n, benchIO (prefix "bfsConcatIterateRev")
+                $ bfsConcatIterateRev k limit)
             , (SpaceO_1, benchIO (prefix "unfoldIterate")
                 $ unfoldIterate k limit)
             , (SpaceO_1, benchIO (prefix "wideDfsUnfoldIterate")
@@ -138,4 +154,6 @@ benchmarks size =
                 $ wideDfsUnfoldIterateRev k limit)
             , (SpaceO_n, benchIO (prefix "bfsUnfoldIterate")
                 $ bfsUnfoldIterate k limit)
+            , (SpaceO_n, benchIO (prefix "bfsUnfoldIterateRev")
+                $ bfsUnfoldIterateRev k limit)
             ]

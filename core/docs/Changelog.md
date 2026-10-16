@@ -98,6 +98,8 @@
   `wideDfsUnfoldIterate`. `bfsUnfoldIterate` and `wideDfsUnfoldIterateRev` no
   longer keep a stream open for every pending element, e.g. a directory open
   for every subdirectory not yet read.
+* Added `Stream.bfsConcatIterateRev` and `bfsUnfoldIterateRev`, faster BFS
+  variants that start the streams of a level in reverse order.
 * `Stream.unfoldIterate` is several times faster when the traversal cost
   dominates, and no longer blows up compilation with
   `-fspec-constr-recursive=16`.
