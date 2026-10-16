@@ -36,6 +36,7 @@ module Streamly.Internal.Data.Stream.Type
     , toStreamK
 
     -- * From Unfold
+    , UnfoldState(..)
     , unfold
 
     -- * Construction

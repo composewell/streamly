@@ -211,15 +211,15 @@ excBenchmarks env size =
     ]
 
 {-# INLINE benchIO #-}
-benchIO :: NFData b => String -> IO b -> Benchmark
-benchIO name = bench name . nfIO
+benchIO :: NFData b => String -> (Int -> IO b) -> Benchmark
+benchIO name f = bench name $ nfIO $ randomRIO (1, 1 :: Int) >>= f
 
 {-# INLINE withStream #-}
-withStream :: Int -> (Stream IO Int -> IO b) -> IO b
-withStream value f = randomRIO (1, 1 :: Int) >>= f . Common.sourceUnfoldrM value
+withStream :: Int -> (Stream IO Int -> IO b) -> Int -> IO b
+withStream value f = f . Common.sourceUnfoldrM value
 
 {-# NOINLINE pollCounts #-}
-pollCounts :: Int -> IO ()
+pollCounts :: Int -> Int -> IO ()
 pollCounts value = withStream value $ drain . Stream.parTapCount (const True) f
 
     where
@@ -227,7 +227,7 @@ pollCounts value = withStream value $ drain . Stream.parTapCount (const True) f
     f = Stream.drain . Stream.rollingMap2 (-) . Stream.delayPost 1
 
 {-# NOINLINE takeInterval #-}
-takeInterval :: Double -> Int -> IO ()
+takeInterval :: Double -> Int -> Int -> IO ()
 takeInterval i value = withStream value $ drain . Stream.takeInterval i
 
 -- Inspection testing is disabled for takeInterval
@@ -239,7 +239,7 @@ takeInterval i value = withStream value $ drain . Stream.takeInterval i
 #endif
 
 {-# NOINLINE dropInterval #-}
-dropInterval :: Double -> Int -> IO ()
+dropInterval :: Double -> Int -> Int -> IO ()
 dropInterval i value = withStream value $ drain . Stream.dropInterval i
 
 -- Inspection testing is disabled for dropInterval
@@ -270,7 +270,7 @@ getKey :: Int -> Int -> Int
 getKey n = (`mod` n)
 
 {-# INLINE classifySessionsOf #-}
-classifySessionsOf :: (Int -> Int) -> Int -> IO ()
+classifySessionsOf :: (Int -> Int) -> Int -> Int -> IO ()
 classifySessionsOf getKeyF value = withStream value $
       Common.drain
     . Stream.classifySessionsOf
@@ -279,15 +279,15 @@ classifySessionsOf getKeyF value = withStream value $
     . fmap (\x -> (getKeyF x, x))
 
 {-# NOINLINE classifySessionsOf10k #-}
-classifySessionsOf10k :: Int -> IO ()
+classifySessionsOf10k :: Int -> Int -> IO ()
 classifySessionsOf10k = classifySessionsOf (getKey 10000)
 
 {-# NOINLINE classifySessionsOf64 #-}
-classifySessionsOf64 :: Int -> IO ()
+classifySessionsOf64 :: Int -> Int -> IO ()
 classifySessionsOf64 = classifySessionsOf (getKey 64)
 
 {-# INLINE classifySessionsOfHash #-}
-classifySessionsOfHash :: (Int -> Int) -> Int -> IO ()
+classifySessionsOfHash :: (Int -> Int) -> Int -> Int -> IO ()
 classifySessionsOfHash getKeyF value = withStream value $
       Common.drain
     . Stream.classifySessionsByGeneric
@@ -297,11 +297,11 @@ classifySessionsOfHash getKeyF value = withStream value $
     . fmap (\x -> (getKeyF x, x))
 
 {-# NOINLINE classifySessionsOfHash10k #-}
-classifySessionsOfHash10k :: Int -> IO ()
+classifySessionsOfHash10k :: Int -> Int -> IO ()
 classifySessionsOfHash10k = classifySessionsOfHash (getKey 10000)
 
 {-# NOINLINE classifySessionsOfHash64 #-}
-classifySessionsOfHash64 :: Int -> IO ()
+classifySessionsOfHash64 :: Int -> Int -> IO ()
 classifySessionsOfHash64 = classifySessionsOfHash (getKey 64)
 
 o_1_space_grouping :: BenchEnv -> Int -> [Benchmark]

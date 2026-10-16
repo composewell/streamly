@@ -30,7 +30,7 @@ import Control.DeepSeq (NFData(..))
 import Control.Monad (void, when)
 import Control.Monad.Catch (MonadCatch)
 import Data.Maybe (isJust)
-import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Internal.Data.Stream (Stream, Step)
 import Streamly.Internal.Data.StreamK (StreamK)
 import System.Random (randomRIO)
 import Prelude hiding ()
@@ -39,11 +39,19 @@ import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Parser as Parser
+import qualified Streamly.Internal.Data.ParserK as ParserK
 import qualified Streamly.Internal.Data.StreamK as StreamK
+import Streamly.Internal.Data.SVar.Type (State)
 
 import Test.Tasty.Bench hiding (env)
 import Streamly.Benchmark.Common
+import Fusion.Plugin.Types
 import Control.Monad.IO.Class (MonadIO)
+import GHC.Classes (IP)
+import GHC.Stack (CallStack, SrcLoc)
+import Streamly.Data.MutByteArray (Unbox)
+import Streamly.Internal.Data.Array (Array)
+import Streamly.Internal.Data.ParserK (Input)
 
 -------------------------------------------------------------------------------
 -- Utilities
@@ -79,30 +87,64 @@ drainWhile p = Parser.takeWhile p Fold.drain
 -- Folds and parsers
 -------------------------------------------------------------------------------
 
-{-# INLINE fold #-}
-fold :: Stream IO (Array.Array Int) -> IO ()
-fold s = void $ Array.foldBreak Fold.drain $ StreamK.fromStream s
+-- NOTE: Ideally we should not pass streams to fused IO actions, the stream
+-- boundary will remain unfused. But if we avoid that then we will have to pass
+-- lists and then generate stream from list inside, but then the list-stream
+-- boundary will remain unfused.
 
-{-# INLINE parse #-}
-parse :: Int -> Stream IO (Array.Array Int) -> IO ()
-parse value s =
+{-# ANN foldBreak_Drain (PermitPatternMatches
+    [''State, ''Step]) #-}
+{-# ANN foldBreak_Drain (PermitConstructions
+    [''Fold.Step, ''(), ''State, ''Maybe]) #-}
+{-# ANN foldBreak_Drain (PermitTypeClasses [''MonadIO, ''Unbox]) #-}
+{-# ANN foldBreak_Drain DumpCore #-}
+{-# NOINLINE foldBreak_Drain #-}
+foldBreak_Drain :: Stream IO (Array.Array Int) -> IO ()
+foldBreak_Drain s = void $ Array.foldBreak Fold.drain $ StreamK.fromStream s
+
+{-# ANN parseBreak_TakeWhile (PermitPatternMatches
+    [ ''[], ''ParserK.Step, ''Array, ''(,), ''IO, ''Int, ''()
+    , ''Input, ''State, ''Step
+    ]) #-}
+{-# ANN parseBreak_TakeWhile (PermitConstructions
+    [ ''Int, ''State, ''Maybe, ''Bool, ''[], ''SrcLoc, ''CallStack
+    , ''(,), ''Either, ''Array, ''ParserK.Step, ''(), ''Input
+    ]) #-}
+{-# ANN parseBreak_TakeWhile (PermitTypeClasses [''IP, ''Show]) #-}
+{-# NOINLINE parseBreak_TakeWhile #-}
+parseBreak_TakeWhile :: Int -> Stream IO (Array.Array Int) -> IO ()
+parseBreak_TakeWhile value s =
     void $ Array.parseBreak
             (Array.toParserK (drainWhile (< value)))
             (StreamK.fromStream s)
 
-{-# INLINE foldBreak #-}
-foldBreak :: StreamK IO (Array.Array Int) -> IO ()
-foldBreak s = do
+{-# ANN foldBreak_One_Recursive (PermitPatternMatches [''(,), ''Maybe]) #-}
+{-# ANN foldBreak_One_Recursive (PermitConstructions
+    [''Fold.Step, ''Maybe]) #-}
+{-# ANN foldBreak_One_Recursive (PermitTypeClasses
+    [''MonadIO, ''Unbox]) #-}
+{-# NOINLINE foldBreak_One_Recursive #-}
+foldBreak_One_Recursive :: StreamK IO (Array.Array Int) -> IO ()
+foldBreak_One_Recursive s = do
     (r, s1) <- Array.foldBreak Fold.one s
-    when (isJust r) $ foldBreak s1
+    when (isJust r) $ foldBreak_One_Recursive s1
 
-{-# INLINE parseBreak #-}
-parseBreak :: StreamK IO (Array.Array Int) -> IO ()
-parseBreak s = do
+{-# ANN parseBreak_One_Recursive (PermitPatternMatches
+    [ ''Int, ''(), ''Input, ''Array, ''[], ''ParserK.Step
+    , ''(,), ''IO, ''Either
+    ]) #-}
+{-# ANN parseBreak_One_Recursive (PermitConstructions
+    [ ''Int, ''(), ''ParserK.Step, ''[], ''SrcLoc, ''CallStack, ''(,)
+    , ''Either, ''Array, ''State, ''Maybe, ''Bool, ''Input
+    ]) #-}
+{-# ANN parseBreak_One_Recursive (PermitTypeClasses [''IP, ''Show]) #-}
+{-# NOINLINE parseBreak_One_Recursive #-}
+parseBreak_One_Recursive :: StreamK IO (Array.Array Int) -> IO ()
+parseBreak_One_Recursive s = do
     r <- Array.parseBreak (Array.toParserK Parser.one) s
     case r of
         (Left _, _) -> return ()
-        (Right _, s1) -> parseBreak s1
+        (Right _, s1) -> parseBreak_One_Recursive s1
 
 
 -------------------------------------------------------------------------------
@@ -121,22 +163,30 @@ alloc value =
         big <- Stream.toList $ Array.chunksOf value $ sourceUnfoldrM value 0
         return (small, big)
 
+-- Note: Name each benchmark (and its IO action) after the exported function it
+-- benchmarks, using the format functionName_dimension1_dimension2..., where
+-- the dimensions are optional variants/type specializations. Keep extra info
+-- in parenthetical notes in the description.
 benchmarks :: Arrays -> Int -> [(SpaceComplexity, Benchmark)]
 benchmarks arrays value =
     let (arraysSmall, arraysBig) = arrays
     in
-      [ (SpaceO_1, benchIO "foldBreak drain (100-elem arrays)" (\_ -> Stream.fromList arraysSmall) fold)
-      , (SpaceO_1, benchIO "foldBreak drain (one large array)" (\_ -> Stream.fromList arraysBig) fold)
+      [ (SpaceO_1, benchIO "foldBreak_Drain (100-elem arrays)"
+            (\_ -> Stream.fromList arraysSmall) foldBreak_Drain)
+      , (SpaceO_1, benchIO "foldBreak_Drain (one large array)"
+            (\_ -> Stream.fromList arraysBig) foldBreak_Drain)
       , (SpaceO_1, benchIO
-            "foldBreak (recursive, one at a time, 100-elem arrays)"
+            "foldBreak_One_Recursive (100-elem arrays)"
             (\_ -> Stream.fromList arraysSmall)
-            (foldBreak . StreamK.fromStream))
-      , (SpaceO_1, benchIO "parseBreak drain (100-elem arrays)" (\_ -> Stream.fromList arraysSmall)
-            $ parse value)
-      , (SpaceO_1, benchIO "parseBreak drain (one large array)" (\_ -> Stream.fromList arraysBig)
-            $ parse value)
+            (foldBreak_One_Recursive . StreamK.fromStream))
+      , (SpaceO_1, benchIO "parseBreak_TakeWhile (100-elem arrays)"
+            (\_ -> Stream.fromList arraysSmall)
+            $ parseBreak_TakeWhile value)
+      , (SpaceO_1, benchIO "parseBreak_TakeWhile (one large array)"
+            (\_ -> Stream.fromList arraysBig)
+            $ parseBreak_TakeWhile value)
       , (SpaceO_1, benchIO
-            "parseBreak (recursive, one at a time, 100-elem arrays)"
+            "parseBreak_One_Recursive (100-elem arrays)"
             (\_ -> Stream.fromList arraysSmall)
-            (parseBreak . StreamK.fromStream))
+            (parseBreak_One_Recursive . StreamK.fromStream))
       ]

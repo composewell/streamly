@@ -33,19 +33,19 @@ module Stream.Common
     , benchIO
 
     -- Benchmarking functions
-    , apDiscardFst
-    , apDiscardSnd
-    , apLiftA2
-    , toNullAp
-    , monadThen
-    , toNullM
-    , toNullM3
-    , filterAllOutM
-    , filterAllInM
-    , filterSome
-    , breakAfterSome
-    , toListM
-    , toListSome
+    , discardFst_ApplicativeInstance_x2
+    , discardSnd_ApplicativeInstance_x2
+    , liftA2_ApplicativeInstance_x2
+    , ap_ApplicativeInstance_x2
+    , then_MonadInstance_x2
+    , bind_MonadInstance_x2
+    , bind_MonadInstance_x3
+    , bind_MonadInstance_FilterAllOut_x2
+    , bind_MonadInstance_FilterAllIn_x2
+    , bind_MonadInstance_FilterSome_x2
+    , bind_MonadInstance_BreakAfterSome_x2
+    , bind_MonadInstance_ToList_x2
+    , bind_MonadInstance_ToListSome_x2
     , composeN
     )
 where
@@ -143,10 +143,10 @@ benchIOSrc name f =
 benchIO :: (NFData b) => String -> (Int -> IO b) -> Benchmark
 benchIO name f = bench name $ nfIO $ randomRIO (1,1) >>= f
 
-{-# INLINE apDiscardFst #-}
-apDiscardFst :: MonadAsync m =>
+{-# INLINE discardFst_ApplicativeInstance_x2 #-}
+discardFst_ApplicativeInstance_x2 :: MonadAsync m =>
     Int -> Int -> m ()
-apDiscardFst linearCount start = drain $ unCross $
+discardFst_ApplicativeInstance_x2 linearCount start = drain $ unCross $
     mkCross (sourceUnfoldrM nestedCount2 start)
         *> mkCross (sourceUnfoldrM nestedCount2 start)
 
@@ -154,9 +154,9 @@ apDiscardFst linearCount start = drain $ unCross $
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
-{-# INLINE apDiscardSnd #-}
-apDiscardSnd :: MonadAsync m => Int -> Int -> m ()
-apDiscardSnd linearCount start = drain $ unCross $
+{-# INLINE discardSnd_ApplicativeInstance_x2 #-}
+discardSnd_ApplicativeInstance_x2 :: MonadAsync m => Int -> Int -> m ()
+discardSnd_ApplicativeInstance_x2 linearCount start = drain $ unCross $
     mkCross (sourceUnfoldrM nestedCount2 start)
         <* mkCross (sourceUnfoldrM nestedCount2 start)
 
@@ -164,9 +164,9 @@ apDiscardSnd linearCount start = drain $ unCross $
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
-{-# INLINE apLiftA2 #-}
-apLiftA2 :: MonadAsync m => Int -> Int -> m ()
-apLiftA2 linearCount start = drain $ unCross $
+{-# INLINE liftA2_ApplicativeInstance_x2 #-}
+liftA2_ApplicativeInstance_x2 :: MonadAsync m => Int -> Int -> m ()
+liftA2_ApplicativeInstance_x2 linearCount start = drain $ unCross $
     liftA2 (+) (mkCross (sourceUnfoldrM nestedCount2 start))
         (mkCross (sourceUnfoldrM nestedCount2 start))
 
@@ -174,9 +174,9 @@ apLiftA2 linearCount start = drain $ unCross $
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
-{-# INLINE toNullAp #-}
-toNullAp :: MonadAsync m => Int -> Int -> m ()
-toNullAp linearCount start = drain $ unCross $
+{-# INLINE ap_ApplicativeInstance_x2 #-}
+ap_ApplicativeInstance_x2 :: MonadAsync m => Int -> Int -> m ()
+ap_ApplicativeInstance_x2 linearCount start = drain $ unCross $
     (+) <$> mkCross (sourceUnfoldrM nestedCount2 start)
         <*> mkCross (sourceUnfoldrM nestedCount2 start)
 
@@ -184,9 +184,9 @@ toNullAp linearCount start = drain $ unCross $
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
-{-# INLINE monadThen #-}
-monadThen :: MonadAsync m => Int -> Int -> m ()
-monadThen linearCount start = drain $ unCross $ do
+{-# INLINE then_MonadInstance_x2 #-}
+then_MonadInstance_x2 :: MonadAsync m => Int -> Int -> m ()
+then_MonadInstance_x2 linearCount start = drain $ unCross $ do
     mkCross (sourceUnfoldrM nestedCount2 start) >>
         mkCross (sourceUnfoldrM nestedCount2 start)
 
@@ -194,9 +194,9 @@ monadThen linearCount start = drain $ unCross $ do
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
-{-# INLINE toNullM #-}
-toNullM :: MonadAsync m => Int -> Int -> m ()
-toNullM linearCount start = drain $ unCross $ do
+{-# INLINE bind_MonadInstance_x2 #-}
+bind_MonadInstance_x2 :: MonadAsync m => Int -> Int -> m ()
+bind_MonadInstance_x2 linearCount start = drain $ unCross $ do
     x <- mkCross (sourceUnfoldrM nestedCount2 start)
     y <- mkCross (sourceUnfoldrM nestedCount2 start)
     return $ x + y
@@ -205,9 +205,9 @@ toNullM linearCount start = drain $ unCross $ do
 
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
-{-# INLINE toNullM3 #-}
-toNullM3 :: MonadAsync m => Int -> Int -> m ()
-toNullM3 linearCount start = drain $ unCross $ do
+{-# INLINE bind_MonadInstance_x3 #-}
+bind_MonadInstance_x3 :: MonadAsync m => Int -> Int -> m ()
+bind_MonadInstance_x3 linearCount start = drain $ unCross $ do
     x <- mkCross (sourceUnfoldrM nestedCount3 start)
     y <- mkCross (sourceUnfoldrM nestedCount3 start)
     z <- mkCross (sourceUnfoldrM nestedCount3 start)
@@ -215,9 +215,9 @@ toNullM3 linearCount start = drain $ unCross $ do
   where
     nestedCount3 = round (fromIntegral linearCount**(1/3::Double))
 
-{-# INLINE filterAllOutM #-}
-filterAllOutM :: MonadAsync m => Int -> Int -> m ()
-filterAllOutM linearCount start = drain $ unCross $ do
+{-# INLINE bind_MonadInstance_FilterAllOut_x2 #-}
+bind_MonadInstance_FilterAllOut_x2 :: MonadAsync m => Int -> Int -> m ()
+bind_MonadInstance_FilterAllOut_x2 linearCount start = drain $ unCross $ do
     x <- mkCross (sourceUnfoldrM nestedCount2 start)
     y <- mkCross (sourceUnfoldrM nestedCount2 start)
     let s = x + y
@@ -227,9 +227,9 @@ filterAllOutM linearCount start = drain $ unCross $ do
   where
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
-{-# INLINE filterAllInM #-}
-filterAllInM :: MonadAsync m => Int -> Int -> m ()
-filterAllInM linearCount start = drain $ unCross $ do
+{-# INLINE bind_MonadInstance_FilterAllIn_x2 #-}
+bind_MonadInstance_FilterAllIn_x2 :: MonadAsync m => Int -> Int -> m ()
+bind_MonadInstance_FilterAllIn_x2 linearCount start = drain $ unCross $ do
     x <- mkCross (sourceUnfoldrM nestedCount2 start)
     y <- mkCross (sourceUnfoldrM nestedCount2 start)
     let s = x + y
@@ -239,9 +239,9 @@ filterAllInM linearCount start = drain $ unCross $ do
   where
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
-{-# INLINE filterSome #-}
-filterSome :: MonadAsync m => Int -> Int -> m ()
-filterSome linearCount start = drain $ unCross $ do
+{-# INLINE bind_MonadInstance_FilterSome_x2 #-}
+bind_MonadInstance_FilterSome_x2 :: MonadAsync m => Int -> Int -> m ()
+bind_MonadInstance_FilterSome_x2 linearCount start = drain $ unCross $ do
     x <- mkCross (sourceUnfoldrM nestedCount2 start)
     y <- mkCross (sourceUnfoldrM nestedCount2 start)
     let s = x + y
@@ -251,9 +251,9 @@ filterSome linearCount start = drain $ unCross $ do
   where
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
-{-# INLINE breakAfterSome #-}
-breakAfterSome :: Int -> Int -> IO ()
-breakAfterSome linearCount start = do
+{-# INLINE bind_MonadInstance_BreakAfterSome_x2 #-}
+bind_MonadInstance_BreakAfterSome_x2 :: Int -> Int -> IO ()
+bind_MonadInstance_BreakAfterSome_x2 linearCount start = do
     (_ :: Either ErrorCall ()) <- try $ drain $ unCross $ do
         x <- mkCross (sourceUnfoldrM nestedCount2 start)
         y <- mkCross (sourceUnfoldrM nestedCount2 start)
@@ -265,9 +265,9 @@ breakAfterSome linearCount start = do
   where
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
-{-# INLINE toListM #-}
-toListM :: MonadAsync m => Int -> Int -> m [Int]
-toListM linearCount start = toList $ unCross $ do
+{-# INLINE bind_MonadInstance_ToList_x2 #-}
+bind_MonadInstance_ToList_x2 :: MonadAsync m => Int -> Int -> m [Int]
+bind_MonadInstance_ToList_x2 linearCount start = toList $ unCross $ do
     x <- mkCross (sourceUnfoldrM nestedCount2 start)
     y <- mkCross (sourceUnfoldrM nestedCount2 start)
     return $ x + y
@@ -276,9 +276,9 @@ toListM linearCount start = toList $ unCross $ do
 
 -- Taking a specified number of elements is very expensive in logict so we have
 -- a test to measure the same.
-{-# INLINE toListSome #-}
-toListSome :: MonadAsync m => Int -> Int -> m [Int]
-toListSome linearCount start =
+{-# INLINE bind_MonadInstance_ToListSome_x2 #-}
+bind_MonadInstance_ToListSome_x2 :: MonadAsync m => Int -> Int -> m [Int]
+bind_MonadInstance_ToListSome_x2 linearCount start =
     toList $ Stream.take 10000 $ unCross $ do
         x <- mkCross (sourceUnfoldrM nestedCount2 start)
         y <- mkCross (sourceUnfoldrM nestedCount2 start)

@@ -484,6 +484,7 @@ module Streamly.Internal.Data.Fold.Type
     , LongestState (..)
     , Tuple'Fused (..)
     , ManyState (..)
+    , ConcatMapState (..)
     )
 where
 

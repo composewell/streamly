@@ -8,5 +8,6 @@ import qualified Streamly.Internal.Data.Stream as Stream
 
 import Test.Tasty.Bench
 import Streamly.Benchmark.Common hiding (benchPureSrc)
+import Fusion.Plugin.Types
 
-import Prelude as P hiding (map)
+import Prelude as P
