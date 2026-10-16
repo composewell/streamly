@@ -953,6 +953,7 @@ putIndices arr = FL.foldlM' step (return ())
 -- Unsafe because it does not check the bounds of the array.
 --
 -- /Pre-release/
+{-# INLINE unsafeModifyIndex #-}
 modifyIndexUnsafe, unsafeModifyIndex :: forall m a b. (MonadIO m, Unbox a) =>
     Int -> MutArray a -> (a -> (a, b)) -> m b
 unsafeModifyIndex i MutArray{..} f = liftIO $ do
@@ -966,6 +967,7 @@ unsafeModifyIndex i MutArray{..} f = liftIO $ do
 -- | Modify a given index of an array using a modifier function.
 --
 -- /Pre-release/
+{-# INLINE modifyIndex #-}
 modifyIndex :: forall m a b. (MonadIO m, Unbox a) =>
     Int -> MutArray a -> (a -> (a, b)) -> m b
 modifyIndex i MutArray{..} f = do
