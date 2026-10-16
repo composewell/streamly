@@ -413,7 +413,7 @@ jobs:
       with:
         path: |
             ~/.cache/cabal/packages
-        key: cabal-hackage-index-non-windows
+        key: cabal-hackage-index
 
     # GHC is not test/options specific
     - name: Restore ghcup and ghc (non-Windows)
@@ -554,7 +554,7 @@ jobs:
       if: always() && steps.deps-only.outcome == 'success' && runner.os != 'Windows' && steps.restore-hackage.outputs.cache-hit != 'true'
       with:
         path: ~/.cache/cabal/packages
-        key: cabal-hackage-index-non-windows
+        key: cabal-hackage-index
 
     - name: Save ghcup and ghc (non-Windows)
       uses: actions/cache/save@v4

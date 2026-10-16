@@ -20,22 +20,21 @@ jobs:
       run: |
         rm -f ~/.ghcup
 
-    - name: Cache ghcup and ghc (non-Windows)
-      uses: actions/cache@v4
-      if: runner.os != 'Windows'
+    # Saved by the TEST workflow on master
+    - name: Restore ghcup and ghc
+      uses: actions/cache/restore@v4
       with:
         path: |
           ~/.ghcup
-        key: ${{ runner.os }}-ghcup-${{ env.GHCUP_VERSION }}-${{ env.GHCVER }}
+        key: ghc-${{ env.GHCVER }}-v-ubuntu-latest
 
-    - name: Cache hackage package index (non-Windows)
-      uses: actions/cache@v4
-      if: runner.os != 'Windows'
+    # Saved by the TEST workflow on master, "cabal update" updates it.
+    - name: Restore hackage package index
+      uses: actions/cache/restore@v4
       with:
         path: |
             ~/.cache/cabal/packages
-        # Bump the key version to clear the cache
-        key: cache-cabal-packages
+        key: cabal-hackage-index
 
     - name: Cache packdiff (non-Windows)
       uses: actions/cache@v4
@@ -59,7 +58,7 @@ jobs:
 
     - name: Download ghc
       run: |
-        if ! ghc --version 2>/dev/null | grep -q "$GHCVER"
+        if ! ghc --version 2>/dev/null | grep -q "$GHCVER" || ! command -v cabal
         then
           curl -sL -o ./ghcup https://downloads.haskell.org/~ghcup/$GHCUP_VERSION/x86_64-linux-ghcup-$GHCUP_VERSION
           chmod +x ./ghcup

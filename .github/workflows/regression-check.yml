@@ -3,6 +3,11 @@ name: PERF
 on:
   workflow_dispatch:
   pull_request:
+  # On master only the benchmarks are built and cached, so that pull requests
+  # can reuse them.
+  push:
+    branches:
+      - master
 
 # References:
 # https://docs.github.com/en/actions/managing-workflow-runs/manually-running-a-workflow
@@ -70,31 +75,54 @@ jobs:
       run: |
         rm -f ~/.ghcup
 
-    - name: Cache ghcup and ghc (non-Windows)
-      uses: actions/cache@v4
-      if: runner.os != 'Windows'
+    # Saved by the TEST workflow on master
+    - name: Restore ghcup and ghc
+      uses: actions/cache/restore@v4
       with:
         path: |
           ~/.ghcup
-        key: ${{ runner.os }}-ghcup-${{ env.GHCUP_VERSION }}-${{ env.GHCVER }}
+        key: ghc-${{ env.GHCVER }}-v-ubuntu-latest
 
-    - name: Cache hackage package index (non-Windows)
-      uses: actions/cache@v4
-      if: runner.os != 'Windows'
+    # Saved by the TEST workflow on master, "cabal update" updates it.
+    - name: Restore hackage package index
+      uses: actions/cache/restore@v4
       with:
         path: |
             ~/.cache/cabal/packages
-        # Bump the key version to clear the cache
-        key: cache-cabal-packages
+        key: cabal-hackage-index
 
-    - name: Cache cabal build dependencies (non-Windows)
-      uses: actions/cache@v4
-      if: runner.os != 'Windows'
+    - name: Determine the "master" commit
+      run: |
+        if test "${{ github.event_name }}" = push
+        then
+          sha=${{ github.sha }}
+        else
+          sha=$(git ls-remote origin refs/heads/master | cut -f1)
+        fi
+        echo "MASTER_SHA=$sha" >> $GITHUB_ENV
+
+    # Saved by the push to master run of this workflow. A pull request can
+    # restore only the caches saved by itself or by master. When master has
+    # not changed the master benchmarks are up to date and only need to be
+    # run, otherwise an older master build is restored and the build is
+    # incremental. The cabal store is in the same cache so that the
+    # dependencies match the build directory.
+    - name: Restore the "master" build
+      id: master-build
+      uses: actions/cache/restore@v4
       with:
         path: |
-            ~/.local/state/cabal
-        # Bump the key version to clear the cache
-        key: performance-comparison-deps
+          ~/.local/state/cabal
+          dist-newstyle
+        key: perf-master-build-${{ env.GHCVER }}-${{ env.MASTER_SHA }}
+        restore-keys: perf-master-build-${{ env.GHCVER }}-
+
+    - name: Cache bench-runner
+      id: bench-runner
+      uses: actions/cache@v4
+      with:
+        path: bench-runner
+        key: bench-runner-${{ env.GHCVER }}-${{ hashFiles('cabal.project.report', 'benchmark/bench-runner/**', 'targets/**') }}
 
     - name: Update CI_BENCHMARKS environment variable
       run: |
@@ -112,7 +140,7 @@ jobs:
 
     - name: Download ghc
       run: |
-        if ! ghc --version 2>/dev/null | grep -q "$GHCVER"
+        if ! ghc --version 2>/dev/null | grep -q "$GHCVER" || ! command -v cabal
         then
           curl -sL -o ./ghcup https://downloads.haskell.org/~ghcup/$GHCUP_VERSION/x86_64-linux-ghcup-$GHCUP_VERSION
           chmod +x ./ghcup
@@ -124,9 +152,11 @@ jobs:
         # XXX update only if not present
         cabal update
 
+    # Use a separate build directory to keep dist-newstyle for the benchmarks
     - name: Install bench-runner from PR branch
+      if: steps.bench-runner.outputs.cache-hit != 'true'
       run: |
-        cabal install bench-runner --project-file=cabal.project.report --installdir=./ --allow-newer
+        cabal install bench-runner --project-file=cabal.project.report --builddir=dist-bench-runner --installdir=./ --allow-newer
 
     # -----------------------------------------------------------------
     # -- Generate reports for the base branch and upload
@@ -135,10 +165,33 @@ jobs:
     - name: Checkout the "master" branch
       uses: actions/checkout@v4
       with:
-        ref: master
+        ref: ${{ env.MASTER_SHA }}
         clean: false
 
+    # Only build on master. The build command must be the same as the one
+    # that bench-runner uses, otherwise the pull request runs rebuild.
+    - name: Build benchmarks for "master" branch
+      if: github.event_name == 'push'
+      run: |
+        targets=
+        for b in $CI_BENCHMARKS
+        do
+          targets="$targets streamly-benchmarks:bench:$b"
+        done
+        cabal v2-build --flag fusion-plugin --flag limit-build-mem \
+          --with-compiler ghc --enable-benchmarks $targets
+
+    - name: Save the "master" build
+      if: github.event_name == 'push' && steps.master-build.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ~/.local/state/cabal
+          dist-newstyle
+        key: ${{ steps.master-build.outputs.cache-primary-key }}
+
     - name: Run benchmarks for "master" branch
+      if: github.event_name != 'push'
       run: |
         # --cabal-build-options "-j1"
         ./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --targets "$CI_BENCHMARKS" --raw
@@ -151,12 +204,14 @@ jobs:
     # -----------------------------------------------------------------
 
     - name: Checkout the PR branch
+      if: github.event_name != 'push'
       uses: actions/checkout@v4
       with:
         # preserve bench-runner and the "charts" directory created by bench-runner
         clean: false
 
     - name: Run benchmarks and append
+      if: github.event_name != 'push'
       run: |
         # --cabal-build-options "-j1"
         ./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --targets "$CI_BENCHMARKS" --raw --append
@@ -166,10 +221,12 @@ jobs:
     # -----------------------------------------------------------------
 
     - name: List all benchmarks
+      if: github.event_name != 'push'
       run: |
         ./bench-runner --package-name streamly-benchmarks --package-version 0.0.0 --targets "$CI_BENCHMARKS" --no-measure
 
     - name: Compare benchmarks
+      if: github.event_name != 'push'
       run: |
 
         EXIT_STATUS=0
