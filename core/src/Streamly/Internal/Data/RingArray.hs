@@ -540,8 +540,16 @@ scanRingsOf n = Scanl step initial extract extract
     step (Tuple3Fused' mba rh offset) a = do
         RingArray _ _ rh1 <- replace_ (RingArray mba rSize rh) a
         -- offset is the size of the ring in bytes, at most rSize
-        let offset1 =
-                if offset < rSize then offset + SIZE_OF(a) else offset
+        --
+        -- XXX GHC 9.14.1 does not inline this step in the fold loop, and
+        -- boxes the fold state on every input, if we write this as:
+        --
+        -- > if offset < rSize then offset + SIZE_OF(a) else offset
+        --
+        -- Array.createOfLast 1 then allocates 8 MB for 100,000 inputs
+        -- instead of none. GHC 9.10.3 does not have this problem. Report it
+        -- to GHC.
+        let offset1 = min (offset + SIZE_OF(a)) rSize
         return $ Scanl.Partial $ Tuple3Fused' mba rh1 offset1
 
     -- XXX exitify optimization causes a problem here when modular folds are
