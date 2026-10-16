@@ -43,8 +43,9 @@ jobs:
         path: |
             ~/.local/bin
             ~/.local/state/cabal
-        # Bump the key version to clear the cache
-        key: packdiff-ghc-${{ env.GHCVER }}
+        # The packdiff commit is in cabal.project.packdiff, changing it
+        # installs the new packdiff.
+        key: packdiff-ghc-${{ env.GHCVER }}-${{ hashFiles('cabal.project.packdiff') }}
 
     - name: Checkout the current branch
       uses: actions/checkout@v4
@@ -79,18 +80,39 @@ jobs:
           cabal install packdiff --project-file=cabal.project.packdiff --installdir=$HOME/.local/bin --overwrite-policy=always
         fi
 
-    - name: Run packdiff on streamly-core
+    # The output is posted as a PR comment by packdiff-comment.yml, which
+    # finds the PR from the pr-number file.
+    - name: Create the packdiff output directory
       run: |
-        cabal run packdiff --project-file=cabal.project.packdiff -- \
-          diff streamly-core \
+        mkdir -p packdiff-output
+        echo "${{ github.event.pull_request.number }}" > packdiff-output/pr-number
+
+    # The job summary is limited to 1 MiB per step.
+    - name: Run packdiff on streamly-core
+      shell: bash
+      run: |
+        out=packdiff-output/streamly-core.txt
+        packdiff diff --color never -p streamly-core \
           ${{ github.event.pull_request.base.sha }} \
-          streamly-core \
-          $(git rev-parse HEAD)
+          ${{ github.event.pull_request.head.sha }} | tee $out
+        { echo "## streamly-core"; echo; echo '````'
+          head -c 1000000 $out; echo '````'
+        } >> $GITHUB_STEP_SUMMARY
 
     - name: Run packdiff on streamly
+      shell: bash
       run: |
-        cabal run packdiff --project-file=cabal.project.packdiff -- \
-          diff streamly \
+        out=packdiff-output/streamly.txt
+        packdiff diff --color never -p streamly \
           ${{ github.event.pull_request.base.sha }} \
-          streamly \
-          $(git rev-parse HEAD)
+          ${{ github.event.pull_request.head.sha }} | tee $out
+        { echo "## streamly"; echo; echo '````'
+          head -c 1000000 $out; echo '````'
+        } >> $GITHUB_STEP_SUMMARY
+
+    - name: Upload the packdiff output
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: packdiff-output
+        path: packdiff-output/

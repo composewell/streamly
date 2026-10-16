@@ -1,9 +1,10 @@
 source-repository-package
   type: git
   location: https://github.com/composewell/packdiff.git
-  tag: 6581cf29ff6ef1190bd7f1aec6ef081ad33f9519
+  tag: 64926db44181230b46e6abd47188410b71c52d92
 
--- source-repository-package
---   type: git
---   location: https://github.com/composewell/streamly-process.git
---   tag: cc81711774e530601b14d3f34b362941ed80b070
+-- packdiff depends on streamly-coreutils, which is not on Hackage yet.
+source-repository-package
+  type: git
+  location: https://github.com/composewell/streamly-coreutils.git
+  tag: 9daf64da9868c8e6bed11d51bcff45bf6e0b0a93
