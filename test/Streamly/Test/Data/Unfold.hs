@@ -26,10 +26,11 @@ import Streamly.Test.Data.Scanl.Common (evenScanl)
 import Control.Exception (Exception, SomeException, try)
 import Control.Monad.Catch (throwM)
 import Control.Monad.Trans.State.Strict
+import Data.Fixed (Milli)
 import Data.Functor.Identity
 import Data.Int (Int8, Int64)
 import Data.IORef (newIORef, readIORef, writeIORef)
-import Data.Ratio ((%))
+import Data.Ratio (Ratio, (%))
 import Data.Word (Word8)
 import Numeric.Natural (Natural)
 import Foreign.Marshal.Array (withArray)
@@ -335,7 +336,48 @@ enumerateFromToNumFractional = do
         `shouldBe` True
     testUnfold UF.enumerateDownFromToNum (3.5 :: Double, 1.7) [3.5, 2.5]
         `shouldBe` True
-    testUnfold UF.enumerateFromTo (1 :: Rational, 12 % 5) [1, 2]
+    testUnfold UF.enumerateFromToNum (1.5 :: Double, 2) [1.5]
+        `shouldBe` True
+    testUnfold UF.enumerateDownFromToNum (2 :: Double, 1.5) [2]
+        `shouldBe` True
+
+-- The limits must be reached without overflow or underflow.
+enumerateFromToNumLimits :: Expectation
+enumerateFromToNumLimits = do
+    testUnfold UF.enumerateFromToNum
+        (maxBound - 1 :: Int8, maxBound) [maxBound - 1, maxBound]
+        `shouldBe` True
+    testUnfold UF.enumerateFromToNum (maxBound :: Int8, maxBound) [maxBound]
+        `shouldBe` True
+    testUnfold UF.enumerateDownFromToNum
+        (minBound + 1 :: Int8, minBound) [minBound + 1, minBound]
+        `shouldBe` True
+    testUnfold UF.enumerateDownFromToNum (minBound :: Int8, minBound) [minBound]
+        `shouldBe` True
+    testUnfold UF.enumerateFromToNum (0 :: Ratio Natural, 1 % 2) [0]
+        `shouldBe` True
+    testUnfold UF.enumerateDownFromToNum (1 % 2 :: Ratio Natural, 0) [1 % 2]
+        `shouldBe` True
+
+-- Ratio and Fixed must enumerate like their Enum instances.
+enumerateRatioFixed :: Expectation
+enumerateRatioFixed = do
+    let r = [1, 12 % 5, 5 % 2, 13 % 5, 0, -5 % 2] :: [Rational]
+    and [ testUnfold UF.enumerateFromTo (a, b) [a .. b] | a <- r, b <- r ]
+        `shouldBe` True
+    and [ testUnfold UF.enumerateFromThenTo (a, b, c) [a, b .. c]
+        | a <- r, b <- r, a /= b, c <- r ]
+        `shouldBe` True
+    let f = [1.5, 1.503, 1.501, -0.002] :: [Milli]
+    and [ testUnfold UF.enumerateFromTo (a, b) [a .. b] | a <- f, b <- f ]
+        `shouldBe` True
+    and [ testUnfold UF.enumerateFromThenTo (a, b, c) [a, b .. c]
+        | a <- f, b <- f, a /= b, c <- f ]
+        `shouldBe` True
+    testUnfold (UF.take 3 UF.enumerateFrom) (1.5 :: Milli) [1.5, 1.501, 1.502]
+        `shouldBe` True
+    testUnfold (UF.take 3 UF.enumerateFromThen)
+        (1.5 :: Milli, 1.498) [1.5, 1.498, 1.496]
         `shouldBe` True
 
 -- Downward enumeration of Natural must not compute "next - from".
@@ -1313,6 +1355,8 @@ testGeneration =
             prop "enumerateDownFromNum" enumerateDownFromNum
             prop "enumerateDownFromToNum" enumerateDownFromToNum
             it "enumerateFromToNum fractional" enumerateFromToNumFractional
+            it "enumerateFromToNum limits" enumerateFromToNumLimits
+            it "enumerate Ratio and Fixed" enumerateRatioFixed
             it "enumerateFromThen Natural down" enumerateNaturalDown
             it "enumerateDownFromBoundedNum" enumerateDownFromBoundedNum
 

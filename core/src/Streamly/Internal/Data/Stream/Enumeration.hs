@@ -320,6 +320,11 @@ data EnumToState a =
 -- >>> Stream.toList $ Stream.enumerateFromToNum (254 :: Word8) 255
 -- [254,255]
 --
+-- The last element does not exceed @to@:
+--
+-- >>> Stream.toList $ Stream.enumerateFromToNum 1.1 3.2
+-- [1.1,2.1,3.1]
+--
 -- Equivalent to the following but with better fusion:
 --
 -- >> enumerateUpFromThenToNum from (from + 1) to
@@ -333,22 +338,47 @@ enumerateFromToNum from to = Stream step EnumToInit
     -- Equivalent to the following but with better fusion:
     -- takeWhile (<= to) $ takeEndBy (== to) $ enumerateFromStepNum from 1
 
+    -- The loop continues while x <= to - 1, which is the same as
+    -- x + 1 <= to, so the last element does not exceed "to" even when
+    -- "to - from" is not a whole number, e.g. for Double, Ratio or Fixed
+    -- values. A single comparison per element is needed.
+    --
+    -- from + 1 cannot overflow because from < to. to - 1 is evaluated only
+    -- in the EnumToYield state, which is entered only when from + 1 <= to,
+    -- so it cannot underflow (e.g. for Natural).
     {-# INLINE_LATE step #-}
     step _ EnumToInit =
         pure $
-            if to < from
-            then Stop
-            else Skip $ EnumToYield from
-    -- x + 1 cannot overflow because x < to. For a non-integral gap between
-    -- from and to, x + 1 can exceed to, so it is checked before continuing.
+            if to <= from
+            then if to < from then Stop else Yield from EnumToStop
+            else
+                let !nxt = from + 1
+                 in if nxt > to
+                    then Yield from EnumToStop
+                    else Skip $ EnumToYield from
+    -- (to - 1) in the code below is not stored in the state, so that an
+    -- unfused stream does not allocate a larger state on each element. It is
+    -- not a strict binding either, that would wrap the Stream constructor in a
+    -- case and a stream used twice would then not fuse.
+    --
+    -- A strict binding in the closure, compared in the loop instead of
+    -- to - 1:
+    --
+    -- >    !toMinus = if from + 1 > to then to else to - 1
+    --
+    -- evaluates and unboxes "to" once, when the stream is created. When "to"
+    -- is boxed, the fused loop then does not load it on each element, the
+    -- equations/streamCross (bounded) benchmark takes 1.7 ms instead of
+    -- 3.1 ms. But a stream bound to a variable and used twice, e.g. as the
+    -- outer and the inner stream of StreamK.fairConcatFor after
+    -- StreamK.fromStream, is then shared instead of being inlined at each
+    -- use, the step function is not inlined and each element allocates a
+    -- Step, the equations/fairConcatForK (bounded) benchmark allocates 9.5%
+    -- more.
     step _ (EnumToYield x) =
         pure $
-            if to > x
-            then
-                let !nxt = x + 1
-                 in if nxt <= to
-                    then Yield x (EnumToYield nxt)
-                    else Yield x EnumToStop
+            if x <= to - 1
+            then Yield x (EnumToYield (x + 1))
             else Yield x EnumToStop
     step _ EnumToStop = pure Stop
 
@@ -358,20 +388,22 @@ enumerateDownFromToNum from to = Stream step EnumToInit
 
     where
 
+    -- Mirror of enumerateFromToNum, the loop continues while x >= to + 1.
+    -- to + 1 is evaluated only when to < from, so it cannot overflow. x - 1
+    -- cannot underflow (e.g. for Natural) because x >= to + 1.
     {-# INLINE_LATE step #-}
     step _ EnumToInit =
         pure $
-            if to > from
-            then Stop
-            else Skip $ EnumToYield from
+            if to >= from
+            then if to > from then Stop else Yield from EnumToStop
+            else
+                if to + 1 > from
+                then Yield from EnumToStop
+                else Skip $ EnumToYield from
     step _ (EnumToYield x) =
         pure $
-            if to < x
-            then
-                let !nxt = x - 1
-                 in if nxt >= to
-                    then Yield x (EnumToYield nxt)
-                    else Yield x EnumToStop
+            if x >= to + 1
+            then Yield x (EnumToYield (x - 1))
             else Yield x EnumToStop
     step _ EnumToStop = pure Stop
 
@@ -871,8 +903,42 @@ instance Enumerable Natural where
     {-# INLINE enumerateFromThenTo #-}
     enumerateFromThenTo = enumerateFromThenToNum
 
-ENUMERABLE_UNBOUNDED_NUM((Fixed a),HasResolution a)
-ENUMERABLE_UNBOUNDED_NUM((Ratio a),Integral a)
+-- Like the 'Enum' instance of 'Fixed', enumerates the underlying 'Integer',
+-- i.e. the step is the resolution of the type, not 1.
+instance Enumerable (Fixed a) where
+    {-# INLINE enumerateFrom #-}
+    enumerateFrom (MkFixed from) = fmap MkFixed $ enumerateFrom from
+    {-# INLINE enumerateFromThen #-}
+    enumerateFromThen (MkFixed from) (MkFixed next) =
+        fmap MkFixed $ enumerateFromThen from next
+    {-# INLINE enumerateFromTo #-}
+    enumerateFromTo (MkFixed from) (MkFixed to) =
+        fmap MkFixed $ enumerateFromTo from to
+    {-# INLINE enumerateFromThenTo #-}
+    enumerateFromThenTo (MkFixed from) (MkFixed next) (MkFixed to) =
+        fmap MkFixed $ enumerateFromThenTo from next to
+
+-- Like the 'Enum' instance of 'Ratio', the limit is rounded to the nearest
+-- step: elements up to @to + stride / 2@ are generated. 'Ratio' arithmetic is
+-- exact, so repeated addition is used instead of the numerically stable
+-- 'RealFloat' enumeration.
+instance Integral a => Enumerable (Ratio a) where
+    {-# INLINE enumerateFrom #-}
+    enumerateFrom = enumerateFromNum
+    {-# INLINE enumerateFromThen #-}
+    enumerateFromThen = enumerateFromThenNum
+    {-# INLINE enumerateFromTo #-}
+    enumerateFromTo from to =
+        takeWhile (<= to + 1 / 2) $ enumerateFromNum from
+    {-# INLINE enumerateFromThenTo #-}
+    enumerateFromThenTo from next to =
+        takeWhile predicate $ enumerateFromThenNum from next
+
+        where
+
+        mid = (next - from) / 2
+        predicate | next >= from  = (<= to + mid)
+                  | otherwise     = (>= to + mid)
 
 #define ENUMERABLE_REAL_FLOAT(FRACTIONAL_TYPE)                   \
 instance Enumerable FRACTIONAL_TYPE where {                      \

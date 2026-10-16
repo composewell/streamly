@@ -36,8 +36,12 @@
   `foldr1 (-)` on `[1,2,3]` returned `0` instead of `2`.
 * Fix `Stream.isInfixOf` returning `False` for an empty infix when the
   stream has fewer than two elements.
-* Fix `enumerateFromTo` for `Ratio` and `Fixed` emitting one element beyond
-  the limit.
+* `enumerateFromTo` and `enumerateFromThenTo` for `Ratio` now round the
+  limit to the nearest step, and `Enumerable` for `Fixed` now steps by the
+  resolution of the type, the same as their `Enum` instances.
+* Fix `enumerateFromToNum` and `enumerateDownFromToNum` emitting one element
+  beyond the limit when the difference between the limits is not a whole
+  number.
 * Fix `enumerateFromThen` and `enumerateFromThenTo` for `Natural` failing
   with an underflow when enumerating downwards.
 

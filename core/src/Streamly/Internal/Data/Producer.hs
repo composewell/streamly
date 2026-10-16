@@ -749,27 +749,32 @@ enumerateDownFromThenTo s = fmap (fmap getDown) (enumerateUpFromThenTo s)
 ANN_TYPE(EnumToState,Fuse)
 data EnumToState a =
       EnumToInit a a
-    | EnumToYield !a a
+    | EnumToYield !a !a
     | EnumToStop
 
+-- The loop continues while x <= to - 1, which is the same as x + 1 <= to, so
+-- the last element does not exceed "to" even when "to - from" is not a whole
+-- number, e.g. for Double, Ratio or Fixed values. A single comparison per
+-- element is needed.
+--
+-- from + 1 cannot overflow because from < to. to - 1 cannot underflow (e.g.
+-- for Natural) because from + 1 <= to.
 {-# INLINE_LATE enumerateFromTo #-}
 enumerateFromTo ::
     (Applicative m, Num a, Ord a) => Producer m (EnumToState a) a
 enumerateFromTo (EnumToInit from to) =
     pure $
-        if to < from
-        then Stop
-        else Skip $ EnumToYield from to
-enumerateFromTo (EnumToYield from to) =
-    pure $
-        if to > from
-        then
-            -- from + 1 cannot overflow because from < to. For a non-integral
-            -- gap between from and to, from + 1 can exceed to.
+        if to <= from
+        then if to < from then Stop else Yield from EnumToStop
+        else
             let !next = from + 1
-             in if next <= to
-                then Yield from (EnumToYield next to)
-                else Yield from EnumToStop
+             in if next > to
+                then Yield from EnumToStop
+                else Skip $ EnumToYield from (to - 1)
+enumerateFromTo (EnumToYield x toMinus) =
+    pure $
+        if x <= toMinus
+        then Yield x (EnumToYield (x + 1) toMinus)
         -- Note: Usually multiple yields are problematic for fusion, but only
         -- if we are looping further, for a terminal yield it is in fact better
         -- to yield here rather than skipping to another state. We used to skip
@@ -777,24 +782,27 @@ enumerateFromTo (EnumToYield from to) =
         -- benchmark could not fuse, by moving the yield here it fused
         -- perfectly. It would be nice to investigate the root cause and make a
         -- guideline from that.
-        else Yield from EnumToStop
+        else Yield x EnumToStop
 enumerateFromTo EnumToStop = pure Stop
 
+-- Mirror of enumerateFromTo, the loop continues while x >= to + 1. to + 1
+-- cannot overflow because to < from. x - 1 cannot underflow (e.g. for
+-- Natural) because x >= to + 1.
 {-# INLINE_LATE enumerateDownFromTo #-}
 enumerateDownFromTo ::
     (Applicative m, Num a, Ord a) => Producer m (EnumToState a) a
 enumerateDownFromTo (EnumToInit from to) =
     pure $
-        if to > from
-        then Stop
-        else Skip $ EnumToYield from to
-enumerateDownFromTo (EnumToYield from to) =
+        if to >= from
+        then if to > from then Stop else Yield from EnumToStop
+        else
+            let !toPlus = to + 1
+             in if toPlus > from
+                then Yield from EnumToStop
+                else Skip $ EnumToYield from toPlus
+enumerateDownFromTo (EnumToYield x toPlus) =
     pure $
-        if to < from
-        then
-            let !next = from - 1
-             in if next >= to
-                then Yield from (EnumToYield next to)
-                else Yield from EnumToStop
-        else Yield from EnumToStop
+        if x >= toPlus
+        then Yield x (EnumToYield (x - 1) toPlus)
+        else Yield x EnumToStop
 enumerateDownFromTo EnumToStop = pure Stop

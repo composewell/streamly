@@ -11,10 +11,11 @@
 module Streamly.Test.Data.Stream.Generate (main) where
 
 import Control.Concurrent (threadDelay)
+import Data.Fixed (Milli)
 import Data.Functor.Identity (Identity(..))
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Int (Int8, Int64)
-import Data.Ratio ((%))
+import Data.Ratio (Ratio, (%))
 import Data.Word (Word8, Word16)
 import Foreign.Marshal.Alloc (alloca)
 import Foreign.Marshal.Array (withArray)
@@ -256,8 +257,52 @@ testEnumerateFromToNumFractional = do
         `shouldReturn` [1.1, 2.1, 3.1]
     toList (Stream.enumerateDownFromToNum (3.5 :: Double) 1.7)
         `shouldReturn` [3.5, 2.5]
-    toList (Stream.enumerateFromTo (1 :: Rational) (12 % 5))
-        `shouldReturn` [1, 2]
+    toList (Stream.enumerateFromToNum (1.5 :: Double) 2)
+        `shouldReturn` [1.5]
+    toList (Stream.enumerateDownFromToNum (2 :: Double) 1.5)
+        `shouldReturn` [2]
+
+-- The limits must be reached without overflow or underflow.
+testEnumerateFromToNumLimits :: Expectation
+testEnumerateFromToNumLimits = do
+    toList (Stream.enumerateFromToNum (maxBound - 1 :: Int8) maxBound)
+        `shouldReturn` [maxBound - 1, maxBound]
+    toList (Stream.enumerateFromToNum (maxBound :: Int8) maxBound)
+        `shouldReturn` [maxBound]
+    toList (Stream.enumerateDownFromToNum (minBound + 1 :: Int8) minBound)
+        `shouldReturn` [minBound + 1, minBound]
+    toList (Stream.enumerateDownFromToNum (minBound :: Int8) minBound)
+        `shouldReturn` [minBound]
+    toList (Stream.enumerateFromToNum (0 :: Natural) 2)
+        `shouldReturn` [0, 1, 2]
+    toList (Stream.enumerateDownFromToNum (2 :: Natural) 0)
+        `shouldReturn` [2, 1, 0]
+    toList (Stream.enumerateFromToNum (0 :: Ratio Natural) (1 % 2))
+        `shouldReturn` [0]
+    toList (Stream.enumerateDownFromToNum (1 % 2 :: Ratio Natural) 0)
+        `shouldReturn` [1 % 2]
+
+-- Ratio and Fixed must enumerate like their Enum instances.
+testEnumerateRatioFixed :: Expectation
+testEnumerateRatioFixed = do
+    let r = [1, 12 % 5, 5 % 2, 13 % 5, 0, -5 % 2] :: [Rational]
+    sequence_
+        [ toList (Stream.enumerateFromTo a b) `shouldReturn` [a .. b]
+        | a <- r, b <- r ]
+    sequence_
+        [ toList (Stream.enumerateFromThenTo a b c) `shouldReturn` [a, b .. c]
+        | a <- r, b <- r, a /= b, c <- r ]
+    let f = [1.5, 1.503, 1.501, -0.002] :: [Milli]
+    sequence_
+        [ toList (Stream.enumerateFromTo a b) `shouldReturn` [a .. b]
+        | a <- f, b <- f ]
+    sequence_
+        [ toList (Stream.enumerateFromThenTo a b c) `shouldReturn` [a, b .. c]
+        | a <- f, b <- f, a /= b, c <- f ]
+    toList (Stream.take 3 $ Stream.enumerateFrom (1.5 :: Milli))
+        `shouldReturn` [1.5, 1.501, 1.502]
+    toList (Stream.take 3 $ Stream.enumerateFromThen (1.5 :: Milli) 1.498)
+        `shouldReturn` [1.5, 1.498, 1.496]
 
 -- Downward enumeration of Natural must not compute "next - from".
 testEnumerateNaturalDown :: Expectation
@@ -513,6 +558,8 @@ main = hspec $ describe moduleName $ do
         it "enumerateDownFromNum" testEnumerateDownFromNum
         it "enumerateDownFromToNum" testEnumerateDownFromToNum
         it "enumerateFromToNum fractional" testEnumerateFromToNumFractional
+        it "enumerateFromToNum limits" testEnumerateFromToNumLimits
+        it "enumerate Ratio and Fixed" testEnumerateRatioFixed
         it "enumerateFromThen Natural down" testEnumerateNaturalDown
         it "enumerateDownFromBoundedNum" testEnumerateDownFromBoundedNum
         it "enumerateFromThenSmall" testEnumerateFromThenSmall

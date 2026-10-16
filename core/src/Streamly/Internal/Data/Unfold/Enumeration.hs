@@ -686,8 +686,54 @@ instance Enumerable Natural where
     {-# INLINE enumerateFromThenTo #-}
     enumerateFromThenTo = enumerateFromThenToNum
 
-ENUMERABLE_UNBOUNDED_NUM((Fixed a),HasResolution a)
-ENUMERABLE_UNBOUNDED_NUM((Ratio a),Integral a)
+{-# INLINE unFixed #-}
+unFixed :: Fixed a -> Integer
+unFixed (MkFixed a) = a
+
+-- Like the 'Enum' instance of 'Fixed', enumerates the underlying 'Integer',
+-- i.e. the step is the resolution of the type, not 1.
+instance Enumerable (Fixed a) where
+    {-# INLINE enumerateFrom #-}
+    enumerateFrom = map MkFixed $ lmap unFixed enumerateFrom
+    {-# INLINE enumerateFromThen #-}
+    enumerateFromThen =
+        map MkFixed $ lmap (bimap unFixed unFixed) enumerateFromThen
+    {-# INLINE enumerateFromTo #-}
+    enumerateFromTo =
+        map MkFixed $ lmap (bimap unFixed unFixed) enumerateFromTo
+    {-# INLINE enumerateFromThenTo #-}
+    enumerateFromThenTo =
+        map MkFixed
+            $ lmap
+                (\(from, next, to) -> (unFixed from, unFixed next, unFixed to))
+                enumerateFromThenTo
+
+-- Like the 'Enum' instance of 'Ratio', the limit is rounded to the nearest
+-- step: elements up to @to + stride / 2@ are generated. 'Ratio' arithmetic is
+-- exact, so repeated addition is used instead of the numerically stable
+-- 'RealFloat' enumeration.
+instance Integral a => Enumerable (Ratio a) where
+    {-# INLINE enumerateFrom #-}
+    enumerateFrom = enumerateFromNum
+    {-# INLINE enumerateFromThen #-}
+    enumerateFromThen = enumerateFromThenNum
+    {-# INLINE enumerateFromTo #-}
+    enumerateFromTo =
+        takeWhileMWithInput (\(_, to) b -> pure $ b <= to + 1 / 2)
+            $ lmap fst enumerateFromNum
+    {-# INLINE enumerateFromThenTo #-}
+    enumerateFromThenTo =
+        takeWhileMWithInput cond
+            $ lmap (\(from, next, _) -> (from, next)) enumerateFromThenNum
+
+        where
+
+        cond (from, next, to) b =
+            let mid = (next - from) / 2
+             in pure
+                    $ if next >= from
+                      then b <= to + mid
+                      else b >= to + mid
 
 #define ENUMERABLE_REAL_FLOAT(REALFLOAT_TYPE)                     \
 instance Enumerable REALFLOAT_TYPE where {                        \

@@ -78,7 +78,7 @@ fairUnfoldSchedEqn maxVal input ints =
 -- GHC 9.14.1 cannot fuse InterleaveState, though 9.10 can
 {-# ANN unfoldCrossBounded (PermitTypes [''Int,''Maybe,''InterleaveState]) #-}
 {-# ANN unfoldCrossBounded (PermitTypeClasses []) #-}
-{-# ANN unfoldCrossBounded (MaxCoreSize 20000) #-}
+{-# ANN unfoldCrossBounded (MaxCoreSize 26000) #-}
 {-# NOINLINE unfoldCrossBounded #-}
 unfoldCrossBounded :: Int -> IO ()
 unfoldCrossBounded maxVal = unfoldCrossEqn maxVal (Type.boundedIntsUnfold maxVal 0)
