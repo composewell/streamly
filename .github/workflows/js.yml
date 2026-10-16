@@ -97,14 +97,25 @@ jobs:
         cabal build --project-file=cabal.project.ghcjs \
           --builddir=$BUILDDIR all
 
+    # Run the test executables built above instead of using "cabal test".
+    # GHC recompiles the modules that use Template Haskell on every cabal
+    # invocation, "cabal test" would spend about 5 minutes rebuilding them.
+    # Like "cabal test", run each test in the package directory.
     - name: Test
       run: |
-        set +e
-        cabal test --keep-going --project-file=cabal.project.ghcjs \
-          --builddir=$BUILDDIR all 2>&1 | tee test.log
-        set -e
-        grep -E "^Test suite .*: (PASS|FAIL)$" test.log
-        failed=$(sed -n 's/^Test suite \(.*\): FAIL$/\1/p' test.log)
+        tests=$(jq -r '."install-plan"[]
+          | select(."pkg-name" == "streamly-tests"
+                   and ((."component-name" // "") | startswith("test:")))
+          | ."component-name" + " " + ."bin-file"' $BUILDDIR/cache/plan.json)
+        failed=
+        cd test
+        while read -r comp bin; do
+          t=${comp#test:}
+          echo "::group::$t"
+          if "$bin" < /dev/null; then r=PASS; else r=FAIL; failed="$failed $t"; fi
+          echo "::endgroup::"
+          echo "Test suite $t: $r"
+        done <<< "$tests"
         unexpected=
         for t in $failed; do
           case " $KNOWN_FAILURES " in
@@ -114,10 +125,5 @@ jobs:
         done
         if [ -n "$unexpected" ]; then
           echo "Unexpected failures:$unexpected"
-          exit 1
-        fi
-        # A test suite that fails to build is not reported as FAIL
-        if grep -q "^Error: \[Cabal-" test.log; then
-          echo "cabal test failed to build some test suites"
           exit 1
         fi
