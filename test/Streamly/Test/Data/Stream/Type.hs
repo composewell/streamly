@@ -354,6 +354,9 @@ treeChildren n
     | n == 3    = [6, 7]
     | otherwise = []
 
+treeSeed :: Int -> Maybe Int
+treeSeed n = if null (treeChildren n) then Nothing else Just n
+
 treeUnfold :: Unfold IO Int Int
 treeUnfold = Unfold.lmap treeChildren Unfold.fromList
 
@@ -362,22 +365,25 @@ treeConcatF n =
     let cs = treeChildren n
      in if null cs then Nothing else Just (Stream.fromList cs)
 
-testUnfoldIterate :: Expectation
-testUnfoldIterate = do
+testUnfoldIterateMaybe :: Expectation
+testUnfoldIterateMaybe = do
     result <- Stream.toList $
-        Stream.unfoldIterate treeUnfold (Stream.fromPure (1 :: Int))
+        Stream.unfoldIterateMaybe
+            treeSeed treeUnfold (Stream.fromPure (1 :: Int))
     result `shouldBe` [1, 2, 4, 5, 3, 6, 7]
 
-testBfsUnfoldIterate :: Expectation
-testBfsUnfoldIterate = do
+testBfsUnfoldIterateMaybe :: Expectation
+testBfsUnfoldIterateMaybe = do
     result <- Stream.toList $
-        Stream.bfsUnfoldIterate treeUnfold (Stream.fromPure (1 :: Int))
+        Stream.bfsUnfoldIterateMaybe
+            treeSeed treeUnfold (Stream.fromPure (1 :: Int))
     result `shouldBe` [1, 2, 3, 4, 5, 6, 7]
 
 testWideDfsUnfoldIterateRev :: Expectation
 testWideDfsUnfoldIterateRev = do
     result <- Stream.toList $
-        Stream.wideDfsUnfoldIterateRev treeUnfold (Stream.fromPure (1 :: Int))
+        Stream.wideDfsUnfoldIterateRev
+            treeSeed treeUnfold (Stream.fromPure (1 :: Int))
     result `shouldBe` [1, 2, 3, 6, 7, 4, 5]
 
 testConcatIterate :: Expectation
@@ -395,7 +401,8 @@ testBfsConcatIterateRev = do
 testBfsUnfoldIterateRev :: Expectation
 testBfsUnfoldIterateRev = do
     result <- Stream.toList $
-        Stream.bfsUnfoldIterateRev treeUnfold (Stream.fromPure (1 :: Int))
+        Stream.bfsUnfoldIterateRev
+            treeSeed treeUnfold (Stream.fromPure (1 :: Int))
     result `shouldBe` [1, 2, 3, 6, 7, 4, 5]
 
 testBfsConcatIterate :: Expectation
@@ -448,24 +455,31 @@ testWideDfsConcatIterateDeep = do
     Stream.toList (bfsConcatIterateRevDeep (Stream.fromPure 1))
         `shouldReturn` [1, 2, 3, 5, 4, 7, 6]
 
+deepTreeSeed :: Int -> Maybe Int
+deepTreeSeed n = if null (deepTreeChildren n) then Nothing else Just n
+
 deepTreeUnfold :: Unfold IO Int Int
 deepTreeUnfold = Unfold.lmap deepTreeChildren Unfold.fromList
 
 {-# NOINLINE wideDfsUnfoldIterateDeep #-}
 wideDfsUnfoldIterateDeep :: Stream IO Int -> Stream IO Int
-wideDfsUnfoldIterateDeep = Stream.wideDfsUnfoldIterate deepTreeUnfold
+wideDfsUnfoldIterateDeep =
+    Stream.wideDfsUnfoldIterate deepTreeSeed deepTreeUnfold
 
 {-# NOINLINE wideDfsUnfoldIterateRevDeep #-}
 wideDfsUnfoldIterateRevDeep :: Stream IO Int -> Stream IO Int
-wideDfsUnfoldIterateRevDeep = Stream.wideDfsUnfoldIterateRev deepTreeUnfold
+wideDfsUnfoldIterateRevDeep =
+    Stream.wideDfsUnfoldIterateRev deepTreeSeed deepTreeUnfold
 
 {-# NOINLINE bfsUnfoldIterateDeep #-}
 bfsUnfoldIterateDeep :: Stream IO Int -> Stream IO Int
-bfsUnfoldIterateDeep = Stream.bfsUnfoldIterate deepTreeUnfold
+bfsUnfoldIterateDeep =
+    Stream.bfsUnfoldIterateMaybe deepTreeSeed deepTreeUnfold
 
 {-# NOINLINE bfsUnfoldIterateRevDeep #-}
 bfsUnfoldIterateRevDeep :: Stream IO Int -> Stream IO Int
-bfsUnfoldIterateRevDeep = Stream.bfsUnfoldIterateRev deepTreeUnfold
+bfsUnfoldIterateRevDeep =
+    Stream.bfsUnfoldIterateRev deepTreeSeed deepTreeUnfold
 
 testUnfoldIterateDeep :: Expectation
 testUnfoldIterateDeep = do
@@ -827,16 +841,17 @@ main = hspec
     it "groupsOf" testgroupsOf
 
     -- tree/graph traversal
-    it "unfoldIterate" testUnfoldIterate
+    it "unfoldIterateMaybe" testUnfoldIterateMaybe
     it "concatIterate" testConcatIterate
     it "bfsConcatIterate" testBfsConcatIterate
     it "bfsConcatIterateRev" testBfsConcatIterateRev
     it "wideDfsConcatIterateRev" testWideDfsConcatIterateRev
-    it "bfsUnfoldIterate" testBfsUnfoldIterate
+    it "bfsUnfoldIterateMaybe" testBfsUnfoldIterateMaybe
     it "bfsUnfoldIterateRev" testBfsUnfoldIterateRev
     it "wideDfsUnfoldIterateRev" testWideDfsUnfoldIterateRev
     it "wideDfs/bfsConcatIterate(Rev) deep" testWideDfsConcatIterateDeep
-    it "wideDfs/bfsUnfoldIterate(Rev) deep" testUnfoldIterateDeep
+    it "wideDfsUnfoldIterate(Rev)/bfsUnfoldIterateMaybe/Rev deep"
+        testUnfoldIterateDeep
     it "concatIterateScan" testConcatIterateScan
     it "Nested Show/Read" testNestedShowRead
     it "refoldIterateM" testRefoldIterateM

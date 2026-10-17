@@ -30,16 +30,19 @@ import Streamly.Benchmark.Common
 -- the children k * n + 1 to k * n + k if n < limit. The tree has
 -- k * limit + 1 nodes.
 
--- A leaf generates an empty range.
+{-# INLINE childrenSeed #-}
+childrenSeed :: Int -> Int -> Maybe Int
+childrenSeed limit n
+    | n < limit = Just n
+    | otherwise = Nothing
+
 {-# INLINE childrenUnfold #-}
-childrenUnfold :: Int -> Int -> Unfold IO Int Int
-childrenUnfold k limit = Unfold.lmap range Unfold.enumerateFromToNum
+childrenUnfold :: Int -> Unfold IO Int Int
+childrenUnfold k = Unfold.lmap range Unfold.enumerateFromToNum
 
     where
 
-    range n
-        | n < limit = (k * n + 1, k * n + k)
-        | otherwise = (1, 0)
+    range n = (k * n + 1, k * n + k)
 
 -------------------------------------------------------------------------------
 -- Traversals
@@ -49,38 +52,40 @@ childrenUnfold k limit = Unfold.lmap range Unfold.enumerateFromToNum
 sumTree :: Stream IO Int -> IO Int
 sumTree = Stream.fold Fold.sum
 
-{-# INLINE unfoldIterate #-}
-unfoldIterate :: Int -> Int -> IO Int
-unfoldIterate k limit =
+{-# INLINE unfoldIterateMaybe #-}
+unfoldIterateMaybe :: Int -> Int -> IO Int
+unfoldIterateMaybe k limit =
     sumTree
-        $ Stream.unfoldIterate (childrenUnfold k limit) (Stream.fromPure 0)
+        $ Stream.unfoldIterateMaybe
+            (childrenSeed limit) (childrenUnfold k) (Stream.fromPure 0)
 
 {-# INLINE wideDfsUnfoldIterate #-}
 wideDfsUnfoldIterate :: Int -> Int -> IO Int
 wideDfsUnfoldIterate k limit =
     sumTree
         $ Stream.wideDfsUnfoldIterate
-            (childrenUnfold k limit) (Stream.fromPure 0)
+            (childrenSeed limit) (childrenUnfold k) (Stream.fromPure 0)
 
 {-# INLINE wideDfsUnfoldIterateRev #-}
 wideDfsUnfoldIterateRev :: Int -> Int -> IO Int
 wideDfsUnfoldIterateRev k limit =
     sumTree
         $ Stream.wideDfsUnfoldIterateRev
-            (childrenUnfold k limit) (Stream.fromPure 0)
+            (childrenSeed limit) (childrenUnfold k) (Stream.fromPure 0)
 
-{-# INLINE bfsUnfoldIterate #-}
-bfsUnfoldIterate :: Int -> Int -> IO Int
-bfsUnfoldIterate k limit =
+{-# INLINE bfsUnfoldIterateMaybe #-}
+bfsUnfoldIterateMaybe :: Int -> Int -> IO Int
+bfsUnfoldIterateMaybe k limit =
     sumTree
-        $ Stream.bfsUnfoldIterate (childrenUnfold k limit) (Stream.fromPure 0)
+        $ Stream.bfsUnfoldIterateMaybe
+            (childrenSeed limit) (childrenUnfold k) (Stream.fromPure 0)
 
 {-# INLINE bfsUnfoldIterateRev #-}
 bfsUnfoldIterateRev :: Int -> Int -> IO Int
 bfsUnfoldIterateRev k limit =
     sumTree
         $ Stream.bfsUnfoldIterateRev
-            (childrenUnfold k limit) (Stream.fromPure 0)
+            (childrenSeed limit) (childrenUnfold k) (Stream.fromPure 0)
 
 -------------------------------------------------------------------------------
 -- Benchmarks
@@ -99,14 +104,14 @@ benchmarks size =
     shape (name, k) =
         let limit = size `div` k
             prefix x = "iterate/" ++ name ++ "/" ++ x
-         in [ (SpaceO_1, benchIO (prefix "unfoldIterate")
-                $ unfoldIterate k limit)
+         in [ (SpaceO_1, benchIO (prefix "unfoldIterateMaybe")
+                $ unfoldIterateMaybe k limit)
             , (SpaceO_1, benchIO (prefix "wideDfsUnfoldIterate")
                 $ wideDfsUnfoldIterate k limit)
             , (SpaceO_1, benchIO (prefix "wideDfsUnfoldIterateRev")
                 $ wideDfsUnfoldIterateRev k limit)
-            , (SpaceO_n, benchIO (prefix "bfsUnfoldIterate")
-                $ bfsUnfoldIterate k limit)
+            , (SpaceO_n, benchIO (prefix "bfsUnfoldIterateMaybe")
+                $ bfsUnfoldIterateMaybe k limit)
             , (SpaceO_n, benchIO (prefix "bfsUnfoldIterateRev")
                 $ bfsUnfoldIterateRev k limit)
             ]

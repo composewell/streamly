@@ -94,15 +94,19 @@
   the last input.
 * Renamed `Stream.altBfsConcatIterate` to `wideDfsConcatIterateRev` and added
   `wideDfsConcatIterate`.
-* Renamed `Stream.altBfsUnfoldIterate` to `wideDfsUnfoldIterateRev` and added
-  `wideDfsUnfoldIterate`. `bfsUnfoldIterate` and `wideDfsUnfoldIterateRev` no
-  longer keep a stream open for every pending element, e.g. a directory open
-  for every subdirectory not yet read.
+* Deprecated `Stream.unfoldIterate`, `bfsUnfoldIterate` and
+  `altBfsUnfoldIterate` in favour of `unfoldIterateMaybe`,
+  `bfsUnfoldIterateMaybe` and `wideDfsUnfoldIterateRev`. These take a
+  function `b -> Maybe a` that marks the leaves, so that the BFS and wide DFS
+  traversals hold only the pending elements that have children, e.g. the
+  subdirectories but not the files of a directory tree. They also no longer
+  keep a stream open for every pending element.
+* `Stream.unfoldIterateMaybe` is several times faster than `unfoldIterate`
+  when the traversal cost dominates, and does not blow up compilation with
+  `-fspec-constr-recursive=16`.
+* Added `Stream.wideDfsUnfoldIterate`.
 * Added `Stream.bfsConcatIterateRev` and `bfsUnfoldIterateRev`, faster BFS
   variants that start the streams of a level in reverse order.
-* `Stream.unfoldIterate` is several times faster when the traversal cost
-  dominates, and no longer blows up compilation with
-  `-fspec-constr-recursive=16`.
 
 ## 0.3.1 (May 2026)
 

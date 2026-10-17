@@ -77,7 +77,6 @@ import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Data.StreamK as StreamK
 import qualified Streamly.Internal.Data.StreamK as StreamK
 import qualified Streamly.Data.Unfold as Unfold
-import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.FileSystem.DirIO as Dir
 import qualified Streamly.Internal.FileSystem.Path as Path
 #if defined(mingw32_HOST_OS) || defined(__MINGW32__)
@@ -118,8 +117,12 @@ streamDir f = either (Dir.readEitherPaths f) (const Stream.nil)
 
 unfoldDir
     :: (Dir.ReadOptions -> Dir.ReadOptions)
-    -> Unfold IO (Either Path b) (Either Path Path)
-unfoldDir f = Unfold.either (Dir.eitherReaderPaths f) Unfold.nil
+    -> Unfold IO Path (Either Path Path)
+unfoldDir = Dir.eitherReaderPaths
+
+-- The seed of a directory is its path, a file has no seed.
+dirSeed :: Either Path b -> Maybe Path
+dirSeed = either Just (const Nothing)
 
 streamDirMaybe
     :: (Dir.ReadOptions -> Dir.ReadOptions)
@@ -275,24 +278,26 @@ listDirWith act inp = do
 {-# INLINE listDirUnfoldDfs #-}
 listDirUnfoldDfs
     :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
-listDirUnfoldDfs f = listDirWith (Stream.unfoldIterate (unfoldDir f))
+listDirUnfoldDfs f =
+    listDirWith (Stream.unfoldIterateMaybe dirSeed (unfoldDir f))
 
 {-# INLINE listDirUnfoldBfs #-}
 listDirUnfoldBfs
     :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
-listDirUnfoldBfs f = listDirWith (Stream.bfsUnfoldIterate (unfoldDir f))
+listDirUnfoldBfs f =
+    listDirWith (Stream.bfsUnfoldIterateMaybe dirSeed (unfoldDir f))
 
 {-# INLINE listDirUnfoldWideDfsRev #-}
 listDirUnfoldWideDfsRev
     :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
 listDirUnfoldWideDfsRev f =
-    listDirWith (Stream.wideDfsUnfoldIterateRev (unfoldDir f))
+    listDirWith (Stream.wideDfsUnfoldIterateRev dirSeed (unfoldDir f))
 
 {-# INLINE listDirUnfoldWideDfs #-}
 listDirUnfoldWideDfs
     :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
 listDirUnfoldWideDfs f =
-    listDirWith (Stream.wideDfsUnfoldIterate (unfoldDir f))
+    listDirWith (Stream.wideDfsUnfoldIterate dirSeed (unfoldDir f))
 
 {-# INLINE listDirConcatDfs #-}
 listDirConcatDfs
