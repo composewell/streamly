@@ -28,6 +28,7 @@ module Streamly.Internal.Data.Stream
     , module Streamly.Internal.Data.Stream.Transform
     , module Streamly.Internal.Data.Stream.Top
     , module Streamly.Internal.Data.Stream.Container
+    , module Streamly.Internal.Data.Stream.Tree
     )
 where
 
@@ -43,3 +44,4 @@ import Streamly.Internal.Data.Stream.Parse
 import Streamly.Internal.Data.Stream.Transform
 import Streamly.Internal.Data.Stream.Top
 import Streamly.Internal.Data.Stream.Container
+import Streamly.Internal.Data.Stream.Tree

@@ -455,6 +455,7 @@ test-suite Data.Stream
     Streamly.Test.Data.Stream.Top
     Streamly.Test.Data.Stream.Transform
     Streamly.Test.Data.Stream.Transformer
+    Streamly.Test.Data.Stream.Tree
     Streamly.Test.Data.Stream.Type
   if flag(limit-build-mem)
     ghc-options: +RTS -M1500M -RTS

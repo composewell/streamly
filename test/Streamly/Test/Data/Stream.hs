@@ -19,6 +19,7 @@ import qualified Streamly.Test.Data.Stream.Serial as Serial
 import qualified Streamly.Test.Data.Stream.Top as Top
 import qualified Streamly.Test.Data.Stream.Transform as Transform
 import qualified Streamly.Test.Data.Stream.Transformer as Transformer
+import qualified Streamly.Test.Data.Stream.Tree as Tree
 import qualified Streamly.Test.Data.Stream.Type as Type
 
 main :: IO ()
@@ -34,4 +35,5 @@ main = do
     Top.main
     Transform.main
     Transformer.main
+    Tree.main
     Serial.main
