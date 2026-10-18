@@ -462,7 +462,7 @@ Our next example lists a directory tree recursively, and concurrently.
 This example uses the tree traversing combinator `parConcatIterate`.  This
 combinator maps a stream generator function on the input stream and then
 recursively on the generated stream as well and flattens the results. We map a
-directory to a stream generating its children and a file to a nil stream. This
+directory to a stream generating its children and a file to `Nothing`. This
 results in a concurrent recursive depth first traversal of the directory tree.
 
 Please see [ListDir.hs][] for the complete working code.
@@ -481,7 +481,7 @@ main :: IO ()
 main = do
     hSetBuffering stdout LineBuffering
     let start = Stream.fromPure (Left [path|.|])
-        f = either (Dir.readEitherPaths id) (const Stream.nil)
+        f = either (Just . Dir.readEitherPaths id) (const Nothing)
         ls = Stream.parConcatIterate id f start
      in Stream.fold (Fold.drainMapM (print . bimap Path.toString Path.toString)) ls
 :}

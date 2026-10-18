@@ -114,6 +114,8 @@ import Streamly.Internal.Data.Stream.Channel
 -- >>> import qualified Streamly.Data.StreamK as StreamK
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream.Prelude as Stream
+-- >>> import qualified Streamly.Internal.FileSystem.DirIO as Dir
+-- >>> import qualified Streamly.Internal.FileSystem.Path as Path
 -- >>> import Prelude hiding (concatMap, concat, zipWith)
 -- >>> :{
 --  delay n = do
@@ -555,13 +557,19 @@ parMergeBy cfg f = parMergeByM cfg (\a b -> return $ f a b)
 -- concatIterate
 -------------------------------------------------------------------------------
 
--- | Same as 'concatIterate' but concurrent.
+-- | Same as 'concatIterate' but concurrent. The stream generation function
+-- returns 'Nothing' for a leaf node.
 --
--- /Pre-release/
+-- Example, list a directory tree concurrently:
+--
+-- >>> f = either (Just . Dir.readEitherPaths id) (const Nothing)
+-- >>> input = Stream.fromEffect (Left <$> Path.fromString ".")
+-- >>> ls = Stream.parConcatIterate id f input
+--
 {-# INLINE parConcatIterate #-}
 parConcatIterate :: MonadAsync m =>
        (Config -> Config)
-    -> (a -> Stream m a)
+    -> (a -> Maybe (Stream m a))
     -> Stream m a
     -> Stream m a
 parConcatIterate modifier f input =
@@ -573,7 +581,10 @@ parConcatIterate modifier f input =
     iterateStream chan = chanConcatMapK modifier chan (generate chan)
 
     -- XXX The channel q should be FIFO for DFS, otherwise it is BFS
-    generate chan x = x `K.cons` iterateStream chan (Stream.toStreamK $ f x)
+    generate chan x =
+        case f x of
+            Nothing -> K.fromPure x
+            Just s -> x `K.cons` iterateStream chan (Stream.toStreamK s)
 
 -- | Same as 'mergeIterateWith interleave' but concurrent.
 --

@@ -336,20 +336,21 @@ listDirInterleave f =
 {-# INLINE listDirPar #-}
 listDirPar
     :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
-listDirPar f = listDirWith (Stream.parConcatIterate id (streamDir f))
+listDirPar f = listDirWith (Stream.parConcatIterate id (streamDirMaybe f))
 
 {-# INLINE listDirParInterleaved #-}
 listDirParInterleaved
     :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
 listDirParInterleaved f =
     listDirWith
-        (Stream.parConcatIterate (Stream.interleaved True) (streamDir f))
+        (Stream.parConcatIterate (Stream.interleaved True) (streamDirMaybe f))
 
 {-# INLINE listDirParOrdered #-}
 listDirParOrdered
     :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
 listDirParOrdered f =
-    listDirWith (Stream.parConcatIterate (Stream.ordered True) (streamDir f))
+    listDirWith
+        (Stream.parConcatIterate (Stream.ordered True) (streamDirMaybe f))
 #endif
 
 --------------------------------------------------------------------------------
@@ -393,21 +394,23 @@ listDirChunkInterleave f =
 listDirChunkPar
     :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
 listDirChunkPar f =
-    listDirChunkedWith (Stream.parConcatIterate id (streamDirChunked f))
+    listDirChunkedWith (Stream.parConcatIterate id (streamDirChunkedMaybe f))
 
 {-# INLINE listDirChunkParInterleaved #-}
 listDirChunkParInterleaved
     :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
 listDirChunkParInterleaved f =
     listDirChunkedWith
-        (Stream.parConcatIterate (Stream.interleaved True) (streamDirChunked f))
+        (Stream.parConcatIterate
+            (Stream.interleaved True) (streamDirChunkedMaybe f))
 
 {-# INLINE listDirChunkParOrdered #-}
 listDirChunkParOrdered
     :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
 listDirChunkParOrdered f =
     listDirChunkedWith
-        (Stream.parConcatIterate (Stream.ordered True) (streamDirChunked f))
+        (Stream.parConcatIterate
+            (Stream.ordered True) (streamDirChunkedMaybe f))
 #endif
 
 --------------------------------------------------------------------------------
@@ -459,7 +462,7 @@ listDirChunkFoldPar
     :: (Dir.ReadOptions -> Dir.ReadOptions) -> [Char] -> Stream IO Word8
 listDirChunkFoldPar f =
     listDirChunkedFoldWith
-        (Stream.parConcatIterate id (streamDirChunkedFold f))
+        (Stream.parConcatIterate id (streamDirChunkedFoldMaybe f))
 
 {-# INLINE listDirChunkFoldParInterleaved #-}
 listDirChunkFoldParInterleaved
@@ -467,7 +470,7 @@ listDirChunkFoldParInterleaved
 listDirChunkFoldParInterleaved f =
     listDirChunkedFoldWith
         (Stream.parConcatIterate
-            (Stream.interleaved True) (streamDirChunkedFold f))
+            (Stream.interleaved True) (streamDirChunkedFoldMaybe f))
 
 {-# INLINE listDirChunkFoldParOrdered #-}
 listDirChunkFoldParOrdered
@@ -475,5 +478,5 @@ listDirChunkFoldParOrdered
 listDirChunkFoldParOrdered f =
     listDirChunkedFoldWith
         (Stream.parConcatIterate
-            (Stream.ordered True) (streamDirChunkedFold f))
+            (Stream.ordered True) (streamDirChunkedFoldMaybe f))
 #endif

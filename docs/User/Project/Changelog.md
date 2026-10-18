@@ -6,6 +6,10 @@
 
 ### Breaking Changes
 
+* `parConcatIterate` now takes `a -> Maybe (Stream m a)`, the same as
+  `concatIterate`; return `Nothing` instead of `Stream.nil` for a leaf. Use
+  `parConcatIterate cfg (Just . f)` to keep the old behavior.
+
 * The following deprecated modules have been removed:
   * Streamly.Data.Array.Foreign
   * Streamly.Data.Fold.Tee

@@ -364,7 +364,10 @@ which works with every fused combinator.
 
 ```
 parConcatIterate :: MonadAsync m
-    => (Config -> Config) -> (a -> Stream m a) -> Stream m a -> Stream m a
+    => (Config -> Config)
+    -> (a -> Maybe (Stream m a))
+    -> Stream m a
+    -> Stream m a
 ```
 
 It has the structure of `concatIterateWith`, with `concatMapWith append`
@@ -377,7 +380,10 @@ parConcatIterate modifier f input =
         $ withChannelK modifier (Stream.toStreamK input) iterateStream
     where
     iterateStream chan = chanConcatMapK modifier chan (generate chan)
-    generate chan x = x `K.cons` iterateStream chan (Stream.toStreamK $ f x)
+    generate chan x =
+        case f x of
+            Nothing -> K.fromPure x
+            Just s -> x `K.cons` iterateStream chan (Stream.toStreamK s)
 ```
 
 A worker takes a stream from the work queue, takes its first element, puts the
@@ -404,8 +410,28 @@ numbers are from a separate measurement, not the one in the chunked table:
 | batch of paths | 264 ms                 | 124 ms                | 134 ms             | 174 ms         |
 | byte chunks    | 154 ms                 | 94 ms                 | 94 ms              | 154 ms         |
 
-`parConcatIterate` takes the primitive `a -> Stream m a`, with `Stream.nil`
-for a leaf.
+`parConcatIterate` takes `a -> Maybe (Stream m a)`. Earlier it took `a
+-> Stream m a`, and `f` returned `Stream.nil` for a leaf. `generate`
+then called `iterateStream` on the empty stream. `chanConcatMapK` does
+not put an empty stream on the work queue, but it still ran `askRunInIO`
+and allocated its closures for every leaf. With `f` returning `Nothing`
+for a leaf, `generate` returns `K.fromPure x`, the stream containing
+only `x`, without calling `chanConcatMapK`.
+
+In-memory trees of 100,001 `Int` nodes, `Stream.fold Fold.length`, one
+capability (`-N1`). The `Stream.nil` column passes `Just Stream.nil` for a
+leaf, which runs the code of the old signature:
+
+| Tree, leaves        | Config         | `Stream.nil`      | `Nothing`         |
+|---------------------|----------------|-------------------|-------------------|
+| binary, 50,001      | default        | 35.2 ms, 119 MB   | 34.3 ms, 111 MB   |
+| binary, 50,001      | `ordered True` | 40.9 ms, 148 MB   | 37.4 ms, 135 MB   |
+| 10-ary, 90,001      | default        | 31.5 ms, 112 MB   | 30.3 ms, 94 MB    |
+| 10-ary, 90,001      | `ordered True` | 37.5 ms, 138 MB   | 33.1 ms, 113 MB   |
+
+The MB column is the allocation. With `-N2` the times were 3 to 10 percent
+lower with `Nothing`. The `FileSystem.DirIO` benchmark showed no difference:
+its tree has 3906 directories and no files, so no node is a leaf.
 
 Not implemented yet:
 
@@ -500,9 +526,6 @@ Proposed changes:
   `XXX` note on it suggests, by analogy with `mapMAccum`.
 * **An `Either` form for unfolds**, if added, should be `unfoldIterateLefts`,
   matching `concatIterateLeftsWith`.
-* **`parConcatIterate`** takes `a -> Stream m a`, while `concatIterate` takes
-  `a -> Maybe (Stream m a)`. With the same signature, moving between the
-  serial and the concurrent traversal changes only the name.
 
 The primitive forms are not provided as separate `Stream` combinators. They
 are the `Maybe` forms applied to `Just`, and the `Just` is removed after
@@ -596,11 +619,6 @@ still specializes the loop on the current inner state, and the traversal ran
 
 ## TODO
 
-* Measure whether a `Maybe` leaf marker, `a -> Maybe (Stream m a)`, makes
-  `parConcatIterate` faster, as it does for the serial traversals. A leaf now
-  returns `Stream.nil`, and `generate` still calls `iterateStream` on it.
-* Change `parConcatIterate` to `a -> Maybe (Stream m a)`, the signature of
-  `concatIterate`.
 * Rename `StreamK.concatIterateScanWith` to `concatIterateAccumWith`.
 * Pick the final unfold names, without the `Maybe` suffix, when the
   combinators are exposed.
@@ -620,4 +638,4 @@ still specializes the loop on the current inner state, and the traversal ran
 | Jan 2023 | Renames: `iterateConcatMap*` to `concatIterate*` (`concatIterateDfs`, `concatIterateBfs`, `concatIterateBfsRev`, `concatIterateWith`, `concatIterateScan`, `concatIterateScanWith`, `concatIterateLeftsWith`), `iterateMergeMapWith` to `mergeIterateWith`, `iterateUnfoldMany*` to `unfoldIterate*`. `parConcatIterate` and `reduceIterateBfs` added. The StreamK forms moved to the StreamK module during 2023. |
 | Jan 2025 | `parMergeIterate` declared as an unimplemented prototype. |
 | Aug 2025 | Renames to the order-prefix convention: `concatIterateDfs` to `concatIterate`, `concatIterateBfs` to `bfsConcatIterate`, `concatIterateBfsRev` to `altBfsConcatIterate`, the same for the unfold versions, `reduceIterateBfs` to `bfsReduceIterate` and `foldIterateBfs` to `bfsFoldIterate`. |
-| Oct 2026 | `altBfsConcatIterate` renamed to `wideDfsConcatIterateRev`, and `wideDfsConcatIterate`, `bfsConcatIterateRev` and the unfold equivalents added. The unfold versions take `b -> Maybe a` (`unfoldIterateMaybe`, `bfsUnfoldIterateMaybe`). The fixed `Unfold` brings in a second type, so the `Either` form was tried again as wrappers (`unfoldIterateLefts`) and dropped: it was 15 to 20 percent slower in DFS on trees with a single node type. |
+| Oct 2026 | `altBfsConcatIterate` renamed to `wideDfsConcatIterateRev`, and `wideDfsConcatIterate`, `bfsConcatIterateRev` and the unfold equivalents added. The unfold versions take `b -> Maybe a` (`unfoldIterateMaybe`, `bfsUnfoldIterateMaybe`). The fixed `Unfold` brings in a second type, so the `Either` form was tried again as wrappers (`unfoldIterateLefts`) and dropped: it was 15 to 20 percent slower in DFS on trees with a single node type. `parConcatIterate` changed to `a -> Maybe (Stream m a)`, the signature of `concatIterate`. |
