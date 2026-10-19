@@ -11,31 +11,11 @@
 
 ### Bug Fixes
 
-* Fixed `Stream.postscanl` to omit the output of a scan that terminates without
-  consuming any input (e.g. `Scanl.take 0`).
-* Fix overflow in enumerateFrom and enumerateFromTo variants in Stream and
-  Unfold modules.
-* Fix `Unfold.enumerateFromTo` for the `Identity` type, it was incorrectly
-  calling `enumerateFromThen` instead of `enumerateFromTo`.
-* Fix `Stream.splitEndBySeq` and `Stream.splitEndBySeq_` dropping the last
-  segment when the separator is longer than a machine word, the last segment
-  is the separator without its last element, and it follows an earlier
-  separator, e.g. separator `"abc"` and input `"abcab"`.
-* Fix `chunksOf` in the array modules emitting a trailing empty array when
-  the stream length is a multiple of the chunk size.
-* Fix `classify` and `classifyIO` in Fold and Scanl, and
-  `Fold.classifyScan` and `classifyScanIO`, restarting the fold for a key
-  that terminated on its first input.
 * Fix the `Arrow` instance of `Scan` failing when a scan skips an input.
 * Fix `RingArray.ringsOf` and `scanRingsOf` producing rings of a wrong size
   after `2^31` bytes when `Int` is 32-bit, e.g. on the JavaScript backend.
-* Fix `Scanl.uniq` and `uniqBy` failing before the first input.
 * Fix `Scanl.partition`, `partitionBy` and `partitionByM` not finalizing one
   scan when the other terminates.
-* Fix `Stream.foldr1` combining the first element last, e.g.
-  `foldr1 (-)` on `[1,2,3]` returned `0` instead of `2`.
-* Fix `Stream.isInfixOf` returning `False` for an empty infix when the
-  stream has fewer than two elements.
 * `enumerateFromTo` and `enumerateFromThenTo` for `Ratio` now round the
   limit to the nearest step, and `Enumerable` for `Fixed` now steps by the
   resolution of the type, the same as their `Enum` instances.
@@ -44,16 +24,6 @@
   number.
 * Fix `enumerateFromThen` and `enumerateFromThenTo` for `Natural` failing
   with an underflow when enumerating downwards.
-
-* On POSIX platforms, the `Path` based APIs that open an existing file in
-  `WriteMode`, e.g. `write` and `withFile` in `Streamly.FileSystem.FileIO`,
-  did not truncate it, the old contents beyond the newly written data
-  remained. The file descriptor leaked when the file could not be opened as
-  a Handle, e.g. if it was a directory or was locked.
-
-* Fix `timesWith`, `absTimesWith`, `relTimesWith`, `timestamped` and the
-  other operations using `asyncClock`, the clock stopped advancing after a
-  major GC. Fix the same bug in `timer`, the timer stopped producing ticks.
 
 ### Breaking changes
 
@@ -83,15 +53,6 @@
   Use `Streamly.Internal.Data.Stream` instead.
 * enumerateFrom*Num are not numerically stable any more, use
   enumerateFrom*RealFloat for that.
-* Fix `MutArray.appendMax` on a slice returning an array with a capacity
-  beyond its allocation, appending to it could corrupt memory.
-* Fix `MutArray.createMinOf 0` writing beyond its allocation.
-* Fix `Fold.bracketIO` losing the input after the inner fold terminates,
-  and not running the release action if the stream ends there.
-* Fix `Fold.finallyIO` running the action only on GC when the inner fold
-  terminates.
-* Fix `Fold.distributeScan` losing the result of a fold that terminates on
-  the last input.
 * Renamed `Stream.altBfsConcatIterate` to `wideDfsConcatIterateRev` and added
   `wideDfsConcatIterate`.
 * Deprecated `Stream.unfoldIterate`, `bfsUnfoldIterate` and
@@ -107,6 +68,42 @@
 * Added `Stream.wideDfsUnfoldIterate`.
 * Added `Stream.bfsConcatIterateRev` and `bfsUnfoldIterateRev`, faster BFS
   variants that start the streams of a level in reverse order.
+
+## 0.3.2 (Oct 2026)
+
+### Bug Fixes
+
+* On POSIX platforms, the `Path` based APIs that open an existing file in
+  `WriteMode`, e.g. `write` and `withFile` in `Streamly.FileSystem.FileIO`,
+  did not truncate it, the old contents beyond the newly written data
+  remained. The file descriptor leaked when the file could not be opened as
+  a Handle, e.g. if it was a directory.
+* Fix `timer`, `timesWith`, `absTimesWith` and `relTimesWith` stopping after a
+  major GC.
+* Fix `enumerateFrom` and `enumerateFromTo` in Stream and Unfold not
+  terminating for bounded integral types when the limit is `maxBound`.
+* Fix `Unfold.enumerateFromTo` for `Identity` calling `enumerateFromThen`.
+* Fix `Stream.splitEndBySeq` and `splitEndBySeq_` dropping the last segment
+  for separators longer than a machine word.
+* `chunksOf` in the array modules no longer emits a trailing empty array
+  when the stream length is a multiple of the chunk size, or when the stream
+  is empty.
+* Fix `classify` and `classifyIO` in Fold and Scanl, and `Fold.classifyScan`,
+  restarting the fold for a key that terminated on its first input.
+* Fix `Scanl.uniqBy` failing before the first input.
+* Fix `Stream.postscanl` emitting an output for a scan that terminates
+  without consuming any input.
+* Fix `Stream.isInfixOf` returning `False` for an empty infix.
+* Fix `RingArray.getIndex`, `cast`, `fold`, `eqArray` and `eqArrayN` for
+  out-of-range indices, misaligned heads, empty rings and array slices.
+* Fix deserialization reading beyond the end of a corrupt or truncated buffer
+  for lists and for derived `Serialize` instances.
+
+### Internal API Bug Fixes
+
+* Fix memory corruption in `MutArray.appendMax`, `MutArray.createMinOf` and
+  `RingArray.Generic.copyToMutArray`, and resource release in
+  `Fold.bracketIO` and `Fold.finallyIO`.
 
 ## 0.3.1 (May 2026)
 
