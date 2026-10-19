@@ -55,10 +55,19 @@
   [Building with the JavaScript backend](https://github.com/composewell/streamly/blob/master/docs/User/HowTo/Compiling.md#javascript)
   for instructions.
 
+* `parTeeWith` supports filtering scans: it emits an output only when both
+  scans produce an output for the same input.
+
+### Bug Fixes
+
+* Fix `interject` returning early for delays longer than 35.8 minutes when
+  `Int` is 32 bits, e.g. on the JavaScript backend.
+
 ## 0.11.1 (May 2026)
 
 * Fix `parDemuxScan` deadlock when a worker throws an exception while the
-  driver is blocked on a full input buffer.
+  driver is blocked on a full input buffer, and a race in which the driver
+  of a concurrent fold or scan could miss an exception thrown by a worker.
 
 ## 0.11.0 (Sep 2025)
 
