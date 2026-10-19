@@ -342,6 +342,38 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    # The macOS image may ship Command Line Tools newer than the default
+    # Xcode (e.g. CLT 27.0 with Xcode 26.6). Linking against the CLT SDK then
+    # fails with "tapi error: malformed file ... unknown architecture
+    # arm64e.x1-macos". Select the default Xcode so that the compiler, linker
+    # and SDK come from the same toolchain. packcheck clears the environment,
+    # so SDKROOT or DEVELOPER_DIR cannot be used instead.
+    #
+    # The GHC bindists for macOS hardcode the CLT SDK path from their build
+    # machine, e.g. the rts and ghci package confs of GHC 9.14.1 have
+    # /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib in
+    # library-dirs, so the linker uses the CLT SDK even when Xcode is
+    # selected. Point the CLT MacOSX.sdk symlink at the Xcode SDK.
+    #
+    # The GHC and dependency cache keys include the Xcode version and build,
+    # so a runner image with a different Xcode installs GHC afresh.
+    - name: Select default Xcode (macOS)
+      id: xcode
+      if: runner.os == 'macOS'
+      run: |
+        sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+        xcode-select -p
+        sdk=$(xcrun --show-sdk-path)
+        echo "$sdk"
+        clt=/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
+        if test -L "$clt"; then
+          ls -ld "$clt"
+          sudo ln -sfn "$sdk" "$clt"
+          ls -ld "$clt"
+        fi
+        ver=$(xcodebuild -version | awk 'NR==1{v=$2} /Build version/{b=$3} END{print v "-" b}')
+        echo "toolchain=-xcode-$ver" >> "$GITHUB_OUTPUT"
+
     # This should happen before cache restore.
     - name: Remove ~/.ghcup symlink (non-Windows)
       if: runner.os != 'Windows'
@@ -366,7 +398,7 @@ jobs:
       with:
         path: |
           ~/.ghcup
-        key: ${{ matrix.runner }}-${{ matrix.ghc_version }}.${{ matrix.ghc_salt}}
+        key: ${{ matrix.runner }}-${{ matrix.ghc_version }}.${{ matrix.ghc_salt}}${{ steps.xcode.outputs.toolchain }}
 
     # XXX If we want to invalidate the cache on resolver change we
     # should use a separate cache for stack as it should be keyed on
@@ -384,7 +416,7 @@ jobs:
           ~/.local/state/cabal
           ~/.stack
         # Bump the key version to clear the cache
-        key: ${{ matrix.runner }}-${{ matrix.command }}-${{ matrix.ghc_version }}-${{ matrix.name }}
+        key: ${{ matrix.runner }}-${{ matrix.command }}-${{ matrix.ghc_version }}-${{ matrix.name }}${{ steps.xcode.outputs.toolchain }}
 
     - name: Cache common directories (Windows)
       uses: actions/cache@v4
@@ -449,7 +481,8 @@ jobs:
             export GHCUP_INSTALL_BASE_PREFIX=$HOME
             ;;
           CYGWIN*|MINGW*|MSYS*)
-            PATH_VAR="$PATH_VAR:/c/Program Files/7-Zip:/mingw64/bin"
+            # Git for Windows 2.56 moved /mingw64 to /ucrt64
+            PATH_VAR="$PATH_VAR:/c/Program Files/7-Zip:/ucrt64/bin:/mingw64/bin"
             ;;
         esac
         # Use "bash -c" instead of invoking directly to preserve quoted
