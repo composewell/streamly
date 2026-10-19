@@ -1186,6 +1186,14 @@ data SplitOnSeqState mba rb rh ck w fs s b x =
 --
 -- Uses Rabin-Karp algorithm for substring search.
 --
+-- A pattern of two or more elements with a total size of at most one machine
+-- word is matched by comparing 'fromEnum' of the elements, and the elements
+-- passed to the fold are rebuilt from it with 'toEnum'. For a type whose
+-- 'fromEnum' loses information, e.g. 'Float', the pattern @[1.5, 2.5]@
+-- matches the input @[1.2, 2.3]@ and the fold receives the elements
+-- truncated to whole numbers. @toEnum 0@ must be a valid value of the element
+-- type.
+--
 {-# INLINE_NORMAL splitSepBySeq_ #-}
 splitSepBySeq_, splitOnSeq
     :: forall m a b. (MonadIO m, Unbox a, Enum a, Eq a)
@@ -2000,6 +2008,12 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
 --
 -- Uses Rabin-Karp algorithm for substring search.
 --
+-- A pattern of two or more elements with a total size of at most one machine
+-- word is matched by comparing 'fromEnum' of the elements. For a type whose
+-- 'fromEnum' loses information, e.g. 'Float', the pattern @[1.5, 2.5]@
+-- matches the input @[1.2, 2.3]@. @toEnum 0@ must be a
+-- valid value of the element type.
+--
 {-# INLINE_NORMAL splitEndBySeq #-}
 splitEndBySeq
     :: forall m a b. (MonadIO m, Unbox a, Enum a, Eq a)
@@ -2045,6 +2059,14 @@ splitEndBySeq = splitOnSuffixSeq True
 -- ["a"]
 --
 -- Uses Rabin-Karp algorithm for substring search.
+--
+-- A pattern of two or more elements with a total size of at most one machine
+-- word is matched by comparing 'fromEnum' of the elements, and the elements
+-- passed to the fold are rebuilt from it with 'toEnum'. For a type whose
+-- 'fromEnum' loses information, e.g. 'Float', the pattern @[1.5, 2.5]@
+-- matches the input @[1.2, 2.3]@ and the fold receives the elements
+-- truncated to whole numbers. @toEnum 0@ must be a valid value of the element
+-- type.
 --
 {-# INLINE_NORMAL splitEndBySeq_ #-}
 splitEndBySeq_
