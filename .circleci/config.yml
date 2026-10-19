@@ -95,6 +95,9 @@ preinstall: &preinstall
         then
           apt-get install -y gcc
           apt-get install -y g++
+          # A ghc restored from the cache may link with -fuse-ld=gold, gold
+          # is not in binutils since 2.44.
+          apt-get install -y binutils-gold
         fi
 
         # libgmp required by ghc for linking
