@@ -12,7 +12,7 @@ env: &env
       # ------------------------------------------------------------------------
       # GHC_OPTIONS: "-Werror"
       # For updating see: https://downloads.haskell.org/~ghcup/
-      GHCUP_VERSION: 0.1.20.0
+      GHCUP_VERSION: 0.1.50.2
       CABAL_REINIT_CONFIG: "y"
       LC_ALL: "C.UTF-8"
 
@@ -173,7 +173,7 @@ jobs:
         - run:
             environment:
               GHCVER: "9.8.1"
-              CABALVER: "3.10.1.0"
+              CABALVER: "3.16.1.0"
               CABAL_PROJECT: "cabal.project.doctest"
               DISABLE_SDIST_BUILD: "y"
               DISABLE_TEST: "y"
