@@ -7,13 +7,19 @@
 * Filtering support for `Scanl`.
 * FileSystem.Path now does not treat paths with leading "./" as rooted paths.
 * `streamly-core` now builds with GHC's JavaScript backend (GHC 9.10),
-  replacing the support for the old GHCJS compiler.
+  replacing the support for the old GHCJS compiler. Fixes for 32-bit `Int`,
+  as on the JavaScript backend:
+  * `RingArray.ringsOf` and `scanRingsOf` produced rings of a wrong size
+    after `2^31` bytes.
+  * `Unicode.Parser.double` gave wrong results for numbers with more than 9
+    significant digits.
+  * `Serialize` for lists and arrays wrote past the end of the buffer. The
+    length header is now always `Int64`, the encoding on 64-bit platforms
+    is unchanged.
 
 ### Bug Fixes
 
 * Fix the `Arrow` instance of `Scan` failing when a scan skips an input.
-* Fix `RingArray.ringsOf` and `scanRingsOf` producing rings of a wrong size
-  after `2^31` bytes when `Int` is 32-bit, e.g. on the JavaScript backend.
 * Fix `Scanl.partition`, `partitionBy` and `partitionByM` not finalizing one
   scan when the other terminates.
 * `enumerateFromTo` and `enumerateFromThenTo` for `Ratio` now round the

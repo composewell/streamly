@@ -53,15 +53,11 @@
   with the JavaScript backend, the `network` package does not build for it.
   See
   [Building with the JavaScript backend](https://github.com/composewell/streamly/blob/master/docs/User/HowTo/Compiling.md#javascript)
-  for instructions.
+  for instructions. Fixes for 32-bit `Int`, as on the JavaScript backend:
+  * `interject` returned early for delays longer than 35.8 minutes.
 
 * `parTeeWith` supports filtering scans: it emits an output only when both
   scans produce an output for the same input.
-
-### Bug Fixes
-
-* Fix `interject` returning early for delays longer than 35.8 minutes when
-  `Int` is 32 bits, e.g. on the JavaScript backend.
 
 ## 0.11.1 (May 2026)
 
