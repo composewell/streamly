@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.3.2 (Oct 2026)
+
+### Bug Fixes
+
+* On POSIX platforms, the `Path` based APIs that open an existing file in
+  `WriteMode`, e.g. `write` and `withFile` in `Streamly.FileSystem.FileIO`,
+  did not truncate it, the old contents beyond the newly written data
+  remained. The file descriptor leaked when the file could not be opened as
+  a Handle, e.g. if it was a directory.
+* Fix `timer`, `timesWith`, `absTimesWith` and `relTimesWith` stopping after a
+  major GC.
+* Fix `enumerateFrom` and `enumerateFromTo` in Stream and Unfold not
+  terminating for bounded integral types when the limit is `maxBound`.
+* Fix `Unfold.enumerateFromTo` for `Identity` calling `enumerateFromThen`.
+* Fix `Stream.splitEndBySeq` and `splitEndBySeq_` dropping the last segment
+  for separators longer than a machine word.
+* `chunksOf` in the array modules no longer emits a trailing empty array
+  when the stream length is a multiple of the chunk size, or when the stream
+  is empty.
+* Fix `classify` and `classifyIO` in Fold and Scanl, and `Fold.classifyScan`,
+  restarting the fold for a key that terminated on its first input.
+* Fix `Scanl.uniqBy` failing before the first input.
+* Fix `Stream.postscanl` emitting an output for a scan that terminates
+  without consuming any input.
+* Fix `Stream.isInfixOf` returning `False` for an empty infix.
+* Fix `RingArray.getIndex`, `cast`, `fold`, `eqArray` and `eqArrayN` for
+  out-of-range indices, misaligned heads, empty rings and array slices.
+* Fix deserialization reading beyond the end of a corrupt or truncated buffer
+  for lists and for derived `Serialize` instances.
+
+### Internal API Bug Fixes
+
+* Fix memory corruption in `MutArray.appendMax`, `MutArray.createMinOf` and
+  `RingArray.Generic.copyToMutArray`, and resource release in
+  `Fold.bracketIO` and `Fold.finallyIO`.
+
 ## 0.3.1 (May 2026)
 
 * Fixed `Path.fromString` truncation when unicode chars are present.
