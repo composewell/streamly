@@ -177,6 +177,8 @@ jobs:
             environment:
               GHCVER: "9.8.1"
               CABALVER: "3.16.1.0"
+              # cabal-docspec looks for the store in ~/.cabal
+              CABAL_DIR: "/root/.cabal"
               CABAL_PROJECT: "cabal.project.doctest"
               DISABLE_SDIST_BUILD: "y"
               DISABLE_TEST: "y"
