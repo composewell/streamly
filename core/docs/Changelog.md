@@ -5,7 +5,10 @@
 ### Enhancements
 
 * Filtering support for `Scanl`.
-* FileSystem.Path now does not treat paths with leading "./" as rooted paths.
+* Added `packPathsEndBy` in `Streamly.FileSystem.Path`.
+* The `followSymlinks`, `ignoreMissing`, `ignoreSymlinkLoops` and
+  `ignoreInaccessible` options of `Streamly.FileSystem.DirIO` are now
+  available on Windows too.
 * `streamly-core` now builds with GHC's JavaScript backend (GHC 9.10),
   replacing the support for the old GHCJS compiler. Fixes for 32-bit `Int`,
   as on the JavaScript backend:
@@ -13,23 +16,27 @@
     after `2^31` bytes.
   * `Unicode.Parser.double` gave wrong results for numbers with more than 9
     significant digits.
-  * `Serialize` for lists and arrays wrote past the end of the buffer. The
-    length header is now always `Int64`, the encoding on 64-bit platforms
-    is unchanged.
+  * `Serialize` for lists and arrays wrote past the end of the buffer.
+  * `Serialize` now encodes `Int`, `Word`, `Integer` and the list and array
+    length headers the same on all platforms, data serialized on a 32-bit
+    platform can be read on a 64-bit platform. The encoding on 64-bit
+    platforms is unchanged.
 
 ### Bug Fixes
 
-* Fix the `Arrow` instance of `Scan` failing when a scan skips an input.
-* Fix `Scanl.partition`, `partitionBy` and `partitionByM` not finalizing one
-  scan when the other terminates.
-* `enumerateFromTo` and `enumerateFromThenTo` for `Ratio` now round the
-  limit to the nearest step, and `Enumerable` for `Fixed` now steps by the
-  resolution of the type, the same as their `Enum` instances.
-* Fix `enumerateFromToNum` and `enumerateDownFromToNum` emitting one element
-  beyond the limit when the difference between the limits is not a whole
-  number.
+* Fix `Scanl.partition` not finalizing one scan when the other terminates.
 * Fix `enumerateFromThen` and `enumerateFromThenTo` for `Natural` failing
   with an underflow when enumerating downwards.
+* Fix `enumerateFromThen` in `Streamly.Data.Unfold` wrapping around instead
+  of stopping at `maxBound`, or `minBound` downwards, for bounded integral
+  types.
+* Fix the `Show` and `Read` instances of `Array` and Generic `Array` when
+  nested, e.g. `show (Just arr)` gave `Just fromList [...]`, which could not
+  be read back.
+* Fix deserialization reading beyond the end of a corrupt or truncated buffer
+  for `Array`, `Proxy` and derived instances of types with one constructor
+  and no fields. `()` and `Proxy` now serialize to a 0 byte, the byte was
+  left unwritten.
 
 ### Breaking changes
 
@@ -37,10 +44,14 @@
   `filterM`, `catMaybes`, `catLefts` etc. used to emit the previous
   value of accumulator for filtered-out elements, now they do not emit
   any output for those.
-* `Scanl.incrScanWith` now provides the ring array reflecting the
-  state of the window /before/ the incoming element is inserted.
+* `Enumerable` for `Fixed` now steps by the resolution of the type, the same
+  as its `Enum` instance, e.g. `enumerateFromTo (1.5 :: Milli) 1.503` gives
+  `[1.500,1.501,1.502,1.503]` instead of `[1.500]`.
 * In `FileSystem.Path` module the default for `eqPath` changed
-  on Windows to case-sensitive comparison.
+  on Windows to case-sensitive comparison. The drive and the UNC
+  `\\server\share` root are always compared case-insensitively.
+* On Windows, `splitRoot` returns the whole `\\server\share` of a UNC path
+  as the root, the share name is no longer the first component of the path.
 * A leading "." component (e.g. "." or "./x") is no longer
   treated as a rooted path, making the behavior more in line with
   intuitive expectation.
@@ -50,8 +61,26 @@
   `c:` and `c:` on Windows) now compare equal. Pass
   `allowRelativeEquality False` to restore the previous strict behaviour.
 
+### Deprecations
+
+* In `Streamly.Data.Scanl`, `mkScanl`, `mkScanlM`, `mkScanl1`, `mkScanl1M`
+  and `scanl` are renamed to `scanl'`, `scanlM'`, `scanl1'`, `scanl1M'` and
+  `compose`. The old names are deprecated.
+* In `Streamly.Data.Unfold`, `first`, `second` and `carry` are renamed to
+  `supplyFirst`, `supplySecond` and `carryInput`. The old names are
+  deprecated.
+
 ### Internal changes
 
+* Renamed the `Streamly.Internal.Data.Scanr` module to
+  `Streamly.Internal.Data.Scan`, and the `Scanr` type to `Scan`.
+* Fix the `Arrow` instance of `Scan` failing when a scan skips an input.
+* Fix `Scanl.partitionBy` and `partitionByM` not finalizing one scan when
+  the other terminates.
+* `Scanl.incrScanWith` now provides the ring array reflecting the
+  state of the window /before/ the incoming element is inserted.
+* Renamed the `Streamly.Internal.FileSystem.Posix.*` and `Windows.*` modules
+  to `Streamly.Internal.Syscall.Posix.*` and `Syscall.Windows.*`.
 * `Scanl`'s Step type is now different from Fold's `Step` type
   with an additional `Continue` constructor, this change enables proper
   filtering in scans.
