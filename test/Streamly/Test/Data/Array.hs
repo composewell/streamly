@@ -272,6 +272,12 @@ reallocMA =
                lst1 <- MA.toList arr1
                lst `shouldBe` lst1
 
+testUnsnoc :: IO ()
+testUnsnoc = do
+    A.unsnoc (A.fromList [1, 2, 3 :: Int])
+        `shouldBe` Just (A.fromList [1, 2], 3)
+    A.unsnoc (A.fromList ([] :: [Int])) `shouldBe` Nothing
+
 main :: IO ()
 main =
     hspec $
@@ -297,6 +303,7 @@ main =
             it "testUnsafeFromForeignPtr" testUnsafeFromForeignPtr
             it "testFromCString#" testFromCString#
             it "testFromW16CString#" testFromW16CString#
+        it "unsnoc" testUnsnoc
         describe "unsafeSlice" $ do
             it "partial" $ unsafeSlice 2 4 [1..10]
             it "none" $ unsafeSlice 10 0 [1..10]

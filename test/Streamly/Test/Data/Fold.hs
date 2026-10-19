@@ -2,6 +2,7 @@
 
 module Main (main) where
 
+import Data.IORef (atomicModifyIORef, newIORef, readIORef, writeIORef)
 import Data.List (sort, sortBy)
 import Data.Ord (comparing, Down(..))
 import Data.Semigroup (Sum(..), getSum)
@@ -24,6 +25,8 @@ import qualified Data.Map
 import qualified Prelude
 import qualified Streamly.Internal.Data.MutArray as MArray
 import qualified Streamly.Internal.Data.Fold as Fold
+import qualified Streamly.Internal.Data.Refold.Type as Refold
+import qualified Streamly.Internal.Data.Scanl as Scanl
 import qualified Streamly.Internal.Data.Stream as Stream
 
 import Prelude hiding
@@ -706,6 +709,144 @@ nub = monadicIO $ do
             $ Stream.fromList  [1::Int, 1, 2, 3, 4, 4, 5, 1, 5, 7]
     assert (vals == [1, 2, 3, 4, 5, 7])
 
+-------------------------------------------------------------------------------
+-- Finalization
+-------------------------------------------------------------------------------
+
+-- | 'Fold.refold' must finalize the source fold, not extract it. The
+-- 'Fold.splitWith' fold has no extract.
+refoldFinal :: Expectation
+refoldFinal = do
+    let src =
+            Fold.splitWith (++)
+                (Fold.fromPure [1]) (Fold.take 1 (Fold.foldl' (++) []))
+    Stream.fold (Fold.refold Refold.sconcat src)
+        (Stream.fromList [[2 :: Int]])
+        `shouldReturn` [1,2]
+
+-- The fold must stop with the inner fold, without consuming another input,
+-- and release the resource.
+bracketIOInnerDone :: Expectation
+bracketIOInnerDone = do
+    ref <- newIORef (0 :: Int)
+    let fld = Fold.bracketIO (return ()) (\_ -> writeIORef ref 1)
+                (\_ -> Fold.take 2 Fold.toList)
+    (r, rest) <- Stream.foldBreak fld (Stream.fromList [1..5 :: Int])
+    r `shouldBe` [1,2]
+    Stream.toList rest `shouldReturn` [3,4,5]
+    readIORef ref `shouldReturn` 1
+
+bracketIOInnerDoneAtEnd :: Expectation
+bracketIOInnerDoneAtEnd = do
+    ref <- newIORef (0 :: Int)
+    let fld = Fold.bracketIO (return ()) (\_ -> writeIORef ref 1)
+                (\_ -> Fold.take 2 Fold.toList)
+    r <- Stream.fold fld (Stream.fromList [1,2 :: Int])
+    r `shouldBe` [1,2]
+    readIORef ref `shouldReturn` 1
+
+finallyIOInnerDone :: Expectation
+finallyIOInnerDone = do
+    ref <- newIORef (0 :: Int)
+    let fld = Fold.finallyIO (writeIORef ref 1) (Fold.take 1 Fold.drain)
+    Stream.fold fld (Stream.fromList [1,2,3 :: Int])
+    readIORef ref `shouldReturn` 1
+
+finallyIOInitDone :: Expectation
+finallyIOInitDone = do
+    ref <- newIORef (0 :: Int)
+    let fld = Fold.finallyIO (writeIORef ref 1) (Fold.take 0 Fold.drain)
+    Stream.fold fld (Stream.fromList [1 :: Int])
+    readIORef ref `shouldReturn` 1
+
+-------------------------------------------------------------------------------
+-- Sampling, distributing and classifying
+-------------------------------------------------------------------------------
+
+sampleFromthenOffset :: Expectation
+sampleFromthenOffset =
+    Stream.fold (Fold.sampleFromthen 1 3 Fold.toList)
+        (Stream.fromList [0..9 :: Int])
+    `shouldReturn` [1,4,7]
+
+distributeScan :: Expectation
+distributeScan = do
+    ref <- newIORef [Fold.take 2 Fold.sum, Fold.take 2 Fold.length :: Fold.Fold IO Int Int]
+    let gen = atomicModifyIORef ref (\xs -> ([], xs))
+    r <- Stream.fold Fold.toList
+             $ Stream.postscanl (Fold.distributeScan gen)
+             $ Stream.fromList [1..5 :: Int]
+    r `shouldBe` [[], [3, 2], [], [], []]
+
+-- The results of the folds that terminate on the last input must not be lost.
+distributeScanLast :: Expectation
+distributeScanLast = do
+    ref <- newIORef [Fold.take 2 Fold.sum, Fold.take 2 Fold.length :: Fold.Fold IO Int Int]
+    let gen = atomicModifyIORef ref (\xs -> ([], xs))
+    Stream.fold (Fold.fromScanl (Fold.distributeScan gen))
+        (Stream.fromList [1, 2 :: Int])
+        `shouldReturn` [3, 2]
+
+-- The inner fold terminates on the first input of a key, further inputs of
+-- that key must be ignored.
+classifyScanDoneOnFirst :: Expectation
+classifyScanDoneOnFirst = do
+    let innerFold = Fold.lmap snd (Fold.take 1 Fold.sum)
+        input = [("A", 1::Int), ("B", 5), ("A", 2), ("B", 6)]
+        expected = [("A", 1), ("B", 5)]
+        run1 scn = Stream.fold Fold.toList
+            $ Stream.postscanlMaybe scn (Stream.fromList input)
+        snd2 = fmap snd
+    run1 (Fold.classifyScan fst innerFold) `shouldReturn` expected
+    run1 (Fold.classifyScanIO fst innerFold) `shouldReturn` expected
+    Stream.fold Fold.toList
+        (Stream.catMaybes
+            $ Stream.postscan (snd2 (Fold.classify fst innerFold))
+            $ Stream.fromList input)
+        `shouldReturn` expected
+    Stream.fold Fold.toList
+        (Stream.catMaybes
+            $ Stream.postscan (snd2 (Fold.classifyIO fst innerFold))
+            $ Stream.fromList input)
+        `shouldReturn` expected
+
+-------------------------------------------------------------------------------
+-- Scanl
+-------------------------------------------------------------------------------
+
+-- The index of the first sampled element is the offset.
+scanlSampleFromthenOffset :: Expectation
+scanlSampleFromthenOffset = do
+    let run1 offset stride =
+            Stream.fold
+                (Fold.fromScanl
+                    (Scanl.sampleFromthen offset stride Scanl.toList))
+                (Stream.fromList [0 .. 9 :: Int])
+    run1 1 3 `shouldReturn` [1, 4, 7]
+    run1 5 3 `shouldReturn` [5, 8]
+
+-- The inner scan terminates on the first input of a key, further inputs of
+-- that key must be ignored.
+scanlClassifyDoneOnFirst :: Expectation
+scanlClassifyDoneOnFirst = do
+    let input = [("A", 1), ("B", 5), ("A", 2), ("B", 6)] :: [(String, Int)]
+        expected = [Just ("A", 1), Just ("B", 5), Nothing, Nothing]
+        inner = Scanl.lmap snd (Scanl.take 1 Scanl.sum)
+        run1 scn = Stream.toList $ Stream.postscanl scn (Stream.fromList input)
+    run1 (Scanl.classify fst inner) `shouldReturn` expected
+    run1 (Scanl.classifyIO fst inner) `shouldReturn` expected
+
+-- uniq has a valid result before any input.
+scanlUniqInitial :: Expectation
+scanlUniqInitial = do
+    Stream.toList (Stream.scanl Scanl.uniq (Stream.fromList "aab"))
+        `shouldReturn` [Nothing, Just 'a', Nothing, Just 'b']
+    Stream.toList
+        (Stream.scanl (Scanl.scanl Scanl.uniq Scanl.toList)
+            (Stream.fromList "ab"))
+        `shouldReturn`
+            [[Nothing], [Nothing, Just 'a'], [Nothing, Just 'a', Just 'b']]
+
 moduleName :: String
 moduleName = "Data.Fold"
 
@@ -809,3 +950,21 @@ main = hspec $ do
         -- chunksOf
 
         prop "foldBreak" foldBreak
+
+        -- Finalization
+        it "refold calls final" refoldFinal
+        it "bracketIO inner fold done" bracketIOInnerDone
+        it "bracketIO inner fold done at end" bracketIOInnerDoneAtEnd
+        it "finallyIO inner fold done" finallyIOInnerDone
+        it "finallyIO inner fold done in initial" finallyIOInitDone
+
+        -- Sampling, distributing and classifying
+        it "sampleFromthen offset" sampleFromthenOffset
+        it "distributeScan" Main.distributeScan
+        it "distributeScan last input" distributeScanLast
+        it "classifyScan done on first input" classifyScanDoneOnFirst
+
+    describe "Data.Scanl" $ do
+        it "sampleFromthen offset" scanlSampleFromthenOffset
+        it "classify done on first input" scanlClassifyDoneOnFirst
+        it "uniq initial" scanlUniqInitial

@@ -6,6 +6,7 @@ import Control.Monad (void)
 import Data.Complex (Complex)
 import Data.Functor.Const (Const)
 import Data.Functor.Identity (Identity)
+import Data.Proxy (Proxy(..))
 import Foreign.Ptr (IntPtr, WordPtr)
 import GHC.Exts
 import GHC.Fingerprint.Type (Fingerprint(..))
@@ -13,9 +14,10 @@ import GHC.Int (Int16(..), Int32(..), Int64(..), Int8(..))
 import GHC.Real (Ratio(..))
 import GHC.Stable (StablePtr(..))
 import GHC.Word (Word16(..), Word32(..), Word64(..), Word8(..))
-import Streamly.Internal.Data.MutByteArray (Unbox)
+import Streamly.Internal.Data.MutByteArray (Unbox, sizeOf)
 import Streamly.Test.Common (chooseInt)
-import Test.Hspec (hspec, describe, it)
+import Test.Hspec
+    (hspec, describe, it, shouldBe, shouldReturn, shouldSatisfy)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck (forAll, Property)
 import Test.QuickCheck.Monadic (monadicIO, assert)
@@ -23,7 +25,10 @@ import Test.QuickCheck.Monadic (monadicIO, assert)
 import GHC.IO.SubSystem (IoSubSystem (..))
 #endif
 
+import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.Data.MutArray as MArray
+import qualified Streamly.Internal.Data.MutArray.Generic as GArray
+import qualified Streamly.Internal.Data.MutByteArray as MBA
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Test.Hspec as Hspec
 
@@ -47,6 +52,71 @@ testAppend =
                     (Stream.fromList (ls::[Int]))
             lst <- MArray.toList x
             assert (ls == lst)
+
+-- Appending to a slice starting at a non-zero offset reallocates it, the
+-- capacity of the result must be within the new allocation.
+testAppendMaxSlice :: IO ()
+testAppendMaxSlice = do
+    arr <- MArray.fromList ([0..9] :: [Int])
+    let slice = MArray.sliceOffLen 5 2 arr
+    result <- Stream.fold (MArray.appendMax 3 slice) $ Stream.fromList [7,8,9]
+    MArray.toList result `shouldReturn` [5..9]
+    n <- MBA.length (MArray.arrContents result)
+    MArray.arrBound result `shouldSatisfy` (<= n)
+    MArray.byteCapacity result `shouldBe` 5 * sizeOf (Proxy :: Proxy Int)
+
+-- Growing from an initial capacity of 0 must allocate at least one element.
+testCreateMinOf0 :: IO ()
+testCreateMinOf0 = do
+    arr <- Stream.fold (MArray.createMinOf 0) $ Stream.fromList ([1] :: [Int])
+    MArray.toList arr `shouldReturn` [1]
+    n <- MBA.length (MArray.arrContents arr)
+    MArray.arrEnd arr `shouldSatisfy` (<= n)
+
+testClone :: IO ()
+testClone = do
+    arr <- MArray.fromList ([1..5] :: [Int])
+    arr2 <- MArray.clone arr
+    MArray.putIndex 0 arr 99
+    MArray.getIndex 0 arr `shouldReturn` Just 99
+    MArray.getIndex 0 arr2 `shouldReturn` Just 1
+    lst <- MArray.toList arr2
+    lst `shouldBe` [1..5]
+
+testCloneGeneric :: IO ()
+testCloneGeneric = do
+    arr <- GArray.fromList ([1..5] :: [Int])
+    arr2 <- GArray.clone arr
+    GArray.putIndex 0 arr 99
+    GArray.getIndex 0 arr `shouldReturn` Just 99
+    GArray.getIndex 0 arr2 `shouldReturn` Just 1
+    lst <- GArray.toList arr2
+    lst `shouldBe` [1..5]
+
+testIndexReader :: IO ()
+testIndexReader = do
+    arr <- MArray.fromList ([10,20,30,40,50] :: [Int])
+    let indices = Stream.fromList [4,0,2]
+    lst <- Stream.fold Fold.toList $ Stream.unfold (MArray.indexReader indices) arr
+    lst `shouldBe` [50,10,30]
+
+-- No empty array at the end when the stream length is a multiple of the chunk
+-- size or the stream is empty.
+testChunksOfExact :: IO ()
+testChunksOfExact = do
+    let chunks xs =
+            Stream.fold Fold.toList (MArray.chunksOf 3 (Stream.fromList xs))
+                >>= mapM MArray.toList
+    chunks ([1..9] :: [Int]) `shouldReturn` [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+    chunks ([] :: [Int]) `shouldReturn` []
+
+testChunksOfExactGeneric :: IO ()
+testChunksOfExactGeneric = do
+    let chunks xs =
+            Stream.fold Fold.toList (GArray.chunksOf 3 (Stream.fromList xs))
+                >>= mapM GArray.toList
+    chunks ([1..9] :: [Int]) `shouldReturn` [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+    chunks ([] :: [Int]) `shouldReturn` []
 
 #define TEST_IE(_type) it "_type" $ testIE ([] :: [_type])
 
@@ -150,4 +220,11 @@ main =
         describe moduleName $ do
             describe "Stream Append" $ do
                 prop "testAppend" testAppend
+            it "appendMax to a slice" testAppendMaxSlice
+            it "createMinOf 0" testCreateMinOf0
+            it "clone" testClone
+            it "clone (Generic)" testCloneGeneric
+            it "indexReader" testIndexReader
+            it "chunksOf exact multiple" testChunksOfExact
+            it "chunksOf exact multiple (Generic)" testChunksOfExactGeneric
             testUnboxInstanceExistance

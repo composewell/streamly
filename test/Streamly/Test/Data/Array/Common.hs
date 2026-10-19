@@ -86,8 +86,20 @@ foldManyWith f =
                     $ S.fromList list
                 assert (xs == list)
 
+-- No empty array at the end when the stream length is a multiple of the chunk
+-- size or the stream is empty.
+testChunksOfExact :: IO ()
+testChunksOfExact = do
+    let chunks xs =
+            map A.toList
+                <$> S.fold Fold.toList (A.chunksOf 3 (S.fromList xs))
+    chunks ([1..9] :: [Int]) `shouldReturn` [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+    chunks ([] :: [Int]) `shouldReturn` []
+
 commonMain :: SpecWith ()
 commonMain = do
+    describe "Stream of arrays" $ do
+        it "chunksOf exact multiple" testChunksOfExact
     describe "Construction" $ do
         prop "length . writeN n === n" testLength
         prop "length . fromStreamN n === n" testLengthFromStreamN

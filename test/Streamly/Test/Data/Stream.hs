@@ -14,8 +14,10 @@
 
 module Streamly.Test.Data.Stream (main) where
 
+import Control.Concurrent (threadDelay)
 import Control.Monad ( forM_ )
 import Control.Monad.IO.Class (MonadIO)
+import Data.Functor.Identity (Identity(..))
 import Data.List (sort, group, intercalate)
 import Data.Semigroup (Sum(..), getSum)
 import Data.Word (Word8)
@@ -23,6 +25,7 @@ import Streamly.Internal.Data.Array (Array)
 import Streamly.Internal.Data.Fold (Fold)
 import Streamly.Internal.Data.MutByteArray (Unbox)
 import Streamly.Internal.Data.Stream (Stream)
+import System.Mem (performMajorGC)
 import Test.QuickCheck
     ( Gen
     , Property
@@ -39,6 +42,8 @@ import Test.QuickCheck.Monadic (assert, monadicIO, pick, run)
 
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Fold as Fold
+import qualified Streamly.Internal.Data.Refold.Type as Refold
+import qualified Streamly.Internal.Data.Scanl as Scanl
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.StreamK as StreamK
@@ -449,6 +454,12 @@ groupSplitOps desc = do
         f "..." "..." ["..."]
         f "." ".a" [".","a"]
         f "." "a." ["a."]
+        -- Patterns longer than a Word use the Karp-Rabin search, Char is 4
+        -- bytes, a 3 Char pattern is longer than a 64-bit Word.
+        f "abc" "abcab" ["abc","ab"]
+        f "abc" "abcabc" ["abc","abc"]
+        f "abc" "xabcab" ["xabc","ab"]
+        f "abcdefghi" "abcdefghiabcdefgh" ["abcdefghi","abcdefgh"]
 
     it "splitEndBySeq_ word hash cases" $ do
         let f sep input result =
@@ -472,6 +483,12 @@ groupSplitOps desc = do
         f "..." "..." [""]
         f "." ".a" ["","a"]
         f "." "a." ["a"]
+        -- Patterns longer than a Word use the Karp-Rabin search, Char is 4
+        -- bytes, a 3 Char pattern is longer than a 64-bit Word.
+        f "abc" "abcab" ["","ab"]
+        f "abc" "abcabc" ["",""]
+        f "abc" "xabcab" ["x","ab"]
+        f "abcdefghi" "abcdefghiabcdefgh" ["","abcdefgh"]
 
     it "splitSepBySeq_ word hash cases" $ do
         let f sep input result =
@@ -680,6 +697,107 @@ sortBy =
                     )
             assert $ s1 == s2
 
+-------------------------------------------------------------------------------
+-- Elimination
+-------------------------------------------------------------------------------
+
+testFoldr1NonCommutative :: Expectation
+testFoldr1NonCommutative = do
+    Stream.foldr1 (-) (Stream.fromList [1, 2, 3 :: Int])
+        `shouldReturn` Just (foldr1 (-) [1, 2, 3])
+    Stream.foldr1 const (Stream.fromList [1, 2, 3 :: Int])
+        `shouldReturn` Just 1
+
+testIsInfixOfEmpty :: Expectation
+testIsInfixOfEmpty = do
+    Stream.isInfixOf
+        (Stream.fromList ([] :: [Int]))
+        (Stream.fromList []) `shouldReturn` True
+    Stream.isInfixOf
+        (Stream.fromList ([] :: [Int]))
+        (Stream.fromList [1]) `shouldReturn` True
+
+-------------------------------------------------------------------------------
+-- Transformation
+-------------------------------------------------------------------------------
+
+-- A scan that terminates at the initial step consumes no input.
+testPostscanlDoneAtInit :: Expectation
+testPostscanlDoneAtInit =
+    Stream.toList
+        (Stream.postscanl
+            (Scanl.take 0 Scanl.toList) (Stream.fromList [1, 2, 3 :: Int]))
+        `shouldReturn` []
+
+testRefoldIterateM :: Expectation
+testRefoldIterateM = do
+    -- Takes 2, feeds output as next initial value:
+    -- init=0: 0+1+2=3 (yield 3)
+    -- init=3: 3+3+4=10 (yield 10)
+    -- init=10: 10+5+6=21 (yield 21)
+    let rf = Refold.take 2 (Refold.foldl' (+))
+    result <- Stream.toList $
+        Stream.refoldIterateM rf (return (0 :: Int)) (Stream.fromList [1..6 :: Int])
+    result `shouldBe` [3, 10, 21]
+
+-------------------------------------------------------------------------------
+-- Nested
+-------------------------------------------------------------------------------
+
+testNestedShowRead :: Expectation
+testNestedShowRead = do
+    let n = Stream.Nested (Stream.fromList [1, 2]) :: Stream.Nested Identity Int
+    show (Just n) `shouldBe` "Just (fromList [1,2])"
+    fmap Stream.unNested (read (show (Just n)) :: Maybe (Stream.Nested Identity Int))
+        `shouldBe` Just (Stream.fromList [1, 2])
+
+testNestedShowReadK :: Expectation
+testNestedShowReadK = do
+    let n = StreamK.Nested (StreamK.fromList [1, 2]) :: StreamK.Nested Identity Int
+    show (Just n) `shouldBe` "Just (fromList [1,2])"
+    fmap (runIdentity . StreamK.toList . StreamK.unNested)
+        (read (show (Just n)) :: Maybe (StreamK.Nested Identity Int))
+        `shouldBe` Just [1, 2]
+
+-------------------------------------------------------------------------------
+-- Enumeration
+-------------------------------------------------------------------------------
+
+testEnumerableFromToIdentity :: Expectation
+testEnumerableFromToIdentity =
+    toList (Stream.enumerateFromTo (Identity (0 :: Int)) (Identity 4))
+        `shouldReturn` fmap Identity [0, 1, 2, 3, 4]
+
+testEnumerableFromThenToIdentity :: Expectation
+testEnumerableFromThenToIdentity =
+    toList
+        (Stream.enumerateFromThenTo
+            (Identity (0 :: Int)) (Identity 2) (Identity 6))
+        `shouldReturn` fmap Identity [0, 2, 4, 6]
+
+-- Guarded with 'Stream.take' so that a wraparound fails instead of hanging.
+testEnumerateFromToIntegralOverflow :: Expectation
+testEnumerateFromToIntegralOverflow =
+    toList (Stream.take 10 (Stream.enumerateFromToIntegral (253 :: Word8) 255))
+        `shouldReturn` [253, 254, 255]
+
+testEnumerateFromIntegralOverflow :: Expectation
+testEnumerateFromIntegralOverflow =
+    toList (Stream.take 10 (Stream.enumerateFromIntegral (253 :: Word8)))
+        `shouldReturn` [253, 254, 255]
+
+-------------------------------------------------------------------------------
+-- Time
+-------------------------------------------------------------------------------
+
+-- The clock thread must keep running after a GC.
+testRelTimesWithGC :: Expectation
+testRelTimesWithGC = do
+    xs <- toList
+        $ Stream.mapM (\x -> performMajorGC >> threadDelay 20000 >> return x)
+        $ Stream.take 3 (Stream.relTimesWith 0.001)
+    and (zipWith (<) xs (drop 1 xs)) `shouldBe` True
+
 ------------------------------------------------------------------------------
 
 maxStreamLen :: Int
@@ -864,3 +982,23 @@ main = hspec
 
     describe "Nesting" $ do
         prop "foldIterateM" foldIterateM
+        it "refoldIterateM" testRefoldIterateM
+        it "Nested Show/Read" testNestedShowRead
+        it "StreamK Nested Show/Read" testNestedShowReadK
+
+    describe "Elimination" $ do
+        it "foldr1 non-commutative" testFoldr1NonCommutative
+        it "isInfixOf empty infix" testIsInfixOfEmpty
+
+    describe "Transformation" $ do
+        it "postscanl done at init" testPostscanlDoneAtInit
+
+    describe "Enumeration" $ do
+        it "enumerateFromTo Identity" testEnumerableFromToIdentity
+        it "enumerateFromThenTo Identity" testEnumerableFromThenToIdentity
+        it "enumerateFromToIntegral overflow"
+            testEnumerateFromToIntegralOverflow
+        it "enumerateFromIntegral overflow" testEnumerateFromIntegralOverflow
+
+    describe "Time" $ do
+        it "relTimesWith advances after a GC" testRelTimesWithGC

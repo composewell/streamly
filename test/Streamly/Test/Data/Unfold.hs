@@ -21,6 +21,7 @@ import qualified Streamly.Internal.Data.StreamK as K
 
 import Control.Monad.Trans.State.Strict
 import Data.Functor.Identity
+import Data.Word (Word8)
 import Prelude hiding (const, take, drop, concat, mapM)
 import Test.Hspec as H
 import Test.Hspec.QuickCheck
@@ -99,6 +100,11 @@ swap :: Bool
 swap =
     let unf = UF.swap (UF.function id)
      in testUnfold unf ((1, 2) :: (Int, Int)) [(2, 1)]
+
+beforeAction :: Bool
+beforeAction =
+    let unf = UF.before (\_ -> modify (+ 1)) (UF.function id)
+     in testUnfoldMD unf 1 0 1 [1]
 
 -------------------------------------------------------------------------------
 -- Stream generation
@@ -442,6 +448,118 @@ enumerateFromToFractional =
                 in testUnfold unf (f :: Double, t) [f..(t :: Double)]
 
 -------------------------------------------------------------------------------
+-- Enumerable type class dispatch
+-------------------------------------------------------------------------------
+
+enumerableFromInt :: Property
+enumerableFromInt =
+    property
+        $ \f ->
+                let unf = UF.take 50 UF.enumerateFrom
+                in testUnfold unf (f :: Int) $
+                    Prelude.take 50 $ Prelude.enumFrom f
+
+enumerableFromToInt :: Property
+enumerableFromToInt =
+    property
+        $ \f to ->
+                let unf = UF.take 50 UF.enumerateFromTo
+                in testUnfold unf (f :: Int, to) $
+                    Prelude.take 50 $ Prelude.enumFromTo f to
+
+enumerableFromThenInt :: Property
+enumerableFromThenInt =
+    property
+        $ \f th ->
+                let unf = UF.take 50 UF.enumerateFromThen
+                in testUnfold unf (f :: Int, th) $
+                    Prelude.take 50 $ Prelude.enumFromThen f th
+
+enumerableFromThenToInt :: Property
+enumerableFromThenToInt =
+    property
+        $ \f th to ->
+                let unf = UF.take 50 UF.enumerateFromThenTo
+                in testUnfold unf (f :: Int, th, to) $
+                    Prelude.take 50 $ Prelude.enumFromThenTo f th to
+
+enumerableFromToChar :: Property
+enumerableFromToChar =
+    property
+        $ \f to ->
+                let unf = UF.take 50 UF.enumerateFromTo
+                in testUnfold unf (f :: Char, to) $
+                    Prelude.take 50 $ Prelude.enumFromTo f to
+
+enumerableFromToDouble :: Property
+enumerableFromToDouble =
+    property
+        $ \f to ->
+                let unf = UF.take 50 UF.enumerateFromTo
+                in testUnfold unf (f :: Double, to) $
+                    Prelude.take 50 $ Prelude.enumFromTo f to
+
+-- The Identity instance's enumerateFromTo was wired to enumerateFromThen.
+enumerableFromIdentity :: Property
+enumerableFromIdentity =
+    property
+        $ \f ->
+                let unf = UF.take 50 UF.enumerateFrom
+                in testUnfold unf (Identity (f :: Int)) $
+                    Prelude.map Identity $ Prelude.take 50 $ Prelude.enumFrom f
+
+enumerableFromToIdentity :: Property
+enumerableFromToIdentity =
+    property
+        $ \f to ->
+                let unf = UF.take 50 UF.enumerateFromTo
+                in testUnfold unf (Identity (f :: Int), Identity to) $
+                    Prelude.map Identity $
+                        Prelude.take 50 $ Prelude.enumFromTo f to
+
+enumerableFromThenIdentity :: Property
+enumerableFromThenIdentity =
+    property
+        $ \f th ->
+                let unf = UF.take 50 UF.enumerateFromThen
+                in testUnfold unf (Identity (f :: Int), Identity th) $
+                    Prelude.map Identity $
+                        Prelude.take 50 $ Prelude.enumFromThen f th
+
+enumerableFromThenToIdentity :: Property
+enumerableFromThenToIdentity =
+    property
+        $ \f th to ->
+                let unf = UF.take 50 UF.enumerateFromThenTo
+                in testUnfold
+                        unf
+                        (Identity (f :: Int), Identity th, Identity to) $
+                    Prelude.map Identity $
+                        Prelude.take 50 $ Prelude.enumFromThenTo f th to
+
+-------------------------------------------------------------------------------
+-- Overflow at the bound of a fixed-size Integral type
+--
+-- Guarded with 'UF.take' so that a wraparound fails instead of hanging.
+-------------------------------------------------------------------------------
+
+enumerateFromToIntegralOverflow :: Expectation
+enumerateFromToIntegralOverflow =
+    testUnfold
+        (UF.take 10 UF.enumerateFromToIntegral)
+        (253 :: Word8, 255)
+        [253, 254, 255]
+        `shouldBe` True
+
+enumerateFromIntegralBoundedOverflow :: Expectation
+enumerateFromIntegralBoundedOverflow =
+    testUnfold
+        (UF.take 10 UF.enumerateFromIntegralBounded)
+        (253 :: Word8)
+        [253, 254, 255]
+        `shouldBe` True
+
+-------------------------------------------------------------------------------
 -- Stream transformation
 -------------------------------------------------------------------------------
 
@@ -590,6 +708,7 @@ testInputOps =
             prop "discardFirst" discardFirst
             prop "discardSecond" discardSecond
             prop "swap" swap
+            prop "before" beforeAction
 
 testGeneration :: Spec
 testGeneration =
@@ -651,6 +770,22 @@ testGeneration =
             prop "enumerateFromThenFractional" enumerateFromThenFractional
             prop "enumerateFromToFractional" enumerateFromToFractional
             prop "enumerateFromThenToFractional" enumerateFromThenToFractional
+            ----------- Enumerable type class dispatch -------------------------
+            prop "enumerableFromInt" enumerableFromInt
+            prop "enumerableFromToInt" enumerableFromToInt
+            prop "enumerableFromThenInt" enumerableFromThenInt
+            prop "enumerableFromThenToInt" enumerableFromThenToInt
+            prop "enumerableFromToChar" enumerableFromToChar
+            prop "enumerableFromToDouble" enumerableFromToDouble
+            prop "enumerableFromIdentity" enumerableFromIdentity
+            prop "enumerableFromToIdentity" enumerableFromToIdentity
+            prop "enumerableFromThenIdentity" enumerableFromThenIdentity
+            prop "enumerableFromThenToIdentity" enumerableFromThenToIdentity
+            ----------- Overflow at the bound of a fixed-size Integral type ----
+            it "enumerateFromToIntegral overflow"
+                enumerateFromToIntegralOverflow
+            it "enumerateFromIntegralBounded overflow"
+                enumerateFromIntegralBoundedOverflow
 
 testTransformation :: Spec
 testTransformation =
