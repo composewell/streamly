@@ -186,7 +186,7 @@ jobs:
               DISABLE_DOCS: "y"
               ENABLE_DOCSPEC: "y"
               DOCSPEC_URL: https://github.com/phadej/cabal-extras/releases/download/cabal-docspec-0.0.0.20250606/cabal-docspec-0.0.0.20250606-x86_64-linux.xz
-              DOCSPEC_OPTIONS: "--timeout 60 --check-properties --property-variables xs -XFlexibleContexts -XScopedTypeVariables -XDeriveGeneric"
+              DOCSPEC_OPTIONS: "--timeout 60 --check-properties --property-variables xs -XFlexibleContexts -XFlexibleInstances -XGeneralizedNewtypeDeriving -XTypeOperators -XScopedTypeVariables -XDeriveGeneric"
             command: |
               sed -i 's/other-modules:/exposed-modules:/g' streamly.cabal
               sed -i 's/other-modules:/exposed-modules:/g' core/streamly-core.cabal
