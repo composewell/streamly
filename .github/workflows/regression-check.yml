@@ -108,10 +108,12 @@ jobs:
     # -- Generate reports for the base branch and upload
     # -----------------------------------------------------------------
 
+    # The benchmark targets are those of this branch, compare with the branch
+    # the pull request targets, not with master.
     - name: Checkout the base branch
       uses: actions/checkout@v2
       with:
-        ref: master
+        ref: ${{ github.base_ref || 'release/streamly-0.11' }}
         clean: false
 
     - name: Run benchmarks
