@@ -11,12 +11,17 @@ jobs:
 
     - name: Download ghc
       run: |
-        GHCUP_VER=0.1.20.0
+        GHCUP_VER=0.1.50.2
         curl -sL -o ./ghcup https://downloads.haskell.org/~ghcup/$GHCUP_VER/x86_64-linux-ghcup-$GHCUP_VER
         chmod +x ./ghcup
         GHCVER=9.8.1
         ./ghcup install ghc $GHCVER
         ./ghcup set ghc $GHCVER
+        # cabal-3.18 requires a packages field in cabal.project.markdown-doctest
+        CABALVER=3.16.1.0
+        ./ghcup install cabal $CABALVER
+        ./ghcup set cabal $CABALVER
+        cabal --version
         cabal update
 
     - uses: actions/cache@v4
