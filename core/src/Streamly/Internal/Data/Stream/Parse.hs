@@ -116,7 +116,6 @@ where
 #include "ArrayMacros.h"
 
 import Control.Exception (assert)
-import Control.Monad (zipWithM)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bits (shiftR, shiftL, (.&.))
 import Data.Functor.Identity (Identity(..), runIdentity)
@@ -141,7 +140,6 @@ import Streamly.Internal.Data.Unbox (Unbox(..))
 
 import qualified Streamly.Internal.Data.Array.Type as A
 import qualified Streamly.Internal.Data.MutArray.Type as MutArray
-import qualified Streamly.Internal.Data.MutByteArray.Type as MutByteArray
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser as PRD
@@ -2131,14 +2129,15 @@ data SplitOnSeqOneOfState fs s b =
     -- after a match (post-match restart). On Stop with count=0:
     --   primed=True  → yield one empty fold result (matches splitSepBySeq_)
     --   primed=False → yield nothing (pristine initial state)
-    | SOOFill !Bool !Int !fs s !MutByteArray ![Word32]
+    -- The two arrays are the element buffer and the per-group hashes.
+    | SOOFill !Bool !Int !fs s !MutByteArray !MutByteArray
 
     -- Rolling phase, ring head at given byte offset
-    | SOOLoop !fs s !MutByteArray !Int ![Word32]
+    | SOOLoop !fs s !MutByteArray !MutByteArray !Int
 
     -- After a match: fold n elements (mid-stream) starting at byte offset,
     -- then finalize and re-init at SOOFill 0
-    | SOOPrefold !Int !Int !fs !MutByteArray s
+    | SOOPrefold !Int !Int !fs !MutByteArray !MutByteArray s
 
     -- At end of stream: fold n elements starting at byte offset, then
     -- finalize and stop
@@ -2191,32 +2190,37 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
 
     proxy = Proxy :: Proxy a
 
-    -- (patLen elements, patBytes, k^patLen, [(hash, pattern)])
+    -- (byte offset of the group's hash in the hash array, patLen elements,
+    -- patBytes, k^patLen, [(hash, pattern)])
     -- Sorted by patLen descending for longest-match priority.
-    groups :: [(Int, Int, Word32, [(Word32, Array a)])]
+    groups :: [(Int, Int, Int, Word32, [(Word32, Array a)])]
     groups =
         let byLen = sortBy (comparing (Down . A.length)) patArrs
             grouped = groupBy (\x y -> A.length x == A.length y) byLen
-         in Prelude.map mkGroup grouped
+         in Prelude.zipWith mkGroup [0, SIZE_OF(Word32) ..] grouped
 
         where
 
-        mkGroup [] = error "splitSepByOneOf: impossible empty group"
-        mkGroup ps@(p:_) =
+        mkGroup _ [] = error "splitSepByOneOf: impossible empty group"
+        mkGroup hOff ps@(p:_) =
             let pLen = A.length p
                 pBytes = A.byteLength p
                 cf = SeqMatch.hashPower pLen
                 hps = Prelude.map (\arr -> (SeqMatch.arrayHash arr, arr)) ps
-            in (pLen, pBytes, cf, hps)
+            in (hOff, pLen, pBytes, cf, hps)
 
-    initialHashes :: [Word32]
-    initialHashes = Prelude.map (const 0) groups
+    !numGroups = Prelude.length groups
 
-    maxLen = case groups of
+    resetHashes :: MutByteArray -> IO ()
+    resetHashes hmba =
+        Prelude.mapM_
+            (\(hOff, _, _, _, _) -> pokeAt hOff hmba (0 :: Word32)) groups
+
+    !maxLen = case groups of
         [] -> 0
-        ((l, _, _, _) : _) -> l
+        ((_, l, _, _, _) : _) -> l
 
-    maxBytes = maxLen * SIZE_OF(a)
+    !maxBytes = maxLen * SIZE_OF(a)
 
     skip = return . Skip
 
@@ -2228,105 +2232,86 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
     yieldReinit nextGen b =
         initial >>= skip . SOOYield b . nextAfterInit nextGen
 
-    -- TODO: the per-group hashes are kept in a list that is rebuilt for each
-    -- input element, allocating about 90 bytes per element. Keep the hashes in
-    -- a MutByteArray and the groups in unboxed arrays, and update them in
-    -- place.
+    -- Look for a match among the hashes and patterns of a group, h is the
+    -- hash of the last pLen elements and off is their byte offset in the
+    -- buffer.
+    anyMatch :: Word32 -> Int -> Int -> MutByteArray -> [(Word32, Array a)]
+        -> IO Bool
+    anyMatch _ _ _ _ [] = pure False
+    anyMatch h !off pb mba ((ph, pat):rest)
+        | h /= ph = anyMatch h off pb mba rest
+        | otherwise = do
+            let viewRing = RingArray
+                    { ringContents = mba
+                    , ringSize = maxBytes
+                    , ringHead = off
+                    }
+            eq <- RB.eqArrayN viewRing pat pb
+            if eq
+            then pure True
+            else anyMatch h off pb mba rest
 
-    -- Phase 1 (Fill) hash update. count is the new count after inserting x.
-    -- Buffer is direct-indexed: position p at byte offset p * SIZE_OF(a).
-    updateHashesFill :: Int -> MutByteArray -> [Word32] -> IO [Word32]
-    updateHashesFill count mba hashes = do
+    -- Phase 1 (Fill): update the hashes after inserting an element and check
+    -- for a match. count is the new count after inserting x. The buffer is
+    -- direct-indexed: position p at byte offset p * SIZE_OF(a). Returns the
+    -- matched pattern length (the longest one), or 0. After a match the
+    -- hashes of the remaining groups are not updated, they are reset before
+    -- use.
+    updateCheckFill :: Int -> MutByteArray -> MutByteArray -> IO Int
+    updateCheckFill count mba hmba = do
         new <- SeqMatch.elemHashAt proxy mba ((count - 1) * SIZE_OF(a))
-        Control.Monad.zipWithM (upd new) groups hashes
-        where
-        upd new (pLen, _, coeff, _) hash
-            | count <= pLen = pure $! SeqMatch.addHash hash new
-            | otherwise = do
-                let oldOffset = (count - pLen - 1) * SIZE_OF(a)
-                old <- SeqMatch.elemHashAt proxy mba oldOffset
-                pure $! SeqMatch.addHash hash new - coeff * old
+        go new groups
 
-    -- Phase 2 (Loop) hash update. ringHead is the byte offset of the oldest
-    -- element BEFORE insertion. The falling-out element for L=maxLen is the
-    -- one at ringHead, it is read before x overwrites it. For L < maxLen the
-    -- falling-out element is elsewhere in the ring and is read after.
-    updateHashesLoop :: Int -> MutByteArray -> a -> [Word32] -> IO [Word32]
-    updateHashesLoop ringHead mba x hashes = do
+        where
+
+        go _ [] = pure 0
+        go new ((hOff, pLen, pBytes, coeff, hps):gs) = do
+            hash <- peekAt hOff hmba
+            hash1 <-
+                if count <= pLen
+                then pure $! SeqMatch.addHash hash new
+                else do
+                    let oldOffset = (count - pLen - 1) * SIZE_OF(a)
+                    old <- SeqMatch.elemHashAt proxy mba oldOffset
+                    pure $! SeqMatch.addHash hash new - coeff * old
+            pokeAt hOff hmba hash1
+            if count < pLen
+            then go new gs
+            else do
+                let off = (count - pLen) * SIZE_OF(a)
+                m <- anyMatch hash1 off pBytes mba hps
+                if m then pure pLen else go new gs
+
+    -- Phase 2 (Loop): insert x in the ring, update the hashes and check for a
+    -- match. ringHead is the byte offset of the oldest element BEFORE
+    -- insertion, ringHead1 after insertion. The falling-out element for
+    -- L=maxLen is the one at ringHead, it is read before x overwrites it. For
+    -- L < maxLen the falling-out element is elsewhere in the ring. The last L
+    -- elements start at byte offset ringHead1 + (maxLen - L) * SIZE_OF(a) in
+    -- the ring. Returns the matched pattern length, or 0.
+    updateCheckLoop :: Int -> Int -> MutByteArray -> MutByteArray -> a -> IO Int
+    updateCheckLoop ringHead ringHead1 mba hmba x = do
         oldMax <- SeqMatch.elemHashAt proxy mba ringHead
         pokeAt ringHead mba x
         new <- SeqMatch.elemHashAt proxy mba ringHead
-        Control.Monad.zipWithM (upd new oldMax) groups hashes
+        go new oldMax groups
+
         where
-        upd new oldMax (pLen, _, coeff, _) hash = do
+
+        wrap off = if off >= maxBytes then off - maxBytes else off
+
+        go _ _ [] = pure 0
+        go new oldMax ((hOff, pLen, pBytes, coeff, hps):gs) = do
+            hash <- peekAt hOff hmba
+            let !delta = (maxLen - pLen) * SIZE_OF(a)
             old <-
                 if pLen == maxLen
                 then pure oldMax
-                else
-                    let oldOffset =
-                            (ringHead + (maxLen - pLen) * SIZE_OF(a))
-                                `mod` maxBytes
-                     in SeqMatch.elemHashAt proxy mba oldOffset
-            pure $! SeqMatch.addHash hash new - coeff * old
-
-    -- Phase 1 match check. count is the new count after insertion.
-    -- Returns the matched pattern length (the longest one), or Nothing.
-    checkMatchesFill :: Int -> MutByteArray -> [Word32] -> IO (Maybe Int)
-    checkMatchesFill count mba = go groups
-        where
-        go [] _ = pure Nothing
-        go _ [] = pure Nothing
-        go ((pLen, pBytes, _, hps):gs) (hash:hs)
-            | count < pLen = go gs hs
-            | otherwise = do
-                m <- anyMatch hash pBytes hps
-                if m then pure (Just pLen) else go gs hs
-
-        anyMatch _ _ [] = pure False
-        anyMatch h pb ((ph, pat):rest)
-            | h /= ph = anyMatch h pb rest
-            | otherwise = do
-                let pLenElems = pb `div` SIZE_OF(a)
-                    startOffset = (countAtCheck - pLenElems) * SIZE_OF(a)
-                cmp <- MutByteArray.unsafeByteCmp
-                            mba startOffset
-                            (A.arrContents pat) (A.arrStart pat)
-                            pb
-                if cmp == 0
-                then pure True
-                else anyMatch h pb rest
-            where
-            countAtCheck = count
-
-    -- Phase 2 match check. ringHead is the NEW ring head (after insertion).
-    -- Last L elements span the ring view starting at
-    --   (ringHead + (maxLen - L) * SIZE_OF(a)) mod maxBytes
-    -- with length pBytes.
-    checkMatchesLoop :: Int -> MutByteArray -> [Word32] -> IO (Maybe Int)
-    checkMatchesLoop ringHead mba = go groups
-        where
-        go [] _ = pure Nothing
-        go _ [] = pure Nothing
-        go ((pLen, pBytes, _, hps):gs) (hash:hs) = do
-            m <- anyMatch hash pLen pBytes hps
-            if m then pure (Just pLen) else go gs hs
-
-        anyMatch _ _ _ [] = pure False
-        anyMatch h pLen pb ((ph, pat):rest)
-            | h /= ph = anyMatch h pLen pb rest
-            | otherwise = do
-                let viewHead =
-                        (ringHead + (maxLen - pLen) * SIZE_OF(a))
-                            `mod` maxBytes
-                    viewRing = RingArray
-                        { ringContents = mba
-                        , ringSize = maxBytes
-                        , ringHead = viewHead
-                        }
-                eq <- RB.eqArrayN viewRing pat pb
-                if eq
-                then pure True
-                else anyMatch h pLen pb rest
+                else SeqMatch.elemHashAt proxy mba (wrap (ringHead + delta))
+            let hash1 = SeqMatch.addHash hash new - coeff * old
+            pokeAt hOff hmba hash1
+            m <- anyMatch hash1 (wrap (ringHead1 + delta)) pBytes mba hps
+            if m then pure pLen else go new oldMax gs
 
     {-# INLINE_LATE stepOuter #-}
     stepOuter _ SOOInit = do
@@ -2338,7 +2323,10 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
                 else do
                     (MutArray mba _ _ _) :: MutArray a <-
                         liftIO $ MutArray.emptyOf maxLen
-                    skip $ SOOFill False 0 fs state mba initialHashes
+                    (MutArray hmba _ _ _) :: MutArray Word32 <-
+                        liftIO $ MutArray.emptyOf numGroups
+                    liftIO $ resetHashes hmba
+                    skip $ SOOFill False 0 fs state mba hmba
             FL.Done b -> skip $ SOOYield b SOOInit
 
     stepOuter _ (SOOYield b next) = pure $ Yield b next
@@ -2380,22 +2368,20 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
     -- Phase 1 — Fill
     ---------------------------
 
-    stepOuter gst (SOOFill primed count fs st mba hashes) = do
+    stepOuter gst (SOOFill primed count fs st mba hmba) = do
         res <- step (adaptState gst) st
         case res of
             Yield x s -> do
                 liftIO $ pokeAt (count * SIZE_OF(a)) mba x
-                let count' = count + 1
-                hashes' <- liftIO $ updateHashesFill count' mba hashes
-                matchRes <- liftIO $ checkMatchesFill count' mba hashes'
-                case matchRes of
-                    Just pLen ->
-                        skip $ SOOPrefold (count' - pLen) 0 fs mba s
-                    Nothing ->
-                        if count' == maxLen
-                        then skip $ SOOLoop fs s mba 0 hashes'
-                        else skip $ SOOFill primed count' fs s mba hashes'
-            Skip s -> skip $ SOOFill primed count fs s mba hashes
+                let count1 = count + 1
+                pLen <- liftIO $ updateCheckFill count1 mba hmba
+                if pLen /= 0
+                then skip $ SOOPrefold (count1 - pLen) 0 fs mba hmba s
+                else
+                    if count1 == maxLen
+                    then skip $ SOOLoop fs s mba hmba 0
+                    else skip $ SOOFill primed count1 fs s mba hmba
+            Skip s -> skip $ SOOFill primed count fs s mba hmba
             Stop
                 | count == 0 && not primed -> final fs >> pure Stop
                 | count == 0 -> do
@@ -2407,50 +2393,53 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
     -- Phase 2 — Loop
     ---------------------------
 
-    stepOuter gst (SOOLoop fs st mba ringHead hashes) = do
+    stepOuter gst (SOOLoop fs st mba hmba ringHead) = do
         res <- step (adaptState gst) st
         case res of
             Yield x s -> do
                 evicted :: a <- liftIO $ peekAt ringHead mba
-                hashes' <- liftIO $ updateHashesLoop ringHead mba x hashes
-                let ringHead' = (ringHead + elemSize) `mod` maxBytes
+                let !ringHead1 =
+                        let h = ringHead + elemSize
+                         in if h == maxBytes then 0 else h
+                pLen <- liftIO $ updateCheckLoop ringHead ringHead1 mba hmba x
                 r <- fstep fs evicted
                 case r of
-                    FL.Partial fs1 -> do
-                        matchRes <- liftIO $ checkMatchesLoop ringHead' mba hashes'
-                        case matchRes of
-                            Just pLen ->
-                                skip $ SOOPrefold
-                                          (maxLen - pLen)
-                                          ringHead'
-                                          fs1
-                                          mba
-                                          s
-                            Nothing ->
-                                skip $ SOOLoop fs1 s mba ringHead' hashes'
+                    FL.Partial fs1 ->
+                        if pLen /= 0
+                        then
+                            skip $ SOOPrefold
+                                      (maxLen - pLen)
+                                      ringHead1
+                                      fs1
+                                      mba
+                                      hmba
+                                      s
+                        else skip $ SOOLoop fs1 s mba hmba ringHead1
                     FL.Done b -> do
-                        let jump c = SOOFill True 0 c s mba initialHashes
+                        liftIO $ resetHashes hmba
+                        let jump c = SOOFill True 0 c s mba hmba
                         yieldReinit jump b
-            Skip s -> skip $ SOOLoop fs s mba ringHead hashes
+            Skip s -> skip $ SOOLoop fs s mba hmba ringHead
             Stop -> skip $ SOODrain maxLen ringHead fs mba
 
     ---------------------------
     -- Pre-fold (after a mid-stream match)
     ---------------------------
 
-    stepOuter _ (SOOPrefold 0 _ fs mba s) = do
+    stepOuter _ (SOOPrefold 0 _ fs mba hmba s) = do
         b <- final fs
-        let jump c = SOOFill True 0 c s mba initialHashes
+        liftIO $ resetHashes hmba
+        let jump c = SOOFill True 0 c s mba hmba
         yieldReinit jump b
-    stepOuter _ (SOOPrefold remaining offset fs mba s) = do
+    stepOuter _ (SOOPrefold remaining offset fs mba hmba s) = do
         old :: a <- liftIO $ peekAt offset mba
         let nextOffset = (offset + SIZE_OF(a)) `mod` maxBytes
         r <- fstep fs old
         case r of
             FL.Partial fs1 ->
-                skip $ SOOPrefold (remaining - 1) nextOffset fs1 mba s
+                skip $ SOOPrefold (remaining - 1) nextOffset fs1 mba hmba s
             FL.Done b -> do
-                let jump c = SOOPrefold (remaining - 1) nextOffset c mba s
+                let jump c = SOOPrefold (remaining - 1) nextOffset c mba hmba s
                 yieldReinit jump b
 
     ---------------------------
