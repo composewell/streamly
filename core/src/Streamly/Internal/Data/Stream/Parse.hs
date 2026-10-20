@@ -2264,13 +2264,23 @@ data SplitOnSeqOneOfState fs s b =
     | SOODrain !Int !Int !fs !MutByteArray
 
 -- | A pattern and its hash.
-data SOOPat a = SOOPat !Word32 !(Array a)
+data SOOPat a = SOOPat !Word32 {-# UNPACK #-} !(Array a)
 
 -- | The patterns of the same length in 'splitSepByOneOf'.
 -- The fields are: byte offset of the group's hash in the hash array, pattern
 -- length in elements, pattern length in bytes, k^length, whether equal hashes
 -- imply equal patterns, and the patterns.
 data SOOGroup a = SOOGroup !Int !Int !Int !Word32 !Bool [SOOPat a]
+
+-- Packed-word path for short patterns: when maxLen * SIZE_OF(a) <= 8, keep
+-- the last maxLen elements in one rolling Word and compare each pattern by
+-- mask, as splitSepBySeq_ does in SplitOnSeqWordLoop. This needs no hashing
+-- and no ring buffer reads. Patterns like "\n" and "\r\n" are about 6x slower
+-- than with splitSepBySeq_ because of the per-element hashing and ring reads.
+--
+-- This was prototyped. It brought single pattern cases to the speed of
+-- splitSepBySeq_, but multi-pattern cases became slower and the state
+-- machine of the function grew significantly.
 
 -- | Split a stream on any one of the given infix separator patterns. Behaves
 -- like 'splitSepBySeq_' generalized to multiple patterns.
@@ -2342,11 +2352,17 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
                 exact = pLen == 1 && elemSize `Prelude.elem` [1, 2, 4]
             in SOOGroup hOff pLen pBytes cf exact hps
 
-    -- The first group has the longest patterns, maxLen elements.
-    !(maxLen, g0Bytes, g0Coeff, g0Exact, g0Pats, rest) =
-        case groups of
-            [] -> (0, 0, 0, False, [], [])
-            (SOOGroup _ l pb cf ex hps : gs) -> (l, pb, cf, ex, hps, gs)
+    -- The first group has the longest patterns, maxLen elements. Separate
+    -- strict bindings, so that the fields are unboxed outside the loop.
+    g0 = case groups of
+        [] -> SOOGroup 0 0 0 0 False []
+        (g : _) -> g
+    !maxLen = case g0 of SOOGroup _ l _ _ _ _ -> l
+    !g0Bytes = case g0 of SOOGroup _ _ pb _ _ _ -> pb
+    !g0Coeff = case g0 of SOOGroup _ _ _ cf _ _ -> cf
+    !g0Exact = case g0 of SOOGroup _ _ _ _ ex _ -> ex
+    !g0Pats = case g0 of SOOGroup _ _ _ _ _ hps -> hps
+    rest = Prelude.drop 1 groups
 
     !numRest = Prelude.length rest
 
@@ -2387,6 +2403,19 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
             if eq
             then pure True
             else anyMatch exact h off pb mba pats
+
+    -- anyMatch for the first group, which is checked on every element. Only
+    -- the hash comparison is inlined in the loop.
+    {-# INLINE anyMatch0 #-}
+    anyMatch0 :: Word32 -> Int -> MutByteArray -> IO Bool
+    anyMatch0 h off mba = go g0Pats
+
+        where
+
+        go [] = pure False
+        go pats@(SOOPat ph _ : pats1)
+            | h /= ph = go pats1
+            | otherwise = anyMatch g0Exact h off g0Bytes mba pats
 
     -- Phase 1 (Fill): update the hashes of the groups other than the first
     -- after inserting an element with hash new, and check for a match. count
@@ -2511,7 +2540,7 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
                     !h1 = SeqMatch.addHash h new
                 m <-
                     if count1 == maxLen
-                    then liftIO $ anyMatch g0Exact h1 0 g0Bytes mba g0Pats
+                    then liftIO $ anyMatch0 h1 0 mba
                     else pure False
                 pLen <-
                     if m
@@ -2548,7 +2577,7 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
                          in if i == maxBytes then 0 else i
                     !h1 = SeqMatch.addHash h new - g0Coeff * old
                 -- The last maxLen elements start at ringHead1.
-                m <- liftIO $ anyMatch g0Exact h1 ringHead1 g0Bytes mba g0Pats
+                m <- liftIO $ anyMatch0 h1 ringHead1 mba
                 pLen <-
                     if m
                     then pure maxLen
