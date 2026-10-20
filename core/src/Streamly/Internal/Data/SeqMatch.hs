@@ -46,11 +46,12 @@ import Streamly.Internal.System.IO (unsafeInlineIO)
 elemMask :: Int -> Word
 elemMask bits = (1 `shiftL` bits) - 1
 
--- | @addToWord bits word a@ shifts @word@ left by @bits@ and puts
--- @fromEnum a@ in the vacated bits.
+-- | @addToWord bits word a@ shifts @word@ left by @bits@ and puts the low
+-- @bits@ bits of @fromEnum a@ in the vacated bits.
 {-# INLINE addToWord #-}
 addToWord :: Enum a => Int -> Word -> a -> Word
-addToWord bits wd a = (wd `shiftL` bits) .|. fromIntegral (fromEnum a)
+addToWord bits wd a =
+    (wd `shiftL` bits) .|. (fromIntegral (fromEnum a) .&. elemMask bits)
 
 -- | @wordToElem bits word@ decodes the element packed by 'addToWord' in the
 -- low @bits@ bits of @word@, @bits@ must be less than the word size.

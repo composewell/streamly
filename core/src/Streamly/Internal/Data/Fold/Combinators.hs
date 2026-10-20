@@ -1395,6 +1395,8 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
     -- Word pattern related
     elemBits = SIZE_OF(a) * 8
 
+    proxy = Proxy :: Proxy a
+
     wordMask :: Word
     wordMask = (1 `shiftL` (elemBits * patLen)) - 1
 
@@ -1403,20 +1405,18 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
 
     addToWord = SeqMatch.addToWord elemBits
 
-    -- For Rabin-Karp search
+    -- For Rabin-Karp search, hashes of the element bytes
     coeff = SeqMatch.hashPower patLen
 
-    addCksum cksum a = SeqMatch.addHash cksum (fromIntegral (fromEnum a))
-
-    deltaCksum cksum old new =
-        addCksum cksum new - coeff * fromIntegral (fromEnum old)
+    deltaCksum cksum oldHash newHash =
+        SeqMatch.addHash cksum newHash - coeff * oldHash
 
     -- XXX shall we use a random starting hash or 1 instead of 0?
     -- XXX Need to keep this cached across fold calls in foldmany
     -- XXX We may need refold to inject the cached state instead of
     -- initializing the state every time.
     -- XXX Allocation of ring buffer should also be done once
-    patHash = Array.foldl' addCksum 0 patArr
+    patHash = SeqMatch.arrayHash patArr
 
     step (SplitOnSeqEmpty s) x = do
         res <- fstep s x
@@ -1464,7 +1464,7 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
                                 , arrStart = 0
                                 , arrEnd = patBytes
                                 }
-                    let ringHash = Array.foldl' addCksum 0 arr
+                    let ringHash = SeqMatch.arrayHash arr
                     if ringHash == patHash && Array.byteEq arr patArr
                     then Done <$> ffinal s1
                     else return $ Partial $ SplitOnSeqKRLoop s1 ringHash mba 0
@@ -1480,8 +1480,10 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
                         , ringSize = patBytes
                         , ringHead = offset
                         }
-                (rb1, old :: a) <- liftIO (RingArray.replace rb x)
-                let ringHash = deltaCksum cksum old x
+                oldHash <- liftIO $ SeqMatch.elemHashAt proxy mba offset
+                rb1 <- liftIO (RingArray.replace_ rb x)
+                newHash <- liftIO $ SeqMatch.elemHashAt proxy mba offset
+                let ringHash = deltaCksum cksum oldHash newHash
                 let rh1 = ringHead rb1
                 matches <-
                     if ringHash == patHash
@@ -1561,6 +1563,8 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
     -- Word pattern related
     elemBits = SIZE_OF(a) * 8
 
+    proxy = Proxy :: Proxy a
+
     wordMask :: Word
     wordMask = (1 `shiftL` (elemBits * patLen)) - 1
 
@@ -1571,20 +1575,18 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
 
     addToWord = SeqMatch.addToWord elemBits
 
-    -- For Rabin-Karp search
+    -- For Rabin-Karp search, hashes of the element bytes
     coeff = SeqMatch.hashPower patLen
 
-    addCksum cksum a = SeqMatch.addHash cksum (fromIntegral (fromEnum a))
-
-    deltaCksum cksum old new =
-        addCksum cksum new - coeff * fromIntegral (fromEnum old)
+    deltaCksum cksum oldHash newHash =
+        SeqMatch.addHash cksum newHash - coeff * oldHash
 
     -- XXX shall we use a random starting hash or 1 instead of 0?
     -- XXX Need to keep this cached across fold calls in foldMany
     -- XXX We may need refold to inject the cached state instead of
     -- initializing the state every time.
     -- XXX Allocation of ring buffer should also be done once
-    patHash = Array.foldl' addCksum 0 patArr
+    patHash = SeqMatch.arrayHash patArr
 
     step (SplitOnSeqEmpty s) x = do
         res <- fstep s x
@@ -1627,7 +1629,7 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
                         , arrStart = 0
                         , arrEnd = patBytes
                         }
-            let ringHash = Array.foldl' addCksum 0 arr
+            let ringHash = SeqMatch.arrayHash arr
             if ringHash == patHash && Array.byteEq arr patArr
             then Done <$> ffinal s
             else return $ Partial $ SplitOnSeqKRLoop s ringHash mba 0
@@ -1638,11 +1640,13 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
                 , ringSize = patBytes
                 , ringHead = offset
                 }
+        oldHash <- liftIO $ SeqMatch.elemHashAt proxy mba offset
         (rb1, old :: a) <- liftIO (RingArray.replace rb x)
+        newHash <- liftIO $ SeqMatch.elemHashAt proxy mba offset
         res <- fstep s old
         case res of
             Partial s1 -> do
-                let ringHash = deltaCksum cksum old x
+                let ringHash = deltaCksum cksum oldHash newHash
                 let rh1 = ringHead rb1
                 matches <-
                     if ringHash == patHash

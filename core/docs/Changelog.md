@@ -37,6 +37,10 @@
   for `Array`, `Proxy` and derived instances of types with one constructor
   and no fields. `()` and `Proxy` now serialize to a 0 byte, the byte was
   left unwritten.
+* Fix `Fold.takeEndBySeq` and `Fold.takeEndBySeq_` for elements whose
+  `fromEnum` is larger than `maxBound :: Int`, e.g. `Word64`, and
+  `Fold.takeEndBySeq` for elements whose `fromEnum` is negative, e.g.
+  `Int8`.
 
 ### Breaking changes
 

@@ -590,11 +590,11 @@ main = hspec $ do
         it "slide2" slide2
         it "takeEndBySeq" takeEndBySeq
         it "takeEndBySeq_" takeEndBySeq_
-        xit "takeEndBySeq signed elements" takeEndBySeqSigned
+        it "takeEndBySeq signed elements" takeEndBySeqSigned
         xit "takeEndBySeq_ signed elements" takeEndBySeq_Signed
         xit "takeEndBySeq_ unit" takeEndBySeq_Unit
-        xit "takeEndBySeq Word64" takeEndBySeqWord64
-        xit "takeEndBySeq_ Word64" takeEndBySeq_Word64
+        it "takeEndBySeq Word64" takeEndBySeqWord64
+        it "takeEndBySeq_ Word64" takeEndBySeq_Word64
         it "distributeScan" distributeScan
         it "distributeScan last input" distributeScanLast
         it "sampleFromthen offset" sampleFromthenOffset
