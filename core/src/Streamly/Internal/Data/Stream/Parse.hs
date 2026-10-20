@@ -117,7 +117,7 @@ where
 
 import Control.Exception (assert)
 import Control.Monad.IO.Class (MonadIO(..))
-import Data.Bits (shiftR, shiftL, (.&.))
+import Data.Bits (shiftL, (.&.))
 import Data.Functor.Identity (Identity(..), runIdentity)
 import Data.List (groupBy, sortBy)
 import Data.Ord (comparing, Down(..))
@@ -797,9 +797,9 @@ data TakeEndBySeqState mba rb rh ck w s b x =
 
     | TakeEndBySeqSingle s x
 
-    | TakeEndBySeqWordInit !Int !w s
-    | TakeEndBySeqWordLoop !w s
-    | TakeEndBySeqWordDone !Int !w
+    | TakeEndBySeqWordInit !Int !w !w s
+    | TakeEndBySeqWordLoop !w !w s
+    | TakeEndBySeqWordDone !Int !w !w
 
     | TakeEndBySeqKRInit s mba
     | TakeEndBySeqKRInit1 s mba !Int
@@ -832,19 +832,13 @@ takeEndBySeqWith withSep patArr (Stream step state) =
 
     proxy = Proxy :: Proxy a
 
-    -- Strict, so that the word loop tests an evaluated Bool instead of
-    -- entering a thunk for each element. Evaluated only for the word pattern
-    -- case.
-    !signed =
-        SeqMatch.isSignedEnumIf
-            (patLen > 1 && SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word))
-            proxy
-
     {-# INLINE wordToElem #-}
-    wordToElem = SeqMatch.wordToElem signed elemBits
+    wordToElem = SeqMatch.wordToElem elemBits
 
     wordPat :: Word
-    wordPat = wordMask .&. A.foldl' addToWord 0 patArr
+    wordPat =
+        let add w a = addToWord w (SeqMatch.elemWord a)
+         in wordMask .&. A.foldl' add 0 patArr
 
     addToWord = SeqMatch.addToWord elemBits
 
@@ -881,7 +875,7 @@ takeEndBySeqWith withSep patArr (Stream step state) =
                     pat <- liftIO $ A.unsafeGetIndexIO 0 patArr
                     return $ Skip $ TakeEndBySeqSingle state pat
               | SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word) ->
-                    return $ Skip $ TakeEndBySeqWordInit 0 0 state
+                    return $ Skip $ TakeEndBySeqWordInit 0 0 0 state
               | otherwise -> do
                     (MutArray mba _ _ _) :: MutArray a <-
                         liftIO $ MutArray.emptyOf patLen
@@ -923,45 +917,49 @@ takeEndBySeqWith withSep patArr (Stream step state) =
     -- Note: Karp-Rabin is roughly 15% slower than word hash for a 2 element
     -- pattern. This may be useful for common cases like splitting lines using
     -- "\r\n".
-    stepOuter _ (TakeEndBySeqWordDone 0 _) = do
+    stepOuter _ (TakeEndBySeqWordDone 0 _ _) = do
         return Stop
-    stepOuter _ (TakeEndBySeqWordDone n wrd) = do
-        let old = wordToElem (wrd `shiftR` (elemBits * (n - 1)))
+    stepOuter _ (TakeEndBySeqWordDone n wrd sgn) = do
+        let old = wordToElem (n - 1) sgn wrd
          in yield
                 old
-                (TakeEndBySeqWordDone (n - 1) wrd)
+                (TakeEndBySeqWordDone (n - 1) wrd sgn)
 
     -- XXX If we remove this init state for perf experiment the time taken
     -- reduces to half, there may be some optimization opportunity here.
-    stepOuter gst (TakeEndBySeqWordInit idx wrd st) = do
+    stepOuter gst (TakeEndBySeqWordInit idx wrd sgn st) = do
         res <- step (adaptState gst) st
         case res of
             Yield x s -> do
-                let wrd1 = addToWord wrd x
+                let xw = SeqMatch.elemWord x
+                    wrd1 = addToWord wrd xw
+                    sgn1 = SeqMatch.addToSigns sgn xw
                     next
                       | idx /= maxIndex =
-                            TakeEndBySeqWordInit (idx + 1) wrd1 s
+                            TakeEndBySeqWordInit (idx + 1) wrd1 sgn1 s
                       | wrd1 .&. wordMask /= wordPat =
-                            TakeEndBySeqWordLoop wrd1 s
+                            TakeEndBySeqWordLoop wrd1 sgn1 s
                       | otherwise = TakeEndBySeqDone
                 if withSep
                 then yield x next
                 else skip next
-            Skip s -> skip $ TakeEndBySeqWordInit idx wrd s
+            Skip s -> skip $ TakeEndBySeqWordInit idx wrd sgn s
             Stop ->
                 if withSep
                 then return Stop
-                else skip $ TakeEndBySeqWordDone idx wrd
+                else skip $ TakeEndBySeqWordDone idx wrd sgn
 
-    stepOuter gst (TakeEndBySeqWordLoop wrd st) = do
+    stepOuter gst (TakeEndBySeqWordLoop wrd sgn st) = do
         res <- step (adaptState gst) st
         case res of
             Yield x s -> do
                 -- XXX Never use a lazy expression as state, that causes issues
                 -- in simplification because the state argument of Yield is
                 -- lazy, maybe we can make that strict.
-                let wrd1 = addToWord wrd x
-                    old = wordToElem (wrd `shiftR` (elemBits * (patLen - 1)))
+                let xw = SeqMatch.elemWord x
+                    wrd1 = addToWord wrd xw
+                    sgn1 = SeqMatch.addToSigns sgn xw
+                    old = wordToElem (patLen - 1) sgn wrd
                     !y =
                             if withSep
                             then x
@@ -969,13 +967,13 @@ takeEndBySeqWith withSep patArr (Stream step state) =
                 -- Note: changing the nesting order of if and yield makes a
                 -- difference in performance.
                 if wrd1 .&. wordMask /= wordPat
-                then yield y (TakeEndBySeqWordLoop wrd1 s)
+                then yield y (TakeEndBySeqWordLoop wrd1 sgn1 s)
                 else yield y TakeEndBySeqDone
-            Skip s -> skip $ TakeEndBySeqWordLoop wrd s
+            Skip s -> skip $ TakeEndBySeqWordLoop wrd sgn s
             Stop ->
                  if withSep
                  then return Stop
-                 else skip $ TakeEndBySeqWordDone patLen wrd
+                 else skip $ TakeEndBySeqWordDone patLen wrd sgn
 
     -------------------------------
     -- General Pattern - Karp Rabin
@@ -1141,9 +1139,9 @@ data SplitOnSeqState mba rb rh ck w fs s b x =
     | SplitOnSeqSingle !fs s x
 
     | SplitOnSeqWordInit0 !fs s
-    | SplitOnSeqWordInit Int Word !fs s
-    | SplitOnSeqWordLoop !w s !fs
-    | SplitOnSeqWordDone Int !fs !w
+    | SplitOnSeqWordInit Int Word Word !fs s
+    | SplitOnSeqWordLoop !w !w s !fs
+    | SplitOnSeqWordDone Int !fs !w !w
 
     | SplitOnSeqKRInit0 Int !fs s mba
     | SplitOnSeqKRInit Int !fs s mba
@@ -1191,8 +1189,7 @@ data SplitOnSeqState mba rb rh ck w fs s b x =
 -- passed to the fold are rebuilt from it with 'toEnum'. For a type whose
 -- 'fromEnum' loses information, e.g. 'Float', the pattern @[1.5, 2.5]@
 -- matches the input @[1.2, 2.3]@ and the fold receives the elements
--- truncated to whole numbers. @toEnum 0@ must be a valid value of the element
--- type.
+-- truncated to whole numbers.
 --
 {-# INLINE_NORMAL splitSepBySeq_ #-}
 splitSepBySeq_, splitOnSeq
@@ -1218,19 +1215,13 @@ splitSepBySeq_ patArr (Fold fstep initial _ final) (Stream step state) =
 
     proxy = Proxy :: Proxy a
 
-    -- Strict, so that the word loop tests an evaluated Bool instead of
-    -- entering a thunk for each element. Evaluated only for the word pattern
-    -- case.
-    !signed =
-        SeqMatch.isSignedEnumIf
-            (patLen > 1 && SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word))
-            proxy
-
     {-# INLINE wordToElem #-}
-    wordToElem = SeqMatch.wordToElem signed elemBits
+    wordToElem = SeqMatch.wordToElem elemBits
 
     wordPat :: Word
-    wordPat = wordMask .&. A.foldl' addToWord 0 patArr
+    wordPat =
+        let add w a = addToWord w (SeqMatch.elemWord a)
+         in wordMask .&. A.foldl' add 0 patArr
 
     addToWord = SeqMatch.addToWord elemBits
 
@@ -1360,78 +1351,84 @@ splitSepBySeq_ patArr (Fold fstep initial _ final) (Stream step state) =
     -- worst case will remain the same, in case a match is going to happen we
     -- will have to delay until the very end.
 
-    stepOuter _ (SplitOnSeqWordDone 0 fs _) = do
+    stepOuter _ (SplitOnSeqWordDone 0 fs _ _) = do
         r <- final fs
         skip $ SplitOnSeqYield r SplitOnSeqDone
-    stepOuter _ (SplitOnSeqWordDone n fs wrd) = do
-        let old = wordToElem (wrd `shiftR` (elemBits * (n - 1)))
+    stepOuter _ (SplitOnSeqWordDone n fs wrd sgn) = do
+        let old = wordToElem (n - 1) sgn wrd
         r <- fstep fs old
         case r of
-            FL.Partial fs1 -> skip $ SplitOnSeqWordDone (n - 1) fs1 wrd
+            FL.Partial fs1 -> skip $ SplitOnSeqWordDone (n - 1) fs1 wrd sgn
             FL.Done b -> do
-                 let jump c = SplitOnSeqWordDone (n - 1) c wrd
+                 let jump c = SplitOnSeqWordDone (n - 1) c wrd sgn
                  yieldReinit jump b
 
     stepOuter gst (SplitOnSeqWordInit0 fs st) = do
         res <- step (adaptState gst) st
         case res of
             Yield x s ->
-                let wrd1 = addToWord 0 x
-                 in pure $ Skip $ SplitOnSeqWordInit 1 wrd1 fs s
+                let xw = SeqMatch.elemWord x
+                    wrd1 = addToWord 0 xw
+                    sgn1 = SeqMatch.addToSigns 0 xw
+                 in pure $ Skip $ SplitOnSeqWordInit 1 wrd1 sgn1 fs s
             Skip s -> pure $ Skip $ SplitOnSeqWordInit0 fs s
             Stop -> final fs >> pure Stop
 
-    stepOuter gst (SplitOnSeqWordInit idx0 wrd0 fs st0) =
-        go SPEC idx0 wrd0 st0
+    stepOuter gst (SplitOnSeqWordInit idx0 wrd0 sgn0 fs st0) =
+        go SPEC idx0 wrd0 sgn0 st0
 
         where
 
         {-# INLINE go #-}
-        go !_ !idx !wrd !st = do
+        go !_ !idx !wrd !sgn !st = do
             res <- step (adaptState gst) st
             case res of
                 Yield x s -> do
-                    let wrd1 = addToWord wrd x
+                    let xw = SeqMatch.elemWord x
+                        wrd1 = addToWord wrd xw
+                        sgn1 = SeqMatch.addToSigns sgn xw
                     if idx == maxIndex
                     then do
                         if wrd1 .&. wordMask == wordPat
                         then do
-                            let jump c = SplitOnSeqWordInit 0 0 c s
+                            let jump c = SplitOnSeqWordInit 0 0 0 c s
                             final fs >>= yieldReinit jump
-                        else skip $ SplitOnSeqWordLoop wrd1 s fs
-                    else go SPEC (idx + 1) wrd1 s
-                Skip s -> go SPEC idx wrd s
+                        else skip $ SplitOnSeqWordLoop wrd1 sgn1 s fs
+                    else go SPEC (idx + 1) wrd1 sgn1 s
+                Skip s -> go SPEC idx wrd sgn s
                 Stop -> do
                     if idx /= 0
-                    then skip $ SplitOnSeqWordDone idx fs wrd
+                    then skip $ SplitOnSeqWordDone idx fs wrd sgn
                     else do
                         r <- final fs
                         skip $ SplitOnSeqYield r SplitOnSeqDone
 
-    stepOuter gst (SplitOnSeqWordLoop wrd0 st0 fs0) =
-        go SPEC wrd0 st0 fs0
+    stepOuter gst (SplitOnSeqWordLoop wrd0 sgn0 st0 fs0) =
+        go SPEC wrd0 sgn0 st0 fs0
 
         where
 
         -- This loop does not affect allocations but it improves the CPU
         -- performance signifcantly compared to looping using state.
         {-# INLINE go #-}
-        go !_ !wrd !st !fs = do
+        go !_ !wrd !sgn !st !fs = do
             res <- step (adaptState gst) st
             case res of
                 Yield x s -> do
-                    let jump c = SplitOnSeqWordInit 0 0 c s
-                        wrd1 = addToWord wrd x
-                        old = wordToElem (wrd `shiftR` (elemBits * (patLen - 1)))
+                    let jump c = SplitOnSeqWordInit 0 0 0 c s
+                        xw = SeqMatch.elemWord x
+                        wrd1 = addToWord wrd xw
+                        sgn1 = SeqMatch.addToSigns sgn xw
+                        old = wordToElem (patLen - 1) sgn wrd
                     r <- fstep fs old
                     case r of
                         FL.Partial fs1 -> do
                             if wrd1 .&. wordMask == wordPat
                             then final fs1 >>= yieldReinit jump
-                            else go SPEC wrd1 s fs1
+                            else go SPEC wrd1 sgn1 s fs1
                         FL.Done b -> yieldReinit jump b
-                Skip s -> go SPEC wrd s fs
-                Stop -> skip $ SplitOnSeqWordDone patLen fs wrd
+                Skip s -> go SPEC wrd sgn s fs
+                Stop -> skip $ SplitOnSeqWordDone patLen fs wrd sgn
 
     -------------------------------
     -- General Pattern - Karp Rabin
@@ -1583,8 +1580,8 @@ data SplitOnSuffixSeqState mba rb rh ck w fs s b x =
     | SplitOnSuffixSeqSingle !fs s x
 
     | SplitOnSuffixSeqWordInit !fs s
-    | SplitOnSuffixSeqWordLoop !w s !fs
-    | SplitOnSuffixSeqWordDone Int !fs !w
+    | SplitOnSuffixSeqWordLoop !w !w s !fs
+    | SplitOnSuffixSeqWordDone Int !fs !w !w
 
     | SplitOnSuffixSeqKRInit !fs s mba
     | SplitOnSuffixSeqKRInit1 !fs s mba
@@ -1626,19 +1623,13 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
 
     proxy = Proxy :: Proxy a
 
-    -- Strict, so that the word loop tests an evaluated Bool instead of
-    -- entering a thunk for each element. Evaluated only for the word pattern
-    -- case.
-    !signed =
-        SeqMatch.isSignedEnumIf
-            (patLen > 1 && SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word))
-            proxy
-
     {-# INLINE wordToElem #-}
-    wordToElem = SeqMatch.wordToElem signed elemBits
+    wordToElem = SeqMatch.wordToElem elemBits
 
     wordPat :: Word
-    wordPat = wordMask .&. A.foldl' addToWord 0 patArr
+    wordPat =
+        let add w a = addToWord w (SeqMatch.elemWord a)
+         in wordMask .&. A.foldl' add 0 patArr
 
     addToWord = SeqMatch.addToWord elemBits
 
@@ -1756,26 +1747,29 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
     -- Short Pattern - Shift Or
     ---------------------------
 
-    stepOuter _ (SplitOnSuffixSeqWordDone 0 fs _) = do
+    stepOuter _ (SplitOnSuffixSeqWordDone 0 fs _ _) = do
         r <- final fs
         skip $ SplitOnSuffixSeqYield r SplitOnSuffixSeqDone
-    stepOuter _ (SplitOnSuffixSeqWordDone n fs wrd) = do
-        let old = wordToElem (wrd `shiftR` (elemBits * (n - 1)))
+    stepOuter _ (SplitOnSuffixSeqWordDone n fs wrd sgn) = do
+        let old = wordToElem (n - 1) sgn wrd
         r <- fstep fs old
         case r of
-            FL.Partial fs1 -> skip $ SplitOnSuffixSeqWordDone (n - 1) fs1 wrd
+            FL.Partial fs1 ->
+                skip $ SplitOnSuffixSeqWordDone (n - 1) fs1 wrd sgn
             FL.Done b -> do
-                let jump c = SplitOnSuffixSeqWordDone (n - 1) c wrd
+                let jump c = SplitOnSuffixSeqWordDone (n - 1) c wrd sgn
                 yieldReinit jump b
 
     stepOuter gst (SplitOnSuffixSeqWordInit fs0 st0) = do
         res <- step (adaptState gst) st0
         case res of
             Yield x s -> do
-                let wrd = addToWord 0 x
+                let xw = SeqMatch.elemWord x
+                    wrd = addToWord 0 xw
+                    sgn = SeqMatch.addToSigns 0 xw
                 r <- if withSep then fstep fs0 x else return $ FL.Partial fs0
                 case r of
-                    FL.Partial fs1 -> go SPEC 1 wrd s fs1
+                    FL.Partial fs1 -> go SPEC 1 wrd sgn s fs1
                     FL.Done b -> do
                         let jump c = SplitOnSuffixSeqWordInit c s
                         yieldReinit jump b
@@ -1785,43 +1779,47 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
         where
 
         {-# INLINE go #-}
-        go !_ !idx !wrd !st !fs = do
+        go !_ !idx !wrd !sgn !st !fs = do
             res <- step (adaptState gst) st
             case res of
                 Yield x s -> do
                     let jump c = SplitOnSuffixSeqWordInit c s
-                    let wrd1 = addToWord wrd x
+                    let xw = SeqMatch.elemWord x
+                        wrd1 = addToWord wrd xw
+                        sgn1 = SeqMatch.addToSigns sgn xw
                     r <- if withSep then fstep fs x else return $ FL.Partial fs
                     case r of
                         FL.Partial fs1
                             | idx /= maxIndex ->
-                                go SPEC (idx + 1) wrd1 s fs1
+                                go SPEC (idx + 1) wrd1 sgn1 s fs1
                             | wrd1 .&. wordMask /= wordPat ->
-                                skip $ SplitOnSuffixSeqWordLoop wrd1 s fs1
+                                skip $ SplitOnSuffixSeqWordLoop wrd1 sgn1 s fs1
                             | otherwise ->
                                 final fs1 >>= yieldReinit jump
                         FL.Done b -> yieldReinit jump b
-                Skip s -> go SPEC idx wrd s fs
+                Skip s -> go SPEC idx wrd sgn s fs
                 Stop ->
                     if withSep
                     then do
                         r <- final fs
                         skip $ SplitOnSuffixSeqYield r SplitOnSuffixSeqDone
-                    else skip $ SplitOnSuffixSeqWordDone idx fs wrd
+                    else skip $ SplitOnSuffixSeqWordDone idx fs wrd sgn
 
-    stepOuter gst (SplitOnSuffixSeqWordLoop wrd0 st0 fs0) =
-        go SPEC wrd0 st0 fs0
+    stepOuter gst (SplitOnSuffixSeqWordLoop wrd0 sgn0 st0 fs0) =
+        go SPEC wrd0 sgn0 st0 fs0
 
         where
 
         {-# INLINE go #-}
-        go !_ !wrd !st !fs = do
+        go !_ !wrd !sgn !st !fs = do
             res <- step (adaptState gst) st
             case res of
                 Yield x s -> do
                     let jump c = SplitOnSuffixSeqWordInit c s
-                        wrd1 = addToWord wrd x
-                        old = wordToElem (wrd `shiftR` (elemBits * (patLen - 1)))
+                        xw = SeqMatch.elemWord x
+                        wrd1 = addToWord wrd xw
+                        sgn1 = SeqMatch.addToSigns sgn xw
+                        old = wordToElem (patLen - 1) sgn wrd
                     r <-
                         if withSep
                         then fstep fs x
@@ -1830,15 +1828,15 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
                         FL.Partial fs1 ->
                             if wrd1 .&. wordMask == wordPat
                             then final fs1 >>= yieldReinit jump
-                            else go SPEC wrd1 s fs1
+                            else go SPEC wrd1 sgn1 s fs1
                         FL.Done b -> yieldReinit jump b
-                Skip s -> go SPEC wrd s fs
+                Skip s -> go SPEC wrd sgn s fs
                 Stop ->
                     if withSep
                     then do
                         r <- final fs
                         skip $ SplitOnSuffixSeqYield r SplitOnSuffixSeqDone
-                    else skip $ SplitOnSuffixSeqWordDone patLen fs wrd
+                    else skip $ SplitOnSuffixSeqWordDone patLen fs wrd sgn
 
     -------------------------------
     -- General Pattern - Karp Rabin
@@ -2011,8 +2009,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
 -- A pattern of two or more elements with a total size of at most one machine
 -- word is matched by comparing 'fromEnum' of the elements. For a type whose
 -- 'fromEnum' loses information, e.g. 'Float', the pattern @[1.5, 2.5]@
--- matches the input @[1.2, 2.3]@. @toEnum 0@ must be a
--- valid value of the element type.
+-- matches the input @[1.2, 2.3]@.
 --
 {-# INLINE_NORMAL splitEndBySeq #-}
 splitEndBySeq
@@ -2065,8 +2062,7 @@ splitEndBySeq = splitOnSuffixSeq True
 -- passed to the fold are rebuilt from it with 'toEnum'. For a type whose
 -- 'fromEnum' loses information, e.g. 'Float', the pattern @[1.5, 2.5]@
 -- matches the input @[1.2, 2.3]@ and the fold receives the elements
--- truncated to whole numbers. @toEnum 0@ must be a valid value of the element
--- type.
+-- truncated to whole numbers.
 --
 {-# INLINE_NORMAL splitEndBySeq_ #-}
 splitEndBySeq_
@@ -2779,9 +2775,9 @@ data DropInfixState mba rb rh ck w s a =
 
     | DropInfixSingle s a
 
-    | DropInfixWordInit Int !w s
-    | DropInfixWordLoop !w s
-    | DropInfixWordDone Int !w
+    | DropInfixWordInit Int !w !w s
+    | DropInfixWordLoop !w !w s
+    | DropInfixWordDone Int !w !w
 
     | DropInfixKRInit Int s mba
     | DropInfixKRLoop s mba !rh !ck
@@ -2833,19 +2829,13 @@ dropMatches patArr (Stream step state) =
 
     proxy = Proxy :: Proxy a
 
-    -- Strict, so that the word loop tests an evaluated Bool instead of
-    -- entering a thunk for each element. Evaluated only for the word pattern
-    -- case.
-    !signed =
-        SeqMatch.isSignedEnumIf
-            (patLen > 1 && SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word))
-            proxy
-
     {-# INLINE wordToElem #-}
-    wordToElem = SeqMatch.wordToElem signed elemBits
+    wordToElem = SeqMatch.wordToElem elemBits
 
     wordPat :: Word
-    wordPat = wordMask .&. A.foldl' addToWord 0 patArr
+    wordPat =
+        let add w a = addToWord w (SeqMatch.elemWord a)
+         in wordMask .&. A.foldl' add 0 patArr
 
     addToWord = SeqMatch.addToWord elemBits
 
@@ -2865,7 +2855,7 @@ dropMatches patArr (Stream step state) =
             pat <- liftIO $ A.unsafeGetIndexIO 0 patArr
             skip $ DropInfixSingle st pat
         | SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word) =
-            skip $ DropInfixWordInit 0 0 st
+            skip $ DropInfixWordInit 0 0 0 st
         | otherwise = do
             (MutArray mba _ _ _) :: MutArray a <-
                 liftIO $ MutArray.emptyOf patLen
@@ -2904,54 +2894,58 @@ dropMatches patArr (Stream step state) =
     -- Short Pattern - Shift Or
     ---------------------------
 
-    stepOuter _ (DropInfixWordDone 0 _) = return Stop
-    stepOuter _ (DropInfixWordDone n wrd) = do
-        let old = wordToElem (wrd `shiftR` (elemBits * (n - 1)))
+    stepOuter _ (DropInfixWordDone 0 _ _) = return Stop
+    stepOuter _ (DropInfixWordDone n wrd sgn) = do
+        let old = wordToElem (n - 1) sgn wrd
         return
             $ Yield
                 old
-                (DropInfixWordDone (n - 1) wrd)
+                (DropInfixWordDone (n - 1) wrd sgn)
 
-    stepOuter gst (DropInfixWordInit idx0 wrd0 st0) =
-        go SPEC idx0 wrd0 st0
+    stepOuter gst (DropInfixWordInit idx0 wrd0 sgn0 st0) =
+        go SPEC idx0 wrd0 sgn0 st0
 
         where
 
         {-# INLINE go #-}
-        go !_ !idx !wrd !st = do
+        go !_ !idx !wrd !sgn !st = do
             res <- step (adaptState gst) st
             case res of
                 Yield x s -> do
-                    let wrd1 = addToWord wrd x
+                    let xw = SeqMatch.elemWord x
+                        wrd1 = addToWord wrd xw
+                        sgn1 = SeqMatch.addToSigns sgn xw
                     if idx == maxIndex
                     then
                         if wrd1 .&. wordMask == wordPat
-                        then skip $ DropInfixWordInit 0 0 s
-                        else skip $ DropInfixWordLoop wrd1 s
-                    else go SPEC (idx + 1) wrd1 s
-                Skip s -> go SPEC idx wrd s
+                        then skip $ DropInfixWordInit 0 0 0 s
+                        else skip $ DropInfixWordLoop wrd1 sgn1 s
+                    else go SPEC (idx + 1) wrd1 sgn1 s
+                Skip s -> go SPEC idx wrd sgn s
                 Stop ->
                     if idx /= 0
-                    then skip $ DropInfixWordDone idx wrd
+                    then skip $ DropInfixWordDone idx wrd sgn
                     else return Stop
 
-    stepOuter gst (DropInfixWordLoop wrd0 st0) =
-        go SPEC wrd0 st0
+    stepOuter gst (DropInfixWordLoop wrd0 sgn0 st0) =
+        go SPEC wrd0 sgn0 st0
 
         where
 
         {-# INLINE go #-}
-        go !_ !wrd !st = do
+        go !_ !wrd !sgn !st = do
             res <- step (adaptState gst) st
             case res of
                 Yield x s -> do
-                    let wrd1 = addToWord wrd x
-                        old = wordToElem (wrd `shiftR` (elemBits * (patLen - 1)))
+                    let xw = SeqMatch.elemWord x
+                        wrd1 = addToWord wrd xw
+                        sgn1 = SeqMatch.addToSigns sgn xw
+                        old = wordToElem (patLen - 1) sgn wrd
                     if wrd1 .&. wordMask == wordPat
-                    then return $ Yield old (DropInfixWordInit 0 0 s)
-                    else return $ Yield old (DropInfixWordLoop wrd1 s)
-                Skip s -> go SPEC wrd s
-                Stop -> skip $ DropInfixWordDone patLen wrd
+                    then return $ Yield old (DropInfixWordInit 0 0 0 s)
+                    else return $ Yield old (DropInfixWordLoop wrd1 sgn1 s)
+                Skip s -> go SPEC wrd sgn s
+                Stop -> skip $ DropInfixWordDone patLen wrd sgn
 
     -------------------------------
     -- General Pattern - Karp Rabin
@@ -3035,9 +3029,9 @@ data ReplaceInfixState mba rb rh ck w s a =
     | ReplaceInfixSingle s a
     | ReplaceInfixEmitSingle Int s a
 
-    | ReplaceInfixWordInit Int !w s
-    | ReplaceInfixWordLoop !w s
-    | ReplaceInfixWordDone Int !w
+    | ReplaceInfixWordInit Int !w !w s
+    | ReplaceInfixWordLoop !w !w s
+    | ReplaceInfixWordDone Int !w !w
     | ReplaceInfixEmitWord Int s
 
     | ReplaceInfixKRInit Int s mba
@@ -3098,19 +3092,13 @@ replaceMatches patArr replArr (Stream step state) =
 
     proxy = Proxy :: Proxy a
 
-    -- Strict, so that the word loop tests an evaluated Bool instead of
-    -- entering a thunk for each element. Evaluated only for the word pattern
-    -- case.
-    !signed =
-        SeqMatch.isSignedEnumIf
-            (patLen > 1 && SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word))
-            proxy
-
     {-# INLINE wordToElem #-}
-    wordToElem = SeqMatch.wordToElem signed elemBits
+    wordToElem = SeqMatch.wordToElem elemBits
 
     wordPat :: Word
-    wordPat = wordMask .&. A.foldl' addToWord 0 patArr
+    wordPat =
+        let add w a = addToWord w (SeqMatch.elemWord a)
+         in wordMask .&. A.foldl' add 0 patArr
 
     addToWord = SeqMatch.addToWord elemBits
 
@@ -3130,7 +3118,7 @@ replaceMatches patArr replArr (Stream step state) =
             pat <- liftIO $ A.unsafeGetIndexIO 0 patArr
             skip $ ReplaceInfixSingle st pat
         | SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word) =
-            skip $ ReplaceInfixWordInit 0 0 st
+            skip $ ReplaceInfixWordInit 0 0 0 st
         | otherwise = do
             (MutArray mba _ _ _) :: MutArray a <-
                 liftIO $ MutArray.emptyOf patLen
@@ -3175,57 +3163,61 @@ replaceMatches patArr replArr (Stream step state) =
     -- Short Pattern - Shift Or
     ---------------------------
 
-    stepOuter _ (ReplaceInfixWordDone 0 _) = return Stop
-    stepOuter _ (ReplaceInfixWordDone n wrd) = do
-        let old = wordToElem (wrd `shiftR` (elemBits * (n - 1)))
+    stepOuter _ (ReplaceInfixWordDone 0 _ _) = return Stop
+    stepOuter _ (ReplaceInfixWordDone n wrd sgn) = do
+        let old = wordToElem (n - 1) sgn wrd
         return
             $ Yield
                 old
-                (ReplaceInfixWordDone (n - 1) wrd)
+                (ReplaceInfixWordDone (n - 1) wrd sgn)
 
-    stepOuter gst (ReplaceInfixWordInit idx0 wrd0 st0) =
-        go SPEC idx0 wrd0 st0
+    stepOuter gst (ReplaceInfixWordInit idx0 wrd0 sgn0 st0) =
+        go SPEC idx0 wrd0 sgn0 st0
 
         where
 
         {-# INLINE go #-}
-        go !_ !idx !wrd !st = do
+        go !_ !idx !wrd !sgn !st = do
             res <- step (adaptState gst) st
             case res of
                 Yield x s -> do
-                    let wrd1 = addToWord wrd x
+                    let xw = SeqMatch.elemWord x
+                        wrd1 = addToWord wrd xw
+                        sgn1 = SeqMatch.addToSigns sgn xw
                     if idx == maxIndex
                     then
                         if wrd1 .&. wordMask == wordPat
                         then skip $ ReplaceInfixEmitWord 0 s
-                        else skip $ ReplaceInfixWordLoop wrd1 s
-                    else go SPEC (idx + 1) wrd1 s
-                Skip s -> go SPEC idx wrd s
+                        else skip $ ReplaceInfixWordLoop wrd1 sgn1 s
+                    else go SPEC (idx + 1) wrd1 sgn1 s
+                Skip s -> go SPEC idx wrd sgn s
                 Stop ->
                     if idx /= 0
-                    then skip $ ReplaceInfixWordDone idx wrd
+                    then skip $ ReplaceInfixWordDone idx wrd sgn
                     else return Stop
 
-    stepOuter gst (ReplaceInfixWordLoop wrd0 st0) =
-        go SPEC wrd0 st0
+    stepOuter gst (ReplaceInfixWordLoop wrd0 sgn0 st0) =
+        go SPEC wrd0 sgn0 st0
 
         where
 
         {-# INLINE go #-}
-        go !_ !wrd !st = do
+        go !_ !wrd !sgn !st = do
             res <- step (adaptState gst) st
             case res of
                 Yield x s -> do
-                    let wrd1 = addToWord wrd x
-                        old = wordToElem (wrd `shiftR` (elemBits * (patLen - 1)))
+                    let xw = SeqMatch.elemWord x
+                        wrd1 = addToWord wrd xw
+                        sgn1 = SeqMatch.addToSigns sgn xw
+                        old = wordToElem (patLen - 1) sgn wrd
                     if wrd1 .&. wordMask == wordPat
                     then return $ Yield old (ReplaceInfixEmitWord 0 s)
-                    else return $ Yield old (ReplaceInfixWordLoop wrd1 s)
-                Skip s -> go SPEC wrd s
-                Stop -> skip $ ReplaceInfixWordDone patLen wrd
+                    else return $ Yield old (ReplaceInfixWordLoop wrd1 sgn1 s)
+                Skip s -> go SPEC wrd sgn s
+                Stop -> skip $ ReplaceInfixWordDone patLen wrd sgn
 
     stepOuter _ (ReplaceInfixEmitWord i s)
-        | i >= replLen = skip $ ReplaceInfixWordInit 0 0 s
+        | i >= replLen = skip $ ReplaceInfixWordInit 0 0 0 s
         | otherwise = do
             r <- liftIO $ A.unsafeGetIndexIO i replArr
             return $ Yield r (ReplaceInfixEmitWord (i + 1) s)
@@ -3319,9 +3311,9 @@ data DropSuffixState mba rb rh w s a =
     | DropSuffixSingle s a
     | DropSuffixSingleHold s a a
 
-    | DropSuffixWordInit Int !w s
-    | DropSuffixWordLoop !w s
-    | DropSuffixWordDone Int !w
+    | DropSuffixWordInit Int !w !w s
+    | DropSuffixWordLoop !w !w s
+    | DropSuffixWordDone Int !w !w
 
     | DropSuffixKRInit Int s mba
     | DropSuffixKRLoop s mba !rh
@@ -3370,21 +3362,13 @@ dropSuffix patArr (Stream step state) =
     wordMask :: Word
     wordMask = (1 `shiftL` (elemBits * patLen)) - 1
 
-    proxy = Proxy :: Proxy a
-
-    -- Strict, so that the word loop tests an evaluated Bool instead of
-    -- entering a thunk for each element. Evaluated only for the word pattern
-    -- case.
-    !signed =
-        SeqMatch.isSignedEnumIf
-            (patLen > 1 && SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word))
-            proxy
-
     {-# INLINE wordToElem #-}
-    wordToElem = SeqMatch.wordToElem signed elemBits
+    wordToElem = SeqMatch.wordToElem elemBits
 
     wordPat :: Word
-    wordPat = wordMask .&. A.foldl' addToWord 0 patArr
+    wordPat =
+        let add w a = addToWord w (SeqMatch.elemWord a)
+         in wordMask .&. A.foldl' add 0 patArr
 
     addToWord = SeqMatch.addToWord elemBits
 
@@ -3397,7 +3381,7 @@ dropSuffix patArr (Stream step state) =
             pat <- liftIO $ A.unsafeGetIndexIO 0 patArr
             skip $ DropSuffixSingle st pat
         | SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word) =
-            skip $ DropSuffixWordInit 0 0 st
+            skip $ DropSuffixWordInit 0 0 0 st
         | otherwise = do
             (MutArray mba _ _ _) :: MutArray a <-
                 liftIO $ MutArray.emptyOf patLen
@@ -3445,52 +3429,56 @@ dropSuffix patArr (Stream step state) =
     -- Short Pattern - Shift Or
     ---------------------------
 
-    stepOuter _ (DropSuffixWordDone 0 _) = return Stop
-    stepOuter _ (DropSuffixWordDone n wrd) = do
-        let old = wordToElem (wrd `shiftR` (elemBits * (n - 1)))
+    stepOuter _ (DropSuffixWordDone 0 _ _) = return Stop
+    stepOuter _ (DropSuffixWordDone n wrd sgn) = do
+        let old = wordToElem (n - 1) sgn wrd
         return
             $ Yield
                 old
-                (DropSuffixWordDone (n - 1) wrd)
+                (DropSuffixWordDone (n - 1) wrd sgn)
 
-    stepOuter gst (DropSuffixWordInit idx0 wrd0 st0) =
-        go SPEC idx0 wrd0 st0
+    stepOuter gst (DropSuffixWordInit idx0 wrd0 sgn0 st0) =
+        go SPEC idx0 wrd0 sgn0 st0
 
         where
 
         {-# INLINE go #-}
-        go !_ !idx !wrd !st = do
+        go !_ !idx !wrd !sgn !st = do
             res <- step (adaptState gst) st
             case res of
                 Yield x s -> do
-                    let wrd1 = addToWord wrd x
+                    let xw = SeqMatch.elemWord x
+                        wrd1 = addToWord wrd xw
+                        sgn1 = SeqMatch.addToSigns sgn xw
                     if idx == maxIndex
-                    then skip $ DropSuffixWordLoop wrd1 s
-                    else go SPEC (idx + 1) wrd1 s
-                Skip s -> go SPEC idx wrd s
+                    then skip $ DropSuffixWordLoop wrd1 sgn1 s
+                    else go SPEC (idx + 1) wrd1 sgn1 s
+                Skip s -> go SPEC idx wrd sgn s
                 Stop ->
                     if idx /= 0
-                    then skip $ DropSuffixWordDone idx wrd
+                    then skip $ DropSuffixWordDone idx wrd sgn
                     else return Stop
 
-    stepOuter gst (DropSuffixWordLoop wrd0 st0) =
-        go SPEC wrd0 st0
+    stepOuter gst (DropSuffixWordLoop wrd0 sgn0 st0) =
+        go SPEC wrd0 sgn0 st0
 
         where
 
         {-# INLINE go #-}
-        go !_ !wrd !st = do
+        go !_ !wrd !sgn !st = do
             res <- step (adaptState gst) st
             case res of
                 Yield x s -> do
-                    let wrd1 = addToWord wrd x
-                        old = wordToElem (wrd `shiftR` (elemBits * (patLen - 1)))
-                    return $ Yield old (DropSuffixWordLoop wrd1 s)
-                Skip s -> go SPEC wrd s
+                    let xw = SeqMatch.elemWord x
+                        wrd1 = addToWord wrd xw
+                        sgn1 = SeqMatch.addToSigns sgn xw
+                        old = wordToElem (patLen - 1) sgn wrd
+                    return $ Yield old (DropSuffixWordLoop wrd1 sgn1 s)
+                Skip s -> go SPEC wrd sgn s
                 Stop ->
                     if wrd .&. wordMask == wordPat
                     then return Stop
-                    else skip $ DropSuffixWordDone patLen wrd
+                    else skip $ DropSuffixWordDone patLen wrd sgn
 
     -------------------------------
     -- General Pattern - Ring Buffer

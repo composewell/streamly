@@ -224,7 +224,7 @@ where
 import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bifunctor (first)
-import Data.Bits (shiftL, shiftR, (.&.))
+import Data.Bits (shiftL, (.&.))
 import Data.Either (isLeft, isRight, fromLeft, fromRight)
 import Data.Int (Int64)
 import Data.Proxy (Proxy(..))
@@ -1406,7 +1406,9 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
     wordMask = (1 `shiftL` (elemBits * patLen)) - 1
 
     wordPat :: Word
-    wordPat = wordMask .&. Array.foldl' addToWord 0 patArr
+    wordPat =
+        let add w a = addToWord w (SeqMatch.elemWord a)
+         in wordMask .&. Array.foldl' add 0 patArr
 
     addToWord = SeqMatch.addToWord elemBits
 
@@ -1437,7 +1439,7 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
             Done b -> return $ Done b
     step (SplitOnSeqWord s idx wrd) x = do
         res <- fstep s x
-        let wrd1 = addToWord wrd x
+        let wrd1 = addToWord wrd (SeqMatch.elemWord x)
         case res of
             Partial s1
                 | idx == maxIndex -> do
@@ -1449,7 +1451,7 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
             Done b -> return $ Done b
     step (SplitOnSeqWordLoop s wrd) x = do
         res <- fstep s x
-        let wrd1 = addToWord wrd x
+        let wrd1 = addToWord wrd (SeqMatch.elemWord x)
         case res of
             Partial s1
                 | wrd1 .&. wordMask == wordPat ->
@@ -1514,6 +1516,16 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
 
     final = extractFunc ffinal
 
+-- Like 'SplitOnSeqState', the word states also keep the signs of the packed
+-- elements, built by 'SeqMatch.addToSigns', to decode the elements.
+data DropSepState mba acc a rh w ck =
+      DropSepEmpty !acc
+    | DropSepSingle !acc !a
+    | DropSepWord !acc !Int !w !w
+    | DropSepWordLoop !acc !w !w
+    | DropSepKR !acc !Int !mba
+    | DropSepKRLoop !acc !ck !mba !rh
+
 -- | Like 'takeEndBySeq' but discards the matched sequence.
 --
 -- >>> s = Stream.fromList "Gauss---Euler---Noether"
@@ -1532,8 +1544,7 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
 -- passed to the fold are rebuilt from it with 'toEnum'. For a type whose
 -- 'fromEnum' loses information, e.g. 'Float', the pattern @[1.5, 2.5]@
 -- matches the input @[1.2, 2.3]@ and the fold receives the elements
--- truncated to whole numbers. @toEnum 0@ must be a valid value of the element
--- type.
+-- truncated to whole numbers.
 --
 -- /Pre-release/
 --
@@ -1560,17 +1571,17 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
                     -- XXX Should we match nothing or everything on empty
                     -- pattern?
                     -- Done <$> ffinal acc
-                    return $ Partial $ SplitOnSeqEmpty acc
+                    return $ Partial $ DropSepEmpty acc
                 | patLen == 1 -> do
                     pat <- liftIO $ Array.unsafeGetIndexIO 0 patArr
-                    return $ Partial $ SplitOnSeqSingle acc pat
+                    return $ Partial $ DropSepSingle acc pat
                 -- XXX Need to add tests for this case
                 | SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word) ->
-                    return $ Partial $ SplitOnSeqWord acc 0 0
+                    return $ Partial $ DropSepWord acc 0 0 0
                 | otherwise -> do
                     (MutArray mba _ _ _) :: MutArray a <-
                         liftIO $ MA.emptyOf patLen
-                    return $ Partial $ SplitOnSeqKR acc 0 mba
+                    return $ Partial $ DropSepKR acc 0 mba
             Done b -> return $ Done b
 
     -- Word pattern related
@@ -1581,19 +1592,13 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
     wordMask :: Word
     wordMask = (1 `shiftL` (elemBits * patLen)) - 1
 
-    -- Strict, so that the word loop tests an evaluated Bool instead of
-    -- entering a thunk for each element. Evaluated only for the word pattern
-    -- case.
-    !signed =
-        SeqMatch.isSignedEnumIf
-            (patLen > 1 && SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word))
-            proxy
-
     {-# INLINE wordToElem #-}
-    wordToElem = SeqMatch.wordToElem signed elemBits
+    wordToElem = SeqMatch.wordToElem elemBits
 
     wordPat :: Word
-    wordPat = wordMask .&. Array.foldl' addToWord 0 patArr
+    wordPat =
+        let add w a = addToWord w (SeqMatch.elemWord a)
+         in wordMask .&. Array.foldl' add 0 patArr
 
     addToWord = SeqMatch.addToWord elemBits
 
@@ -1610,39 +1615,43 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
     -- XXX Allocation of ring buffer should also be done once
     patHash = SeqMatch.arrayHash patArr
 
-    step (SplitOnSeqEmpty s) x = do
+    step (DropSepEmpty s) x = do
         res <- fstep s x
         case res of
-            Partial s1 -> return $ Partial $ SplitOnSeqEmpty s1
+            Partial s1 -> return $ Partial $ DropSepEmpty s1
             Done b -> return $ Done b
-    step (SplitOnSeqSingle s pat) x = do
+    step (DropSepSingle s pat) x = do
         if pat /= x
         then do
             res <- fstep s x
             case res of
-                Partial s1 -> return $ Partial $ SplitOnSeqSingle s1 pat
+                Partial s1 -> return $ Partial $ DropSepSingle s1 pat
                 Done b -> return $ Done b
         else Done <$> ffinal s
-    step (SplitOnSeqWord s idx wrd) x = do
-        let wrd1 = addToWord wrd x
+    step (DropSepWord s idx wrd sgn) x = do
+        let xw = SeqMatch.elemWord x
+            wrd1 = addToWord wrd xw
+            sgn1 = SeqMatch.addToSigns sgn xw
         if idx == maxIndex
         then do
             if wrd1 .&. wordMask == wordPat
             then Done <$> ffinal s
-            else return $ Partial $ SplitOnSeqWordLoop s wrd1
-        else return $ Partial $ SplitOnSeqWord s (idx + 1) wrd1
-    step (SplitOnSeqWordLoop s wrd) x = do
-        let wrd1 = addToWord wrd x
-            old = wordToElem (wrd `shiftR` (elemBits * (patLen - 1)))
+            else return $ Partial $ DropSepWordLoop s wrd1 sgn1
+        else return $ Partial $ DropSepWord s (idx + 1) wrd1 sgn1
+    step (DropSepWordLoop s wrd sgn) x = do
+        let xw = SeqMatch.elemWord x
+            wrd1 = addToWord wrd xw
+            sgn1 = SeqMatch.addToSigns sgn xw
+            old = wordToElem (patLen - 1) sgn wrd
         res <- fstep s old
         case res of
             Partial s1
                 | wrd1 .&. wordMask == wordPat ->
                     Done <$> ffinal s1
                 | otherwise ->
-                    return $ Partial $ SplitOnSeqWordLoop s1 wrd1
+                    return $ Partial $ DropSepWordLoop s1 wrd1 sgn1
             Done b -> return $ Done b
-    step (SplitOnSeqKR s offset mba) x = do
+    step (DropSepKR s offset mba) x = do
         liftIO $ pokeAt offset mba x
         if offset == maxOffset
         then do
@@ -1654,9 +1663,9 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
             let ringHash = SeqMatch.arrayHash arr
             if ringHash == patHash && Array.byteEq arr patArr
             then Done <$> ffinal s
-            else return $ Partial $ SplitOnSeqKRLoop s ringHash mba 0
-        else return $ Partial $ SplitOnSeqKR s (offset + SIZE_OF(a)) mba
-    step (SplitOnSeqKRLoop s cksum mba offset) x = do
+            else return $ Partial $ DropSepKRLoop s ringHash mba 0
+        else return $ Partial $ DropSepKR s (offset + SIZE_OF(a)) mba
+    step (DropSepKRLoop s cksum mba offset) x = do
         let rb = RingArray
                 { ringContents = mba
                 , ringSize = patBytes
@@ -1676,7 +1685,7 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
                     else return False
                 if matches
                 then Done <$> ffinal s1
-                else return $ Partial $ SplitOnSeqKRLoop s1 ringHash mba rh1
+                else return $ Partial $ DropSepKRLoop s1 ringHash mba rh1
             Done b -> return $ Done b
 
     -- XXX extract should return backtrack count as well. If the fold
@@ -1684,14 +1693,14 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
     -- remaining which will be lost if we do not communicate that to the
     -- driver.
     extractFunc fex state = do
-        let consumeWord s n wrd = do
+        let consumeWord s n wrd sgn = do
                 if n == 0
                 then fex s
                 else do
-                    let old = wordToElem (wrd `shiftR` (elemBits * (n - 1)))
+                    let old = wordToElem (n - 1) sgn wrd
                     r <- fstep s old
                     case r of
-                        Partial s1 -> consumeWord s1 (n - 1) wrd
+                        Partial s1 -> consumeWord s1 (n - 1) wrd sgn
                         Done b -> return b
 
         let consumeArray s end mba offset =
@@ -1723,12 +1732,12 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
                     Done b -> return b
 
         case state of
-            SplitOnSeqEmpty s -> fex s
-            SplitOnSeqSingle s _ -> fex s
-            SplitOnSeqWord s idx wrd -> consumeWord s idx wrd
-            SplitOnSeqWordLoop s wrd -> consumeWord s patLen wrd
-            SplitOnSeqKR s end mba -> consumeArray s end mba 0
-            SplitOnSeqKRLoop s _ mba rh -> consumeRing s rh mba rh
+            DropSepEmpty s -> fex s
+            DropSepSingle s _ -> fex s
+            DropSepWord s idx wrd sgn -> consumeWord s idx wrd sgn
+            DropSepWordLoop s wrd sgn -> consumeWord s patLen wrd sgn
+            DropSepKR s end mba -> consumeArray s end mba 0
+            DropSepKRLoop s _ mba rh -> consumeRing s rh mba rh
 
     extract = extractFunc fextract
 

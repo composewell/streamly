@@ -17,9 +17,9 @@ module Streamly.Internal.Data.SeqMatch
     (
     -- * Word packing
       elemMask
-    , isSignedEnum
-    , isSignedEnumIf
+    , elemWord
     , addToWord
+    , addToSigns
     , wordToElem
 
     -- * Karp-Rabin hash
@@ -42,53 +42,59 @@ import Streamly.Internal.System.IO (unsafeInlineIO)
 -- Word packing
 -------------------------------------------------------------------------------
 
+-- Decoding a packed element needs its sign. Alternatives considered:
+--
+-- * Test signedness of the type once using toEnum 0, toEnum 1 and
+--   enumFromThen, then branch in the decode or use separate signed and
+--   unsigned states: fails for an Enum instance partial at those values.
+-- * One flag per stream, set if any fromEnum was negative: wrong if fromEnum
+--   does not fit in the element bits, e.g. Float.
+-- * Pack the Unbox bytes instead of fromEnum: exact for all types, costs a
+--   store and a load per element.
+--
+-- We keep one sign bit per element in a separate word, see 'addToSigns'.
+
 -- | A mask of the low @bits@ bits of a 'Word', @bits@ must be less than the
 -- word size.
 {-# INLINE elemMask #-}
 elemMask :: Int -> Word
 elemMask bits = (1 `shiftL` bits) - 1
 
--- | 'True' if the 'Enum' type has values below @toEnum 0@, i.e. @fromEnum@
--- can be negative. Bounded enumerations stop at 'minBound', so
--- @[toEnum 1, toEnum 0 ..]@ has two elements for @Word8@ and more than two
--- for @Int8@. A type with the single value @toEnum 0@, e.g. @()@, is not
--- signed, @toEnum 1@ is not evaluated for it. @toEnum 0@ must be a valid
--- value of the type.
-{-# INLINE isSignedEnum #-}
-isSignedEnum :: forall a. Enum a => Proxy a -> Bool
-isSignedEnum _ =
-    length (take 2 [toEnum 0 :: a ..]) == 2
-        && length (take 3 [toEnum 1 :: a, toEnum 0 ..]) == 3
+-- | @fromEnum a@ as a 'Word', the value packed by 'addToWord' and
+-- 'addToSigns'.
+{-# INLINE elemWord #-}
+elemWord :: Enum a => a -> Word
+elemWord = fromIntegral . fromEnum
 
--- | @isSignedEnumIf cond proxy@ is @cond && isSignedEnum proxy@, it
--- evaluates 'isSignedEnum' only if @cond@ is 'True'. It is not inlined: when
--- the result is bound strictly, an inlined @&&@ makes GHC duplicate the code
--- that follows for each outcome of @cond@.
-{-# NOINLINE isSignedEnumIf #-}
-isSignedEnumIf :: Enum a => Bool -> Proxy a -> Bool
-isSignedEnumIf cond proxy = cond && isSignedEnum proxy
-
--- | @addToWord bits word a@ shifts @word@ left by @bits@ and puts the low
--- @bits@ bits of @fromEnum a@ in the vacated bits.
+-- | @addToWord bits word e@ shifts @word@ left by @bits@ and puts the low
+-- @bits@ bits of @e@, built by 'elemWord', in the vacated bits.
 {-# INLINE addToWord #-}
-addToWord :: Enum a => Int -> Word -> a -> Word
-addToWord bits wd a =
-    (wd `shiftL` bits) .|. (fromIntegral (fromEnum a) .&. elemMask bits)
+addToWord :: Int -> Word -> Word -> Word
+addToWord bits wd e = (wd `shiftL` bits) .|. (e .&. elemMask bits)
 
--- | @wordToElem signed bits word@ decodes the element packed by 'addToWord'
--- in the low @bits@ bits of @word@, @bits@ must be less than the word size.
--- When @signed@ is 'True' the value is sign-extended from @bits@ bits. Pass
--- @isSignedEnum (Proxy :: Proxy a)@ as @signed@.
+-- | @addToSigns signs e@ shifts @signs@ left by one bit and puts the sign
+-- bit of @e@, built by 'elemWord', in bit 0. Kept alongside the word built by
+-- 'addToWord', bit @pos@ of @signs@ is the sign of the element packed @pos@
+-- positions from the low end of the word.
+{-# INLINE addToSigns #-}
+addToSigns :: Word -> Word -> Word
+addToSigns signs e = (signs `shiftL` 1) .|. (e `shiftR` (finiteBitSize e - 1))
+
+-- | @wordToElem bits pos signs word@ decodes the element packed @pos@ positions
+-- from the low end of @word@ by 'addToWord', with its sign from @signs@ built
+-- by 'addToSigns'. @bits@ must be less than the word size. If the sign bit is
+-- set the value is sign-extended from @bits@ bits, so @toEnum@ is called only
+-- on @fromEnum@ of an element that was packed.
 --
 -- The decoding does not branch on the value of the element: the elements of
 -- random data have the top bit set half of the time, a branch on it is
 -- mispredicted often.
 {-# INLINE wordToElem #-}
-wordToElem :: Enum a => Bool -> Int -> Word -> a
-wordToElem signed bits wd =
-    let i = fromIntegral (wd .&. elemMask bits) :: Int
-        n = finiteBitSize i - bits
-     in toEnum $ if signed then (i `shiftL` n) `shiftR` n else i
+wordToElem :: Enum a => Int -> Int -> Word -> Word -> a
+wordToElem bits pos signs wd =
+    let i = fromIntegral ((wd `shiftR` (bits * pos)) .&. elemMask bits) :: Int
+        s = fromIntegral ((signs `shiftR` pos) .&. 1) :: Int
+     in toEnum $ i .|. (negate s `shiftL` bits)
 
 -------------------------------------------------------------------------------
 -- Karp-Rabin hash

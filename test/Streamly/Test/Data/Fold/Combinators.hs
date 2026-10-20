@@ -14,6 +14,8 @@ import Data.Int (Int8, Int64)
 import Data.Semigroup (Sum(..))
 import Data.Word (Word8, Word64)
 
+import Streamly.Internal.Data.MutByteArray (Unbox(..))
+
 import qualified Prelude
 import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.MutArray as MArray
@@ -453,6 +455,33 @@ takeEndBySeq_Unit = do
         (Stream.fromList [(), (), ()])
         `shouldReturn` []
 
+-- The values of Positive start at 1, toEnum fails on 0.
+newtype Positive = Positive Word8 deriving (Eq, Show)
+
+instance Enum Positive where
+    fromEnum (Positive n) = fromIntegral n
+    toEnum n
+        | n > 0 = Positive (fromIntegral n)
+        | otherwise = error "toEnum: Positive"
+
+instance Unbox Positive where
+    sizeOf _ = 1
+    peekAt i arr = Positive <$> peekAt i arr
+    pokeAt i arr (Positive n) = pokeAt i arr n
+
+-- Decoding the elements of a word pattern must call toEnum only on fromEnum of
+-- an input element.
+takeEndBySeq_Positive :: Expectation
+takeEndBySeq_Positive = do
+    Stream.fold
+        (Fold.takeEndBySeq_ (Array.fromList (map Positive [1,2])) Fold.toList)
+        (Stream.fromList (map Positive [3,200,1,2,5]))
+        `shouldReturn` map Positive [3,200]
+    Stream.fold
+        (Fold.takeEndBySeq_ (Array.fromList (map Positive [1,2])) Fold.toList)
+        (Stream.fromList (map Positive [3,200,1]))
+        `shouldReturn` map Positive [3,200,1]
+
 -- Karp-Rabin search must not use fromEnum, it fails on large Word64 values.
 takeEndBySeqWord64 :: Expectation
 takeEndBySeqWord64 =
@@ -593,6 +622,7 @@ main = hspec $ do
         it "takeEndBySeq signed elements" takeEndBySeqSigned
         it "takeEndBySeq_ signed elements" takeEndBySeq_Signed
         it "takeEndBySeq_ unit" takeEndBySeq_Unit
+        it "takeEndBySeq_ without toEnum 0" takeEndBySeq_Positive
         it "takeEndBySeq Word64" takeEndBySeqWord64
         it "takeEndBySeq_ Word64" takeEndBySeq_Word64
         it "distributeScan" distributeScan

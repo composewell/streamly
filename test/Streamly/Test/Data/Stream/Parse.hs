@@ -23,7 +23,7 @@ import Data.Int (Int8)
 import Data.Word (Word8, Word64)
 import Streamly.Internal.Data.Array (Array)
 import Streamly.Internal.Data.Fold (Fold)
-import Streamly.Internal.Data.MutByteArray (Unbox)
+import Streamly.Internal.Data.MutByteArray (Unbox(..))
 import Streamly.Internal.Data.Stream (Stream)
 import Test.QuickCheck
     ( Gen
@@ -1042,6 +1042,43 @@ testSeqSearchUnit = do
         (Stream.splitSepBySeq_ pat Fold.toList (Stream.fromList [()]))
         `shouldReturn` [[()]]
 
+-- The values of Positive start at 1, toEnum fails on 0.
+newtype Positive = Positive Word8 deriving (Eq, Show)
+
+instance Enum Positive where
+    fromEnum (Positive n) = fromIntegral n
+    toEnum n
+        | n > 0 = Positive (fromIntegral n)
+        | otherwise = error "toEnum: Positive"
+
+instance Unbox Positive where
+    sizeOf _ = 1
+    peekAt i arr = Positive <$> peekAt i arr
+    pokeAt i arr (Positive n) = pokeAt i arr n
+
+-- Decoding the elements of a word pattern must call toEnum only on fromEnum of
+-- an input element.
+testSeqSearchPositive :: Expectation
+testSeqSearchPositive = do
+    let pat = Array.fromList (map Positive [1, 2])
+        input = map Positive [3, 200, 1, 2, 255, 4]
+    Stream.toList (Stream.takeEndBySeq_ pat (Stream.fromList input))
+        `shouldReturn` map Positive [3, 200]
+    Stream.toList
+        (Stream.splitSepBySeq_ pat Fold.toList (Stream.fromList input))
+        `shouldReturn` map (map Positive) [[3, 200], [255, 4]]
+    Stream.toList
+        (Stream.splitOnSuffixSeq False pat Fold.toList (Stream.fromList input))
+        `shouldReturn` map (map Positive) [[3, 200], [255, 4]]
+    Stream.toList (Stream.dropMatches pat (Stream.fromList input))
+        `shouldReturn` map Positive [3, 200, 255, 4]
+    Stream.toList
+        (Stream.replaceMatches pat (Array.fromList [Positive 9])
+            (Stream.fromList input))
+        `shouldReturn` map Positive [3, 200, 9, 255, 4]
+    Stream.toList (Stream.dropSuffix pat (Stream.fromList input))
+        `shouldReturn` input
+
 -- Karp-Rabin search must not use fromEnum, it fails on large Word64 values.
 testSeqSearchWord64 :: Expectation
 testSeqSearchWord64 = do
@@ -1187,4 +1224,5 @@ main = hspec
     describe "sequence search" $ do
         it "signed elements" testSeqSearchSigned
         it "unit elements" testSeqSearchUnit
+        it "elements without toEnum 0" testSeqSearchPositive
         it "Word64 elements" testSeqSearchWord64
