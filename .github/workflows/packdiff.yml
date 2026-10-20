@@ -79,6 +79,17 @@ jobs:
           cabal install packdiff --project-file=cabal.project.packdiff --installdir=$HOME/.local/bin --overwrite-policy=always
         fi
 
+    # packdiff runs "cabal haddock" with the default project. The haddock
+    # build of streamly-core needs more than the 500M that limit-build-mem
+    # sets. cabal.project.local is untracked, it survives packdiff's git
+    # checkouts. A later -M overrides the earlier one.
+    - name: Raise the GHC heap limit for haddock builds
+      run: |
+        cat > cabal.project.local <<EOF
+        package streamly-core
+          ghc-options: +RTS -M800M -RTS
+        EOF
+
     - name: Run packdiff on streamly-core
       run: |
         cabal run packdiff --project-file=cabal.project.packdiff -- \
