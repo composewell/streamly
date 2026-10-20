@@ -1522,10 +1522,6 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
 -- See also: 'Streamly.Data.Stream.splitOnSeq' and
 -- 'Streamly.Data.Stream.splitEndBySeq_'.
 --
--- Known Issues: For a signed element type, e.g. 'Int8', a pattern of two or
--- more elements whose total size is at most one machine word fails with an
--- error if the input has a negative element.
---
 -- /Pre-release/
 --
 {-# INLINE takeEndBySeq_ #-}
@@ -1572,7 +1568,16 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
     wordMask :: Word
     wordMask = (1 `shiftL` (elemBits * patLen)) - 1
 
-    wordToElem = SeqMatch.wordToElem elemBits
+    -- Strict, so that the word loop tests an evaluated Bool instead of
+    -- entering a thunk for each element. Evaluated only for the word pattern
+    -- case.
+    !signed =
+        SeqMatch.isSignedEnumIf
+            (patLen > 1 && SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word))
+            proxy
+
+    {-# INLINE wordToElem #-}
+    wordToElem = SeqMatch.wordToElem signed elemBits
 
     wordPat :: Word
     wordPat = wordMask .&. Array.foldl' addToWord 0 patArr

@@ -1185,6 +1185,6 @@ main = hspec
         it "overlapping pattern" testReplaceMatchesOverlap
 
     describe "sequence search" $ do
-        xit "signed elements" testSeqSearchSigned
-        xit "unit elements" testSeqSearchUnit
+        it "signed elements" testSeqSearchSigned
+        it "unit elements" testSeqSearchUnit
         it "Word64 elements" testSeqSearchWord64

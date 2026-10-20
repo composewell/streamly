@@ -832,7 +832,16 @@ takeEndBySeqWith withSep patArr (Stream step state) =
 
     proxy = Proxy :: Proxy a
 
-    wordToElem = SeqMatch.wordToElem elemBits
+    -- Strict, so that the word loop tests an evaluated Bool instead of
+    -- entering a thunk for each element. Evaluated only for the word pattern
+    -- case.
+    !signed =
+        SeqMatch.isSignedEnumIf
+            (patLen > 1 && SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word))
+            proxy
+
+    {-# INLINE wordToElem #-}
+    wordToElem = SeqMatch.wordToElem signed elemBits
 
     wordPat :: Word
     wordPat = wordMask .&. A.foldl' addToWord 0 patArr
@@ -1095,10 +1104,6 @@ takeEndBySeq = takeEndBySeqWith True
 -- >>> f "" "abcdefghijk"
 -- ""
 --
--- Known Issues: For a signed element type, e.g. 'Int8', a pattern of two or
--- more elements whose total size is at most one machine word fails with an
--- error if the input has a negative element.
---
 {-# INLINE takeEndBySeq_ #-}
 takeEndBySeq_
     :: forall m a. (MonadIO m, Unbox a, Enum a, Eq a)
@@ -1181,10 +1186,6 @@ data SplitOnSeqState mba rb rh ck w fs s b x =
 --
 -- Uses Rabin-Karp algorithm for substring search.
 --
--- Known Issues: For a signed element type, e.g. 'Int8', a pattern of two or
--- more elements whose total size is at most one machine word fails with an
--- error if the input has a negative element.
---
 {-# INLINE_NORMAL splitSepBySeq_ #-}
 splitSepBySeq_, splitOnSeq
     :: forall m a b. (MonadIO m, Unbox a, Enum a, Eq a)
@@ -1209,7 +1210,16 @@ splitSepBySeq_ patArr (Fold fstep initial _ final) (Stream step state) =
 
     proxy = Proxy :: Proxy a
 
-    wordToElem = SeqMatch.wordToElem elemBits
+    -- Strict, so that the word loop tests an evaluated Bool instead of
+    -- entering a thunk for each element. Evaluated only for the word pattern
+    -- case.
+    !signed =
+        SeqMatch.isSignedEnumIf
+            (patLen > 1 && SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word))
+            proxy
+
+    {-# INLINE wordToElem #-}
+    wordToElem = SeqMatch.wordToElem signed elemBits
 
     wordPat :: Word
     wordPat = wordMask .&. A.foldl' addToWord 0 patArr
@@ -1608,7 +1618,16 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
 
     proxy = Proxy :: Proxy a
 
-    wordToElem = SeqMatch.wordToElem elemBits
+    -- Strict, so that the word loop tests an evaluated Bool instead of
+    -- entering a thunk for each element. Evaluated only for the word pattern
+    -- case.
+    !signed =
+        SeqMatch.isSignedEnumIf
+            (patLen > 1 && SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word))
+            proxy
+
+    {-# INLINE wordToElem #-}
+    wordToElem = SeqMatch.wordToElem signed elemBits
 
     wordPat :: Word
     wordPat = wordMask .&. A.foldl' addToWord 0 patArr
@@ -2026,10 +2045,6 @@ splitEndBySeq = splitOnSuffixSeq True
 -- ["a"]
 --
 -- Uses Rabin-Karp algorithm for substring search.
---
--- Known Issues: For a signed element type, e.g. 'Int8', a pattern of two or
--- more elements whose total size is at most one machine word fails with an
--- error if the input has a negative element.
 --
 {-# INLINE_NORMAL splitEndBySeq_ #-}
 splitEndBySeq_
@@ -2773,10 +2788,6 @@ data DropInfixState mba rb rh ck w s a =
 --
 -- Space: @O(n)@ where n is the length of the infix.
 --
--- Known Issues: For a signed element type, e.g. 'Int8', a pattern of two or
--- more elements whose total size is at most one machine word fails with an
--- error if the input has a negative element.
---
 -- See also 'Streamly.Internal.Data.Stream.Eliminate.stripInfix'.
 {-# INLINE_NORMAL dropMatches #-}
 dropMatches
@@ -2800,7 +2811,16 @@ dropMatches patArr (Stream step state) =
 
     proxy = Proxy :: Proxy a
 
-    wordToElem = SeqMatch.wordToElem elemBits
+    -- Strict, so that the word loop tests an evaluated Bool instead of
+    -- entering a thunk for each element. Evaluated only for the word pattern
+    -- case.
+    !signed =
+        SeqMatch.isSignedEnumIf
+            (patLen > 1 && SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word))
+            proxy
+
+    {-# INLINE wordToElem #-}
+    wordToElem = SeqMatch.wordToElem signed elemBits
 
     wordPat :: Word
     wordPat = wordMask .&. A.foldl' addToWord 0 patArr
@@ -3032,10 +3052,6 @@ data ReplaceInfixState mba rb rh ck w s a =
 --
 -- Space: @O(n)@ where n is the length of the infix pattern.
 --
--- Known Issues: For a signed element type, e.g. 'Int8', a pattern of two or
--- more elements whose total size is at most one machine word fails with an
--- error if the input has a negative element.
---
 {-# INLINE_NORMAL replaceMatches #-}
 replaceMatches
     :: forall m a. (MonadIO m, Unbox a, Enum a, Eq a)
@@ -3060,7 +3076,16 @@ replaceMatches patArr replArr (Stream step state) =
 
     proxy = Proxy :: Proxy a
 
-    wordToElem = SeqMatch.wordToElem elemBits
+    -- Strict, so that the word loop tests an evaluated Bool instead of
+    -- entering a thunk for each element. Evaluated only for the word pattern
+    -- case.
+    !signed =
+        SeqMatch.isSignedEnumIf
+            (patLen > 1 && SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word))
+            proxy
+
+    {-# INLINE wordToElem #-}
+    wordToElem = SeqMatch.wordToElem signed elemBits
 
     wordPat :: Word
     wordPat = wordMask .&. A.foldl' addToWord 0 patArr
@@ -3302,10 +3327,6 @@ data DropSuffixState mba rb rh w s a =
 --
 -- Space: @O(n)@ where n is the length of the suffix.
 --
--- Known Issues: For a signed element type, e.g. 'Int8', a pattern of two or
--- more elements whose total size is at most one machine word fails with an
--- error if the input has a negative element.
---
 -- See also 'Streamly.Internal.Data.Stream.Eliminate.stripSuffix'.
 {-# INLINE_NORMAL dropSuffix #-}
 dropSuffix
@@ -3327,7 +3348,18 @@ dropSuffix patArr (Stream step state) =
     wordMask :: Word
     wordMask = (1 `shiftL` (elemBits * patLen)) - 1
 
-    wordToElem = SeqMatch.wordToElem elemBits
+    proxy = Proxy :: Proxy a
+
+    -- Strict, so that the word loop tests an evaluated Bool instead of
+    -- entering a thunk for each element. Evaluated only for the word pattern
+    -- case.
+    !signed =
+        SeqMatch.isSignedEnumIf
+            (patLen > 1 && SIZE_OF(a) * patLen <= sizeOf (Proxy :: Proxy Word))
+            proxy
+
+    {-# INLINE wordToElem #-}
+    wordToElem = SeqMatch.wordToElem signed elemBits
 
     wordPat :: Word
     wordPat = wordMask .&. A.foldl' addToWord 0 patArr

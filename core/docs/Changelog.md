@@ -38,12 +38,11 @@
   and no fields. `()` and `Proxy` now serialize to a 0 byte, the byte was
   left unwritten.
 * Fix `Fold.takeEndBySeq` and `Fold.takeEndBySeq_` for elements whose
-  `fromEnum` is larger than `maxBound :: Int`, e.g. `Word64`, and
-  `Fold.takeEndBySeq` for elements whose `fromEnum` is negative, e.g.
-  `Int8`.
+  `fromEnum` is negative, e.g. `Int8`, or larger than `maxBound :: Int`,
+  e.g. `Word64`.
 * Fix `Stream.splitSepBySeq_`, `Stream.splitEndBySeq` and
-  `Stream.splitEndBySeq_` for elements whose `fromEnum` is larger than
-  `maxBound :: Int`, e.g. `Word64`.
+  `Stream.splitEndBySeq_` for elements whose `fromEnum` is negative, e.g.
+  `Int8`, or larger than `maxBound :: Int`, e.g. `Word64`.
 
 ### Breaking changes
 
