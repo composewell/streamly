@@ -8,26 +8,55 @@
 --
 -- Helpers for searching a sequence of 'Unbox' elements in a stream.
 --
--- A pattern is matched using a Karp-Rabin rolling hash of the elements, and a
--- hash match is confirmed by comparing bytes.
+-- A short pattern (at most one machine word in total size) is matched by
+-- packing the elements into a 'Word', each element taking @8 * sizeOf a@
+-- bits. A longer pattern is matched using a Karp-Rabin rolling hash of the
+-- elements, and a hash match is confirmed by comparing bytes.
 
 module Streamly.Internal.Data.SeqMatch
     (
+    -- * Word packing
+      elemMask
+    , addToWord
+    , wordToElem
+
     -- * Karp-Rabin hash
-      hashPower
+    , hashPower
     , addHash
     , arrayHash
     , elemHashAt
     )
 where
 
-import Data.Bits (shiftR, xor)
+import Data.Bits (shiftL, shiftR, xor, (.|.), (.&.))
 import Data.Proxy (Proxy(..))
 import Data.Word (Word8, Word16, Word32, Word64)
 import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.Data.MutByteArray.Type (MutByteArray)
 import Streamly.Internal.Data.Unbox (Unbox(..))
 import Streamly.Internal.System.IO (unsafeInlineIO)
+
+-------------------------------------------------------------------------------
+-- Word packing
+-------------------------------------------------------------------------------
+
+-- | A mask of the low @bits@ bits of a 'Word', @bits@ must be less than the
+-- word size.
+{-# INLINE elemMask #-}
+elemMask :: Int -> Word
+elemMask bits = (1 `shiftL` bits) - 1
+
+-- | @addToWord bits word a@ shifts @word@ left by @bits@ and puts
+-- @fromEnum a@ in the vacated bits.
+{-# INLINE addToWord #-}
+addToWord :: Enum a => Int -> Word -> a -> Word
+addToWord bits wd a = (wd `shiftL` bits) .|. fromIntegral (fromEnum a)
+
+-- | @wordToElem bits word@ decodes the element packed by 'addToWord' in the
+-- low @bits@ bits of @word@, @bits@ must be less than the word size.
+{-# INLINE wordToElem #-}
+wordToElem :: Enum a => Int -> Word -> a
+wordToElem bits wd = toEnum $ fromIntegral (wd .&. elemMask bits)
 
 -------------------------------------------------------------------------------
 -- Karp-Rabin hash

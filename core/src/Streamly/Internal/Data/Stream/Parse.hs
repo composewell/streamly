@@ -118,7 +118,7 @@ where
 import Control.Exception (assert)
 import Control.Monad (zipWithM)
 import Control.Monad.IO.Class (MonadIO(..))
-import Data.Bits (shiftR, shiftL, (.|.), (.&.))
+import Data.Bits (shiftR, shiftL, (.&.))
 import Data.Functor.Identity (Identity(..), runIdentity)
 import Data.List (groupBy, sortBy)
 import Data.Ord (comparing, Down(..))
@@ -832,19 +832,17 @@ takeEndBySeqWith withSep patArr (Stream step state) =
     wordMask :: Word
     wordMask = (1 `shiftL` (elemBits * patLen)) - 1
 
-    elemMask :: Word
-    elemMask = (1 `shiftL` elemBits) - 1
+    wordToElem = SeqMatch.wordToElem elemBits
 
     wordPat :: Word
     wordPat = wordMask .&. A.foldl' addToWord 0 patArr
 
-    addToWord wd a = (wd `shiftL` elemBits) .|. fromIntegral (fromEnum a)
+    addToWord = SeqMatch.addToWord elemBits
 
     -- For Rabin-Karp search
-    k = 2891336453 :: Word32
-    coeff = k ^ patLen
+    coeff = SeqMatch.hashPower patLen
 
-    addCksum cksum a = cksum * k + fromIntegral (fromEnum a)
+    addCksum cksum a = SeqMatch.addHash cksum (fromIntegral (fromEnum a))
 
     deltaCksum cksum old new =
         addCksum cksum new - coeff * fromIntegral (fromEnum old)
@@ -921,9 +919,9 @@ takeEndBySeqWith withSep patArr (Stream step state) =
     stepOuter _ (TakeEndBySeqWordDone 0 _) = do
         return Stop
     stepOuter _ (TakeEndBySeqWordDone n wrd) = do
-        let old = elemMask .&. (wrd `shiftR` (elemBits * (n - 1)))
+        let old = wordToElem (wrd `shiftR` (elemBits * (n - 1)))
          in yield
-                (toEnum $ fromIntegral old)
+                old
                 (TakeEndBySeqWordDone (n - 1) wrd)
 
     -- XXX If we remove this init state for perf experiment the time taken
@@ -956,12 +954,11 @@ takeEndBySeqWith withSep patArr (Stream step state) =
                 -- in simplification because the state argument of Yield is
                 -- lazy, maybe we can make that strict.
                 let wrd1 = addToWord wrd x
-                    old = (wordMask .&. wrd)
-                            `shiftR` (elemBits * (patLen - 1))
+                    old = wordToElem (wrd `shiftR` (elemBits * (patLen - 1)))
                     !y =
                             if withSep
                             then x
-                            else toEnum $ fromIntegral old
+                            else old
                 -- Note: changing the nesting order of if and yield makes a
                 -- difference in performance.
                 if wrd1 .&. wordMask /= wordPat
@@ -1202,19 +1199,17 @@ splitSepBySeq_ patArr (Fold fstep initial _ final) (Stream step state) =
     wordMask :: Word
     wordMask = (1 `shiftL` (elemBits * patLen)) - 1
 
-    elemMask :: Word
-    elemMask = (1 `shiftL` elemBits) - 1
+    wordToElem = SeqMatch.wordToElem elemBits
 
     wordPat :: Word
     wordPat = wordMask .&. A.foldl' addToWord 0 patArr
 
-    addToWord wd a = (wd `shiftL` elemBits) .|. fromIntegral (fromEnum a)
+    addToWord = SeqMatch.addToWord elemBits
 
     -- For Rabin-Karp search
-    k = 2891336453 :: Word32
-    coeff = k ^ patLen
+    coeff = SeqMatch.hashPower patLen
 
-    addCksum cksum a = cksum * k + fromIntegral (fromEnum a)
+    addCksum cksum a = SeqMatch.addHash cksum (fromIntegral (fromEnum a))
 
     deltaCksum cksum old new =
         addCksum cksum new - coeff * fromIntegral (fromEnum old)
@@ -1343,8 +1338,8 @@ splitSepBySeq_ patArr (Fold fstep initial _ final) (Stream step state) =
         r <- final fs
         skip $ SplitOnSeqYield r SplitOnSeqDone
     stepOuter _ (SplitOnSeqWordDone n fs wrd) = do
-        let old = elemMask .&. (wrd `shiftR` (elemBits * (n - 1)))
-        r <- fstep fs (toEnum $ fromIntegral old)
+        let old = wordToElem (wrd `shiftR` (elemBits * (n - 1)))
+        r <- fstep fs old
         case r of
             FL.Partial fs1 -> skip $ SplitOnSeqWordDone (n - 1) fs1 wrd
             FL.Done b -> do
@@ -1401,9 +1396,8 @@ splitSepBySeq_ patArr (Fold fstep initial _ final) (Stream step state) =
                 Yield x s -> do
                     let jump c = SplitOnSeqWordInit 0 0 c s
                         wrd1 = addToWord wrd x
-                        old = (wordMask .&. wrd)
-                                `shiftR` (elemBits * (patLen - 1))
-                    r <- fstep fs (toEnum $ fromIntegral old)
+                        old = wordToElem (wrd `shiftR` (elemBits * (patLen - 1)))
+                    r <- fstep fs old
                     case r of
                         FL.Partial fs1 -> do
                             if wrd1 .&. wordMask == wordPat
@@ -1602,13 +1596,12 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
     wordMask :: Word
     wordMask = (1 `shiftL` (elemBits * patLen)) - 1
 
-    elemMask :: Word
-    elemMask = (1 `shiftL` elemBits) - 1
+    wordToElem = SeqMatch.wordToElem elemBits
 
     wordPat :: Word
     wordPat = wordMask .&. A.foldl' addToWord 0 patArr
 
-    addToWord wd a = (wd `shiftL` elemBits) .|. fromIntegral (fromEnum a)
+    addToWord = SeqMatch.addToWord elemBits
 
     nextAfterInit nextGen stepRes =
         case stepRes of
@@ -1639,10 +1632,9 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
                 FL.Done b -> yieldReinit jump b
 
     -- For Rabin-Karp search
-    k = 2891336453 :: Word32
-    coeff = k ^ patLen
+    coeff = SeqMatch.hashPower patLen
 
-    addCksum cksum a = cksum * k + fromIntegral (fromEnum a)
+    addCksum cksum a = SeqMatch.addHash cksum (fromIntegral (fromEnum a))
 
     deltaCksum cksum old new =
         addCksum cksum new - coeff * fromIntegral (fromEnum old)
@@ -1731,8 +1723,8 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
         r <- final fs
         skip $ SplitOnSuffixSeqYield r SplitOnSuffixSeqDone
     stepOuter _ (SplitOnSuffixSeqWordDone n fs wrd) = do
-        let old = elemMask .&. (wrd `shiftR` (elemBits * (n - 1)))
-        r <- fstep fs (toEnum $ fromIntegral old)
+        let old = wordToElem (wrd `shiftR` (elemBits * (n - 1)))
+        r <- fstep fs old
         case r of
             FL.Partial fs1 -> skip $ SplitOnSuffixSeqWordDone (n - 1) fs1 wrd
             FL.Done b -> do
@@ -1792,12 +1784,11 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
                 Yield x s -> do
                     let jump c = SplitOnSuffixSeqWordInit c s
                         wrd1 = addToWord wrd x
-                        old = (wordMask .&. wrd)
-                                `shiftR` (elemBits * (patLen - 1))
+                        old = wordToElem (wrd `shiftR` (elemBits * (patLen - 1)))
                     r <-
                         if withSep
                         then fstep fs x
-                        else fstep fs (toEnum $ fromIntegral old)
+                        else fstep fs old
                     case r of
                         FL.Partial fs1 ->
                             if wrd1 .&. wordMask == wordPat
@@ -2762,18 +2753,16 @@ dropMatches patArr (Stream step state) =
     wordMask :: Word
     wordMask = (1 `shiftL` (elemBits * patLen)) - 1
 
-    elemMask :: Word
-    elemMask = (1 `shiftL` elemBits) - 1
+    wordToElem = SeqMatch.wordToElem elemBits
 
     wordPat :: Word
     wordPat = wordMask .&. A.foldl' addToWord 0 patArr
 
-    addToWord wd a = (wd `shiftL` elemBits) .|. fromIntegral (fromEnum a)
+    addToWord = SeqMatch.addToWord elemBits
 
-    k = 2891336453 :: Word32
-    coeff = k ^ patLen
+    coeff = SeqMatch.hashPower patLen
 
-    addCksum cksum a = cksum * k + fromIntegral (fromEnum a)
+    addCksum cksum a = SeqMatch.addHash cksum (fromIntegral (fromEnum a))
 
     deltaCksum cksum old new =
         addCksum cksum new - coeff * fromIntegral (fromEnum old)
@@ -2830,10 +2819,10 @@ dropMatches patArr (Stream step state) =
 
     stepOuter _ (DropInfixWordDone 0 _) = return Stop
     stepOuter _ (DropInfixWordDone n wrd) = do
-        let old = elemMask .&. (wrd `shiftR` (elemBits * (n - 1)))
+        let old = wordToElem (wrd `shiftR` (elemBits * (n - 1)))
         return
             $ Yield
-                (toEnum $ fromIntegral old)
+                old
                 (DropInfixWordDone (n - 1) wrd)
 
     stepOuter gst (DropInfixWordInit idx0 wrd0 st0) =
@@ -2870,12 +2859,10 @@ dropMatches patArr (Stream step state) =
             case res of
                 Yield x s -> do
                     let wrd1 = addToWord wrd x
-                        old = (wordMask .&. wrd)
-                                `shiftR` (elemBits * (patLen - 1))
-                        oldA = toEnum (fromIntegral old)
+                        old = wordToElem (wrd `shiftR` (elemBits * (patLen - 1)))
                     if wrd1 .&. wordMask == wordPat
-                    then return $ Yield oldA (DropInfixWordInit 0 0 s)
-                    else return $ Yield oldA (DropInfixWordLoop wrd1 s)
+                    then return $ Yield old (DropInfixWordInit 0 0 s)
+                    else return $ Yield old (DropInfixWordLoop wrd1 s)
                 Skip s -> go SPEC wrd s
                 Stop -> skip $ DropInfixWordDone patLen wrd
 
@@ -3020,18 +3007,16 @@ replaceMatches patArr replArr (Stream step state) =
     wordMask :: Word
     wordMask = (1 `shiftL` (elemBits * patLen)) - 1
 
-    elemMask :: Word
-    elemMask = (1 `shiftL` elemBits) - 1
+    wordToElem = SeqMatch.wordToElem elemBits
 
     wordPat :: Word
     wordPat = wordMask .&. A.foldl' addToWord 0 patArr
 
-    addToWord wd a = (wd `shiftL` elemBits) .|. fromIntegral (fromEnum a)
+    addToWord = SeqMatch.addToWord elemBits
 
-    k = 2891336453 :: Word32
-    coeff = k ^ patLen
+    coeff = SeqMatch.hashPower patLen
 
-    addCksum cksum a = cksum * k + fromIntegral (fromEnum a)
+    addCksum cksum a = SeqMatch.addHash cksum (fromIntegral (fromEnum a))
 
     deltaCksum cksum old new =
         addCksum cksum new - coeff * fromIntegral (fromEnum old)
@@ -3094,10 +3079,10 @@ replaceMatches patArr replArr (Stream step state) =
 
     stepOuter _ (ReplaceInfixWordDone 0 _) = return Stop
     stepOuter _ (ReplaceInfixWordDone n wrd) = do
-        let old = elemMask .&. (wrd `shiftR` (elemBits * (n - 1)))
+        let old = wordToElem (wrd `shiftR` (elemBits * (n - 1)))
         return
             $ Yield
-                (toEnum $ fromIntegral old)
+                old
                 (ReplaceInfixWordDone (n - 1) wrd)
 
     stepOuter gst (ReplaceInfixWordInit idx0 wrd0 st0) =
@@ -3134,12 +3119,10 @@ replaceMatches patArr replArr (Stream step state) =
             case res of
                 Yield x s -> do
                     let wrd1 = addToWord wrd x
-                        old = (wordMask .&. wrd)
-                                `shiftR` (elemBits * (patLen - 1))
-                        oldA = toEnum (fromIntegral old)
+                        old = wordToElem (wrd `shiftR` (elemBits * (patLen - 1)))
                     if wrd1 .&. wordMask == wordPat
-                    then return $ Yield oldA (ReplaceInfixEmitWord 0 s)
-                    else return $ Yield oldA (ReplaceInfixWordLoop wrd1 s)
+                    then return $ Yield old (ReplaceInfixEmitWord 0 s)
+                    else return $ Yield old (ReplaceInfixWordLoop wrd1 s)
                 Skip s -> go SPEC wrd s
                 Stop -> skip $ ReplaceInfixWordDone patLen wrd
 
@@ -3287,13 +3270,12 @@ dropSuffix patArr (Stream step state) =
     wordMask :: Word
     wordMask = (1 `shiftL` (elemBits * patLen)) - 1
 
-    elemMask :: Word
-    elemMask = (1 `shiftL` elemBits) - 1
+    wordToElem = SeqMatch.wordToElem elemBits
 
     wordPat :: Word
     wordPat = wordMask .&. A.foldl' addToWord 0 patArr
 
-    addToWord wd a = (wd `shiftL` elemBits) .|. fromIntegral (fromEnum a)
+    addToWord = SeqMatch.addToWord elemBits
 
     skip = return . Skip
 
@@ -3354,10 +3336,10 @@ dropSuffix patArr (Stream step state) =
 
     stepOuter _ (DropSuffixWordDone 0 _) = return Stop
     stepOuter _ (DropSuffixWordDone n wrd) = do
-        let old = elemMask .&. (wrd `shiftR` (elemBits * (n - 1)))
+        let old = wordToElem (wrd `shiftR` (elemBits * (n - 1)))
         return
             $ Yield
-                (toEnum $ fromIntegral old)
+                old
                 (DropSuffixWordDone (n - 1) wrd)
 
     stepOuter gst (DropSuffixWordInit idx0 wrd0 st0) =
@@ -3391,10 +3373,8 @@ dropSuffix patArr (Stream step state) =
             case res of
                 Yield x s -> do
                     let wrd1 = addToWord wrd x
-                        old = (wordMask .&. wrd)
-                                `shiftR` (elemBits * (patLen - 1))
-                        oldA = toEnum (fromIntegral old)
-                    return $ Yield oldA (DropSuffixWordLoop wrd1 s)
+                        old = wordToElem (wrd `shiftR` (elemBits * (patLen - 1)))
+                    return $ Yield old (DropSuffixWordLoop wrd1 s)
                 Skip s -> go SPEC wrd s
                 Stop ->
                     if wrd .&. wordMask == wordPat

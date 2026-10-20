@@ -224,11 +224,10 @@ where
 import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Bifunctor (first)
-import Data.Bits (shiftL, shiftR, (.|.), (.&.))
+import Data.Bits (shiftL, shiftR, (.&.))
 import Data.Either (isLeft, isRight, fromLeft, fromRight)
 import Data.Int (Int64)
 import Data.Proxy (Proxy(..))
-import Data.Word (Word32)
 import Streamly.Internal.Data.Array.Type (Array(..))
 import Streamly.Internal.Data.Scanl.Type (Scanl(..))
 import Streamly.Internal.Data.Unbox (Unbox(..))
@@ -248,6 +247,7 @@ import qualified Streamly.Internal.Data.Pipe.Type as Pipe
 import qualified Streamly.Internal.Data.RingArray as RingArray
 import qualified Streamly.Internal.Data.Scanl.Combinators as Scanl
 import qualified Streamly.Internal.Data.Scanl.Type as Scanl
+import qualified Streamly.Internal.Data.SeqMatch as SeqMatch
 import qualified Streamly.Internal.Data.Stream.Type as StreamD
 
 import Prelude hiding
@@ -1401,13 +1401,12 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
     wordPat :: Word
     wordPat = wordMask .&. Array.foldl' addToWord 0 patArr
 
-    addToWord wd a = (wd `shiftL` elemBits) .|. fromIntegral (fromEnum a)
+    addToWord = SeqMatch.addToWord elemBits
 
     -- For Rabin-Karp search
-    k = 2891336453 :: Word32
-    coeff = k ^ patLen
+    coeff = SeqMatch.hashPower patLen
 
-    addCksum cksum a = cksum * k + fromIntegral (fromEnum a)
+    addCksum cksum a = SeqMatch.addHash cksum (fromIntegral (fromEnum a))
 
     deltaCksum cksum old new =
         addCksum cksum new - coeff * fromIntegral (fromEnum old)
@@ -1565,19 +1564,17 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
     wordMask :: Word
     wordMask = (1 `shiftL` (elemBits * patLen)) - 1
 
-    elemMask :: Word
-    elemMask = (1 `shiftL` elemBits) - 1
+    wordToElem = SeqMatch.wordToElem elemBits
 
     wordPat :: Word
     wordPat = wordMask .&. Array.foldl' addToWord 0 patArr
 
-    addToWord wd a = (wd `shiftL` elemBits) .|. fromIntegral (fromEnum a)
+    addToWord = SeqMatch.addToWord elemBits
 
     -- For Rabin-Karp search
-    k = 2891336453 :: Word32
-    coeff = k ^ patLen
+    coeff = SeqMatch.hashPower patLen
 
-    addCksum cksum a = cksum * k + fromIntegral (fromEnum a)
+    addCksum cksum a = SeqMatch.addHash cksum (fromIntegral (fromEnum a))
 
     deltaCksum cksum old new =
         addCksum cksum new - coeff * fromIntegral (fromEnum old)
@@ -1612,9 +1609,8 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
         else return $ Partial $ SplitOnSeqWord s (idx + 1) wrd1
     step (SplitOnSeqWordLoop s wrd) x = do
         let wrd1 = addToWord wrd x
-            old = (wordMask .&. wrd)
-                    `shiftR` (elemBits * (patLen - 1))
-        res <- fstep s (toEnum $ fromIntegral old)
+            old = wordToElem (wrd `shiftR` (elemBits * (patLen - 1)))
+        res <- fstep s old
         case res of
             Partial s1
                 | wrd1 .&. wordMask == wordPat ->
@@ -1666,8 +1662,8 @@ takeEndBySeq_ patArr (Fold fstep finitial fextract ffinal) =
                 if n == 0
                 then fex s
                 else do
-                    let old = elemMask .&. (wrd `shiftR` (elemBits * (n - 1)))
-                    r <- fstep s (toEnum $ fromIntegral old)
+                    let old = wordToElem (wrd `shiftR` (elemBits * (n - 1)))
+                    r <- fstep s old
                     case r of
                         Partial s1 -> consumeWord s1 (n - 1) wrd
                         Done b -> return b
