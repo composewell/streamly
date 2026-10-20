@@ -2127,8 +2127,8 @@ data SplitOnSeqOneOfState fs s b =
 
     -- Buffer-filling phase. The Bool is True iff this state was entered
     -- after a match (post-match restart). On Stop with count=0:
-    --   primed=True  → yield one empty fold result (matches splitSepBySeq_)
-    --   primed=False → yield nothing (pristine initial state)
+    --   primed=True  -> yield one empty fold result (matches splitSepBySeq_)
+    --   primed=False -> yield nothing (pristine initial state)
     -- The two arrays are the element buffer and the per-group hashes.
     | SOOFill !Bool !Int !fs s !MutByteArray !MutByteArray
 
@@ -2142,6 +2142,12 @@ data SplitOnSeqOneOfState fs s b =
     -- At end of stream: fold n elements starting at byte offset, then
     -- finalize and stop
     | SOODrain !Int !Int !fs !MutByteArray
+
+-- | The patterns of the same length in 'splitSepByOneOf'.
+-- The fields are: byte offset of the group's hash in the hash array, pattern
+-- length in elements, pattern length in bytes, k^length, whether equal hashes
+-- imply equal patterns, and the (hash, pattern) pairs.
+data SOOGroup a = SOOGroup !Int !Int !Int !Word32 !Bool [(Word32, Array a)]
 
 -- | Split a stream on any one of the given infix separator patterns. Behaves
 -- like 'splitSepBySeq_' generalized to multiple patterns.
@@ -2190,10 +2196,8 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
 
     proxy = Proxy :: Proxy a
 
-    -- (byte offset of the group's hash in the hash array, patLen elements,
-    -- patBytes, k^patLen, [(hash, pattern)])
-    -- Sorted by patLen descending for longest-match priority.
-    groups :: [(Int, Int, Int, Word32, [(Word32, Array a)])]
+    -- Sorted by pattern length descending for longest-match priority.
+    groups :: [SOOGroup a]
     groups =
         let byLen = sortBy (comparing (Down . A.length)) patArrs
             grouped = groupBy (\x y -> A.length x == A.length y) byLen
@@ -2207,18 +2211,22 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
                 pBytes = A.byteLength p
                 cf = SeqMatch.hashPower pLen
                 hps = Prelude.map (\arr -> (SeqMatch.arrayHash arr, arr)) ps
-            in (hOff, pLen, pBytes, cf, hps)
+                -- The hash of a single element of size 1, 2 or 4 is the
+                -- element's bytes.
+                exact = pLen == 1 && elemSize `Prelude.elem` [1, 2, 4]
+            in SOOGroup hOff pLen pBytes cf exact hps
 
     !numGroups = Prelude.length groups
 
     resetHashes :: MutByteArray -> IO ()
     resetHashes hmba =
         Prelude.mapM_
-            (\(hOff, _, _, _, _) -> pokeAt hOff hmba (0 :: Word32)) groups
+            (\(SOOGroup hOff _ _ _ _ _) -> pokeAt hOff hmba (0 :: Word32))
+            groups
 
     !maxLen = case groups of
         [] -> 0
-        ((_, l, _, _, _) : _) -> l
+        (SOOGroup _ l _ _ _ _ : _) -> l
 
     !maxBytes = maxLen * SIZE_OF(a)
 
@@ -2235,11 +2243,12 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
     -- Look for a match among the hashes and patterns of a group, h is the
     -- hash of the last pLen elements and off is their byte offset in the
     -- buffer.
-    anyMatch :: Word32 -> Int -> Int -> MutByteArray -> [(Word32, Array a)]
-        -> IO Bool
-    anyMatch _ _ _ _ [] = pure False
-    anyMatch h !off pb mba ((ph, pat):rest)
-        | h /= ph = anyMatch h off pb mba rest
+    anyMatch :: Bool -> Word32 -> Int -> Int -> MutByteArray
+        -> [(Word32, Array a)] -> IO Bool
+    anyMatch _ _ _ _ _ [] = pure False
+    anyMatch exact h !off pb mba ((ph, pat):rest)
+        | h /= ph = anyMatch exact h off pb mba rest
+        | exact = pure True
         | otherwise = do
             let viewRing = RingArray
                     { ringContents = mba
@@ -2249,7 +2258,7 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
             eq <- RB.eqArrayN viewRing pat pb
             if eq
             then pure True
-            else anyMatch h off pb mba rest
+            else anyMatch exact h off pb mba rest
 
     -- Phase 1 (Fill): update the hashes after inserting an element and check
     -- for a match. count is the new count after inserting x. The buffer is
@@ -2265,7 +2274,7 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
         where
 
         go _ [] = pure 0
-        go new ((hOff, pLen, pBytes, coeff, hps):gs) = do
+        go new (SOOGroup hOff pLen pBytes coeff exact hps : gs) = do
             hash <- peekAt hOff hmba
             hash1 <-
                 if count <= pLen
@@ -2279,7 +2288,7 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
             then go new gs
             else do
                 let off = (count - pLen) * SIZE_OF(a)
-                m <- anyMatch hash1 off pBytes mba hps
+                m <- anyMatch exact hash1 off pBytes mba hps
                 if m then pure pLen else go new gs
 
     -- Phase 2 (Loop): insert x in the ring, update the hashes and check for a
@@ -2301,7 +2310,7 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
         wrap off = if off >= maxBytes then off - maxBytes else off
 
         go _ _ [] = pure 0
-        go new oldMax ((hOff, pLen, pBytes, coeff, hps):gs) = do
+        go new oldMax (SOOGroup hOff pLen pBytes coeff exact hps : gs) = do
             hash <- peekAt hOff hmba
             let !delta = (maxLen - pLen) * SIZE_OF(a)
             old <-
@@ -2310,7 +2319,7 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
                 else SeqMatch.elemHashAt proxy mba (wrap (ringHead + delta))
             let hash1 = SeqMatch.addHash hash new - coeff * old
             pokeAt hOff hmba hash1
-            m <- anyMatch hash1 (wrap (ringHead1 + delta)) pBytes mba hps
+            m <- anyMatch exact hash1 (wrap (ringHead1 + delta)) pBytes mba hps
             if m then pure pLen else go new oldMax gs
 
     {-# INLINE_LATE stepOuter #-}
