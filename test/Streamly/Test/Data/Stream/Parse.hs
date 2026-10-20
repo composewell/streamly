@@ -19,7 +19,7 @@ import Control.Monad.IO.Class (MonadIO)
 import Data.Functor.Identity (Identity)
 import Data.List (group, intercalate)
 import Data.Semigroup (Sum(..), getSum)
-import Data.Word (Word8)
+import Data.Word (Word8, Word64)
 import Streamly.Internal.Data.Array (Array)
 import Streamly.Internal.Data.Fold (Fold)
 import Streamly.Internal.Data.MutByteArray (Unbox)
@@ -807,6 +807,15 @@ testSplitSepByOneOfEmpty = do
                   (Stream.fromList "")
     xs `shouldBe` []
 
+-- The hash must not use fromEnum, it fails on large Word64 values.
+testSplitSepByOneOfWord64 :: Expectation
+testSplitSepByOneOfWord64 = do
+    let pats = map Array.fromList [[maxBound, 2], [3 :: Word64]]
+    xs <- Stream.toList $
+              Stream.splitSepByOneOf pats Fold.toList
+                  (Stream.fromList [5, maxBound, 2, 7, 3, maxBound])
+    xs `shouldBe` [[5], [7], [maxBound]]
+
 -------------------------------------------------------------------------------
 -- splitInnerBy / splitInnerBySuffix
 -------------------------------------------------------------------------------
@@ -1059,6 +1068,7 @@ main = hspec
         it "splits on any of the patterns" testSplitSepByOneOfSingle
         it "splits on multi-element pattern" testSplitSepByOneOfSeq
         it "empty stream" testSplitSepByOneOfEmpty
+        it "Word64 elements" testSplitSepByOneOfWord64
 
     describe "splitInnerBy" $ do
         it "splits inner containers" testSplitInnerBy

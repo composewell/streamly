@@ -147,6 +147,7 @@ import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Data.Parser as PRD
 import qualified Streamly.Internal.Data.ParserDrivers as Drivers
 import qualified Streamly.Internal.Data.RingArray as RB
+import qualified Streamly.Internal.Data.SeqMatch as SeqMatch
 
 import Streamly.Internal.Data.Stream.Type
 
@@ -2184,7 +2185,7 @@ data SplitOnSeqOneOfState fs s b =
 --
 {-# INLINE_NORMAL splitSepByOneOf #-}
 splitSepByOneOf
-    :: forall m a b. (MonadIO m, Unbox a, Enum a)
+    :: forall m a b. (MonadIO m, Unbox a)
     => [Array a]
     -> Fold m a b
     -> Stream m a
@@ -2197,11 +2198,7 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
     elemSize = SIZE_OF(a)
     patArrs = filter (\arr -> A.length arr > 0) patArrs0
 
-    k :: Word32
-    k = 2891336453
-
-    addCksum :: Word32 -> a -> Word32
-    addCksum cksum a = cksum * k + fromIntegral (fromEnum a)
+    proxy = Proxy :: Proxy a
 
     -- (patLen elements, patBytes, k^patLen, [(hash, pattern)])
     -- Sorted by patLen descending for longest-match priority.
@@ -2217,8 +2214,8 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
         mkGroup ps@(p:_) =
             let pLen = A.length p
                 pBytes = A.byteLength p
-                cf = k ^ pLen
-                hps = Prelude.map (\arr -> (A.foldl' addCksum 0 arr, arr)) ps
+                cf = SeqMatch.hashPower pLen
+                hps = Prelude.map (\arr -> (SeqMatch.arrayHash arr, arr)) ps
             in (pLen, pBytes, cf, hps)
 
     initialHashes :: [Word32]
@@ -2240,32 +2237,46 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
     yieldReinit nextGen b =
         initial >>= skip . SOOYield b . nextAfterInit nextGen
 
+    -- TODO: the per-group hashes are kept in a list that is rebuilt for each
+    -- input element, allocating about 90 bytes per element. Keep the hashes in
+    -- a MutByteArray and the groups in unboxed arrays, and update them in
+    -- place.
+
     -- Phase 1 (Fill) hash update. count is the new count after inserting x.
     -- Buffer is direct-indexed: position p at byte offset p * SIZE_OF(a).
-    updateHashesFill :: Int -> MutByteArray -> a -> [Word32] -> IO [Word32]
-    updateHashesFill count mba x = Control.Monad.zipWithM upd groups
+    updateHashesFill :: Int -> MutByteArray -> [Word32] -> IO [Word32]
+    updateHashesFill count mba hashes = do
+        new <- SeqMatch.elemHashAt proxy mba ((count - 1) * SIZE_OF(a))
+        Control.Monad.zipWithM (upd new) groups hashes
         where
-        upd (pLen, _, coeff, _) hash
-            | count <= pLen = pure (addCksum hash x)
+        upd new (pLen, _, coeff, _) hash
+            | count <= pLen = pure $! SeqMatch.addHash hash new
             | otherwise = do
                 let oldOffset = (count - pLen - 1) * SIZE_OF(a)
-                old :: a <- peekAt oldOffset mba
-                pure (addCksum hash x
-                        - coeff * fromIntegral (fromEnum old))
+                old <- SeqMatch.elemHashAt proxy mba oldOffset
+                pure $! SeqMatch.addHash hash new - coeff * old
 
     -- Phase 2 (Loop) hash update. ringHead is the byte offset of the oldest
-    -- element BEFORE insertion. Reads the falling-out element for each L
-    -- (which for L=maxLen is the element about to be evicted at ringHead).
+    -- element BEFORE insertion. The falling-out element for L=maxLen is the
+    -- one at ringHead, it is read before x overwrites it. For L < maxLen the
+    -- falling-out element is elsewhere in the ring and is read after.
     updateHashesLoop :: Int -> MutByteArray -> a -> [Word32] -> IO [Word32]
-    updateHashesLoop ringHead mba x = Control.Monad.zipWithM upd groups
+    updateHashesLoop ringHead mba x hashes = do
+        oldMax <- SeqMatch.elemHashAt proxy mba ringHead
+        pokeAt ringHead mba x
+        new <- SeqMatch.elemHashAt proxy mba ringHead
+        Control.Monad.zipWithM (upd new oldMax) groups hashes
         where
-        upd (pLen, _, coeff, _) hash = do
-            let oldOffset =
-                    (ringHead + (maxLen - pLen) * SIZE_OF(a))
-                        `mod` maxBytes
-            old :: a <- peekAt oldOffset mba
-            pure (addCksum hash x
-                    - coeff * fromIntegral (fromEnum old))
+        upd new oldMax (pLen, _, coeff, _) hash = do
+            old <-
+                if pLen == maxLen
+                then pure oldMax
+                else
+                    let oldOffset =
+                            (ringHead + (maxLen - pLen) * SIZE_OF(a))
+                                `mod` maxBytes
+                     in SeqMatch.elemHashAt proxy mba oldOffset
+            pure $! SeqMatch.addHash hash new - coeff * old
 
     -- Phase 1 match check. count is the new count after insertion.
     -- Returns the matched pattern length (the longest one), or Nothing.
@@ -2384,7 +2395,7 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
             Yield x s -> do
                 liftIO $ pokeAt (count * SIZE_OF(a)) mba x
                 let count' = count + 1
-                hashes' <- liftIO $ updateHashesFill count' mba x hashes
+                hashes' <- liftIO $ updateHashesFill count' mba hashes
                 matchRes <- liftIO $ checkMatchesFill count' mba hashes'
                 case matchRes of
                     Just pLen ->
@@ -2411,7 +2422,6 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
             Yield x s -> do
                 evicted :: a <- liftIO $ peekAt ringHead mba
                 hashes' <- liftIO $ updateHashesLoop ringHead mba x hashes
-                liftIO $ pokeAt ringHead mba x
                 let ringHead' = (ringHead + elemSize) `mod` maxBytes
                 r <- fstep fs evicted
                 case r of

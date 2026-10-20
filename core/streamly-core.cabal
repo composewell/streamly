@@ -443,6 +443,9 @@ library
                      , Streamly.Internal.Data.RingArray
                      , Streamly.Internal.Data.RingArray.Generic
 
+                     -- Sequence search helpers
+                     , Streamly.Internal.Data.SeqMatch
+
                      -- streamly-console
                      , Streamly.Internal.Console.Stdio
 
