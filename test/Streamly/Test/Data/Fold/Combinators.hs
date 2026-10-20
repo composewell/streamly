@@ -10,8 +10,9 @@
 module Streamly.Test.Data.Fold.Combinators (main) where
 
 import Data.IORef (newIORef, atomicModifyIORef)
-import Data.Int (Int64)
+import Data.Int (Int8, Int64)
 import Data.Semigroup (Sum(..))
+import Data.Word (Word8, Word64)
 
 import qualified Prelude
 import qualified Streamly.Internal.Data.Array as Array
@@ -414,6 +415,63 @@ sampleFromthenOffset =
         (Stream.fromList [0..9 :: Int])
     `shouldReturn` [1,4,7]
 
+-- The patterns of size at most one word are packed into a word, the elements
+-- with the top bit set must be masked to the element size.
+takeEndBySeqSigned :: Expectation
+takeEndBySeqSigned =
+    Stream.fold
+        (Fold.takeEndBySeq (Array.fromList [1,-1 :: Int8]) Fold.toList)
+        (Stream.fromList [-1,-1,5])
+        `shouldReturn` [-1,-1,5]
+
+-- The elements of a word pattern must be decoded with sign extension.
+takeEndBySeq_Signed :: Expectation
+takeEndBySeq_Signed = do
+    Stream.fold
+        (Fold.takeEndBySeq_ (Array.fromList [1,2 :: Int8]) Fold.toList)
+        (Stream.fromList [-1,3,4])
+        `shouldReturn` [-1,3,4]
+    Stream.fold
+        (Fold.takeEndBySeq_ (Array.fromList [1,2 :: Int8]) Fold.toList)
+        (Stream.fromList [-1,-128,127,1,2,5])
+        `shouldReturn` [-1,-128,127]
+    Stream.fold
+        (Fold.takeEndBySeq_ (Array.fromList [1,2 :: Word8]) Fold.toList)
+        (Stream.fromList [200,255,1,2,5])
+        `shouldReturn` [200,255]
+
+-- Decoding the elements of a word pattern must not evaluate toEnum 1 for a
+-- type with a single value.
+takeEndBySeq_Unit :: Expectation
+takeEndBySeq_Unit = do
+    Stream.fold
+        (Fold.takeEndBySeq_ (Array.fromList [(), ()]) Fold.toList)
+        (Stream.fromList [()])
+        `shouldReturn` [()]
+    Stream.fold
+        (Fold.takeEndBySeq_ (Array.fromList [(), ()]) Fold.toList)
+        (Stream.fromList [(), (), ()])
+        `shouldReturn` []
+
+-- Karp-Rabin search must not use fromEnum, it fails on large Word64 values.
+takeEndBySeqWord64 :: Expectation
+takeEndBySeqWord64 =
+    Stream.fold
+        (Fold.takeEndBySeq (Array.fromList [1,2 :: Word64]) Fold.toList)
+        (Stream.fromList [maxBound,7,1,2,9])
+        `shouldReturn` [maxBound,7,1,2]
+
+takeEndBySeq_Word64 :: Expectation
+takeEndBySeq_Word64 = do
+    Stream.fold
+        (Fold.takeEndBySeq_ (Array.fromList [1,2 :: Word64]) Fold.toList)
+        (Stream.fromList [maxBound,7,1,2,9])
+        `shouldReturn` [maxBound,7]
+    Stream.fold
+        (Fold.takeEndBySeq_ (Array.fromList [maxBound,2,3 :: Word64]) Fold.toList)
+        (Stream.fromList [5,maxBound,2,maxBound,2,3,9])
+        `shouldReturn` [5,maxBound,2]
+
 distributeScan :: Expectation
 distributeScan = do
     ref <- newIORef [Fold.take 2 Fold.sum, Fold.take 2 Fold.length :: Fold.Fold IO Int Int]
@@ -532,6 +590,11 @@ main = hspec $ do
         it "slide2" slide2
         it "takeEndBySeq" takeEndBySeq
         it "takeEndBySeq_" takeEndBySeq_
+        xit "takeEndBySeq signed elements" takeEndBySeqSigned
+        xit "takeEndBySeq_ signed elements" takeEndBySeq_Signed
+        xit "takeEndBySeq_ unit" takeEndBySeq_Unit
+        xit "takeEndBySeq Word64" takeEndBySeqWord64
+        xit "takeEndBySeq_ Word64" takeEndBySeq_Word64
         it "distributeScan" distributeScan
         it "distributeScan last input" distributeScanLast
         it "sampleFromthen offset" sampleFromthenOffset

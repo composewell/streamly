@@ -19,6 +19,7 @@ import Control.Monad.IO.Class (MonadIO)
 import Data.Functor.Identity (Identity)
 import Data.List (group, intercalate)
 import Data.Semigroup (Sum(..), getSum)
+import Data.Int (Int8)
 import Data.Word (Word8, Word64)
 import Streamly.Internal.Data.Array (Array)
 import Streamly.Internal.Data.Fold (Fold)
@@ -989,6 +990,85 @@ testReplaceMatchesOverlap =
         `shouldReturn` "bb"
 
 -------------------------------------------------------------------------------
+-- Sequence search on signed and wide elements
+-------------------------------------------------------------------------------
+
+-- The patterns of size at most one word are packed into a word, the elements
+-- with the top bit set must be masked and sign-extended correctly.
+testSeqSearchSigned :: Expectation
+testSeqSearchSigned = do
+    let pat = Array.fromList [1, 2 :: Int8]
+        input = [-1, -128, 1, 2, 127, -1]
+    Stream.toList
+        (Stream.takeEndBySeq (Array.fromList [1, -1 :: Int8])
+            (Stream.fromList [-1, -1, 5]))
+        `shouldReturn` [-1, -1, 5]
+    Stream.toList (Stream.takeEndBySeq_ pat (Stream.fromList [-1, 3, 4]))
+        `shouldReturn` [-1, 3, 4]
+    Stream.toList
+        (Stream.splitSepBySeq_ (Array.fromList [1, -1 :: Int8]) Fold.toList
+            (Stream.fromList [-1, -1, 5]))
+        `shouldReturn` [[-1, -1, 5]]
+    Stream.toList
+        (Stream.splitSepBySeq_ pat Fold.toList (Stream.fromList input))
+        `shouldReturn` [[-1, -128], [127, -1]]
+    Stream.toList
+        (Stream.splitOnSuffixSeq False pat Fold.toList (Stream.fromList input))
+        `shouldReturn` [[-1, -128], [127, -1]]
+    Stream.toList
+        (Stream.splitOnSuffixSeq True pat Fold.toList (Stream.fromList input))
+        `shouldReturn` [[-1, -128, 1, 2], [127, -1]]
+    Stream.toList (Stream.dropMatches pat (Stream.fromList input))
+        `shouldReturn` [-1, -128, 127, -1]
+    Stream.toList
+        (Stream.replaceMatches pat (Array.fromList [-5])
+            (Stream.fromList input))
+        `shouldReturn` [-1, -128, -5, 127, -1]
+    Stream.toList (Stream.dropSuffix pat (Stream.fromList [-1, -128, 1, 2]))
+        `shouldReturn` [-1, -128]
+    Stream.toList (Stream.dropSuffix pat (Stream.fromList [-1, -128]))
+        `shouldReturn` [-1, -128]
+
+-- Decoding the elements of a word pattern must not evaluate toEnum 1 for a
+-- type with a single value.
+testSeqSearchUnit :: Expectation
+testSeqSearchUnit = do
+    let pat = Array.fromList [(), ()]
+    Stream.toList (Stream.takeEndBySeq_ pat (Stream.fromList [()]))
+        `shouldReturn` [()]
+    Stream.toList (Stream.takeEndBySeq_ pat (Stream.fromList [(), (), ()]))
+        `shouldReturn` []
+    Stream.toList
+        (Stream.splitSepBySeq_ pat Fold.toList (Stream.fromList [()]))
+        `shouldReturn` [[()]]
+
+-- Karp-Rabin search must not use fromEnum, it fails on large Word64 values.
+testSeqSearchWord64 :: Expectation
+testSeqSearchWord64 = do
+    let pat = Array.fromList [maxBound, 2 :: Word64]
+        input = [5, maxBound, 2, maxBound, 9]
+    Stream.toList
+        (Stream.takeEndBySeq (Array.fromList [1, 2 :: Word64])
+            (Stream.fromList [maxBound, 7, 1, 2, 9]))
+        `shouldReturn` [maxBound, 7, 1, 2]
+    Stream.toList
+        (Stream.takeEndBySeq_ (Array.fromList [1, 2 :: Word64])
+            (Stream.fromList [maxBound, 7, 1, 2, 9]))
+        `shouldReturn` [maxBound, 7]
+    Stream.toList
+        (Stream.splitSepBySeq_ pat Fold.toList (Stream.fromList input))
+        `shouldReturn` [[5], [maxBound, 9]]
+    Stream.toList
+        (Stream.splitOnSuffixSeq False pat Fold.toList (Stream.fromList input))
+        `shouldReturn` [[5], [maxBound, 9]]
+    Stream.toList (Stream.dropMatches pat (Stream.fromList input))
+        `shouldReturn` [5, maxBound, 9]
+    Stream.toList
+        (Stream.replaceMatches pat (Array.fromList [0])
+            (Stream.fromList input))
+        `shouldReturn` [5, 0, maxBound, 9]
+
+-------------------------------------------------------------------------------
 
 moduleName :: String
 moduleName = "Data.Stream"
@@ -1103,3 +1183,8 @@ main = hspec
         it "replaces with longer replacement" testReplaceMatchesLonger
         it "replaces with empty (drops)" testReplaceMatchesEmptyRepl
         it "overlapping pattern" testReplaceMatchesOverlap
+
+    describe "sequence search" $ do
+        xit "signed elements" testSeqSearchSigned
+        xit "unit elements" testSeqSearchUnit
+        xit "Word64 elements" testSeqSearchWord64
