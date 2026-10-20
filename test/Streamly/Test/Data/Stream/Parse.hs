@@ -895,6 +895,16 @@ testSplitSepByOneOfNoPatFoldDone =
             (Fold.take 2 Fold.toList) (Stream.fromList "abcde"))
         `shouldReturn` ["ab", "cd", "e"]
 
+-- Patterns longer than one word are matched by hash, the others by packing
+-- the elements in a word.
+testSplitSepByOneOfLong :: Expectation
+testSplitSepByOneOfLong = do
+    let pats = map Array.fromList ["abc", "\n"] :: [Array Char]
+    xs <- Stream.toList $
+              Stream.splitSepByOneOf pats Fold.toList
+                  (Stream.fromList "xabcy\nzab")
+    xs `shouldBe` ["x", "y", "zab"]
+
 -- The hash must not use fromEnum, it fails on large Word64 values.
 testSplitSepByOneOfWord64 :: Expectation
 testSplitSepByOneOfWord64 = do
@@ -1326,6 +1336,7 @@ main = hspec
         it "splits on any of the patterns" testSplitSepByOneOfSingle
         it "splits on multi-element pattern" testSplitSepByOneOfSeq
         it "empty stream" testSplitSepByOneOfEmpty
+        it "patterns longer than a word" testSplitSepByOneOfLong
         it "Word64 elements" testSplitSepByOneOfWord64
         it "fold terminates before a separator" testSplitSepByOneOfFoldDone
         it "no patterns, fold terminates" testSplitSepByOneOfNoPatFoldDone

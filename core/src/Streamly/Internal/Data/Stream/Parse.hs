@@ -117,7 +117,7 @@ where
 
 import Control.Exception (assert)
 import Control.Monad.IO.Class (MonadIO(..))
-import Data.Bits (shiftL, (.&.))
+import Data.Bits (shiftL, shiftR, (.&.))
 import Data.Functor.Identity (Identity(..), runIdentity)
 import Data.List (groupBy, sortBy)
 import Data.Ord (comparing, Down(..))
@@ -2263,6 +2263,31 @@ data SplitOnSeqOneOfState fs s b =
     -- finalize and stop
     | SOODrain !Int !Int !fs !MutByteArray
 
+    -- The patterns packed in words are carried in the states of the word
+    -- path, instead of being strict bindings in the step function. GHC
+    -- duplicates the whole step function for each case on a strict binding.
+
+    -- All patterns of length one: the element is compared and folded
+    -- without buffering. SOOSingle0 is the pristine initial state.
+    | SOOSingle0 !fs s !SOOWords
+    | SOOSingle !fs s !SOOWords
+
+    -- Word path: the buffered elements are packed in a word, the last one in
+    -- the low bits, along with their signs, see 'SeqMatch.addToSigns'. The
+    -- states correspond to SOOFill, SOOLoop, SOOPrefold and SOODrain. In
+    -- SOOWPrefold and SOOWDrain the elements to be folded are the low n
+    -- elements of the word.
+    | SOOWFill !Bool !Int !fs s !Word !Word !SOOWords
+    | SOOWLoop !fs s !Word !Word !SOOWords
+    | SOOWPrefold !Int !fs !Word !Word s !SOOWords
+    | SOOWDrain !Int !fs !Word !Word
+
+-- | The patterns packed in words for the word path of 'splitSepByOneOf'. The
+-- fields of a pattern are: pattern length in elements, mask of the pattern's
+-- bits in the word, and the packed pattern. A strict list, so that the loop
+-- walking it does not enter thunks.
+data SOOWords = SOOWNil | SOOWCons !Int !Word !Word !SOOWords
+
 -- | A pattern and its hash.
 data SOOPat a = SOOPat !Word32 {-# UNPACK #-} !(Array a)
 
@@ -2271,16 +2296,6 @@ data SOOPat a = SOOPat !Word32 {-# UNPACK #-} !(Array a)
 -- length in elements, pattern length in bytes, k^length, whether equal hashes
 -- imply equal patterns, and the patterns.
 data SOOGroup a = SOOGroup !Int !Int !Int !Word32 !Bool [SOOPat a]
-
--- Packed-word path for short patterns: when maxLen * SIZE_OF(a) <= 8, keep
--- the last maxLen elements in one rolling Word and compare each pattern by
--- mask, as splitSepBySeq_ does in SplitOnSeqWordLoop. This needs no hashing
--- and no ring buffer reads. Patterns like "\n" and "\r\n" are about 6x slower
--- than with splitSepBySeq_ because of the per-element hashing and ring reads.
---
--- This was prototyped. It brought single pattern cases to the speed of
--- splitSepBySeq_, but multi-pattern cases became slower and the state
--- machine of the function grew significantly.
 
 -- | Split a stream on any one of the given infix separator patterns. Behaves
 -- like 'splitSepBySeq_' generalized to multiple patterns.
@@ -2312,9 +2327,17 @@ data SOOGroup a = SOOGroup !Int !Int !Int !Word32 !Bool [SOOPat a]
 --
 -- Space: @O(n)@ where n is the longest pattern length.
 --
+-- If all the patterns together fit in one machine word, i.e. the longest
+-- pattern times the size of the element is at most the word size, and the
+-- element is smaller than a word, the patterns are matched by comparing
+-- 'fromEnum' of the elements, as in 'splitSepBySeq_'. If the patterns are
+-- longer than one element, the elements passed to the fold are rebuilt from
+-- 'fromEnum' with 'toEnum'. For a type whose 'fromEnum' loses information,
+-- e.g. 'Float', the pattern @[1.5]@ matches the input @[1.2]@.
+--
 {-# INLINE_NORMAL splitSepByOneOf #-}
 splitSepByOneOf
-    :: forall m a b. (MonadIO m, Unbox a)
+    :: forall m a b. (MonadIO m, Unbox a, Enum a)
     => [Array a]
     -> Fold m a b
     -> Stream m a
@@ -2329,13 +2352,14 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
 
     proxy = Proxy :: Proxy a
 
-    -- Sorted by pattern length descending for longest-match priority. The
-    -- hash of the first group is kept in the state, its hash array offset is
-    -- unused. The hashes of the rest are in the hash array.
+    -- Sorted by pattern length descending for longest-match priority.
+    byLen = sortBy (comparing (Down . A.length)) patArrs
+
+    -- The hash of the first group is kept in the state, its hash array offset
+    -- is unused. The hashes of the rest are in the hash array.
     groups :: [SOOGroup a]
     groups =
-        let byLen = sortBy (comparing (Down . A.length)) patArrs
-            grouped = groupBy (\x y -> A.length x == A.length y) byLen
+        let grouped = groupBy (\x y -> A.length x == A.length y) byLen
          in Prelude.zipWith mkGroup [-SIZE_OF(Word32), 0 ..] grouped
 
         where
@@ -2374,6 +2398,78 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
 
     !maxBytes = maxLen * SIZE_OF(a)
 
+    ---------------------------
+    -- Word path
+    ---------------------------
+
+    elemBits = SIZE_OF(a) * 8
+
+    -- 'SeqMatch.elemMask' needs the element to be smaller than a word.
+    useWord =
+        SIZE_OF(a) < sizeOf (Proxy :: Proxy Word)
+            && maxBytes <= sizeOf (Proxy :: Proxy Word)
+
+    -- Longest first, like groups. Empty if the word path is not used,
+    -- 'fromEnum' may fail on larger elements, e.g. Word64.
+    wordPats :: SOOWords
+    wordPats =
+        if useWord then Prelude.foldr mkWord SOOWNil byLen else SOOWNil
+
+        where
+
+        mkWord arr ws =
+            let len = A.length arr
+                msk = (1 `shiftL` (elemBits * len)) - 1
+                add w x = SeqMatch.addToWord elemBits w (SeqMatch.elemWord x)
+             in SOOWCons len msk (msk .&. A.foldl' add 0 arr) ws
+
+    -- The length of the longest pattern matching the last elements packed in
+    -- the word, or 0. The mask and the pattern of the first pattern are
+    -- passed separately, so that a loop unboxes them once.
+    {-# INLINE matchWord #-}
+    matchWord :: Word -> Word -> SOOWords -> Word -> Int
+    matchWord msk0 pat0 ws0 wrd
+        | wrd .&. msk0 == pat0 = maxLen
+        | otherwise = go ws0
+
+        where
+
+        go SOOWNil = 0
+        go (SOOWCons len msk p ws)
+            | wrd .&. msk == p = len
+            | otherwise = go ws
+
+    -- Call k with the match function of the patterns. With one pattern the
+    -- match function does not check for more patterns on each element.
+    {-# INLINE withMatch #-}
+    withMatch :: SOOWords -> ((Word -> Int) -> r) -> r
+    withMatch ws k =
+        case ws of
+            SOOWCons _ msk0 pat0 SOOWNil ->
+                k (\wrd -> if wrd .&. msk0 == pat0 then maxLen else 0)
+            SOOWCons _ msk0 pat0 ws1 -> k (matchWord msk0 pat0 ws1)
+            SOOWNil -> error "splitSepByOneOf: impossible, no word patterns"
+
+    -- Like matchWord, when only count elements are packed in the word.
+    matchWordN :: SOOWords -> Int -> Word -> Int
+    matchWordN ws0 count wrd = go ws0
+
+        where
+
+        go SOOWNil = 0
+        go (SOOWCons len msk p ws)
+            | len <= count && wrd .&. msk == p = len
+            | otherwise = go ws
+
+    {-# INLINE wordToElem #-}
+    wordToElem :: Int -> Word -> Word -> a
+    wordToElem = SeqMatch.wordToElem elemBits
+
+    -- Fold the n elements before a matched pattern of length pLen.
+    {-# INLINE wordPrefold #-}
+    wordPrefold n pLen fs wrd sgn =
+        SOOWPrefold n fs (wrd `shiftR` (elemBits * pLen)) (sgn `shiftR` pLen)
+
     skip = return . Skip
 
     nextAfterInit nextGen stepRes =
@@ -2389,7 +2485,8 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
     -- buffer.
     anyMatch :: Bool -> Word32 -> Int -> Int -> MutByteArray -> [SOOPat a]
         -> IO Bool
-    anyMatch _ _ _ _ _ [] = pure False
+    -- off must be strict in all equations, for it to be passed unboxed.
+    anyMatch _ _ !_ _ _ [] = pure False
     anyMatch exact h !off pb mba (SOOPat ph pat : pats)
         | h /= ph = anyMatch exact h off pb mba pats
         | exact = pure True
@@ -2404,18 +2501,24 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
             then pure True
             else anyMatch exact h off pb mba pats
 
-    -- anyMatch for the first group, which is checked on every element. Only
-    -- the hash comparison is inlined in the loop.
-    {-# INLINE anyMatch0 #-}
-    anyMatch0 :: Word32 -> Int -> MutByteArray -> IO Bool
-    anyMatch0 h off mba = go g0Pats
+    -- anyMatch with the hash comparison inlined in the loop, anyMatch is
+    -- called only when a hash matches.
+    {-# INLINE anyMatchI #-}
+    anyMatchI :: Bool -> Word32 -> Int -> Int -> MutByteArray -> [SOOPat a]
+        -> IO Bool
+    anyMatchI exact h off pb mba = go
 
         where
 
         go [] = pure False
         go pats@(SOOPat ph _ : pats1)
             | h /= ph = go pats1
-            | otherwise = anyMatch g0Exact h off g0Bytes mba pats
+            | otherwise = anyMatch exact h off pb mba pats
+
+    -- anyMatchI for the first group, which is checked on every element.
+    {-# INLINE anyMatch0 #-}
+    anyMatch0 :: Word32 -> Int -> MutByteArray -> IO Bool
+    anyMatch0 h off mba = anyMatchI g0Exact h off g0Bytes mba g0Pats
 
     -- Phase 1 (Fill): update the hashes of the groups other than the first
     -- after inserting an element with hash new, and check for a match. count
@@ -2444,7 +2547,7 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
             then go gs
             else do
                 let off = (count - pLen) * SIZE_OF(a)
-                m <- anyMatch exact hash1 off pBytes mba hps
+                m <- anyMatchI exact hash1 off pBytes mba hps
                 if m then pure pLen else go gs
 
     -- Phase 2 (Loop): update the hashes of the groups other than the first
@@ -2469,17 +2572,20 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
             old <- SeqMatch.elemHashAt proxy mba (wrap (ringHead + delta))
             let hash1 = SeqMatch.addHash hash new - coeff * old
             pokeAt hOff hmba hash1
-            m <- anyMatch exact hash1 (wrap (ringHead1 + delta)) pBytes mba hps
+            let off = wrap (ringHead1 + delta)
+            m <- anyMatchI exact hash1 off pBytes mba hps
             if m then pure pLen else go gs
 
     {-# INLINE_LATE stepOuter #-}
     stepOuter _ SOOInit = do
         res <- initial
         case res of
-            FL.Partial fs ->
-                if null groups
-                then skip $ SOOWholeInit fs state
-                else do
+            FL.Partial fs
+                | null groups -> skip $ SOOWholeInit fs state
+                | useWord && maxLen == 1 ->
+                    skip $ SOOSingle0 fs state wordPats
+                | useWord -> skip $ SOOWFill False 0 fs state 0 0 wordPats
+                | otherwise -> do
                     (MutArray mba _ _ _) :: MutArray a <-
                         liftIO $ MutArray.emptyOf maxLen
                     (MutArray hmba _ _ _) :: MutArray Word32 <-
@@ -2522,6 +2628,144 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
             Stop -> do
                 b <- final fs
                 skip $ SOOYield b SOODone
+
+    ---------------------------
+    -- Patterns of length one
+    ---------------------------
+
+    stepOuter gst (SOOSingle0 fs st ws) = do
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s -> do
+                let jump c = SOOSingle c s ws
+                if withMatch ws (\match -> match (SeqMatch.elemWord x)) /= 0
+                then final fs >>= yieldReinit jump
+                else do
+                    r <- fstep fs x
+                    case r of
+                        FL.Partial fs1 -> skip $ SOOSingle fs1 s ws
+                        FL.Done b -> yieldReinit jump b
+            Skip s -> skip $ SOOSingle0 fs s ws
+            Stop -> final fs >> pure Stop
+
+    stepOuter gst (SOOSingle fs0 st0 ws) =
+        withMatch ws (\match -> run match SPEC fs0 st0)
+
+        where
+
+        {-# INLINE run #-}
+        run match = go
+
+            where
+
+            go !_ !fs !st = do
+                res <- step (adaptState gst) st
+                case res of
+                    Yield x s -> do
+                        let jump c = SOOSingle c s ws
+                        if match (SeqMatch.elemWord x) /= 0
+                        then final fs >>= yieldReinit jump
+                        else do
+                            r <- fstep fs x
+                            case r of
+                                FL.Partial fs1 -> go SPEC fs1 s
+                                FL.Done b -> yieldReinit jump b
+                    Skip s -> go SPEC fs s
+                    Stop -> do
+                        b <- final fs
+                        skip $ SOOYield b SOODone
+
+    ---------------------------
+    -- Word path
+    ---------------------------
+
+    stepOuter gst (SOOWFill primed count0 fs st0 wrd0 sgn0 ws) =
+        go SPEC count0 st0 wrd0 sgn0
+
+        where
+
+        go !_ !count !st !wrd !sgn = do
+            res <- step (adaptState gst) st
+            case res of
+                Yield x s -> do
+                    let xw = SeqMatch.elemWord x
+                        wrd1 = SeqMatch.addToWord elemBits wrd xw
+                        sgn1 = SeqMatch.addToSigns sgn xw
+                        count1 = count + 1
+                        pLen = matchWordN ws count1 wrd1
+                        n = count1 - pLen
+                    if pLen /= 0
+                    then skip $ wordPrefold n pLen fs wrd1 sgn1 s ws
+                    else
+                        if count1 == maxLen
+                        then skip $ SOOWLoop fs s wrd1 sgn1 ws
+                        else go SPEC count1 s wrd1 sgn1
+                Skip s -> go SPEC count s wrd sgn
+                Stop
+                    | count == 0 && not primed -> final fs >> pure Stop
+                    | count == 0 -> do
+                        b <- final fs
+                        skip $ SOOYield b SOODone
+                    | otherwise -> skip $ SOOWDrain count fs wrd sgn
+
+    stepOuter gst (SOOWLoop fs0 st0 wrd0 sgn0 ws) =
+        withMatch ws (\match -> run match SPEC fs0 st0 wrd0 sgn0)
+
+        where
+
+        {-# INLINE run #-}
+        run match = go
+
+            where
+
+            go !_ !fs !st !wrd !sgn = do
+                res <- step (adaptState gst) st
+                case res of
+                    Yield x s -> do
+                        let xw = SeqMatch.elemWord x
+                            wrd1 = SeqMatch.addToWord elemBits wrd xw
+                            sgn1 = SeqMatch.addToSigns sgn xw
+                            old = wordToElem (maxLen - 1) sgn wrd
+                        r <- fstep fs old
+                        let pLen = match wrd1
+                            n = maxLen - pLen
+                            next c =
+                                if pLen /= 0
+                                then wordPrefold n pLen c wrd1 sgn1 s ws
+                                else SOOWLoop c s wrd1 sgn1 ws
+                        case r of
+                            FL.Partial fs1 ->
+                                if pLen /= 0
+                                then skip $ next fs1
+                                else go SPEC fs1 s wrd1 sgn1
+                            -- Continue the search with the elements in the
+                            -- word, they belong to the next segment.
+                            FL.Done b -> yieldReinit next b
+                    Skip s -> go SPEC fs s wrd sgn
+                    Stop -> skip $ SOOWDrain maxLen fs wrd sgn
+
+    stepOuter _ (SOOWPrefold 0 fs _ _ s ws) = do
+        b <- final fs
+        let jump c = SOOWFill True 0 c s 0 0 ws
+        yieldReinit jump b
+    stepOuter _ (SOOWPrefold n fs wrd sgn s ws) = do
+        r <- fstep fs (wordToElem (n - 1) sgn wrd)
+        case r of
+            FL.Partial fs1 -> skip $ SOOWPrefold (n - 1) fs1 wrd sgn s ws
+            FL.Done b -> do
+                let jump c = SOOWPrefold (n - 1) c wrd sgn s ws
+                yieldReinit jump b
+
+    stepOuter _ (SOOWDrain 0 fs _ _) = do
+        b <- final fs
+        skip $ SOOYield b SOODone
+    stepOuter _ (SOOWDrain n fs wrd sgn) = do
+        r <- fstep fs (wordToElem (n - 1) sgn wrd)
+        case r of
+            FL.Partial fs1 -> skip $ SOOWDrain (n - 1) fs1 wrd sgn
+            FL.Done b -> do
+                let jump c = SOOWDrain (n - 1) c wrd sgn
+                yieldReinit jump b
 
     ---------------------------
     -- Phase 1 — Fill
