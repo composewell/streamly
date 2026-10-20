@@ -41,6 +41,9 @@
   `fromEnum` is larger than `maxBound :: Int`, e.g. `Word64`, and
   `Fold.takeEndBySeq` for elements whose `fromEnum` is negative, e.g.
   `Int8`.
+* Fix `Stream.splitSepBySeq_`, `Stream.splitEndBySeq` and
+  `Stream.splitEndBySeq_` for elements whose `fromEnum` is larger than
+  `maxBound :: Int`, e.g. `Word64`.
 
 ### Breaking changes
 

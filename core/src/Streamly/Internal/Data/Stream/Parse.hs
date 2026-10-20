@@ -830,6 +830,8 @@ takeEndBySeqWith withSep patArr (Stream step state) =
     wordMask :: Word
     wordMask = (1 `shiftL` (elemBits * patLen)) - 1
 
+    proxy = Proxy :: Proxy a
+
     wordToElem = SeqMatch.wordToElem elemBits
 
     wordPat :: Word
@@ -840,13 +842,11 @@ takeEndBySeqWith withSep patArr (Stream step state) =
     -- For Rabin-Karp search
     coeff = SeqMatch.hashPower patLen
 
-    addCksum cksum a = SeqMatch.addHash cksum (fromIntegral (fromEnum a))
-
-    deltaCksum cksum old new =
-        addCksum cksum new - coeff * fromIntegral (fromEnum old)
+    deltaCksum cksum oldHash newHash =
+        SeqMatch.addHash cksum newHash - coeff * oldHash
 
     -- XXX shall we use a random starting hash or 1 instead of 0?
-    patHash = A.foldl' addCksum 0 patArr
+    patHash = SeqMatch.arrayHash patArr
 
     skip = return . Skip
 
@@ -997,7 +997,7 @@ takeEndBySeqWith withSep patArr (Stream step state) =
                         if offset /= maxOffset
                         then TakeEndBySeqKRInit1 s mba (offset + SIZE_OF(a))
                         else
-                            let ringHash = A.foldl' addCksum 0 arr
+                            let ringHash = SeqMatch.arrayHash arr
                              in if ringHash == patHash
                                 then TakeEndBySeqKRCheck s mba 0
                                 else TakeEndBySeqKRLoop s mba 0 ringHash
@@ -1025,8 +1025,10 @@ takeEndBySeqWith withSep patArr (Stream step state) =
                 }
         case res of
             Yield x s -> do
+                oldHash <- liftIO $ SeqMatch.elemHashAt proxy mba rh
                 (rb1, old) <- liftIO (RB.replace rb x)
-                let cksum1 = deltaCksum cksum old x
+                newHash <- liftIO $ SeqMatch.elemHashAt proxy mba rh
+                let cksum1 = deltaCksum cksum oldHash newHash
                 let rh1 = ringHead rb1
                     next =
                         if cksum1 /= patHash
@@ -1205,6 +1207,8 @@ splitSepBySeq_ patArr (Fold fstep initial _ final) (Stream step state) =
     wordMask :: Word
     wordMask = (1 `shiftL` (elemBits * patLen)) - 1
 
+    proxy = Proxy :: Proxy a
+
     wordToElem = SeqMatch.wordToElem elemBits
 
     wordPat :: Word
@@ -1215,13 +1219,11 @@ splitSepBySeq_ patArr (Fold fstep initial _ final) (Stream step state) =
     -- For Rabin-Karp search
     coeff = SeqMatch.hashPower patLen
 
-    addCksum cksum a = SeqMatch.addHash cksum (fromIntegral (fromEnum a))
-
-    deltaCksum cksum old new =
-        addCksum cksum new - coeff * fromIntegral (fromEnum old)
+    deltaCksum cksum oldHash newHash =
+        SeqMatch.addHash cksum newHash - coeff * oldHash
 
     -- XXX shall we use a random starting hash or 1 instead of 0?
-    patHash = A.foldl' addCksum 0 patArr
+    patHash = SeqMatch.arrayHash patArr
 
     skip = return . Skip
 
@@ -1443,7 +1445,7 @@ splitSepBySeq_ patArr (Fold fstep initial _ final) (Stream step state) =
                                 , arrStart = 0
                                 , arrEnd = patBytes
                                 }
-                    let ringHash = A.foldl' addCksum 0 arr
+                    let ringHash = SeqMatch.arrayHash arr
                     if ringHash == patHash && A.byteEq arr patArr
                     then skip $ SplitOnSeqKRCheck fs s mba 0
                     else skip $ SplitOnSeqKRLoop fs s mba 0 ringHash
@@ -1475,11 +1477,13 @@ splitSepBySeq_ patArr (Fold fstep initial _ final) (Stream step state) =
                     }
             case res of
                 Yield x s -> do
+                    oldHash <- liftIO $ SeqMatch.elemHashAt proxy mba rh
                     (rb1, old) <- liftIO (RB.replace rb x)
+                    newHash <- liftIO $ SeqMatch.elemHashAt proxy mba rh
                     r <- fstep fs old
                     case r of
                         FL.Partial fs1 -> do
-                            let cksum1 = deltaCksum cksum old x
+                            let cksum1 = deltaCksum cksum oldHash newHash
                             let rh1 = ringHead rb1
                             if cksum1 == patHash
                             then skip $ SplitOnSeqKRCheck fs1 s mba rh1
@@ -1602,6 +1606,8 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
     wordMask :: Word
     wordMask = (1 `shiftL` (elemBits * patLen)) - 1
 
+    proxy = Proxy :: Proxy a
+
     wordToElem = SeqMatch.wordToElem elemBits
 
     wordPat :: Word
@@ -1640,13 +1646,11 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
     -- For Rabin-Karp search
     coeff = SeqMatch.hashPower patLen
 
-    addCksum cksum a = SeqMatch.addHash cksum (fromIntegral (fromEnum a))
-
-    deltaCksum cksum old new =
-        addCksum cksum new - coeff * fromIntegral (fromEnum old)
+    deltaCksum cksum oldHash newHash =
+        SeqMatch.addHash cksum newHash - coeff * oldHash
 
     -- XXX shall we use a random starting hash or 1 instead of 0?
-    patHash = A.foldl' addCksum 0 patArr
+    patHash = SeqMatch.arrayHash patArr
 
     skip = return . Skip
 
@@ -1844,7 +1848,7 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
                 Yield x s -> do
                     liftIO $ pokeAt offset mba x
                     r <- if withSep then fstep fs x else return $ FL.Partial fs
-                    let ringHash = A.foldl' addCksum 0 arr
+                    let ringHash = SeqMatch.arrayHash arr
                     case r of
                         FL.Partial fs1
                             | offset /= maxOffset ->
@@ -1885,8 +1889,10 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
                     }
             case res of
                 Yield x s -> do
+                    oldHash <- liftIO $ SeqMatch.elemHashAt proxy mba rh
                     (rb1, old) <- liftIO (RB.replace rb x)
-                    let cksum1 = deltaCksum cksum old x
+                    newHash <- liftIO $ SeqMatch.elemHashAt proxy mba rh
+                    let cksum1 = deltaCksum cksum oldHash newHash
                     let rh1 = ringHead rb1
                     r <- if withSep then fstep fs x else fstep fs old
                     case r of
@@ -2792,6 +2798,8 @@ dropMatches patArr (Stream step state) =
     wordMask :: Word
     wordMask = (1 `shiftL` (elemBits * patLen)) - 1
 
+    proxy = Proxy :: Proxy a
+
     wordToElem = SeqMatch.wordToElem elemBits
 
     wordPat :: Word
@@ -2801,12 +2809,10 @@ dropMatches patArr (Stream step state) =
 
     coeff = SeqMatch.hashPower patLen
 
-    addCksum cksum a = SeqMatch.addHash cksum (fromIntegral (fromEnum a))
+    deltaCksum cksum oldHash newHash =
+        SeqMatch.addHash cksum newHash - coeff * oldHash
 
-    deltaCksum cksum old new =
-        addCksum cksum new - coeff * fromIntegral (fromEnum old)
-
-    patHash = A.foldl' addCksum 0 patArr
+    patHash = SeqMatch.arrayHash patArr
 
     skip = return . Skip
 
@@ -2921,7 +2927,7 @@ dropMatches patArr (Stream step state) =
                                 , arrStart = 0
                                 , arrEnd = patBytes
                                 }
-                    let ringHash = A.foldl' addCksum 0 arr
+                    let ringHash = SeqMatch.arrayHash arr
                     if ringHash == patHash && A.byteEq arr patArr
                     then skip $ DropInfixKRCheck s mba 0
                     else skip $ DropInfixKRLoop s mba 0 ringHash
@@ -2949,8 +2955,10 @@ dropMatches patArr (Stream step state) =
                     }
             case res of
                 Yield x s -> do
+                    oldHash <- liftIO $ SeqMatch.elemHashAt proxy mba rh
                     (rb1, old) <- liftIO (RB.replace rb x)
-                    let cksum1 = deltaCksum cksum old x
+                    newHash <- liftIO $ SeqMatch.elemHashAt proxy mba rh
+                    let cksum1 = deltaCksum cksum oldHash newHash
                         rh1 = ringHead rb1
                     if cksum1 == patHash
                     then return $ Yield old (DropInfixKRCheck s mba rh1)
@@ -3050,6 +3058,8 @@ replaceMatches patArr replArr (Stream step state) =
     wordMask :: Word
     wordMask = (1 `shiftL` (elemBits * patLen)) - 1
 
+    proxy = Proxy :: Proxy a
+
     wordToElem = SeqMatch.wordToElem elemBits
 
     wordPat :: Word
@@ -3059,12 +3069,10 @@ replaceMatches patArr replArr (Stream step state) =
 
     coeff = SeqMatch.hashPower patLen
 
-    addCksum cksum a = SeqMatch.addHash cksum (fromIntegral (fromEnum a))
+    deltaCksum cksum oldHash newHash =
+        SeqMatch.addHash cksum newHash - coeff * oldHash
 
-    deltaCksum cksum old new =
-        addCksum cksum new - coeff * fromIntegral (fromEnum old)
-
-    patHash = A.foldl' addCksum 0 patArr
+    patHash = SeqMatch.arrayHash patArr
 
     skip = return . Skip
 
@@ -3191,7 +3199,7 @@ replaceMatches patArr replArr (Stream step state) =
                                 , arrStart = 0
                                 , arrEnd = patBytes
                                 }
-                    let ringHash = A.foldl' addCksum 0 arr
+                    let ringHash = SeqMatch.arrayHash arr
                     if ringHash == patHash && A.byteEq arr patArr
                     then skip $ ReplaceInfixKRCheck s mba 0
                     else skip $ ReplaceInfixKRLoop s mba 0 ringHash
@@ -3219,8 +3227,10 @@ replaceMatches patArr replArr (Stream step state) =
                     }
             case res of
                 Yield x s -> do
+                    oldHash <- liftIO $ SeqMatch.elemHashAt proxy mba rh
                     (rb1, old) <- liftIO (RB.replace rb x)
-                    let cksum1 = deltaCksum cksum old x
+                    newHash <- liftIO $ SeqMatch.elemHashAt proxy mba rh
+                    let cksum1 = deltaCksum cksum oldHash newHash
                         rh1 = ringHead rb1
                     if cksum1 == patHash
                     then return $ Yield old (ReplaceInfixKRCheck s mba rh1)

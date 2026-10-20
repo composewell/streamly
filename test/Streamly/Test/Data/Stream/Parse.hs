@@ -1187,4 +1187,4 @@ main = hspec
     describe "sequence search" $ do
         xit "signed elements" testSeqSearchSigned
         xit "unit elements" testSeqSearchUnit
-        xit "Word64 elements" testSeqSearchWord64
+        it "Word64 elements" testSeqSearchWord64
