@@ -564,7 +564,7 @@ groupsRollingBy cmp (Fold fstep initial _ final) (Stream step state) =
                         r <- fstep acc x
                         case r of
                             FL.Partial fs1 -> go SPEC x s fs1
-                            FL.Done b -> return $ Yield b (GroupingInit st)
+                            FL.Done b -> return $ Yield b (GroupingInit s)
                     else do
                         {-
                         r <- final acc

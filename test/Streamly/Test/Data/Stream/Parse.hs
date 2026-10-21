@@ -700,6 +700,15 @@ testGroupsRollingByNonEq =
             (Stream.fromList [1, 2, 3, 1, 2 :: Int]))
         `shouldReturn` [[1, 2, 3], [1, 2]]
 
+-- The fold terminates inside a group, the next group starts after the
+-- elements consumed by it.
+testGroupsRollingByFoldDone :: Expectation
+testGroupsRollingByFoldDone =
+    Stream.toList
+        (Stream.groupsRollingBy (<) (Fold.take 2 Fold.toList)
+            (Stream.fromList [1, 0, 1, 2, 3 :: Int]))
+        `shouldReturn` [[1], [0, 1], [2, 3]]
+
 -------------------------------------------------------------------------------
 -- groupsWhile
 -------------------------------------------------------------------------------
@@ -1159,6 +1168,7 @@ main = hspec
         it "groups equal consecutive elements" testGroupsRollingBy
         it "empty stream" testGroupsRollingByEmpty
         it "groups by rolling predicate" testGroupsRollingByNonEq
+        it "fold terminates in a group" testGroupsRollingByFoldDone
 
     describe "groupsWhile" $ do
         it "groups equal consecutive elements" testGroupsWhile
