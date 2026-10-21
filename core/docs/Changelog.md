@@ -59,6 +59,8 @@
 * Fix `Parser.many`, `Parser.some` and the `Alternative` instance of
   `Parser` backtracking too little at the end of input when the inner parser
   had backtracked over a part of its input, the elements were lost.
+* Fix `Parser.filter` preventing backtracking over the elements it rejects,
+  e.g. in an `Alternative` composition.
 
 ### Breaking changes
 

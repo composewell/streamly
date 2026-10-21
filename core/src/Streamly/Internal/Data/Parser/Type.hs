@@ -1571,7 +1571,7 @@ filter f (Parser step initial extract) = Parser step1 initial extract
 
     where
 
-    step1 x a = if f a then step x a else return $ SPartial 1 x
+    step1 x a = if f a then step x a else return $ SContinue 1 x
 
 -- XXX move this to ParserD.Transformer
 

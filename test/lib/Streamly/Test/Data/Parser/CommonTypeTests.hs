@@ -185,6 +185,12 @@ manyExtractContinue consumer =
             runIdentity (consumer (P.many q FL.toList) [1, 2, 3])
                 == (Right [], [1, 2, 3])
 
+-- The alternative must backtrack over the elements rejected by the filter.
+filterAlt :: ParserTestCase Int Identity [Int] Property
+filterAlt consumer =
+    let p = P.filter (> 5) (P.takeEQ 2 FL.toList) <|> P.fromFold FL.toList
+     in property $ runIdentity (consumer p [1, 7]) == (Right [1, 7], [])
+
 -------------------------------------------------------------------------------
 -- Instances
 -------------------------------------------------------------------------------
@@ -293,6 +299,9 @@ mainCommonType ptt = do
         prop "fail err = Left (SomeException (ParseError err))" $ runParserTC ptt parserFail
         prop "always fail" $ runParserTC ptt die
         prop "always fail but monadic" $ runParserTC ptt dieM
+
+    describe "filter" $ do
+        prop "filter backtracks in alternative" $ runParserTC ptt filterAlt
 
     describe "test for sequence parser" $ do
         prop "parse 0, then 1, else fail" $ runParserTC_temp ptt splitWith
