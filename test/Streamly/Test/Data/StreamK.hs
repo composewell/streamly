@@ -85,6 +85,16 @@ testNestedShowRead = do
         (read (show (Just n)) :: Maybe (StreamK.Nested Identity Int))
         `shouldBe` Just [1, 2]
 
+-- fromPure delivers the last element via the single continuation.
+testFoldr1 :: Expectation
+testFoldr1 = do
+    StreamK.foldr1 (-) (StreamK.cons 1 (StreamK.fromPure 2))
+        `shouldReturn` Just (-1 :: Int)
+    StreamK.foldr1 (-) (StreamK.fromList [1, 2, 3])
+        `shouldReturn` Just (2 :: Int)
+    StreamK.foldr1 (-) (StreamK.fromPure 1) `shouldReturn` Just (1 :: Int)
+    StreamK.foldr1 (-) StreamK.nil `shouldReturn` (Nothing :: Maybe Int)
+
 testFairNestedShowRead :: Expectation
 testFairNestedShowRead = do
     let n = StreamK.FairNested (StreamK.fromList [1, 2])
@@ -139,3 +149,4 @@ main = hspec
         it "Nested Show/Read" testNestedShowRead
         it "FairNested Show/Read" testFairNestedShowRead
         it "localReaderT" testLocalReaderT
+        it "foldr1" testFoldr1

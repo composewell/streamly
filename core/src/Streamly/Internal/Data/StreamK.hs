@@ -300,7 +300,7 @@ foldr1 step m = do
     where
     go p m1 =
         let stp = return p
-            single a = return $ step a p
+            single a = return $ step p a
             yieldk a r = fmap (step p) (go a r)
          in foldStream defState yieldk single stp m1
 
