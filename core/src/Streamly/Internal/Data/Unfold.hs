@@ -1134,9 +1134,12 @@ bracket_ bef aft (Unfold step1 inject1) = Unfold step inject
 -- runs whenever the stream ends normally, due to a sync or async exception or
 -- if it gets garbage collected after a partial lazy evaluation.
 --
--- 'bracket' only guarantees that the cleanup action runs, and it runs with
--- async exceptions enabled. The action must ensure that it can successfully
--- cleanup the resource in the face of sync or async exceptions.
+-- 'bracketIO' only guarantees that the cleanup action runs. When the stream
+-- ends normally or on an exception the cleanup action runs with async
+-- exceptions masked. When it runs on garbage collection it runs in a
+-- finalizer thread with async exceptions enabled. The action must ensure
+-- that it can successfully cleanup the resource in the face of sync or async
+-- exceptions.
 --
 -- When the stream ends normally or on a sync exception, cleanup action runs
 -- immediately in the current thread context, whereas in other cases it runs in

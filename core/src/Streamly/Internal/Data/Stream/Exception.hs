@@ -393,9 +393,12 @@ bracketIO3 bef aft onExc onGC =
 -- details below) cleaned up even in the face of sync or async exceptions. If
 -- an exception occurs it is not caught, simply rethrown.
 --
--- 'bracketIO' only guarantees that the cleanup action runs, and it runs with
--- __async exceptions enabled__. The action must ensure that it can successfully
--- cleanup the resource in the face of sync or async exceptions.
+-- 'bracketIO' only guarantees that the cleanup action runs. When the stream
+-- stops normally or on an exception the cleanup action runs with async
+-- exceptions masked. When it runs on garbage collection it runs in a
+-- finalizer thread with __async exceptions enabled__. The action must ensure
+-- that it can successfully cleanup the resource in the face of sync or async
+-- exceptions.
 --
 -- /Best case/: Cleanup happens immediately in the following cases:
 --
