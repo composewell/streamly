@@ -2397,7 +2397,8 @@ makeIndexFilter f comb g = f . comb g . FL.lmap snd
 {-# INLINE sampleFromthen #-}
 sampleFromthen :: Monad m => Int -> Int -> Fold m a b -> Parser a m b
 sampleFromthen offset size =
-    makeIndexFilter indexed FL.filter (\(i, _) -> (i + offset) `mod` size == 0)
+    makeIndexFilter indexed FL.filter
+        (\(i, _) -> i >= offset && (i - offset) `mod` size == 0)
 
 --------------------------------------------------------------------------------
 --- Spanning

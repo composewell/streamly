@@ -958,6 +958,12 @@ zipSkip consumer =
      in property $
             runIdentity (consumer p [7, 8, 9]) == (Right [(1, 7), (3, 8)], [9])
 
+sampleFromthen :: ParserTestCase Int Identity [Int] Property
+sampleFromthen consumer =
+    property $
+        runIdentity (consumer (P.sampleFromthen 1 3 FL.toList) [0 .. 9])
+            == (Right [1, 4, 7], [])
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -1035,6 +1041,7 @@ mainCommon ptt = do
         prop "streamEqBy with a skipping pattern" $ runParserTC ptt streamEqBySkip
         prop "indexed" $ runParserTC ptt indexed
         prop "zip with a skipping stream" $ runParserTC ptt zipSkip
+        prop "sampleFromthen" $ runParserTC ptt sampleFromthen
 
     runParserTC_temp ptt takeProperties
 
