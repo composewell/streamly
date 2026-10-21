@@ -945,6 +945,19 @@ streamEqBySkip consumer =
             && runIdentity (consumer (P.streamEqBy (==) pat) [1, 3, 5])
                 == (Right (), [5])
 
+indexed :: ParserTestCase Int Identity [(Int, Int)] Property
+indexed consumer =
+    property $
+        runIdentity (consumer (P.indexed FL.toList) [7, 8, 9])
+            == (Right [(0, 7), (1, 8), (2, 9)], [])
+
+-- The zipped stream skips elements and ends before the input.
+zipSkip :: ParserTestCase Int Identity [(Int, Int)] Property
+zipSkip consumer =
+    let p = P.zip (S.filter odd (S.fromList [1 .. 4])) FL.toList
+     in property $
+            runIdentity (consumer p [7, 8, 9]) == (Right [(1, 7), (3, 8)], [9])
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -1020,6 +1033,8 @@ mainCommon ptt = do
         prop "takeStartBy_" $ runParserTC_temp ptt takeStartBy_
         prop "takeStartBy_ leaves the next begin marker" $ runParserTC ptt takeStartBy_Leftover
         prop "streamEqBy with a skipping pattern" $ runParserTC ptt streamEqBySkip
+        prop "indexed" $ runParserTC ptt indexed
+        prop "zip with a skipping stream" $ runParserTC ptt zipSkip
 
     runParserTC_temp ptt takeProperties
 

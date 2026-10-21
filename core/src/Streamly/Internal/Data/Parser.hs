@@ -2330,11 +2330,11 @@ zipWithM zf (D.Stream sstep state) (Fold fstep finitial _ ffinal) =
             FL.Partial fs1 -> do
                 r <- sstep defState st
                 case r of
-                    D.Yield x1 s -> return $ SContinue 1 (Just' x1, s, fs1)
+                    D.Yield x1 s -> return $ SPartial 1 (Just' x1, s, fs1)
                     D.Stop -> do
                         x <- ffinal fs1
                         return $ SDone 1 x
-                    D.Skip s -> return $ SContinue 0 (Nothing', s, fs1)
+                    D.Skip s -> return $ SPartial 1 (Nothing', s, fs1)
             FL.Done x -> return $ SDone 1 x
     step (Nothing', st, fs) b = do
         r <- sstep defState st
@@ -2344,14 +2344,15 @@ zipWithM zf (D.Stream sstep state) (Fold fstep finitial _ ffinal) =
                     fres <- fstep fs c
                     case fres of
                         FL.Partial fs1 ->
-                            return $ SContinue 1 (Nothing', s, fs1)
+                            return $ SPartial 1 (Nothing', s, fs1)
                         FL.Done x -> return $ SDone 1 x
                 D.Stop -> do
                     x <- ffinal fs
                     return $ SDone 0 x
                 D.Skip s -> return $ SContinue 0 (Nothing', s, fs)
 
-    extract _ = return $ FError "zipWithM: end of input"
+    -- Like zipping two streams, stop when the input ends
+    extract (_, _, fs) = FDone 0 <$> ffinal fs
 
 -- | Zip the input of a fold with a stream.
 --

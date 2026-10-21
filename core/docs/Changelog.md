@@ -133,6 +133,9 @@
 * Added `Stream.wideDfsUnfoldIterate`.
 * Added `Stream.bfsConcatIterateRev` and `bfsUnfoldIterateRev`, faster BFS
   variants that start the streams of a level in reverse order.
+* `Parser.zipWithM`, `zip` and `indexed` now succeed at the end of input
+  instead of failing, and no longer zip an input element twice when the
+  zipped stream skips.
 
 ## 0.3.2 (Oct 2026)
 
