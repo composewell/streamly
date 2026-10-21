@@ -631,13 +631,9 @@ wordsBy predicate (Fold fstep initial _ final) (Stream step state) =
         res <- step (adaptState gst) st
         case res of
             Yield x s -> do
+                -- Skip the separator, the fold has not consumed any input
                 if predicate x
-                then do
-                    resi <- initial
-                    return
-                        $ case resi of
-                              FL.Partial fs1 -> Skip $ WordsByDo s fs1
-                              FL.Done b -> Yield b (WordsByInit s)
+                then return $ Skip $ WordsByDo s fs
                 else do
                     r <- fstep fs x
                     case r of

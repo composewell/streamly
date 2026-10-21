@@ -17,6 +17,7 @@ module Streamly.Test.Data.Stream.Parse (main) where
 import Control.Monad ( forM_ )
 import Control.Monad.IO.Class (MonadIO)
 import Data.Functor.Identity (Identity)
+import Data.IORef (newIORef, modifyIORef, readIORef)
 import Data.List (group, intercalate)
 import Data.Semigroup (Sum(..), getSum)
 import Data.Int (Int8)
@@ -741,6 +742,21 @@ testWordsByMultiSep =
         (Stream.wordsBy (== '.') Fold.toList (Stream.fromList ".a..b."))
         `shouldReturn` ["a", "b"]
 
+-- The fold must be initialized once per word and finalized every time it is
+-- initialized.
+testWordsByInitFinal :: Expectation
+testWordsByInitFinal = do
+    ref <- newIORef (0 :: Int)
+    let fld = Fold.Fold
+                (\s a -> return $ Fold.Partial (a : s))
+                (modifyIORef ref (+ 1) >> return (Fold.Partial []))
+                (return . reverse)
+                (\s -> modifyIORef ref (subtract 1) >> return (reverse s))
+    xs <- Stream.toList
+        $ Stream.wordsBy (== '.') fld (Stream.fromList "..a..b..")
+    xs `shouldBe` ["a", "b"]
+    readIORef ref `shouldReturn` 0
+
 testWordsByEmpty :: Expectation
 testWordsByEmpty =
     Stream.toList
@@ -1240,6 +1256,7 @@ main = hspec
         it "splits on separator" testWordsBy
         it "multiple and leading/trailing seps dropped" testWordsByMultiSep
         it "empty stream" testWordsByEmpty
+        it "initial and final are paired" testWordsByInitFinal
 
     describe "parseMany" $ do
         it "applies parser repeatedly" testParseMany

@@ -49,6 +49,8 @@
 * Fix `Stream.splitEndBySeq_` dropping the elements following a segment
   when the fold terminates, and emitting a trailing empty segment when the
   fold terminates on the last element.
+* Fix `Stream.wordsBy` running the initial action of the fold for leading
+  and repeated separators without running its final action.
 
 ### Breaking changes
 
