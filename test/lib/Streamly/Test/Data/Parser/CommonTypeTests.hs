@@ -145,6 +145,28 @@ splitWithFailBoth producer consumer =
         Right _ -> False
         Left _ -> True)
 
+-- At the end of input the left parser leaves [3] unconsumed, the right
+-- parser must get it.
+splitWithLeftover :: ParserTestCase_Temp Int Identity ([[Int]], [Int]) Property
+splitWithLeftover producer consumer =
+    let p = P.splitWith (,) (P.many (P.takeEQ 2 FL.toList) FL.toList)
+                (P.fromFold FL.toList)
+     in property $
+            runIdentity (consumer p (producer [1, 2, 3]))
+                == Right ([[1, 2]], [3])
+
+split_Leftover :: ParserTestCase_Temp Int Identity [Int] Property
+split_Leftover producer consumer =
+    let p = P.split_ (P.many (P.takeEQ 2 FL.toList) FL.toList)
+                (P.fromFold FL.toList)
+     in property $ runIdentity (consumer p (producer [1, 2, 3])) == Right [3]
+
+concatMapLeftover :: ParserTestCase_Temp Int Identity [Int] Property
+concatMapLeftover producer consumer =
+    let p = P.concatMap (const (P.fromFold FL.toList))
+                (P.many (P.takeEQ 2 FL.toList) FL.toList)
+     in property $ runIdentity (consumer p (producer [1, 2, 3])) == Right [3]
+
 -------------------------------------------------------------------------------
 -- Instances
 -------------------------------------------------------------------------------
@@ -257,3 +279,6 @@ mainCommonType ptt = do
         prop "fail due to die as left parser" $ runParserTC_temp ptt splitWithFailLeft
         prop "fail due to die as right parser" $ runParserTC_temp ptt splitWithFailRight
         prop "fail due to die as both parsers" $ runParserTC_temp ptt splitWithFailBoth
+        prop "splitWith leftover at end of input" $ runParserTC_temp ptt splitWithLeftover
+        prop "split_ leftover at end of input" $ runParserTC_temp ptt split_Leftover
+        prop "concatMap leftover at end of input" $ runParserTC_temp ptt concatMapLeftover
