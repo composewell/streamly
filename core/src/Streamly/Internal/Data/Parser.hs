@@ -483,7 +483,7 @@ either f = Parser step initial extract
             Right b -> SDone 1 b
             Left err -> SError err
 
-    extract () = return $ FError "end of input"
+    extract () = return $ FError "either: end of input"
 
 -- | Map a 'Maybe' returning function on the next element in the stream. The
 -- parser fails if the function returns 'Nothing' otherwise returns the 'Just'
@@ -666,8 +666,8 @@ takeBetween low high (Fold fstep finitial _ ffinal) =
     foldErr :: Int -> String
     foldErr i =
         "takeBetween: the collecting fold terminated after"
-            ++ " consuming" ++ show i ++ " elements"
-            ++ " minimum" ++ show low ++ " elements needed"
+            ++ " consuming " ++ show i ++ " elements,"
+            ++ " minimum " ++ show low ++ " elements needed"
 
     -- Exactly the same as snext except different constructors, we can possibly
     -- deduplicate the two.
