@@ -935,6 +935,16 @@ takeStartBy_Leftover consumer =
         runIdentity (consumer (P.takeBeginBy_ (== 0) FL.toList) [0, 1, 0, 2])
             == (Right [1], [0, 2])
 
+-- The pattern stream skips elements, the input ends when the pattern ends.
+streamEqBySkip :: ParserTestCase Int Identity () Property
+streamEqBySkip consumer =
+    let pat = S.filter odd (S.fromList [1, 2, 3])
+     in property $
+            runIdentity (consumer (P.streamEqBy (==) pat) [1, 3])
+                == (Right (), [])
+            && runIdentity (consumer (P.streamEqBy (==) pat) [1, 3, 5])
+                == (Right (), [5])
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -1009,6 +1019,7 @@ mainCommon ptt = do
         prop "takeFramedByEsc_Fail3" $ runParserTC_temp ptt takeFramedByEsc_Fail3
         prop "takeStartBy_" $ runParserTC_temp ptt takeStartBy_
         prop "takeStartBy_ leaves the next begin marker" $ runParserTC ptt takeStartBy_Leftover
+        prop "streamEqBy with a skipping pattern" $ runParserTC ptt streamEqBySkip
 
     runParserTC_temp ptt takeProperties
 

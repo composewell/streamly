@@ -64,6 +64,9 @@
 * Fix `Stream.parseMany` and `parseIterate` running the parser once more
   on empty input, emitting an error, when the parser backtracked at the end
   of the stream.
+* Fix `Parser.streamEqBy` failing when the pattern stream skips, e.g. a
+  filtered stream, and when the input ends after the last pattern element
+  that is followed by a skip.
 
 ### Breaking changes
 

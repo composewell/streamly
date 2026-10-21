@@ -2213,7 +2213,7 @@ streamEqByInternal fname cmp (D.Stream sstep state) = Parser step initial extrac
                 $ case r of
                     D.Yield x1 s -> SContinue 1 (Just' x1, s, n + 1)
                     D.Stop -> SDone 1 ()
-                    D.Skip s -> SContinue 0 (Nothing', s, n + 1)
+                    D.Skip s -> SContinue 1 (Nothing', s, n + 1)
           else return $ SError
               (fname ++ ": mismatch after matching " ++ show n ++ " elements")
     step (Nothing', st, n) a = do
@@ -2229,7 +2229,16 @@ streamEqByInternal fname cmp (D.Stream sstep state) = Parser step initial extrac
                 D.Stop -> SDone 0 ()
                 D.Skip s -> SContinue 0 (Nothing', s, n)
 
-    extract (_, _, n) = return $ FError
+    -- The match succeeds if the pattern has no more elements
+    extract (Nothing', st, n) = do
+        r <- sstep defState st
+        case r of
+            D.Yield _ _ -> extractErr n
+            D.Stop -> return $ FDone 0 ()
+            D.Skip s -> extract (Nothing', s, n)
+    extract (Just' _, _, n) = extractErr n
+
+    extractErr n = return $ FError
         (fname ++ ": end of input after matching " ++ show n ++ " elements")
 
 -- | Like 'listEqBy' but uses a stream instead of a list and does not return
