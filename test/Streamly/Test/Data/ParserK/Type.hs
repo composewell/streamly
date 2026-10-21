@@ -1,5 +1,6 @@
 module Streamly.Test.Data.ParserK.Type (spec) where
 
+import Control.Applicative ((<|>), empty)
 import Data.Either (fromRight)
 import Test.Hspec
        (Spec, describe, it, expectationFailure, shouldBe)
@@ -86,6 +87,21 @@ toParser = do
             rest <- Stream.toList b
             rest `shouldBe` []
 
+-------------------------------------------------------------------------------
+-- Alternative
+-------------------------------------------------------------------------------
+
+alternative :: Spec
+alternative = do
+    let e x = ParserK.toParserK (Parser.satisfy (== x))
+        runP p xs = StreamK.parse p (StreamK.fromList xs)
+    describe "Alternative" $ do
+        -- The outer alternative must backtrack over the elements consumed by
+        -- the inner alternative.
+        it "nested alternative backtracks the inner count" $ do
+            r <- runP (((e 1 <|> e 9) *> empty) <|> e 1) [1 :: Int]
+            fromRight undefined r `shouldBe` 1
+
 {-# NOINLINE fusionBreaker #-}
 fusionBreaker :: a -> a
 fusionBreaker = id
@@ -98,3 +114,4 @@ spec :: Spec
 spec = do
     CommonType.mainCommonType TMParserKStreamK
     toParser
+    alternative

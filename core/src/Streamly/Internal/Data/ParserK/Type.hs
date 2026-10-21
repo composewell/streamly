@@ -359,10 +359,14 @@ instance Monad m => Alternative (ParserK a m) where
     empty = die "empty"
 
     {-# INLINE (<|>) #-}
-    p1 <|> p2 = MkParser $ \k pos _ input ->
+    -- p1 starts with a used count of 0 so that its own count tells how much
+    -- to backtrack on failure. The incoming count is then added back so that
+    -- an enclosing alternative can backtrack over both.
+    p1 <|> p2 = MkParser $ \k pos used0 input ->
         let
-            k1 (Failure pos1 _) used inp = runParser p2 k (pos1 - used) 0 inp
-            k1 success _ inp = k success 0 inp
+            k1 (Failure pos1 _) used inp =
+                runParser p2 k (pos1 - used) used0 inp
+            k1 success used inp = k success (used0 + used) inp
         in runParser p1 k1 pos 0 input
 
     -- some and many are implemented here instead of using default definitions
