@@ -1141,6 +1141,7 @@ data SplitOnSeqState mba rb rh ck w fs s b x =
     | SplitOnSeqWordInit0 !fs s
     | SplitOnSeqWordInit Int Word Word !fs s
     | SplitOnSeqWordLoop !w !w s !fs
+    | SplitOnSeqWordMatch !fs s
     | SplitOnSeqWordDone Int !fs !w !w
 
     | SplitOnSeqKRInit0 Int !fs s mba
@@ -1181,6 +1182,12 @@ data SplitOnSeqState mba rb rh ck w fs s b x =
 --
 -- >>> splitSepBy "." "a."
 -- ["a",""]
+--
+-- If the fold terminates, the next segment starts with the element after the
+-- last element consumed by the fold:
+--
+-- >>> Stream.fold Fold.toList $ Stream.splitSepBySeq_ (Array.fromList "..") (Fold.take 2 Fold.toList) (Stream.fromList "abcde")
+-- ["ab","cd","e"]
 --
 -- Uses Rabin-Karp algorithm for substring search.
 --
@@ -1420,15 +1427,28 @@ splitSepBySeq_ patArr (Fold fstep initial _ final) (Stream step state) =
                         wrd1 = addToWord wrd xw
                         sgn1 = SeqMatch.addToSigns sgn xw
                         old = wordToElem (patLen - 1) sgn wrd
+                        matched = wrd1 .&. wordMask == wordPat
                     r <- fstep fs old
                     case r of
                         FL.Partial fs1 -> do
-                            if wrd1 .&. wordMask == wordPat
+                            if matched
                             then final fs1 >>= yieldReinit jump
                             else go SPEC wrd1 sgn1 s fs1
-                        FL.Done b -> yieldReinit jump b
+                        FL.Done b ->
+                            -- Continue the search with the elements in the
+                            -- word, they belong to the next segment.
+                            let next c =
+                                    if matched
+                                    then SplitOnSeqWordMatch c s
+                                    else SplitOnSeqWordLoop wrd1 sgn1 s c
+                             in yieldReinit next b
                 Skip s -> go SPEC wrd sgn s fs
                 Stop -> skip $ SplitOnSeqWordDone patLen fs wrd sgn
+
+    -- The pattern matched at the start of a segment, the segment is empty
+    stepOuter _ (SplitOnSeqWordMatch fs st) = do
+        let jump c = SplitOnSeqWordInit 0 0 0 c st
+        final fs >>= yieldReinit jump
 
     -------------------------------
     -- General Pattern - Karp Rabin
@@ -1495,20 +1515,22 @@ splitSepBySeq_ patArr (Fold fstep initial _ final) (Stream step state) =
                     oldHash <- liftIO $ SeqMatch.elemHashAt proxy mba rh
                     (rb1, old) <- liftIO (RB.replace rb x)
                     newHash <- liftIO $ SeqMatch.elemHashAt proxy mba rh
+                    let cksum1 = deltaCksum cksum oldHash newHash
+                        rh1 = ringHead rb1
                     r <- fstep fs old
                     case r of
                         FL.Partial fs1 -> do
-                            let cksum1 = deltaCksum cksum oldHash newHash
-                            let rh1 = ringHead rb1
                             if cksum1 == patHash
                             then skip $ SplitOnSeqKRCheck fs1 s mba rh1
                             else go SPEC fs1 s rh1 cksum1
                         FL.Done b -> do
-                            -- XXX the old code looks wrong as we are resetting
-                            -- the ring head but the ring still has old
-                            -- elements as we are not resetting the size.
-                            let jump c = SplitOnSeqKRInit 0 c s mba
-                            yieldReinit jump b
+                            -- Continue the search with the elements in the
+                            -- ring, they belong to the next segment.
+                            let next c =
+                                    if cksum1 == patHash
+                                    then SplitOnSeqKRCheck c s mba rh1
+                                    else SplitOnSeqKRLoop c s mba rh1 cksum1
+                            yieldReinit next b
                 Skip s -> go SPEC fs s rh cksum
                 Stop -> skip $ SplitOnSeqKRDone patBytes fs rb
 

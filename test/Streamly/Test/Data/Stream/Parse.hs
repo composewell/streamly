@@ -1038,6 +1038,26 @@ testSeqSearchSigned = do
     Stream.toList (Stream.dropSuffix pat (Stream.fromList [-1, -128]))
         `shouldReturn` [-1, -128]
 
+-- The fold terminates before a separator, the elements buffered for matching
+-- belong to the next segment. Covers the single element, word and Karp-Rabin
+-- paths.
+testSplitSepBySeqFoldDone :: Expectation
+testSplitSepBySeqFoldDone = do
+    let split pat xs =
+            Stream.toList
+                $ Stream.splitSepBySeq_ (Array.fromList pat)
+                    (Fold.take 2 Fold.toList) (Stream.fromList xs)
+    split "." "abcde" `shouldReturn` ["ab", "cd", "e"]
+    split ".." "abcde" `shouldReturn` ["ab", "cd", "e"]
+    split ".." "ab..cd" `shouldReturn` ["ab", "", "cd", ""]
+    let zeros = replicate 9 (0 :: Int)
+        splitK xs =
+            Stream.toList
+                $ Stream.splitSepBySeq_ (Array.fromList zeros)
+                    (Fold.take 2 Fold.toList) (Stream.fromList xs)
+    splitK [1 .. 5] `shouldReturn` [[1, 2], [3, 4], [5]]
+    splitK ([1, 2] ++ zeros ++ [3]) `shouldReturn` [[1, 2], [], [3]]
+
 -- Decoding the elements of a word pattern must not evaluate toEnum 1 for a
 -- type with a single value.
 testSeqSearchUnit :: Expectation
@@ -1190,6 +1210,9 @@ main = hspec
 
     describe "parseIteratePos" $ do
         it "iterates parser with positions" testParseIteratePos
+
+    describe "splitSepBySeq_" $ do
+        it "fold terminates before a separator" testSplitSepBySeqFoldDone
 
     describe "splitSepByOneOf" $ do
         it "splits on any of the patterns" testSplitSepByOneOfSingle

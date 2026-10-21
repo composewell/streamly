@@ -43,6 +43,9 @@
 * Fix `Stream.splitSepBySeq_`, `Stream.splitEndBySeq` and
   `Stream.splitEndBySeq_` for elements whose `fromEnum` is negative, e.g.
   `Int8`, or larger than `maxBound :: Int`, e.g. `Word64`.
+* Fix `Stream.splitSepBySeq_` dropping the elements following a segment
+  when the fold terminates, e.g. `Fold.take 2` with the separator `".."` on
+  `"abcde"` gave `["ab","e"]` instead of `["ab","cd","e"]`.
 
 ### Breaking changes
 
