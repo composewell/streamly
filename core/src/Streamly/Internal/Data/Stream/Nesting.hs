@@ -1996,9 +1996,9 @@ data ICALState s1 s2 i1 i2 a =
 
 -- | The first stream @Stream m b@ is turned into a stream of streams by
 -- unfolding each element using the first unfold, similarly @Stream m a@ is
--- also turned into a stream of streams.  The second stream of streams is
--- interspersed with the streams from the first stream in an infix manner and
--- then the resulting stream is flattened.
+-- also turned into a stream of streams.  The first stream of streams is the
+-- separator, it is interspersed with the streams from the second stream in an
+-- infix manner and then the resulting stream is flattened.
 --
 -- You can think of this as 'interleaveSepBy' on the stream of streams followed
 -- by concat. Same as the following but more efficient:
