@@ -333,13 +333,13 @@ bracketUnsafe bef aft =
 -- mode of termination:
 --
 -- 1. When the stream stops normally
--- 2. When the stream is garbage collected
--- 3. When the stream encounters an exception
+-- 2. When the stream encounters an exception
+-- 3. When the stream is garbage collected
 --
--- @bracketIO3 before onStop onGC onException action@ runs @action@ using the
+-- @bracketIO3 before onStop onException onGC action@ runs @action@ using the
 -- result of @before@. If the stream stops, @onStop@ action is executed, if the
--- stream is abandoned @onGC@ is executed, if the stream encounters an
--- exception @onException@ is executed.
+-- stream encounters an exception @onException@ is executed, if the stream is
+-- abandoned @onGC@ is executed.
 --
 -- The exception is not caught, it is rethrown.
 --
