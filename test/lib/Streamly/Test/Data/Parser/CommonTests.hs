@@ -19,6 +19,7 @@
 -- Test.Parser test-suite.
 module Streamly.Test.Data.Parser.CommonTests (mainCommon) where
 
+import Control.Applicative ((<|>))
 import Control.Exception (displayException, try, evaluate, SomeException)
 import Data.List (isSuffixOf)
 import Streamly.Test.Common (listEquals, checkListEqual, chooseInt)
@@ -995,6 +996,32 @@ manyTillEndOfInput consumer =
      in property $
             runIdentity (consumer p [1, 2, 7, 8]) == (Right [1, 2], [7, 8])
 
+-- After consuming a begin marker, escape or leading separator the parser
+-- fails at the end of input, the alternative must get the whole input.
+framedAltBacktrack :: ParserTestCase Int Identity [Int] Property
+framedAltBacktrack consumer =
+    let isEsc = (== 92)
+        isBegin = (== 123)
+        isEnd = (== 125)
+        isSep = (== 32)
+        quote x = if x == 34 then Just x else Nothing
+        alt1 p xs =
+            runIdentity (consumer (p <|> P.fromFold FL.toList) xs)
+                == (Right xs, [])
+     in property $
+            alt1 (P.takeFramedByEsc_ isEsc isBegin isEnd FL.toList) [123, 1]
+            && alt1 (P.takeFramedByEsc_ isEsc isBegin isEnd FL.toList)
+                [123, 1, 92]
+            && alt1
+                (P.takeFramedByGeneric
+                    (Just isEsc) (Just isBegin) (Just isEnd) FL.toList)
+                [123, 1, 92]
+            && alt1 (P.takeEndByEsc isEsc (== 0) (P.takeEQ 3 FL.toList))
+                [1, 92, 2]
+            && alt1 (P.wordFramedBy isEsc isBegin isEnd isSep FL.toList)
+                [32, 123, 1]
+            && alt1 (P.wordKeepQuotes 92 quote isSep FL.toList) [32, 34, 1]
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -1076,6 +1103,7 @@ mainCommon ptt = do
         prop "groupByRollingEither fold done" $ runParserTC ptt groupByRollingEitherDone
         prop "sequence at end of input" $ runParserTC ptt sequenceEndOfInput
         prop "manyTill at end of input" $ runParserTC ptt manyTillEndOfInput
+        prop "framed parsers backtrack in alternative" $ runParserTC ptt framedAltBacktrack
 
     runParserTC_temp ptt takeProperties
 

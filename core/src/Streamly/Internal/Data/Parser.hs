@@ -1076,7 +1076,7 @@ takeFramedByGeneric esc begin end (Fold fstep finitial _ ffinal) =
         case esc of
             Just isEsc ->
                 if isEsc a
-                then return $ SPartial 1 $ FrameEscEsc s n
+                then return $ SContinue 1 $ FrameEscEsc s n
                 else processNoEsc s a n
             Nothing -> processNoEsc s a n
 
@@ -1084,7 +1084,7 @@ takeFramedByGeneric esc begin end (Fold fstep finitial _ ffinal) =
         case begin of
             Just isBegin ->
                 if isBegin a
-                then return $ SPartial 1 (FrameEscGo s 0)
+                then return $ SContinue 1 (FrameEscGo s 0)
                 else return $ SError "takeFramedByGeneric: missing frame start"
             Nothing ->
                 case end of
@@ -1273,7 +1273,7 @@ takeEndByEsc isEsc isSep (Parser pstep pinitial pextract) =
 
     step (Left' s) a = do
         if isEsc a
-        then return $ SPartial 1 $ Right' s
+        then return $ SContinue 1 $ Right' s
         else do
             res <- pstep s a
             if not (isSep a)
@@ -1448,11 +1448,11 @@ takeFramedByEsc_ isEsc isBegin isEnd (Fold fstep finitial _ ffinal ) =
 
     step (FrameEscInit s) a =
         if isBegin a
-        then return $ SPartial 1 (FrameEscGo s 0)
+        then return $ SContinue 1 (FrameEscGo s 0)
         else return $ SError "takeFramedByEsc_: missing frame start"
     step (FrameEscGo s n) a =
         if isEsc a
-        then return $ SPartial 1 $ FrameEscEsc s n
+        then return $ SContinue 1 $ FrameEscEsc s n
         else do
             if not (isEnd a)
             then
@@ -1643,7 +1643,7 @@ wordFramedBy isEsc isBegin isEnd isSep
 
     step (WordFramedSkipPre s) a
         | isEsc a = return $ SContinue 1 $ WordFramedEsc s 0
-        | isSep a = return $ SPartial 1 $ WordFramedSkipPre s
+        | isSep a = return $ SContinue 1 $ WordFramedSkipPre s
         | isBegin a = return $ SContinue 1 $ WordFramedWord s 1
         | isEnd a =
             return $ SError "wordFramedBy: missing frame start"
@@ -1822,7 +1822,7 @@ wordWithQuotes keepQuotes tr escChar toRight isSep
 
     step (WordQuotedSkipPre s) a
         | isEsc a = return $ SContinue 1 $ WordUnquotedEsc s
-        | isSep a = return $ SPartial 1 $ WordQuotedSkipPre s
+        | isSep a = return $ SContinue 1 $ WordQuotedSkipPre s
         | otherwise =
             case toRight a of
                 Just qr ->

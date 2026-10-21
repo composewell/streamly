@@ -71,6 +71,8 @@
   terminates on the first element of a group.
 * Fix `Parser.manyTill` consuming the input matched by an incomplete `test`
   parser at the end of input.
+* Fix `Parser.wordWithQuotes` preventing backtracking over leading
+  separators when it fails later, e.g. on a missing closing quote.
 
 ### Breaking changes
 
