@@ -2051,14 +2051,19 @@ data GroupByStatePair a s1 s2
     | GroupByGroupingPairL !a !s1 !s2
     | GroupByGroupingPairR !a !s1 !s2
 
--- | Like 'groupByRolling', but if the predicate is 'True' then collects using
--- the first fold as long as the predicate holds 'True', if the predicate is
--- 'False' collects using the second fold as long as it remains 'False'.
--- Returns 'Left' for the first case and 'Right' for the second case.
+-- | Like 'groupByRolling', but if the predicate is 'False' then collects
+-- using the first fold as long as the predicate remains 'False', if the
+-- predicate is 'True' collects using the second fold as long as it holds
+-- 'True'. Returns 'Left' for the first case and 'Right' for the second case.
 --
 -- For example, if we want to detect sorted sequences in a stream, both
 -- ascending and descending cases we can use 'groupByRollingEither (<=)
--- Fold.toList Fold.toList'.
+-- Fold.toList Fold.toList'. Descending sequences are returned as 'Left' and
+-- ascending sequences as 'Right':
+--
+-- >>> p = Parser.groupByRollingEither (<=) Fold.toList Fold.toList
+-- >>> Stream.toList $ Stream.catRights $ Stream.parseMany p $ Stream.fromList [3,2,1,4,5]
+-- [Left [3,2,1],Right [4,5]]
 --
 -- /Pre-release/
 {-# INLINE groupByRollingEither #-}
