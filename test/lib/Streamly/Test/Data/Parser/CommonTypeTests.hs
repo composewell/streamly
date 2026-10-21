@@ -167,6 +167,24 @@ concatMapLeftover producer consumer =
                 (P.many (P.takeEQ 2 FL.toList) FL.toList)
      in property $ runIdentity (consumer p (producer [1, 2, 3])) == Right [3]
 
+-- In these tests, at the end of input the left parser of split_/splitWith
+-- returns FContinue to backtrack over a part of the consumed input. The
+-- enclosing parser must then backtrack over all of the input consumed by it
+-- when it fails.
+altExtractContinue :: ParserTestCase Int Identity [Int] Property
+altExtractContinue consumer =
+    let p = (P.many (P.takeEQ 2 FL.toList) FL.toList *> P.takeEQ 3 FL.toList)
+                <|> P.fromFold FL.toList
+     in property $ runIdentity (consumer p [1, 2, 3]) == (Right [1, 2, 3], [])
+
+manyExtractContinue :: ParserTestCase Int Identity [([[Int]], [Int])] Property
+manyExtractContinue consumer =
+    let q = P.splitWith (,) (P.many (P.takeEQ 2 FL.toList) FL.toList)
+                (P.takeEQ 2 FL.toList)
+     in property $
+            runIdentity (consumer (P.many q FL.toList) [1, 2, 3])
+                == (Right [], [1, 2, 3])
+
 -------------------------------------------------------------------------------
 -- Instances
 -------------------------------------------------------------------------------
@@ -265,6 +283,8 @@ mainCommonType ptt = do
         prop "Alternative: end of input 2" $ runParserTC_temp ptt altEOF2
         prop "Alternative: backtrack after mid-stream failure" $ runParserTC_temp ptt alt
         prop "monad" $ runParserTC_temp ptt monad
+        prop "Alternative: backtrack after FContinue in extract" $ runParserTC ptt altExtractContinue
+        prop "many: backtrack after FContinue in extract" $ runParserTC ptt manyExtractContinue
         prop "sequence" $ runParserTC_temp ptt sequence
 
     describe "test for accumulator" $ do

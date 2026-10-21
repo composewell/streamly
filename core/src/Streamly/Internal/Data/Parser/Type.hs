@@ -1038,8 +1038,8 @@ alt (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
                           IDone b -> FDone (- cnt) b
                           IError err -> FError err
             FContinue n s -> do
-                assertM(n == (- cnt))
-                return $ FContinue n (AltParseL 0 s)
+                assertM(cnt + n >= 0)
+                return $ FContinue n (AltParseL (cnt + n) s)
 
 ANN_TYPE(Fused3,Fuse)
 data Fused3 a b c = Fused3 !a !b !c
@@ -1105,8 +1105,8 @@ splitMany (Parser step1 initial1 extract1) (Fold fstep finitial _ ffinal) =
                     FL.Partial s1 -> fmap (FDone n) (ffinal s1)
                     FL.Done b1 -> return (FDone n b1)
             FContinue n s1 -> do
-                assertM((- n) == cnt)
-                return (FContinue n (Fused3 s1 0 fs))
+                assertM(cnt + n >= 0)
+                return (FContinue n (Fused3 s1 (cnt + n) fs))
 
 -- | Like splitMany, but inner fold emits an output at the end even if no input
 -- is received.
@@ -1166,8 +1166,8 @@ splitManyPost (Parser step1 initial1 extract1) (Fold fstep finitial _ ffinal) =
                     FL.Partial s1 -> fmap (FDone n) (ffinal s1)
                     FL.Done b1 -> return (FDone n b1)
             FContinue n s1 -> do
-                assertM((- n) == cnt)
-                return (FContinue n (Fused3 s1 0 fs))
+                assertM(cnt + n >= 0)
+                return (FContinue n (Fused3 s1 (cnt + n) fs))
 
 -- | See documentation of 'Streamly.Internal.Data.Parser.some'.
 --
@@ -1252,8 +1252,8 @@ splitSome (Parser step1 initial1 extract1) (Fold fstep finitial _ ffinal) =
                     FL.Partial s1 -> fmap (FDone n) (ffinal s1)
                     FL.Done b1 -> return (FDone n b1)
             FContinue n s1 -> do
-                assertM((- n) == cnt)
-                return (FContinue n (Fused3 s1 0 (Left fs)))
+                assertM(cnt + n >= 0)
+                return (FContinue n (Fused3 s1 (cnt + n) (Left fs)))
     extract (Fused3 s cnt (Right fs)) = do
         r <- extract1 s
         case r of
@@ -1265,8 +1265,8 @@ splitSome (Parser step1 initial1 extract1) (Fold fstep finitial _ ffinal) =
                     FL.Partial s1 -> fmap (FDone n) (ffinal s1)
                     FL.Done b1 -> return (FDone n b1)
             FContinue n s1 -> do
-                assertM((- n) == cnt)
-                return (FContinue n (Fused3 s1 0 (Right fs)))
+                assertM(cnt + n >= 0)
+                return (FContinue n (Fused3 s1 (cnt + n) (Right fs)))
 
 -- | A parser that always fails with an error message without consuming
 -- any input.
