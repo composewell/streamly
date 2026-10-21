@@ -8,6 +8,7 @@
 
 module Streamly.Test.Data.StreamK (main) where
 
+import Control.Monad.Trans.Reader (ReaderT)
 import Data.Functor.Identity (Identity, runIdentity)
 import Data.Word (Word8)
 import Data.List (sort)
@@ -16,6 +17,7 @@ import Streamly.Internal.Data.Stream (Stream)
 import Test.QuickCheck (Property, forAll, listOf)
 import Test.QuickCheck.Monadic (assert, monadicIO, run)
 
+import qualified Control.Monad.Trans.Reader as Reader
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.StreamK as StreamK
 
@@ -83,6 +85,17 @@ testNestedShowRead = do
         (read (show (Just n)) :: Maybe (StreamK.Nested Identity Int))
         `shouldBe` Just [1, 2]
 
+-- The modified environment must not leak to the consumer or to the rest of
+-- the stream.
+testLocalReaderT :: Expectation
+testLocalReaderT = do
+    let s = StreamK.fromFoldableM [Reader.ask, Reader.ask, Reader.ask]
+            :: StreamK (ReaderT Int IO) Int
+        s2 = StreamK.localReaderT (+ 1) s
+                `StreamK.append` StreamK.fromEffect Reader.ask
+    xs <- Reader.runReaderT (StreamK.toList s2) 0
+    xs `shouldBe` [1, 1, 1, 0]
+
 moduleName :: String
 moduleName = "Data.StreamK"
 
@@ -115,3 +128,4 @@ main = hspec
                 [1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8]
         prop "sortBy" sortBy
         it "Nested Show/Read" testNestedShowRead
+        it "localReaderT" testLocalReaderT

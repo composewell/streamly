@@ -22,7 +22,7 @@ import Control.Monad.Trans.Class (MonadTrans(lift))
 import Control.Monad.Trans.State.Strict (StateT)
 import Streamly.Internal.Data.StreamK.Type
     (StreamK(..), nil, cons, uncons, concatEffect, foldStream, mkStream)
-import Control.Monad.Trans.Reader (ReaderT, local)
+import Control.Monad.Trans.Reader (ReaderT(..), withReaderT)
 
 import qualified Control.Monad.Trans.State.Strict as State
 
@@ -85,7 +85,10 @@ liftInner = go
 {-# INLINABLE localReaderT #-}
 localReaderT :: (r -> r) -> StreamK (ReaderT r m) a -> StreamK (ReaderT r m) a
 localReaderT f m =
-    mkStream $ \st yld sng stp ->
-        let single = local f . sng
-            yieldk a r = local f $ yld a (localReaderT f r)
-        in foldStream st yieldk single (local f stp) m
+    -- Run the stream in the modified environment and the continuations in the
+    -- original environment.
+    mkStream $ \st yld sng stp -> ReaderT $ \r ->
+        let restore = withReaderT (const r)
+            single = restore . sng
+            yieldk a s = restore $ yld a (localReaderT f s)
+        in runReaderT (foldStream st yieldk single (restore stp) m) (f r)
