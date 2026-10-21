@@ -2535,12 +2535,13 @@ takeP lim (Parser pstep pinitial pextract) = Parser step initial extract
             FError err -> FError err
 
     -- XXX Need to make the Initial type Step to remove this
+    -- No input has been consumed, so the counts are 0.
     iextract s = do
         r <- pextract s
-        return $ case r of
-            FDone _ b -> IDone b
-            FError err -> IError err
-            _ -> error "Bug: takeP invalid state in initial"
+        case r of
+            FDone _ b -> return $ IDone b
+            FContinue _ s1 -> iextract s1
+            FError err -> return $ IError err
 
 -- | Run a parser without consuming the input.
 --

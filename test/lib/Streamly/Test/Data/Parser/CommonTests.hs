@@ -1022,6 +1022,12 @@ framedAltBacktrack consumer =
                 [32, 123, 1]
             && alt1 (P.wordKeepQuotes 92 quote isSep FL.toList) [32, 34, 1]
 
+-- The inner extract continues to the alternative.
+takePZeroAlt :: ParserTestCase Int Identity [Int] Property
+takePZeroAlt consumer =
+    let p = P.takeP 0 (P.takeEQ 1 FL.toList <|> P.fromFold FL.toList)
+     in property $ runIdentity (consumer p [1, 2]) == (Right [], [1, 2])
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -1104,6 +1110,7 @@ mainCommon ptt = do
         prop "sequence at end of input" $ runParserTC ptt sequenceEndOfInput
         prop "manyTill at end of input" $ runParserTC ptt manyTillEndOfInput
         prop "framed parsers backtrack in alternative" $ runParserTC ptt framedAltBacktrack
+        prop "takeP 0 with an alternative" $ runParserTC ptt takePZeroAlt
 
     runParserTC_temp ptt takeProperties
 
