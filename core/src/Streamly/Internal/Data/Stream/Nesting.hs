@@ -1762,7 +1762,7 @@ unfoldEachEndByM
 --
 -- Usage:
 --
--- >>> unlines = Stream.unfoldEachEndBy '\n'
+-- >>> unlines = Stream.unfoldEachEndBy '\n' Unfold.fromList
 --
 -- /Pre-release/
 {-# INLINE unfoldEachEndBy #-}
@@ -1873,7 +1873,7 @@ unfoldEachSepByM
 --
 -- Usage:
 --
--- >>> unwords = Stream.unfoldEachSepBy ' '
+-- >>> unwords = Stream.unfoldEachSepBy ' ' Unfold.fromList
 --
 -- /Pre-release/
 {-# INLINE unfoldEachSepBy #-}
@@ -2138,12 +2138,12 @@ gintercalate u1 s1 u2 s2 = intercalateSepBy u2 s2 u1 s1
 --
 -- Definition:
 --
--- >>> unfoldEachEndBySeq a u = Stream.unfoldEach u . Stream.intersperseEndByM a
+-- >>> unfoldEachEndBySeq a u = Stream.unfoldEach u . Stream.intersperseEndByM (pure a)
 -- >>> unfoldEachEndBySeq a u = Stream.intercalateEndBy u (Stream.repeat a) u
 --
 -- Idioms:
 --
--- >>> intersperseEndByM x = Stream.unfoldEachEndBySeq x Unfold.identity
+-- >>> intersperseEndByM x = Stream.unfoldEachEndBySeq x (Unfold.functionM id) . fmap pure
 -- >>> unlines = Stream.unfoldEachEndBySeq "\n" Unfold.fromList
 --
 -- Usage:

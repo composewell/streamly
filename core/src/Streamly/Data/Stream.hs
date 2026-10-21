@@ -488,8 +488,8 @@ module Streamly.Data.Stream
     -- >>> findIndices p = Stream.scanMaybe (Fold.findIndices p)
     -- >>> elemIndices a = findIndices (== a)
     -- >>> uniq = Stream.scanMaybe (Fold.uniqBy (==))
-    -- >>> partition p = Stream.fold (Fold.partition Fold.toList Fold.toList) . fmap (if p then Left else Right)
-    -- >>> takeLast n s = Stream.fromEffect $ fmap Array.read $ Array.createOfLast n s
+    -- >>> partition p = Stream.fold (Fold.partition Fold.toList Fold.toList) . fmap (\x -> if p x then Left x else Right x)
+    -- >>> takeLast n = Stream.concatEffect . fmap Array.read . Stream.fold (Array.createOfLast n)
     -- , scanlMaybe
     , take
     , takeWhile
@@ -576,8 +576,8 @@ module Streamly.Data.Stream
     -- Idioms and equivalents of Data.List APIs:
     --
     -- >>> cycle = Stream.unfoldEach Unfold.fromList . Stream.repeat
-    -- >>> unlines = Stream.unfoldEachEndBy '\n'
-    -- >>> unwords = Stream.unfoldEachSepBy ' '
+    -- >>> unlines = Stream.unfoldEachEndBy '\n' Unfold.fromList
+    -- >>> unwords = Stream.unfoldEachSepBy ' ' Unfold.fromList
     -- >>> unlines = Stream.unfoldEachEndBySeq "\n" Unfold.fromList
     -- >>> unwords = Stream.unfoldEachSepBySeq " " Unfold.fromList
     --
@@ -662,7 +662,7 @@ module Streamly.Data.Stream
     --
     -- >>> nub = Stream.ordNub -- unreleased API
     -- >>> sortBy = StreamK.sortBy
-    -- >>> sortOn f = StreamK.sortOn -- unreleased API
+    -- >>> sortOn f = StreamK.sortOn f -- unreleased API
     -- >>> deleteFirstsBy = Stream.deleteFirstsBy -- unreleased
     -- >>> (\\) = Stream.deleteFirstsBy (==) -- unreleased
     -- >>> intersectBy = Stream.intersectBy -- unreleased
