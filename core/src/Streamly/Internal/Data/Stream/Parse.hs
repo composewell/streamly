@@ -2554,22 +2554,15 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
                         liftIO
                             $ updateCheckLoop ringHead ringHead1 new mba hmba
                 r <- fstep fs evicted
-                case r of
-                    FL.Partial fs1 ->
+                let next c =
                         if pLen /= 0
-                        then
-                            skip $ SOOPrefold
-                                      (maxLen - pLen)
-                                      ringHead1
-                                      fs1
-                                      mba
-                                      hmba
-                                      s
-                        else skip $ SOOLoop fs1 s mba hmba ringHead1 h1
-                    FL.Done b -> do
-                        liftIO $ resetHashes hmba
-                        let jump c = SOOFill True 0 c s mba hmba 0
-                        yieldReinit jump b
+                        then SOOPrefold (maxLen - pLen) ringHead1 c mba hmba s
+                        else SOOLoop c s mba hmba ringHead1 h1
+                case r of
+                    FL.Partial fs1 -> skip $ next fs1
+                    -- Continue the search with the elements in the ring,
+                    -- they belong to the next segment.
+                    FL.Done b -> yieldReinit next b
             Skip s -> skip $ SOOLoop fs s mba hmba ringHead h
             Stop -> skip $ SOODrain maxLen ringHead fs mba
 

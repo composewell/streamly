@@ -817,6 +817,18 @@ testSplitSepByOneOfEmpty = do
                   (Stream.fromList "")
     xs `shouldBe` []
 
+-- The fold terminates before a separator, the elements in the ring belong to
+-- the next segment.
+testSplitSepByOneOfFoldDone :: Expectation
+testSplitSepByOneOfFoldDone = do
+    let split ps xs =
+            Stream.toList
+                $ Stream.splitSepByOneOf (map Array.fromList ps)
+                    (Fold.take 2 Fold.toList) (Stream.fromList xs)
+    split [".."] "abcde" `shouldReturn` ["ab", "cd", "e"]
+    split ["...", ","] "abcdefg" `shouldReturn` ["ab", "cd", "ef", "g"]
+    split ["..", ","] "ab..cd,e" `shouldReturn` ["ab", "", "cd", "", "e"]
+
 -- The hash must not use fromEnum, it fails on large Word64 values.
 testSplitSepByOneOfWord64 :: Expectation
 testSplitSepByOneOfWord64 = do
@@ -1244,6 +1256,7 @@ main = hspec
         it "splits on multi-element pattern" testSplitSepByOneOfSeq
         it "empty stream" testSplitSepByOneOfEmpty
         it "Word64 elements" testSplitSepByOneOfWord64
+        it "fold terminates before a separator" testSplitSepByOneOfFoldDone
 
     describe "splitInnerBy" $ do
         it "splits inner containers" testSplitInnerBy
