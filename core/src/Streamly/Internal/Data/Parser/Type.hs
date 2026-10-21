@@ -1534,7 +1534,7 @@ instance (MonadIO m) => MonadIO (Parser a m) where
 --
 -- Definition:
 --
--- >>> lmap = Fold.lmapM return
+-- >>> lmap f = Parser.lmapM (return . f)
 --
 -- Example:
 --
