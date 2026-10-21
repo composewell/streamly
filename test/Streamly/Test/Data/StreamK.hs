@@ -85,6 +85,15 @@ testNestedShowRead = do
         (read (show (Just n)) :: Maybe (StreamK.Nested Identity Int))
         `shouldBe` Just [1, 2]
 
+testFairNestedShowRead :: Expectation
+testFairNestedShowRead = do
+    let n = StreamK.FairNested (StreamK.fromList [1, 2])
+            :: StreamK.FairNested Identity Int
+    show (Just n) `shouldBe` "Just (fromList [1,2])"
+    fmap (runIdentity . StreamK.toList . StreamK.unFairNested)
+        (read (show (Just n)) :: Maybe (StreamK.FairNested Identity Int))
+        `shouldBe` Just [1, 2]
+
 -- The modified environment must not leak to the consumer or to the rest of
 -- the stream.
 testLocalReaderT :: Expectation
@@ -128,4 +137,5 @@ main = hspec
                 [1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8]
         prop "sortBy" sortBy
         it "Nested Show/Read" testNestedShowRead
+        it "FairNested Show/Read" testFairNestedShowRead
         it "localReaderT" testLocalReaderT

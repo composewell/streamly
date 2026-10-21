@@ -3067,6 +3067,9 @@ deriving instance (a ~ Char) => IsString (FairNested Identity a)
 -- Do not use automatic derivation for this to show as "fromList" rather than
 -- "fromList Identity".
 instance Show a => Show (FairNested Identity a) where
+    {-# INLINE showsPrec #-}
+    showsPrec p (FairNested xs) = showsPrec p xs
+
     {-# INLINE show #-}
     show (FairNested xs) = show xs
 
