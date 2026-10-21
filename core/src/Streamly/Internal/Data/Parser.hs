@@ -1063,8 +1063,9 @@ takeFramedByGeneric esc begin end (Fold fstep finitial _ ffinal) =
             Nothing -> -- takeBeginBy case
                 case begin of
                     Just isBegin ->
+                        -- The begin marker belongs to the next frame
                         if isBegin a
-                        then SDone 1 <$> ffinal s
+                        then SDone 0 <$> ffinal s
                         else process s a n
                     Nothing ->
                         error $ "takeFramedByGeneric: "

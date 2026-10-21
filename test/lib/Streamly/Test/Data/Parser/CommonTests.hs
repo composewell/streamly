@@ -928,6 +928,13 @@ takeStartBy_ producer consumer =
                 predicate = odd
                 parser = P.takeBeginBy_ predicate FL.toList
 
+-- The begin marker of the next frame must not be consumed.
+takeStartBy_Leftover :: ParserTestCase Int Identity [Int] Property
+takeStartBy_Leftover consumer =
+    property $
+        runIdentity (consumer (P.takeBeginBy_ (== 0) FL.toList) [0, 1, 0, 2])
+            == (Right [1], [0, 2])
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -1001,6 +1008,7 @@ mainCommon ptt = do
         prop "takeFramedByEsc_Fail2" $ runParserTC_temp ptt takeFramedByEsc_Fail2
         prop "takeFramedByEsc_Fail3" $ runParserTC_temp ptt takeFramedByEsc_Fail3
         prop "takeStartBy_" $ runParserTC_temp ptt takeStartBy_
+        prop "takeStartBy_ leaves the next begin marker" $ runParserTC ptt takeStartBy_Leftover
 
     runParserTC_temp ptt takeProperties
 
