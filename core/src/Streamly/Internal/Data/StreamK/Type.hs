@@ -1326,7 +1326,7 @@ crossApplyWith par fstream stream = go1 fstream
 -- Definition:
 --
 -- >>> crossApply = StreamK.crossApplyWith StreamK.append
--- >>> crossApply = Stream.crossWith id
+-- >>> crossApply = StreamK.crossWith id
 --
 {-# INLINE crossApply #-}
 crossApply ::
