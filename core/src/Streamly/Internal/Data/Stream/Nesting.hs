@@ -1245,7 +1245,7 @@ schedMapM f (Stream ostep ost) =
             Skip s    -> Skip (BfsUnfoldEachInner ls (rs . (Stream istep s :)))
             Stop      -> Skip (BfsUnfoldEachInner ls rs)
 
--- | See 'SchedFor' for documentation.
+-- | See 'schedFor' for documentation.
 --
 -- Scheduling is affected by the Skip constructor; implementations with more
 -- skips receive proportionally less scheduling time.
@@ -1256,7 +1256,7 @@ schedMapM f (Stream ostep ost) =
 schedMap :: Monad m => (a -> Stream m b) -> Stream m a -> Stream m b
 schedMap f = schedMapM (return . f)
 
--- | See 'SchedFor' for documentation.
+-- | See 'schedFor' for documentation.
 --
 -- Scheduling is affected by the Skip constructor; implementations with more
 -- skips receive proportionally less scheduling time.
@@ -1267,7 +1267,7 @@ schedMap f = schedMapM (return . f)
 schedForM :: Monad m => Stream m a -> (a -> m (Stream m b)) -> Stream m b
 schedForM = flip schedMapM
 
--- | Similar to 'bfsConcatFor' but scheduling is independent of output.
+-- | Similar to 'fairConcatFor' but scheduling is independent of output.
 --
 -- >>> lists = Stream.fromList [[1,4,7],[2,5,8],[3,6,9]]
 -- >>> Stream.toList $ Stream.schedFor lists $ \xs -> Stream.fromList xs

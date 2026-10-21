@@ -633,7 +633,7 @@ finallyIO'' bracket free stream =
 -- See 'bracketIO' documentation for the caveats related to partially consumed
 -- streams and async exceptions.
 --
--- Use monad level bracket Streamly.Control.Exception.'Streamly..Control.Exception.withAcquireIO'
+-- Use monad level bracket 'Streamly.Control.Exception.withAcquireIO'
 -- for guaranteed cleanup in the entire pipeline, however, monad level bracket does not provide
 -- an automatic cleanup at the end of the stream; you can only release
 -- resources manually or via automatic cleanup at the end of the monad bracket.
