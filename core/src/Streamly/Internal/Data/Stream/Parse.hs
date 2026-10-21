@@ -1603,6 +1603,7 @@ data SplitOnSuffixSeqState mba rb rh ck w fs s b x =
 
     | SplitOnSuffixSeqWordInit !fs s
     | SplitOnSuffixSeqWordLoop !w !w s !fs
+    | SplitOnSuffixSeqWordMatch !fs s
     | SplitOnSuffixSeqWordDone Int !fs !w !w
 
     | SplitOnSuffixSeqKRInit !fs s mba
@@ -1778,6 +1779,9 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
         case r of
             FL.Partial fs1 ->
                 skip $ SplitOnSuffixSeqWordDone (n - 1) fs1 wrd sgn
+            -- No elements left, there is no next segment
+            FL.Done b | n == 1 ->
+                skip $ SplitOnSuffixSeqYield b SplitOnSuffixSeqDone
             FL.Done b -> do
                 let jump c = SplitOnSuffixSeqWordDone (n - 1) c wrd sgn
                 yieldReinit jump b
@@ -1842,16 +1846,27 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
                         wrd1 = addToWord wrd xw
                         sgn1 = SeqMatch.addToSigns sgn xw
                         old = wordToElem (patLen - 1) sgn wrd
+                        matched = wrd1 .&. wordMask == wordPat
                     r <-
                         if withSep
                         then fstep fs x
                         else fstep fs old
                     case r of
                         FL.Partial fs1 ->
-                            if wrd1 .&. wordMask == wordPat
+                            if matched
                             then final fs1 >>= yieldReinit jump
                             else go SPEC wrd1 sgn1 s fs1
-                        FL.Done b -> yieldReinit jump b
+                        FL.Done b
+                            | withSep -> yieldReinit jump b
+                            -- Continue the search with the elements in the
+                            -- word, they belong to the next segment.
+                            | otherwise ->
+                                let next c =
+                                        if matched
+                                        then SplitOnSuffixSeqWordMatch c s
+                                        else SplitOnSuffixSeqWordLoop
+                                                wrd1 sgn1 s c
+                                 in yieldReinit next b
                 Skip s -> go SPEC wrd sgn s fs
                 Stop ->
                     if withSep
@@ -1859,6 +1874,11 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
                         r <- final fs
                         skip $ SplitOnSuffixSeqYield r SplitOnSuffixSeqDone
                     else skip $ SplitOnSuffixSeqWordDone patLen fs wrd sgn
+
+    -- The pattern matched at the start of a segment, the segment is empty
+    stepOuter _ (SplitOnSuffixSeqWordMatch fs st) = do
+        let jump c = SplitOnSuffixSeqWordInit c st
+        final fs >>= yieldReinit jump
 
     -------------------------------
     -- General Pattern - Karp Rabin
@@ -1947,9 +1967,19 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
                             if cksum1 /= patHash
                             then go SPEC fs1 s rh1 cksum1
                             else skip $ SplitOnSuffixSeqKRCheck fs1 s mba rh1
-                        FL.Done b -> do
-                            let jump c = SplitOnSuffixSeqKRInit c s mba
-                            yieldReinit jump b
+                        FL.Done b
+                            | withSep -> do
+                                let jump c = SplitOnSuffixSeqKRInit c s mba
+                                yieldReinit jump b
+                            -- Continue the search with the elements in the
+                            -- ring, they belong to the next segment.
+                            | otherwise -> do
+                                let next c =
+                                        if cksum1 /= patHash
+                                        then SplitOnSuffixSeqKRLoop
+                                                c s mba rh1 cksum1
+                                        else SplitOnSuffixSeqKRCheck c s mba rh1
+                                yieldReinit next b
                 Skip s -> go SPEC fs s rh cksum
                 Stop -> do
                     if withSep
@@ -1983,6 +2013,9 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
         case r of
             FL.Partial fs1 ->
                 skip $ SplitOnSuffixSeqKRDone (len - SIZE_OF(a)) fs1 rb1
+            -- No elements left, there is no next segment
+            FL.Done b | len == SIZE_OF(a) ->
+                skip $ SplitOnSuffixSeqYield b SplitOnSuffixSeqDone
             FL.Done b -> do
                 let jump c = SplitOnSuffixSeqKRDone (len - SIZE_OF(a)) c rb1
                 yieldReinit jump b
@@ -2044,9 +2077,20 @@ splitEndBySeq = splitOnSuffixSeq True
 
 -- | Like 'splitEndBySeq' but drops the separators and returns only the tokens.
 --
--- Equivalent to the following:
+-- Equivalent to the following if the fold @f@ does not terminate:
 --
 -- >>> splitEndBySeq_ pat f = Stream.foldMany (Fold.takeEndBySeq_ pat f)
+--
+-- If the fold terminates, the next segment starts with the element after the
+-- last element consumed by the fold. 'Fold.takeEndBySeq_' drops the elements
+-- it holds for matching the separator when the fold terminates, so the
+-- 'Stream.foldMany' version loses them:
+--
+-- >>> s = Stream.fromList "abcde"
+-- >>> Stream.toList $ Stream.splitEndBySeq_ (Array.fromList "..") (Fold.take 2 Fold.toList) s
+-- ["ab","cd","e"]
+-- >>> Stream.toList $ Stream.foldMany (Fold.takeEndBySeq_ (Array.fromList "..") (Fold.take 2 Fold.toList)) s
+-- ["ab","e"]
 --
 -- Usage:
 --

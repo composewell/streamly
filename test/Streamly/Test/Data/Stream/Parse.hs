@@ -1058,6 +1058,28 @@ testSplitSepBySeqFoldDone = do
     splitK [1 .. 5] `shouldReturn` [[1, 2], [3, 4], [5]]
     splitK ([1, 2] ++ zeros ++ [3]) `shouldReturn` [[1, 2], [], [3]]
 
+-- Like testSplitSepBySeqFoldDone, for the suffix separator. No empty segment
+-- after the last one.
+testSplitEndBySeqFoldDone :: Expectation
+testSplitEndBySeqFoldDone = do
+    let split pat xs =
+            Stream.toList
+                $ Stream.splitEndBySeq_ (Array.fromList pat)
+                    (Fold.take 2 Fold.toList) (Stream.fromList xs)
+    split "." "ab.cd" `shouldReturn` ["ab", "", "cd"]
+    split ".." "abcde" `shouldReturn` ["ab", "cd", "e"]
+    split ".." "ab..cd" `shouldReturn` ["ab", "", "cd"]
+    split ".." "ab" `shouldReturn` ["ab"]
+    let zeros = replicate 9 (0 :: Int)
+        splitK xs =
+            Stream.toList
+                $ Stream.splitEndBySeq_ (Array.fromList zeros)
+                    (Fold.take 2 Fold.toList) (Stream.fromList xs)
+    splitK [1 .. 4] `shouldReturn` [[1, 2], [3, 4]]
+    splitK [1 .. 12]
+        `shouldReturn` [[1, 2], [3, 4], [5, 6], [7, 8], [9, 10], [11, 12]]
+    splitK ([1, 2] ++ zeros ++ [3]) `shouldReturn` [[1, 2], [], [3]]
+
 -- Decoding the elements of a word pattern must not evaluate toEnum 1 for a
 -- type with a single value.
 testSeqSearchUnit :: Expectation
@@ -1213,6 +1235,9 @@ main = hspec
 
     describe "splitSepBySeq_" $ do
         it "fold terminates before a separator" testSplitSepBySeqFoldDone
+
+    describe "splitEndBySeq_" $ do
+        it "fold terminates before a separator" testSplitEndBySeqFoldDone
 
     describe "splitSepByOneOf" $ do
         it "splits on any of the patterns" testSplitSepByOneOfSingle

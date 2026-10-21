@@ -46,6 +46,9 @@
 * Fix `Stream.splitSepBySeq_` dropping the elements following a segment
   when the fold terminates, e.g. `Fold.take 2` with the separator `".."` on
   `"abcde"` gave `["ab","e"]` instead of `["ab","cd","e"]`.
+* Fix `Stream.splitEndBySeq_` dropping the elements following a segment
+  when the fold terminates, and emitting a trailing empty segment when the
+  fold terminates on the last element.
 
 ### Breaking changes
 
