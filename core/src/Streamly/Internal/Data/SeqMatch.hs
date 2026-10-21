@@ -53,6 +53,18 @@ import Streamly.Internal.System.IO (unsafeInlineIO)
 --   store and a load per element.
 --
 -- We keep one sign bit per element in a separate word, see 'addToSigns'.
+--
+-- XXX The sequence search combinators could be specialized to the element
+-- type using rewrite rules:
+--
+-- * For element types of at most word size the state machine may become
+--   simpler. Check whether the current code already simplifies to the same
+--   loop for such types or a specialized definition does better.
+-- * Common signed and unsigned Enum types, e.g. Int8 and Word8, could be
+--   rewritten to a definition that does not keep the sign bits, the
+--   signedness of these types is known statically. Other types would fall
+--   back to the definition that keeps the sign bit of each element, which is
+--   slower.
 
 -- | A mask of the low @bits@ bits of a 'Word', @bits@ must be less than the
 -- word size.
