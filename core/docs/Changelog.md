@@ -138,6 +138,8 @@
 * `Parser.zipWithM`, `zip` and `indexed` now succeed at the end of input
   instead of failing, and no longer zip an input element twice when the
   zipped stream skips.
+* `Parser.sequence` now runs the remaining parsers at the end of input,
+  it fails if any of them fails, as documented.
 
 ## 0.3.2 (Oct 2026)
 

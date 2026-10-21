@@ -975,6 +975,19 @@ groupByRollingEitherDone consumer =
             runIdentity (consumer p [3, 2, 1]) == (Right (Left [3]), [2, 1])
             && runIdentity (consumer p [1, 2, 3]) == (Right (Right [1]), [2, 3])
 
+-- The parsers remaining at the end of input must run.
+sequenceEndOfInput :: ParserTestCase Int Identity [Int] Property
+sequenceEndOfInput consumer =
+    let p1 = P.sequence (S.fromList [P.satisfy (== 1), P.satisfy (== 2)])
+                FL.toList
+        p2 = P.sequence (S.fromList [P.satisfy (== 1), P.fromPure 5])
+                FL.toList
+        isLeft (Left _) = True
+        isLeft _ = False
+     in property $
+            isLeft (fst (runIdentity (consumer p1 [1])))
+            && runIdentity (consumer p2 [1]) == (Right [1, 5], [])
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -1054,6 +1067,7 @@ mainCommon ptt = do
         prop "zip with a skipping stream" $ runParserTC ptt zipSkip
         prop "sampleFromthen" $ runParserTC ptt sampleFromthen
         prop "groupByRollingEither fold done" $ runParserTC ptt groupByRollingEitherDone
+        prop "sequence at end of input" $ runParserTC ptt sequenceEndOfInput
 
     runParserTC_temp ptt takeProperties
 

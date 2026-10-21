@@ -3391,7 +3391,13 @@ sequence (D.Stream sstep sstate) (Fold fstep finitial _ ffinal) =
                     FL.Done c -> return $ SDone 0 c
             IError err -> return $ SError err
 
-    extract (Nothing', _, fs) = fmap (FDone 0) $ ffinal fs
+    -- The remaining parsers in the stream run on the end of input
+    extract (Nothing', ss, fs) = do
+        sres <- sstep defState ss
+        case sres of
+            D.Yield p ss1 -> extract (Just' p, ss1, fs)
+            D.Stop -> fmap (FDone 0) $ ffinal fs
+            D.Skip ss1 -> extract (Nothing', ss1, fs)
     extract (Just' (Parser pstep pinit pextr), ss, fs) = do
         ps <- pinit
         case ps of
@@ -3401,14 +3407,21 @@ sequence (D.Stream sstep sstate) (Fold fstep finitial _ ffinal) =
                     FDone n b -> do
                         res <- fstep fs b
                         case res of
-                            FL.Partial fs1 -> fmap (FDone n) $ ffinal fs1
+                            FL.Partial fs1
+                                | n == 0 -> extract (Nothing', ss, fs1)
+                                -- Feed the leftover to the next parsers
+                                | otherwise ->
+                                    return $ FContinue n (Nothing', ss, fs1)
                             FL.Done c -> return (FDone n c)
                     FError err -> return $ FError err
-                    FContinue n s -> return $ FContinue n (Just' (Parser pstep (return (IPartial s)) pextr), ss, fs)
+                    FContinue n s ->
+                        let newP =
+                              Just' $ Parser pstep (return $ IPartial s) pextr
+                         in return $ FContinue n (newP, ss, fs)
             IDone b -> do
                 fres <- fstep fs b
                 case fres of
-                    FL.Partial fs1 -> fmap (FDone 0) $ ffinal fs1
+                    FL.Partial fs1 -> extract (Nothing', ss, fs1)
                     FL.Done c -> return (FDone 0 c)
             IError err -> return $ FError err
 
