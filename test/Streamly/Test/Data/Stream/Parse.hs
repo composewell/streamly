@@ -829,6 +829,14 @@ testSplitSepByOneOfFoldDone = do
     split ["...", ","] "abcdefg" `shouldReturn` ["ab", "cd", "ef", "g"]
     split ["..", ","] "ab..cd,e" `shouldReturn` ["ab", "", "cd", "", "e"]
 
+-- With no patterns the fold is restarted when it terminates.
+testSplitSepByOneOfNoPatFoldDone :: Expectation
+testSplitSepByOneOfNoPatFoldDone =
+    Stream.toList
+        (Stream.splitSepByOneOf ([] :: [Array Char])
+            (Fold.take 2 Fold.toList) (Stream.fromList "abcde"))
+        `shouldReturn` ["ab", "cd", "e"]
+
 -- The hash must not use fromEnum, it fails on large Word64 values.
 testSplitSepByOneOfWord64 :: Expectation
 testSplitSepByOneOfWord64 = do
@@ -1257,6 +1265,7 @@ main = hspec
         it "empty stream" testSplitSepByOneOfEmpty
         it "Word64 elements" testSplitSepByOneOfWord64
         it "fold terminates before a separator" testSplitSepByOneOfFoldDone
+        it "no patterns, fold terminates" testSplitSepByOneOfNoPatFoldDone
 
     describe "splitInnerBy" $ do
         it "splits inner containers" testSplitInnerBy

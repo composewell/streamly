@@ -2475,7 +2475,7 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
                 r <- fstep fs x
                 case r of
                     FL.Partial fs1 -> skip $ SOOWhole fs1 s
-                    FL.Done b -> skip $ SOOYield b SOODone
+                    FL.Done b -> yieldReinit (`SOOWhole` s) b
             Skip s -> skip $ SOOWholeInit fs s
             Stop -> final fs >> pure Stop
 
@@ -2486,7 +2486,7 @@ splitSepByOneOf patArrs0 (Fold fstep initial _ final) (Stream step state) =
                 r <- fstep fs x
                 case r of
                     FL.Partial fs1 -> skip $ SOOWhole fs1 s
-                    FL.Done b -> skip $ SOOYield b SOODone
+                    FL.Done b -> yieldReinit (`SOOWhole` s) b
             Skip s -> skip $ SOOWhole fs s
             Stop -> do
                 b <- final fs
