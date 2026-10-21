@@ -2017,8 +2017,8 @@ splitOnSuffixSeq withSep patArr (Fold fstep initial _ final) (Stream step state)
                 yieldReinit jump b
 
 -- | Parses a sequence of tokens suffixed by a separator e.g. @a;b;c;@ is
--- parsed as @a;@, @b;@, @c;@. If the pattern is empty the input stream is
--- returned as it is.
+-- parsed as @a;@, @b;@, @c;@. If the pattern is empty then each element is a
+-- match, thus the fold is finalized on each element.
 --
 -- Equivalent to the following:
 --
