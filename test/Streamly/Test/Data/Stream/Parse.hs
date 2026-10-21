@@ -14,6 +14,7 @@
 
 module Streamly.Test.Data.Stream.Parse (main) where
 
+import Control.Applicative ((<|>))
 import Control.Monad ( forM_ )
 import Control.Monad.IO.Class (MonadIO)
 import Data.Functor.Identity (Identity)
@@ -783,9 +784,24 @@ testParseManyPos = do
                   (Stream.fromList [1 .. 4 :: Int])
     xs `shouldBe` [[1, 2], [3, 4]]
 
+-- The alternative backtracks at the end of the stream, the parser must not
+-- run again after consuming the replayed input.
+testParseManyBacktrackAtEnd :: Expectation
+testParseManyBacktrackAtEnd = do
+    let p = Parser.takeEQ 3 Fold.toList <|> Parser.takeEQ 2 Fold.toList
+    xs <- Stream.toList $ Stream.parseMany p (Stream.fromList [1, 2 :: Int])
+    fmap (either (const []) id) xs `shouldBe` [[1, 2]]
+
 -------------------------------------------------------------------------------
 -- parseIterate / parseIteratePos
 -------------------------------------------------------------------------------
+
+testParseIterateBacktrackAtEnd :: Expectation
+testParseIterateBacktrackAtEnd = do
+    let p _ = Parser.takeEQ 3 Fold.toList <|> Parser.takeEQ 2 Fold.toList
+    xs <- Stream.toList
+        $ Stream.parseIterate p [] (Stream.fromList [1, 2 :: Int])
+    fmap (either (const []) id) xs `shouldBe` [[1, 2]]
 
 testParseIterate :: Expectation
 testParseIterate = do
@@ -1260,12 +1276,14 @@ main = hspec
 
     describe "parseMany" $ do
         it "applies parser repeatedly" testParseMany
+        it "backtrack at end of stream" testParseManyBacktrackAtEnd
 
     describe "parseManyPos" $ do
         it "applies parser with positions" testParseManyPos
 
     describe "parseIterate" $ do
         it "iterates parser on stream" testParseIterate
+        it "backtrack at end of stream" testParseIterateBacktrackAtEnd
 
     describe "parseIteratePos" $ do
         it "iterates parser with positions" testParseIteratePos

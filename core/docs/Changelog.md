@@ -61,6 +61,9 @@
   had backtracked over a part of its input, the elements were lost.
 * Fix `Parser.filter` preventing backtracking over the elements it rejects,
   e.g. in an `Alternative` composition.
+* Fix `Stream.parseMany` and `parseIterate` running the parser once more
+  on empty input, emitting an error, when the parser backtracked at the end
+  of the stream.
 
 ### Breaking changes
 

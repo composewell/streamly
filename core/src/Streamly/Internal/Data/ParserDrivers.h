@@ -118,6 +118,9 @@ PARSE_MANY (PRD.Parser pstep initial extract) (Stream step state) =
                         (Left (PARSE_ERROR(i) err))
                         (ParseChunksInitLeftOver OPTIONAL(i) [])
 
+    -- The stream has stopped and there is no more input
+    stepOuter _ (ParseChunksInitBuf OPTIONAL(_) []) = return Stop
+
     -- This is simplified ParseChunksInit
     stepOuter _ (ParseChunksInitBuf OPTIONAL(i) src) = do
         res <- initial
@@ -359,6 +362,9 @@ PARSE_ITERATE func seed (Stream step state) =
                         (ConcatParseInitLeftOver OPTIONAL(i) [])
 
     -- This is simplified ConcatParseInit
+    -- The stream has stopped and there is no more input
+    stepOuter _ (ConcatParseInitBuf OPTIONAL(_) [] _) = return Stop
+
     stepOuter _ (ConcatParseInitBuf OPTIONAL(i) src
                     (PRD.Parser pstep initial extract)) = do
         res <- initial
