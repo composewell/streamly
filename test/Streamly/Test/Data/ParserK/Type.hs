@@ -102,6 +102,17 @@ alternative = do
             r <- runP (((e 1 <|> e 9) *> empty) <|> e 1) [1 :: Int]
             fromRight undefined r `shouldBe` 1
 
+-- The alternative backtracks at the end of input.
+toParserAlt :: Spec
+toParserAlt =
+    it "toParser alternative at end of input" $ do
+        let p =
+                ParserK.toParser
+                    $ ParserK.toParserK (Parser.takeEQ 3 FL.toList)
+                        <|> ParserK.toParserK (Parser.fromFold FL.toList)
+        r <- Stream.parse p (Stream.fromList [1, 2 :: Int])
+        fromRight undefined r `shouldBe` [1, 2]
+
 {-# NOINLINE fusionBreaker #-}
 fusionBreaker :: a -> a
 fusionBreaker = id
@@ -114,4 +125,5 @@ spec :: Spec
 spec = do
     CommonType.mainCommonType TMParserKStreamK
     toParser
+    toParserAlt
     alternative

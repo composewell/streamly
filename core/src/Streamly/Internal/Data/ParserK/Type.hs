@@ -558,7 +558,10 @@ toParser parser = ParserD.Parser step initial extract
         case r of
             Done n b ->  assert (n <= 0) (return $ ParserD.FDone n b)
             Error _ e -> return $ ParserD.FError e
-            Partial _ cont1 -> extract cont1
+            Partial 0 cont1 -> extract cont1
+            -- An alternative may backtrack at the end of input
+            Partial n cont1 ->
+                assert (n < 0) (return $ ParserD.FContinue n cont1)
             Continue n cont1 ->
                 assert (n <= 0) (return $ ParserD.FContinue n cont1)
 
