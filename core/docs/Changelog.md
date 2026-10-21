@@ -67,6 +67,8 @@
 * Fix `Parser.streamEqBy` failing when the pattern stream skips, e.g. a
   filtered stream, and when the input ends after the last pattern element
   that is followed by a skip.
+* Fix `Parser.groupByRollingEither` dropping an element when a fold
+  terminates on the first element of a group.
 
 ### Breaking changes
 

@@ -964,6 +964,17 @@ sampleFromthen consumer =
         runIdentity (consumer (P.sampleFromthen 1 3 FL.toList) [0 .. 9])
             == (Right [1, 4, 7], [])
 
+-- The fold terminates on the held previous element, the current element
+-- must not be consumed.
+groupByRollingEitherDone ::
+    ParserTestCase Int Identity (Either [Int] [Int]) Property
+groupByRollingEitherDone consumer =
+    let take1 = FL.take 1 FL.toList
+        p = P.groupByRollingEither (<) take1 take1
+     in property $
+            runIdentity (consumer p [3, 2, 1]) == (Right (Left [3]), [2, 1])
+            && runIdentity (consumer p [1, 2, 3]) == (Right (Right [1]), [2, 3])
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -1042,6 +1053,7 @@ mainCommon ptt = do
         prop "indexed" $ runParserTC ptt indexed
         prop "zip with a skipping stream" $ runParserTC ptt zipSkip
         prop "sampleFromthen" $ runParserTC ptt sampleFromthen
+        prop "groupByRollingEither fold done" $ runParserTC ptt groupByRollingEitherDone
 
     runParserTC_temp ptt takeProperties
 

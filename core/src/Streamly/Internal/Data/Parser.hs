@@ -2087,7 +2087,8 @@ groupByRollingEither
     grouperL s1 s2 a0 a = do
         res <- fstep1 s1 a0
         case res of
-            FL.Done b -> return $ SDone 1 (Left b)
+            -- The current element is not consumed
+            FL.Done b -> return $ SDone 0 (Left b)
             FL.Partial s11 -> grouperL2 s11 s2 a
 
     {-# INLINE grouperR2 #-}
@@ -2102,7 +2103,8 @@ groupByRollingEither
     grouperR s1 s2 a0 a = do
         res <- fstep2 s2 a0
         case res of
-            FL.Done b -> return $ SDone 1 (Right b)
+            -- The current element is not consumed
+            FL.Done b -> return $ SDone 0 (Right b)
             FL.Partial s21 -> grouperR2 s1 s21 a
 
     initial = do
