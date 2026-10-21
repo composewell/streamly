@@ -631,7 +631,7 @@ enumerateFromStep (x, stride) =
     let !next = x + stride
      in pure $ Yield x (next, stride)
 
--- | State for 'enumerateFromThenToIntegral'. @EnumInit from next to@ is the
+-- | State for 'enumerateFromThenTo'. @EnumInit from next to@ is the
 -- starting state carrying the arguments; it transitions to 'EnumYieldUpward'
 -- or 'EnumYieldDownward', which carry the current value, the stride and the
 -- limit checked before each step, so that the step cannot overflow past the
@@ -697,7 +697,7 @@ enumerateFromThenTo (EnumYieldDownward x stride toPlus) =
 enumerateFromThenTo (EnumSingle x) = pure $ Yield x EnumStop
 enumerateFromThenTo EnumStop = pure Stop
 
--- | State for 'enumerateUpFromThenToIntegral'. Same as 'EnumState' but
+-- | State for 'enumerateUpFromThenTo'. Same as 'EnumState' but
 -- without the downward direction, since the function only ever moves
 -- upward.
 ANN_TYPE(EnumStateUp,Fuse)
@@ -736,7 +736,7 @@ enumerateUpFromThenTo (EnumUpYield x stride toMinus) =
         else Yield x EnumUpStop
 enumerateUpFromThenTo EnumUpStop = pure Stop
 
--- | Like 'enumerateDownFromThenTo' but enumerates in decreasing order.
+-- | Like 'enumerateUpFromThenTo' but enumerates in decreasing order.
 --
 -- If this works correctly then it is a proof that enumerateUpFromThenTo is
 -- mathematically correct.
