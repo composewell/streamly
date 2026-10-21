@@ -1864,7 +1864,8 @@ wordWithQuotes keepQuotes tr escChar toRight isSep
                 res <- fstep s escChar
                 case res of
                     FL.Partial s1 -> checkRightQuoteAndProcess s1 a n ql qr
-                    FL.Done b -> return $ SDone 1 b
+                    -- The current element is not consumed
+                    FL.Done b -> return $ SDone 0 b
             Just x -> processQuoted s x n ql qr
     step (WordQuotedSkipPost b) a =
         return

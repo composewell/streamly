@@ -1028,6 +1028,16 @@ takePZeroAlt consumer =
     let p = P.takeP 0 (P.takeEQ 1 FL.toList <|> P.fromFold FL.toList)
      in property $ runIdentity (consumer p [1, 2]) == (Right [], [1, 2])
 
+-- The fold terminates on the held escape char inside quotes, the current
+-- element must not be consumed.
+wordQuotedEscDone :: ParserTestCase Int Identity [Int] Property
+wordQuotedEscDone consumer =
+    let quote x = if x == 34 then Just x else Nothing
+        p = P.wordKeepQuotes 92 quote (== 32) (FL.take 3 FL.toList)
+     in property $
+            runIdentity (consumer p [34, 1, 92, 2, 34])
+                == (Right [34, 1, 92], [2, 34])
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -1111,6 +1121,7 @@ mainCommon ptt = do
         prop "manyTill at end of input" $ runParserTC ptt manyTillEndOfInput
         prop "framed parsers backtrack in alternative" $ runParserTC ptt framedAltBacktrack
         prop "takeP 0 with an alternative" $ runParserTC ptt takePZeroAlt
+        prop "wordKeepQuotes fold done on escape" $ runParserTC ptt wordQuotedEscDone
 
     runParserTC_temp ptt takeProperties
 

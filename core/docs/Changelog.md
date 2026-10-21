@@ -73,6 +73,8 @@
   parser at the end of input.
 * Fix `Parser.wordWithQuotes` preventing backtracking over leading
   separators when it fails later, e.g. on a missing closing quote.
+* Fix `Parser.wordWithQuotes` dropping an element when the fold terminates
+  on an escape character inside quotes.
 
 ### Breaking changes
 
