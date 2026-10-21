@@ -988,6 +988,13 @@ sequenceEndOfInput consumer =
             isLeft (fst (runIdentity (consumer p1 [1])))
             && runIdentity (consumer p2 [1]) == (Right [1, 5], [])
 
+-- The input consumed by the incomplete test is left unconsumed.
+manyTillEndOfInput :: ParserTestCase Int Identity [Int] Property
+manyTillEndOfInput consumer =
+    let p = P.manyTill P.one (P.listEq [7, 8, 9]) FL.toList
+     in property $
+            runIdentity (consumer p [1, 2, 7, 8]) == (Right [1, 2], [7, 8])
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -1068,6 +1075,7 @@ mainCommon ptt = do
         prop "sampleFromthen" $ runParserTC ptt sampleFromthen
         prop "groupByRollingEither fold done" $ runParserTC ptt groupByRollingEitherDone
         prop "sequence at end of input" $ runParserTC ptt sequenceEndOfInput
+        prop "manyTill at end of input" $ runParserTC ptt manyTillEndOfInput
 
     runParserTC_temp ptt takeProperties
 

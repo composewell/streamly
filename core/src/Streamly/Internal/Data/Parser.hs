@@ -3551,6 +3551,9 @@ data ManyTillState fs sr sl
 --
 -- Stops when the fold @f@ stops.
 --
+-- If the input ends while trying @test@, the parser stops with the output of
+-- the fold, and the input consumed by @test@ is left unconsumed.
+--
 {-# INLINE manyTill #-}
 manyTill :: Monad m
     => Parser a m b -> Parser a m x -> Fold m b c -> Parser a m c
@@ -3638,7 +3641,8 @@ manyTill (Parser stepL initialL extractL)
                     FL.Done c -> return (FDone n c)
             FError err -> return $ FError err
             FContinue n s -> return $ FContinue n (ManyTillL fs s)
-    extract (ManyTillR _ fs _) = fmap (FDone 0) $ ffinal fs
+    -- Leave the input consumed by the incomplete test unconsumed
+    extract (ManyTillR cnt fs _) = fmap (FDone (- cnt)) $ ffinal fs
 
 -- | @manyThen f collect recover@ repeats the parser @collect@ on the input and
 -- collects the output in the supplied fold. If the the parser @collect@ fails,

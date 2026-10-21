@@ -69,6 +69,8 @@
   that is followed by a skip.
 * Fix `Parser.groupByRollingEither` dropping an element when a fold
   terminates on the first element of a group.
+* Fix `Parser.manyTill` consuming the input matched by an incomplete `test`
+  parser at the end of input.
 
 ### Breaking changes
 
