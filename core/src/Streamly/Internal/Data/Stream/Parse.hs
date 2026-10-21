@@ -1093,6 +1093,10 @@ takeEndBySeq = takeEndBySeqWith True
 -- >>> f "" "abcdefghijk"
 -- ""
 --
+-- Known Issues: For a signed element type, e.g. 'Int8', a pattern of two or
+-- more elements whose total size is at most one machine word fails with an
+-- error if the input has a negative element.
+--
 {-# INLINE takeEndBySeq_ #-}
 takeEndBySeq_
     :: forall m a. (MonadIO m, Unbox a, Enum a, Eq a)
@@ -1174,6 +1178,10 @@ data SplitOnSeqState mba rb rh ck w fs s b x =
 -- ["a",""]
 --
 -- Uses Rabin-Karp algorithm for substring search.
+--
+-- Known Issues: For a signed element type, e.g. 'Int8', a pattern of two or
+-- more elements whose total size is at most one machine word fails with an
+-- error if the input has a negative element.
 --
 {-# INLINE_NORMAL splitSepBySeq_ #-}
 splitSepBySeq_, splitOnSeq
@@ -2013,6 +2021,10 @@ splitEndBySeq = splitOnSuffixSeq True
 --
 -- Uses Rabin-Karp algorithm for substring search.
 --
+-- Known Issues: For a signed element type, e.g. 'Int8', a pattern of two or
+-- more elements whose total size is at most one machine word fails with an
+-- error if the input has a negative element.
+--
 {-# INLINE_NORMAL splitEndBySeq_ #-}
 splitEndBySeq_
     :: forall m a b. (MonadIO m, Unbox a, Enum a, Eq a)
@@ -2755,6 +2767,10 @@ data DropInfixState mba rb rh ck w s a =
 --
 -- Space: @O(n)@ where n is the length of the infix.
 --
+-- Known Issues: For a signed element type, e.g. 'Int8', a pattern of two or
+-- more elements whose total size is at most one machine word fails with an
+-- error if the input has a negative element.
+--
 -- See also 'Streamly.Internal.Data.Stream.Eliminate.stripInfix'.
 {-# INLINE_NORMAL dropMatches #-}
 dropMatches
@@ -3007,6 +3023,10 @@ data ReplaceInfixState mba rb rh ck w s a =
 -- "xyz"
 --
 -- Space: @O(n)@ where n is the length of the infix pattern.
+--
+-- Known Issues: For a signed element type, e.g. 'Int8', a pattern of two or
+-- more elements whose total size is at most one machine word fails with an
+-- error if the input has a negative element.
 --
 {-# INLINE_NORMAL replaceMatches #-}
 replaceMatches
@@ -3271,6 +3291,10 @@ data DropSuffixState mba rb rh w s a =
 -- "ab"
 --
 -- Space: @O(n)@ where n is the length of the suffix.
+--
+-- Known Issues: For a signed element type, e.g. 'Int8', a pattern of two or
+-- more elements whose total size is at most one machine word fails with an
+-- error if the input has a negative element.
 --
 -- See also 'Streamly.Internal.Data.Stream.Eliminate.stripSuffix'.
 {-# INLINE_NORMAL dropSuffix #-}

@@ -1522,6 +1522,10 @@ takeEndBySeq patArr (Fold fstep finitial fextract ffinal) =
 -- See also: 'Streamly.Data.Stream.splitOnSeq' and
 -- 'Streamly.Data.Stream.splitEndBySeq_'.
 --
+-- Known Issues: For a signed element type, e.g. 'Int8', a pattern of two or
+-- more elements whose total size is at most one machine word fails with an
+-- error if the input has a negative element.
+--
 -- /Pre-release/
 --
 {-# INLINE takeEndBySeq_ #-}
