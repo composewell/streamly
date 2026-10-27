@@ -34,24 +34,153 @@ traversal treat leaves differently, for performance.
 
 ## Traversal orders and resource use
 
-Each form comes in five traversal orders: DFS, BFS, BFS Rev, wide DFS and wide
-DFS Rev. Wide DFS goes depth first along a path, like DFS, but it emits all the
-children of a node before it descends into any of them. BFS emits a whole level
-before it opens the next one. The Rev variants expand the children, or the
-elements of a level, in reverse order. This avoids a `reverse`, and was faster
-on the binary and 10-ary trees in the benchmarks below.
+### Example tree
 
-| Order    | Open streams                 | Pending elements held                          |
-|----------|------------------------------|------------------------------------------------|
-| DFS      | one per level of the current path | none                                      |
-| wide DFS | one                          | unexpanded children of the nodes on the current path |
-| BFS      | one                          | the non-leaf elements of the next level        |
+The outputs below are for this tree. The children of each node are
+produced in the order shown. 5, 7, 8 and 9 are leaves.
 
-In a directory traversal an open stream is an open directory. DFS keeps one
-file descriptor open for each directory on the current path. Wide DFS and BFS
-keep one open, and read each directory from start to end before opening the
-next one. Wide DFS holds memory proportional to the path, BFS to the widest
-level.
+```
+1
+|-- 2
+|   |-- 4
+|   |   `-- 8
+|   `-- 5
+`-- 3
+    |-- 6
+    |   `-- 9
+    `-- 7
+```
+
+### Axes
+
+Expanding a node means running the stream of its children. Every node is
+emitted exactly once. A serial traversal is described by four choices.
+
+* Expansion order. The pending streams (the partly run streams and the
+  children streams not yet started) are kept:
+  * depth first: on a stack; the most recently added stream runs next.
+  * breadth first: in a queue; the oldest stream runs next.
+* Batching:
+  * interleaved: a stream yields one node and the children stream of
+    that node is scheduled at once; the rest of the current stream is
+    put back as pending. The children of different parents are
+    interleaved in the output.
+  * batched: a stream runs to completion before any other stream runs.
+    All children of a node are emitted together.
+* Parent order:
+  * pre: a node is emitted before its descendants.
+  * post: a node is emitted after all its descendants. A leaf is
+    emitted when it is produced, so the leaf children of a node come
+    before its non-leaf children.
+* Sibling order, for batched traversals only. The children streams of
+  the nodes of one batch are expanded:
+  * forward: in the order the nodes were produced;
+  * reverse: the last produced first.
+
+An interleaved traversal expands a node before its later siblings have
+been produced, so the last sibling is not known yet and the sibling
+order cannot be reversed. Producing all the siblings first makes the
+traversal batched.
+
+The five orders of the Stream combinators are points on these axes. DFS
+is depth / interleaved / pre. Wide DFS is depth / batched / pre: it goes
+depth first along a path, but emits all the children of a node before it
+descends into any of them. BFS is breadth / batched / pre: it emits a
+whole level before it opens the next one. The Rev variants of wide DFS
+and BFS use the reverse sibling order. This avoids a `reverse`, and was
+faster on the binary and 10-ary trees in the benchmarks below.
+
+### Orders
+
+| Expansion | Batching | Parent | Siblings | Output | Streamly |
+|---|---|---|---|---|---|
+| depth | interleaved | pre | - | 1 2 4 8 5 3 6 9 7 | `concatIterate`, `unfoldIterateMaybe`, `StreamK.concatIterateWith append` |
+| depth | interleaved | post | - | 8 4 5 2 9 6 7 3 1 | none |
+| depth | batched | pre | forward | 1 2 3 4 5 8 6 7 9 | `wideDfsConcatIterate`, `wideDfsUnfoldIterate` |
+| depth | batched | pre | reverse | 1 2 3 6 7 9 4 5 8 | `wideDfsConcatIterateRev`, `wideDfsUnfoldIterateRev` |
+| depth | batched | post | forward | 5 8 4 2 7 9 6 3 1 | none |
+| depth | batched | post | reverse | 7 9 6 3 5 8 4 2 1 | none |
+| breadth | interleaved | pre | - | 1 2 3 4 6 5 8 7 9 | none |
+| breadth | interleaved | post | - | 5 8 4 2 7 9 6 3 1 | none |
+| breadth | batched | pre | forward | 1 2 3 4 5 6 7 8 9 | `bfsConcatIterate`, `bfsUnfoldIterateMaybe` |
+| breadth | batched | pre | reverse | 1 2 3 6 7 4 5 8 9 | `bfsConcatIterateRev`, `bfsUnfoldIterateRev` |
+| breadth | batched | post | forward | 5 7 8 9 4 6 2 3 1 | none |
+| breadth | batched | post | reverse | 7 5 8 9 4 6 3 2 1 | none |
+
+The outputs were computed with a model of the rules in Axes and agree
+with the streamly code of the listed combinators. Each Stream
+combinator `xConcatIterate` should have a fused `xUnfoldIterate`
+counterpart that gives the same order.
+
+Notes on the rows:
+
+* depth / interleaved / post is the order of GNU `find -depth`: the
+  nodes in the order produced, each non-leaf node replaced by its
+  subtree followed by the node itself.
+* depth / batched / post also emits every node after its descendants,
+  the order `rm -r` needs, with one open stream. It emits the leaves of
+  a node before descending into its non-leaf children, so the order
+  differs from GNU `find -depth`.
+* breadth / interleaved / pre is not a level order. On a tree in which
+  node 2 has a chain 4 -> 5 -> 6 -> 7 and node 3 has the leaves 31 to
+  36, it emits 1 2 3 4 31 5 32 6 33 7 34 35 36: one node from each
+  pending stream in turn. The level order emits 31 to 36 before 5, 6
+  and 7.
+* `StreamK.concatIterateWith interleave` does not give the breadth /
+  interleaved order. It nests `interleave` to the right, so the first
+  stream gets every second turn, the second every fourth, and so on. On
+  the example tree it gives 1 2 3 4 6 5 7 8 9; the queue gives
+  1 2 3 4 6 5 8 7 9. On the chain tree above both give the same output.
+* breadth / interleaved / post gives the same output as depth / batched
+  / post on the example tree. On larger trees they differ. It needs,
+  for each non-leaf node, a flag for the end of its children stream and
+  a count of its non-leaf children not yet emitted.
+* breadth / batched / reverse expands each level in the reverse of the
+  order in which the previous level was emitted. Compared with the
+  forward order, depth 2 is reversed (6 7 4 5 instead of 4 5 6 7) and
+  depth 3 is forward (8 9).
+* breadth / batched / post emits the leaves of each level as they are
+  produced, then the non-leaf nodes level by level from the deepest,
+  each level in the order its nodes were expanded.
+
+### Resources
+
+For pre-order:
+
+| Expansion | Batching | Open streams | Memory |
+|---|---|---|---|
+| depth | interleaved | one for each node on the current path | the open streams |
+| depth | batched | 1 | the unexpanded non-leaf children of the nodes on the current path |
+| breadth | interleaved | every partly run stream in the queue, up to the width of the tree | the queue |
+| breadth | batched | 1 | the non-leaf nodes of the next level |
+
+Post order adds the following:
+
+* depth first: the non-leaf nodes on the current path, waiting to be
+  emitted;
+* breadth / interleaved: the non-leaf nodes with unfinished
+  descendants, with their counts;
+* breadth / batched: every non-leaf node, until the deepest level has
+  been expanded.
+
+In a directory traversal an open stream is an open directory, and the
+number of open streams is limited by the open file limit, which is
+usually much smaller than the memory available for holding entries. DFS
+keeps one file descriptor open for each directory on the current path
+and can exceed the limit on a deep tree; breadth / interleaved can
+exceed it on a wide tree. Wide DFS and BFS keep one open, and read each
+directory from start to end before opening the next one. Wide DFS holds
+memory proportional to the path, BFS to the widest level.
+
+### Iterative deepening
+
+Iterative deepening runs depth / interleaved / pre repeatedly with
+depth limits 1, 2, 3, and so on, and emits only the nodes at the limit
+depth in each run. The output is the breadth / batched / pre / forward
+order. The open streams are those of depth first, one for each node on
+the current path, and no level is held in memory, but a node at depth d
+is expanded once for each depth limit greater than d. There is no
+combinator; it can be built from `concatIterate` with a depth limit.
 
 ## Marking the leaves: Maybe
 
@@ -226,8 +355,10 @@ concatIterateWith combine f = iterateStream
 ```
 
 `mergeIterateWith` uses `mergeMapWith` instead, which combines the streams
-pairwise, as a balanced tree. With `interleave` this gives a balanced
-traversal of the tree.
+pairwise, as a balanced tree. With `interleave`, when every node has 2 or 4
+children, the nodes of each level are emitted together, in a different order
+from BFS. With other numbers of children, or an unbalanced tree, nodes of the
+next level are emitted before the current level ends.
 
 In these forms the traversal order is decided by the combine function, not by
 the combinator name. They are CPS streams and do not fuse. They are the
@@ -392,14 +523,17 @@ element. Every stream is split at every element, so any idle worker can pick
 up the rest of any stream. Each split is a queue operation shared between
 threads, which is why chunked elements help most in the concurrent case.
 
-The configuration decides the order:
+The configuration selects the work queue:
 
-- default: the work queue is LIFO, and results are emitted as they are
-  produced;
-- `interleaved True`: the work queue is FIFO, and streams are scheduled round
-  robin;
-- `ordered True`: the output is in the order of the serial DFS;
-- `maxThreads n` and `maxBuffer n` limit the workers and the buffered results.
+- default: a LIFO queue (`enqueueLIFO` in `Channel/Append.hs`); results are
+  emitted as they are produced;
+- `interleaved True`: a FIFO queue (`enqueueFIFO` in
+  `Channel/Interleave.hs`); streams are scheduled round robin;
+- `ordered True`: a LIFO queue, with the output reordered into the serial DFS
+  order (`enqueueAhead` in `Channel/Append.hs`);
+- `maxThreads n` and `maxBuffer n` limit the workers and the buffered
+  results. These and the other options (`eager`, rate) change performance,
+  not the order.
 
 `ListDir.hs` from streamly-examples, one directory tree, hot caches. These
 numbers are from a separate measurement, not the one in the chunked table:
@@ -433,12 +567,71 @@ The MB column is the allocation. With `-N2` the times were 3 to 10 percent
 lower with `Nothing`. The `FileSystem.DirIO` benchmark showed no difference:
 its tree has 3906 directories and no files, so no node is a leaf.
 
+### Parallel orders
+
+A parallel traversal has the four axes of a serial traversal, with the
+expansion order and batching describing how the work queue is scheduled, and
+one more axis:
+
+* Output:
+  * unordered: each node is emitted as soon as it is produced. With one
+    worker (`maxThreads 1`) the output is the order of the serial
+    traversal; with more workers the order is not deterministic. Post
+    order still guarantees that a node is emitted after all its
+    descendants.
+  * ordered: the output is the order of the serial traversal for any
+    number of workers. The workers run streams ahead of the consumer.
+
+Each row is the parallel version of the serial traversal with the same
+expansion, batching and parent order; the output orders are the same as
+in the serial table. The batched rows cover both sibling orders.
+
+| Expansion | Batching | Parent | Unordered | Ordered |
+|---|---|---|---|---|
+| depth | interleaved | pre | `parConcatIterate id` | `parConcatIterate (ordered True)` |
+| depth | interleaved | post | none | none |
+| depth | batched | pre | none | none |
+| depth | batched | post | none | none |
+| breadth | interleaved | pre | `parConcatIterate (interleaved True)` | none |
+| breadth | interleaved | post | none | none |
+| breadth | batched | pre | none; a level loop with `parConcatMap` | none; a level loop with `parConcatMap (ordered True)` |
+| breadth | batched | post | none | none |
+
+The three `parConcatIterate` rows were run on the example tree with one
+worker and gave the serial outputs. With several workers they gave the same
+outputs, but the tree is too small for the workers to overlap, so this does
+not test the orders under real concurrency.
+
+A level loop runs `parConcatMap` over the non-leaf nodes of one level,
+collects the next level, and repeats. Each level waits for the previous one to
+finish. A channel whose work items are whole streams, each run to completion
+by one worker, with a LIFO or FIFO queue, would give depth / batched and
+breadth / batched without waiting at each level.
+
+Resources:
+
+* LIFO queue, unordered: open streams are the partly run streams on the
+  queue and those being run by the workers.
+* FIFO queue, unordered: open streams are all partly run streams on the
+  queue, which can exceed the open file limit on a wide tree.
+* Level loop: one open stream per worker; one level in memory.
+* Ordered: in addition, the output produced ahead of the consumer.
+
+For an ordered traversal the schedule affects only which streams are run
+ahead of the output, not the output order.
+
+Unordered post order is the order a parallel `rm -r` or `du` needs: a node is
+emitted after all its descendants, but the nodes of different subtrees may be
+emitted in any order. It needs the same per-node state as breadth /
+interleaved / post.
+
 Not implemented yet:
 
 - `parMergeIterate`, the concurrent `mergeIterateWith`, is declared but is
   `undefined`.
 - Concurrent BFS or wide DFS with a guaranteed order. That needs a barrier
-  between levels.
+  between levels, or the channel of whole streams described above.
+- Per CPU queues for less contention
 
 ## Bottom-up reduction
 
@@ -526,6 +719,30 @@ Proposed changes:
   `XXX` note on it suggests, by analogy with `mapMAccum`.
 * **An `Either` form for unfolds**, if added, should be `unfoldIterateLefts`,
   matching `concatIterateLeftsWith`.
+* **Names from the traversal axes.** The current names mix two schemes:
+  `concatIterate` for depth first, `bfs` and `wideDfs` prefixes for the
+  others. Proposed: a `wide` prefix for breadth first (depth first has no
+  prefix, it is implicitly `deep`), and the suffixes `Batch`, `Post`
+  and `Rev`, in that order, for the values that are not the default
+  (interleaved, pre, forward).
+
+  | Expansion | Batching | Parent | Proposed | Current |
+  |---|---|---|---|---|
+  | depth | interleaved | pre | `concatIterate` | `concatIterate` |
+  | depth | interleaved | post | `concatIteratePost` | none |
+  | depth | batched | pre | `concatIterateBatch[Rev]` | `wideDfsConcatIterate[Rev]` |
+  | depth | batched | post | `concatIterateBatchPost[Rev]` | none |
+  | breadth | interleaved | pre | `wideConcatIterate` | none |
+  | breadth | interleaved | post | `wideConcatIteratePost` | none |
+  | breadth | batched | pre | `wideConcatIterateBatch[Rev]` | `bfsConcatIterate[Rev]` |
+  | breadth | batched | post | `wideConcatIterateBatchPost[Rev]` | none |
+
+  The fused versions replace `ConcatIterate` with `UnfoldIterate`, and the
+  parallel versions add the `par` prefix.
+
+  Note that the common bfs API is wideConcatIterateBatch rather than
+  wideConcatIterate, this is for naming consistency with DFS variants
+  where the common API is the interleaved one rather than batched.
 
 The primitive forms are not provided as separate `Stream` combinators. They
 are the `Maybe` forms applied to `Just`, and the `Just` is removed after
@@ -588,6 +805,11 @@ Gaps:
   increase along a path need a priority queue traversal.
 * **Concurrent BFS and wide DFS with a guaranteed order**, and
   `parMergeIterate`. Not implemented.
+* **Post order and breadth / interleaved order.** No combinator gives a
+  post order or the breadth / interleaved order; the rows marked "none" in
+  the order tables.
+* **Diagonal interleaving.** A tree version of `StreamK.fairConcatFor`, e.g.
+  `fairConcatIterate`. Not implemented; its order is not worked out yet.
 * **Fixpoint iteration in general**, applying a stream transformation
   `Stream m a -> Stream m a` until the output does not change. Only the level
   at a time form is covered, by `concatIterateScan`. The general form is

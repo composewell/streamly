@@ -580,7 +580,7 @@ parConcatIterate modifier f input =
 
     iterateStream chan = chanConcatMapK modifier chan (generate chan)
 
-    -- XXX The channel q should be FIFO for DFS, otherwise it is BFS
+    -- XXX The channel q should be LIFO for DFS, otherwise it is BFS
     generate chan x =
         case f x of
             Nothing -> K.fromPure x
