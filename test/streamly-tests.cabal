@@ -469,6 +469,12 @@ test-suite FileSystem.Handle
   if flag(use-streamly-core)
     buildable: False
 
+test-suite FileSystem.ReadDir
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/FileSystem/ReadDir.hs
+  ghc-options: -main-is Streamly.Test.FileSystem.ReadDir.main
+
 test-suite FileSystem.DirIO
   import: test-options
   type: exitcode-stdio-1.0

@@ -239,6 +239,7 @@ targets =
 #endif
     , ("FileSystem.Handle", [])
     , ("FileSystem.DirIO", [])
+    , ("FileSystem.ReadDir", [])
     , ("Network.Inet.TCP", ["noBench"])
     , ("Network.Socket", ["noBench"])
     , ("Unicode.Char", ["testDevOnly"])
