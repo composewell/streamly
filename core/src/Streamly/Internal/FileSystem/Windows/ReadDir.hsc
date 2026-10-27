@@ -149,7 +149,7 @@ openDirStream p = do
     fp_finddata <- mallocForeignPtrBytes (# const sizeof(WIN32_FIND_DATAW) )
     withForeignPtr fp_finddata $ \dataPtr -> do
         handle <-
-            Array.asCStringUnsafe (Path.toArray path) $ \pathPtr -> do
+            Array.asCWString (Path.toArray path) $ \pathPtr -> do
                 -- XXX Use getLastError to distinguish the case when no
                 -- matching file is found. See the doc of FindFirstFileW.
                 failIf
