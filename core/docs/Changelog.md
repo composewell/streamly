@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.3 (Oct 2026)
+
+### Bug Fixes
+
+* On Windows, reading a directory, e.g. with `read` or `readEither` in
+  `Streamly.FileSystem.DirIO`, could fail with a "does not exist" error
+  for an existing directory. The search pattern passed to `FindFirstFileW`
+  was not terminated with a two byte NUL.
+
 ## 0.3.2 (Oct 2026)
 
 ### Bug Fixes
