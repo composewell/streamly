@@ -26,6 +26,8 @@ module Streamly.Internal.Data.Stream.Tree
     , bfsConcatIterateRev
     , wideDfsConcatIterate
     , wideDfsConcatIterateRev
+    , wideConcatIterate
+    , wideConcatIteratePost
 
     -- * Fold Iterate
     , bfsReduceIterate
@@ -60,6 +62,8 @@ import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.Type (Stream(..), Step(..))
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
+
+import qualified Data.IntMap.Strict as IntMap
 
 #include "DocTestDataStream.hs"
 
@@ -298,6 +302,119 @@ bfsConcatIterateRev f stream = Stream step (stream, [], [])
                         case ys of
                             (x:xs1) -> return $ Skip (x, xs1, [])
                             [] -> return Stop
+
+-- | Breadth first traversal of a tree structure that takes one element from a
+-- stream at a time. The pending streams are kept in a queue. The stream at the
+-- front of the queue yields one element, then the rest of the stream and the
+-- stream of the children of the element are added to the back of the queue.
+-- For the tree 1->[2,3], 2->[4], 3->[5], 4->[7], 5->[6], the output is
+-- [1,2,3,4,5,7,6].
+--
+-- The output is not in level order: an element at depth d can be emitted
+-- after elements at depth d + 1 when its parent has many children. The
+-- number of open streams is the number of streams in the queue, which can be
+-- as large as the width of the tree. For example, in a directory traversal it
+-- can exceed the open file limit on a wide tree; use 'bfsConcatIterate' to
+-- keep one directory open.
+--
+-- /Pre-release/
+{-# INLINE_NORMAL wideConcatIterate #-}
+wideConcatIterate :: Monad m =>
+       (a -> Maybe (Stream m a))
+    -> Stream m a
+    -> Stream m a
+wideConcatIterate f stream = Stream step ([stream], [])
+
+    where
+
+    -- xs: the front of the queue, ys: the back of the queue in reverse order.
+    {-# INLINE_LATE step #-}
+    step gst (UnStream step1 st : xs, ys) = do
+        r <- step1 (adaptState gst) st
+        case r of
+            Yield a s -> do
+                let ys1 =
+                        case f a of
+                            Nothing -> Stream step1 s : ys
+                            Just c -> c : Stream step1 s : ys
+                return $ Yield a (xs, ys1)
+            Skip s -> return $ Skip (Stream step1 s : xs, ys)
+            Stop -> return $ Skip (xs, ys)
+    step _ ([], ys) =
+        case ys of
+            [] -> return Stop
+            _ -> return $ Skip (reverse ys, [])
+
+-- | Like 'wideConcatIterate' but emits each element after all its
+-- descendants, a post-order traversal. A leaf is emitted when it is produced.
+-- An element with children is emitted when the stream of its children has
+-- ended and all its children that have children have been emitted. The end
+-- of a stream is known when the stream is stepped after its last element, in
+-- its next turn in the queue. For the tree 1->[2,3], 2->[4], 3->[5], 4->[7],
+-- 5->[6], the output is [7,6,4,2,5,3,1].
+--
+-- For each element with children that has not been emitted yet, the count of
+-- its pending children is kept in memory. The open streams are the same as
+-- those of 'wideConcatIterate'.
+--
+-- /Pre-release/
+{-# INLINE_NORMAL wideConcatIteratePost #-}
+wideConcatIteratePost :: Monad m =>
+       (a -> Maybe (Stream m a))
+    -> Stream m a
+    -> Stream m a
+wideConcatIteratePost f stream =
+    Stream step ([], [(stream, 0)], [], IntMap.empty, 1)
+
+    where
+
+    -- Each stream in the queue is paired with the key of its parent element,
+    -- key 0 is used for the input stream. For each pending parent the map
+    -- holds the count of the unfinished streams and child elements, the
+    -- parent element and the key of its own parent.
+    incr p m =
+        if p == 0
+        then m
+        else IntMap.adjust (\(n, a, pp) -> (n + 1, a, pp)) p m
+
+    -- Decrement the count of p, on reaching zero emit p and decrement the
+    -- count of its parent. Returns the emitted elements in reverse order.
+    decr p m out =
+        if p == 0
+        then (out, m)
+        else
+            case IntMap.lookup p m of
+                Just (n, a, pp) ->
+                    if n == 1
+                    then decr pp (IntMap.delete p m) (a : out)
+                    else (out, IntMap.insert p (n - 1, a, pp) m)
+                Nothing -> (out, m)
+
+    -- out: the elements to be emitted, xs: the front of the queue, ys: the
+    -- back of the queue in reverse order, m: the pending parents, k: the next
+    -- key.
+    {-# INLINE_LATE step #-}
+    step _ (o : os, xs, ys, m, k) = return $ Yield o (os, xs, ys, m, k)
+    step gst ([], (UnStream step1 st, p) : xs, ys, m, k) = do
+        r <- step1 (adaptState gst) st
+        case r of
+            Yield a s ->
+                case f a of
+                    Nothing -> do
+                        let ys1 = (Stream step1 s, p) : ys
+                        return $ Yield a ([], xs, ys1, m, k)
+                    Just c -> do
+                        let m1 = IntMap.insert k (1, a, p) (incr p m)
+                            ys1 = (c, k) : (Stream step1 s, p) : ys
+                        return $ Skip ([], xs, ys1, m1, k + 1)
+            Skip s -> return $ Skip ([], (Stream step1 s, p) : xs, ys, m, k)
+            Stop -> do
+                let (out, m1) = decr p m []
+                return $ Skip (reverse out, xs, ys, m1, k)
+    step _ ([], [], ys, m, k) =
+        case ys of
+            [] -> return Stop
+            _ -> return $ Skip ([], reverse ys, [], m, k)
 
 -- | Depth first traversal (DFS) of a tree structure. The traversal opens the
 -- stream of a node, takes its first child, then the first child of that

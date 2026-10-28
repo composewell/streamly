@@ -107,6 +107,9 @@
 * Added `Stream.wideDfsUnfoldIterate`.
 * Added `Stream.bfsConcatIterateRev` and `bfsUnfoldIterateRev`, faster BFS
   variants that start the streams of a level in reverse order.
+* Added `Stream.wideConcatIterate` and `wideConcatIteratePost`, breadth first
+  traversals that take one element from a stream at a time, in pre-order and
+  in post-order.
 
 ## 0.3.2 (Oct 2026)
 
