@@ -70,7 +70,40 @@ o_n_heap_benchmarks value f =
         (Stream.fold Fold.drain . Async.parBuffered f))
     , (HeapO_n, benchIOSink value "fmap parBuffered"
         (Stream.fold Fold.drain . fmap (+1) . Async.parBuffered f))
-    ]
+    ] ++ o_n_heap_mergeMap value f
+
+-------------------------------------------------------------------------------
+-- MergeMap
+-------------------------------------------------------------------------------
+
+-- parMergeMap consumes the whole outer stream to build a tree of channels
+-- before producing any output, therefore, it requires O(n) heap in the size
+-- of the outer stream.
+{-# INLINE mergeMapStreamsWith #-}
+mergeMapStreamsWith
+    :: (Config -> Config)
+    -> Int
+    -> Int
+    -> Int
+    -> IO ()
+mergeMapStreamsWith f outer inner n =
+    Stream.fold Fold.drain
+        $ Async.parMergeMap f (sourceUnfoldrM inner) (sourceUnfoldrM outer n)
+
+o_n_heap_mergeMap :: Int -> (Config -> Config) -> [(SpaceComplexity, Benchmark)]
+o_n_heap_mergeMap value f =
+    value2 `seq`
+        [ (HeapO_n, benchIO "parMergeMap (n/100 of 100)"
+              (mergeMapStreamsWith f (value `div` 100) 100))
+        , (HeapO_n, benchIO "parMergeMap (sqrt n of sqrt n)"
+              (mergeMapStreamsWith f value2 value2))
+        , (HeapO_n, benchIO "parMergeMap (10 of n/10)"
+              (mergeMapStreamsWith f 10 (value `div` 10)))
+        ]
+
+    where
+
+    value2 = round $ sqrt (fromIntegral value :: Double)
 
 -------------------------------------------------------------------------------
 -- Joining
@@ -90,6 +123,12 @@ concatAsync2 f count n =
         $ Async.parConcat f
         $ Stream.fromList
             [sourceUnfoldrM count n, sourceUnfoldrM count (n + 1)]
+
+{-# INLINE mergeMapAsync2 #-}
+mergeMapAsync2 :: (Config -> Config) -> Int -> Int -> IO ()
+mergeMapAsync2 f count n =
+    Stream.fold Fold.drain
+        $ Async.parMergeMap f (sourceUnfoldrM count) (Stream.fromList [n, n + 1])
 
 {-# INLINE parMergeByM #-}
 parMergeByM :: (Config -> Config) -> Int -> Int -> IO ()
@@ -149,6 +188,7 @@ o_1_space_joining :: Int -> (Config -> Config) -> [(SpaceComplexity, Benchmark)]
 o_1_space_joining value f =
     [ (SpaceO_1, benchIOSrc1 "parTwo" (async2 f (value `div` 2)))
     , (SpaceO_1, benchIOSrc1 "parConcat" (concatAsync2 f (value `div` 2)))
+    , (SpaceO_1, benchIOSrc1 "parMergeMap" (mergeMapAsync2 f (value `div` 2)))
     , (SpaceO_1, benchIOSrc1 "parMergeByM" (parMergeByM f (value `div` 2)))
     , (SpaceO_1, benchIOSrc1 "parMergeBy" (parMergeBy f (value `div` 2)))
     , (SpaceO_1, benchIOSrc1 "parZipWithM" (parZipWithM f (value `div` 2)))

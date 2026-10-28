@@ -112,6 +112,9 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
         | "Data.Stream.ConcurrentOrdered/o-1-space.foldMapWith"
             `isPrefixOf` benchName = "-K128K"
 
+        -- Builds a tree of channels, one channel per pair of streams
+        | "/o-n-heap.parMergeMap" `isInfixOf` benchName = "-M64M"
+
         -----------------------------------------------------------------------
 
         | "Unicode.Char/o-1-space." `isPrefixOf` benchName = "-M32M"
