@@ -86,7 +86,12 @@ where
 import Control.Concurrent (myThreadId, killThread)
 import Control.Monad (void, when)
 import Control.Monad.IO.Class (MonadIO(liftIO))
-import Streamly.Internal.Control.Concurrent (MonadAsync)
+import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import Streamly.Internal.Control.Concurrent
+    (MonadAsync, RunInIO, askRunInIO)
+import Streamly.Internal.Data.Atomics
+    (atomicModifyIORefCAS, atomicModifyIORefCAS_)
+import Streamly.Internal.Data.SVar.Type (adaptState)
 import Streamly.Internal.Control.ForkLifted (forkManaged)
 import Streamly.Internal.Data.Channel.Dispatcher (modifyThread)
 import Streamly.Internal.Data.Channel.Worker (sendEvent)
@@ -601,8 +606,253 @@ parMergeBy cfg f = parMergeByM cfg (\a b -> return $ f a b)
 -- concatIterate
 -------------------------------------------------------------------------------
 
+-- | Unordered traversal using a single channel for the whole tree. A worker
+-- takes the first element of a stream, puts the rest of the stream back on the
+-- work queue and expands the element. The work queue of the channel decides
+-- the order, LIFO for depth first, FIFO ('interleaved') for breadth first.
+{-# INLINE iterateK #-}
+iterateK :: MonadAsync m =>
+       (Config -> Config)
+    -> (a -> Maybe (Stream m a))
+    -> K.StreamK m a
+    -> K.StreamK m a
+iterateK modifier f input = withChannelK modifier input iterateStream
+
+    where
+
+    iterateStream chan = chanConcatMapK modifier chan (generate chan)
+
+    generate chan x =
+        case f x of
+            Nothing -> K.fromPure x
+            Just s -> x `K.cons` iterateStream chan (Stream.toStreamK s)
+
+-------------------------------------------------------------------------------
+-- Spawning work items
+-------------------------------------------------------------------------------
+
+-- | @spawn item@ adds a work item to a channel. @item@ is given the 'Spawn'
+-- to be used for the work items spawned by it.
+newtype Spawn m a = Spawn ((Spawn m a -> K.StreamK m a) -> m ())
+
+{-# INLINE spawnWith #-}
+spawnWith :: Spawn m a -> (Spawn m a -> K.StreamK m a) -> m ()
+spawnWith (Spawn spawn) = spawn
+
+-- | Emit the expansion of each element of the stream. Before an element is
+-- expanded, the rest of the stream after it is spawned as a new work item.
+{-# INLINE splitHeadK #-}
+splitHeadK :: Monad m =>
+       Spawn m a
+    -> (Spawn m a -> b -> K.StreamK m a)
+    -> K.StreamK m b
+    -> K.StreamK m a
+splitHeadK spawn expand stream =
+    K.mkStream $ \st yld sng stp ->
+        let single x = K.foldStreamShared st yld sng stp (expand spawn x)
+            yieldk x r =
+                spawnWith spawn (\spawn1 -> splitHeadK spawn1 expand r)
+                    >> single x
+         in K.foldStreamShared (adaptState st) yieldk single stp stream
+
+-------------------------------------------------------------------------------
+-- Ordered output
+-------------------------------------------------------------------------------
+
+-- An ordered channel assigns the sequence number of a work item when it is
+-- dequeued. If the rest of a stream deeper in the tree is queued after the
+-- rest of a stream higher up has been dequeued, the deeper one gets a later
+-- sequence number and is emitted later, the output is then not in the depth
+-- first order. Therefore, the tree traversals use an unordered channel and
+-- order the output as follows.
+--
+-- The output of each work item goes to a segment, the segments are kept in a
+-- linked list in the output order. A work item spawned by another one is
+-- inserted right after the segment of the spawning item: it is emitted after
+-- all the output the spawning item produces after spawning it, and before
+-- the items spawned earlier by the same item. Only the item at the head of
+-- the list emits its output to the channel, the others buffer their output
+-- in their segments. When the item at the head ends, the following segments
+-- are flushed and the first unfinished one becomes the head.
+--
+-- When the total buffered output exceeds the limit, the item that is not at
+-- the head stops and leaves the rest of its stream in its segment, the item
+-- that flushes the segment evaluates the rest.
+
+data SegState m a =
+      SegHead
+      -- | Buffered output in reverse order.
+    | SegRunning [a]
+      -- | Buffered output in reverse order, the rest of the item.
+    | SegParked [a] (K.StreamK m a)
+      -- | Buffered output in reverse order of a finished item.
+    | SegDone [a]
+
+data Segment m a = Segment
+    { segState :: IORef (SegState m a)
+    -- | Written only by the item of the segment.
+    , segNext :: IORef (Maybe (Segment m a))
+    }
+
+data Ordered m a = Ordered
+    { ordChannel :: Channel m a
+    , ordRunInIO :: RunInIO m
+    -- | Total number of buffered elements in all the segments.
+    , ordBuffered :: IORef Int
+    , ordLimit :: Int
+    }
+
+data Flush m a =
+      FlushStop
+    | FlushEmit [a] (K.StreamK m a)
+
+-- | Emit the buffered output of the segment and continue with what follows
+-- it.
+flushSegment :: MonadIO m => Ordered m a -> Segment m a -> K.StreamK m a
+flushSegment o seg = K.concatEffect $ do
+    r <- liftIO $ atomicModifyIORefCAS (segState seg) $ \case
+        SegRunning [] -> (SegHead, FlushStop)
+        -- The item may buffer more while we emit these.
+        SegRunning xs -> (SegRunning [], FlushEmit xs (flushSegment o seg))
+        SegParked xs rest -> (SegHead, FlushEmit xs (runSegment o seg rest))
+        SegDone xs -> (SegDone [], FlushEmit xs (flushNext o seg))
+        SegHead -> (SegHead, FlushStop)
+    case r of
+        FlushStop -> return K.nil
+        FlushEmit xs next -> do
+            let n = length xs
+            when (n /= 0)
+                $ liftIO
+                $ atomicModifyIORefCAS_ (ordBuffered o) (subtract n)
+            return $ K.fromList (reverse xs) `K.append` next
+
+-- | Flush the segments after a finished segment.
+flushNext :: MonadIO m => Ordered m a -> Segment m a -> K.StreamK m a
+flushNext o seg = K.concatEffect $ do
+    next <- liftIO $ readIORef (segNext seg)
+    return $ maybe K.nil (flushSegment o) next
+
+-- | Evaluate the stream of the item of a segment.
+runSegment :: MonadIO m =>
+    Ordered m a -> Segment m a -> K.StreamK m a -> K.StreamK m a
+runSegment o seg stream = K.mkStream $ \st yld sng stp -> do
+    let foldShared = K.foldStreamShared st yld sng stp
+
+        -- The head does not change once it is the head.
+        asHead r = foldShared (r `K.append` flushNext o seg)
+
+        single a = yieldk a K.nil
+
+        yieldk a r = do
+            buffered <- liftIO $ atomicModifyIORefCAS (segState seg) $ \case
+                SegRunning xs -> (SegRunning (a : xs), True)
+                x -> (x, False)
+            if buffered
+            then do
+                n <- liftIO
+                    $ atomicModifyIORefCAS (ordBuffered o)
+                    $ \n -> (n + 1, n + 1)
+                if n >= ordLimit o
+                then park r
+                else K.foldStreamShared (adaptState st) yieldk single stop r
+            else yld a (runSegment o seg r)
+
+        park r = do
+            parked <- liftIO $ atomicModifyIORefCAS (segState seg) $ \case
+                SegRunning xs -> (SegParked xs r, True)
+                x -> (x, False)
+            if parked then stp else asHead r
+
+        stop = do
+            done <- liftIO $ atomicModifyIORefCAS (segState seg) $ \case
+                SegRunning xs -> (SegDone xs, True)
+                x -> (x, False)
+            if done then stp else foldShared (flushNext o seg)
+
+    s <- liftIO $ readIORef (segState seg)
+    case s of
+        SegHead -> asHead stream
+        _ -> do
+            n <- liftIO $ readIORef (ordBuffered o)
+            if n >= ordLimit o
+            then park stream
+            else K.foldStreamShared (adaptState st) yieldk single stop stream
+
+-- | Spawn a work item in a new segment after the given segment.
+orderedSpawn :: MonadAsync m => Ordered m a -> Segment m a -> Spawn m a
+orderedSpawn o seg = Spawn $ \item -> do
+    new <- liftIO $ do
+        next <- readIORef (segNext seg)
+        new <- Segment <$> newIORef (SegRunning []) <*> newIORef next
+        writeIORef (segNext seg) (Just new)
+        return new
+    let chan = ordChannel o
+        work = runSegment o new (item (orderedSpawn o new))
+    liftIO $ enqueue chan (ordRunInIO o, work)
+    eagerDispatch chan
+
+-- | Evaluate the input with the supplied traversal using a channel, the
+-- output is in the order of the serial evaluation of the traversal with
+-- every spawned item run in place, after the spawning item finishes.
+{-# INLINE withOrderedK #-}
+withOrderedK :: MonadAsync m =>
+       (Config -> Config)
+    -> K.StreamK m a
+    -> (Spawn m a -> K.StreamK m a -> K.StreamK m a)
+    -> K.StreamK m a
+withOrderedK modifier input traversal =
+    withChannelK cfg input $ \chan stream -> K.concatEffect $ do
+        runInIO <- askRunInIO
+        o <- liftIO $ do
+            ref <- newIORef 0
+            return $ Ordered chan runInIO ref limit
+        root <- liftIO $ Segment <$> newIORef SegHead <*> newIORef Nothing
+        return $ runSegment o root (traversal (orderedSpawn o root) stream)
+
+    where
+
+    cfg = ordered False . interleaved False . modifier
+
+    limit =
+        case getMaxBuffer (modifier defaultConfig) of
+            Unlimited -> maxBound
+            Limited n -> fromIntegral n
+
+-------------------------------------------------------------------------------
+-- Traversals
+-------------------------------------------------------------------------------
+
+-- | Depth first pre-order traversal, each element is expanded as soon as it
+-- is emitted.
+{-# INLINE iteratePreK #-}
+iteratePreK :: Monad m =>
+       (a -> Maybe (Stream m a))
+    -> Spawn m a
+    -> K.StreamK m a
+    -> K.StreamK m a
+iteratePreK f spawn = splitHeadK spawn expand
+
+    where
+
+    expand spawn1 x =
+        case f x of
+            Nothing -> K.fromPure x
+            Just s -> x `K.cons` splitHeadK spawn1 expand (Stream.toStreamK s)
+
 -- | Same as 'concatIterate' but concurrent. The stream generation function
 -- returns 'Nothing' for a leaf node.
+--
+-- The children of the elements are expanded concurrently and the output is
+-- emitted as it is produced, the order is not deterministic. With
+-- 'maxThreads' 1 the output is the same as that of 'concatIterate'. A single
+-- channel is used for the whole traversal.
+--
+-- With 'ordered' the output is the same as that of 'concatIterate'. The
+-- workers evaluate the subtrees ahead of the consumer and buffer their output,
+-- up to 'maxBuffer' elements in total.
+--
+-- With 'interleaved' the streams are scheduled in a round robin manner, the
+-- traversal is breadth first.
 --
 -- Example, list a directory tree concurrently:
 --
@@ -617,18 +867,12 @@ parConcatIterate :: MonadAsync m =>
     -> Stream m a
     -> Stream m a
 parConcatIterate modifier f input =
-     Stream.fromStreamK
-        $ withChannelK modifier (Stream.toStreamK input) iterateStream
-
-    where
-
-    iterateStream chan = chanConcatMapK modifier chan (generate chan)
-
-    -- XXX The channel q should be LIFO for DFS, otherwise it is BFS
-    generate chan x =
-        case f x of
-            Nothing -> K.fromPure x
-            Just s -> x `K.cons` iterateStream chan (Stream.toStreamK s)
+    let cfg = modifier defaultConfig
+        stream = Stream.toStreamK input
+     in Stream.fromStreamK
+            $ if getOrdered cfg && not (getInterleaved cfg)
+              then withOrderedK modifier stream (iteratePreK f)
+              else iterateK modifier f stream
 
 -- | Same as 'mergeIterateWith interleave' but concurrent. Each element of the
 -- input is emitted and then mapped to a stream of its children using the
