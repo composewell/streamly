@@ -65,6 +65,9 @@ module Streamly.Internal.Data.Stream.Concurrent
 
     -- *** ConcatIterate
     , parConcatIterate
+    , parConcatIteratePost
+    , parWideConcatIterate
+    , parWideConcatIteratePost
     , parMergeIterate
 
     -- ** Reactive
@@ -639,20 +642,52 @@ newtype Spawn m a = Spawn ((Spawn m a -> K.StreamK m a) -> m ())
 spawnWith :: Spawn m a -> (Spawn m a -> K.StreamK m a) -> m ()
 spawnWith (Spawn spawn) = spawn
 
--- | Emit the expansion of each element of the stream. Before an element is
--- expanded, the rest of the stream after it is spawned as a new work item.
+-- | A 'Spawn' that adds the work item to the queue of the channel, the queue
+-- decides when it is run.
+{-# INLINE newSpawn #-}
+newSpawn :: MonadAsync m => Channel m a -> m (Spawn m a)
+newSpawn chan = do
+    runInIO <- askRunInIO
+    let spawn = Spawn $ \item -> do
+            liftIO $ enqueue chan (runInIO, item spawn)
+            eagerDispatch chan
+    return spawn
+
+-- | Evaluate the input with the supplied traversal using a channel, the
+-- output is emitted as it is produced.
+{-# INLINE withUnorderedK #-}
+withUnorderedK :: MonadAsync m =>
+       (Config -> Config)
+    -> K.StreamK m a
+    -> (Spawn m a -> K.StreamK m a -> K.StreamK m a)
+    -> K.StreamK m a
+withUnorderedK modifier input traversal =
+    withChannelK modifier input $ \chan stream -> K.concatEffect $ do
+        spawn <- newSpawn chan
+        return $ traversal spawn stream
+
+-- | Emit the expansion of each element of the stream. When the expansion is
+-- @Left x@, @x@ is emitted and the stream continues in the same work item.
+-- When it is @Right s@, the rest of the stream is spawned as a new work item
+-- and @s@ is evaluated in the current one.
 {-# INLINE splitHeadK #-}
 splitHeadK :: Monad m =>
        Spawn m a
-    -> (Spawn m a -> b -> K.StreamK m a)
+    -> (Spawn m a -> b -> Either a (K.StreamK m a))
     -> K.StreamK m b
     -> K.StreamK m a
 splitHeadK spawn expand stream =
     K.mkStream $ \st yld sng stp ->
-        let single x = K.foldStreamShared st yld sng stp (expand spawn x)
+        let single x =
+                case expand spawn x of
+                    Left a -> sng a
+                    Right s -> K.foldStreamShared st yld sng stp s
             yieldk x r =
-                spawnWith spawn (\spawn1 -> splitHeadK spawn1 expand r)
-                    >> single x
+                case expand spawn x of
+                    Left a -> yld a (splitHeadK spawn expand r)
+                    Right s -> do
+                        spawnWith spawn (\spawn1 -> splitHeadK spawn1 expand r)
+                        K.foldStreamShared st yld sng stp s
          in K.foldStreamShared (adaptState st) yieldk single stp stream
 
 -------------------------------------------------------------------------------
@@ -836,8 +871,89 @@ iteratePreK f spawn = splitHeadK spawn expand
 
     expand spawn1 x =
         case f x of
-            Nothing -> K.fromPure x
-            Just s -> x `K.cons` splitHeadK spawn1 expand (Stream.toStreamK s)
+            Nothing -> Left x
+            Just s ->
+                Right
+                    $ x `K.cons` splitHeadK spawn1 expand (Stream.toStreamK s)
+
+-- | Depth first post-order traversal for 'withOrderedK'. The element is
+-- spawned before the rest of its children stream, it is emitted after all the
+-- items spawned later by the same item.
+{-# INLINE iteratePostOrderedK #-}
+iteratePostOrderedK :: Monad m =>
+       (a -> Maybe (Stream m a))
+    -> Spawn m a
+    -> K.StreamK m a
+    -> K.StreamK m a
+iteratePostOrderedK f spawn = splitHeadK spawn expand
+
+    where
+
+    expand spawn1 x =
+        case f x of
+            Nothing -> Left x
+            Just s -> Right $ K.concatEffect $ do
+                spawnWith spawn1 (const (K.fromPure x))
+                return $ splitHeadK spawn1 expand (Stream.toStreamK s)
+
+-- | Decrement the count of the pending work of the element, when it reaches
+-- zero emit the element followed by @done@.
+{-# INLINE countDown #-}
+countDown :: MonadIO m => IORef Int -> a -> K.StreamK m a -> K.StreamK m a
+countDown ref x done = K.concatEffect $ do
+    n <- liftIO $ atomicModifyIORefCAS ref $ \n -> (n - 1, n - 1)
+    return $ if n == 0 then x `K.cons` done else K.nil
+
+data PostTask m a = PostLeaf a | PostNode a (Stream m a) | PostEnd
+
+-- | Post-order traversal for 'withUnorderedK'. Each element with children
+-- keeps a count of its pending work: its children stream, until it ends, and
+-- its children with children not yet emitted. The element is emitted when the
+-- count reaches zero.
+--
+-- When @wide@ is set, the children of an element are spawned after the rest
+-- of the stream instead of being expanded in the current work item, so that
+-- with a FIFO queue the order is that of 'wideConcatIteratePost'.
+{-# INLINE iteratePostCountK #-}
+iteratePostCountK :: MonadIO m =>
+       Bool
+    -> (a -> Maybe (Stream m a))
+    -> Spawn m a
+    -> K.StreamK m a
+    -> K.StreamK m a
+iteratePostCountK wide f spawn = splitHeadK spawn root
+
+    where
+
+    root spawn1 x =
+        case f x of
+            Nothing -> Left x
+            Just s -> Right $ expandWith spawn1 K.nil x s
+
+    expandWith spawn1 done x s =
+        if wide
+        then K.nilM $ spawnWith spawn1 (\spawn2 -> expand spawn2 done x s)
+        else expand spawn1 done x s
+
+    -- The count is incremented when a child is taken from the stream, before
+    -- the rest of the stream is spawned, and therefore before PostEnd. A leaf
+    -- is emitted before the rest of the stream is spawned.
+    expand spawn1 done x s = K.concatEffect $ do
+        ref <- liftIO $ newIORef (1 :: Int)
+        let finish = countDown ref x done
+            task c =
+                case f c of
+                    Nothing -> return (PostLeaf c)
+                    Just cs -> do
+                        liftIO $ atomicModifyIORefCAS_ ref (+ 1)
+                        return (PostNode c cs)
+            run _ (PostLeaf c) = Left c
+            run spawn2 (PostNode c cs) = Right $ expandWith spawn2 finish c cs
+            run _ PostEnd = Right finish
+            tasks =
+                Stream.toStreamK (Stream.mapM task s)
+                    `K.append` K.fromPure PostEnd
+        return $ splitHeadK spawn1 run tasks
 
 -- | Same as 'concatIterate' but concurrent. The stream generation function
 -- returns 'Nothing' for a leaf node.
@@ -852,7 +968,7 @@ iteratePreK f spawn = splitHeadK spawn expand
 -- up to 'maxBuffer' elements in total.
 --
 -- With 'interleaved' the streams are scheduled in a round robin manner, the
--- traversal is breadth first.
+-- traversal is breadth first, the same as 'parWideConcatIterate'.
 --
 -- Example, list a directory tree concurrently:
 --
@@ -873,6 +989,122 @@ parConcatIterate modifier f input =
             $ if getOrdered cfg && not (getInterleaved cfg)
               then withOrderedK modifier stream (iteratePreK f)
               else iterateK modifier f stream
+
+-- | Same as 'concatIteratePost' but concurrent. Each element is emitted after
+-- all its descendants. The stream generation function returns 'Nothing' for
+-- a leaf node.
+--
+-- The children of the elements are expanded concurrently and the output is
+-- emitted as it is produced, the order is not deterministic, but each element
+-- is still emitted after all its descendants. For each element with children
+-- not emitted yet, a count of its pending children is kept in memory. With
+-- 'maxThreads' 1 the output is the same as that of 'concatIteratePost'.
+--
+-- With 'ordered' the output is the same as that of 'concatIteratePost'. The
+-- workers evaluate the subtrees ahead of the consumer and buffer their output,
+-- up to 'maxBuffer' elements in total.
+--
+-- The 'interleaved' option is ignored, the traversal is depth first, see
+-- 'parWideConcatIteratePost' for breadth first.
+--
+-- Example, list a directory tree with each directory after its contents:
+--
+-- >>> f = either (Just . Dir.readEitherPaths id) (const Nothing)
+-- >>> input = Stream.fromEffect (Left <$> Path.fromString ".")
+-- >>> ls = Stream.parConcatIteratePost id f input
+--
+-- /Pre-release/
+--
+{-# INLINE parConcatIteratePost #-}
+parConcatIteratePost :: MonadAsync m =>
+       (Config -> Config)
+    -> (a -> Maybe (Stream m a))
+    -> Stream m a
+    -> Stream m a
+parConcatIteratePost modifier f input =
+    let stream = Stream.toStreamK input
+     in Stream.fromStreamK
+            $ if getOrdered (modifier defaultConfig)
+              then withOrderedK modifier stream (iteratePostOrderedK f)
+              else
+                withUnorderedK
+                    (ordered False . interleaved False . modifier)
+                    stream
+                    (iteratePostCountK False f)
+
+-- | Evaluate a stream ahead of its consumer using a channel.
+{-# INLINE bufferedWith #-}
+bufferedWith :: MonadAsync m => (Config -> Config) -> Stream m a -> Stream m a
+bufferedWith modifier =
+    parBuffered (ordered False . interleaved False . modifier)
+
+-- | Same as 'wideConcatIterate' but concurrent. The stream generation
+-- function returns 'Nothing' for a leaf node.
+--
+-- The streams are scheduled in a round robin manner, one element at a time,
+-- using a single channel. The output is emitted as it is produced, the order
+-- is not deterministic. With 'maxThreads' 1 the output is the same as that of
+-- 'wideConcatIterate'. Same as 'parConcatIterate' with 'interleaved'.
+--
+-- With 'ordered' the output is the same as that of 'wideConcatIterate'. The
+-- children stream of each element is evaluated ahead of the consumer in its
+-- own channel, see 'parBuffered'. The open streams are the streams in the
+-- queue of 'wideConcatIterate', up to the width of the tree.
+--
+-- /Pre-release/
+--
+{-# INLINE parWideConcatIterate #-}
+parWideConcatIterate :: MonadAsync m =>
+       (Config -> Config)
+    -> (a -> Maybe (Stream m a))
+    -> Stream m a
+    -> Stream m a
+parWideConcatIterate modifier f input =
+    if getOrdered (modifier defaultConfig)
+    then
+        Stream.wideConcatIterate
+            (fmap (bufferedWith modifier) . f) (bufferedWith modifier input)
+    else
+        Stream.fromStreamK
+            $ withUnorderedK
+                (ordered False . interleaved True . modifier)
+                (Stream.toStreamK input)
+                (iteratePreK f)
+
+-- | Same as 'wideConcatIteratePost' but concurrent. Each element is emitted
+-- after all its descendants. The stream generation function returns
+-- 'Nothing' for a leaf node.
+--
+-- The streams are scheduled in a round robin manner, one element at a time,
+-- using a single channel. The output is emitted as it is produced, the order
+-- is not deterministic, but each element is still emitted after all its
+-- descendants. The order with 'maxThreads' 1 differs from that of
+-- 'wideConcatIteratePost': each emitted element takes a turn of the round
+-- robin, therefore, the elements completed together at the end of a stream
+-- are interleaved with the elements of other streams.
+--
+-- With 'ordered' the output is the same as that of 'wideConcatIteratePost',
+-- the children streams are evaluated as in 'parWideConcatIterate'.
+--
+-- /Pre-release/
+--
+{-# INLINE parWideConcatIteratePost #-}
+parWideConcatIteratePost :: MonadAsync m =>
+       (Config -> Config)
+    -> (a -> Maybe (Stream m a))
+    -> Stream m a
+    -> Stream m a
+parWideConcatIteratePost modifier f input =
+    if getOrdered (modifier defaultConfig)
+    then
+        Stream.wideConcatIteratePost
+            (fmap (bufferedWith modifier) . f) (bufferedWith modifier input)
+    else
+        Stream.fromStreamK
+            $ withUnorderedK
+                (ordered False . interleaved True . modifier)
+                (Stream.toStreamK input)
+                (iteratePostCountK True f)
 
 -- | Same as 'mergeIterateWith interleave' but concurrent. Each element of the
 -- input is emitted and then mapped to a stream of its children using the
