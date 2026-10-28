@@ -70,7 +70,9 @@ o_n_heap_benchmarks value f =
         (Stream.fold Fold.drain . Async.parBuffered f))
     , (HeapO_n, benchIOSink value "fmap parBuffered"
         (Stream.fold Fold.drain . fmap (+1) . Async.parBuffered f))
-    ] ++ o_n_heap_mergeMap value f ++ o_n_heap_mergeIterate value f
+    ] ++ o_n_heap_mergeMap value f
+      ++ o_n_heap_mergeIterate value f
+      ++ o_n_heap_concatIterate value f
 
 -------------------------------------------------------------------------------
 -- MergeMap
@@ -146,6 +148,75 @@ o_n_heap_mergeIterate value f =
     where
 
     value10 = value `div` 10
+
+-------------------------------------------------------------------------------
+-- ConcatIterate
+-------------------------------------------------------------------------------
+
+-- The tree of treeChildren, with Nothing for a leaf.
+{-# INLINE treeChildrenMaybe #-}
+treeChildrenMaybe :: Int -> Int -> Int -> Int -> Maybe (Stream IO Int)
+treeChildrenMaybe k limit r n
+    | i < limit = Just (Stream.enumerateFromTo (r + k * i + 1) (r + k * i + k))
+    | otherwise = Nothing
+
+    where
+
+    i = n - r
+
+{-# INLINE iterateTree #-}
+iterateTree ::
+       ((Config -> Config)
+        -> (Int -> Maybe (Stream IO Int))
+        -> Stream IO Int
+        -> Stream IO Int)
+    -> (Config -> Config)
+    -> Int
+    -> Int
+    -> Int
+    -> IO ()
+iterateTree traversal f k limit r =
+    Stream.fold Fold.drain
+        $ traversal f (treeChildrenMaybe k limit r) (Stream.fromPure r)
+
+-- The breadth first batched traversals hold a level of the tree in memory,
+-- the ordered traversals buffer up to maxBuffer elements ahead of the
+-- consumer.
+o_n_heap_concatIterate ::
+    Int -> (Config -> Config) -> [(SpaceComplexity, Benchmark)]
+o_n_heap_concatIterate value f =
+    concatMap shape [("binary", 2), ("10-ary", 10), ("1000-ary", 1000)]
+
+    where
+
+    shape (name, k) =
+        let limit = value `div` k
+            bench x = benchIO (x ++ " (" ++ name ++ " tree of n)")
+         in [ (HeapO_n, bench "parConcatIterate"
+                $ iterateTree Async.parConcatIterate f k limit)
+            , (HeapO_n, bench "parConcatIteratePost"
+                $ iterateTree Async.parConcatIteratePost f k limit)
+            , (HeapO_n, bench "parConcatIterateBatch"
+                $ iterateTree Async.parConcatIterateBatch f k limit)
+            , (HeapO_n, bench "parConcatIterateBatchRev"
+                $ iterateTree Async.parConcatIterateBatchRev f k limit)
+            , (HeapO_n, bench "parConcatIterateBatchPost"
+                $ iterateTree Async.parConcatIterateBatchPost f k limit)
+            , (HeapO_n, bench "parConcatIterateBatchPostRev"
+                $ iterateTree Async.parConcatIterateBatchPostRev f k limit)
+            , (HeapO_n, bench "parWideConcatIterate"
+                $ iterateTree Async.parWideConcatIterate f k limit)
+            , (HeapO_n, bench "parWideConcatIteratePost"
+                $ iterateTree Async.parWideConcatIteratePost f k limit)
+            , (HeapO_n, bench "parWideConcatIterateBatch"
+                $ iterateTree Async.parWideConcatIterateBatch f k limit)
+            , (HeapO_n, bench "parWideConcatIterateBatchRev"
+                $ iterateTree Async.parWideConcatIterateBatchRev f k limit)
+            , (HeapO_n, bench "parWideConcatIterateBatchPost"
+                $ iterateTree Async.parWideConcatIterateBatchPost f k limit)
+            , (HeapO_n, bench "parWideConcatIterateBatchPostRev"
+                $ iterateTree Async.parWideConcatIterateBatchPostRev f k limit)
+            ]
 
 -------------------------------------------------------------------------------
 -- Joining

@@ -119,6 +119,17 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
         -- above 100M with eager
         | "/o-n-heap.parMergeIterate" `isInfixOf` benchName = "-M256M"
 
+        -- With eager the workers expand the tree ahead of the consumer, the
+        -- 10-ary tree needs more than 128M with parConcatIterate
+        | "Data.Stream.ConcurrentEager/o-n-heap.parConcatIterate"
+            `isPrefixOf` benchName = "-M512M"
+        | "Data.Stream.ConcurrentEager/o-n-heap.parWideConcatIterateBatch"
+            `isPrefixOf` benchName = "-M128M"
+
+        -- A channel for each stream in the queue of the serial traversal
+        | "Data.Stream.ConcurrentOrdered/o-n-heap.parWideConcatIterate"
+            `isPrefixOf` benchName = "-M128M"
+
         -----------------------------------------------------------------------
 
         | "Unicode.Char/o-1-space." `isPrefixOf` benchName = "-M32M"
