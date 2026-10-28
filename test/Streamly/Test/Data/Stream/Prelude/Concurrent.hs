@@ -177,6 +177,18 @@ exceptionPropagation f = do
         `shouldReturn`
             (Left (ExampleException "E") :: Either ExampleException [Int])
 
+    it "mergeIterate throwM" $ do
+        let g x =
+                if x == 3
+                then Stream.fromEffect (throwM (ExampleException "E"))
+                else if x < 10
+                then Stream.fromList [2 * x + 1, 2 * x + 2]
+                else Stream.nil
+            s = Async.parMergeIterate id g (Stream.fromPure 0)
+        try (tl (Stream.nil `f` s))
+        `shouldReturn`
+            (Left (ExampleException "E") :: Either ExampleException [Int])
+
     where
 
     tl = Stream.fold Fold.toList
@@ -258,6 +270,34 @@ takeMergeMap n = do
     r <- Stream.fold Fold.toList $ Stream.take n $ s $ Stream.fromList [1..5]
     length r `shouldBe` n
 
+-- An infinitely deep tree must be stopped when the output is abandoned.
+--
+-- XXX This test is disabled, parMergeIterate does not stop the workers of an
+-- infinite tree when the output is abandoned.
+--
+-- Each element of a channel creates new channels for its children. The
+-- buffer of each channel is bounded but the number of channels is not, so
+-- the workers expand the tree far ahead of the consumer, taking 1000
+-- elements takes 0.75 to 9 seconds. When the consumer abandons the output,
+-- the workers of the outermost channel are killed. The channels created by
+-- these workers have no consumer, but their workers are runnable and keep
+-- creating deeper channels, so they never block and are never garbage
+-- collected. After taking 1000 elements the live heap was 816 MB after a
+-- major GC and growing, the test process keeps running at 100% CPU.
+--
+-- parMergeMap with infinite inner streams and parMergeIterate on an
+-- infinite chain with one child per node do not have this problem, the live
+-- heap is about 70 KB after the take.
+takeMergeIterate :: Int -> IO ()
+takeMergeIterate n = do
+    let g x = Stream.fromList [2 * x + 1, 2 * x + 2] :: Stream IO Int
+    r <-
+        Stream.fold Fold.toList
+            $ Stream.take n
+            $ Async.parMergeIterate id g
+            $ Stream.fromPure 0
+    length r `shouldBe` n
+
 ---------------------------------------------------------------------------
 -- Main
 ---------------------------------------------------------------------------
@@ -299,6 +339,38 @@ mergeMapOrdered cfg xss =
                     $ Async.parMergeMap (Async.ordered True . cfg) Stream.fromList
                     $ Stream.fromList xss
             listEquals (==) stream (concat xss)
+
+-- A complete k-ary tree with nodes numbered in level order from 0, node n
+-- has the children k * n + 1 to k * n + k if n < limit.
+treeChildren :: Int -> Int -> Int -> [Int]
+treeChildren k limit n
+    | n < limit = [k * n + 1 .. k * n + k]
+    | otherwise = []
+
+-- Serial depth first pre-order traversal of the tree rooted at n.
+treePreOrder :: Int -> Int -> Int -> [Int]
+treePreOrder k limit n =
+    n : concatMap (treePreOrder k limit) (treeChildren k limit n)
+
+-- Traverse the trees rooted at 0 to r - 1 using parMergeIterate and compare
+-- the output with the serial pre-order traversal using eq.
+mergeIterateTree ::
+    ([Int] -> [Int] -> Bool) -> (Async.Config -> Async.Config) -> Property
+mergeIterateTree eq cfg =
+    withNumTests maxTestCount
+        $ forAll (choose (0, 3)) $ \r ->
+          forAll (choose (1, 4)) $ \k ->
+          forAll (choose (0, 100)) $ \limit ->
+            monadicIO $ do
+                stream <-
+                    run
+                        $ Stream.fold Fold.toList
+                        $ Async.parMergeIterate
+                            cfg
+                            (Stream.fromList . treeChildren k limit)
+                        $ Stream.fromList [0 .. r - 1]
+                listEquals
+                    eq stream (concatMap (treePreOrder k limit) [0 .. r - 1])
 
 drainMapM :: Monad m => (a -> m b) -> Stream m a -> m ()
 drainMapM f = Stream.fold (Fold.drainMapM f)
@@ -491,6 +563,13 @@ main = hspec
 
         asyncSpec $ prop "parMergeMap ordered" . mergeMapOrdered
 
+        asyncSpec $ prop "parMergeIterate" . mergeIterateTree sortEq
+
+        asyncSpec $
+            prop "parMergeIterate ordered"
+                . mergeIterateTree (==)
+                . (Async.ordered True .)
+
 #ifdef DEVBUILD
         describe "Time ordering" $ timeOrdering (Async.parList id)
         describe "Filtering" $ do
@@ -504,4 +583,7 @@ main = hspec
         -- Ad-hoc tests
         it "takes n from stream of streams" $ takeCombined 2
         it "takes n from parMergeMap of infinite streams" $ takeMergeMap 1000
+        -- XXX Disabled, see takeMergeIterate
+        xit "takes n from parMergeIterate of an infinite tree"
+            $ takeMergeIterate 1000
         it "fromCallback" $ testFromCallback `shouldReturn` (50*101)
