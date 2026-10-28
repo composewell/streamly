@@ -21,6 +21,7 @@ module Streamly.Internal.Data.Stream.Tree
     , unfoldIteratePost
     , unfoldIterateBatchPost
     , unfoldIterateBatchPostRev
+    , wideUnfoldIterate
 
     -- * Concat Iterate
     , concatIterateScan
@@ -32,6 +33,7 @@ module Streamly.Internal.Data.Stream.Tree
     , concatIteratePost
     , concatIterateBatchPost
     , concatIterateBatchPostRev
+    , wideConcatIterate
 
     -- * Fold Iterate
     , bfsReduceIterate
@@ -1059,6 +1061,141 @@ concatIterateBatchPostRev :: Monad m =>
     -> Stream m a
     -> Stream m a
 concatIterateBatchPostRev f = unfoldIterateBatchPostWith True f streamUnfold
+
+-- | The queue of a breadth first interleaved traversal. The Int field is the
+-- id of the node whose children the stream generates, used only by the post
+-- order traversal.
+ANN_TYPE(WideQueue,NoSpecConstr)
+data WideQueue o i a =
+      WideNil
+      -- The rest of the input stream.
+    | WideOuter o (WideQueue o i a)
+      -- A partly run stream.
+    | WideInner !Int i (WideQueue o i a)
+      -- The seed of a stream not started yet.
+    | WideSeed !Int a (WideQueue o i a)
+
+revOntoWideQueue :: WideQueue o i a -> WideQueue o i a -> WideQueue o i a
+revOntoWideQueue WideNil q = q
+revOntoWideQueue (WideOuter o xs) q = revOntoWideQueue xs (WideOuter o q)
+revOntoWideQueue (WideInner p i xs) q = revOntoWideQueue xs (WideInner p i q)
+revOntoWideQueue (WideSeed p a xs) q = revOntoWideQueue xs (WideSeed p a q)
+
+-- | Take the next stream from a queue in which xs are the front entries and
+-- rys the back entries in reverse order. A seed is injected when it is taken.
+-- Returns the empty argument if the queue is empty.
+{-# INLINE dequeueWide #-}
+dequeueWide :: Monad m =>
+       (a -> m i)
+    -> (o -> WideQueue o i a -> WideQueue o i a -> r)
+    -> (Int -> i -> WideQueue o i a -> WideQueue o i a -> r)
+    -> r
+    -> WideQueue o i a
+    -> WideQueue o i a
+    -> m r
+dequeueWide inject outer inner empty xs rys =
+    case xs of
+        WideNil ->
+            case revOntoWideQueue rys WideNil of
+                WideNil -> return empty
+                q -> run q WideNil
+        q -> run q rys
+
+    where
+
+    run (WideOuter o q) r = return $ outer o q r
+    run (WideInner p i q) r = return $ inner p i q r
+    run (WideSeed p a q) r = do
+        i <- inject a
+        i `seq` return (inner p i q r)
+    run WideNil _ = return empty
+
+ANN_TYPE(WideState,Fuse)
+data WideState o i a =
+      WideRunOuter o (WideQueue o i a) (WideQueue o i a)
+    | WideRunInner i (WideQueue o i a) (WideQueue o i a)
+
+-- | Breadth first interleaved traversal. The pending streams are kept in a
+-- queue. A stream yields one element, then the rest of the stream is put at
+-- the back of the queue, followed by the stream of the children of the
+-- element, and the stream at the front of the queue runs next. For the tree
+-- 1->[2,3], 2->[4,5], 3->[6,7], 4->[8], 6->[9], the output is
+-- [1,2,3,4,6,5,8,7,9].
+--
+-- This is not a level order: the children of different parents are
+-- interleaved. Every partly run stream in the queue is open, up to the width
+-- of the tree. A stream that has not started is held as its seed and is
+-- started when it reaches the front of the queue.
+--
+-- A traversal of 'Either' elements, in which a @Left a@ element has children
+-- generated from the seed @a@ and a @Right b@ element is a leaf:
+--
+-- >>> f = either Just (const Nothing)
+-- >>> wideUnfoldIterateLefts = Stream.wideUnfoldIterate f
+--
+-- /Pre-release/
+{-# INLINE_NORMAL wideUnfoldIterate #-}
+wideUnfoldIterate :: Monad m =>
+       (b -> Maybe a)
+    -> Unfold m a b
+    -> Stream m b
+    -> Stream m b
+wideUnfoldIterate f (Unfold istep inject) (Stream ostep ost) =
+    Stream step (WideRunOuter ost WideNil WideNil)
+
+    where
+
+    {-# INLINE enqueue #-}
+    enqueue b q =
+        case f b of
+            Nothing -> q
+            Just a -> WideSeed 0 a q
+
+    {-# INLINE next #-}
+    next yld =
+        dequeueWide inject
+            (\o q r -> yld (WideRunOuter o q r))
+            (\_ i q r -> yld (WideRunInner i q r))
+            Stop
+
+    -- After a Yield the queue is not empty and next does not return Stop.
+    {-# INLINE_LATE step #-}
+    step gst (WideRunOuter o xs rys) = do
+        r <- ostep (adaptState gst) o
+        case r of
+            Yield b s -> next (Yield b) xs (enqueue b (WideOuter s rys))
+            Skip s -> return $ Skip (WideRunOuter s xs rys)
+            Stop -> next Skip xs rys
+
+    step _ (WideRunInner i xs rys) = do
+        r <- istep i
+        case r of
+            Yield b s -> next (Yield b) xs (enqueue b (WideInner 0 s rys))
+            Skip s -> return $ Skip (WideRunInner s xs rys)
+            Stop -> next Skip xs rys
+
+-- | Breadth first interleaved traversal. The pending streams are kept in a
+-- queue. A stream yields one element, then the rest of the stream is put at
+-- the back of the queue, followed by the stream of the children of the
+-- element, and the stream at the front of the queue runs next. For the tree
+-- 1->[2,3], 2->[4,5], 3->[6,7], 4->[8], 6->[9], the output is
+-- [1,2,3,4,6,5,8,7,9].
+--
+-- This is not a level order: the children of different parents are
+-- interleaved. Every partly run stream in the queue is open, up to the width
+-- of the tree. 'bfsConcatIterate' has one stream open at a time.
+--
+-- @StreamK.concatIterateWith StreamK.interleave@ gives a different order, it
+-- nests 'interleave' to the right, so the first stream gets every second turn,
+-- the second every fourth, and so on.
+--
+-- /Pre-release/
+{-# INLINE wideConcatIterate #-}
+wideConcatIterate :: Monad m =>
+       (a -> Maybe (Stream m a))
+    -> Stream m a
+    -> Stream m a
+wideConcatIterate f = wideUnfoldIterate f streamUnfold
 
 ------------------------------------------------------------------------------
 -- Folding a tree bottom up
