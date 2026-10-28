@@ -59,6 +59,21 @@
 * `parTeeWith` supports filtering scans: it emits an output only when both
   scans produce an output for the same input.
 
+### Bug Fixes
+
+* `parConcatIterate` with `ordered` did not always give the depth first
+  order when the children streams were evaluated concurrently.
+
+### Internal
+
+* Added parallel tree traversals, one for each combination of depth or
+  breadth first, interleaved or batched, and pre or post order:
+  `parConcatIteratePost`, `parConcatIterateBatch[Rev]`,
+  `parConcatIterateBatchPost[Rev]`, `parWideConcatIterate`,
+  `parWideConcatIteratePost`, `parWideConcatIterateBatch[Rev]` and
+  `parWideConcatIterateBatchPost[Rev]`. With `ordered` the output is the
+  same as that of the serial traversal.
+
 ## 0.11.1 (May 2026)
 
 * Fix `parDemuxScan` deadlock when a worker throws an exception while the

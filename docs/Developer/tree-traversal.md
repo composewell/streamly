@@ -573,8 +573,9 @@ The configuration selects the work queue:
   emitted as they are produced;
 - `interleaved True`: a FIFO queue (`enqueueFIFO` in
   `Channel/Interleave.hs`); streams are scheduled round robin;
-- `ordered True`: a LIFO queue, with the output reordered into the serial DFS
-  order (`enqueueAhead` in `Channel/Append.hs`);
+- `ordered True`: a LIFO queue on an unordered channel, with the output put
+  in the serial DFS order by the segment list described in Ordered
+  traversals below;
 - `maxThreads n` and `maxBuffer n` limit the workers and the buffered
   results. These and the other options (`eager`, rate) change performance,
   not the order.
@@ -587,6 +588,9 @@ numbers are from a separate measurement, not the one in the chunked table:
 | one path       | 274 ms                 | 174 ms                | 224 ms             | 234 ms         |
 | batch of paths | 264 ms                 | 124 ms                | 134 ms             | 174 ms         |
 | byte chunks    | 154 ms                 | 94 ms                 | 94 ms              | 154 ms         |
+
+The `ordered True` column was measured with the earlier implementation on an
+ordered channel, which did not always give the DFS order.
 
 `parConcatIterate` takes `a -> Maybe (Stream m a)`. Earlier it took `a
 -> Stream m a`, and `f` returned `Stream.nil` for a leaf. `generate`
@@ -630,27 +634,139 @@ Each row is the parallel version of the serial traversal with the same
 expansion, batching and parent order; the output orders are the same as
 in the serial table. The batched rows cover both sibling orders.
 
-| Expansion | Batching | Parent | Unordered | Ordered |
-|---|---|---|---|---|
-| depth | interleaved | pre | `parConcatIterate id` | `parConcatIterate (ordered True)` |
-| depth | interleaved | post | none | none |
-| depth | batched | pre | none | none |
-| depth | batched | post | none | none |
-| breadth | interleaved | pre | `parConcatIterate (interleaved True)` | none |
-| breadth | interleaved | post | none | none |
-| breadth | batched | pre | none; a level loop with `parConcatMap` | none; a level loop with `parConcatMap (ordered True)` |
-| breadth | batched | post | none | none |
+| Expansion | Batching | Parent | Parallel |
+|---|---|---|---|
+| depth | interleaved | pre | `parConcatIterate` |
+| depth | interleaved | post | `parConcatIteratePost` |
+| depth | batched | pre | `parConcatIterateBatch[Rev]` |
+| depth | batched | post | `parConcatIterateBatchPost[Rev]` |
+| breadth | interleaved | pre | `parWideConcatIterate` |
+| breadth | interleaved | post | `parWideConcatIteratePost` |
+| breadth | batched | pre | `parWideConcatIterateBatch[Rev]` |
+| breadth | batched | post | `parWideConcatIterateBatchPost[Rev]` |
 
-The three `parConcatIterate` rows were run on the example tree with one
-worker and gave the serial outputs. With several workers they gave the same
-outputs, but the tree is too small for the workers to overlap, so this does
-not test the orders under real concurrency.
+Each combinator gives the unordered output by default and the ordered output
+with `ordered True`. The serial versions are `bfsConcatIterate[Rev]` for
+breadth / batched / pre and `wideDfsConcatIterate[Rev]` for depth / batched
+/ pre; the other names are the serial names with the `par` prefix.
+`parConcatIterate (interleaved True)` is the same as `parWideConcatIterate`;
+the other combinators ignore the `interleaved` option.
 
-A level loop runs `parConcatMap` over the non-leaf nodes of one level,
-collects the next level, and repeats. Each level waits for the previous one to
-finish. A channel whose work items are whole streams, each run to completion
-by one worker, with a LIFO or FIFO queue, would give depth / batched and
-breadth / batched without waiting at each level.
+The tests in `test/Streamly/Test/Data/Stream/Prelude/Concurrent.hs` check
+each combinator on random trees whose children streams delay each element by
+up to 20 microseconds, so that the workers overlap: with `ordered True` the
+output is the serial order, without it every node is emitted once and after
+(post order) or before (pre-order) its children. With `maxThreads 1` the
+unordered output is the serial order, except for
+`parWideConcatIteratePost`: the interleaved channel ends the turn of a stream
+after every element it emits, so the ancestors completed together at the end
+of a stream are emitted in separate turns, between the elements of other
+streams.
+
+### Unordered traversals
+
+One channel evaluates the whole tree. Its work items are streams; a worker
+runs a work item and can spawn new work items on the channel.
+
+* Depth / interleaved and breadth / interleaved: a worker takes an element
+  from a stream, spawns the rest of the stream as a new work item and expands
+  the element. The work queue is LIFO for depth first and FIFO for breadth
+  first. A leaf is emitted in the work item that takes it, without a spawn.
+* Depth / batched: a worker runs a children stream to completion and spawns
+  the children streams of its elements, on a LIFO queue. A spawned item runs
+  before the items spawned earlier by the same item, so `Rev` spawns each
+  children stream when its element is produced, and the forward order
+  collects them and spawns them at the end of the stream, the last first.
+* Breadth / batched: a level loop. `parConcatMap` evaluates the children
+  streams of one level, the elements with children are collected, and the
+  next level starts when the current one ends. Each level waits for the
+  previous one to finish.
+
+The post order traversals keep, for each non-leaf node, an atomic count of
+its pending work: its children stream, until it ends, and its non-leaf
+children not yet emitted. The count of a child is incremented when the child
+is taken from the stream, before the rest of the stream is spawned, so the
+end of the stream is counted after all the children. A leaf is emitted before
+the rest of its stream is spawned; if it were emitted after, the end of the
+stream could bring the count of its parent to zero first and the parent
+would be emitted before the leaf. When the count reaches zero the node is
+emitted and the count of its parent is decremented. Breadth / batched / post
+needs no counts, it holds the non-leaf nodes of every level, as the serial
+version does.
+
+### Ordered traversals
+
+`parConcatIterate (ordered True)` used to run the traversal on an ordered
+channel, and did not give the depth first order when the children streams
+ran concurrently: on a 3-ary tree of 601 nodes with random delays in the
+children streams it gave a different order in 10 runs out of 10. An ordered
+channel assigns the sequence number of a work item when the item is
+dequeued. If the rest of a stream deeper in the tree is queued after the rest
+of a stream higher up has been dequeued, the deeper one gets the later
+sequence number and is emitted later. One level of `parConcatMap` never
+queues work from inside a work item, so the ordered channel gives the serial
+order there.
+
+The depth first ordered traversals use an unordered channel and order the
+output themselves:
+
+* The output of each work item goes to a segment. The segments are kept in a
+  linked list in the output order.
+* A spawned work item is inserted right after the segment of the item that
+  spawned it: it is emitted after everything the spawning item emits after
+  the spawn, and before the items spawned earlier by the same item. This is
+  the depth first order: in depth / interleaved the rest of a stream is
+  spawned before its first element is expanded, and the expansion is emitted
+  first.
+* Only the item at the head of the list emits to the channel. The others
+  buffer their output in their segments. When the head item ends, the
+  following segments are flushed: a finished segment is emitted and skipped,
+  the first unfinished one becomes the head.
+* When the total buffered output reaches `maxBuffer`, a work item that is not
+  at the head stops and leaves the rest of its stream in its segment; the
+  item that flushes the segment evaluates the rest.
+* Post order spawns a node as a one element work item before its children,
+  so it is emitted after all of them. No counts are needed.
+
+The same traversal code runs on both channels; only the spawn function
+differs. A channel per non-leaf node, `parConcatMap (ordered True)` over the
+children of each node, also gives the depth first order, but took 1.7 s on a
+binary tree of 10^5 nodes with `-N2`, against 0.15 s with the segment list
+and 0.05 s unordered.
+
+Breadth / batched ordered is the level loop with `parConcatMap (ordered
+True)`. Breadth / interleaved ordered is the serial `wideConcatIterate` or
+`wideConcatIteratePost` with each children stream evaluated ahead of the
+consumer by `parBuffered`; the round robin over all pending streams cannot be
+expressed by insertions after the spawning item.
+
+Benchmarks in `Data.Stream.Concurrent` and `Data.Stream.ConcurrentOrdered`,
+complete trees of 10^5 `Int` nodes held in memory, `-N2`, time in ms:
+
+| Function                            | binary | 10-ary | 1000-ary | binary, `ordered` | 10-ary, `ordered` | 1000-ary, `ordered` |
+|-------------------------------------|--------|--------|----------|-------|-------|-------|
+| `parConcatIterate`                  | 62.8   | 47.2   | 93.8     | 146   | 57.6  | 33.7  |
+| `parConcatIteratePost`              | 104    | 39.4   | 26.2     | 231   | 80.7  | 37.8  |
+| `parConcatIterateBatch`             | 59.7   | 32.7   | 28.5     | 143   | 58.8  | 30.2  |
+| `parConcatIterateBatchRev`          | 57.5   | 30.3   | 24.7     | 150   | 51.2  | 30.1  |
+| `parConcatIterateBatchPost`         | 60.3   | 29.7   | 24.7     | 239   | 70.8  | 29.2  |
+| `parConcatIterateBatchPostRev`      | 77.5   | 34.2   | 25.7     | 232   | 64.8  | 25.4  |
+| `parWideConcatIterate`              | 224    | 118    | 110      | 2850  | 668   | 40.2  |
+| `parWideConcatIteratePost`          | 347    | 163    | 90.6     | 2671  | 611   | 41.2  |
+| `parWideConcatIterateBatch`         | 75.1   | 32.7   | 24.1     | 74.3  | 38.8  | 30.4  |
+| `parWideConcatIterateBatchRev`      | 64.8   | 37.0   | 27.3     | 76.3  | 42.6  | 27.9  |
+| `parWideConcatIterateBatchPost`     | 78.8   | 39.8   | 23.8     | 95.6  | 41.5  | 32.0  |
+| `parWideConcatIterateBatchPostRev`  | 74.3   | 32.3   | 27.7     | 93.2  | 33.7  | 23.6  |
+
+On the binary and 10-ary trees the ordered depth first traversals took 1.2 to
+4.0 times as long as the unordered ones, and allocated 1.6 to 4.5 times as
+much. The ordered breadth / interleaved
+traversals create a channel for each non-leaf node: 50,000 on the binary tree,
+which took 2.9 s and up to 311 MB of heap, as many channels are open at the
+same time as there are streams in the queue. The unordered breadth /
+interleaved traversals are slower than the depth first ones because the
+interleaved channel puts the rest of a stream back on the queue after every
+element.
 
 Resources:
 
@@ -658,24 +774,24 @@ Resources:
   queue and those being run by the workers.
 * FIFO queue, unordered: open streams are all partly run streams on the
   queue, which can exceed the open file limit on a wide tree.
+* Depth / batched: a stream waiting on the queue is not started yet, the open
+  streams are those being run by the workers.
 * Level loop: one open stream per worker; one level in memory.
-* Ordered: in addition, the output produced ahead of the consumer.
-
-For an ordered traversal the schedule affects only which streams are run
-ahead of the output, not the output order.
+* Breadth / interleaved ordered: a channel and an open stream for each stream
+  in the queue of the serial traversal.
+* Ordered: in addition, up to `maxBuffer` elements buffered ahead of the
+  consumer.
 
 Unordered post order is the order a parallel `rm -r` or `du` needs: a node is
 emitted after all its descendants, but the nodes of different subtrees may be
-emitted in any order. It needs the same per-node state as breadth /
-interleaved / post.
+emitted in any order.
 
 Not implemented yet:
 
-- `parMergeIterate`, the concurrent `mergeIterateWith`, is declared but is
-  `undefined`.
-- Concurrent BFS or wide DFS with a guaranteed order. That needs a barrier
-  between levels, or the channel of whole streams described above.
-- Per CPU queues for less contention
+- Breadth / batched without waiting at each level. With the segment list, the
+  children of a level would have to be inserted in the order of their
+  parents, which is known only when the parents' streams have run.
+- Per CPU queues for less contention.
 
 ## Bottom-up reduction
 
@@ -735,7 +851,7 @@ The other combinators:
 | `Stream`           | `concatIterateScan`                                            |
 | `Stream` (reduction) | `bfsReduceIterate`                                           |
 | `StreamK`          | `concatIterateWith`, `mergeIterateWith`, `concatIterateScanWith`, `concatIterateLeftsWith` |
-| `Stream.Concurrent` | `parConcatIterate`                                            |
+| `Stream.Concurrent` | `parConcatIterate`, `parMergeIterate` and the other parallel traversals in Parallel orders |
 
 The deprecated `IsStream.Expand` module still has the 2020 names:
 `iterateMapWith`, `iterateMapLeftsWith`, `iterateSmapMWith` and
@@ -826,7 +942,7 @@ What can be expressed with the current combinators:
 | visited set, cycles           | state in the children function, the traversal or the element |
 | leaves only                   | `Stream.catRights` on `Either` elements                |
 | less per-element cost         | chunked elements                                       |
-| concurrency                   | `parConcatIterate`                                     |
+| concurrency                   | `parConcatIterate` and the other `par` traversals      |
 | iterative deepening           | repeated depth limited traversals                      |
 | reduce a flat stream as a tree | `bfsReduceIterate`                                    |
 | fixpoint iteration, a level at a time | `concatIterateScan`: the state is the current level, the generator returns `Nothing` when nothing changes |
@@ -863,11 +979,6 @@ Gaps:
   a best-first order: each subtree's output is sorted, and merging sorted
   streams keeps them sorted. This has not been verified. Priorities that do not
   increase along a path need a priority queue traversal.
-* **Concurrent BFS and wide DFS with a guaranteed order**, and
-  `parMergeIterate`. Not implemented.
-* **Parallel post order and breadth / interleaved order.** The serial
-  orders are all provided; the parallel ones are the rows marked "none" in
-  the parallel order table.
 * **Diagonal interleaving.** A tree version of `StreamK.fairConcatFor`, e.g.
   `fairConcatIterate`. Not implemented; its order is not worked out yet.
 * **Fixpoint iteration in general**, applying a stream transformation
