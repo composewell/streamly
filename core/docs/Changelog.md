@@ -107,6 +107,17 @@
 * Added `Stream.wideDfsUnfoldIterate`.
 * Added `Stream.bfsConcatIterateRev` and `bfsUnfoldIterateRev`, faster BFS
   variants that start the streams of a level in reverse order.
+* Added post order tree traversals, which emit a node after all its
+  descendants: `Stream.concatIteratePost` (the order of GNU `find -depth`),
+  `concatIterateBatchPost`, `concatIterateBatchPostRev`,
+  `wideConcatIteratePost`, `wideConcatIterateBatchPost` and
+  `wideConcatIterateBatchPostRev`.
+* Added `Stream.wideConcatIterate`, a breadth first traversal that keeps the
+  pending streams in a queue and takes one element from each in turn.
+* Added the fused unfold versions of the above: `Stream.unfoldIteratePost`,
+  `unfoldIterateBatchPost`, `unfoldIterateBatchPostRev`, `wideUnfoldIterate`,
+  `wideUnfoldIteratePost`, `wideUnfoldIterateBatchPost` and
+  `wideUnfoldIterateBatchPostRev`.
 
 ## 0.3.2 (Oct 2026)
 
