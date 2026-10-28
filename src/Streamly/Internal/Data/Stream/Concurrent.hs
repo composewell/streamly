@@ -340,14 +340,58 @@ parConcatMap modifier f stream =
         $ parConcatMapK
             modifier (Stream.toStreamK . f) (Stream.toStreamK stream)
 
--- | Same as 'mergeMapWith interleave' but concurrent.
+-- | Same as 'mergeMapWith interleave' but concurrent. Map each element of the
+-- input to a stream and then combine the resulting streams in pairs,
+-- concurrently, the resulting streams are then combined again in pairs
+-- recursively until we get to a single stream. The composition thus forms a
+-- balanced binary tree of 'parTwo' operations.
 --
--- /Unimplemented/
+-- Definition:
+--
+-- >>> par2 cfg x y = StreamK.fromStream $ Stream.parTwo cfg (StreamK.toStream x) (StreamK.toStream y)
+-- >>> parMergeMap cfg f = StreamK.toStream . StreamK.mergeMapWith (par2 cfg) (StreamK.fromStream . f) . StreamK.fromStream
+--
+-- Unlike 'parConcatMap' which uses a single channel for all the streams,
+-- each pair uses its own channel, so the config options apply to each pair
+-- independently. For example, 'maxThreads' limits the threads used by each
+-- pair rather than the total number of threads. Because the streams are
+-- combined in a balanced tree, each stream gets a fair share of the
+-- scheduling, the depth of nesting of any stream is at most @log n@.
+--
+-- When 'ordered' is used, the output is the same as that of serial
+-- 'concatMap':
+--
+-- >>> f cfg xs = Stream.fold Fold.toList $ Stream.parMergeMap cfg id $ Stream.fromList xs
+-- >>> streams = map Stream.fromList [[1,2,3],[4,5,6],[7,8,9]]
+-- >>> f (Stream.ordered True) streams
+-- [1,2,3,4,5,6,7,8,9]
+--
+-- All the streams are evaluated concurrently, the following finishes in 4
+-- seconds:
+--
+-- >>> stream1 = Stream.fromEffect (delay 4)
+-- >>> stream2 = Stream.fromEffect (delay 2)
+-- >>> stream3 = Stream.fromEffect (delay 1)
+-- >>> f id [stream1, stream2, stream3]
+-- 1 sec
+-- 2 sec
+-- 4 sec
+-- [1,2,4]
+--
+-- /Caution: the input stream must be finite. The entire input stream is
+-- consumed to build the tree before any output is produced./
+--
+-- /Pre-release/
 --
 {-# INLINE parMergeMap #-}
-parMergeMap :: -- MonadAsync m =>
+parMergeMap :: MonadAsync m =>
     (Config -> Config) -> (a -> Stream m b) -> Stream m a -> Stream m b
-parMergeMap _modifier _f _stream = undefined
+parMergeMap modifier f stream =
+    Stream.fromStreamK
+        $ K.mergeMapWith
+            (appendWithK modifier)
+            (Stream.toStreamK . f)
+            (Stream.toStreamK stream)
 
 -- | Evaluate the streams in the input stream concurrently and combine them.
 --
