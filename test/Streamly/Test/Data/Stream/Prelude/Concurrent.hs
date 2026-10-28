@@ -11,7 +11,7 @@ module Streamly.Test.Data.Stream.Prelude.Concurrent (main) where
 
 import Control.Concurrent (threadDelay)
 import Control.Exception (Exception, try)
-import Control.Monad (replicateM)
+import Control.Monad (replicateM, when)
 import Control.Monad.Catch (throwM)
 import Data.Function ( (&) )
 import Data.IORef ( newIORef, readIORef, writeIORef)
@@ -20,19 +20,23 @@ import Data.Maybe ( isJust, fromJust )
 import Data.Word (Word8)
 import Streamly.Data.Stream (Stream)
 import Test.Hspec.QuickCheck
-import Test.QuickCheck (Testable, Property, choose, forAll)
+import System.Random (randomRIO)
+import Test.QuickCheck
+    (Testable, Property, choose, counterexample, forAll, ioProperty)
 import Test.QuickCheck.Monadic (monadicIO, run)
 import Test.Hspec as H
 
+import qualified Data.IntMap.Strict as IntMap
+import qualified Data.Map.Strict as Map
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.Prelude as Stream
 import qualified Streamly.Internal.Data.Stream.Prelude as Async
 
 import Streamly.Test.Common (withNumTests, listEquals)
+import Streamly.Test.Data.Stream.TreeModel
 
 #ifdef DEVBUILD
-import Control.Monad (when)
 import Data.Int (Int64)
 import Streamly.Internal.Data.Time.Units
        (AbsTime, NanoSecond64(..), toRelTime64, diffAbsTime64)
@@ -189,9 +193,28 @@ exceptionPropagation f = do
         `shouldReturn`
             (Left (ExampleException "E") :: Either ExampleException [Int])
 
+    mapM_ traversalThrow treeTraversals
+
     where
 
     tl = Stream.fold Fold.toList
+
+    traversalThrow t =
+        it (ttName t ++ " throwM") $ do
+            let g x
+                    | x == 3 =
+                        Just $ Stream.fromEffect (throwM (ExampleException "E"))
+                    | x < 10 = Just $ Stream.fromList [2 * x + 1, 2 * x + 2]
+                    | otherwise = Nothing
+                run cfg = tl (Stream.nil `f` ttRun t cfg g (Stream.fromPure 0))
+            try (run id)
+                `shouldReturn`
+                    (Left (ExampleException "E")
+                        :: Either ExampleException [Int])
+            try (run (Async.ordered True))
+                `shouldReturn`
+                    (Left (ExampleException "E")
+                        :: Either ExampleException [Int])
 
 ---------------------------------------------------------------------------
 -- Time ordering
@@ -371,6 +394,140 @@ mergeIterateTree eq cfg =
                         $ Stream.fromList [0 .. r - 1]
                 listEquals
                     eq stream (concatMap (treePreOrder k limit) [0 .. r - 1])
+
+-------------------------------------------------------------------------------
+-- Tree traversals
+-------------------------------------------------------------------------------
+
+-- | A parallel tree traversal and the model of the serial traversal with the
+-- same order.
+data TreeTraversal = TreeTraversal
+    { ttName :: String
+    , ttRun ::
+           (Async.Config -> Async.Config)
+        -> (Int -> Maybe (Stream IO Int))
+        -> Stream IO Int
+        -> Stream IO Int
+    , ttModel :: (Int -> [Int]) -> [Int] -> [Int]
+    -- | Each node is emitted after its children, otherwise before.
+    , ttPost :: Bool
+    -- | With maxThreads 1 the output is the serial order.
+    , ttSerial :: Bool
+    }
+
+treeTraversals :: [TreeTraversal]
+treeTraversals =
+    [ TreeTraversal "parConcatIterate" Async.parConcatIterate
+        refPre False True
+    , TreeTraversal "parConcatIteratePost" Async.parConcatIteratePost
+        refPost True True
+    , TreeTraversal "parConcatIterateBatch" Async.parConcatIterateBatch
+        (refBatchPre False) False True
+    , TreeTraversal "parConcatIterateBatchRev" Async.parConcatIterateBatchRev
+        (refBatchPre True) False True
+    , TreeTraversal "parConcatIterateBatchPost"
+        Async.parConcatIterateBatchPost (refBatchPost False) True True
+    , TreeTraversal "parConcatIterateBatchPostRev"
+        Async.parConcatIterateBatchPostRev (refBatchPost True) True True
+    , TreeTraversal "parWideConcatIterate" Async.parWideConcatIterate
+        refWide False True
+    -- The nodes completed together at the end of a stream are emitted in
+    -- separate turns of the round robin with maxThreads 1.
+    , TreeTraversal "parWideConcatIteratePost" Async.parWideConcatIteratePost
+        refWidePost True False
+    , TreeTraversal "parWideConcatIterateBatch"
+        Async.parWideConcatIterateBatch (refWideBatchPre False) False True
+    , TreeTraversal "parWideConcatIterateBatchRev"
+        Async.parWideConcatIterateBatchRev (refWideBatchPre True) False True
+    , TreeTraversal "parWideConcatIterateBatchPost"
+        Async.parWideConcatIterateBatchPost (refWideBatchPost False) True True
+    , TreeTraversal "parWideConcatIterateBatchPostRev"
+        Async.parWideConcatIterateBatchPostRev
+        (refWideBatchPost True) True True
+    ]
+
+-- | The children of a node as a stream, each element delayed by a random
+-- time of up to 20 microseconds so that the workers overlap.
+delayedChildren :: (Int -> [Int]) -> Int -> Maybe (Stream IO Int)
+delayedChildren children n =
+    case children n of
+        [] -> Nothing
+        cs -> Just $ Stream.mapM delay (Stream.fromList cs)
+
+    where
+
+    delay x = do
+        t <- randomRIO (0, 20)
+        threadDelay t
+        return x
+
+runTraversal ::
+       TreeTraversal
+    -> (Async.Config -> Async.Config)
+    -> (Int -> [Int])
+    -> [Int]
+    -> IO [Int]
+runTraversal t cfg children roots =
+    Stream.fold Fold.toList
+        $ ttRun t cfg (delayedChildren children) (Stream.fromList roots)
+
+-- | Every node is emitted exactly once, after all its children in post
+-- order, before them in pre-order.
+traversalOrderOk :: Bool -> (Int -> [Int]) -> [Int] -> [Int] -> Bool
+traversalOrderOk post children expected out =
+    sort out == sort expected && all childrenOk out
+
+    where
+
+    pos = Map.fromList (zip out [0 :: Int ..])
+    before x c = (pos Map.! c < pos Map.! x) == post
+    childrenOk x = all (before x) (children x)
+
+-- | Compare the output of the traversal of random forests using cfg with the
+-- serial order, @exact@ requires the same order, otherwise only the parent
+-- child order is checked.
+treeTraversalProp ::
+    Bool -> TreeTraversal -> (Async.Config -> Async.Config) -> Property
+treeTraversalProp exact t cfg =
+    withNumTests maxTestCount
+        $ forAll genForest $ \(m, roots) ->
+            let children = forestChildren m
+                expected = ttModel t children roots
+             in ioProperty $ do
+                    out <- runTraversal t cfg children roots
+                    let ok =
+                            if exact
+                            then out == expected
+                            else traversalOrderOk (ttPost t) children expected out
+                    return
+                        $ counterexample
+                            (show (IntMap.toList m, roots, expected, out)) ok
+
+-- | The ordered traversals on the example tree give the outputs in the order
+-- table of docs/Developer/tree-traversal.md.
+treeTraversalExample :: TreeTraversal -> [Int] -> Spec
+treeTraversalExample t expected =
+    it (ttName t ++ " ordered example") $
+        runTraversal t (Async.ordered True) exampleChildren [1]
+            `shouldReturn` expected
+
+-- | Take the first n nodes of an infinite tree, the traversal must stop when
+-- the output is abandoned. The odd nodes have the children 4n to 4n + 3, the
+-- even nodes are leaves, so that the post order traversals emit leaves.
+takeInfiniteTree :: TreeTraversal -> (Async.Config -> Async.Config) -> IO ()
+takeInfiniteTree t cfg = do
+    xs <-
+        Stream.fold Fold.toList
+            $ Stream.take 1000
+            $ ttRun t cfg g (Stream.fromPure (1 :: Int))
+    length xs `shouldBe` 1000
+
+    where
+
+    g x =
+        if even x
+        then Nothing
+        else Just $ Stream.fromList [4 * x .. 4 * x + 3]
 
 drainMapM :: Monad m => (a -> m b) -> Stream m a -> m ()
 drainMapM f = Stream.fold (Fold.drainMapM f)
@@ -569,6 +726,38 @@ main = hspec
             prop "parMergeIterate ordered"
                 . mergeIterateTree (==)
                 . (Async.ordered True .)
+
+        describe "Tree traversals" $ do
+            let examples =
+                    [ [1, 2, 4, 8, 5, 3, 6, 9, 7]
+                    , [8, 4, 5, 2, 9, 6, 7, 3, 1]
+                    , [1, 2, 3, 4, 5, 8, 6, 7, 9]
+                    , [1, 2, 3, 6, 7, 9, 4, 5, 8]
+                    , [5, 8, 4, 2, 7, 9, 6, 3, 1]
+                    , [7, 9, 6, 3, 5, 8, 4, 2, 1]
+                    , [1, 2, 3, 4, 6, 5, 8, 7, 9]
+                    , [5, 8, 7, 9, 4, 2, 6, 3, 1]
+                    , [1, 2, 3, 4, 5, 6, 7, 8, 9]
+                    , [1, 2, 3, 6, 7, 4, 5, 8, 9]
+                    , [5, 7, 8, 9, 4, 6, 2, 3, 1]
+                    , [7, 5, 8, 9, 4, 6, 3, 2, 1]
+                    ]
+            sequence_ $ zipWith treeTraversalExample treeTraversals examples
+            let traversalSpec t = do
+                    asyncSpec
+                        $ prop (ttName t) . treeTraversalProp False t
+                    asyncSpec
+                        $ prop (ttName t ++ " ordered")
+                            . treeTraversalProp True t
+                            . (Async.ordered True .)
+                    when (ttSerial t)
+                        $ prop (ttName t ++ " maxThreads 1")
+                        $ treeTraversalProp True t (Async.maxThreads 1)
+                    it (ttName t ++ " take from an infinite tree")
+                        $ takeInfiniteTree t id
+                    it (ttName t ++ " ordered take from an infinite tree")
+                        $ takeInfiniteTree t (Async.ordered True)
+            mapM_ traversalSpec treeTraversals
 
 #ifdef DEVBUILD
         describe "Time ordering" $ timeOrdering (Async.parList id)
