@@ -111,7 +111,7 @@ import Streamly.Internal.Data.Stream.Channel
 -- >>> import qualified Streamly.Data.Array as Array
 -- >>> import qualified Streamly.Data.Fold as Fold
 -- >>> import qualified Streamly.Data.Parser as Parser
--- >>> import qualified Streamly.Data.StreamK as StreamK
+-- >>> import qualified Streamly.Internal.Data.StreamK as StreamK
 -- >>> import qualified Streamly.Internal.Data.Stream as Stream
 -- >>> import qualified Streamly.Internal.Data.Stream.Prelude as Stream
 -- >>> import qualified Streamly.Internal.FileSystem.DirIO as Dir
@@ -630,16 +630,63 @@ parConcatIterate modifier f input =
             Nothing -> K.fromPure x
             Just s -> x `K.cons` iterateStream chan (Stream.toStreamK s)
 
--- | Same as 'mergeIterateWith interleave' but concurrent.
+-- | Same as 'mergeIterateWith interleave' but concurrent. Each element of the
+-- input is emitted and then mapped to a stream of its children using the
+-- supplied function, the children are emitted and expanded in the same way,
+-- recursively. An element whose function returns an empty stream is a leaf.
+-- The children of each element are combined in pairs using 'parMergeMap',
+-- forming a balanced binary tree of 'parTwo' operations.
 --
--- /Unimplemented/
+-- Definition:
+--
+-- >>> :{
+-- par2 cfg x y =
+--     StreamK.fromStream
+--         $ Stream.parTwo cfg (StreamK.toStream x) (StreamK.toStream y)
+-- :}
+--
+-- >>> :{
+-- parMergeIterate cfg f =
+--     StreamK.toStream
+--         . StreamK.mergeIterateWith (par2 cfg) (StreamK.fromStream . f)
+--         . StreamK.fromStream
+-- :}
+--
+-- Each pair uses its own channel, so the config options apply to each pair
+-- independently, see 'parMergeMap'.
+--
+-- When 'ordered' is used, the output is the same as a serial depth first
+-- pre-order traversal of the tree:
+--
+-- >>> f n = if n < 4 then Stream.fromList [2 * n, 2 * n + 1] else Stream.nil
+-- >>> g cfg = Stream.fold Fold.toList . Stream.parMergeIterate cfg f
+-- >>> g (Stream.ordered True) (Stream.fromPure 1)
+-- [1,2,4,5,3,6,7]
+--
+-- Example, list a directory tree concurrently:
+--
+-- >>> f = either (Dir.readEitherPaths id) (const Stream.nil)
+-- >>> input = Stream.fromEffect (Left <$> Path.fromString ".")
+-- >>> ls = Stream.parMergeIterate id f input
+--
+-- /Caution: the input stream and the stream generated for each element must
+-- be finite. Each of these streams is consumed entirely to build its tree
+-- before any of its output is produced./
+--
+-- /Pre-release/
+--
 {-# INLINE parMergeIterate #-}
-parMergeIterate :: -- MonadAsync m =>
+parMergeIterate :: MonadAsync m =>
        (Config -> Config)
     -> (a -> Stream m a)
     -> Stream m a
     -> Stream m a
-parMergeIterate _modifier _f _input = undefined
+parMergeIterate modifier f input =
+    Stream.fromStreamK
+        $ K.mergeIterateWith
+            (appendWithK modifier)
+            (Stream.toStreamK . f)
+            (Stream.toStreamK input)
 
 -------------------------------------------------------------------------------
 -- Generate
