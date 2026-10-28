@@ -72,6 +72,10 @@ module Streamly.Internal.Data.Stream.Concurrent
     , parConcatIterateBatchRev
     , parConcatIterateBatchPost
     , parConcatIterateBatchPostRev
+    , parWideConcatIterateBatch
+    , parWideConcatIterateBatchRev
+    , parWideConcatIterateBatchPost
+    , parWideConcatIterateBatchPostRev
     , parMergeIterate
 
     -- ** Reactive
@@ -1342,6 +1346,119 @@ parConcatIterateBatchPostRev :: MonadAsync m =>
 parConcatIterateBatchPostRev modifier f =
     withDepthK
         modifier (batchPostOrderedK True f) (batchPostCountK True f)
+
+-- | Breadth first batched traversal, one level at a time. The children
+-- streams of a level are evaluated concurrently using 'parConcatMap', the
+-- elements with children are collected for the next level. The next level
+-- starts when the current one ends. When @pre@ is not set, only the leaves
+-- are emitted as they are produced, the elements with children are held
+-- until the last level ends, and emitted from the deepest level up, each
+-- level in the order its elements were expanded. When @rev@ is set, a level
+-- is expanded in the reverse of the order in which it was emitted.
+{-# INLINE levelLoop #-}
+levelLoop :: MonadAsync m =>
+       Bool
+    -> Bool
+    -> (Config -> Config)
+    -> (a -> Maybe (Stream m a))
+    -> Stream m a
+    -> Stream m a
+levelLoop pre rev modifier f input = Stream.fromStreamK $ go input []
+
+    where
+
+    cfg = interleaved False . modifier
+
+    -- held: the elements with children of each level, the deepest first.
+    go level held = K.concatEffect $ do
+        ref <- liftIO $ newIORef []
+        let found x s = liftIO $ modifyIORef' ref ((x, s) :)
+            next = K.concatEffect $ do
+                -- In the reverse of the order of emission.
+                xs <- liftIO $ readIORef ref
+                let ys = if rev then xs else reverse xs
+                return $ case ys of
+                    [] -> K.fromList (mconcat held)
+                    _ ->
+                        let held1 = if pre then held else map fst ys : held
+                            streams = Stream.fromList (map snd ys)
+                         in go (parConcatMap cfg id streams) held1
+        return
+            $ Stream.toStreamK (batchChildren pre f found level)
+                `K.append` next
+
+-- | Same as 'bfsConcatIterate' but concurrent, the breadth / batched / pre
+-- traversal. The stream generation function returns 'Nothing' for a leaf
+-- node.
+--
+-- The children streams of the elements of a level are evaluated concurrently
+-- using 'parConcatMap' with the supplied config, each stream is run to
+-- completion by a worker. The next level starts when all the streams of the
+-- current level have ended. The elements with children of a level are held
+-- in memory, as in 'bfsConcatIterate'.
+--
+-- Without 'ordered' the output is emitted as it is produced, the order is not
+-- deterministic, the elements of a level are expanded in the order they were
+-- emitted. With 'maxThreads' 1 the output is the same as that of
+-- 'bfsConcatIterate'. With 'ordered' the output is the same as that of
+-- 'bfsConcatIterate'.
+--
+-- /Pre-release/
+--
+{-# INLINE parWideConcatIterateBatch #-}
+parWideConcatIterateBatch :: MonadAsync m =>
+       (Config -> Config)
+    -> (a -> Maybe (Stream m a))
+    -> Stream m a
+    -> Stream m a
+parWideConcatIterateBatch = levelLoop True False
+
+-- | Like 'parWideConcatIterateBatch' but each level is expanded in the
+-- reverse of the order in which it was emitted, the same as
+-- 'bfsConcatIterateRev'.
+--
+-- /Pre-release/
+--
+{-# INLINE parWideConcatIterateBatchRev #-}
+parWideConcatIterateBatchRev :: MonadAsync m =>
+       (Config -> Config)
+    -> (a -> Maybe (Stream m a))
+    -> Stream m a
+    -> Stream m a
+parWideConcatIterateBatchRev = levelLoop True True
+
+-- | Same as 'wideConcatIterateBatchPost' but concurrent. The stream
+-- generation function returns 'Nothing' for a leaf node.
+--
+-- The levels are evaluated as in 'parWideConcatIterateBatch'. The leaves are
+-- emitted as they are produced, the elements with children are held in
+-- memory until the deepest level has been expanded, and then emitted from the
+-- deepest level up. With 'ordered' the output is the same as that of
+-- 'wideConcatIterateBatchPost'.
+--
+-- /Pre-release/
+--
+{-# INLINE parWideConcatIterateBatchPost #-}
+parWideConcatIterateBatchPost :: MonadAsync m =>
+       (Config -> Config)
+    -> (a -> Maybe (Stream m a))
+    -> Stream m a
+    -> Stream m a
+parWideConcatIterateBatchPost = levelLoop False False
+
+-- | Like 'parWideConcatIterateBatchPost' but each level is expanded in the
+-- reverse of the order in which it was emitted, the same as
+-- 'wideConcatIterateBatchPostRev'.
+--
+-- /Pre-release/
+--
+{-# INLINE parWideConcatIterateBatchPostRev #-}
+parWideConcatIterateBatchPostRev :: MonadAsync m =>
+       (Config -> Config)
+    -> (a -> Maybe (Stream m a))
+    -> Stream m a
+    -> Stream m a
+parWideConcatIterateBatchPostRev = levelLoop False True
 
 -- | Same as 'mergeIterateWith interleave' but concurrent. Each element of the
 -- input is emitted and then mapped to a stream of its children using the
