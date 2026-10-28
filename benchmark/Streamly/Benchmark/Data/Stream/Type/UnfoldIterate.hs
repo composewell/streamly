@@ -9,6 +9,9 @@
 -- compiling both families in one module takes more than 500 MB of GHC heap.
 module Stream.Type.UnfoldIterate
     ( benchmarks
+    , childrenSeed
+    , childrenUnfold
+    , sumTree
     ) where
 
 import Streamly.Internal.Data.Stream (Stream)

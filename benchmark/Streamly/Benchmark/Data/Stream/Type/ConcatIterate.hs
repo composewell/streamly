@@ -9,6 +9,8 @@
 -- traversal itself dominates.
 module Stream.Type.ConcatIterate
     ( benchmarks
+    , childrenStream
+    , sumTree
     ) where
 
 import Streamly.Internal.Data.Stream (Stream)
@@ -77,6 +79,26 @@ bfsConcatIterateRev k limit =
 
 -------------------------------------------------------------------------------
 -- Benchmarks
+{-# INLINE concatIteratePost #-}
+concatIteratePost :: Int -> Int -> IO Int
+concatIteratePost k limit =
+    sumTree
+        $ Stream.concatIteratePost (childrenStream k limit) (Stream.fromPure 0)
+
+{-# INLINE concatIterateBatchPost #-}
+concatIterateBatchPost :: Int -> Int -> IO Int
+concatIterateBatchPost k limit =
+    sumTree
+        $ Stream.concatIterateBatchPost
+            (childrenStream k limit) (Stream.fromPure 0)
+
+{-# INLINE concatIterateBatchPostRev #-}
+concatIterateBatchPostRev :: Int -> Int -> IO Int
+concatIterateBatchPostRev k limit =
+    sumTree
+        $ Stream.concatIterateBatchPostRev
+            (childrenStream k limit) (Stream.fromPure 0)
+
 -------------------------------------------------------------------------------
 
 -- The BFS traversals hold a level of the tree in memory, the others hold
@@ -100,4 +122,10 @@ benchmarks size =
                 $ bfsConcatIterate k limit)
             , (SpaceO_n, benchIO (prefix "bfsConcatIterateRev")
                 $ bfsConcatIterateRev k limit)
+            , (SpaceO_1, benchIO (prefix "concatIteratePost")
+                $ concatIteratePost k limit)
+            , (SpaceO_1, benchIO (prefix "concatIterateBatchPost")
+                $ concatIterateBatchPost k limit)
+            , (SpaceO_1, benchIO (prefix "concatIterateBatchPostRev")
+                $ concatIterateBatchPostRev k limit)
             ]

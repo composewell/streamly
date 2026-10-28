@@ -472,9 +472,12 @@ benchmark Data.Stream
       Stream.Type
       Stream.Type.Basic
       Stream.Type.ConcatIterate
+      Stream.Type.ConcatIterateWide
       Stream.Type.MultiStream
       Stream.Type.Nested
       Stream.Type.UnfoldIterate
+      Stream.Type.UnfoldIteratePost
+      Stream.Type.UnfoldIterateWide
       Stream.Type.Logic
   if flag(limit-build-mem)
     ghc-options: +RTS -M500M -RTS

@@ -46,7 +46,10 @@ import qualified Stream.Type.Basic as Basic
 import qualified Stream.Type.MultiStream as MultiStream
 import qualified Stream.Type.Nested as Nested
 import qualified Stream.Type.ConcatIterate as ConcatIterate
+import qualified Stream.Type.ConcatIterateWide as ConcatIterateWide
 import qualified Stream.Type.UnfoldIterate as UnfoldIterate
+import qualified Stream.Type.UnfoldIteratePost as UnfoldIteratePost
+import qualified Stream.Type.UnfoldIterateWide as UnfoldIterateWide
 import qualified Stream.Type.Logic as Logic
 
 benchmarks :: Int -> [(SpaceComplexity, Benchmark)]
@@ -55,5 +58,8 @@ benchmarks size =
     ++ MultiStream.benchmarks size
     ++ Nested.benchmarks size
     ++ ConcatIterate.benchmarks size
+    ++ ConcatIterateWide.benchmarks size
     ++ UnfoldIterate.benchmarks size
+    ++ UnfoldIteratePost.benchmarks size
+    ++ UnfoldIterateWide.benchmarks size
     ++ Logic.benchmarks size
