@@ -18,6 +18,7 @@ module Streamly.Internal.Data.Stream.Tree
     , bfsUnfoldIterateRev
     , wideDfsUnfoldIterate
     , wideDfsUnfoldIterateRev
+    , unfoldIteratePost
 
     -- * Concat Iterate
     , concatIterateScan
@@ -26,6 +27,7 @@ module Streamly.Internal.Data.Stream.Tree
     , bfsConcatIterateRev
     , wideDfsConcatIterate
     , wideDfsConcatIterateRev
+    , concatIteratePost
 
     -- * Fold Iterate
     , bfsReduceIterate
@@ -778,6 +780,125 @@ bfsUnfoldIterateRev f (Unfold istep inject) (Stream ostep ost) =
                                         (IterateUnfoldWideInner
                                             i1 (List ys) (List [])))
                             [] -> return Stop
+
+------------------------------------------------------------------------------
+-- Post order and breadth first interleaved traversals
+------------------------------------------------------------------------------
+
+-- The concat versions of the traversals below are the unfold versions applied
+-- to streamUnfold, the seed of the children of a node is the stream of the
+-- children.
+
+-- | Same as 'Streamly.Internal.Data.Unfold.fromStream'.
+{-# INLINE_NORMAL streamUnfold #-}
+streamUnfold :: Applicative m => Unfold m (Stream m a) a
+streamUnfold = Unfold step pure
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step (UnStream step1 st) =
+        fmap
+            (\case
+                Yield x s -> Yield x (Stream step1 s)
+                Skip s -> Skip (Stream step1 s)
+                Stop -> Stop)
+            (step1 defState st)
+
+-- | A list of pairs, using one constructor instead of a cons and a tuple.
+ANN_TYPE(Pairs,NoSpecConstr)
+data Pairs b s = PairsNil | PairsCons b s (Pairs b s)
+
+ANN_TYPE(PostUnfoldState,Fuse)
+data PostUnfoldState o b i =
+      PostUnfoldOuter o
+    | PostUnfoldInner o b i (Pairs b i)
+
+-- | Depth first post order traversal. Like 'unfoldIterateMaybe', but a
+-- non-leaf node is emitted after all its descendants instead of before them.
+-- A leaf is emitted when it is generated. For the tree 1->[2,3], 2->[4,5],
+-- 3->[6,7], 4->[8], 6->[9], the output is [8,4,5,2,9,6,7,3,1].
+--
+-- This is the order of GNU @find -depth@. The open streams are the same as
+-- those of 'unfoldIterateMaybe', one for each node on the current path, and
+-- the non-leaf nodes on the current path are held in memory until they are
+-- emitted.
+--
+-- A traversal of 'Either' elements, in which a @Left a@ element has children
+-- generated from the seed @a@ and a @Right b@ element is a leaf:
+--
+-- >>> f = either Just (const Nothing)
+-- >>> unfoldIterateLeftsPost = Stream.unfoldIteratePost f
+--
+-- /Pre-release/
+{-# INLINE_NORMAL unfoldIteratePost #-}
+unfoldIteratePost :: Monad m =>
+       (b -> Maybe a)
+    -> Unfold m a b
+    -> Stream m b
+    -> Stream m b
+unfoldIteratePost f (Unfold istep inject) (Stream ostep ost) =
+    Stream step (PostUnfoldOuter ost)
+
+    where
+
+    -- In PostUnfoldInner o p i stk, i generates the children of p. Each entry
+    -- PairsCons p1 i1 of stk is the suspended stream i1 of the children of p1.
+    {-# INLINE_LATE step #-}
+    step gst (PostUnfoldOuter o) = do
+        r <- ostep (adaptState gst) o
+        case r of
+            Yield b s ->
+                case f b of
+                    Nothing -> return $ Yield b (PostUnfoldOuter s)
+                    Just a -> do
+                        i <- inject a
+                        i `seq` return
+                            $ Skip (PostUnfoldInner s b i PairsNil)
+            Skip s -> return $ Skip (PostUnfoldOuter s)
+            Stop -> return Stop
+
+    step _ (PostUnfoldInner o p i stk) = do
+        r <- istep i
+        case r of
+            Yield b s ->
+                case f b of
+                    Nothing -> return $ Yield b (PostUnfoldInner o p s stk)
+                    Just a -> do
+                        i1 <- inject a
+                        i1 `seq` return
+                            $ Skip
+                            $ PostUnfoldInner o b i1 (PairsCons p s stk)
+            Skip s -> return $ Skip (PostUnfoldInner o p s stk)
+            Stop ->
+                case stk of
+                    PairsCons p1 i1 stk1 ->
+                        return $ Yield p (PostUnfoldInner o p1 i1 stk1)
+                    PairsNil -> return $ Yield p (PostUnfoldOuter o)
+
+-- | Depth first post order traversal. Like 'concatIterate', but a non-leaf
+-- node is emitted after all its descendants instead of before them. A leaf is
+-- emitted when it is generated. For the tree 1->[2,3], 2->[4,5], 3->[6,7],
+-- 4->[8], 6->[9], the output is [8,4,5,2,9,6,7,3,1].
+--
+-- This is the order of GNU @find -depth@. The open streams are the same as
+-- those of 'concatIterate', one for each node on the current path, and the
+-- non-leaf nodes on the current path are held in memory until they are
+-- emitted.
+--
+-- Example, list a directory tree, each directory after its contents:
+--
+-- >>> f = either (Just . Dir.readEitherPaths id) (const Nothing)
+-- >>> input = Stream.fromEffect (Left <$> Path.fromString ".")
+-- >>> ls = Stream.concatIteratePost f input
+--
+-- /Pre-release/
+{-# INLINE concatIteratePost #-}
+concatIteratePost :: Monad m =>
+       (a -> Maybe (Stream m a))
+    -> Stream m a
+    -> Stream m a
+concatIteratePost f = unfoldIteratePost f streamUnfold
 
 ------------------------------------------------------------------------------
 -- Folding a tree bottom up
