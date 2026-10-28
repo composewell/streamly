@@ -19,6 +19,8 @@ module Streamly.Internal.Data.Stream.Tree
     , wideDfsUnfoldIterate
     , wideDfsUnfoldIterateRev
     , unfoldIteratePost
+    , unfoldIterateBatchPost
+    , unfoldIterateBatchPostRev
 
     -- * Concat Iterate
     , concatIterateScan
@@ -28,6 +30,8 @@ module Streamly.Internal.Data.Stream.Tree
     , wideDfsConcatIterate
     , wideDfsConcatIterateRev
     , concatIteratePost
+    , concatIterateBatchPost
+    , concatIterateBatchPostRev
 
     -- * Fold Iterate
     , bfsReduceIterate
@@ -899,6 +903,162 @@ concatIteratePost :: Monad m =>
     -> Stream m a
     -> Stream m a
 concatIteratePost f = unfoldIteratePost f streamUnfold
+
+-- | The pending work of a depth first batched post order traversal.
+ANN_TYPE(PostStack,NoSpecConstr)
+data PostStack b a =
+      PostNil
+      -- Emit the node, all its descendants have been emitted.
+    | PostExit b (PostStack b a)
+      -- Expand the node using the seed, then emit it.
+    | PostExpand b a (PostStack b a)
+
+revOntoPostStack :: Pairs b a -> PostStack b a -> PostStack b a
+revOntoPostStack PairsNil stk = stk
+revOntoPostStack (PairsCons b a xs) stk =
+    revOntoPostStack xs (PostExpand b a stk)
+
+ANN_TYPE(BatchPostState,Fuse)
+data BatchPostState o i b a =
+      BatchPostOuter o (Pairs b a) (PostStack b a)
+    | BatchPostInner i (Pairs b a) (PostStack b a)
+    | BatchPostPop (PostStack b a)
+
+-- | Common implementation of 'unfoldIterateBatchPost' (rev is False) and
+-- 'unfoldIterateBatchPostRev' (rev is True).
+{-# INLINE_NORMAL unfoldIterateBatchPostWith #-}
+unfoldIterateBatchPostWith :: Monad m =>
+       Bool
+    -> (b -> Maybe a)
+    -> Unfold m a b
+    -> Stream m b
+    -> Stream m b
+unfoldIterateBatchPostWith rev f (Unfold istep inject) (Stream ostep ost) =
+    Stream step (BatchPostOuter ost PairsNil PostNil)
+
+    where
+
+    -- rcs: the non-leaf children of the current stream in reverse order,
+    -- reversed onto the stack when the stream ends. When rev is True the
+    -- children are pushed on the stack directly and rcs stays empty.
+    {-# INLINE yieldWith #-}
+    yieldWith k b s rcs stk =
+        case f b of
+            Nothing -> Yield b (k s rcs stk)
+            Just a ->
+                if rev
+                then Skip (k s rcs (PostExpand b a stk))
+                else Skip (k s (PairsCons b a rcs) stk)
+
+    {-# INLINE stop #-}
+    stop rcs stk =
+        let !stk1 = revOntoPostStack rcs stk
+         in Skip (BatchPostPop stk1)
+
+    {-# INLINE_LATE step #-}
+    step gst (BatchPostOuter o rcs stk) = do
+        r <- ostep (adaptState gst) o
+        return
+            $ case r of
+                Yield b s -> yieldWith BatchPostOuter b s rcs stk
+                Skip s -> Skip (BatchPostOuter s rcs stk)
+                Stop -> stop rcs stk
+
+    step _ (BatchPostInner i rcs stk) = do
+        r <- istep i
+        return
+            $ case r of
+                Yield b s -> yieldWith BatchPostInner b s rcs stk
+                Skip s -> Skip (BatchPostInner s rcs stk)
+                Stop -> stop rcs stk
+
+    step _ (BatchPostPop stk) =
+        case stk of
+            PostNil -> return Stop
+            PostExit b stk1 -> return $ Yield b (BatchPostPop stk1)
+            PostExpand b a stk1 -> do
+                i <- inject a
+                i `seq` return
+                    $ Skip (BatchPostInner i PairsNil (PostExit b stk1))
+
+-- | Depth first batched post order traversal. Like 'wideDfsUnfoldIterate',
+-- the stream of a node runs to completion before any other stream, but a
+-- non-leaf node is emitted after all its descendants instead of before them.
+-- A leaf is emitted when it is generated, so the leaf children of a node come
+-- before its non-leaf children. For the tree 1->[2,3], 2->[4,5], 3->[6,7],
+-- 4->[8], 6->[9], the output is [5,8,4,2,7,9,6,3,1].
+--
+-- Every node is emitted after its descendants, the order @rm -r@ needs, with
+-- one open stream. The memory held is the unexpanded non-leaf children of the
+-- nodes on the current path and the non-leaf nodes on the current path.
+--
+-- A traversal of 'Either' elements, in which a @Left a@ element has children
+-- generated from the seed @a@ and a @Right b@ element is a leaf:
+--
+-- >>> f = either Just (const Nothing)
+-- >>> unfoldIterateLeftsBatchPost = Stream.unfoldIterateBatchPost f
+--
+-- /Pre-release/
+{-# INLINE unfoldIterateBatchPost #-}
+unfoldIterateBatchPost :: Monad m =>
+       (b -> Maybe a)
+    -> Unfold m a b
+    -> Stream m b
+    -> Stream m b
+unfoldIterateBatchPost = unfoldIterateBatchPostWith False
+
+-- | Like 'unfoldIterateBatchPost' but the children of a node are expanded in
+-- reverse order, the last child first. For the tree 1->[2,3], 2->[4,5],
+-- 3->[6,7], 4->[8], 6->[9], the output is [7,9,6,3,5,8,4,2,1]. The resource
+-- use is the same as that of 'unfoldIterateBatchPost'.
+--
+-- /Pre-release/
+{-# INLINE unfoldIterateBatchPostRev #-}
+unfoldIterateBatchPostRev :: Monad m =>
+       (b -> Maybe a)
+    -> Unfold m a b
+    -> Stream m b
+    -> Stream m b
+unfoldIterateBatchPostRev = unfoldIterateBatchPostWith True
+
+-- | Depth first batched post order traversal. Like 'wideDfsConcatIterate',
+-- the stream of a node runs to completion before any other stream, but a
+-- non-leaf node is emitted after all its descendants instead of before them.
+-- A leaf is emitted when it is generated, so the leaf children of a node come
+-- before its non-leaf children. For the tree 1->[2,3], 2->[4,5], 3->[6,7],
+-- 4->[8], 6->[9], the output is [5,8,4,2,7,9,6,3,1].
+--
+-- Every node is emitted after its descendants, the order @rm -r@ needs, with
+-- one open stream. The memory held is the unexpanded non-leaf children of the
+-- nodes on the current path and the non-leaf nodes on the current path.
+--
+-- Example, list a directory tree, each directory after its contents, with
+-- one directory open at a time:
+--
+-- >>> f = either (Just . Dir.readEitherPaths id) (const Nothing)
+-- >>> input = Stream.fromEffect (Left <$> Path.fromString ".")
+-- >>> ls = Stream.concatIterateBatchPost f input
+--
+-- /Pre-release/
+{-# INLINE concatIterateBatchPost #-}
+concatIterateBatchPost :: Monad m =>
+       (a -> Maybe (Stream m a))
+    -> Stream m a
+    -> Stream m a
+concatIterateBatchPost f = unfoldIterateBatchPostWith False f streamUnfold
+
+-- | Like 'concatIterateBatchPost' but the children of a node are expanded in
+-- reverse order, the last child first. For the tree 1->[2,3], 2->[4,5],
+-- 3->[6,7], 4->[8], 6->[9], the output is [7,9,6,3,5,8,4,2,1]. The resource
+-- use is the same as that of 'concatIterateBatchPost'.
+--
+-- /Pre-release/
+{-# INLINE concatIterateBatchPostRev #-}
+concatIterateBatchPostRev :: Monad m =>
+       (a -> Maybe (Stream m a))
+    -> Stream m a
+    -> Stream m a
+concatIterateBatchPostRev f = unfoldIterateBatchPostWith True f streamUnfold
 
 ------------------------------------------------------------------------------
 -- Folding a tree bottom up
