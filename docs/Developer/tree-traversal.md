@@ -77,12 +77,18 @@ emitted exactly once. A serial traversal is described by four choices.
   * forward: in the order the nodes were produced;
   * reverse: the last produced first.
 
+A stream signals its end with a separate step, after its last element.
+In a breadth / interleaved traversal this step happens when the stream
+reaches the front of the queue again, so a post order traversal sees
+the end of a children stream one turn after its last element.
+
 An interleaved traversal expands a node before its later siblings have
 been produced, so the last sibling is not known yet and the sibling
 order cannot be reversed. Producing all the siblings first makes the
 traversal batched.
 
-The five orders of the Stream combinators are points on these axes. DFS
+The five pre-order traversals of the older Stream combinators are points
+on these axes. DFS
 is depth / interleaved / pre. Wide DFS is depth / batched / pre: it goes
 depth first along a path, but emits all the children of a node before it
 descends into any of them. BFS is breadth / batched / pre: it emits a
@@ -95,22 +101,25 @@ faster on the binary and 10-ary trees in the benchmarks below.
 | Expansion | Batching | Parent | Siblings | Output | Streamly |
 |---|---|---|---|---|---|
 | depth | interleaved | pre | - | 1 2 4 8 5 3 6 9 7 | `concatIterate`, `unfoldIterateMaybe`, `StreamK.concatIterateWith append` |
-| depth | interleaved | post | - | 8 4 5 2 9 6 7 3 1 | none |
+| depth | interleaved | post | - | 8 4 5 2 9 6 7 3 1 | `concatIteratePost`, `unfoldIteratePost` |
 | depth | batched | pre | forward | 1 2 3 4 5 8 6 7 9 | `wideDfsConcatIterate`, `wideDfsUnfoldIterate` |
 | depth | batched | pre | reverse | 1 2 3 6 7 9 4 5 8 | `wideDfsConcatIterateRev`, `wideDfsUnfoldIterateRev` |
-| depth | batched | post | forward | 5 8 4 2 7 9 6 3 1 | none |
-| depth | batched | post | reverse | 7 9 6 3 5 8 4 2 1 | none |
-| breadth | interleaved | pre | - | 1 2 3 4 6 5 8 7 9 | none |
-| breadth | interleaved | post | - | 5 8 4 2 7 9 6 3 1 | none |
+| depth | batched | post | forward | 5 8 4 2 7 9 6 3 1 | `concatIterateBatchPost`, `unfoldIterateBatchPost` |
+| depth | batched | post | reverse | 7 9 6 3 5 8 4 2 1 | `concatIterateBatchPostRev`, `unfoldIterateBatchPostRev` |
+| breadth | interleaved | pre | - | 1 2 3 4 6 5 8 7 9 | `wideConcatIterate`, `wideUnfoldIterate` |
+| breadth | interleaved | post | - | 5 8 7 9 4 2 6 3 1 | `wideConcatIteratePost`, `wideUnfoldIteratePost` |
 | breadth | batched | pre | forward | 1 2 3 4 5 6 7 8 9 | `bfsConcatIterate`, `bfsUnfoldIterateMaybe` |
 | breadth | batched | pre | reverse | 1 2 3 6 7 4 5 8 9 | `bfsConcatIterateRev`, `bfsUnfoldIterateRev` |
-| breadth | batched | post | forward | 5 7 8 9 4 6 2 3 1 | none |
-| breadth | batched | post | reverse | 7 5 8 9 4 6 3 2 1 | none |
+| breadth | batched | post | forward | 5 7 8 9 4 6 2 3 1 | `wideConcatIterateBatchPost`, `wideUnfoldIterateBatchPost` |
+| breadth | batched | post | reverse | 7 5 8 9 4 6 3 2 1 | `wideConcatIterateBatchPostRev`, `wideUnfoldIterateBatchPostRev` |
 
 The outputs were computed with a model of the rules in Axes and agree
-with the streamly code of the listed combinators. Each Stream
-combinator `xConcatIterate` should have a fused `xUnfoldIterate`
-counterpart that gives the same order.
+with the streamly code of the listed combinators. The tests in
+`test/Streamly/Test/Data/Stream/Tree.hs` check every listed combinator
+on this tree, and the post order and breadth / interleaved combinators
+against list models of the rules on random trees. Each Stream
+combinator `xConcatIterate` has a fused `xUnfoldIterate` counterpart
+that gives the same order.
 
 Notes on the rows:
 
@@ -131,10 +140,17 @@ Notes on the rows:
   stream gets every second turn, the second every fourth, and so on. On
   the example tree it gives 1 2 3 4 6 5 7 8 9; the queue gives
   1 2 3 4 6 5 8 7 9. On the chain tree above both give the same output.
-* breadth / interleaved / post gives the same output as depth / batched
-  / post on the example tree. On larger trees they differ. It needs,
-  for each non-leaf node, a flag for the end of its children stream and
-  a count of its non-leaf children not yet emitted.
+* breadth / interleaved / post emits a non-leaf node when its children
+  stream has ended and all its non-leaf children have been emitted. The
+  end of the children stream of 4 is seen when that stream reaches the
+  front of the queue after yielding 8, which is after the streams of 3
+  and 6 have yielded 7 and 9, so 4 comes after 7 and 9. A model in which
+  a stream ends together with its last element gives
+  5 8 4 2 7 9 6 3 1, the depth / batched / post output. The combinators
+  keep one count for each non-leaf node: its children stream, until it
+  ends, plus its non-leaf children not yet emitted. The count is an
+  `IORef`, so they need `MonadIO`; a pure `IntMap` of the counts was 3
+  times slower on the binary and 10-ary trees of the benchmarks below.
 * breadth / batched / reverse expands each level in the reverse of the
   order in which the previous level was emitted. Compared with the
   forward order, depth 2 is reversed (6 7 4 5 instead of 4 5 6 7) and
@@ -312,6 +328,14 @@ The `Unfold` is a static argument, so its step function fuses with the
 traversal loop. The children streams of `concatIterate` are created at run
 time, and their step functions are called as unknown functions.
 
+The post order and `wide` combinators define the concat version as the
+unfold version applied to an `Unfold` whose seed is the children stream,
+`Unfold.fromStream`, so each order has one implementation. The children
+streams are still called as unknown functions. On the binary tree at 10^6
+nodes `concatIterate` took 52.3 ms and `wideDfsConcatIterate` 58.5 ms,
+written directly; `concatIteratePost` took 52.0 ms and
+`concatIterateBatchPost` 51.2 ms, defined from the unfold versions.
+
 On the in-memory trees above, at 10^5 and 10^6 nodes, `unfoldIterateMaybe`
 was 12 to 18 times faster than `concatIterate`. When processing an element
 costs much more than the traversal, the difference disappears: listing a tree
@@ -330,6 +354,26 @@ All unfold traversals in one run, time in ms:
 | `wideDfsUnfoldIterateRev` | 5.78   | 4.66   | 4.06     |
 | `bfsUnfoldIterateMaybe`   | 50.8   | 8.87   | 4.17     |
 | `bfsUnfoldIterateRev`     | 31.5   | 7.06   | 4.32     |
+
+The post order and `wide` unfold traversals, in a later run, with three of
+the traversals above from the same run, time in ms:
+
+| Function                        | binary | 10-ary | 1000-ary |
+|---------------------------------|--------|--------|----------|
+| `unfoldIterateMaybe`            | 3.37   | 1.84   | 1.44     |
+| `unfoldIteratePost`             | 3.93   | 1.82   | 1.44     |
+| `wideDfsUnfoldIterate`          | 6.13   | 2.97   | 2.21     |
+| `unfoldIterateBatchPost`        | 7.37   | 2.64   | 1.62     |
+| `unfoldIterateBatchPostRev`     | 6.81   | 2.37   | 1.54     |
+| `bfsUnfoldIterateMaybe`         | 35.4   | 5.80   | 2.48     |
+| `wideUnfoldIterateBatchPost`    | 90.7   | 8.31   | 1.44     |
+| `wideUnfoldIterateBatchPostRev` | 68.9   | 5.56   | 1.43     |
+| `wideUnfoldIterate`             | 204    | 103    | 19.1     |
+| `wideUnfoldIteratePost`         | 410    | 110    | 16.1     |
+
+`wideUnfoldIterate` puts the current stream back on the queue after every
+element. On the 1000-ary tree it allocated 153 MB, about 150 bytes per
+element, against 94 KB for `bfsUnfoldIterateMaybe`.
 
 ## StreamK forms
 
@@ -672,6 +716,18 @@ defined as the `Maybe` form applied to `Just`.
 | wide DFS     | `wideDfsConcatIterate`    | `wideDfsUnfoldIterate`    |
 | wide DFS Rev | `wideDfsConcatIterateRev` | `wideDfsUnfoldIterateRev` |
 
+The orders added with the names proposed in Naming:
+
+| Expansion, batching, parent | Concat                          | Unfold                          |
+|-----------------------------|---------------------------------|---------------------------------|
+| depth, interleaved, post    | `concatIteratePost`             | `unfoldIteratePost`             |
+| depth, batched, post        | `concatIterateBatchPost`        | `unfoldIterateBatchPost`        |
+| depth, batched, post, Rev   | `concatIterateBatchPostRev`     | `unfoldIterateBatchPostRev`     |
+| breadth, interleaved, pre   | `wideConcatIterate`             | `wideUnfoldIterate`             |
+| breadth, interleaved, post  | `wideConcatIteratePost`         | `wideUnfoldIteratePost`         |
+| breadth, batched, post      | `wideConcatIterateBatchPost`    | `wideUnfoldIterateBatchPost`    |
+| breadth, batched, post, Rev | `wideConcatIterateBatchPostRev` | `wideUnfoldIterateBatchPostRev` |
+
 The other combinators:
 
 | Module             | Combinators                                                    |
@@ -729,13 +785,13 @@ Proposed changes:
   | Expansion | Batching | Parent | Proposed | Current |
   |---|---|---|---|---|
   | depth | interleaved | pre | `concatIterate` | `concatIterate` |
-  | depth | interleaved | post | `concatIteratePost` | none |
+  | depth | interleaved | post | `concatIteratePost` | `concatIteratePost` |
   | depth | batched | pre | `concatIterateBatch[Rev]` | `wideDfsConcatIterate[Rev]` |
-  | depth | batched | post | `concatIterateBatchPost[Rev]` | none |
-  | breadth | interleaved | pre | `wideConcatIterate` | none |
-  | breadth | interleaved | post | `wideConcatIteratePost` | none |
+  | depth | batched | post | `concatIterateBatchPost[Rev]` | `concatIterateBatchPost[Rev]` |
+  | breadth | interleaved | pre | `wideConcatIterate` | `wideConcatIterate` |
+  | breadth | interleaved | post | `wideConcatIteratePost` | `wideConcatIteratePost` |
   | breadth | batched | pre | `wideConcatIterateBatch[Rev]` | `bfsConcatIterate[Rev]` |
-  | breadth | batched | post | `wideConcatIterateBatchPost[Rev]` | none |
+  | breadth | batched | post | `wideConcatIterateBatchPost[Rev]` | `wideConcatIterateBatchPost[Rev]` |
 
   The fused versions replace `ConcatIterate` with `UnfoldIterate`, and the
   parallel versions add the `par` prefix.
@@ -762,6 +818,7 @@ What can be expressed with the current combinators:
 | Need                          | How                                                    |
 |-------------------------------|--------------------------------------------------------|
 | DFS, BFS, wide DFS            | the fixed order combinators                            |
+| post order, breadth / interleaved | the `Post` and `wide` combinators                  |
 | other orders, balanced        | `concatIterateWith` or `mergeIterateWith` with a combine function |
 | prune a subtree               | `Nothing` or a filter in the children function         |
 | stop early                    | `take` or `takeWhile` on the output                    |
@@ -776,11 +833,14 @@ What can be expressed with the current combinators:
 
 Gaps:
 
-* **Post-order and enter/exit events.** Some tasks need a node after its
-  children: `rm -r` deletes the contents of a directory before the directory,
-  `du` sums the sizes of the children, topological sort is the reverse
-  post-order of a DFS. With DFS this can be expressed by tagging, emitting an
-  `Exit` event after the children of a node:
+* **Enter/exit events.** Some tasks need a node after its children: `rm -r`
+  deletes the contents of a directory before the directory, `du` sums the
+  sizes of the children, topological sort is the reverse post-order of a DFS.
+  The post order combinators (`concatIteratePost` and the others in the order
+  table) emit each node after its descendants, but do not mark where the
+  descendants of a node start. With DFS the start and the end can both be
+  expressed by tagging, emitting an `Exit` event after the children of a
+  node:
 
   ```
   f (Enter x) = Just (fmap Enter (children x) <> fromPure (Exit x))
@@ -805,9 +865,9 @@ Gaps:
   increase along a path need a priority queue traversal.
 * **Concurrent BFS and wide DFS with a guaranteed order**, and
   `parMergeIterate`. Not implemented.
-* **Post order and breadth / interleaved order.** No combinator gives a
-  post order or the breadth / interleaved order; the rows marked "none" in
-  the order tables.
+* **Parallel post order and breadth / interleaved order.** The serial
+  orders are all provided; the parallel ones are the rows marked "none" in
+  the parallel order table.
 * **Diagonal interleaving.** A tree version of `StreamK.fairConcatFor`, e.g.
   `fairConcatIterate`. Not implemented; its order is not worked out yet.
 * **Fixpoint iteration in general**, applying a stream transformation
@@ -861,3 +921,4 @@ still specializes the loop on the current inner state, and the traversal ran
 | Jan 2025 | `parMergeIterate` declared as an unimplemented prototype. |
 | Aug 2025 | Renames to the order-prefix convention: `concatIterateDfs` to `concatIterate`, `concatIterateBfs` to `bfsConcatIterate`, `concatIterateBfsRev` to `altBfsConcatIterate`, the same for the unfold versions, `reduceIterateBfs` to `bfsReduceIterate` and `foldIterateBfs` to `bfsFoldIterate`. |
 | Oct 2026 | `altBfsConcatIterate` renamed to `wideDfsConcatIterateRev`, and `wideDfsConcatIterate`, `bfsConcatIterateRev` and the unfold equivalents added. The unfold versions take `b -> Maybe a` (`unfoldIterateMaybe`, `bfsUnfoldIterateMaybe`). The fixed `Unfold` brings in a second type, so the `Either` form was tried again as wrappers (`unfoldIterateLefts`) and dropped: it was 15 to 20 percent slower in DFS on trees with a single node type. `parConcatIterate` changed to `a -> Maybe (Stream m a)`, the signature of `concatIterate`. |
+| Oct 2026 | The post order and breadth / interleaved orders added, with the axis based names: `concatIteratePost`, `concatIterateBatchPost[Rev]`, `wideConcatIterate`, `wideConcatIteratePost`, `wideConcatIterateBatchPost[Rev]` and the unfold versions. The concat versions are the unfold versions applied to `Unfold.fromStream`. The breadth / interleaved / post combinators keep their counts in `IORef`s and need `MonadIO`. |
