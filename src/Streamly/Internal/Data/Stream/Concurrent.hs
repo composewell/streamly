@@ -68,6 +68,10 @@ module Streamly.Internal.Data.Stream.Concurrent
     , parConcatIteratePost
     , parWideConcatIterate
     , parWideConcatIteratePost
+    , parConcatIterateBatch
+    , parConcatIterateBatchRev
+    , parConcatIterateBatchPost
+    , parConcatIterateBatchPostRev
     , parMergeIterate
 
     -- ** Reactive
@@ -89,7 +93,7 @@ where
 import Control.Concurrent (myThreadId, killThread)
 import Control.Monad (void, when)
 import Control.Monad.IO.Class (MonadIO(liftIO))
-import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import Streamly.Internal.Control.Concurrent
     (MonadAsync, RunInIO, askRunInIO)
 import Streamly.Internal.Data.Atomics
@@ -955,6 +959,156 @@ iteratePostCountK wide f spawn = splitHeadK spawn root
                     `K.append` K.fromPure PostEnd
         return $ splitHeadK spawn1 run tasks
 
+-- | Emit the elements of a children stream and call @found@ on each element
+-- with children. When @pre@ is set, the elements with children are emitted
+-- and @found@ is called after the element is emitted, otherwise only the
+-- leaves are emitted.
+{-# INLINE_NORMAL batchChildren #-}
+batchChildren :: Monad m =>
+       Bool
+    -> (a -> Maybe (Stream m a))
+    -> (a -> Stream m a -> m ())
+    -> Stream m a
+    -> Stream m a
+batchChildren pre f found (D.Stream step0 st0) = D.Stream step (Left st0)
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (Left st) = do
+        r <- step0 (adaptState gst) st
+        case r of
+            Yield x s ->
+                case f x of
+                    Nothing -> return $ Yield x (Left s)
+                    Just cs ->
+                        if pre
+                        then return $ Yield x (Right (s, x, cs))
+                        else found x cs >> return (Skip (Left s))
+            Skip s -> return $ Skip (Left s)
+            Stop -> return Stop
+    step _ (Right (s, x, cs)) = found x cs >> return (Skip (Left s))
+
+-- | Returns a callback for the elements with children of a stream and an
+-- action to run at the end of the stream. When @rev@ is set, the callback
+-- runs @act@ on the element, otherwise it collects the element and the end
+-- action runs @act@ on the collected elements, the last one first.
+--
+-- An item spawned by @act@ runs before the items spawned earlier by the same
+-- item, in the LIFO queue of 'withUnorderedK' and in the output order of
+-- 'withOrderedK'. Therefore, @rev@ expands the last child first and the
+-- other the first child first.
+{-# INLINE withFound #-}
+withFound :: MonadIO m =>
+       Bool
+    -> (a -> Stream m a -> m ())
+    -> m (a -> Stream m a -> m (), m ())
+withFound rev act =
+    if rev
+    then return (act, return ())
+    else do
+        ref <- liftIO $ newIORef []
+        let collect x s = liftIO $ modifyIORef' ref ((x, s) :)
+            end = liftIO (readIORef ref) >>= mapM_ (uncurry act)
+        return (collect, end)
+
+-- | Depth first batched pre-order traversal, each work item runs a children
+-- stream to completion and spawns the children streams of its elements.
+{-# INLINE batchPreK #-}
+batchPreK :: MonadIO m =>
+       Bool
+    -> (a -> Maybe (Stream m a))
+    -> Spawn m a
+    -> K.StreamK m a
+    -> K.StreamK m a
+batchPreK rev f spawn0 input = go spawn0 (Stream.fromStreamK input)
+
+    where
+
+    go spawn s = K.concatEffect $ do
+        (found, end) <-
+            withFound rev $ \_ cs -> spawnWith spawn (\spawn1 -> go spawn1 cs)
+        return
+            $ Stream.toStreamK (batchChildren True f found s)
+                `K.append` K.nilM end
+
+-- | Depth first batched post-order traversal for 'withOrderedK'. An element
+-- with children is spawned before its children streams, it is emitted after
+-- all of them.
+{-# INLINE batchPostOrderedK #-}
+batchPostOrderedK :: MonadIO m =>
+       Bool
+    -> (a -> Maybe (Stream m a))
+    -> Spawn m a
+    -> K.StreamK m a
+    -> K.StreamK m a
+batchPostOrderedK rev f spawn0 input = go spawn0 (Stream.fromStreamK input)
+
+    where
+
+    go spawn s = K.concatEffect $ do
+        (found, end) <-
+            withFound rev $ \x cs ->
+                spawnWith spawn (\spawn1 -> node spawn1 x cs)
+        return
+            $ Stream.toStreamK (batchChildren False f found s)
+                `K.append` K.nilM end
+
+    node spawn x s = K.concatEffect $ do
+        spawnWith spawn (const (K.fromPure x))
+        return $ go spawn s
+
+-- | Depth first batched post-order traversal for 'withUnorderedK', with the
+-- counts of 'iteratePostCountK'.
+{-# INLINE batchPostCountK #-}
+batchPostCountK :: MonadIO m =>
+       Bool
+    -> (a -> Maybe (Stream m a))
+    -> Spawn m a
+    -> K.StreamK m a
+    -> K.StreamK m a
+batchPostCountK rev f spawn0 input = K.concatEffect $ do
+    (found, end) <-
+        withFound rev $ \x cs ->
+            spawnWith spawn0 (\spawn1 -> node spawn1 K.nil x cs)
+    let stream = Stream.fromStreamK input
+    return
+        $ Stream.toStreamK (batchChildren False f found stream)
+            `K.append` K.nilM end
+
+    where
+
+    node spawn done x s = K.concatEffect $ do
+        ref <- liftIO $ newIORef (1 :: Int)
+        let finish = countDown ref x done
+        (found, end) <- withFound rev $ \c cs -> do
+            liftIO $ atomicModifyIORefCAS_ ref (+ 1)
+            spawnWith spawn (\spawn1 -> node spawn1 finish c cs)
+        return
+            $ Stream.toStreamK (batchChildren False f found s)
+                `K.append` K.nilM end
+                `K.append` finish
+
+-- | Depth first traversal with an ordered or unordered channel depending on
+-- the 'ordered' option.
+{-# INLINE withDepthK #-}
+withDepthK :: MonadAsync m =>
+       (Config -> Config)
+    -> (Spawn m a -> K.StreamK m a -> K.StreamK m a)
+    -> (Spawn m a -> K.StreamK m a -> K.StreamK m a)
+    -> Stream m a
+    -> Stream m a
+withDepthK modifier orderedTraversal unorderedTraversal input =
+    let stream = Stream.toStreamK input
+     in Stream.fromStreamK
+            $ if getOrdered (modifier defaultConfig)
+              then withOrderedK modifier stream orderedTraversal
+              else
+                withUnorderedK
+                    (ordered False . interleaved False . modifier)
+                    stream
+                    unorderedTraversal
+
 -- | Same as 'concatIterate' but concurrent. The stream generation function
 -- returns 'Nothing' for a leaf node.
 --
@@ -1021,16 +1175,9 @@ parConcatIteratePost :: MonadAsync m =>
     -> (a -> Maybe (Stream m a))
     -> Stream m a
     -> Stream m a
-parConcatIteratePost modifier f input =
-    let stream = Stream.toStreamK input
-     in Stream.fromStreamK
-            $ if getOrdered (modifier defaultConfig)
-              then withOrderedK modifier stream (iteratePostOrderedK f)
-              else
-                withUnorderedK
-                    (ordered False . interleaved False . modifier)
-                    stream
-                    (iteratePostCountK False f)
+parConcatIteratePost modifier f =
+    withDepthK
+        modifier (iteratePostOrderedK f) (iteratePostCountK False f)
 
 -- | Evaluate a stream ahead of its consumer using a channel.
 {-# INLINE bufferedWith #-}
@@ -1105,6 +1252,96 @@ parWideConcatIteratePost modifier f input =
                 (ordered False . interleaved True . modifier)
                 (Stream.toStreamK input)
                 (iteratePostCountK True f)
+
+-- | Same as 'wideDfsConcatIterate' but concurrent, the depth / batched / pre
+-- traversal. The stream generation function returns 'Nothing' for a leaf
+-- node.
+--
+-- Each worker runs a children stream to completion, emitting all its
+-- elements, and adds the children streams of its elements to the work queue.
+-- The work queue is LIFO. The output is emitted as it is produced, the order
+-- is not deterministic. With 'maxThreads' 1 the output is the same as that of
+-- 'wideDfsConcatIterate'.
+--
+-- With 'ordered' the output is the same as that of 'wideDfsConcatIterate'.
+-- The workers evaluate the streams ahead of the consumer and buffer their
+-- output, up to 'maxBuffer' elements in total.
+--
+-- Use it instead of 'parConcatIterate' when an open stream holds a scarce
+-- resource, for example, a file descriptor: a worker keeps only the stream it
+-- is running open. The children streams waiting in the work queue are not
+-- started yet.
+--
+-- /Pre-release/
+--
+{-# INLINE parConcatIterateBatch #-}
+parConcatIterateBatch :: MonadAsync m =>
+       (Config -> Config)
+    -> (a -> Maybe (Stream m a))
+    -> Stream m a
+    -> Stream m a
+parConcatIterateBatch modifier f =
+    withDepthK modifier (batchPreK False f) (batchPreK False f)
+
+-- | Like 'parConcatIterateBatch' but the children of a node are expanded in
+-- reverse order, the last child first, the same as 'wideDfsConcatIterateRev'.
+--
+-- /Pre-release/
+--
+{-# INLINE parConcatIterateBatchRev #-}
+parConcatIterateBatchRev :: MonadAsync m =>
+       (Config -> Config)
+    -> (a -> Maybe (Stream m a))
+    -> Stream m a
+    -> Stream m a
+parConcatIterateBatchRev modifier f =
+    withDepthK modifier (batchPreK True f) (batchPreK True f)
+
+-- | Same as 'concatIterateBatchPost' but concurrent. The stream generation
+-- function returns 'Nothing' for a leaf node.
+--
+-- The streams are run as in 'parConcatIterateBatch'. Without 'ordered' the
+-- output is emitted as it is produced, the order is not deterministic, but
+-- each element is still emitted after all its descendants, using the counts
+-- described in 'parConcatIteratePost'. With 'maxThreads' 1 the output is the
+-- same as that of 'concatIterateBatchPost'.
+--
+-- With 'ordered' the output is the same as that of 'concatIterateBatchPost'.
+--
+-- Example, remove a directory tree, a directory is removed after its
+-- contents:
+--
+-- >>> f = either (Just . Dir.readEitherPaths id) (const Nothing)
+-- >>> input = Stream.fromEffect (Left <$> Path.fromString "dir")
+-- >>> paths = Stream.parConcatIterateBatchPost id f input
+--
+-- /Pre-release/
+--
+{-# INLINE parConcatIterateBatchPost #-}
+parConcatIterateBatchPost :: MonadAsync m =>
+       (Config -> Config)
+    -> (a -> Maybe (Stream m a))
+    -> Stream m a
+    -> Stream m a
+parConcatIterateBatchPost modifier f =
+    withDepthK
+        modifier (batchPostOrderedK False f) (batchPostCountK False f)
+
+-- | Like 'parConcatIterateBatchPost' but the children of a node are expanded
+-- in reverse order, the last child first, the same as
+-- 'concatIterateBatchPostRev'.
+--
+-- /Pre-release/
+--
+{-# INLINE parConcatIterateBatchPostRev #-}
+parConcatIterateBatchPostRev :: MonadAsync m =>
+       (Config -> Config)
+    -> (a -> Maybe (Stream m a))
+    -> Stream m a
+    -> Stream m a
+parConcatIterateBatchPostRev modifier f =
+    withDepthK
+        modifier (batchPostOrderedK True f) (batchPostCountK True f)
 
 -- | Same as 'mergeIterateWith interleave' but concurrent. Each element of the
 -- input is emitted and then mapped to a stream of its children using the
