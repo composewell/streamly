@@ -168,6 +168,15 @@ exceptionPropagation f = do
         `shouldReturn`
             (Left (ExampleException "E") :: Either ExampleException [Int])
 
+    it "mergeMap throwM" $ do
+        let g x =
+                if x == 3
+                then Stream.fromEffect (throwM (ExampleException "E"))
+                else Stream.fromPure x
+        try (tl (Stream.nil `f` Async.parMergeMap id g (Stream.fromList [1..5])))
+        `shouldReturn`
+            (Left (ExampleException "E") :: Either ExampleException [Int])
+
     where
 
     tl = Stream.fold Fold.toList
@@ -242,6 +251,13 @@ takeCombined n = do
     r <- Stream.fold Fold.toList $ Stream.take n s
     r `shouldBe` []
 
+-- Infinite inner streams must be stopped when the output is abandoned.
+takeMergeMap :: Int -> IO ()
+takeMergeMap n = do
+    let s = Async.parMergeMap id (Stream.repeat :: Int -> Stream IO Int)
+    r <- Stream.fold Fold.toList $ Stream.take n $ s $ Stream.fromList [1..5]
+    length r `shouldBe` n
+
 ---------------------------------------------------------------------------
 -- Main
 ---------------------------------------------------------------------------
@@ -271,6 +287,18 @@ sequenceReplicate cfg = constructWithLenM stream list
 
     list = flip replicateM (return 1 :: IO Int)
     stream = Async.parSequence cfg . flip Stream.replicate (return 1 :: IO Int)
+
+-- With "ordered" the output of parMergeMap must be the same as serial concat.
+mergeMapOrdered :: (Async.Config -> Async.Config) -> [[Int]] -> Property
+mergeMapOrdered cfg xss =
+    withNumTests maxTestCount
+        $ monadicIO $ do
+            stream <-
+                run
+                    $ Stream.fold Fold.toList
+                    $ Async.parMergeMap (Async.ordered True . cfg) Stream.fromList
+                    $ Stream.fromList xss
+            listEquals (==) stream (concat xss)
 
 drainMapM :: Monad m => (a -> m b) -> Stream m a -> m ()
 drainMapM f = Stream.fold (Fold.drainMapM f)
@@ -439,6 +467,30 @@ main = hspec
                             )
              in prop "parConcatMap" . f
 
+        asyncSpec $
+            let stream cfg =
+                    Async.parMergeMap cfg Stream.fromPure
+                        $ Stream.fromList ([] :: [Int])
+            in prop1 "parMergeMap []" . cmp sortEq [] . stream
+
+        asyncSpec $
+            let stream cfg =
+                    Async.parMergeMap cfg Stream.fromPure
+                        $ Stream.fromList [1..100 :: Int]
+            in prop1 "parMergeMap fromPure" . cmp sortEq [1..100] . stream
+
+        asyncSpec $
+            let f cfg =
+                    forAll (choose (0, 100)) $ \n ->
+                        transform
+                            (concatMap (const [1..n]))
+                            (Async.parMergeMap
+                                cfg (const (Stream.fromList [1..n]))
+                            )
+             in prop "parMergeMap" . f
+
+        asyncSpec $ prop "parMergeMap ordered" . mergeMapOrdered
+
 #ifdef DEVBUILD
         describe "Time ordering" $ timeOrdering (Async.parList id)
         describe "Filtering" $ do
@@ -451,4 +503,5 @@ main = hspec
         describe "Exception propagation" $ exceptionPropagation async
         -- Ad-hoc tests
         it "takes n from stream of streams" $ takeCombined 2
+        it "takes n from parMergeMap of infinite streams" $ takeMergeMap 1000
         it "fromCallback" $ testFromCallback `shouldReturn` (50*101)
