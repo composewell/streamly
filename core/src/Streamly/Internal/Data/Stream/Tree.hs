@@ -68,15 +68,14 @@ where
 import Fusion.Plugin.Types (Fuse(..))
 import GHC.Exts (SpecConstrAnnotation(..))
 #endif
-import Data.IntMap.Strict (IntMap)
+import Control.Monad.IO.Class (MonadIO(..))
+import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import GHC.Types (SPEC(..))
 
 import Streamly.Internal.Data.Fold.Type (Fold(..))
 import Streamly.Internal.Data.Stream.Type (Stream(..), Step(..))
 import Streamly.Internal.Data.SVar.Type (adaptState, defState)
 import Streamly.Internal.Data.Unfold.Type (Unfold(..))
-
-import qualified Data.IntMap.Strict as IntMap
 
 #include "DocTestDataStream.hs"
 
@@ -1071,20 +1070,21 @@ concatIterateBatchPostRev :: Monad m =>
     -> Stream m a
 concatIterateBatchPostRev f = unfoldIterateBatchPostWith True f streamUnfold
 
--- | The queue of a breadth first interleaved traversal. The Int field is the
--- id of the node whose children the stream generates, used only by the post
--- order traversal.
+-- | The queue of a breadth first interleaved traversal. The p field is the
+-- node whose children the stream generates, used only by the post order
+-- traversal, the pre order traversal uses ().
 ANN_TYPE(WideQueue,NoSpecConstr)
-data WideQueue o i a =
+data WideQueue p o i a =
       WideNil
       -- The rest of the input stream.
-    | WideOuter o (WideQueue o i a)
+    | WideOuter o (WideQueue p o i a)
       -- A partly run stream.
-    | WideInner !Int i (WideQueue o i a)
+    | WideInner p i (WideQueue p o i a)
       -- The seed of a stream not started yet.
-    | WideSeed !Int a (WideQueue o i a)
+    | WideSeed p a (WideQueue p o i a)
 
-revOntoWideQueue :: WideQueue o i a -> WideQueue o i a -> WideQueue o i a
+revOntoWideQueue ::
+    WideQueue p o i a -> WideQueue p o i a -> WideQueue p o i a
 revOntoWideQueue WideNil q = q
 revOntoWideQueue (WideOuter o xs) q = revOntoWideQueue xs (WideOuter o q)
 revOntoWideQueue (WideInner p i xs) q = revOntoWideQueue xs (WideInner p i q)
@@ -1096,11 +1096,11 @@ revOntoWideQueue (WideSeed p a xs) q = revOntoWideQueue xs (WideSeed p a q)
 {-# INLINE dequeueWide #-}
 dequeueWide :: Monad m =>
        (a -> m i)
-    -> (o -> WideQueue o i a -> WideQueue o i a -> r)
-    -> (Int -> i -> WideQueue o i a -> WideQueue o i a -> r)
+    -> (o -> WideQueue p o i a -> WideQueue p o i a -> r)
+    -> (p -> i -> WideQueue p o i a -> WideQueue p o i a -> r)
     -> r
-    -> WideQueue o i a
-    -> WideQueue o i a
+    -> WideQueue p o i a
+    -> WideQueue p o i a
     -> m r
 dequeueWide inject outer inner empty xs rys =
     case xs of
@@ -1121,8 +1121,8 @@ dequeueWide inject outer inner empty xs rys =
 
 ANN_TYPE(WideState,Fuse)
 data WideState o i a =
-      WideRunOuter o (WideQueue o i a) (WideQueue o i a)
-    | WideRunInner i (WideQueue o i a) (WideQueue o i a)
+      WideRunOuter o (WideQueue () o i a) (WideQueue () o i a)
+    | WideRunInner i (WideQueue () o i a) (WideQueue () o i a)
 
 -- | Breadth first interleaved traversal. The pending streams are kept in a
 -- queue. A stream yields one element, then the rest of the stream is put at
@@ -1158,7 +1158,7 @@ wideUnfoldIterate f (Unfold istep inject) (Stream ostep ost) =
     enqueue b q =
         case f b of
             Nothing -> q
-            Just a -> WideSeed 0 a q
+            Just a -> WideSeed () a q
 
     {-# INLINE next #-}
     next yld =
@@ -1179,7 +1179,7 @@ wideUnfoldIterate f (Unfold istep inject) (Stream ostep ost) =
     step _ (WideRunInner i xs rys) = do
         r <- istep i
         case r of
-            Yield b s -> next (Yield b) xs (enqueue b (WideInner 0 s rys))
+            Yield b s -> next (Yield b) xs (enqueue b (WideInner () s rys))
             Skip s -> return $ Skip (WideRunInner s xs rys)
             Stop -> next Skip xs rys
 
@@ -1206,22 +1206,27 @@ wideConcatIterate :: Monad m =>
     -> Stream m a
 wideConcatIterate f = wideUnfoldIterate f streamUnfold
 
--- | A non-leaf node waiting to be emitted: the node, the id of its parent
--- (0 for a node of the input stream), and the number of its pending items.
--- The pending items are the stream of its children, until it ends, and its
--- non-leaf children not yet emitted.
-data WideNode b = WideNode b !Int !Int
+-- | A non-leaf node waiting to be emitted: the node, its parent, and the
+-- number of its pending items. The pending items are the stream of its
+-- children, until it ends, and its non-leaf children not yet emitted.
+-- WideRoot is the parent of the nodes of the input stream.
+data WideNode b = WideRoot | WideNode b (WideNode b) !(IORef Int)
 
 ANN_TYPE(WidePostState,Fuse)
 data WidePostState o i a b =
       WidePostOuter
-        o (WideQueue o i a) (WideQueue o i a) !Int (IntMap (WideNode b))
-      -- The Int before i is the id of the node whose children i generates.
+        o (WideQueue (WideNode b) o i a) (WideQueue (WideNode b) o i a)
+      -- The first field is the node whose children i generates.
     | WidePostInner
-        !Int i (WideQueue o i a) (WideQueue o i a) !Int (IntMap (WideNode b))
-      -- Decrement the pending items of the node with the given id.
+        (WideNode b)
+        i
+        (WideQueue (WideNode b) o i a)
+        (WideQueue (WideNode b) o i a)
+      -- Decrement the pending items of the node.
     | WidePostDone
-        !Int (WideQueue o i a) (WideQueue o i a) !Int (IntMap (WideNode b))
+        (WideNode b)
+        (WideQueue (WideNode b) o i a)
+        (WideQueue (WideNode b) o i a)
 
 -- | Breadth first interleaved post order traversal. Like
 -- 'wideUnfoldIterate', but a non-leaf node is emitted after all its
@@ -1235,8 +1240,11 @@ data WidePostState o i a b =
 -- children of 4 is seen after 7 and 9 are generated, so 4 comes after them.
 --
 -- The open streams are the same as those of 'wideUnfoldIterate'. In addition,
--- the non-leaf nodes with unfinished descendants are held in memory, in an
--- 'IntMap'.
+-- the non-leaf nodes with unfinished descendants are held in memory, each
+-- with an 'IORef' counting its pending items. The 'IORef's need 'MonadIO'. In
+-- a benchmark summing complete binary and 10-ary trees of 10^6 nodes held in
+-- memory, a pure @IntMap@ of the counts took 1.13 s and 342 ms, the 'IORef's
+-- 339 ms and 112 ms.
 --
 -- A traversal of 'Either' elements, in which a @Left a@ element has children
 -- generated from the seed @a@ and a @Right b@ element is a leaf:
@@ -1246,72 +1254,63 @@ data WidePostState o i a b =
 --
 -- /Pre-release/
 {-# INLINE_NORMAL wideUnfoldIteratePost #-}
-wideUnfoldIteratePost :: Monad m =>
+wideUnfoldIteratePost :: MonadIO m =>
        (b -> Maybe a)
     -> Unfold m a b
     -> Stream m b
     -> Stream m b
 wideUnfoldIteratePost f (Unfold istep inject) (Stream ostep ost) =
-    Stream step (WidePostOuter ost WideNil WideNil 1 IntMap.empty)
+    Stream step (WidePostOuter ost WideNil WideNil)
 
     where
 
     {-# INLINE next #-}
-    next yld nid nodes =
+    next yld =
         dequeueWide inject
-            (\o q r -> yld (WidePostOuter o q r nid nodes))
-            (\p i q r -> yld (WidePostInner p i q r nid nodes))
+            (\o q r -> yld (WidePostOuter o q r))
+            (\p i q r -> yld (WidePostInner p i q r))
             Stop
-
-    incr p nodes
-        | p == 0 = nodes
-        | otherwise =
-            IntMap.adjust (\(WideNode b q c) -> WideNode b q (c + 1)) p nodes
 
     -- b is generated by the stream of the children of p, cur is the queue
     -- entry for the rest of the stream followed by rys. After a Yield the
     -- queue is not empty and next does not return Stop.
     {-# INLINE yieldWith #-}
-    yieldWith p b cur xs nid nodes =
+    yieldWith p b cur xs =
         case f b of
-            Nothing -> next (Yield b) nid nodes xs cur
-            Just a ->
-                let !nodes1 = IntMap.insert nid (WideNode b p 1) (incr p nodes)
-                 in next Skip (nid + 1) nodes1 xs (WideSeed nid a cur)
+            Nothing -> next (Yield b) xs cur
+            Just a -> do
+                ref <- liftIO $ newIORef 1
+                case p of
+                    WideNode _ _ pref -> liftIO $ modifyIORef' pref (+ 1)
+                    WideRoot -> return ()
+                next Skip xs (WideSeed (WideNode b p ref) a cur)
 
     -- The node p has one pending item less, emit it if none are left.
-    done p xs rys nid nodes
-        | p == 0 = next Skip nid nodes xs rys
-        | otherwise =
-            case IntMap.lookup p nodes of
-                Just (WideNode b q c)
-                    | c == 1 ->
-                        let !nodes1 = IntMap.delete p nodes
-                         in return $ Yield b (WidePostDone q xs rys nid nodes1)
-                    | otherwise ->
-                        let !nodes1 =
-                                IntMap.insert p (WideNode b q (c - 1)) nodes
-                         in next Skip nid nodes1 xs rys
-                -- Not reached, every non-leaf node is in the map until it is
-                -- emitted.
-                Nothing -> next Skip nid nodes xs rys
+    done WideRoot xs rys = next Skip xs rys
+    done (WideNode b p ref) xs rys = do
+        c <- liftIO $ readIORef ref
+        if c == 1
+        then return $ Yield b (WidePostDone p xs rys)
+        else do
+            liftIO $ writeIORef ref (c - 1)
+            next Skip xs rys
 
     {-# INLINE_LATE step #-}
-    step gst (WidePostOuter o xs rys nid nodes) = do
+    step gst (WidePostOuter o xs rys) = do
         r <- ostep (adaptState gst) o
         case r of
-            Yield b s -> yieldWith 0 b (WideOuter s rys) xs nid nodes
-            Skip s -> return $ Skip (WidePostOuter s xs rys nid nodes)
-            Stop -> next Skip nid nodes xs rys
+            Yield b s -> yieldWith WideRoot b (WideOuter s rys) xs
+            Skip s -> return $ Skip (WidePostOuter s xs rys)
+            Stop -> next Skip xs rys
 
-    step _ (WidePostInner p i xs rys nid nodes) = do
+    step _ (WidePostInner p i xs rys) = do
         r <- istep i
         case r of
-            Yield b s -> yieldWith p b (WideInner p s rys) xs nid nodes
-            Skip s -> return $ Skip (WidePostInner p s xs rys nid nodes)
-            Stop -> done p xs rys nid nodes
+            Yield b s -> yieldWith p b (WideInner p s rys) xs
+            Skip s -> return $ Skip (WidePostInner p s xs rys)
+            Stop -> done p xs rys
 
-    step _ (WidePostDone p xs rys nid nodes) = done p xs rys nid nodes
+    step _ (WidePostDone p xs rys) = done p xs rys
 
 -- | Breadth first interleaved post order traversal. Like
 -- 'wideConcatIterate', but a non-leaf node is emitted after all its
@@ -1325,12 +1324,12 @@ wideUnfoldIteratePost f (Unfold istep inject) (Stream ostep ost) =
 -- children of 4 is seen after 7 and 9 are generated, so 4 comes after them.
 --
 -- The open streams are the same as those of 'wideConcatIterate'. In addition,
--- the non-leaf nodes with unfinished descendants are held in memory, in an
--- 'IntMap'.
+-- the non-leaf nodes with unfinished descendants are held in memory, each
+-- with an 'IORef' counting its pending items.
 --
 -- /Pre-release/
 {-# INLINE wideConcatIteratePost #-}
-wideConcatIteratePost :: Monad m =>
+wideConcatIteratePost :: MonadIO m =>
        (a -> Maybe (Stream m a))
     -> Stream m a
     -> Stream m a
