@@ -70,7 +70,7 @@ o_n_heap_benchmarks value f =
         (Stream.fold Fold.drain . Async.parBuffered f))
     , (HeapO_n, benchIOSink value "fmap parBuffered"
         (Stream.fold Fold.drain . fmap (+1) . Async.parBuffered f))
-    ] ++ o_n_heap_mergeMap value f
+    ] ++ o_n_heap_mergeMap value f ++ o_n_heap_mergeIterate value f
 
 -------------------------------------------------------------------------------
 -- MergeMap
@@ -104,6 +104,48 @@ o_n_heap_mergeMap value f =
     where
 
     value2 = round $ sqrt (fromIntegral value :: Double)
+
+-------------------------------------------------------------------------------
+-- MergeIterate
+-------------------------------------------------------------------------------
+
+-- A complete k-ary tree with nodes numbered in level order from the root r,
+-- node r + i has the children r + k * i + 1 to r + k * i + k if i < limit.
+-- The tree has k * limit + 1 nodes.
+{-# INLINE treeChildren #-}
+treeChildren :: Int -> Int -> Int -> Int -> Stream IO Int
+treeChildren k limit r n
+    | i < limit = Stream.enumerateFromTo (r + k * i + 1) (r + k * i + k)
+    | otherwise = Stream.nil
+
+    where
+
+    i = n - r
+
+-- parMergeIterate builds a tree of channels for the children of each node,
+-- the channels of the nodes being expanded concurrently are held in memory.
+-- Without ordered the workers expand the tree ahead of the consumer, a tree
+-- of n nodes takes up to 6 KB of heap per node, therefore, we use n/10 nodes.
+{-# INLINE mergeIterateTree #-}
+mergeIterateTree :: (Config -> Config) -> Int -> Int -> Int -> IO ()
+mergeIterateTree f k limit r =
+    Stream.fold Fold.drain
+        $ Async.parMergeIterate f (treeChildren k limit r) (Stream.fromPure r)
+
+o_n_heap_mergeIterate ::
+    Int -> (Config -> Config) -> [(SpaceComplexity, Benchmark)]
+o_n_heap_mergeIterate value f =
+    [ (HeapO_n, benchIO "parMergeIterate (binary tree of n/10)"
+          (mergeIterateTree f 2 (value10 `div` 2)))
+    , (HeapO_n, benchIO "parMergeIterate (10-ary tree of n/10)"
+          (mergeIterateTree f 10 (value10 `div` 10)))
+    , (HeapO_n, benchIO "parMergeIterate (1000-ary tree of n/10)"
+          (mergeIterateTree f 1000 (value10 `div` 1000)))
+    ]
+
+    where
+
+    value10 = value `div` 10
 
 -------------------------------------------------------------------------------
 -- Joining

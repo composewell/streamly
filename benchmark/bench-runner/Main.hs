@@ -115,6 +115,10 @@ rtsOpts exeName benchName0 = unwords [general, exeSpecific, benchSpecific]
         -- Builds a tree of channels, one channel per pair of streams
         | "/o-n-heap.parMergeMap" `isInfixOf` benchName = "-M64M"
 
+        -- Builds a tree of channels for the children of each node, peaks
+        -- above 100M with eager
+        | "/o-n-heap.parMergeIterate" `isInfixOf` benchName = "-M256M"
+
         -----------------------------------------------------------------------
 
         | "Unicode.Char/o-1-space." `isPrefixOf` benchName = "-M32M"
