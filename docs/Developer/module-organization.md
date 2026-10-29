@@ -143,6 +143,35 @@ complete set of operations available in the monomorphic module has the
 advantage that if we want we can just import a `Serial` module and get
 everything if we just want to use the Serial stream.
 
+# Portable vs Platform Specific Modules
+
+When an API has a portable module and platform specific modules, e.g.
+`Streamly.FileSystem.Event` and `Streamly.FileSystem.Event.Linux`:
+
+* The portable module exports only the APIs available on all platforms.
+* Each platform specific module exports the complete API for that platform,
+  including the portable APIs, not just the platform specific additions.
+
+The alternative is to export only the additions from the platform module. We
+do not use it, for these reasons:
+
+* A program targeting one platform needs to import only one module.
+* The platform module documents the platform specific behavior of the
+  portable APIs too, e.g. how `watch` and `isMoved` behave on Linux.
+* Promoting a platform specific API to the portable module is not a breaking
+  change; the platform module continues to export it. With additions-only
+  export, the API would move out of the platform module and break its users.
+* Importing both modules does not cause a name clash, because both
+  export the same entity.
+
+The cost is that the portable exports are duplicated in each platform module.
+To prevent the export lists from drifting apart, define the portable module
+by importing the platform module and re-exporting the subset, so that the
+compiler checks that each portable export exists in the platform module.
+
+`filepath` follows the same convention: `System.FilePath.Posix` and
+`System.FilePath.Windows` are each complete.
+
 # Streamly Modules
 
 We use the "Streamly" prefix to all the module names so that they do not
