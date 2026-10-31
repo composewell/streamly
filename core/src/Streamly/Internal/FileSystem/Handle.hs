@@ -164,6 +164,34 @@ import qualified Streamly.Internal.Data.StreamK.Type as K (mkStream)
 -- https://www.w3.org/TR/FileAPI/ for http file API.
 
 -------------------------------------------------------------------------------
+-- Using a Handle from more than one thread
+-------------------------------------------------------------------------------
+--
+-- * A read on a Handle, e.g. hGetBufSome in 'getChunk', holds the lock of
+--   the Handle while it waits for data. The other operations on the same
+--   Handle from another thread wait for the lock until the read returns,
+--   e.g. hClose, hSeek, hIsEOF, hSetBuffering, hSetEcho and handleToFd.
+--   killThread on the reading thread interrupts the wait and releases the
+--   lock.
+-- * For a regular file the read waits only for the disk IO. For a pipe, a
+--   fifo, a socket, a terminal or an inotify fd, the read waits until data
+--   arrives, which may never happen, and the other operations wait as long.
+-- * A write does not wait for a read on a duplex Handle, e.g. a socket or a
+--   pipe opened in ReadWriteMode, it has separate read and write locks.
+-- * close(2) does not wake up a thread blocked in read(2) on the fd. GHC
+--   waits for the fd to become readable via the IO manager, and closes it
+--   using closeFdWith, which wakes up the waiting threads in the threaded
+--   RTS. With the non-threaded RTS, the threads wait in select, and closing a
+--   waited fd makes select fail with EBADF.
+-- * To close the fd, or use it, while another thread waits for data, read
+--   the fd without a Handle: a non-blocking read, and a wait via
+--   threadWaitRead or threadWaitReadSTM without holding any lock, as the
+--   Linux backend of streamly-fsevents does for the inotify fd.
+-- * A read of a file on NFS or FUSE can block in the kernel indefinitely,
+--   e.g. when the server is down. Neither close nor killThread ends that
+--   read.
+
+-------------------------------------------------------------------------------
 -- Array IO (Input)
 -------------------------------------------------------------------------------
 

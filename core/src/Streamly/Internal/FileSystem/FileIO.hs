@@ -117,6 +117,24 @@ import qualified Streamly.Internal.Syscall.Windows.File as File
 -- https://www.w3.org/TR/FileAPI/ for http file API.
 
 -------------------------------------------------------------------------------
+-- Using a file from more than one thread
+-------------------------------------------------------------------------------
+--
+-- * The files are read and written via a Handle, the notes on the
+--   concurrent use of a Handle in "Streamly.Internal.FileSystem.Handle"
+--   apply: a read holds the lock of the Handle while it waits for data.
+-- * The streams and folds in this module open the file, use the Handle only
+--   in the thread evaluating the stream, and close it when the stream ends,
+--   on an exception, or on GC. No other thread can use the Handle, so no
+--   other thread waits for its lock.
+-- * 'withFile' passes the Handle to the user. The Handle may be used from
+--   other threads, and those threads wait for the lock while a read waits.
+-- * A path may refer to a fifo or a device, e.g. /dev/tty, a read of which
+--   may wait indefinitely. A stream blocked in such a read ends only when
+--   data arrives or the thread evaluating it is killed, e.g. using
+--   killThread or timeout.
+
+-------------------------------------------------------------------------------
 -- Safe file reading
 -------------------------------------------------------------------------------
 
