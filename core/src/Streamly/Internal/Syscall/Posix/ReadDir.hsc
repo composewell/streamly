@@ -187,6 +187,15 @@ direntType = #{peek struct dirent, d_type}
 --------------------------------------------------------------------------------
 
 -- | The CString must be pinned.
+--
+-- TODO: The recursive traversals (e.g. readEitherByteChunks) open the
+-- subdirectories they list. A subdirectory deleted after it is listed and
+-- before it is opened makes opendir fail with ENOENT, and the traversal raises
+-- an exception even when 'ignoreMissing' is set. The caller cannot catch the
+-- exception for that subdirectory alone, the whole traversal stops. Add a
+-- ReadOptions option to skip such a subdirectory. A function that reads a
+-- single directory does not need it, the caller can handle the exception for
+-- the directory it passes.
 {-# INLINE openDirStreamCString #-}
 openDirStreamCString :: CString -> IO DirStream
 openDirStreamCString s = do

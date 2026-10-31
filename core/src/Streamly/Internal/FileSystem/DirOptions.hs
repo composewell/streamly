@@ -51,51 +51,85 @@ data ReadOptions =
 followSymlinks :: Bool -> ReadOptions -> ReadOptions
 followSymlinks x opts = opts {_followSymlinks = x}
 
--- | When the 'followSymlinks' option is enabled and a directory entry is a
--- symbolic link, we resolve it to determine the type of the symlink target.
--- This option controls the behavior when encountering symlink loop errors
--- during resolution.
+-- | Control the behavior when the stat call on a directory entry fails with a
+-- symlink loop error (@ELOOP@), e.g. a symbolic link that points to itself.
 --
--- When set to 'True', symlink loop errors are ignored, and the type of the
--- entry is reported as not a directory. When set to 'False', the directory
--- read operation fails with an error.
+-- The type of a directory entry is determined using a @stat@ or @lstat@
+-- system call in the following cases:
+--
+-- * The entry is a symbolic link and 'followSymlinks' is enabled, @stat@
+--   resolves the link to find the type of the target.
+-- * readdir reports the type of the entry as unknown (@DT_UNKNOWN@), which
+--   happens on file systems that do not report the type in the directory
+--   entry. @lstat@ finds the type, or @stat@ if 'followSymlinks' is enabled.
+--
+-- @ELOOP@ occurs when too many symbolic links are encountered while
+-- resolving the path.
+--
+-- When set to 'True', the error is ignored and the entry is skipped, it does
+-- not appear in the output. When set to 'False', the directory read raises an
+-- exception.
 --
 -- The default is 'True'.
 --
--- On Windows this option has no effect as of now, symlinks are not followed to
--- determine the type.
+-- On Windows this option has no effect as of now, the type is not determined
+-- using stat.
 ignoreSymlinkLoops :: Bool -> ReadOptions -> ReadOptions
 ignoreSymlinkLoops x opts = opts {_ignoreELOOP = x}
 
--- | When the 'followSymlinks' option is enabled and a directory entry is a
--- symbolic link, we resolve it to determine the type of the symlink target.
--- This option controls the behavior when encountering broken symlink errors
--- during resolution.
+-- | Control the behavior when the stat call on a directory entry fails
+-- because the path does not exist (@ENOENT@).
 --
--- When set to 'True', broken symlink errors are ignored, and the type of the
--- entry is reported as not a directory. When set to 'False', the directory
--- read operation fails with an error.
+-- The type of a directory entry is determined using a @stat@ or @lstat@
+-- system call in the following cases:
+--
+-- * The entry is a symbolic link and 'followSymlinks' is enabled, @stat@
+--   resolves the link to find the type of the target.
+-- * readdir reports the type of the entry as unknown (@DT_UNKNOWN@), which
+--   happens on file systems that do not report the type in the directory
+--   entry. @lstat@ finds the type, or @stat@ if 'followSymlinks' is enabled.
+--
+-- @ENOENT@ occurs when the entry is a symbolic link whose target does not
+-- exist, or when the entry is deleted after readdir returns it and before the
+-- stat call.
+--
+-- When set to 'True', the error is ignored and the entry is skipped, it does
+-- not appear in the output. When set to 'False', the directory read raises an
+-- exception.
 --
 -- The default is 'True'.
 --
--- On Windows this option has no effect as of now, symlinks are not followed to
--- determine the type.
+-- On Windows this option has no effect as of now, the type is not determined
+-- using stat.
+--
+-- This option does not apply to opening the directory being read. If the
+-- directory does not exist, the directory read raises an exception.
 ignoreMissing :: Bool -> ReadOptions -> ReadOptions
 ignoreMissing x opts = opts {_ignoreENOENT = x}
 
--- | When the 'followSymlinks' option is enabled and a directory entry is a
--- symbolic link, we resolve it to determine the type of the symlink target.
--- This option controls the behavior when encountering permission errors
--- during resolution.
+-- | Control the behavior when the stat call on a directory entry fails with a
+-- permission error (@EACCES@).
 --
--- When set to 'True', any permission errors are ignored, and the type of the
--- entry is reported as not a directory. When set to 'False', the directory
--- read operation fails with an error.
+-- The type of a directory entry is determined using a @stat@ or @lstat@
+-- system call in the following cases:
+--
+-- * The entry is a symbolic link and 'followSymlinks' is enabled, @stat@
+--   resolves the link to find the type of the target.
+-- * readdir reports the type of the entry as unknown (@DT_UNKNOWN@), which
+--   happens on file systems that do not report the type in the directory
+--   entry. @lstat@ finds the type, or @stat@ if 'followSymlinks' is enabled.
+--
+-- @EACCES@ occurs when search permission is denied on a directory in the
+-- path of the entry, or of the target of a symbolic link.
+--
+-- When set to 'True', the error is ignored and the entry is skipped, it does
+-- not appear in the output. When set to 'False', the directory read raises an
+-- exception.
 --
 -- The default is 'True'.
 --
--- On Windows this option has no effect as of now, symlinks are not followed to
--- determine the type.
+-- On Windows this option has no effect as of now, the type is not determined
+-- using stat.
 ignoreInaccessible :: Bool -> ReadOptions -> ReadOptions
 ignoreInaccessible x opts = opts {_ignoreEACCESS = x}
 
