@@ -13,19 +13,18 @@
 
 module Streamly.Test.Data.Stream.Prelude.Time (main) where
 
-#ifdef DEVBUILD
 import Control.Concurrent ( threadDelay )
 import Control.Monad ( when)
+#ifdef DEVBUILD
 import Data.Int (Int64)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units
        (AbsTime, NanoSecond64(..), toRelTime64, diffAbsTime64)
 
 import qualified Streamly.Internal.Data.Fold as Fold
+#endif
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.Prelude as Stream
-
-#endif
 
 import Test.Hspec as H
 
@@ -76,6 +75,47 @@ testDropInterval = do
     checkTakeDropTime (Just t0, mt1)
 #endif
 
+-- | A stream of n elements, each one generated after a delay of the given
+-- number of milliseconds.
+delayedStream :: Int -> Int -> Stream.Stream IO Int
+delayedStream ms n =
+    Stream.mapM (\x -> threadDelay (ms * 1000) >> return x)
+        $ Stream.fromList [1..n]
+
+-- The bounds are wide so that scheduling delays do not fail the tests.
+
+-- | 40 elements 50 ms apart, about 6 of them are generated in 0.3 s.
+testTakeIntervalElems :: IO ()
+testTakeIntervalElems = do
+    xs <- Stream.toList $ Stream.takeInterval 0.3 $ delayedStream 50 40
+    when (null xs || length xs >= 20)
+        $ error $ "takeInterval: unexpected number of elements " ++ show xs
+    xs `shouldBe` [1 .. length xs]
+
+-- | 10 elements 100 ms apart, about 3 of them are generated in 0.3 s.
+testDropIntervalElems :: IO ()
+testDropIntervalElems = do
+    xs <- Stream.toList $ Stream.dropInterval 0.3 $ delayedStream 100 10
+    when (null xs || length xs >= 10)
+        $ error $ "dropInterval: unexpected number of elements " ++ show xs
+    xs `shouldBe` [11 - length xs .. 10]
+
+-- | Two bursts, 1 and 2, then 3 and 4 after a gap of 1 s.
+twoBursts :: Stream.Stream IO Int
+twoBursts =
+    Stream.mapM (\x -> when (x == 3) (threadDelay 1000000) >> return x)
+        $ Stream.fromList [1, 2, 3, 4]
+
+testSampleBurst :: IO ()
+testSampleBurst = do
+    let xs = Stream.fromList [1, 2, 3 :: Int]
+    Stream.toList (Stream.sampleBurstEnd 0.5 xs) `shouldReturn` [3]
+    Stream.toList (Stream.sampleBurstStart 0.5 xs) `shouldReturn` [1]
+    Stream.toList (Stream.sampleBurstEnd 0.5 twoBursts) `shouldReturn` [2, 4]
+    Stream.toList (Stream.sampleBurstStart 0.5 twoBursts) `shouldReturn` [1, 3]
+    Stream.toList (Stream.sampleBurstEnd 0.5 (Stream.fromList ([] :: [Int])))
+        `shouldReturn` []
+
 moduleName :: String
 moduleName = "Data.Stream.Time"
 
@@ -93,5 +133,7 @@ main = hspec
             it "dropInterval" (testDropInterval `shouldReturn` True)
 #endif
 #endif
-        it "dummy" (return () `shouldReturn` ())
+        it "takeInterval elements" testTakeIntervalElems
+        it "dropInterval elements" testDropIntervalElems
+        it "sampleBurstEnd/sampleBurstStart" testSampleBurst
 

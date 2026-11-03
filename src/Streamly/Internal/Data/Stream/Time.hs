@@ -62,7 +62,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Heap (Entry(..))
 import Data.Kind (Type)
 import Data.Map (Map)
-import Data.Maybe (isNothing)
+import Data.Maybe (isJust, isNothing)
 import Data.Proxy (Proxy(..))
 import Streamly.Data.Fold (Fold)
 import Streamly.Data.Array (Unbox)
@@ -190,7 +190,7 @@ interject f n xs = parListEagerFst [xs, periodic f n]
 takeInterval :: MonadAsync m => Double -> Stream m a -> Stream m a
 takeInterval d =
     Stream.catMaybes
-        . Stream.takeWhile isNothing
+        . Stream.takeWhile isJust
         . interject (return Nothing) d . fmap Just
 
 -- | Take time interval @i@ seconds at the end of the stream.
@@ -214,7 +214,7 @@ takeLastInterval = undefined
 dropInterval :: MonadAsync m => Double -> Stream m a -> Stream m a
 dropInterval d =
     Stream.catMaybes
-        . Stream.dropWhile isNothing
+        . Stream.dropWhile isJust
         . interject (return Nothing) d . fmap Just
 
 -- | Drop time interval @i@ seconds at the end of the stream.
@@ -890,6 +890,9 @@ data BurstState t x =
     | BurstDone !x
     | BurstDoneNext !x !t !x
 
+-- | Input events of 'sampleBurst'.
+data BurstEvent x = BurstTick | BurstElem x | BurstEnd
+
 {-# INLINE sampleBurst #-}
 sampleBurst :: MonadAsync m => Bool -> Double -> Stream m a -> Stream m a
 sampleBurst sampleAtEnd gap xs =
@@ -899,35 +902,41 @@ sampleBurst sampleAtEnd gap xs =
     Stream.mapMaybe extract
         $ Stream.scanl (Scanl.scanl' step BurstNone)
         $ Stream.timeIndexed
-        $ interject (return Nothing) 0.01 (fmap Just xs)
+        $ interject (return BurstTick) 0.01
+            (Stream.append (fmap BurstElem xs) (Stream.fromPure BurstEnd))
 
     where
 
     gap1 = toRelTime64 (NanoSecond64 (round (gap * 10^(9::Int))))
 
+    -- At the end of the input the pending event of the last burst is emitted.
     {-# INLINE step #-}
-    step BurstNone (t1, Just x1) = BurstWait t1 x1
+    step (BurstWait _ x0) (_, BurstEnd) = BurstDone x0
+    step (BurstDoneNext _ _ x0) (_, BurstEnd) = BurstDone x0
+    step _ (_, BurstEnd) = BurstNone
+
+    step BurstNone (t1, BurstElem x1) = BurstWait t1 x1
     step BurstNone _ = BurstNone
 
-    step (BurstDone _) (t1, Just x1) = BurstWait t1 x1
+    step (BurstDone _) (t1, BurstElem x1) = BurstWait t1 x1
     step (BurstDone _) _ = BurstNone
 
-    step old@(BurstWait t0 x0) (t1, Nothing)
+    step old@(BurstWait t0 x0) (t1, BurstTick)
         | t1 - t0 >= gap1 = BurstDone x0
         | otherwise = old
     -- This can happen due to scheduling delays, if we received back to
     -- back events spaced by more than the timeout without an
     -- intervening timeout event then we emit the old event instead of
     -- replacing it by the new.
-    step (BurstWait t0 x0) (t1, Just x1)
+    step (BurstWait t0 x0) (t1, BurstElem x1)
         | t1 - t0 >= gap1 = BurstDoneNext x0 t1 x1
         | sampleAtEnd = BurstWait t1 x1
         | otherwise = BurstWait t1 x0
 
-    step (BurstDoneNext _ t0 x0) (t1, Nothing)
+    step (BurstDoneNext _ t0 x0) (t1, BurstTick)
         | t1 - t0 >= gap1 = BurstDone x0
         | otherwise =  BurstWait t0 x0
-    step (BurstDoneNext _ t0 x0) (t1, Just x1)
+    step (BurstDoneNext _ t0 x0) (t1, BurstElem x1)
         | t1 - t0 >= gap1 = BurstDoneNext x0 t1 x1
         | sampleAtEnd = BurstWait t1 x1
         | otherwise = BurstWait t1 x0
@@ -943,7 +952,8 @@ sampleBurst sampleAtEnd gap xs =
 --
 -- This is known as @debounce@ in some libraries.
 --
--- The clock granularity is 10 ms.
+-- The clock granularity is 10 ms. The last burst ends at the end of the
+-- input, its event is emitted when the input ends.
 --
 {-# INLINE sampleBurstEnd #-}
 sampleBurstEnd :: MonadAsync m => Double -> Stream m a -> Stream m a
