@@ -473,19 +473,17 @@ putBytes = putBytesWith defaultChunkSize
 writeChunks :: forall m (a :: Type). MonadIO m => Handle -> Fold m (Array a) ()
 writeChunks h = FL.drainMapM (putChunk h)
 
--- | @writeChunksWith bufsize handle@ writes a stream of arrays
--- to @handle@ after coalescing the adjacent arrays in chunks of @bufsize@.
--- We never split an array, if a single array is bigger than the specified size
--- it emitted as it is. Multiple arrays are coalesed as long as the total size
--- remains below the specified size.
+-- | @writeChunksWith bufsize handle@ writes a stream of arrays to @handle@
+-- after coalescing the adjacent arrays in chunks of @bufsize@. Adjacent
+-- arrays are coalesced until the total size becomes greater than or equal to
+-- @bufsize@, then the coalesced array is written. An array is never split, an
+-- array bigger than @bufsize@ is written as it is. The last chunk written may
+-- be smaller than @bufsize@.
 --
 {-# INLINE writeChunksWith #-}
 writeChunksWith :: (MonadIO m, Unbox a)
     => Int -> Handle -> Fold m (Array a) ()
--- writeChunksWith n h = A.lCompactGE n (writeChunks h)
-writeChunksWith n h =
-   FL.postscanl (A.scanCompactMin n)
-    $ FL.catMaybes (writeChunks h)
+writeChunksWith n h = FL.many (A.createCompactMin n) (writeChunks h)
 
 -- | Same as 'writeChunksWith'
 --

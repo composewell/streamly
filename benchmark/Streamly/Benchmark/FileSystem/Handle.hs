@@ -74,6 +74,12 @@ inspect $ hasNoTypeClasses 'copyChunks
 inspect $ 'copyChunks `hasNoType` ''Step
 #endif
 
+-- | Copy file reading small chunks and coalescing them before writing.
+copyChunksWith :: Handle -> Handle -> IO ()
+copyChunksWith inh outh =
+    S.fold (IFH.writeChunksWith defaultChunkSize outh)
+        $ IFH.readChunksWith 1024 inh
+
 -------------------------------------------------------------------------------
 -- copy unfold
 -------------------------------------------------------------------------------
@@ -192,6 +198,8 @@ allBenchmarks env =
         copyChunks inH (nullH env)
     , mkBench "Handle.readChunks . Handle.writeChunks (cat)" env $ \inH outH ->
         copyChunks inH outH
+    , mkBench "Handle.readChunksWith . Handle.writeChunksWith" env $ \inH _ ->
+        copyChunksWith inH (nullH env)
 
     , mkBench "Handle.reader . Handle.write" env $ \inh _ ->
         copyStream inh (nullH env)

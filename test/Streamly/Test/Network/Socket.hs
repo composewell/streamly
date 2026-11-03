@@ -15,12 +15,14 @@ import Control.Monad.IO.Class (liftIO)
 import Data.Function ((&))
 import Data.Word (Word8)
 import Network.Socket (Socket, PortNumber)
+import qualified Network.Socket as Net
 import Streamly.Internal.Control.Monad (discard)
 import Streamly.Internal.System.IO (defaultChunkSize)
 import Streamly.Internal.Data.Stream (Stream)
 import Test.QuickCheck (Property)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
+import qualified Streamly.Data.Array as Array
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Data.Stream.Prelude as Stream
 import qualified Streamly.Internal.Network.Inet.TCP as TCP
@@ -145,6 +147,21 @@ validateChunksWith = monadicIO $ do
         Stream.eqBy (==) (Stream.fromList testDataSource) ls2
     assert res
 
+-- | writeChunksWith writes all the input, including the last partially
+-- filled buffer.
+testWriteChunksWith :: IO ()
+testWriteChunksWith = do
+    (s1, s2) <- Net.socketPair Net.AF_UNIX Net.Stream Net.defaultProtocol
+    -- The last two arrays stay buffered until the end of the stream.
+    let chunks = [[1 .. 12], [13, 14, 15], [16, 17]] :: [[Word8]]
+    Stream.fromList chunks
+        & fmap Array.fromList
+        & Stream.fold (Socket.writeChunksWith 10 s1)
+    Net.close s1
+    xs <- Stream.toList $ Stream.unfold Socket.reader s2
+    Net.close s2
+    xs `shouldBe` concat chunks
+
 moduleName :: String
 moduleName = "Network.Socket"
 
@@ -157,3 +174,4 @@ main = hspec $ do
             prop "readWith/writeWith" validateWith
             prop "readChunks/writeChunks" validateChunks
             prop "readChunksWith" validateChunksWith
+            it "writeChunksWith" testWriteChunksWith

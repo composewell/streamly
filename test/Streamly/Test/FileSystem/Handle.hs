@@ -133,6 +133,48 @@ testWrite hfold =
                         hClose h
                         return (ls == list)
 
+-- | writeChunksWith writes all the input arrays, including the last
+-- partially filled buffer.
+testWriteChunksWith :: Property
+testWriteChunksWith =
+    forAll (choose (1, 64)) $ \n ->
+    forAll (choose (0, 20)) $ \len ->
+    forAll (vectorOf len (choose (0, 40))) $ \lens ->
+    forAll (mapM (\l -> vectorOf l (chooseWord8 (0, 255))) lens) $ \chunks ->
+        monadicIO $ do
+            ls <- run $ go n chunks
+            assert (ls == concat chunks)
+
+    where
+
+    go n chunks =
+        withSystemTempDirectory "fs_handle" $ \fp -> do
+            fpathWrite <- Path.fromString $ fp </> "tmp_write.txt"
+            writeFile fpathWrite ""
+            h <- openFile fpathWrite ReadWriteMode
+            _ <- Stream.fold (Handle.writeChunksWith n h)
+                $ fmap Array.fromList $ Stream.fromList chunks
+            hFlush h
+            hSeek h AbsoluteSeek 0
+            ls <- toList $ Stream.unfold Handle.reader h
+            hClose h
+            return ls
+
+-- | getChunk reads at most the requested number of bytes, an empty array at
+-- the end of the file.
+testGetChunk :: IO ()
+testGetChunk =
+    withSystemTempDirectory "fs_handle" $ \fp -> do
+        fpath <- Path.fromString $ fp </> "tmp_read.txt"
+        writeFile fpath "hello"
+        h <- openFile fpath ReadMode
+        a1 <- Handle.getChunk 3 h
+        a2 <- Handle.getChunk 10 h
+        a3 <- Handle.getChunk 10 h
+        hClose h
+        map Array.toList [a1, a2, a3]
+            `shouldBe` [[104, 101, 108], [108, 111], []]
+
 testWriteWithChunk :: Property
 testWriteWithChunk =
     monadicIO $ do
@@ -295,3 +337,5 @@ main = do
                     $ testWrite $ Handle.writeWith 1024
                 -- XXX This test needs a lot of stack when built with -O0
                 prop "writeChunks" testWriteWithChunk
+                prop "writeChunksWith" testWriteChunksWith
+            describe "getChunk" $ it "getChunk" testGetChunk

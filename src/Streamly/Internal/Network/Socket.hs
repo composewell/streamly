@@ -99,7 +99,7 @@ import qualified Streamly.Data.Stream as S
 import qualified Streamly.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Array as A
     ( unsafeFreeze, unsafePinnedAsPtr, chunksOf',
-      createOf', unsafeCreateOf, scanCompactMin )
+      createOf', unsafeCreateOf, createCompactMin )
 import qualified Streamly.Internal.Data.MutArray as MArray
     (unsafeCreateWithPtr')
 import qualified Streamly.Internal.Data.Stream as S (fromStreamK, Stream(..), Step(..))
@@ -456,19 +456,17 @@ putChunks h = S.fold (FL.drainMapM (liftIO . putChunk h))
 writeChunks :: (MonadIO m, Unbox a) => Socket -> Fold m (Array a) ()
 writeChunks h = FL.drainMapM (liftIO . putChunk h)
 
--- | @writeChunksWith bufsize socket@ writes a stream of arrays to
--- @socket@ after coalescing the adjacent arrays in chunks of @bufsize@.
--- Multiple arrays are coalesed as long as the total size remains below the
--- specified size.  It never splits an array, if a single array is bigger than
--- the specified size it emitted as it is.
+-- | @writeChunksWith bufsize socket@ writes a stream of arrays to @socket@
+-- after coalescing the adjacent arrays in chunks of @bufsize@. Adjacent
+-- arrays are coalesced until the total size becomes greater than or equal to
+-- @bufsize@, then the coalesced array is written. An array is never split, an
+-- array bigger than @bufsize@ is written as it is. The last chunk written may
+-- be smaller than @bufsize@.
 --
 {-# INLINE writeChunksWith #-}
 writeChunksWith :: (MonadIO m, Unbox a)
     => Int -> Socket -> Fold m (Array a) ()
--- writeChunksWith n h = A.lCompactBySizeGE n (writeChunks h)
-writeChunksWith n h =
-   FL.postscanl (A.scanCompactMin n)
-    $ FL.catMaybes (writeChunks h)
+writeChunksWith n h = FL.many (A.createCompactMin n) (writeChunks h)
 
 -- | Same as 'writeChunksWith'
 --
