@@ -137,13 +137,15 @@ expandVars input =
 -- "#{x} world!"
 --
 -- A @#@ at the end of line means the line continues to the next line without
--- introducing a newline character:
+-- introducing a newline character. In a source file @[str|hello#@ followed
+-- by the line @world!|]@ gives @\"helloworld!\"@. In GHCi multiline input,
+-- as in the example below, the line break is read as a space:
 --
 -- >>> :{
 -- [str|hello#
 -- world!|]
 -- :}
--- "helloworld!"
+-- "hello world!"
 --
 str :: QuasiQuoter
 str =
