@@ -205,7 +205,7 @@ word32beD = PRD.Parser step initial extract
              in PRD.SContinue 1 (Tuple' w1 (sh - 8))
         else PRD.SDone 1 (w .|. fromIntegral a)
 
-    extract _ = return $ PRD.FError "word32beD: end of input"
+    extract _ = return $ PRD.FError "word32be: end of input"
 
 -- | Parse four bytes as a 'Word32', the first byte is the MSB of the Word32
 -- and last byte is the LSB (big endian representation).
@@ -231,10 +231,10 @@ word32leD = PRD.Parser step initial extract
             then PRD.SContinue 1 (Tuple' w1 (sh + 8))
             else PRD.SDone 1 w1
 
-    extract _ = return $ PRD.FError "word32leD: end of input"
+    extract _ = return $ PRD.FError "word32le: end of input"
 
--- | Parse four bytes as a 'Word32', the first byte is the MSB of the Word32
--- and last byte is the LSB (big endian representation).
+-- | Parse four bytes as a 'Word32', the first byte is the LSB of the Word32
+-- and last byte is the MSB (little endian representation).
 --
 -- /Pre-release/
 --
@@ -258,7 +258,7 @@ word64beD = PRD.Parser step initial extract
              in PRD.SContinue 1 (Tuple' w1 (sh - 8))
         else PRD.SDone 1 (w .|. fromIntegral a)
 
-    extract _ = return $ PRD.FError "word64beD: end of input"
+    extract _ = return $ PRD.FError "word64be: end of input"
 
 -- | Parse eight bytes as a 'Word64', the first byte is the MSB of the Word64
 -- and last byte is the LSB (big endian representation).
@@ -284,10 +284,10 @@ word64leD = PRD.Parser step initial extract
             then PRD.SContinue 1 (Tuple' w1 (sh + 8))
             else PRD.SDone 1 w1
 
-    extract _ = return $ PRD.FError "word64leD: end of input"
+    extract _ = return $ PRD.FError "word64le: end of input"
 
--- | Parse eight bytes as a 'Word64', the first byte is the MSB of the Word64
--- and last byte is the LSB (big endian representation).
+-- | Parse eight bytes as a 'Word64', the first byte is the LSB of the Word64
+-- and last byte is the MSB (little endian representation).
 --
 -- /Pre-release/
 --
@@ -326,8 +326,8 @@ int16le = fromIntegral <$> word16le
 int32be :: Monad m => Parser Word8 m Int32
 int32be = fromIntegral <$> word32be
 
--- | Parse four bytes as a 'Int32', the first byte is the MSB of the Int32
--- and last byte is the LSB (big endian representation).
+-- | Parse four bytes as a 'Int32', the first byte is the LSB of the Int32
+-- and last byte is the MSB (little endian representation).
 --
 -- /Pre-release/
 --
@@ -344,8 +344,8 @@ int32le = fromIntegral <$> word32le
 int64be :: Monad m => Parser Word8 m Int64
 int64be = fromIntegral <$> word64be
 
--- | Parse eight bytes as a 'Int64', the first byte is the MSB of the Int64
--- and last byte is the LSB (big endian representation).
+-- | Parse eight bytes as a 'Int64', the first byte is the LSB of the Int64
+-- and last byte is the MSB (little endian representation).
 --
 -- /Pre-release/
 --

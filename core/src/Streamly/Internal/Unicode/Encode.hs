@@ -235,9 +235,9 @@ readCharUtf8' =
 encodeUtf8D' :: Monad m => D.Stream m Char -> D.Stream m Word8
 encodeUtf8D' = D.unfoldEach readCharUtf8'
 
--- | Encode a stream of Unicode characters to a UTF-8 encoded bytestream. When
--- any invalid character (U+D800-U+D8FF) is encountered in the input stream the
--- function errors out.
+-- | Encode a stream of Unicode characters to a UTF-8 encoded bytestream.
+-- Throws an exception if an invalid character (a surrogate, U+D800-U+DFFF) is
+-- encountered in the input stream.
 --
 {-# INLINE encodeUtf8' #-}
 encodeUtf8' :: Monad m => Stream m Char -> Stream m Word8
@@ -254,9 +254,9 @@ readCharUtf8 = readCharUtf8With $ WCons 239 (WCons 191 (WCons 189 WNil))
 encodeUtf8D :: Monad m => D.Stream m Char -> D.Stream m Word8
 encodeUtf8D = D.unfoldEach readCharUtf8
 
--- | Encode a stream of Unicode characters to a UTF-8 encoded bytestream. Any
--- Invalid characters (U+D800-U+D8FF) in the input stream are replaced by the
--- Unicode replacement character U+FFFD.
+-- | Encode a stream of Unicode characters to a UTF-8 encoded bytestream.
+-- Invalid characters (surrogates, U+D800-U+DFFF) in the input stream are
+-- replaced by the Unicode replacement character U+FFFD.
 --
 {-# INLINE encodeUtf8 #-}
 encodeUtf8 :: Monad m => Stream m Char -> Stream m Word8
@@ -270,8 +270,9 @@ readCharUtf8_ = readCharUtf8With WNil
 encodeUtf8D_ :: Monad m => D.Stream m Char -> D.Stream m Word8
 encodeUtf8D_ = D.unfoldEach readCharUtf8_
 
--- | Encode a stream of Unicode characters to a UTF-8 encoded bytestream. Any
--- Invalid characters (U+D800-U+D8FF) in the input stream are dropped.
+-- | Encode a stream of Unicode characters to a UTF-8 encoded bytestream.
+-- Invalid characters (surrogates, U+D800-U+DFFF) in the input stream are
+-- dropped.
 --
 {-# INLINE encodeUtf8_ #-}
 encodeUtf8_ :: Monad m => Stream m Char -> Stream m Word8

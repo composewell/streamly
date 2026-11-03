@@ -143,7 +143,7 @@ expandVars input =
 -- [str|hello#
 -- world!|]
 -- :}
--- "hello world!"
+-- "helloworld!"
 --
 str :: QuasiQuoter
 str =

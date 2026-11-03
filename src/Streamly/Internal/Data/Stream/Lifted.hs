@@ -245,7 +245,7 @@ data RetryState emap s1 s2
     = RetryWithMap emap s1
     | RetryDefault s2
 
--- | See 'Streamly.Internal.Data.Stream.retry'
+-- | See 'retry'.
 --
 {-# INLINE_NORMAL retryD #-}
 retryD
@@ -316,8 +316,8 @@ retryD emap0 defaultHandler (D.Stream step0 state0) = D.Stream step state
 --       ii. The stream is resumed from where the exception was called, retrying
 --       the action.
 --
---    b. If the exception exists and the mapped value is == 0 then the stream
---    evaluation stops.
+--    b. If the exception exists and the mapped value is 0 then we handle the
+--    exception using @han@.
 --
 --    c. If the exception does not exist then we handle the exception using
 --    @han@.

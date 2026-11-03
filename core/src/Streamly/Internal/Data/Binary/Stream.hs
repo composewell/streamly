@@ -206,8 +206,8 @@ word32leD w = D.Stream step W32B1
     step _ W32B4 = yield 24 W32Done
     step _ W32Done = pure Stop
 
--- | Stream a 'Word32' as four bytes, the first byte is the MSB of the Word32
--- and last byte is the LSB (big endian representation).
+-- | Stream a 'Word32' as four bytes, the first byte is the LSB of the Word32
+-- and last byte is the MSB (little endian representation).
 --
 -- /Pre-release/
 --
@@ -265,8 +265,8 @@ word64leD w = D.Stream step W64B1
     step _ W64B8 = yield 56 W64Done
     step _ W64Done = pure Stop
 
--- | Stream a 'Word64' as eight bytes, the first byte is the MSB of the Word64
--- and last byte is the LSB (big endian representation).
+-- | Stream a 'Word64' as eight bytes, the first byte is the LSB of the Word64
+-- and last byte is the MSB (little endian representation).
 --
 -- /Pre-release/
 --

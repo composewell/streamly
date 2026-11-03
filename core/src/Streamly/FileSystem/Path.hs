@@ -26,25 +26,17 @@
 --
 -- To ensure the safety of the path append operation, we distinguish between
 -- rooted paths and free path segments or unrooted paths. A path that starts
--- from an explicit or implicit file system root is called a rooted path or an
--- anchored path. For example, @\/usr\/bin@ is a rooted path with @/@ as an
--- explicit root directory. Similarly, @.\/bin@ is a rooted path with the
--- current directoy \".\" as an implicit root. A path that is not rooted is
--- called an unrooted path or unanchored path; for example, @local\/bin@ is an
--- unrooted path.
+-- from a file system root is called a rooted path or an anchored path. For
+-- example, @\/usr\/bin@ is a rooted path with @/@ as the root directory. On
+-- Windows, a path starting with a drive (e.g. @c:@ or @c:x@) or a UNC root
+-- (e.g. @\/\/server\/share@) is also rooted. A path that is not rooted is
+-- called an unrooted path or unanchored path; for example, @local\/bin@,
+-- @.\/bin@ and @..\/bin@ are unrooted paths.
 --
 -- This distinction ensures the safety of the path append operation. You can
 -- append only an unrooted path to another path, it does not make sense to
 -- append a rooted path to another path. The default append operation in the
 -- Path module checks for this and fails if the operation is invalid.
---
--- Rooted vs unrooted distinction is a stricter form of relative vs absolute
--- path distinction. In this model, for better safety, paths relative to the
--- current directory are also treated in the same way as absolute paths, from
--- the perspective of a path append operation. This is because the  meaning of
--- current directory is context dependent and dynamic, therefore, appending it
--- to another path is not allowed. Only unrooted path segments (e.g.
--- @local/bin@) can be appended to any other path using safe operations.
 --
 -- = File vs. Directory Paths
 --

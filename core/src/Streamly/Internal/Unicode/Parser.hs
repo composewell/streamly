@@ -244,6 +244,9 @@ dropSpace1 = Parser.takeWhile1 Char.isSpace Fold.drain
 -- XXX It should fail if the number is larger than the size of the type.
 --
 -- | Parse and decode an unsigned integral decimal number.
+--
+-- The number is not checked for overflow, it wraps around if it does not fit
+-- in the result type, e.g. @\"256\"@ gives @0@ for 'Word8'.
 {-# INLINE decimal #-}
 decimal :: (Monad m, Integral a) => Parser Char m a
 decimal = Parser.takeWhile1 Char.isDigit (Fold.foldl' step 0)
@@ -256,6 +259,9 @@ decimal = Parser.takeWhile1 Char.isDigit (Fold.foldl' step 0)
 -- @\'a\'@ through @\'f\'@ may be upper or lower case.
 --
 -- Note: This parser does not accept a leading @\"0x\"@ string.
+--
+-- The number is not checked for overflow, the high bits are dropped if it
+-- does not fit in the result type.
 {-# INLINE hexadecimal #-}
 hexadecimal :: (Monad m, Integral a, Bits a) => Parser Char m a
 hexadecimal = Parser.takeWhile1 isHexDigit (Fold.foldl' step 0)
@@ -586,6 +592,14 @@ mkDouble mantissa power =
 -- number. Specifcally a trailing decimal point is allowed but not consumed.
 -- This function does not accept \"NaN\" or \"Infinity\" string representations
 -- of double values.
+--
+-- The mantissa is accumulated in 58 bits, about 17 significant decimal
+-- digits. Further digits are dropped, therefore, for an input with more
+-- significant digits the result can differ from the correctly rounded value
+-- by one unit in the last place, e.g. @\"3498240649493142.2517548\"@ gives
+-- @3.498240649493142e15@ instead of @3.4982406494931425e15@. The parser
+-- @uncurry mkDouble \<$> number@, using the functions in
+-- "Streamly.Internal.Unicode.Parser", gives the correctly rounded value.
 --
 -- Definition:
 --
