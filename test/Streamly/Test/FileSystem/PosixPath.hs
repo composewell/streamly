@@ -18,6 +18,7 @@ import Data.Maybe (isJust, isNothing)
 import Streamly.Internal.FileSystem.PosixPath (PosixPath)
 import Test.Hspec as H
 
+import qualified Streamly.Internal.Data.Array as Array
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.FileSystem.PosixPath as Path
 
@@ -573,6 +574,29 @@ testEqPathExtended = describe "eqPath (extended)" $ do
 -- Main
 -------------------------------------------------------------------------------
 
+-------------------------------------------------------------------------------
+-- Arrays of paths
+-------------------------------------------------------------------------------
+
+testPathArrays :: Spec
+testPathArrays = describe "path arrays" $ do
+    let bytes = map (fromIntegral . fromEnum)
+    it "toArray" $
+        Array.toList (Path.toArray (p "/a/b")) `shouldBe` bytes "/a/b"
+    it "packPathsEndBy" $ do
+        arr <- Stream.fold (Path.packPathsEndBy 4096 0)
+                $ Stream.fromList [p "a", p "bc/d"]
+        Array.toList arr `shouldBe` bytes "a\0bc/d\0"
+    -- With a small buffer the fold terminates early, foldMany packs all the
+    -- paths in multiple arrays.
+    it "packPathsEndBy foldMany" $ do
+        let paths = [p (replicate n 'x') | n <- [1 .. 200]]
+        arrs <- Stream.toList
+                $ Stream.foldMany (Path.packPathsEndBy 256 10)
+                $ Stream.fromList paths
+        concatMap Array.toList arrs
+            `shouldBe` concatMap (\x -> bytes (str x) ++ [10]) paths
+
 moduleName :: String
 moduleName = "FileSystem.PosixPath"
 
@@ -605,3 +629,4 @@ main = hspec $ do
         testNormaliseExtras
         testCommonPrefix
         testStripPrefix
+        testPathArrays

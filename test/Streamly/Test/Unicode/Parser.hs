@@ -6,13 +6,15 @@ where
 
 import Control.Monad.Identity (Identity(runIdentity))
 import Debug.Trace (trace)
+import Numeric (showHex)
 import Streamly.Internal.Data.Parser (ParseError (..), Parser)
 import Streamly.Test.Common (chooseDouble)
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck
-       (forAll, Property, property)
+       (choose, forAll, Property, property)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
+import qualified Data.Char as Char
 import qualified Data.Scientific as Scientific
 import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Unicode.Parser as Unicode
@@ -210,6 +212,76 @@ testLeftOver desc f = do
         prop "afterParse \"+\" \"+\"" $ afterParse f "+" "+"
         prop "afterParse \"++\" \"++\"" $ afterParse f "++" "++"
 
+-------------------------------------------------------------------------------
+-- Character class parsers
+-------------------------------------------------------------------------------
+
+parseStr :: Parser Char IO a -> String -> IO (Either ParseError a)
+parseStr p = Stream.parse p . Stream.fromList
+
+-- | A character class parser accepts a character if and only if the
+-- predicate is True for it.
+charClass :: String -> Parser Char IO Char -> (Char -> Bool) -> H.SpecWith ()
+charClass name p f =
+    prop name $ \c -> monadicIO $ do
+        r <- run $ parseStr p [c]
+        assert $ either (const (not (f c))) (\x -> f c && x == c) r
+
+charClasses :: H.SpecWith ()
+charClasses = H.describe "character classes" $ do
+    charClass "alpha" Unicode.alpha Char.isAlpha
+    charClass "alphaNum" Unicode.alphaNum Char.isAlphaNum
+    charClass "letter" Unicode.letter Char.isLetter
+    charClass "ascii" Unicode.ascii Char.isAscii
+    charClass "asciiLower" Unicode.asciiLower Char.isAsciiLower
+    charClass "asciiUpper" Unicode.asciiUpper Char.isAsciiUpper
+    charClass "latin1" Unicode.latin1 Char.isLatin1
+    charClass "lower" Unicode.lower Char.isLower
+    charClass "upper" Unicode.upper Char.isUpper
+    charClass "mark" Unicode.mark Char.isMark
+    charClass "printable" Unicode.printable Char.isPrint
+    charClass "punctuation" Unicode.punctuation Char.isPunctuation
+    charClass "separator" Unicode.separator Char.isSeparator
+    charClass "space" Unicode.space Char.isSpace
+    charClass "symbol" Unicode.symbol Char.isSymbol
+    charClass "digit" Unicode.digit Char.isDigit
+    charClass "octDigit" Unicode.octDigit Char.isOctDigit
+    charClass "hexDigit" Unicode.hexDigit Char.isHexDigit
+    charClass "numeric" Unicode.numeric Char.isNumber
+
+-- The case insensitive parsers return the input in lower case.
+caseInsensitive :: H.SpecWith ()
+caseInsensitive = H.describe "case insensitive" $ do
+    H.it "charIgnoreCase" $ do
+        parseStr (Unicode.charIgnoreCase 'a') "A"
+            >>= (`H.shouldBe` Right 'a') . either (Left . show) Right
+        parseStr (Unicode.charIgnoreCase 'A') "b"
+            >>= (`H.shouldBe` True) . either (const True) (const False)
+    H.it "stringIgnoreCase" $ do
+        parseStr (Unicode.stringIgnoreCase "HeLLo") "hEllO!"
+            >>= (`H.shouldBe` Right "hello") . either (Left . show) Right
+        parseStr (Unicode.stringIgnoreCase "hello") "help"
+            >>= (`H.shouldBe` True) . either (const True) (const False)
+
+spaces :: H.SpecWith ()
+spaces = H.describe "spaces" $ do
+    let afterSpace p s =
+            fmap (either (Left . show) Right)
+                $ parseStr (p *> Unicode.char 'x') s
+    H.it "dropSpace" $ do
+        afterSpace Unicode.dropSpace " \t\nx" >>= (`H.shouldBe` Right 'x')
+        afterSpace Unicode.dropSpace "x" >>= (`H.shouldBe` Right 'x')
+    H.it "dropSpace1" $ do
+        afterSpace Unicode.dropSpace1 "  x" >>= (`H.shouldBe` Right 'x')
+        r <- afterSpace Unicode.dropSpace1 "x"
+        either (const True) (const False) r `H.shouldBe` True
+
+hexadecimal :: Property
+hexadecimal =
+    forAll (choose (0, maxBound :: Int)) $ \n -> monadicIO $ do
+        r <- run $ parseStr Unicode.hexadecimal (showHex n "")
+        assert $ either (const False) (== n) r
+
 moduleName :: String
 moduleName = "Unicode.Parser"
 
@@ -229,3 +301,7 @@ main = do
     H.describe "double parser property test" $ do
         prop "Exponent format" doubleExpFP
         prop "Decimal format" doubleFixFP
+    charClasses
+    caseInsensitive
+    spaces
+    prop "hexadecimal" hexadecimal

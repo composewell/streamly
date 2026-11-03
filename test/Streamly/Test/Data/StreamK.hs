@@ -10,6 +10,7 @@ module Streamly.Test.Data.StreamK (main) where
 
 import Control.Monad.Trans.Reader (ReaderT)
 import Data.Functor.Identity (Identity, runIdentity)
+import Data.IORef (modifyIORef, newIORef, readIORef)
 import Data.Word (Word8)
 import Data.List (sort)
 import Streamly.Internal.Data.StreamK (StreamK)
@@ -115,6 +116,20 @@ testLocalReaderT = do
     xs <- Reader.runReaderT (StreamK.toList s2) 0
     xs `shouldBe` [1, 1, 1, 0]
 
+-- | The effect generating each inner stream runs once, the streams are
+-- interleaved breadth first.
+testBfsConcatForM :: IO ()
+testBfsConcatForM = do
+    ref <- newIORef (0 :: Int)
+    let f x = do
+            modifyIORef ref (+ 1)
+            return $ StreamK.fromStream $ Stream.fromList x
+    xs <- StreamK.toList
+        $ StreamK.bfsConcatForM
+            (StreamK.fromList [[1, 2, 3], [4, 5, 6], [7, 8, 9 :: Int]]) f
+    xs `shouldBe` [1, 4, 7, 2, 5, 8, 3, 6, 9]
+    readIORef ref `shouldReturn` 3
+
 moduleName :: String
 moduleName = "Data.StreamK"
 
@@ -150,3 +165,4 @@ main = hspec
         it "FairNested Show/Read" testFairNestedShowRead
         it "localReaderT" testLocalReaderT
         it "foldr1" testFoldr1
+        it "bfsConcatForM" testBfsConcatForM
