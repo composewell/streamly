@@ -8,6 +8,7 @@
 
 module Streamly.Test.Data.MutArray.Type (arrayCommon, typeCommon, typeMain) where
 
+import Control.Exception (evaluate)
 import Control.Monad.IO.Class (liftIO)
 import Data.Char (isLower, ord)
 import Data.List (sort)
@@ -21,7 +22,9 @@ import Streamly.Internal.Data.MutByteArray (Unbox, sizeOf)
 import Streamly.Test.Common (chooseInt)
 import System.Mem (performMajorGC)
 import Test.Hspec
-    (describe, it, shouldBe, shouldReturn, shouldSatisfy, SpecWith)
+    ( anyErrorCall, describe, it, shouldBe, shouldReturn, shouldSatisfy
+    , shouldThrow, SpecWith
+    )
 import Test.Hspec.QuickCheck
 import Test.QuickCheck (forAll, listOf, Property, vectorOf, Gen, arbitrary)
 import Test.QuickCheck.Monadic (monadicIO, assert)
@@ -338,6 +341,15 @@ testBreakAt = do
     al <- MArray.toList after
     bl `shouldBe` [1,2,3]
     al `shouldBe` [4..10]
+    -- The index can be from 0 to the length of the array.
+    let (before0, after0) = MArray.breakAt 0 arr
+    MArray.toList before0 `shouldReturn` []
+    MArray.toList after0 `shouldReturn` [1..10]
+    let (before1, after1) = MArray.breakAt 10 arr
+    MArray.toList before1 `shouldReturn` [1..10]
+    MArray.toList after1 `shouldReturn` []
+    evaluate (fst (MArray.breakAt 11 arr)) `shouldThrow` anyErrorCall
+    evaluate (fst (MArray.breakAt (-1) arr)) `shouldThrow` anyErrorCall
 
 -------------------------------------------------------------------------------
 -- Element-aware slicing

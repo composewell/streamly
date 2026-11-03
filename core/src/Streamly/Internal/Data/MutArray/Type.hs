@@ -3588,18 +3588,22 @@ unsafeBreakAt i MutArray{..} =
         )
 
 -- | Create two slices of an array without copying the original array. The
--- specified index @i@ is the first index of the second slice.
+-- specified index @i@ is the first index of the second slice. The index can
+-- be from 0 to the length of the array, the first slice is empty when it is 0
+-- and the second slice is empty when it is the length.
+--
+-- Throws an exception if the index is out of this range.
 --
 {-# INLINE breakAt #-}
 breakAt, splitAt
     :: forall a. Unbox a => Int -> MutArray a -> (MutArray a, MutArray a)
 breakAt i arr =
-    let maxIndex = length arr - 1
+    let len = length arr
     in  if i < 0
-        then error "sliceAt: negative array index"
-        else if i > maxIndex
-             then error $ "sliceAt: specified array index " ++ show i
-                        ++ " is beyond the maximum index " ++ show maxIndex
+        then error $ "breakAt: negative array index " ++ show i
+        else if i > len
+             then error $ "breakAt: specified array index " ++ show i
+                        ++ " is beyond the array length " ++ show len
              else unsafeBreakAt i arr
 RENAME(splitAt,breakAt)
 
