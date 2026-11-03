@@ -11,6 +11,8 @@
 
 module Streamly.Test.FileSystem.PosixPath (main) where
 
+import Control.Exception (SomeException, evaluate, try)
+import Data.Either (isLeft)
 import Data.Functor.Identity (Identity, runIdentity)
 import Data.Maybe (isJust, isNothing)
 import Streamly.Internal.FileSystem.PosixPath (PosixPath)
@@ -103,6 +105,14 @@ testJoin = describe "join" $ do
         str (Path.unsafeJoin (p "x") (p "/y")) `shouldBe` "x/y"
     it "joinStr appends string" $
         str (Path.joinStr (p "/usr") "bin") `shouldBe` "/usr/bin"
+    it "joinStr validates the string" $ do
+        let fails x =
+                isLeft
+                    <$> (try (evaluate x)
+                            :: IO (Either SomeException PosixPath))
+        fails (Path.joinStr (p "x") "a\0b") `shouldReturn` True
+        fails (Path.joinStr (p "x/") "") `shouldReturn` True
+        fails (Path.joinStr (p "x") "") `shouldReturn` True
     it "joinDir requires trailing sep" $
         str (Path.joinDir (p "/usr/") (p "bin")) `shouldBe` "/usr/bin"
 

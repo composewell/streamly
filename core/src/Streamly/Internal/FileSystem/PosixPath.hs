@@ -750,14 +750,16 @@ fromString_ x =
 
 -- | Append a separator followed by the supplied string to a path.
 --
---  Throws 'InvalidPath' if the resulting path is not a valid path as per
---  'validatePath'.
+-- Throws an 'InvalidPath' exception if the string is not a valid path as per
+-- 'validatePath', e.g. if it is empty or contains a null character. Throws an
+-- exception if the string is a rooted path, like 'join'.
 --
 joinStr :: OS_PATH_TYPE -> [Char] -> OS_PATH_TYPE
 joinStr (OS_PATH a) b =
-    OS_PATH $
-        Common.append Common.OS_NAME
-            (Common.toString Unicode.UNICODE_DECODER) a (encodeString b)
+    let OS_PATH b1 = fromString_ b
+     in OS_PATH $
+            Common.append Common.OS_NAME
+                (Common.toString Unicode.UNICODE_DECODER) a b1
 
 
 ------------------------------------------------------------------------------

@@ -1473,7 +1473,7 @@ withAppendCheck :: (Unbox b, Integral b) =>
     OS -> (Array b -> String) -> Array b -> a -> a
 withAppendCheck os toStr arr f =
     if isRooted os arr
-    then error $ "append: cannot append a rooted path " ++ toStr arr
+    then error $ "join: cannot append a rooted path " ++ toStr arr
     else f
 
 {-# INLINE unsafeAppend #-}
@@ -1497,7 +1497,7 @@ append' os toStr a b =
      in if hasSep || hasColon
         then withAppendCheck os toStr b (doAppend os a b)
         else error
-                $ "append': first path must be dir like i.e. must have a "
+                $ "joinDir: first path must be dir like i.e. must have a "
                 ++ "trailing separator or colon on windows: " ++ toStr a
 
 -- XXX instead of Stream Identity we can use a list instead.
