@@ -18,6 +18,7 @@ import Network.Socket (Socket, PortNumber)
 import Streamly.Internal.Control.Monad (discard)
 import Streamly.Internal.System.IO (defaultChunkSize)
 import Streamly.Internal.Data.Stream (Stream)
+import System.Timeout (timeout)
 import Test.QuickCheck (Property)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
@@ -130,6 +131,23 @@ validateOnPortLocal = monadicIO $ do
         Stream.eqBy (==) (Stream.fromList dataChunk) ls2
     assert res
 
+-- | pipeBytes ends the output when the server closes the connection after it
+-- sees the end of the input.
+testPipeBytesEnd :: IO ()
+testPipeBytesEnd = do
+    let port = basePort + 2
+    sem <- newEmptyMVar
+    tid <- forkIO $ server TCP.acceptor port sem handlerRW
+    res <- timeout 10000000
+        $ Stream.toList
+        $ Stream.finally (killThread tid)
+        $ Stream.before (liftIO (takeMVar sem >> threadDelay 1000000))
+        $ Unicode.decodeLatin1
+        $ TCP.pipeBytes remoteAddr port
+        $ Unicode.encodeLatin1
+        $ Stream.fromList testData
+    res `shouldBe` Just testData
+
 moduleName :: String
 moduleName = "Network.Inet.TCP"
 
@@ -140,4 +158,5 @@ main = hspec $ do
         describe "Accept Connections" $ do
             prop "acceptOnPort" validateOnPort
             prop "acceptOnPortLocal" validateOnPortLocal
+            it "pipeBytes ends after the input ends" testPipeBytesEnd
         --  prop "acceptOnAddr/connect" Tested as part of above test cases
