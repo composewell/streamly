@@ -32,6 +32,7 @@ import GHC.Exts (MutableByteArray#, RealWorld)
 import GHC.Word (Word8)
 
 import Streamly.Internal.Data.MutByteArray.Type hiding (length)
+import Streamly.Internal.Data.Unbox (Unbox(pokeAt))
 
 import Prelude hiding (length)
 
@@ -86,8 +87,10 @@ splicePtrN dst@(MutByteArray dst#) src srcLen = do
     -- unsafePutSlice src 0 dst dstLen srcLen
     -- XXX unsafePutPtrN signature consistency with serialization routines
     -- XXX unsafePutSlice as well
-    unsafePutPtrN src dst dstLen (srcLen + 1)
-    return $ dstLen + srcLen
+    unsafePutPtrN src dst dstLen srcLen
+    let len = dstLen + srcLen
+    pokeAt len dst (0 :: Word8)
+    return len
 
 -- | Join a null terminated cstring MutByteByteArray with a null terminated
 -- cstring Ptr.

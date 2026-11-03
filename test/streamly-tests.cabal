@@ -279,6 +279,12 @@ test-suite Data.Binary
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Binary.hs
 
+test-suite Data.CString
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/CString.hs
+  ghc-options: -main-is Streamly.Test.Data.CString.main
+
 test-suite Data.Fold
   import: test-options
   type: exitcode-stdio-1.0

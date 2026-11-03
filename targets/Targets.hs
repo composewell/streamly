@@ -32,6 +32,11 @@ targets =
             [ "noBench"
             ]
       )
+    , ("Data.CString",
+            [ "noBench"
+            , "streamly_core_grp"
+            ]
+      )
     , ("Data.Fold",
             [ "infinite_grp"
             , "fold_parser_grp"
