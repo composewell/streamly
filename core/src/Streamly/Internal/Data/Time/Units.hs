@@ -372,30 +372,39 @@ addToAbsTime (AbsTime t1) (RelTime t2) = AbsTime $ t1 + t2
 
 -- | Convert nanoseconds to a string showing time in an appropriate unit.
 showNanoSecond64 :: NanoSecond64 -> String
-showNanoSecond64 time@(NanoSecond64 ns)
-    | time < 0    = '-' : showNanoSecond64 (-time)
-    | ns < 1000 = fromIntegral ns `with` "ns"
+showNanoSecond64 (NanoSecond64 ns0)
+    -- Use Integer for the magnitude, negating minBound overflows.
+    | ns0 < 0 = '-' : showAbs (negate (toInteger ns0))
+    | otherwise = showAbs (toInteger ns0)
+
+    where
+
+    showAbs :: Integer -> String
+    showAbs ns
+        | ns < 1000 = fromIntegral ns `with` "ns"
 #ifdef mingw32_HOST_OS
-    | ns < 1000000 = (fromIntegral ns / 1000) `with` "us"
+        | ns < 1000000 = (fromIntegral ns / 1000) `with` "us"
 #else
-    | ns < 1000000 = (fromIntegral ns / 1000) `with` "μs"
+        | ns < 1000000 = (fromIntegral ns / 1000) `with` "μs"
 #endif
-    | ns < 1000000000 = (fromIntegral ns / 1000000) `with` "ms"
-    | ns < (60 * 1000000000) = (fromIntegral ns / 1000000000) `with` "s"
-    | ns < (60 * 60 * 1000000000) =
-        (fromIntegral ns / (60 * 1000000000)) `with` "min"
-    | ns < (24 * 60 * 60 * 1000000000) =
-        (fromIntegral ns / (60 * 60 * 1000000000)) `with` "hr"
-    | ns < (365 * 24 * 60 * 60 * 1000000000) =
-        (fromIntegral ns / (24 * 60 * 60 * 1000000000)) `with` "days"
-    | otherwise =
-        (fromIntegral ns / (365 * 24 * 60 * 60 * 1000000000)) `with` "years"
-     where with (t :: Double) (u :: String)
-               | t >= 1e9  = printf "%.4g %s" t u
-               | t >= 1e3  = printf "%.0f %s" t u
-               | t >= 1e2  = printf "%.1f %s" t u
-               | t >= 1e1  = printf "%.2f %s" t u
-               | otherwise = printf "%.3f %s" t u
+        | ns < 1000000000 = (fromIntegral ns / 1000000) `with` "ms"
+        | ns < (60 * 1000000000) = (fromIntegral ns / 1000000000) `with` "s"
+        | ns < (60 * 60 * 1000000000) =
+            (fromIntegral ns / (60 * 1000000000)) `with` "min"
+        | ns < (24 * 60 * 60 * 1000000000) =
+            (fromIntegral ns / (60 * 60 * 1000000000)) `with` "hr"
+        | ns < (365 * 24 * 60 * 60 * 1000000000) =
+            (fromIntegral ns / (24 * 60 * 60 * 1000000000)) `with` "days"
+        | otherwise =
+            (fromIntegral ns / (365 * 24 * 60 * 60 * 1000000000))
+                `with` "years"
+
+    with (t :: Double) (u :: String)
+        | t >= 1e9  = printf "%.4g %s" t u
+        | t >= 1e3  = printf "%.0f %s" t u
+        | t >= 1e2  = printf "%.1f %s" t u
+        | t >= 1e1  = printf "%.2f %s" t u
+        | otherwise = printf "%.3f %s" t u
 
 -- In general we should be able to show the time in a specified unit, if we
 -- omit the unit we can show it in an automatically chosen one.

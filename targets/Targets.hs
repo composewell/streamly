@@ -235,6 +235,11 @@ targets =
             [ "noBench"
             ]
       )
+    , ("Data.Time.Units",
+            [ "noBench"
+            , "streamly_core_grp"
+            ]
+      )
     , ("Data.Unfold",
             [ "infinite_grp"
             , "serial_stream_grp"

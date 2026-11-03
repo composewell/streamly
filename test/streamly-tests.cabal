@@ -510,6 +510,12 @@ test-suite Data.Stream.Rate
   if flag(use-streamly-core) || !flag(include-flaky-tests)
     buildable: False
 
+test-suite Data.Time.Units
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/Time/Units.hs
+  ghc-options: -main-is Streamly.Test.Data.Time.Units.main
+
 test-suite Data.Unfold
   import: test-options
   type: exitcode-stdio-1.0
