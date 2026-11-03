@@ -169,8 +169,11 @@ _Read = mkName "Read"
 _Show :: Name
 _Show = mkName "Show"
 
-_show :: Name
-_show = mkName "show"
+_showsPrec :: Name
+_showsPrec = mkName "showsPrec"
+
+_prec :: Name
+_prec = mkName "prec"
 
 _readPrec :: Name
 _readPrec = mkName "readPrec"
@@ -230,12 +233,14 @@ showInstance _Type =
     instanceD
         (singleton <$> appT (conT _Show) (varT _a))
         (appT (conT _Show) (foldl1 appT [conT _Type, conT _Identity, varT _a]))
-        [ pragInlD _show Inline FunLike AllPhases
+        [ pragInlD _showsPrec Inline FunLike AllPhases
         , funD
-              _show
+              _showsPrec
               [ clause
-                    [conP _Type [varP _strm]]
-                    (normalB (appE (varE _show) (varE _strm)))
+                    [varP _prec, conP _Type [varP _strm]]
+                    (normalB
+                        (foldl1 appE
+                            [varE _showsPrec, varE _prec, varE _strm]))
                     []
               ]
         ]
@@ -522,7 +527,8 @@ flattenDec (ma:mas) = do
 -- deriving instance GHC.Internal.Classes.Ord a => Ord (ZipStream Identity
 --                                                                a)
 -- instance Show a => Show (ZipStream Identity a)
---     where {{-# INLINE show #-}; show (ZipStream strm) = show strm}
+--     where {{-# INLINE showsPrec #-};
+--            showsPrec prec (ZipStream strm) = showsPrec prec strm}
 -- instance Read a => Read (ZipStream Identity a)
 --     where {{-# INLINE readPrec #-}; readPrec = fmap ZipStream readPrec}
 -- instance Monad m => Functor (ZipStream m)

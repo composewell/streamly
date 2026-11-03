@@ -53,6 +53,11 @@ main = hspec
   $ H.parallel
   $ describe moduleName $ do
 
+    describe "Show" $
+        it "parenthesizes nested values" $
+            let z = mkZip (Stream.fromList [1, 2 :: Int]) :: Zip Identity Int
+             in show (Just z) `shouldBe` "Just (fromList [1,2])"
+
     describe "Functor" $ do
         prop "fmap id" $ \xs ->
             monadicIO $ do
