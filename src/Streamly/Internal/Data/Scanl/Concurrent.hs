@@ -274,7 +274,10 @@ parDistributeScanM cfg getFolds (Stream sstep state) =
     step _ (ScanDrain q db chans) = do
         (running, outputs) <- collectOutputs q chans
         case running of
-            [] -> return $ Yield outputs ScanStop
+            [] ->
+                if null outputs
+                then return $ Skip ScanStop
+                else return $ Yield outputs ScanStop
             _ -> do
                 if null outputs
                 then do
@@ -435,8 +438,10 @@ parDemuxScanM cfg getKey getFold (Stream sstep state) =
     step _ (DemuxDrain q db keyToChan) = do
         (keyToChan1, outputs) <- collectOutputs q keyToChan
         if Map.null keyToChan1
-        -- XXX null outputs case
-        then return $ Yield outputs DemuxStop
+        then
+            if null outputs
+            then return $ Skip DemuxStop
+            else return $ Yield outputs DemuxStop
         else do
             if null outputs
             then do

@@ -298,6 +298,17 @@ test-suite Data.Fold
     Streamly.Test.Data.Fold.Tee
     Streamly.Test.Data.Fold.Type
 
+test-suite Data.Fold.Prelude
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/Fold/Prelude.hs
+  ghc-options: -main-is Streamly.Test.Data.Fold.Prelude.main
+  other-modules:
+    Streamly.Test.Data.Fold.Concurrent
+    Streamly.Test.Data.Fold.Time
+  if flag(use-streamly-core)
+    buildable: False
+
 test-suite Data.Scanl
   import: test-options
   type: exitcode-stdio-1.0

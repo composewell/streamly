@@ -161,6 +161,23 @@ parTeeWithRightFilter = do
     out `shouldBe` [(2, 2), (4, 4)]
     calls `shouldBe` [0, 2, 4]
 
+-- | The output stream has no empty lists.
+parNoEmptyOutput :: IO ()
+parNoEmptyOutput = do
+    Stream.toList
+        (Scanl.parDistributeScan id ([] :: [Scanl IO Int Int])
+            (Stream.fromList [1]))
+        `shouldReturn` []
+    xs <- Stream.toList
+        $ Scanl.parDistributeScan id [Scanl.sum]
+            (Stream.fromList [1..10 :: Int])
+    filter null xs `shouldBe` []
+    concat xs `shouldBe` scanl (+) 0 [1..10]
+    ys <- Stream.toList
+        $ Scanl.parDemuxScan id even (const Scanl.sum)
+            (Stream.fromList [1..10 :: Int])
+    filter null ys `shouldBe` []
+
 main :: IO ()
 main = hspec
   $ H.parallel
@@ -178,6 +195,7 @@ main = hspec
             $ parDemuxScan_ScanEnd (Scanl.maxBuffer 1)
         it "parDemuxScanM (worker exception) (maxBuffer 1)"
             $ parDemuxScan_WorkerException (Scanl.maxBuffer 1)
+        it "parDistributeScan/parDemuxScan no empty output" parNoEmptyOutput
         it "parTeeWith filter" parTeeWithFilter
         it "parTeeWith right filter" parTeeWithRightFilter
         prop "parTeeWith filter law"

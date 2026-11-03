@@ -454,9 +454,14 @@ newChannelWith outq outqDBell modifier f = do
     where
 
     {-# NOINLINE work #-}
-    work chan =
+    work chan = do
         let f1 = Fold.rmapM (void . sendYieldToDriver chan) f
-         in D.fold f1 $ fromInputQueue chan
+        D.fold f1 $ fromInputQueue chan
+        -- The fold may terminate before the input ends, a driver blocked for
+        -- buffer space must be woken up to see the result.
+        liftIO $ writeIORef (closedForInput chan) True
+        liftIO writeBarrier
+        void $ liftIO $ tryPutMVar (inputSpaceDoorBell chan) ()
 
 -- | Returns True if the fold terminated due to completion and False when due
 -- to end-of-stream.

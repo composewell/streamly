@@ -95,7 +95,7 @@ takeInterval n (Fold step initial done final) =
 
     done' (Tuple3' s _ _) = done s
 
-    final' (Tuple3' s _ _) = final s
+    final' (Tuple3' s _ t) = liftIO (killThread t) >> final s
 
     timerThread mv = do
         Stream.sleep n

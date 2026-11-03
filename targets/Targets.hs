@@ -45,7 +45,6 @@ targets =
       )
     , ("Data.Fold.Prelude",
             [ "fold_parser_grp"
-            , "noTest"
             ]
       )
 
