@@ -58,7 +58,7 @@ import qualified Data.IntMap.Strict as Map
 
 -- | Like 'assert' but is not removed by the compiler, it is always present in
 -- production code. Returns the value if the predicate is True, otherwise
--- throws an 'ErrorCall' exception.
+-- throws an @ErrorCall@ exception.
 --
 -- /Pre-release/
 --
