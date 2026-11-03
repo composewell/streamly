@@ -403,8 +403,9 @@ defaultConfig = Config
 -- overhead.
 --
 -- Known Bugs: currently this works only when rate is specified.
--- Known Bugs: for ordered streams sometimes the actual count is less than
--- expected.
+-- Known Bugs: for ordered streams the actual count can be less or more than
+-- expected, the streams waiting in the reordering heap are drained without
+-- checking the limit.
 maxYields :: Maybe Int64 -> Config -> Config
 maxYields lim st =
     st { _yieldLimit =

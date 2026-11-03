@@ -303,6 +303,16 @@ testFromCallback = do
         threadDelay 100000
         return Nothing
 
+-- | maxYields limits the number of elements yielded by a concurrent stream.
+maxYieldsLimit :: (Async.Config -> Async.Config) -> IO ()
+maxYieldsLimit cfg = do
+    xs <- Stream.toList
+        $ Async.parConcatMap
+            (cfg . Async.maxThreads 1 . Async.maxYields (Just 4))
+            Stream.fromList
+            (Stream.fromList [[1, 2, 3], [4, 5, 6 :: Int]])
+    length xs `shouldBe` 4
+
 main :: IO ()
 main = hspec
   $ H.parallel
@@ -311,6 +321,14 @@ main = hspec
 #endif
   $ describe moduleName $ do
         let transform = transformCombineFromList Stream.fromList sortEq
+
+        it "maxYields" $ maxYieldsLimit id
+        it "maxYields interleaved" $ maxYieldsLimit (Async.interleaved True)
+        -- XXX The ordered channel drains the streams it put on the heap
+        -- without checking the yield limit.
+        it "maxYields ordered" $
+            pendingWith "ordered streams can yield more than maxYields"
+        it "maxYields eager" $ maxYieldsLimit (Async.eager True)
 
         prop "parBuffered" $
             transform

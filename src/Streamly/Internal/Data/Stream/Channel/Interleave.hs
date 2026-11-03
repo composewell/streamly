@@ -134,16 +134,13 @@ workLoopFIFOLimited q sv winfo = run
         res <- liftIO $ yieldWith winfo sv a
         return $ if res then Continue else Suspend
 
+    -- The yield limit for the rest of the stream is decremented when it is
+    -- dequeued in "run", not here.
     yieldk a r = do
         res <- liftIO $ yieldWith winfo sv a
         runInIO <- askRunInIO
         liftIO $ enqueueFIFO sv q (runInIO, r)
-        yieldLimitOk <- liftIO $ decrementYieldLimit (remainingWork sv)
-        if res && yieldLimitOk
-        then return Continue
-        else liftIO $ do
-            incrementYieldLimit (remainingWork sv)
-            return Suspend
+        return $ if res then Continue else Suspend
 
 -------------------------------------------------------------------------------
 -- SVar creation
