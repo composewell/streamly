@@ -21,6 +21,7 @@ module Streamly.Internal.Syscall.Posix.File
     , setTrunc
 
     -- * File create mode
+    , FileMode
     , defaultCreateMode
 
     -- ** User Permissions
@@ -111,63 +112,39 @@ import qualified System.Posix.Internals as Posix
 -- manipulate the C type.
 
 #include <fcntl.h>
+#include <sys/stat.h>
 
 -------------------------------------------------------------------------------
 -- Create mode
 -------------------------------------------------------------------------------
 
--- | Open flags, see posix open system call man page.
+-- | File permission bits used when creating a file, see the mode argument of
+-- the posix open system call.
 newtype FileMode = FileMode CMode
 
 ##define MK_MODE_API(name1,name2,x) \
 {-# INLINE name1 #-}; \
 name1 :: FileMode -> FileMode; \
-name1 (FileMode mode) = FileMode (x .|. mode); \
+name1 (FileMode mode) = FileMode (mode .|. x); \
 {-# INLINE name2 #-}; \
 name2 :: FileMode -> FileMode; \
-name2 (FileMode mode) = FileMode (x .&. complement mode)
+name2 (FileMode mode) = FileMode (mode .&. complement x)
 
-{-
-#define S_ISUID  0004000
-#define S_ISGID  0002000
-#define S_ISVTX  0001000
+MK_MODE_API(setSuid,clrSuid,#{const S_ISUID})
+MK_MODE_API(setSgid,clrSgid,#{const S_ISGID})
+MK_MODE_API(setSticky,clrSticky,#{const S_ISVTX})
 
-#define S_IRWXU 00700
-#define S_IRUSR 00400
-#define S_IWUSR 00200
-#define S_IXUSR 00100
+MK_MODE_API(setUr,clrUr,#{const S_IRUSR})
+MK_MODE_API(setUw,clrUw,#{const S_IWUSR})
+MK_MODE_API(setUx,clrUx,#{const S_IXUSR})
 
-#define S_IRWXG 00070
-#define S_IRGRP 00040
-#define S_IWGRP 00020
-#define S_IXGRP 00010
+MK_MODE_API(setGr,clrGr,#{const S_IRGRP})
+MK_MODE_API(setGw,clrGw,#{const S_IWGRP})
+MK_MODE_API(setGx,clrGx,#{const S_IXGRP})
 
-#define S_IRWXO 00007
-#define S_IROTH 00004
-#define S_IWOTH 00002
-#define S_IXOTH 00001
-
-#define AT_FDCWD (-100)
--}
-
-MK_MODE_API(setSuid,clrSuid,S_ISUID)
-MK_MODE_API(setSgid,clrSgid,S_ISGID)
-MK_MODE_API(setSticky,clrSticky,S_ISVTX)
-
--- MK_MODE_API(setUrwx,clrUrwx,S_IRWXU)
-MK_MODE_API(setUr,clrUr,S_IRUSR)
-MK_MODE_API(setUw,clrUw,S_IWUSR)
-MK_MODE_API(setUx,clrUx,S_IXUSR)
-
--- MK_MODE_API(setGrwx,clrGrwx,S_IRWXU)
-MK_MODE_API(setGr,clrGr,S_IRUSR)
-MK_MODE_API(setGw,clrGw,S_IWUSR)
-MK_MODE_API(setGx,clrGx,S_IXUSR)
-
--- MK_MODE_API(setOrwx,clrOrwx,S_IRWXU)
-MK_MODE_API(setOr,clrOr,S_IRUSR)
-MK_MODE_API(setOw,clrOw,S_IWUSR)
-MK_MODE_API(setOx,clrOx,S_IXUSR)
+MK_MODE_API(setOr,clrOr,#{const S_IROTH})
+MK_MODE_API(setOw,clrOw,#{const S_IWOTH})
+MK_MODE_API(setOx,clrOx,#{const S_IXOTH})
 
 -- Uses the same default mode as openFileWith in base
 defaultCreateMode :: FileMode

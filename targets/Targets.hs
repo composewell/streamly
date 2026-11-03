@@ -279,6 +279,9 @@ targets =
 #endif
     , ("FileSystem.Handle", [])
     , ("Network.Inet.TCP", ["noBench"])
+#if !defined(mingw32_HOST_OS)
+    , ("Syscall.Posix.File", ["noBench", "streamly_core_grp"])
+#endif
     , ("Network.Socket", ["noBench"])
     , ("Unicode.Char", ["testDevOnly"])
     , ("Unicode.Parser", ["streamly_core_grp"])

@@ -629,6 +629,14 @@ test-suite Network.Socket
   if flag(use-streamly-core) || arch(javascript)
     buildable: False
 
+test-suite Syscall.Posix.File
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Syscall/Posix/File.hs
+  ghc-options: -main-is Streamly.Test.Syscall.Posix.File.main
+  if os(windows)
+    buildable: False
+
 test-suite Unicode.Char
   import: test-options
   type: exitcode-stdio-1.0
