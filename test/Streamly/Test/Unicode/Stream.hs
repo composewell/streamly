@@ -16,6 +16,7 @@ import Test.QuickCheck
     , expectFailure
     , vectorOf
     , choose
+    , elements
     )
 import Test.QuickCheck.Monadic (run, monadicIO, assert, PropertyM)
 import Streamly.Data.Stream (Stream)
@@ -204,6 +205,99 @@ testUnwords =
               $ Stream.fromList list
           assertEq xs (unwords (words list))
 
+-- | Decoding a byte stream in chunks gives the same result as decoding the
+-- flat stream, also for invalid input.
+propDecodeUtf8ChunksEq ::
+       (Stream IO Word8 -> Stream IO Char)
+    -> (Stream IO (A.Array Word8) -> Stream IO Char)
+    -> Property
+propDecodeUtf8ChunksEq decode decodeChunks =
+    forAll (choose (1, 5)) $ \n ->
+        forAll (listOf (elements bytes)) $ \list ->
+            monadicIO $ do
+                let strm = Stream.fromList list
+                xs <- run $ Stream.toList $ decode strm
+                ys <- run $ Stream.toList
+                    $ decodeChunks (Array.chunksOf n strm)
+                assertEq xs ys
+
+    where
+
+    -- Valid and invalid lead bytes, continuation bytes and ASCII.
+    bytes = [0x41, 0x7f, 0x80, 0xbf, 0xc3, 0xa9, 0xe2, 0x82, 0xac, 0xf0, 0x9f
+            , 0x98, 0x80, 0xff, 0xc0]
+
+testDecodeUtf8ChunksInvalid :: H.Expectation
+testDecodeUtf8ChunksInvalid = do
+    let decode f xs = Stream.toList $ f $ Stream.fromList $ fmap A.fromList xs
+    decode IUS.decodeUtf8Chunks [[0xC3, 0x41]]
+        `H.shouldReturn` "\xFFFD\&A"
+    decode IUS.decodeUtf8Chunks [[0xC3], [0x41]]
+        `H.shouldReturn` "\xFFFD\&A"
+    decode IUS.decodeUtf8Chunks_ [[0xC3, 0x41]]
+        `H.shouldReturn` "A"
+
+-- | Reference UTF-16 decoder, an unpaired surrogate is replaced by U+FFFD
+-- and the next word is decoded on its own.
+refDecodeUtf16 :: [Word16] -> String
+refDecodeUtf16 (h:l:xs)
+    | isHigh h && isLow l =
+        chr (0x10000 + (fromIntegral (h - 0xD800) * 0x400)
+                + fromIntegral (l - 0xDC00))
+            : refDecodeUtf16 xs
+    where
+    isHigh x = x >= 0xD800 && x <= 0xDBFF
+    isLow x = x >= 0xDC00 && x <= 0xDFFF
+refDecodeUtf16 (x:xs)
+    | x >= 0xD800 && x <= 0xDFFF = '\xFFFD' : refDecodeUtf16 xs
+    | otherwise = chr (fromIntegral x) : refDecodeUtf16 xs
+refDecodeUtf16 [] = []
+
+propDecodeUtf16Ref :: Property
+propDecodeUtf16Ref =
+    forAll (listOf (elements words16)) $ \list ->
+        monadicIO $ do
+            xs <- run
+                $ Stream.toList $ IUS.decodeUtf16le $ Stream.fromList list
+            assertEq (refDecodeUtf16 list) xs
+
+    where
+
+    words16 = [0x41, 0xD800, 0xDBFF, 0xDC00, 0xDFFF, 0xFFFF, 0xE000]
+
+testDecodeUtf16Unpaired :: H.Expectation
+testDecodeUtf16Unpaired = do
+    let decode = Stream.toList . IUS.decodeUtf16le . Stream.fromList
+    decode [0xD800, 0x41] `H.shouldReturn` "\xFFFD\&A"
+    decode [0xD800, 0xD800, 0xDC00] `H.shouldReturn` "\xFFFD\x10000"
+    decode [0xD800] `H.shouldReturn` "\xFFFD"
+
+testEncodeUtf16Surrogate :: H.Expectation
+testEncodeUtf16Surrogate =
+    Stream.toList (IUS.encodeUtf16le (Stream.fromList "a\xD800\&b"))
+        `H.shouldReturn` [0x61, 0xFFFD, 0x62]
+
+-- | A parser failure must be a 'Left', not an exception.
+testParseCharUtf8EmptyInput :: H.Expectation
+testParseCharUtf8EmptyInput = do
+    let isLeft = either (const True) (const False)
+    r1 <- Stream.parse IUS.writeCharUtf8' (Stream.fromList [])
+    isLeft r1 `H.shouldBe` True
+    r2 <- Stream.parse
+            (IUS.parseCharUtf8With IUS.DropOnCodingFailure)
+            (Stream.fromList [0xC3])
+    isLeft r2 `H.shouldBe` True
+
+-- | encodeStrings encodes each string to a separate array.
+propEncodeStrings :: Property
+propEncodeStrings =
+    forAll (listOf genUnicode) $ \strs -> monadicIO $ do
+        arrs <- run $ Stream.toList
+            $ IUS.encodeStrings IUS.encodeUtf8 (Stream.fromList strs)
+        decoded <- run
+            $ mapM (Stream.toList . IUS.decodeUtf8 . Array.read) arrs
+        assertEq strs decoded
+
 moduleName :: String
 moduleName = "Unicode.Stream"
 
@@ -217,6 +311,15 @@ main = H.hspec
         prop "decodeUtf8 . encodeUtf8' == id" propDecodeEncodeId
         prop "decodeUtf8Arrays . encodeUtf8' == id"
                 propDecodeEncodeIdArrays
+        prop "encodeStrings" propEncodeStrings
+        prop "decodeUtf8Chunks == decodeUtf8"
+            (propDecodeUtf8ChunksEq IUS.decodeUtf8 IUS.decodeUtf8Chunks)
+        prop "decodeUtf8Chunks_ == decodeUtf8_"
+            (propDecodeUtf8ChunksEq IUS.decodeUtf8_ IUS.decodeUtf8Chunks_)
+        H.it "decodeUtf8Chunks invalid subsequent byte"
+            testDecodeUtf8ChunksInvalid
+        H.it "parseCharUtf8With on insufficient input"
+            testParseCharUtf8EmptyInput
         prop "Streamly.Data.String.lines == Prelude.lines" testLines
         prop "Arrays Streamly.Data.String.lines == Prelude.lines"
             testLinesArray
@@ -233,6 +336,9 @@ main = H.hspec
              (propDecodeEncodeUtf16Id IUS.encodeUtf16le' IUS.decodeUtf16le')
         prop "decodeUtf16le . encodeUtf16le == id"
              (propDecodeEncodeUtf16Id IUS.encodeUtf16le' IUS.decodeUtf16le)
+        prop "decodeUtf16le == reference decoder" propDecodeUtf16Ref
+        H.it "decodeUtf16le unpaired high surrogate" testDecodeUtf16Unpaired
+        H.it "encodeUtf16le surrogate" testEncodeUtf16Surrogate
         -- prop "mkEvenW8Chunks" propMkEvenW8Chunks
 
     H.describe "Latin1 - Encoding / Decoding" $ do

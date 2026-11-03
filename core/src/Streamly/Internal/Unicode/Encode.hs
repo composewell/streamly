@@ -330,7 +330,7 @@ encodeUtf16' = D.unfoldEach (readCharUtf16With errString)
 
 {-# INLINE encodeUtf16 #-}
 encodeUtf16 :: Monad m => Stream m Char -> Stream m Word16
-encodeUtf16 = D.unfoldEach (readCharUtf16With WNil)
+encodeUtf16 = D.unfoldEach (readCharUtf16With (WCons 0xFFFD WNil))
 
 -- | Similar to 'encodeUtf16le' but throws an error if any invalid character is
 -- encountered.

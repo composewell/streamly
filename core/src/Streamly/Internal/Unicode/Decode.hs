@@ -438,16 +438,18 @@ parseCharUtf8WithD cfm = ParserD.Parser (step' utf8d) initial extract
             _ -> ParserD.SContinue 1 (UTF8CharDecoding sv cp)
 
     {-# INLINE extract #-}
-    extract UTF8CharDecodeInit =  error $ prefix ++ "Not enough input"
+    extract UTF8CharDecodeInit =
+        return $ ParserD.FError $ prefix ++ "Not enough input"
     extract (UTF8CharDecoding _ _) =
         case cfm of
             ErrorOnCodingFailure ->
                 return $ ParserD.FError $ prefix ++ "Not enough input"
             TransliterateCodingFailure ->
                 return (ParserD.FDone 0 replacementChar)
-            -- XXX We shouldn't error out here. There is no way to represent an
-            -- empty parser result unless we return a "Maybe" type.
-            DropOnCodingFailure -> error $ prefix ++ "Not enough input"
+            -- The incomplete sequence is dropped, there is no character to
+            -- return.
+            DropOnCodingFailure ->
+                return $ ParserD.FError $ prefix ++ "Not enough input"
 
 -- XXX This should ideally accept a "CodingFailureMode" and perform appropriate
 -- error handling. This isn't possible now as "TransliterateCodingFailure"'s
@@ -756,12 +758,19 @@ decodeUtf16With cfm (D.Stream step state) =
                 Yield x st1
                     | x >= 0xDC00 && x <= 0xDFFF ->
                           Yield (combineSurrogates hi x) (U16NoSurrogate st1)
+                    -- The high surrogate is unpaired, x is decoded on its
+                    -- own, it is either a high surrogate or a BMP character.
                     | otherwise ->
                           let msg = prefix
                                  ++ "Invalid subsequent UTF16 word " ++ show x
                                  ++ " in state " ++ show hi
-                           in Skip $
-                              transliterateOrError msg (U16NoSurrogate st1)
+                              next =
+                                if x >= 0xD800 && x <= 0xDBFF
+                                then U16HighSurrogate x st1
+                                else U16YAndC
+                                        (unsafeChr (fromIntegral x))
+                                        (U16NoSurrogate st1)
+                           in Skip $ transliterateOrError msg next
                 Skip st1 -> Skip (U16HighSurrogate hi st1)
                 Stop -> Skip inputUnderflow
     step1 _ (U16YAndC x st) = pure $ Yield x st
@@ -911,6 +920,8 @@ decodeUtf8ArraysWithD cfm (D.Stream step state) =
                     YAndC
                         (unsafeChr cp)
                         (InnerLoopDecodeInit st contents (p + 1) end)
+                -- Like decodeUtf8, decode the byte that broke the sequence
+                -- again as the first byte of a new sequence.
                 12 ->
                     Skip $
                     transliterateOrError
@@ -919,7 +930,7 @@ decodeUtf8ArraysWithD cfm (D.Stream step state) =
                         ++ "decodeUtf8ArraysWith: Invalid UTF8"
                         ++ " codepoint encountered"
                         )
-                        (InnerLoopDecodeInit st contents (p + 1) end)
+                        (InnerLoopDecodeInit st contents p end)
                 _ ->
                     Skip
                     (InnerLoopDecoding st contents (p + 1) end sv cp)
