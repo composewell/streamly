@@ -79,6 +79,18 @@
 * Fix parsers composed with the `ParserK` instances on array streams
   (`Array.toParserK`, `Array.Generic.toParserK`) losing the input given back
   by a parser at the end of input, e.g. in `p1 *> p2` or `p1 <|> p2`.
+* Fix `Unicode.decodeUtf8Chunks` dropping the byte that ends an invalid
+  multi-byte sequence, it now gives the same result as `decodeUtf8`, e.g.
+  `[0xC3,0x41]` gives `"\xFFFDA"` instead of `"\xFFFD"`.
+* Fix `Unicode.decodeUtf16le` dropping the word following an unpaired high
+  surrogate, e.g. `[0xD800,0x41]` gives `"\xFFFDA"` instead of `"\xFFFD"`.
+* `Unicode.encodeUtf16le` now replaces surrogate characters by U+FFFD as
+  documented, they were dropped.
+* Fix `Handle.writeChunksWithBufferOf` not writing the last partially filled
+  buffer.
+* `Path.joinStr` now throws an `InvalidPath` exception if the string is not
+  a valid path, e.g. empty or containing a null character, it used to create
+  an invalid path.
 
 ### Breaking changes
 
@@ -158,6 +170,23 @@
   zipped stream skips.
 * `Parser.sequence` now runs the remaining parsers at the end of input,
   it fails if any of them fails, as documented.
+* Fix `Stream.scanlMAfter'` and `scanlMx'` running the initial action twice.
+* Fix `Control.Exception.verify` throwing an exception when the predicate is
+  True instead of False.
+* `withAcquireIO` now releases all the resources even if a release action
+  throws an exception, the first exception is rethrown.
+* Fix `CString.splicePtrN` copying one byte more than specified instead of
+  terminating the result with a null byte.
+* Fix `showNanoSecond64 minBound` not terminating.
+* Fix the file mode helpers (`setUr`, `clrUr`, `setGw` etc.) in
+  `Syscall.Posix.File`, they set or cleared wrong bits. `FileMode` is now
+  exported.
+* Fix `Path.normalise` returning an empty path for `.` and corrupting
+  non-ASCII characters when `ignoreCase` is set.
+* `MutArray.breakAt` and `Array.breakAt` now accept an index equal to the
+  length of the array.
+* Fix `parseCharUtf8With` and `writeCharUtf8'` throwing an exception instead
+  of failing the parse on insufficient input.
 
 ## 0.3.2 (Oct 2026)
 
@@ -194,7 +223,6 @@
 * Fix memory corruption in `MutArray.appendMax`, `MutArray.createMinOf` and
   `RingArray.Generic.copyToMutArray`, and resource release in
   `Fold.bracketIO` and `Fold.finallyIO`.
-* Fix `Stream.scanlMAfter'` and `scanlMx'` running the initial action twice.
 
 ## 0.3.1 (May 2026)
 
