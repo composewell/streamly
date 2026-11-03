@@ -233,6 +233,11 @@ testEqPathRelaxed =
             eqWith cfg ".\\x" "./X" `shouldBe` True
         it "double sep collapse" $
             eqWith cfg "x//y" "x/y" `shouldBe` True
+        it "trailing sep on UNC root ignored" $ do
+            eqWith cfg "\\\\x\\y" "\\\\x\\y\\" `shouldBe` True
+            eqWith id "\\\\x\\y" "\\\\x\\y\\" `shouldBe` False
+            str (Path.normalise cfg (p "\\\\x\\y\\")) `shouldBe` "\\\\x\\y"
+            str (Path.normalise id (p "\\\\x\\y\\")) `shouldBe` "\\\\x\\y\\"
 
 -------------------------------------------------------------------------------
 -- Normalisation
@@ -255,6 +260,13 @@ testNormalise = describe "normalise" $ do
         nrm "\\\\?\\c:\\Foo" `shouldBe` "\\\\?\\c:\\Foo"
     it "separators in non-verbatim normalised to primary" $
         nrm "C:/x/y" `shouldBe` "C:\\x\\y"
+    it ". stays ." $ nrm "." `shouldBe` "."
+    it ".\\ stays .\\" $ nrm ".\\" `shouldBe` ".\\"
+    it "ignoreCase keeps non-BMP characters" $
+        str (Path.normalise (Path.ignoreCase True) (p "a\\\x1F600\&b"))
+            `shouldBe` "A\\\x1F600\&B"
+    it "UNC root keeps non-BMP characters" $
+        nrm "\\\\S\x1F600\\Share\\x" `shouldBe` "\\\\s\x1F600\\share\\x"
     it "ignoreCase True does not change verbatim" $
         str (Path.normalise (Path.ignoreCase True) (p "\\\\?\\C:\\Foo"))
             `shouldBe` "\\\\?\\C:\\Foo"
@@ -303,6 +315,18 @@ testPathView = describe "path view" $ do
     it "takeDirectory" $
         fmap str (Path.takeDirectory (p "C:\\Users\\file.txt"))
             `shouldBe` Just "C:\\Users\\"
+    -- The server and share name of a UNC path form its root.
+    it "UNC root has no file name" $ do
+        fmap str (Path.takeFileName (p "\\\\server\\share"))
+            `shouldBe` Nothing
+        fmap str (Path.takeDirectory (p "\\\\server\\share"))
+            `shouldBe` Nothing
+        fmap str (Path.takeFileName (p "\\\\server\\share\\x"))
+            `shouldBe` Just "x"
+    it "UNC root has no extension" $
+        fmap (\(a, b) -> (str a, str b))
+            (Path.splitExtension (p "\\\\server\\sh.are"))
+            `shouldBe` Nothing
 
 -------------------------------------------------------------------------------
 -- validatePath (windows-specific)

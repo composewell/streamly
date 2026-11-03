@@ -525,6 +525,13 @@ testNormaliseExtras = describe "normalise (extras)" $ do
         nrm id "./a/./b" `shouldBe` "a/b"
     it "absolute path collapses dot segments" $
         nrm id "/a//./b" `shouldBe` "/a/b"
+    it ". stays ." $ nrm id "." `shouldBe` "."
+    it "./. becomes ." $ nrm id "./." `shouldBe` "."
+    it "./ stays ./" $ nrm id "./" `shouldBe` "./"
+    it "./ with ignoreTrailingSeparators becomes ." $
+        nrm (Path.ignoreTrailingSeparators True) "./" `shouldBe` "."
+    it "ignoreCase keeps non-ASCII characters" $
+        nrm (Path.ignoreCase True) "a/\233/\x1F600" `shouldBe` "A/\201/\x1F600"
 
 -------------------------------------------------------------------------------
 -- Path equality edge cases

@@ -1818,6 +1818,7 @@ normalise :: (EqCfg -> EqCfg) -> OS_PATH_TYPE -> OS_PATH_TYPE
 normalise cfg (OS_PATH p) =
     OS_PATH $ Common.normalise
         Unicode.UNICODE_DECODER
+        Unicode.UNICODE_ENCODER
         Common.OS_NAME (cfg eqCfg) p
 
 ------------------------------------------------------------------------------

@@ -677,6 +677,15 @@ unsafeSplitUNC arr =
     let (off, _, _) = unsafeParseUNCEnd arr
      in unsafeSplitPrefix Windows off arr
 
+-- | True if the path is a Windows UNC root without any path after it e.g.
+-- @\\\\server\\share@ or @\\\\server\\share\\@.
+{-# INLINE isUNCRootOnly #-}
+isUNCRootOnly :: (Unbox a, Integral a) => OS -> Array a -> Bool
+isUNCRootOnly os arr =
+       os == Windows
+    && isAbsoluteUNC arr
+    && Array.null (snd (unsafeSplitUNC arr))
+
 -- XXX should we make the root Maybe? Both components will have to be Maybe to
 -- avoid an empty path.
 -- XXX Should we keep the trailing separator in the directory components?
@@ -886,6 +895,8 @@ validateFile os arr = do
 {-# INLINE splitFile #-}
 splitFile :: (Unbox a, Integral a) =>
     OS -> Array a -> Maybe (Maybe (Array a), Array a)
+-- The share name is a part of the UNC root, it is not a file name.
+splitFile os arr | isUNCRootOnly os arr = Nothing
 splitFile os arr =
     let p x =
             if os == Windows
@@ -990,6 +1001,7 @@ splitDir _os _arr = undefined
 {-# INLINE splitExtensionBy #-}
 splitExtensionBy :: (Unbox a, Integral a) =>
     a -> OS -> Array a -> Maybe (Array a, Array a)
+splitExtensionBy _ os arr | isUNCRootOnly os arr = Nothing
 splitExtensionBy c os arr =
     let p x = x == c || isSeparatorWord os x
         -- XXX Use Array.revBreakEndBy_
@@ -1726,8 +1738,18 @@ eqWindowsRootWithDrive :: (Unbox a, Integral a) =>
 eqWindowsRootWithDrive a b
     | isVerbatimRoot a || isVerbatimRoot b = Array.byteEq a b
     | otherwise =
-        let f = normalizeCaseAndSeparators . Array.unsafeCast
+        let f = normalizeCaseAndSeparators . Array.unsafeCast . dropUNCSep
          in runIdentity $ Stream.eqBy (==) (f a) (f b)
+
+    where
+
+    -- A UNC root with or without a trailing separator is the same root. The
+    -- trailing separator is significant for a drive root, "c:" is not the
+    -- same as "c:\\".
+    dropUNCSep x =
+        if isAbsoluteUNC x && hasTrailingSeparator Windows x
+        then fst (Array.unsafeBreakAt (Array.length x - 1) x)
+        else x
 
 -- | We should call this only when the roots are either both absolute or both
 -- null otherwise it may not function correctly.
@@ -1861,12 +1883,14 @@ normaliseWindowsDriveRoot a
     | isVerbatimRoot a = a
     | isAbsoluteUNC a =
         Array.fromPureStream
-            $ fmap charToWord
+            $ fmap fromIntegral
+            $ Unicode.encodeUtf16le'
             $ normalizeLowerCaseAndSeparators
             $ Array.unsafeCast a
     | otherwise =
         Array.fromPureStream
-            $ fmap charToWord
+            $ fmap fromIntegral
+            $ Unicode.encodeUtf16le'
             $ normalizeCaseAndSeparators
             $ Array.unsafeCast a
 
@@ -1890,13 +1914,14 @@ normaliseRoot Windows a =
 normaliseComponents :: (Unbox a, Integral a) =>
        EqCfg
     -> (Stream Identity a -> Stream Identity Char)
+    -> (Stream Identity Char -> Stream Identity a)
     -> OS
     -> Array a
     -> Array a
-normaliseComponents EqCfg{..} decoder os a =
+normaliseComponents EqCfg{..} decoder encoder os a =
     let normalizeCase =
               Array.fromPureStream
-            . fmap charToWord
+            . encoder
             . normalizeCaseWith decoder
         f = if _ignoreCase then fmap normalizeCase else id
      in unsafeJoinPaths os $ f $ splitter os a
@@ -1930,8 +1955,9 @@ appendTrailingSep os arr =
 -- @_ignoreTrailingSeparators@ set, in which case it is dropped.
 normalise :: (Unbox a, Integral a) =>
        (Stream Identity a -> Stream Identity Char)
+    -> (Stream Identity Char -> Stream Identity a)
     -> OS -> EqCfg -> Array a -> Array a
-normalise decoder os eqCfg@EqCfg{..} p
+normalise decoder encoder os eqCfg@EqCfg{..} p
     -- Verbatim "\\?\..." paths bypass all normalisation, regardless of the
     -- EqCfg flags.
     | os == Windows && isVerbatimRoot p = p
@@ -1943,14 +1969,25 @@ normalise decoder os eqCfg@EqCfg{..} p
             -- and then for adding a separator. We can either use a mutarray or
             -- stream all the normalized parts once to create array only once.
             nRoot = normaliseRoot os root
-            nBody = normaliseComponents eqCfg decoder os body
-            result = joinRootBody os nRoot nBody
+            nBody = normaliseComponents eqCfg decoder encoder os body
+            result0 = joinRootBody os nRoot nBody
+            -- A path consisting of only "." components is normalised to "."
+            -- The trailing separator of a UNC root is dropped like any
+            -- other trailing separator when it is to be ignored.
+            result
+                | Array.null result0 = Array.fromList [charToWord '.']
+                | _ignoreTrailingSeparators
+                    && isUNCRootOnly os result0
+                    && hasTrailingSeparator os result0 =
+                    fst $ Array.unsafeBreakAt
+                        (Array.length result0 - 1) result0
+                | otherwise = result0
             -- The body's trailing separator is dropped by normaliseComponents;
             -- restore it if it was present in the input and the caller wants
             -- it kept.
             keepTrailingSep =
                    not _ignoreTrailingSeparators
-                && not (Array.null nBody)
+                && not (Array.null nBody && not (Array.null nRoot))
                 && hasTrailingSeparator os p
                 && not (hasTrailingSeparator os result)
          in if keepTrailingSep
