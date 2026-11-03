@@ -41,7 +41,8 @@ where
 -- import Control.Concurrent (myThreadId)
 import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
-import Control.Exception (mask_)
+import Control.Applicative ((<|>))
+import Control.Exception (SomeException, mask_, throwIO, try)
 import Control.Monad.Catch (MonadMask)
 import Data.IntMap.Strict (IntMap)
 import Data.IORef (IORef, newIORef, atomicModifyIORef')
@@ -56,7 +57,8 @@ import qualified Data.IntMap.Strict as Map
 -------------------------------------------------------------------------------
 
 -- | Like 'assert' but is not removed by the compiler, it is always present in
--- production code.
+-- production code. Returns the value if the predicate is True, otherwise
+-- throws an 'ErrorCall' exception.
 --
 -- /Pre-release/
 --
@@ -64,9 +66,9 @@ import qualified Data.IntMap.Strict as Map
 verify :: Bool -> a -> a
 verify predicate val =
     if predicate
+    then val
     -- XXX it would be nice if we can print the predicate expr.
-    then error "verify failed"
-    else val
+    else error "verify failed"
 
 -- Like 'verify' but returns @()@ in an 'Applicative' context so that it can be
 -- used as an independent statement in a @do@ block.
@@ -184,13 +186,29 @@ releaser ref =
             (\(i, mp1,mp2) -> ((i, Map.empty, mp2), mp1))
         -- Note that the channel cleanup function is interruptible because
         -- it has blocking points.
-        sequence_ mp1
+        e1 <- runAll mp1
         -- Now nobody would be changing mp2, we can read it safely
         -- liftIO $ putStrLn "cleaning up priority 2"
         mp2 <- atomicModifyIORef' ref
             (\(i, mp,mp2) -> ((i, mp, Map.empty), mp2))
-        sequence_ mp2
+        e2 <- runAll mp2
         -- XXX We can now assert that the IORef has both maps empty.
+        maybe (return ()) throwIO (e1 <|> e2)
+
+    where
+
+    -- Run all the release actions even if some of them throw an exception,
+    -- return the first exception.
+    runAll mp = go Nothing (Map.elems mp)
+
+        where
+
+        go e [] = return e
+        go e (x:xs) = do
+            r <- try x
+            case r of
+                Left (ex :: SomeException) -> go (e <|> Just ex) xs
+                Right _ -> go e xs
 
 -- | @withAcquireIO action@ runs the given @action@, providing it with a
 -- an 'AcquireIO' reference called @ref@ as argument. @ref@ is used for resource
@@ -266,7 +284,9 @@ releaser ref =
 -- still see the "saw:" message for the elements seen before the interrupt.
 --
 -- The registered hooks are guaranteed to be invoked as soon as the scope of
--- 'action' finishes or if an exception occurs.
+-- 'action' finishes or if an exception occurs. If a release action throws an
+-- exception, the remaining resources are still released and the first such
+-- exception is rethrown after all of them are released.
 --
 -- This function provides functionality similar to the @bracket@ function
 -- available in the base library. However, it is more powerful as any number of

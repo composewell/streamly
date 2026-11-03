@@ -2,10 +2,12 @@ module Streamly.Test.Control.Exception (main)
 
 where
 
-import Control.Exception (finally)
+import Control.Exception
+    (ErrorCall(..), SomeException, evaluate, finally, throwIO, try)
+import Control.Monad (unless)
 import Data.Foldable (sequenceA_)
 import Data.Function ((&))
-import Data.IORef (newIORef)
+import Data.IORef (modifyIORef, newIORef, readIORef)
 import Streamly.Internal.Data.Stream.Prelude (Config)
 
 import qualified Streamly.Internal.Control.Exception as Exception
@@ -39,6 +41,45 @@ testEffectRelease count cfg = do
             putStrLn "Checking AUTO released resources..."
             finalAction False ref2 count
 
+-- | Raise an exception if the two values differ.
+expectEq :: (Eq a, Show a) => String -> a -> a -> IO ()
+expectEq name expected actual =
+    unless (expected == actual)
+        $ error $ name ++ ": expected " ++ show expected
+            ++ ", got " ++ show actual
+
+-- | 'Exception.verify' returns the value when the predicate is True and
+-- throws an exception when it is False.
+testVerify :: IO ()
+testVerify = do
+    r1 <- try (evaluate (Exception.verify True (1 :: Int)))
+    expectEq "verify True" (Right 1)
+        (either (\(ErrorCall e) -> Left e) Right r1)
+    r2 <- try (evaluate (Exception.verify False (1 :: Int)))
+    expectEq "verify False" True
+        (either (\(ErrorCall _) -> True) (const False) r2)
+
+-- | All resources are released even if releasing one of them throws an
+-- exception, the exception is rethrown after all are released.
+testReleaseAfterException :: IO ()
+testReleaseAfterException = do
+    ref <- newIORef []
+    r <- try $ Exception.withAcquireIO $ \aref -> do
+        let free i = modifyIORef ref (i :)
+        _ <- Exception.acquire aref (return ()) (\_ -> free (1 :: Int))
+        _ <- Exception.acquire aref (return ())
+                (\_ -> throwIO (ErrorCall "release"))
+        _ <- Exception.acquire aref (return ()) (\_ -> free 3)
+        _ <- Exception.acquireWith Exception.Priority1 aref (return ())
+                (\_ -> throwIO (ErrorCall "release1"))
+        _ <- Exception.acquireWith Exception.Priority1 aref (return ())
+                (\_ -> free 0)
+        return ()
+    released <- readIORef ref
+    expectEq "released" [0, 1, 3] (reverse released)
+    expectEq "exception" (Just "release1")
+        (either (\e -> Just (show (e :: SomeException))) (const Nothing) r)
+
 funcs :: [(String, Int -> (Stream.Config -> Stream.Config) -> IO ())]
 funcs =
     [ ("Exception.withAcquireIO", testEffect)
@@ -47,6 +88,11 @@ funcs =
 
 main :: IO ()
 main = do
+    putStrLn "Running: verify"
+    testVerify
+    putStrLn "Running: withAcquireIO release after exception"
+    testReleaseAfterException
+
     let cfg = id -- Stream.inspect True
 
     -- TODO: Interrupt test
