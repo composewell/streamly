@@ -402,7 +402,6 @@ defaultConfig = Config
 -- Keep in mind that checking this limit all the time has a performance
 -- overhead.
 --
--- Known Bugs: currently this works only when rate is specified.
 -- Known Bugs: for ordered streams the actual count can be less or more than
 -- expected, the streams waiting in the reordering heap are drained without
 -- checking the limit.
