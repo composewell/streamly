@@ -120,6 +120,18 @@ testSampleBurst = do
     Stream.toList (Stream.sampleBurstEnd 0.5 (Stream.fromList ([] :: [Int])))
         `shouldReturn` []
 
+-- | One sample per interval, the first or the last element of the interval.
+testSampleInterval :: IO ()
+testSampleInterval = do
+    let xs = Stream.fromList [1, 2, 3 :: Int]
+    Stream.toList (Stream.sampleIntervalStart 10 xs) `shouldReturn` [1]
+    Stream.toList (Stream.sampleIntervalEnd 10 xs) `shouldReturn` [3]
+    -- 1 and 2 are in the first 0.3 s interval, 3 and 4 are 1 s later.
+    Stream.toList (Stream.sampleIntervalStart 0.3 twoBursts)
+        `shouldReturn` [1, 3]
+    Stream.toList (Stream.sampleIntervalEnd 0.3 twoBursts)
+        `shouldReturn` [2, 4]
+
 -------------------------------------------------------------------------------
 -- classifySessionsBy
 -------------------------------------------------------------------------------
@@ -211,6 +223,7 @@ main = hspec
         it "takeInterval elements" testTakeIntervalElems
         it "dropInterval elements" testDropIntervalElems
         it "sampleBurstEnd/sampleBurstStart" testSampleBurst
+        it "sampleIntervalEnd/sampleIntervalStart" testSampleInterval
         describe "classifySessionsBy" $ do
             it "ejected session uses final" testClassifyEjectFinal
             it "timed out session uses final" testClassifyTimeoutFinal

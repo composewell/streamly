@@ -894,11 +894,18 @@ sampleIntervalEnd n = Stream.catMaybes . intervalsOf n Fold.latest
 
 -- | Like 'sampleInterval' but samples at the beginning of the time window.
 --
--- >>> sampleIntervalStart n = Stream.catMaybes . Stream.intervalsOf n Fold.one
+-- >>> first = Fold.foldl' (\b a -> maybe (Just a) Just b) Nothing
+-- >>> sampleIntervalStart n = Stream.catMaybes . Stream.intervalsOf n first
 --
 {-# INLINE sampleIntervalStart #-}
 sampleIntervalStart :: MonadAsync m => Double -> Stream m a -> Stream m a
-sampleIntervalStart n = Stream.catMaybes . intervalsOf n Fold.one
+sampleIntervalStart n = Stream.catMaybes . intervalsOf n first
+
+    where
+
+    -- Fold.one terminates after the first element, intervalsOf would start
+    -- a new fold for the rest of the interval.
+    first = Fold.foldl' (\b a -> maybe (Just a) Just b) Nothing
 
 data BurstState t x =
       BurstNone
