@@ -18,7 +18,7 @@ import qualified Streamly.Internal.Data.Refold.Type as Refold
 import qualified Streamly.Internal.Data.Scanl as F
 import qualified Streamly.Internal.Data.Stream as Stream
 
-import Prelude hiding (const, last, length, take, filter, scanl, foldl', concatMap)
+import Prelude hiding (const, last, length, take, filter, scanl, concatMap)
 import qualified Prelude
 
 import Streamly.Test.Common (chooseInt)

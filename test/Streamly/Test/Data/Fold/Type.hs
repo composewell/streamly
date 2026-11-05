@@ -19,7 +19,7 @@ import qualified Streamly.Internal.Data.Refold.Type as Refold
 import qualified Streamly.Internal.Data.Scanl as Scanl
 import qualified Streamly.Internal.Data.Stream as Stream
 
-import Prelude hiding (last, length, take, filter, scanl, foldl', concatMap)
+import Prelude hiding (last, length, take, filter, scanl, concatMap)
 import qualified Prelude
 
 import Streamly.Test.Common (checkListEqual, chooseInt, listEquals)
@@ -130,8 +130,8 @@ safeLast (_:xs) = safeLast xs
 -- Constructors
 -------------------------------------------------------------------------------
 
-foldl' :: [Int] -> Expectation
-foldl' ls =
+foldlStrict :: [Int] -> Expectation
+foldlStrict ls =
     Stream.fold (Fold.foldl' (+) 0) (Stream.fromList ls)
         `shouldReturn` Prelude.sum ls
 
@@ -690,7 +690,7 @@ main = hspec $ do
 
         -- Before adding any tests here consider if it can be added to the
         -- common tests above.
-        prop "foldl'" foldl'
+        prop "foldl'" foldlStrict
         prop "foldlM'" foldlM'
         it "foldl1'" foldl1'
         it "foldl1M'" foldl1M'
