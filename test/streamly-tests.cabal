@@ -532,6 +532,14 @@ test-suite Data.Unfold
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Data/Unfold.hs
 
+test-suite Data.Unfold.Prelude
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: Streamly/Test/Data/Unfold/Prelude.hs
+  ghc-options: -main-is Streamly.Test.Data.Unfold.Prelude.main
+  if flag(use-streamly-core)
+    buildable: False
+
 test-suite FileSystem.Event
   import: test-options
   type: exitcode-stdio-1.0

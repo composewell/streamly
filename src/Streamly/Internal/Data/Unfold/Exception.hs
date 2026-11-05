@@ -36,9 +36,11 @@ import Streamly.Internal.Data.Unfold
 -- to catch synchronous exceptions. If an exception occurs run the exception
 -- handling unfold @Unfold m (c, e) b@.
 --
--- The cleanup action @c -> m d@, runs whenever the stream ends normally, due
--- to a sync or async exception or if it gets garbage collected after a partial
--- lazy evaluation.  See 'bracket' for the semantics of the cleanup action.
+-- The cleanup action @c -> m d@, runs whenever the stream ends normally or if
+-- it gets garbage collected after a partial lazy evaluation. It does not run
+-- when an exception is caught by @try@, the exception handling unfold must
+-- release the resource @c@ in that case. See 'bracket' for the semantics of
+-- the cleanup action.
 --
 -- 'gbracket' can express all other exception handling combinators.
 --
@@ -66,8 +68,10 @@ gbracket bef aft (Unfold estep einject) ftry (Unfold step1 inject1) =
             r <- bef x
             ref <- newIOFinalizer (aft r)
             return (r, ref)
-        s <- inject1 r
-        return $ Right (s, r, ref)
+        res <- ftry $ inject1 r
+        case res of
+            Right s -> return $ Right (s, r, ref)
+            Left e -> Left <$> clearingIOFinalizer ref (einject (r, e))
 
     {-# INLINE_LATE step #-}
     step (Right (st, v, ref)) = do
@@ -150,8 +154,8 @@ finally action (Unfold step1 inject1) = Unfold step inject
     where
 
     inject x = do
-        s <- inject1 x
         ref <- newIOFinalizer (action x)
+        s <- inject1 x `MC.onException` runIOFinalizer ref
         return (s, ref)
 
     {-# INLINE_LATE step #-}
@@ -200,7 +204,7 @@ bracket bef aft (Unfold step1 inject1) = Unfold step inject
             r <- bef x
             ref <- newIOFinalizer (aft r)
             return (r, ref)
-        s <- inject1 r
+        s <- inject1 r `MC.onException` runIOFinalizer ref
         return (s, ref)
 
     {-# INLINE_LATE step #-}

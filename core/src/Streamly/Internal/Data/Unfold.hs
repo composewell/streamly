@@ -824,8 +824,10 @@ gbracket_ bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
 
     inject x = do
         r <- bef x
-        s <- inject1 r
-        return $ Right (s, r)
+        res <- exc $ inject1 r
+        case res of
+            Right s -> return $ Right (s, r)
+            Left e -> Left <$> einject (r, e)
 
     {-# INLINE_LATE step #-}
     step (Right (st, v)) = do
@@ -884,8 +886,12 @@ gbracketIO bef aft onExc (Unfold estep einject) ftry (Unfold step1 inject1) =
             r <- bef x
             ref <- newIOFinalizer (aft r)
             return (r, ref)
-        s <- inject1 r
-        return $ Right (s, r, ref)
+        res <- liftIO $ ftry $ inject1 r
+        case res of
+            Right s -> return $ Right (s, r, ref)
+            Left e -> do
+                liftIO $ clearingIOFinalizer ref (onExc r)
+                Left <$> einject e
 
     {-# INLINE_LATE step #-}
     step (Right (st, v, ref)) = do
@@ -1008,7 +1014,7 @@ onException action (Unfold step1 inject1) = Unfold step inject
     where
 
     inject x = do
-        s <- inject1 x
+        s <- inject1 x `MC.onException` action x
         return (s, x)
 
     {-# INLINE_LATE step #-}
@@ -1040,7 +1046,7 @@ finally_ action (Unfold step1 inject1) = Unfold step inject
     where
 
     inject x = do
-        s <- inject1 x
+        s <- inject1 x `MC.onException` action x
         return (s, x)
 
     {-# INLINE_LATE step #-}
@@ -1075,8 +1081,8 @@ finallyIO action (Unfold step1 inject1) = Unfold step inject
     where
 
     inject x = do
-        s <- inject1 x
         ref <- liftIO $ newIOFinalizer (action x)
+        s <- inject1 x `MC.onException` runIOFinalizer ref
         return (s, ref)
 
     {-# INLINE_LATE step #-}
@@ -1114,7 +1120,7 @@ bracket_ bef aft (Unfold step1 inject1) = Unfold step inject
 
     inject x = do
         r <- bef x
-        s <- inject1 r
+        s <- inject1 r `MC.onException` aft r
         return (s, r)
 
     {-# INLINE_LATE step #-}
@@ -1164,7 +1170,7 @@ bracketIO bef aft (Unfold step1 inject1) = Unfold step inject
             r <- bef x
             ref <- newIOFinalizer (aft r)
             return (r, ref)
-        s <- inject1 r
+        s <- inject1 r `MC.onException` runIOFinalizer ref
         return (s, ref)
 
     {-# INLINE_LATE step #-}

@@ -1294,6 +1294,68 @@ testResourceManagement =
             xs `shouldBe` [1,2,3]
             val `shouldBe` 2
 
+-- | An unfold whose inject raises an exception.
+throwingInject :: Unfold IO [Int] Int
+throwingInject = UF.lmapM (\_ -> throwM (TestException "inject")) UF.fromList
+
+-- | Run an unfold on @[1,2,3]@ and return the result or the exception.
+runInject :: Unfold IO [Int] Int -> IO (Either TestException [Int])
+runInject unf = try $ S.fold Fold.toList $ S.unfold unf [1,2,3]
+
+-- | The cleanup actions run when the inject of the inner unfold raises an
+-- exception.
+testInjectException :: Spec
+testInjectException =
+    describe "Exception in inject" $ do
+        let injectErr = Left (TestException "inject")
+            check unf expected = do
+                ref <- newIORef (0 :: Int)
+                res <- runInject (unf ref)
+                val <- readIORef ref
+                (res, val) `shouldBe` (injectErr, expected)
+            alloc ref lst = writeIORef ref 1 >> return lst
+        it "bracket_" $
+            check
+                (\ref -> UF.bracket_
+                    (alloc ref) (\_ -> writeIORef ref 2) throwingInject)
+                2
+        it "bracketIO" $
+            check
+                (\ref -> UF.bracketIO
+                    (alloc ref) (\_ -> writeIORef ref 2) throwingInject)
+                2
+        it "finally_" $
+            check (\ref -> UF.finally_ (\_ -> writeIORef ref 2) throwingInject) 2
+        it "finallyIO" $
+            check
+                (\ref -> UF.finallyIO (\_ -> writeIORef ref 2) throwingInject)
+                2
+        it "onException" $
+            check
+                (\ref -> UF.onException (\_ -> writeIORef ref 2) throwingInject)
+                2
+        it "gbracket_" $ do
+            res <- runInject
+                $ UF.gbracket_
+                    return
+                    try
+                    (\_ -> return ())
+                    (UF.lmap (\(_, _ :: TestException) -> [99]) UF.fromList)
+                    throwingInject
+            res `shouldBe` Right [99]
+        it "gbracketIO" $ do
+            ref <- newIORef (0 :: Int)
+            res <- runInject
+                $ UF.gbracketIO
+                    (alloc ref)
+                    (\_ -> writeIORef ref 2)
+                    (\_ -> writeIORef ref 3)
+                    (UF.lmap (\(_ :: TestException) -> [99]) UF.fromList)
+                    try
+                    throwingInject
+            val <- readIORef ref
+            (res, val) `shouldBe` (Right [99], 3)
+
 -------------------------------------------------------------------------------
 -- Test groups
 -------------------------------------------------------------------------------
@@ -1488,3 +1550,4 @@ main =
             testTransformation
             testCombination
             testResourceManagement
+            testInjectException
