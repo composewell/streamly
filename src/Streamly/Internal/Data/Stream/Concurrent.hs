@@ -83,7 +83,7 @@ where
 #include "inline.hs"
 #include "deprecation.h"
 
-import Control.Concurrent (myThreadId, killThread)
+import Control.Concurrent (forkIO, killThread)
 import Control.Monad (void, when)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Streamly.Internal.Control.Concurrent (MonadAsync)
@@ -651,12 +651,12 @@ newStreamAndCallback :: MonadAsync m => m (a -> m (), Stream m a)
 newStreamAndCallback = do
     chan <- newChannel (eager True)
 
-    -- XXX Add our own thread-id to the SVar as we can not know the callback's
-    -- thread-id and the callback is not run in a managed worker. We need to
-    -- handle this better. The caller thread might be killed by the Channel if
-    -- the stream evaluator dies.
-    --
-    liftIO myThreadId
+    -- The callback is not run in a managed worker, the stream would end when
+    -- the worker set becomes empty. Add the thread-id of a thread that has
+    -- finished to the worker set to keep it non-empty. The caller's own
+    -- thread-id cannot be used, the channel cleanup sends ThreadAbort to the
+    -- threads in the worker set, which would kill the caller.
+    liftIO (forkIO (return ()))
         >>= modifyThread (workerThreads chan) (outputDoorBell chan)
 
     -- XXX We can use a "Maybe a" here. Use Nothing to send a Stop event.

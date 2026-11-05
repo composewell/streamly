@@ -9,8 +9,9 @@
 
 module Streamly.Test.Data.Stream.Prelude.Concurrent (main) where
 
-import Control.Concurrent (threadDelay)
-import Control.Exception (Exception, try)
+import Control.Concurrent (forkIO, threadDelay)
+import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
+import Control.Exception (Exception, SomeException, try)
 import Control.Monad (replicateM)
 import Control.Monad.Catch (throwM)
 import Data.Function ( (&) )
@@ -18,6 +19,7 @@ import Data.IORef ( newIORef, readIORef, writeIORef)
 import Data.List (sort)
 import Data.Maybe ( isJust, fromJust )
 import Data.Word (Word8)
+import System.Mem (performMajorGC)
 import Streamly.Data.Stream (Stream)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck (Testable, Property, choose, forAll)
@@ -275,6 +277,20 @@ sequenceReplicate cfg = constructWithLenM stream list
 drainMapM :: Monad m => (a -> m b) -> Stream m a -> m ()
 drainMapM f = Stream.fold (Fold.drainMapM f)
 
+-- | The thread consuming a callback stream does not receive ThreadAbort when
+-- the channel of the stream is cleaned up after the stream is abandoned.
+testFromCallbackAbandon :: IO ()
+testFromCallbackAbandon = do
+    mv <- newEmptyMVar
+    _ <- forkIO $ takeMVar mv >>= \cb -> mapM_ cb [1, 2, 3 :: Int]
+    xs <- Stream.toList $ Stream.take 3 $ Stream.fromCallback (putMVar mv)
+    xs `shouldBe` [1, 2, 3]
+    -- The GC finalizer of the channel cleans up the channel.
+    r <- try $ performMajorGC >> threadDelay 200000 >> performMajorGC
+            >> threadDelay 200000
+    either
+        (\(e :: SomeException) -> expectationFailure (show e)) return r
+
 testFromCallback :: IO Int
 testFromCallback = do
     ref <- newIORef Nothing
@@ -470,3 +486,4 @@ main = hspec
         -- Ad-hoc tests
         it "takes n from stream of streams" $ takeCombined 2
         it "fromCallback" $ testFromCallback `shouldReturn` (50*101)
+        it "fromCallback abandoned" testFromCallbackAbandon
