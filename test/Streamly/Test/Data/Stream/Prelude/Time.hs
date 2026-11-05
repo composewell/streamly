@@ -27,6 +27,7 @@ import Streamly.Internal.Data.Time.Units
        (NanoSecond64(..), toRelTime64, diffAbsTime64)
 #endif
 
+import qualified Streamly.Data.Array as Array
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.Prelude as Stream
@@ -146,6 +147,55 @@ testTimedGroupsOf = do
     Stream.toList (Stream.timedGroupsOf 1 0 Fold.toList xs)
         `shouldThrow` (\(ErrorCall msg) -> take 14 msg == "timedGroupsOf:")
 
+testTimeCombinators :: Spec
+testTimeCombinators = do
+    let xs = Stream.fromList [1 .. 5 :: Int]
+    it "periodic" $
+        Stream.toList (Stream.take 3 $ Stream.periodic (return 'a') 0.01)
+            `shouldReturn` "aaa"
+    it "ticksRate" $
+        Stream.toList
+            (Stream.take 3 $ Stream.ticksRate (Stream.Rate 100 100 100 0))
+            `shouldReturn` [(), (), ()]
+    it "interject" $ do
+        -- No tick in 10 s.
+        Stream.toList (Stream.interject (return 0) 10 xs)
+            `shouldReturn` [1 .. 5]
+        -- At least one tick between 1 and 2.
+        ys <- Stream.toList
+            $ Stream.interject (return (0 :: Int)) 0.1
+            $ Stream.mapM
+                (\x -> when (x == 2) (threadDelay 500000) >> return x)
+            $ Stream.fromList [1, 2]
+        filter (/= 0) ys `shouldBe` [1, 2]
+        when (length ys < 3) $ expectationFailure $ "no tick in " ++ show ys
+    it "intervalsOf" $ do
+        Stream.toList (Stream.intervalsOf 10 Fold.toList xs)
+            `shouldReturn` [[1 .. 5]]
+        Stream.toList (Stream.intervalsOf 10 Fold.toList Stream.nil)
+            `shouldReturn` ([] :: [[Int]])
+        -- 1 and 2 in the first interval, 3 and 4 one second later.
+        ys <- Stream.toList (Stream.intervalsOf 0.3 Fold.toList twoBursts)
+        filter (not . null) ys `shouldBe` [[1, 2], [3, 4]]
+    it "timedChunksOf/timedChunksOf'" $ do
+        fmap (map Array.toList) (Stream.toList (Stream.timedChunksOf 1 2 xs))
+            `shouldReturn` [[1, 2], [3, 4], [5]]
+        fmap (map Array.toList) (Stream.toList (Stream.timedChunksOf' 1 2 xs))
+            `shouldReturn` [[1, 2], [3, 4], [5]]
+    it "classifySessionsOf" $
+        fmap sort (Stream.toList
+            $ Stream.classifySessionsOf (const (return False)) 100
+                (Fold.take 2 Fold.toList)
+            $ Stream.fromList
+                [at 0 (1 :: Int) 'a', at 0 2 'b', at 0 1 'c', at 0 2 'd'])
+            `shouldReturn` [(1, "ac"), (2, "bd")]
+    it "classifyKeepAliveSessions" $
+        Stream.toList
+            (Stream.classifyKeepAliveSessions (const (return False)) 2
+                Fold.toList
+            $ Stream.fromList [at 0 (1 :: Int) 'a', at 1500 1 'b', at 0 2 'c'])
+            `shouldReturn` [(1, "ab"), (2, "c")]
+
 -------------------------------------------------------------------------------
 -- classifySessionsBy
 -------------------------------------------------------------------------------
@@ -239,6 +289,7 @@ main = hspec
         it "sampleBurstEnd/sampleBurstStart" testSampleBurst
         it "sampleIntervalEnd/sampleIntervalStart" testSampleInterval
         it "timedGroupsOf" testTimedGroupsOf
+        describe "Combinators" testTimeCombinators
         describe "classifySessionsBy" $ do
             it "ejected session uses final" testClassifyEjectFinal
             it "timed out session uses final" testClassifyTimeoutFinal

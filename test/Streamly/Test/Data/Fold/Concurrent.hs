@@ -9,6 +9,7 @@
 module Streamly.Test.Data.Fold.Concurrent (main) where
 
 import Control.Concurrent (threadDelay)
+import Control.Exception (ErrorCall(..), throwIO, try)
 import Data.IORef (atomicModifyIORef', newIORef)
 import System.Timeout (timeout)
 import Test.Hspec (describe, hspec, it, shouldBe, shouldReturn)
@@ -60,8 +61,53 @@ parTeeWith =
         (Stream.fromList [1..100 :: Int])
         `shouldReturn` (5050, 100)
 
+input :: Stream.Stream IO Int
+input = Stream.fromList [1..100]
+
+parTee :: IO ()
+parTee =
+    Stream.fold (Fold.parTee id (Fold.take 2 Fold.toList) Fold.sum) input
+        `shouldReturn` ([1, 2], 5050)
+
+parDistribute :: IO ()
+parDistribute = do
+    Stream.fold (Fold.parDistribute id [Fold.sum, Fold.length]) input
+        `shouldReturn` [5050, 100]
+    Stream.fold (Fold.parDistribute id [Fold.sum, Fold.length]) Stream.nil
+        `shouldReturn` [0, 0]
+
+parPartition :: IO ()
+parPartition =
+    Stream.fold (Fold.parPartition id Fold.sum Fold.length)
+        (fmap (\x -> if odd x then Left x else Right x) input)
+        `shouldReturn` (2500, 50)
+
+parUnzip :: IO ()
+parUnzip = do
+    Stream.fold (Fold.parUnzip id Fold.sum Fold.length)
+        (fmap (\x -> (x, x)) input)
+        `shouldReturn` (5050, 100)
+    Stream.fold
+        (Fold.parUnzipWithM id (\x -> return (x, show x)) Fold.sum Fold.toList)
+        (Stream.fromList [1, 2, 3 :: Int])
+        `shouldReturn` (6, ["1", "2", "3"])
+
+-- | An exception in the fold is raised by the driver.
+parBufferedException :: IO ()
+parBufferedException = do
+    let failAt3 = Fold.foldlM'
+            (\_ x -> if x == 3 then throwIO (ErrorCall "fold") else return x)
+            (return 0)
+    r <- try $ Stream.fold (Fold.parBuffered id failAt3) input
+    r `shouldBe` (Left (ErrorCall "fold") :: Either ErrorCall Int)
+
 main :: IO ()
 main = hspec $ describe "Data.Fold.Concurrent" $ do
+    it "parTee" parTee
+    it "parDistribute" parDistribute
+    it "parPartition" parPartition
+    it "parUnzip/parUnzipWithM" parUnzip
+    it "parBuffered exception" parBufferedException
     it "parDistributeScan/parDemuxScan no empty output" parNoEmptyOutput
     it "parBuffered" parBuffered
     it "parTeeWith" parTeeWith

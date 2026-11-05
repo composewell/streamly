@@ -40,6 +40,13 @@ testTimerThreadKilled = do
 
 main :: IO ()
 main = hspec $ describe "Data.Fold.Time" $ do
+    it "intervalsOf" $ do
+        -- All the elements are in the first interval.
+        Stream.fold (Fold.intervalsOf 10 Fold.sum Fold.toList)
+            (Stream.fromList [1..5 :: Int])
+            `shouldReturn` [15]
+        Stream.fold (Fold.intervalsOf 10 Fold.sum Fold.toList) Stream.nil
+            `shouldReturn` ([] :: [Int])
     it "takeInterval before the timeout" $
         Stream.fold (Fold.takeInterval 10 Fold.toList)
             (Stream.fromList [1..5 :: Int])

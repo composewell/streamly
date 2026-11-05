@@ -291,6 +291,80 @@ testFromCallbackAbandon = do
     either
         (\(e :: SomeException) -> expectationFailure (show e)) return r
 
+-- | A stream that yields x after ms milliseconds.
+delayed :: Int -> Int -> Stream IO Int
+delayed ms x = Stream.fromEffect (threadDelay (ms * 1000) >> return x)
+
+-- | Tests for the combinators not covered by the property tests.
+testCombinators :: Spec
+testCombinators = do
+    let toList = Stream.toList
+        xs = Stream.fromList [1..10 :: Int]
+    it "parRepeatM" $
+        toList (Stream.take 5 $ Async.parRepeatM id (return 'a'))
+            `shouldReturn` "aaaaa"
+    it "parZipWith/parZipWithM" $ do
+        toList (Async.parZipWith id (+) xs (Stream.enumerateFrom 100))
+            `shouldReturn` [101, 103 .. 119]
+        toList (Async.parZipWithM id (\a b -> return (a * b)) xs xs)
+            `shouldReturn` map (^ (2 :: Int)) [1..10]
+        toList (Async.parZipWith id (+) Stream.nil xs) `shouldReturn` []
+    it "parMergeBy/parMergeByM" $ do
+        let odds = Stream.fromList [1, 3 .. 9 :: Int]
+            evens = Stream.fromList [2, 4 .. 10]
+        toList (Async.parMergeBy id compare odds evens)
+            `shouldReturn` [1..10]
+        toList
+            (Async.parMergeByM id (\a b -> return (compare a b)) odds evens)
+            `shouldReturn` [1..10]
+    it "parListOrdered" $
+        toList (Async.parListOrdered [delayed 100 1, Stream.fromPure 2])
+            `shouldReturn` [1, 2]
+    it "parListLazy/parListEager" $ do
+        fmap sort (toList (Async.parListLazy [xs, xs]))
+            `shouldReturn` sort ([1..10] ++ [1..10])
+        toList (Async.parListEager [delayed 200 1, Stream.fromPure 2])
+            `shouldReturn` [2, 1]
+    it "parListInterleaved" $
+        fmap sort
+            (toList (Async.parListInterleaved [Stream.fromList [1, 3]
+                , Stream.fromList [2, 4 :: Int]]))
+            `shouldReturn` [1, 2, 3, 4]
+    it "parListEagerFst/parListEagerMin" $ do
+        -- The other stream is abandoned when the first one stops.
+        toList (Async.parListEagerFst [xs, delayed 2000 99])
+            `shouldReturn` [1..10]
+        toList (Async.parListEagerMin [delayed 2000 99, xs])
+            `shouldReturn` [1..10]
+    it "stopWhen" $ do
+        let cfg w = Async.stopWhen w
+        toList (Async.parList (cfg Async.FirstStops) [xs, delayed 2000 99])
+            `shouldReturn` [1..10]
+        toList (Async.parList (cfg Async.AnyStops) [delayed 2000 99, xs])
+            `shouldReturn` [1..10]
+        fmap sort
+            (toList (Async.parList (cfg Async.AllStop) [delayed 100 99, xs]))
+            `shouldReturn` [1..10] ++ [99]
+    it "parConcatIterate" $ do
+        let f x = if x < 8 then Just (Stream.fromList [2 * x, 2 * x + 1])
+                  else Nothing
+        fmap sort (toList (Async.parConcatIterate id f (Stream.fromPure 1)))
+            `shouldReturn` [1..15 :: Int]
+    it "parTapCount" $
+        toList (Async.parTapCount even (Stream.fold Fold.drain) xs)
+            `shouldReturn` [1..10]
+    it "newStreamAndCallback" $ do
+        (cb, stream) <- Async.newStreamAndCallback
+        mapM_ cb [1, 2, 3 :: Int]
+        toList (Stream.take 3 stream) `shouldReturn` [1, 2, 3]
+    it "minRate/maxRate/constRate/boundThreads" $ do
+        let go cfg = toList (Async.parMapM cfg return (Stream.take 3 xs))
+        go (Async.minRate 1000) `shouldReturn` [1, 2, 3]
+        go (Async.maxRate 1000) `shouldReturn` [1, 2, 3]
+        go (Async.constRate 1000) `shouldReturn` [1, 2, 3]
+        go (Async.boundThreads True . Async.ordered True)
+            `shouldReturn` [1, 2, 3]
+
 testFromCallback :: IO Int
 testFromCallback = do
     ref <- newIORef Nothing
@@ -487,3 +561,4 @@ main = hspec
         it "takes n from stream of streams" $ takeCombined 2
         it "fromCallback" $ testFromCallback `shouldReturn` (50*101)
         it "fromCallback abandoned" testFromCallbackAbandon
+        describe "Combinators" testCombinators
