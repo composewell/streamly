@@ -61,6 +61,34 @@
 
 ### Bug Fixes
 
+* `Stream.timedGroupsOf`, `timedChunksOf` and `timedChunksOf'` now raise an
+  exception naming `timedGroupsOf` for a group size less than 1.
+* Document that `Fold.parBuffered`, and the concurrent folds based on it,
+  discard the inputs sent after the fold terminated.
+* `fromCallback` and `newStreamAndCallback` no longer throw `ThreadAbort` to
+  the thread that created the stream when the stream is abandoned and its
+  channel is cleaned up.
+* `Stream.sampleIntervalStart` now emits only the first element of each
+  interval, it emitted all the elements.
+* Add `accept'` to `Streamly.Internal.Network.Socket`, it closes the
+  listening socket at the end of an `AcquireIO` scope. `Socket.accept`,
+  `Socket.acceptor` and the `TCP.accept*` functions close the listening
+  socket only on garbage collection when the stream is not consumed
+  completely, binding to the same address raises `EADDRINUSE` until then;
+  this limit is now documented.
+* `TCP.pipeBytes` and `TCP.pipeChunks` now raise the exception raised by
+  the input stream or by writing to the connection in the output stream. The
+  exception was lost and the output stream waited for the remote host
+  forever.
+* `bracket`, `finally` and `gbracket` in `Streamly.Internal.Data.Unfold.Prelude`
+  now run their cleanup or exception handler when the inject function of the
+  inner unfold raises an exception. `bracket` released the resource only on
+  garbage collection and `finally` did not run the action at all.
+* `classifySessionsBy`, `classifySessionsOf` and `classifyKeepAliveSessions`
+  now compute the result of a timed out or ejected session using the `final`
+  function of the fold instead of `extract`. A session restarted after its
+  fold finished now times out a timeout after its own first event, and is
+  counted in the session count passed to the ejection predicate.
 * Fix `Stream.takeInterval` giving no elements and `Stream.dropInterval`
   not dropping any elements.
 * `Stream.sampleBurstEnd` and `sampleBurstStart` now emit the event of the

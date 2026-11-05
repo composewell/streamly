@@ -24,6 +24,12 @@
 
 ### Bug Fixes
 
+* `Unfold.bracket_`, `bracketIO`, `finally_`, `finallyIO`, `onException`,
+  `gbracket_` and `gbracketIO` now run their cleanup or exception handler when
+  the inject function of the inner unfold raises an exception. `bracket_`
+  never released the resource, `bracketIO` released it only on garbage
+  collection, `finally_`, `finallyIO` and `onException` did not run the
+  action at all.
 * Fix `Scanl.partition` not finalizing one scan when the other terminates.
 * Fix `enumerateFromThen` and `enumerateFromThenTo` for `Natural` failing
   with an underflow when enumerating downwards.
