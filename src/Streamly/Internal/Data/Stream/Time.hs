@@ -454,8 +454,8 @@ ejectEntry :: (Monad m, IsMap f) =>
     -> acc
     -> Key f
     -> m (heap, f entry, Stream m (Key f, b), Int)
-ejectEntry extract hp mp out cnt acc key = do
-    sess <- extract acc
+ejectEntry final hp mp out cnt acc key = do
+    sess <- final acc
     let out1 = Stream.cons (key, sess) out
     let mp1 = IsMap.mapDelete key mp
     return (hp, mp1, out1, cnt - 1)
@@ -465,7 +465,7 @@ flush :: (Monad m, IsMap f) =>
        (s -> m b)
     -> SessionState Stream m f (SessionEntry s) b
     -> m (SessionState Stream m f (SessionEntry s) b)
-flush extract session@SessionState{..} = do
+flush final session@SessionState{..} = do
     (hp', mp', out, count) <-
         ejectAll
             ( sessionTimerHeap
@@ -491,7 +491,7 @@ flush extract session@SessionState{..} = do
                     Just ZombieSession ->
                         return (hp1, IsMap.mapDelete key mp, out, cnt)
                     Just (LiveSession _ acc) ->
-                        ejectEntry extract hp1 mp out cnt acc key
+                        ejectEntry final hp1 mp out cnt acc key
                 ejectAll r
             Nothing -> do
                 assert (IsMap.mapNull mp) (return ())
@@ -499,8 +499,7 @@ flush extract session@SessionState{..} = do
 
 {-# NOINLINE ejectOne #-}
 ejectOne :: (IsMap f, Monad m) =>
-       Bool
-    -> (acc -> m b)
+       (acc -> m b)
     -> ( H.Heap (Entry AbsTime (Key f))
        , f (SessionEntry acc)
        , Stream m (Key f, b)
@@ -510,7 +509,7 @@ ejectOne :: (IsMap f, Monad m) =>
          , f (SessionEntry acc)
          , Stream m (Key f, b), Int
          )
-ejectOne reset extract = go
+ejectOne final = go
 
     where
 
@@ -523,8 +522,11 @@ ejectOne reset extract = go
                     Just ZombieSession ->
                         go (hp1, IsMap.mapDelete key mp, out, cnt)
                     Just (LiveSession expiry1 acc) -> do
-                        if not reset || expiry1 <= expiry
-                        then ejectEntry extract hp1 mp out cnt acc key
+                        -- The expiry in the map is later than the expiry in
+                        -- the heap if the session was restarted or its
+                        -- timeout was reset.
+                        if expiry1 <= expiry
+                        then ejectEntry final hp1 mp out cnt acc key
                         else
                             -- reset the session timeout and continue
                             let hp2 = H.insert (Entry expiry1 key) hp1
@@ -535,13 +537,12 @@ ejectOne reset extract = go
 
 {-# NOINLINE ejectExpired #-}
 ejectExpired :: (IsMap f, Monad m) =>
-       Bool
-    -> (Int -> m Bool)
+       (Int -> m Bool)
     -> (acc -> m b)
     -> SessionState Stream m f (SessionEntry acc) b
     -> AbsTime
     -> m (SessionState Stream m f (SessionEntry acc) b)
-ejectExpired reset ejectPred extract session@SessionState{..} curTime = do
+ejectExpired ejectPred final session@SessionState{..} curTime = do
     (hp', mp', out, count) <-
         ejectLoop
             sessionTimerHeap sessionKeyValueMap Stream.nil sessionCount
@@ -572,10 +573,12 @@ ejectExpired reset ejectPred extract session@SessionState{..} curTime = do
                         Just ZombieSession ->
                             ejectLoop hp1 (IsMap.mapDelete key mp) out cnt
                         Just (LiveSession expiry1 acc) -> do
-                            if expiry1 <= curTime || not reset || force
+                            -- When forced, eject the session with the
+                            -- earliest expiry.
+                            if expiry1 <= curTime || (force && expiry1 <= expiry)
                             then do
                                 (hp2,mp1,out1,cnt1) <-
-                                    ejectEntry extract hp1 mp out cnt acc key
+                                    ejectEntry final hp1 mp out cnt acc key
                                 ejectLoop hp2 mp1 out1 cnt1
                             else
                                 -- reset the session timeout and continue
@@ -600,7 +603,7 @@ classifySessionsByGeneric
                                       -- data)
     -> Stream m (Key f, b) -- ^ session key, fold result
 classifySessionsByGeneric _ tick reset ejectPred tmout
-    (Fold step initial extract final) input =
+    (Fold step initial _ final) input =
     Stream.unfoldEach (Unfold.lmap sessionOutputStream Unfold.fromStream)
         $ Stream.scanlMAfter' sstep (return szero) (flush final)
         $ interject (return Nothing) tick
@@ -663,10 +666,10 @@ classifySessionsByGeneric _ tick reset ejectPred tmout
         -- finished we still keep a dummy Map entry (ZombieSession) until the
         -- heap entry is removed. That way if we have a Map entry we do not
         -- insert a heap entry because we know it is already there.
-        -- XXX The ZombieSession mechanism does not work as expected as we
-        -- ignore ZombieSession when inserting a new entry. Anyway, we can
-        -- remove this mechanism as at most only two heap entries may be
-        -- created and they will be ultimately cleaned up.
+        -- A session restarted on a ZombieSession entry reuses the heap entry
+        -- of the finished session. The heap entry may have an earlier
+        -- expiry than the map entry. When the heap entry expires it is
+        -- reinserted with the expiry of the map entry.
         --
         -- Heap processing needs the map and map processing needs the heap,
         -- therefore we cannot separate the two for modularity unless we have a
@@ -695,26 +698,35 @@ classifySessionsByGeneric _ tick reset ejectPred tmout
                     , sessionKeyValueMap = mp
                     , sessionOutputStream = Stream.fromPure (key, fb)
                     }
+            newSession expiry vars = do
+                -- Eject a session from heap and map if needed
+                eject <- ejectPred sessionCount
+                (hp, mp, out, cnt) <-
+                    if eject
+                    then ejectOne final vars
+                    else return vars
+                -- Insert the new session in the heap unless the heap
+                -- already has an entry for the key, a ZombieSession entry
+                -- in the map means that the heap has an entry.
+                let hp' =
+                        case IsMap.mapLookup key mp of
+                            Just ZombieSession -> hp
+                            _ -> H.insert (Entry expiry key) hp
+                return (hp', mp, out, cnt + 1)
             partial fs1 = do
-                let expiry = addToAbsTime timestamp timeoutMs
-                (hp1, mp1, out1, cnt1) <- do
-                        let vars = (sessionTimerHeap, sessionKeyValueMap,
-                                           Stream.nil, sessionCount)
+                let newExpiry = addToAbsTime timestamp timeoutMs
+                    vars = (sessionTimerHeap, sessionKeyValueMap,
+                                Stream.nil, sessionCount)
+                (expiry, (hp1, mp1, out1, cnt1)) <-
                         case mOld of
-                            -- inserting new entry
-                            Nothing -> do
-                                -- Eject a session from heap and map if needed
-                                eject <- ejectPred sessionCount
-                                (hp, mp, out, cnt) <-
-                                    if eject
-                                    then ejectOne reset extract vars
-                                    else return vars
-
-                                -- Insert the new session in heap
-                                let hp' = H.insert (Entry expiry key) hp
-                                 in return (hp', mp, out, cnt + 1)
-                            -- updating old entry
-                            Just _ -> return vars
+                            Just (LiveSession oldExpiry _) ->
+                                -- Without reset the session expires a
+                                -- timeout after its first event.
+                                let e = if reset then newExpiry else oldExpiry
+                                 in return (e, vars)
+                            _ -> do
+                                r <- newSession newExpiry vars
+                                return (newExpiry, r)
 
                 let acc = LiveSession expiry fs1
                     mp2 = IsMap.mapInsert key acc mp1
@@ -743,7 +755,7 @@ classifySessionsByGeneric _ tick reset ejectPred tmout
     -- Got a timer tick event
     sstep sessionState@SessionState{..} Nothing =
         let curTime = addToAbsTime sessionCurTime tickMs
-        in ejectExpired reset ejectPred extract sessionState curTime
+        in ejectExpired ejectPred final sessionState curTime
 
 -- | @classifySessionsBy tick keepalive predicate timeout fold stream@
 -- classifies an input event @stream@ consisting of  @(timestamp, (key,
@@ -771,7 +783,11 @@ classifySessionsByGeneric _ tick reset ejectPred tmout
 -- When the stream ends any buffered sessions are ejected immediately.
 --
 -- If a session key is received even after a session has finished, another
--- session is created for that key.
+-- session is created for that key. The timeout of the new session is measured
+-- from its own first event.
+--
+-- The result of a session that times out, is ejected or is pending at the end
+-- of the stream is computed using the @final@ function of the fold.
 --
 -- >>> :{
 -- Stream.fold (Fold.drainMapM print)

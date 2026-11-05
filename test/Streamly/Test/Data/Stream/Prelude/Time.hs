@@ -15,14 +15,18 @@ module Streamly.Test.Data.Stream.Prelude.Time (main) where
 
 import Control.Concurrent ( threadDelay )
 import Control.Monad ( when)
+import Data.List (sort)
+import Streamly.Internal.Data.Fold (Fold(..), Step(..))
+import Streamly.Internal.Data.Time.Units
+       (AbsTime, MilliSecond64(..), toAbsTime)
 #ifdef DEVBUILD
 import Data.Int (Int64)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units
-       (AbsTime, NanoSecond64(..), toRelTime64, diffAbsTime64)
+       (NanoSecond64(..), toRelTime64, diffAbsTime64)
+#endif
 
 import qualified Streamly.Internal.Data.Fold as Fold
-#endif
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.Prelude as Stream
 
@@ -116,6 +120,77 @@ testSampleBurst = do
     Stream.toList (Stream.sampleBurstEnd 0.5 (Stream.fromList ([] :: [Int])))
         `shouldReturn` []
 
+-------------------------------------------------------------------------------
+-- classifySessionsBy
+-------------------------------------------------------------------------------
+
+-- | An event at the given time in milliseconds.
+at :: Int -> k -> a -> (AbsTime, (k, a))
+at ms k a = (toAbsTime (MilliSecond64 (fromIntegral ms)), (k, a))
+
+-- | A fold whose @extract@ returns "extract" and @final@ returns "final".
+extractOrFinal :: Monad m => Fold m a String
+extractOrFinal =
+    Fold
+        (\_ _ -> return $ Partial ())
+        (return $ Partial ())
+        (\_ -> return "extract")
+        (\_ -> return "final")
+
+-- | Sessions ejected by the ejection predicate are finished with @final@.
+testClassifyEjectFinal :: IO ()
+testClassifyEjectFinal = do
+    -- At most one session, the second key ejects the first session.
+    xs <- Stream.toList
+        $ Stream.classifySessionsBy
+            100 False (return . (>= 1)) 100 extractOrFinal
+        $ Stream.fromList [at 0 (1 :: Int) 'a', at 0 2 'b']
+    xs `shouldBe` [(1, "final"), (2, "final")]
+
+-- | Sessions ejected on timeout are finished with @final@.
+testClassifyTimeoutFinal :: IO ()
+testClassifyTimeoutFinal = do
+    -- The session of key 1 times out during the 500 ms delay.
+    xs <- Stream.toList
+        $ Stream.classifySessionsBy
+            0.01 False (const (return False)) 0.1 extractOrFinal
+        $ Stream.mapM
+            (\e@(_, (k, _)) -> when (k == 2) (threadDelay 500000) >> return e)
+        $ Stream.fromList [at 0 (1 :: Int) 'a', at 0 2 'b']
+    xs `shouldBe` [(1, "final"), (2, "final")]
+
+-- | A session restarted after its fold finished times out a timeout after
+-- its own first event, not after the first event of the finished session.
+testClassifyRestartExpiry :: IO ()
+testClassifyRestartExpiry = do
+    -- tick 0.1 s, timeout 2 s. The fold finishes at 0 ms, the session is
+    -- restarted at 1500 ms and expires at 3500 ms. The 1 s delay advances
+    -- the clock by about 10 ticks, to about 2500 ms, past the 2000 ms
+    -- expiry of the first session but before the expiry of the second one.
+    xs <- Stream.toList
+        $ Stream.classifySessionsBy
+            0.1 False (const (return False)) 2 (Fold.take 2 Fold.toList)
+        $ Stream.mapM
+            (\e@(_, (_, v)) -> when (v == 'd') (threadDelay 1000000)
+                >> return e)
+        $ Stream.fromList
+            [ at 0 (1 :: Int) 'a', at 0 1 'b', at 1500 1 'c', at 1500 1 'd']
+    xs `shouldBe` [(1, "ab"), (1, "cd")]
+
+-- | A session restarted after its fold finished is counted in the session
+-- count passed to the ejection predicate.
+testClassifyRestartCount :: IO ()
+testClassifyRestartCount = do
+    -- At most one session. The restarted session of key 1 must be ejected
+    -- when the session of key 2 starts.
+    xs <- Stream.toList
+        $ Stream.classifySessionsBy
+            100 False (return . (>= 1)) 100 (Fold.take 2 Fold.toList)
+        $ Stream.fromList
+            [ at 0 (1 :: Int) 'a', at 0 1 'b', at 0 1 'c', at 0 2 'd'
+            , at 0 1 'e']
+    sort xs `shouldBe` [(1, "ab"), (1, "c"), (1, "e"), (2, "d")]
+
 moduleName :: String
 moduleName = "Data.Stream.Time"
 
@@ -136,4 +211,9 @@ main = hspec
         it "takeInterval elements" testTakeIntervalElems
         it "dropInterval elements" testDropIntervalElems
         it "sampleBurstEnd/sampleBurstStart" testSampleBurst
+        describe "classifySessionsBy" $ do
+            it "ejected session uses final" testClassifyEjectFinal
+            it "timed out session uses final" testClassifyTimeoutFinal
+            it "restarted session expiry" testClassifyRestartExpiry
+            it "restarted session count" testClassifyRestartCount
 
