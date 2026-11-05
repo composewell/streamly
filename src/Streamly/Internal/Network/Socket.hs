@@ -18,6 +18,7 @@ module Streamly.Internal.Network.Socket
 
     -- * Accept connections
     , accept
+    , accept'
     , acceptor
 
     -- * Connect
@@ -86,6 +87,7 @@ import Prelude hiding (read)
 
 import qualified Network.Socket as Net
 
+import Streamly.Internal.Control.Exception (AcquireIO)
 import Streamly.Internal.Data.Array (Array(..))
 import Streamly.Data.Fold (Fold)
 import Streamly.Data.Stream (Stream)
@@ -102,13 +104,17 @@ import qualified Streamly.Internal.Data.Array as A
       createOf', unsafeCreateOf, createCompactMin )
 import qualified Streamly.Internal.Data.MutArray as MArray
     (unsafeCreateWithPtr')
-import qualified Streamly.Internal.Data.Stream as S (fromStreamK, Stream(..), Step(..))
+import qualified Streamly.Internal.Data.Stream as S
+    (fromStreamK, Stream(..), Step(..))
 import qualified Streamly.Internal.Data.StreamK as K (mkStream)
 
 -- $setup
 -- >>> :m
 -- >>> import Streamly.Internal.System.IO (defaultChunkSize)
 -- >>> import qualified Streamly.Internal.Network.Socket as Socket
+-- >>> import qualified Streamly.Data.Fold as Fold
+-- >>> import qualified Streamly.Data.Stream as Stream
+-- >>> import qualified Streamly.Internal.Control.Exception as Exception
 
 -- | @'forSocketM' action socket@ runs the monadic computation @action@ passing
 -- the socket handle to it.  The handle will be closed on exit from
@@ -182,6 +188,11 @@ listenTuples = Unfold step inject
 -- protocol and options specification and @addr@ is the protocol address where
 -- the server listens for incoming connections.
 --
+-- The listening socket is closed when the @accept@ call raises an exception.
+-- If the stream is not consumed completely, the listening socket is closed
+-- only when it is garbage collected, until then binding to the same address
+-- raises an exception (@EADDRINUSE@). Use 'accept'' to close it promptly.
+--
 {-# INLINE acceptor #-}
 acceptor :: MonadIO m => Unfold m (Int, SockSpec, SockAddr) Socket
 acceptor = fmap fst listenTuples
@@ -242,11 +253,30 @@ recvConnectionTuplesWith tcpListenQ spec addr = S.unfoldrM step Nothing
 -- port). The server generates a stream of connected sockets.  The first
 -- argument is the maximum number of pending connections in the backlog.
 --
+-- The listening socket is closed when the @accept@ call raises an exception.
+-- If the stream is not consumed completely, the listening socket is closed
+-- only when it is garbage collected, until then binding to the same address
+-- raises an exception (@EADDRINUSE@). Use 'accept'' to close it promptly.
+--
 -- /Pre-release/
 {-# INLINE accept #-}
 accept :: MonadIO m => Int -> SockSpec -> SockAddr -> Stream m Socket
 accept tcpListenQ spec addr =
     fst <$> recvConnectionTuplesWith tcpListenQ spec addr
+
+-- | Like 'accept' but the listening socket is allocated in the supplied
+-- 'AcquireIO' scope. The listening socket is closed when the scope ends,
+-- even if the stream is not consumed completely.
+--
+-- >>> serveOne spec addr = Exception.withAcquireIO $ \ref -> Stream.fold Fold.one (Socket.accept' ref 10 spec addr)
+--
+-- /Pre-release/
+{-# INLINE accept' #-}
+accept' :: MonadIO m =>
+    AcquireIO -> Int -> SockSpec -> SockAddr -> Stream m Socket
+accept' ref tcpListenQ spec addr =
+    S.bracketIO' ref (initListener tcpListenQ spec addr) Net.close
+        $ \listener -> S.repeatM (liftIO (fst <$> Net.accept listener))
 
 -------------------------------------------------------------------------------
 -- Array IO (Input)

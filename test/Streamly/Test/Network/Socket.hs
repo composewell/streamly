@@ -26,6 +26,7 @@ import qualified Streamly.Data.Array as Array
 import qualified Streamly.Data.Fold as Fold
 import qualified Streamly.Data.Stream.Prelude as Stream
 import qualified Streamly.Internal.Network.Inet.TCP as TCP
+import qualified Streamly.Internal.Control.Exception as Exception
 import qualified Streamly.Internal.Network.Socket as Socket
 import qualified Streamly.Internal.Unicode.Stream as Unicode
 
@@ -165,6 +166,33 @@ testWriteChunksWith = do
 moduleName :: String
 moduleName = "Network.Socket"
 
+-- | The listening socket of accept' is closed at the end of the AcquireIO
+-- scope even though the stream is not consumed completely, the same port can
+-- be bound again.
+testAcceptRebind :: IO ()
+testAcceptRebind = do
+    let port = basePort + 10
+        addr = Net.SockAddrInet port (Net.tupleToHostAddress (127,0,0,1))
+        spec = Socket.SockSpec
+            { Socket.sockFamily = Net.AF_INET
+            , Socket.sockType = Net.Stream
+            , Socket.sockProto = Net.defaultProtocol
+            , Socket.sockOpts = [(Net.ReuseAddr, 1)]
+            }
+        client = do
+            threadDelay 200000
+            sk <- TCP.connect (127,0,0,1) port
+            Net.close sk
+        acceptOne = do
+            _ <- forkIO client
+            Exception.withAcquireIO $ \ref ->
+                Stream.fold Fold.drain
+                    $ Stream.mapM (liftIO . Net.close)
+                    $ Stream.take 1
+                    $ Socket.accept' ref 10 spec addr
+    acceptOne
+    acceptOne
+
 main :: IO ()
 main = hspec $ do
     modifyMaxSuccess (const 1) $ do
@@ -175,3 +203,5 @@ main = hspec $ do
             prop "readChunks/writeChunks" validateChunks
             prop "readChunksWith" validateChunksWith
             it "writeChunksWith" testWriteChunksWith
+            it "accept' closes the listener at the end of the scope"
+                testAcceptRebind

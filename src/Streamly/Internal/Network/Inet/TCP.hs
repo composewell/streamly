@@ -177,6 +177,12 @@ acceptorOnAddrWith opts = UF.lmap f ISK.acceptor
 -- @ipAddr@ is the local IP address and @port@ is the local port on which
 -- connections are accepted.
 --
+-- If the stream is not consumed completely, the listening socket is closed
+-- only when it is garbage collected, until then binding to the same port
+-- raises an exception (@EADDRINUSE@). Use
+-- "Streamly.Internal.Network.Socket".'ISK.accept'' with an @AcquireIO@ scope
+-- to close it promptly.
+--
 {-# INLINE acceptorOnAddr #-}
 acceptorOnAddr
     :: MonadIO m
@@ -261,6 +267,12 @@ acceptOnAddr = acceptOnAddrWith []
 -- The server generates a stream of connected sockets.
 --
 -- >>> accept = TCP.acceptOnAddr (0,0,0,0)
+--
+-- If the stream is not consumed completely, the listening socket is closed
+-- only when it is garbage collected, until then binding to the same port
+-- raises an exception (@EADDRINUSE@). Use
+-- "Streamly.Internal.Network.Socket".'ISK.accept'' with an @AcquireIO@ scope
+-- to close it promptly.
 --
 -- /Pre-release/
 {-# INLINE accept #-}
