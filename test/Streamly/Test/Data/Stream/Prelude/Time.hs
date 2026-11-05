@@ -14,6 +14,7 @@
 module Streamly.Test.Data.Stream.Prelude.Time (main) where
 
 import Control.Concurrent ( threadDelay )
+import Control.Exception (ErrorCall(..))
 import Control.Monad ( when)
 import Data.List (sort)
 import Streamly.Internal.Data.Fold (Fold(..), Step(..))
@@ -132,6 +133,19 @@ testSampleInterval = do
     Stream.toList (Stream.sampleIntervalEnd 0.3 twoBursts)
         `shouldReturn` [2, 4]
 
+testTimedGroupsOf :: IO ()
+testTimedGroupsOf = do
+    let xs = Stream.fromList [1 .. 5 :: Int]
+    Stream.toList (Stream.timedGroupsOf 1 2 Fold.toList xs)
+        `shouldReturn` [[1, 2], [3, 4], [5]]
+    -- Elements 300 ms apart, a group times out 500 ms after its first
+    -- element.
+    Stream.toList
+        (Stream.timedGroupsOf 0.5 3 Fold.toList (delayedStream 300 5))
+        `shouldReturn` [[1, 2], [3, 4], [5]]
+    Stream.toList (Stream.timedGroupsOf 1 0 Fold.toList xs)
+        `shouldThrow` (\(ErrorCall msg) -> take 14 msg == "timedGroupsOf:")
+
 -------------------------------------------------------------------------------
 -- classifySessionsBy
 -------------------------------------------------------------------------------
@@ -224,6 +238,7 @@ main = hspec
         it "dropInterval elements" testDropIntervalElems
         it "sampleBurstEnd/sampleBurstStart" testSampleBurst
         it "sampleIntervalEnd/sampleIntervalStart" testSampleInterval
+        it "timedGroupsOf" testTimedGroupsOf
         describe "classifySessionsBy" $ do
             it "ejected session uses final" testClassifyEjectFinal
             it "timed out session uses final" testClassifyTimeoutFinal

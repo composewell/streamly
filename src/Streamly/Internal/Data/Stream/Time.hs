@@ -276,6 +276,8 @@ boundedIntervalsOf _len _time _f _xs = undefined
 -- collected in the group. The time interval is only for timing out the already
 -- collected but not yet complete group.
 --
+-- Raise an exception if the group size is less than 1.
+--
 -- >>> s = Stream.delayPost 0.3 $ Stream.fromList [1..1000]
 -- >>> f = Stream.fold (Fold.drainMapM print) $ Stream.timedGroupsOf 1 5 Fold.toList s
 --
@@ -283,7 +285,10 @@ boundedIntervalsOf _len _time _f _xs = undefined
 {-# INLINE timedGroupsOf #-}
 timedGroupsOf :: MonadAsync m
     => Double -> Int -> Fold m a b -> Stream m a -> Stream m b
-timedGroupsOf timeout n f =
+timedGroupsOf timeout n f
+    | n < 1 = error $ "timedGroupsOf: the group size must be at least 1, "
+                ++ "got " ++ show n
+    | otherwise =
       fmap snd
     . classifySessionsBy
         0.1 False (const (return False)) timeout (Fold.take n f)
@@ -575,7 +580,8 @@ ejectExpired ejectPred final session@SessionState{..} curTime = do
                         Just (LiveSession expiry1 acc) -> do
                             -- When forced, eject the session with the
                             -- earliest expiry.
-                            if expiry1 <= curTime || (force && expiry1 <= expiry)
+                            if expiry1 <= curTime
+                                || (force && expiry1 <= expiry)
                             then do
                                 (hp2,mp1,out1,cnt1) <-
                                     ejectEntry final hp1 mp out cnt acc key
