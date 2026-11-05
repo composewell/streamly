@@ -103,6 +103,13 @@ import Streamly.Internal.Data.Channel.Types
 -- the evaluation of the source stream. On finalization, 'parBuffered' waits for
 -- the asynchronous fold to complete before it returns.
 --
+-- If the fold terminates, the inputs sent to it after it terminated and before
+-- the driver saw the termination are discarded. The number of discarded inputs
+-- depends on scheduling. Therefore, 'parBuffered' of a terminating fold must
+-- not be used where the remaining input is consumed further, for example,
+-- @Stream.foldMany (Fold.parBuffered id (Fold.take 3 Fold.sum))@ on
+-- @[1..10]@ may give @[6]@ instead of @[6,15,24,10]@.
+--
 -- In the following example both the stream and the fold have a 1 second delay,
 -- but the delay is not compounded because both run concurrently.
 --
