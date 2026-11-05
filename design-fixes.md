@@ -80,3 +80,58 @@ path to compare or fold case. A Posix path that is not valid UTF-8, or a
 Windows path with a lone surrogate, raises an exception instead of being
 compared byte-wise. A decision is needed on whether to fall back to byte
 comparison for undecodable paths.
+
+## Prompt release of the listening socket in TCP.accept*
+
+`Socket.accept`, `Socket.acceptor` and all the `TCP.accept*` and
+`TCP.acceptor*` functions close the listening socket only on garbage
+collection when the stream is not consumed completely (e.g. `Stream.take
+1`). Binding to the same address raises `EADDRINUSE` until then. Using
+`bracketIO` (which needs `MonadCatch`) does not help, it also defers the
+release to garbage collection for an abandoned stream (verified by a run).
+
+`Socket.accept'` was added: it takes an `AcquireIO` and allocates the
+listener with `bracketIO'`, the listener is closed at the end of the
+`withAcquireIO` scope (verified by a test).
+
+User decision required: the names and the set of `AcquireIO` variants of
+the `TCP` functions (`accept`, `acceptLocal`, `acceptOnAddr`,
+`acceptOnAddrWith` and the unfolds), or whether the released functions
+should take an `AcquireIO` argument.
+
+## Fold.parBuffered discards input after the fold terminates
+
+The driver of `parBuffered` learns about the termination of the fold
+asynchronously. Inputs sent after the fold terminated are discarded, so
+`Stream.foldMany (Fold.parBuffered id (Fold.take 3 Fold.sum))` on
+`[1..10]` gives `[6]` instead of `[6,15,24,10]` (reproduced, now
+documented). The same applies to `parTee`, `parDistribute`,
+`parPartition` and `parUnzip`, which use `parBuffered`.
+
+Proposal: either make the worker return the unconsumed inputs of its
+buffer and expose a parser-like variant that can return them as leftovers,
+or provide a synchronous mode in which the driver waits for the result of
+each input when the fold may terminate.
+
+## parMergeIterate and parConcatIterate have different shapes
+
+`parConcatIterate` takes `a -> Maybe (Stream m a)`, `parMergeIterate`
+(unimplemented, `undefined`) takes `a -> Stream m a`. The signature of
+`parMergeIterate` should be changed to `a -> Maybe (Stream m a)` when it is
+implemented.
+
+## Fold.takeInterval consumes the first input after the timeout
+
+`Fold.takeInterval` (and `Fold.intervalsOf`) adds the first input that
+arrives after the timeout to the current fold and then finishes it, so that
+input belongs to the previous interval. `Stream.takeInterval` drops it.
+Folds cannot return an input, a fix needs either a parser or dropping the
+input (losing it). The `XXX` comment in `Fold/Time.hs` notes this.
+
+## Exception handling unfold in Unfold.Prelude.gbracket
+
+The lifted `Unfold.gbracket` does not run the cleanup action when `try`
+catches an exception, the exception handling unfold must release the
+resource (the docs said the cleanup runs on exceptions, now corrected). The
+core `Unfold.gbracketIO` takes a separate exception action instead. The two
+APIs could be aligned.
