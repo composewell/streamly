@@ -10,6 +10,7 @@
 module Main (main) where
 
 import Control.Concurrent (threadDelay, killThread, forkIO)
+import Control.Exception (ErrorCall(..), try, throwIO)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, takeMVar, putMVar)
 import Control.Monad.IO.Class (liftIO)
 import Data.Function ((&))
@@ -148,6 +149,26 @@ testPipeBytesEnd = do
         $ Stream.fromList testData
     res `shouldBe` Just testData
 
+-- | An exception raised by the input stream of pipeBytes is raised by the
+-- output stream.
+testPipeBytesInputException :: IO ()
+testPipeBytesInputException = do
+    let port = basePort + 3
+    sem <- newEmptyMVar
+    tid <- forkIO $ server TCP.acceptor port sem handlerRW
+    res <- timeout 10000000
+        $ try
+        $ Stream.toList
+        $ Stream.finally (killThread tid)
+        $ Stream.before (liftIO (takeMVar sem >> threadDelay 1000000))
+        $ Unicode.decodeLatin1
+        $ TCP.pipeBytes remoteAddr port
+        $ Unicode.encodeLatin1
+        $ Stream.append
+            (Stream.fromList testData)
+            (Stream.fromEffect (throwIO (ErrorCall "input")))
+    res `shouldBe` Just (Left (ErrorCall "input"))
+
 moduleName :: String
 moduleName = "Network.Inet.TCP"
 
@@ -159,4 +180,6 @@ main = hspec $ do
             prop "acceptOnPort" validateOnPort
             prop "acceptOnPortLocal" validateOnPortLocal
             it "pipeBytes ends after the input ends" testPipeBytesEnd
+            it "pipeBytes raises the exception of the input"
+                testPipeBytesInputException
         --  prop "acceptOnAddr/connect" Tested as part of above test cases

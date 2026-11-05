@@ -105,7 +105,10 @@ where
 #include "inline.hs"
 
 import Control.Concurrent (killThread)
-import Control.Exception (IOException, onException, try)
+import Control.Concurrent.MVar (newEmptyMVar, tryPutMVar, tryReadMVar)
+import Control.Exception
+       (IOException, SomeAsyncException, SomeException, fromException,
+        onException, try)
 import Control.Monad (void)
 import Control.Monad.Catch (MonadCatch, MonadMask, bracket)
 import Control.Monad.IO.Class (MonadIO(..))
@@ -472,23 +475,40 @@ withInputConnect addr port input fread fwrite = S.bracket pre post handler
 
     where
 
-    -- After writing the input, shut down the sending side so that the remote
-    -- host sees the end of the input. The socket may have been closed by
-    -- "post" already if the output stream ended early.
-    shutdownSend sk =
+    -- The socket may have been closed by "post" already if the output stream
+    -- ended early.
+    shutdown sk how =
         liftIO $ void
-            (try (Net.shutdown sk Net.ShutdownSend)
-                :: IO (Either IOException ()))
+            (try (Net.shutdown sk how) :: IO (Either IOException ()))
+
+    -- After writing the input, shut down the sending side so that the remote
+    -- host sees the end of the input. If writing raises an exception, save
+    -- the exception and shut down both sides so that the reader sees the end
+    -- of the output and raises the saved exception.
+    writer sk mv = do
+        r <- MC.try (fwrite sk input)
+        case r of
+            Right () -> shutdown sk Net.ShutdownSend
+            Left (e :: SomeException) ->
+                case fromException e of
+                    Just (_ :: SomeAsyncException) -> MC.throwM e
+                    Nothing -> do
+                        _ <- liftIO $ tryPutMVar mv e
+                        shutdown sk Net.ShutdownBoth
 
     pre = do
         sk <- liftIO $ connect addr port
-        tid <- fork (fwrite sk input >> shutdownSend sk)
-        return (sk, tid)
+        mv <- liftIO newEmptyMVar
+        tid <- fork (writer sk mv)
+        return (sk, tid, mv)
 
-    handler (sk, _) = fread sk
+    rethrow mv = do
+        r <- liftIO $ tryReadMVar mv
+        maybe (return S.nil) MC.throwM r
 
-    -- XXX Exceptions in the writer thread are not propagated to the reader.
-    post (sk, tid) = liftIO $ killThread tid >> Net.close sk
+    handler (sk, _, mv) = fread sk `S.append` S.concatEffect (rethrow mv)
+
+    post (sk, tid, _) = liftIO $ killThread tid >> Net.close sk
 
 -- | Send an input stream to a remote host and produce the output stream from
 -- the host. The server host just acts as a transformation function on the
@@ -497,6 +517,10 @@ withInputConnect addr port input fread fwrite = S.bracket pre post handler
 -- The sending side of the connection is shut down when the input stream
 -- ends, so that the remote host sees the end of the input. The output stream
 -- ends when the remote host closes the connection.
+--
+-- If the input stream or writing to the connection raises an exception, the
+-- connection is shut down and the output stream raises the same exception
+-- after the data received until then.
 --
 -- /Pre-release/
 --
