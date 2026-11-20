@@ -701,10 +701,16 @@ splitWith func (Parser stepL initialL extractL)
                 -- XXX Use bimap here if we use Step type in Initial
                 iR <- initialR
                 case iR of
-                    IPartial sR -> do
-                        fmap
-                            (bimap (SeqParseR (func bL)) (func bL))
-                            (extractR sR)
+                    -- If the left parser backtracks at the end of input, the
+                    -- right parser must be driven on the input given back,
+                    -- extracting it here would lose that input.
+                    IPartial sR
+                        | n == 0 ->
+                            fmap
+                                (bimap (SeqParseR (func bL)) (func bL))
+                                (extractR sR)
+                        | otherwise ->
+                            return $ FContinue n (SeqParseR (func bL) sR)
                     IDone bR -> return $ FDone n $ func bL bR
                     IError err -> return $ FError err
             FError err -> return $ FError err
@@ -854,8 +860,10 @@ split_ (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
                 iR <- initialR
                 -- XXX For initial we can have a bimap with leftover.
                 case iR of
-                    IPartial sR ->
-                        fmap (bimapFinalOverrideCount n SeqAR id) (extractR sR)
+                    -- See the note in splitWith.
+                    IPartial sR
+                        | n == 0 -> fmap (first SeqAR) (extractR sR)
+                        | otherwise -> return $ FContinue n (SeqAR sR)
                     IDone bR -> return $ FDone n bR
                     IError err -> return $ FError err
             FError err -> return $ FError err
@@ -1374,10 +1382,14 @@ concatMap func (Parser stepL initialL extractL) = Parser step initial extract
     extractP n (Parser stepR initialR extractR) = do
         res <- initialR
         case res of
-            IPartial s ->
-                fmap
-                    (first (\s1 -> ConcatParseR stepR s1 extractR))
-                    (extractR s)
+            -- See the note in splitWith.
+            IPartial s
+                | n == 0 ->
+                    fmap
+                        (first (\s1 -> ConcatParseR stepR s1 extractR))
+                        (extractR s)
+                | otherwise ->
+                    return $ FContinue n (ConcatParseR stepR s extractR)
             IDone b -> return (FDone n b)
             IError err -> return $ FError err
 
