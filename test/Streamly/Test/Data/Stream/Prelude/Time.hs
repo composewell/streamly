@@ -13,19 +13,19 @@
 
 module Streamly.Test.Data.Stream.Prelude.Time (main) where
 
-#ifdef DEVBUILD
 import Control.Concurrent ( threadDelay )
+#ifdef DEVBUILD
 import Control.Monad ( when)
 import Data.Int (Int64)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units
        (AbsTime, NanoSecond64(..), toRelTime64, diffAbsTime64)
+#endif
 
 import qualified Streamly.Internal.Data.Fold as Fold
 import qualified Streamly.Internal.Data.Stream as Stream
 import qualified Streamly.Internal.Data.Stream.Prelude as Stream
 
-#endif
 
 import Test.Hspec as H
 
@@ -76,6 +76,53 @@ testDropInterval = do
     checkTakeDropTime (Just t0, mt1)
 #endif
 
+-- The tests below do not measure time, they only use intervals that are either
+-- much longer or much shorter than the time taken by the stream.
+
+longInterval :: Double
+longInterval = 100
+
+shortInterval :: Double
+shortInterval = 0.1
+
+-- | An endless stream of consecutive numbers, one every millisecond.
+slowEnumeration :: Stream.Stream IO Int
+slowEnumeration =
+    Stream.mapM (\x -> threadDelay 1000 >> return x) (Stream.enumerateFrom 1)
+
+takeIntervalAll :: IO [Int]
+takeIntervalAll =
+    Stream.fold Fold.toList
+        $ Stream.takeInterval longInterval
+        $ Stream.fromList [1..10]
+
+dropIntervalAll :: IO [Int]
+dropIntervalAll =
+    Stream.fold Fold.toList
+        $ Stream.dropInterval longInterval
+        $ Stream.fromList [1..10]
+
+-- The stream is endless, so this returns only if takeInterval ends it. The
+-- elements taken must be the beginning of the stream.
+takeIntervalPrefix :: IO Bool
+takeIntervalPrefix = do
+    xs <-
+        Stream.fold Fold.toList
+            $ Stream.takeInterval shortInterval slowEnumeration
+    return $ not (null xs) && xs == [1..length xs]
+
+-- The elements that remain must be a suffix of the stream, starting after the
+-- first element.
+dropIntervalSuffix :: IO Bool
+dropIntervalSuffix = do
+    xs <-
+        Stream.fold Fold.toList
+            $ Stream.take 10
+            $ Stream.dropInterval shortInterval slowEnumeration
+    return $ case xs of
+        x : _ -> x > 1 && xs == [x .. x + 9]
+        [] -> False
+
 moduleName :: String
 moduleName = "Data.Stream.Time"
 
@@ -93,5 +140,13 @@ main = hspec
             it "dropInterval" (testDropInterval `shouldReturn` True)
 #endif
 #endif
-        it "dummy" (return () `shouldReturn` ())
+        describe "Trimming" $ do
+            it "takeInterval takes all the elements within the interval"
+                (takeIntervalAll `shouldReturn` [1..10])
+            it "takeInterval ends the stream after the interval"
+                (takeIntervalPrefix `shouldReturn` True)
+            it "dropInterval drops all the elements within the interval"
+                (dropIntervalAll `shouldReturn` [])
+            it "dropInterval yields the elements after the interval"
+                (dropIntervalSuffix `shouldReturn` True)
 
