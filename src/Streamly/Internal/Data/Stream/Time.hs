@@ -62,7 +62,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Heap (Entry(..))
 import Data.Kind (Type)
 import Data.Map (Map)
-import Data.Maybe (isNothing)
+import Data.Maybe (isJust, isNothing)
 import Data.Proxy (Proxy(..))
 import Streamly.Data.Fold (Fold)
 import Streamly.Data.Array (Unbox)
@@ -190,7 +190,7 @@ interject f n xs = parListEagerFst [xs, periodic f n]
 takeInterval :: MonadAsync m => Double -> Stream m a -> Stream m a
 takeInterval d =
     Stream.catMaybes
-        . Stream.takeWhile isNothing
+        . Stream.takeWhile isJust
         . interject (return Nothing) d . fmap Just
 
 -- | Take time interval @i@ seconds at the end of the stream.
@@ -214,7 +214,7 @@ takeLastInterval = undefined
 dropInterval :: MonadAsync m => Double -> Stream m a -> Stream m a
 dropInterval d =
     Stream.catMaybes
-        . Stream.dropWhile isNothing
+        . Stream.dropWhile isJust
         . interject (return Nothing) d . fmap Just
 
 -- | Drop time interval @i@ seconds at the end of the stream.
