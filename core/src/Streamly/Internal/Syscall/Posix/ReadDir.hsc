@@ -122,7 +122,7 @@ readPlusScanWith = undefined
 
 -- XXX Marking the calls "safe" has significant perf impact because it runs on
 -- a separate OS thread. "unsafe" is faster but can block the GC if the system
--- call blocks. The effect could be signifcant if the file system is on NFS. Is
+-- call blocks. The effect could be significant if the file system is on NFS. Is
 -- it possible to have a faster safe - where we know the function is safe but
 -- we run it on the current thread, and if it blocks for longer we can snatch
 -- the capability and enable GC?

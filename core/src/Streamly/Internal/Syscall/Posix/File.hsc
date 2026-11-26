@@ -107,7 +107,7 @@ import qualified System.Posix.Internals as Posix
 
 -- We want to remain close to the Posix C API. A function based API to set and
 -- clear the modes is simple, type safe and directly mirrors the C API. It does
--- not require explicit mapping from Haskell ADT to C types, we can dirctly
+-- not require explicit mapping from Haskell ADT to C types, we can directly
 -- manipulate the C type.
 
 #include <fcntl.h>

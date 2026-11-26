@@ -132,7 +132,7 @@ inspect $ 'fromStream `hasNoType` ''FL.Step
 inspect $ 'fromStream `hasNoType` ''SPEC
 #endif
 
--- XXX INVESTIGATE: Although the performance of this should be equivalant to
+-- XXX INVESTIGATE: Although the performance of this should be equivalent to
 -- fromStream, this is considerably worse. More than 4x worse.
 {-# INLINE fromStreamK #-}
 fromStreamK :: Int -> Int -> IO ()

@@ -1153,7 +1153,7 @@ o_n_heap_transformer value =
 moduleName :: String
 moduleName = "Data.StreamK.FromStream"
 
--- Generation of StreamK using StreamD generation functions and eleminating
+-- Generation of StreamK using StreamD generation functions and eliminating
 -- using StreamK drain.
 o_1_space_generation :: Int -> Benchmark
 o_1_space_generation streamLen =

@@ -1,4 +1,4 @@
--- XXX When introducing platform specifc API, see Posix/File.hsc and design in
+-- XXX When introducing platform specific API, see Posix/File.hsc and design in
 -- the same consistent way.
 module Streamly.Internal.Syscall.Windows.File
     (

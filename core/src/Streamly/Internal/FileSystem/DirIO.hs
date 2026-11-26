@@ -421,7 +421,7 @@ writeChunks h = FL.drainBy (liftIO . writeArray h)
 -- | @writeChunksWithBufferOf bufsize handle@ writes a stream of arrays
 -- to @handle@ after coalescing the adjacent arrays in chunks of @bufsize@.
 -- We never split an array, if a single array is bigger than the specified size
--- it emitted as it is. Multiple arrays are coalesed as long as the total size
+-- it emitted as it is. Multiple arrays are coalesced as long as the total size
 -- remains below the specified size.
 --
 -- @since 0.7.0

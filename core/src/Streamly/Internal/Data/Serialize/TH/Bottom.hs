@@ -421,7 +421,7 @@ xorCmp tag off arr =
 -- TODO:
 -- Will this be too much of a code bloat?
 -- Loop with the loop body unrolled?
--- Serialize this in batches similar to batch comparision in xorCmp?
+-- Serialize this in batches similar to batch comparison in xorCmp?
 serializeW8List :: Name -> Name -> [Word8] -> Q Exp
 serializeW8List off arr w8List = do
     [|let $(varP (makeN 0)) = $(varE off)
