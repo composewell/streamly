@@ -14,8 +14,9 @@
 module Streamly.Test.Data.Stream.Prelude.Time (main) where
 
 import Control.Concurrent ( threadDelay )
-#ifdef DEVBUILD
 import Control.Monad ( when)
+import System.Timeout (timeout)
+#ifdef DEVBUILD
 import Data.Int (Int64)
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units
@@ -102,6 +103,39 @@ dropIntervalAll =
         $ Stream.dropInterval longInterval
         $ Stream.fromList [1..10]
 
+-- Zero, negative and NaN intervals.
+takeIntervalOf :: Double -> IO [Int]
+takeIntervalOf d =
+    Stream.fold Fold.toList
+        $ Stream.takeInterval d
+        $ Stream.fromList [1..10]
+
+dropIntervalOf :: Double -> IO [Int]
+dropIntervalOf d =
+    Stream.fold Fold.toList
+        $ Stream.dropInterval d
+        $ Stream.fromList [1..10]
+
+nan :: Double
+nan = 0 / 0
+
+-- The stream blocks for a long time after its first element, takeInterval
+-- must end it at the end of the interval nevertheless.
+takeIntervalBlocked :: IO (Maybe [Int])
+takeIntervalBlocked =
+    timeout 10000000
+        $ Stream.fold Fold.toList
+        $ Stream.takeInterval shortInterval
+        $ Stream.mapM (\x -> when (x > 1) (threadDelay 100000000) >> return x)
+        $ Stream.fromList [1..10]
+
+-- An interval that overflows an Int64 when converted to nanoseconds.
+dropIntervalHuge :: Double -> IO [Int]
+dropIntervalHuge d =
+    Stream.fold Fold.toList
+        $ Stream.dropInterval d
+        $ Stream.fromList [1..10]
+
 -- The stream is endless, so this returns only if takeInterval ends it. The
 -- elements taken must be the beginning of the stream.
 takeIntervalPrefix :: IO Bool
@@ -149,4 +183,24 @@ main = hspec
                 (dropIntervalAll `shouldReturn` [])
             it "dropInterval yields the elements after the interval"
                 (dropIntervalSuffix `shouldReturn` True)
+            it "takeInterval takes nothing if the interval is zero"
+                (takeIntervalOf 0 `shouldReturn` [])
+            it "takeInterval takes nothing if the interval is negative"
+                (takeIntervalOf (-1) `shouldReturn` [])
+            it "takeInterval takes nothing if the interval is NaN"
+                (takeIntervalOf nan `shouldReturn` [])
+            it "takeInterval ends a blocked stream after the interval"
+                (takeIntervalBlocked `shouldReturn` Just [1])
+            it "dropInterval drops nothing if the interval is zero"
+                (dropIntervalOf 0 `shouldReturn` [1..10])
+            it "dropInterval drops nothing if the interval is negative"
+                (dropIntervalOf (-1) `shouldReturn` [1..10])
+            it "dropInterval drops nothing if the interval is NaN"
+                (dropIntervalOf nan `shouldReturn` [1..10])
+            it "dropInterval drops everything if the interval is 1e10 seconds"
+                (dropIntervalHuge 1e10 `shouldReturn` [])
+            it "dropInterval drops everything if the interval is 1e300 seconds"
+                (dropIntervalHuge 1e300 `shouldReturn` [])
+            it "dropInterval drops everything if the interval is infinite"
+                (dropIntervalHuge (1/0) `shouldReturn` [])
 

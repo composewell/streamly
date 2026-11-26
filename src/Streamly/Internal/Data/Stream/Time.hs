@@ -57,9 +57,12 @@ module Streamly.Internal.Data.Stream.Time
     )
 where
 
+#include "inline.hs"
+
 import Control.Exception (assert)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Heap (Entry(..))
+import Data.Int (Int64)
 import Data.Kind (Type)
 import Data.Map (Map)
 import Data.Maybe (isJust, isNothing)
@@ -70,7 +73,7 @@ import Streamly.Internal.Data.Array (Array)
 import Streamly.Internal.Data.Fold (Fold (..))
 import Streamly.Internal.Data.IsMap (IsMap(..))
 import Streamly.Internal.Data.Channel.Types (Rate)
-import Streamly.Internal.Data.Stream (Stream)
+import Streamly.Internal.Data.Stream (Stream, Step(..))
 import Streamly.Internal.Data.Stream.Channel.Type (rate)
 import Streamly.Internal.Data.Time.Units
     ( AbsTime
@@ -79,7 +82,9 @@ import Streamly.Internal.Data.Time.Units
     , toAbsTime
     , toRelTime
     )
-import Streamly.Internal.Data.Time.Units (NanoSecond64(..), toRelTime64)
+import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
+import Streamly.Internal.Data.Time.Units
+    (NanoSecond64(..), addToAbsTime64, toRelTime64)
 
 import qualified Data.Heap as H
 import qualified Streamly.Internal.Data.Array as Array
@@ -90,7 +95,8 @@ import qualified Streamly.Data.Unfold as Unfold
 import qualified Streamly.Internal.Data.Fold as Fold (Step(..))
 import qualified Streamly.Internal.Data.IsMap as IsMap
 import qualified Streamly.Internal.Data.Stream as Stream
-    ( scanlMAfter'
+    ( Stream(Stream)
+    , scanlMAfter'
     , sleep
     , timeIndexed
     , timestamped
@@ -179,19 +185,23 @@ ticksRate r = parBuffered (rate (Just r)) $ Stream.repeatM (return ())
 interject :: MonadAsync m => m a -> Double -> Stream m a -> Stream m a
 interject f n xs = parListEagerFst [xs, periodic f n]
 
--- XXX No element should be yielded if the duration is zero.
-
 -- | @takeInterval interval@ runs the stream only upto the specified time
--- @interval@ in seconds.
+-- @interval@ in seconds. No element is yielded if the interval is zero,
+-- negative or NaN.
 --
 -- The interval starts when the stream is evaluated for the first time.
 --
 {-# INLINE takeInterval #-}
 takeInterval :: MonadAsync m => Double -> Stream m a -> Stream m a
-takeInterval d =
-    Stream.catMaybes
-        . Stream.takeWhile isJust
-        . interject (return Nothing) d . fmap Just
+takeInterval d xs
+    | not (d > 0) = Stream.nil
+    | otherwise =
+        Stream.catMaybes
+            $ Stream.takeWhile isJust
+            $ parListEagerFst
+                [ fmap Just xs
+                , Stream.fromEffect (Stream.sleep d >> return Nothing)
+                ]
 
 -- | Take time interval @i@ seconds at the end of the stream.
 --
@@ -203,19 +213,68 @@ takeLastInterval :: -- MonadAsync m =>
     Double -> Stream m a -> Stream m a
 takeLastInterval = undefined
 
--- XXX All elements should be yielded if the duration is zero.
+data DropIntervalState s
+    = DropIntervalInit s
+    | DropIntervalDrop !AbsTime s
+    | DropIntervalDropAll s
+    | DropIntervalYield s
 
 -- | @dropInterval interval@ drops all the stream elements that are generated
--- before the specified @interval@ in seconds has passed.
+-- before the specified @interval@ in seconds has passed. No element is dropped
+-- if the interval is zero, negative or NaN. All the elements are dropped if the
+-- interval is too large to be represented in nanoseconds as an 'Int64'.
 --
 -- The interval begins when the stream is evaluated for the first time.
 --
+-- An element is dropped or yielded depending on the time at which it is
+-- generated, not on the time at which the action generating it starts.
+--
 {-# INLINE dropInterval #-}
-dropInterval :: MonadAsync m => Double -> Stream m a -> Stream m a
-dropInterval d =
-    Stream.catMaybes
-        . Stream.dropWhile isJust
-        . interject (return Nothing) d . fmap Just
+dropInterval :: MonadIO m => Double -> Stream m a -> Stream m a
+dropInterval d (Stream.Stream step state) =
+    Stream.Stream step1 (DropIntervalInit state)
+
+    where
+
+    -- The interval in nanoseconds must fit in an Int64, with a margin of one
+    -- second as it is added to the nanoseconds of the current time.
+    maxInterval :: Double
+    maxInterval = fromIntegral (maxBound :: Int64) / 1000000000 - 1
+
+    -- The clock is read only until the interval has passed.
+    {-# INLINE_LATE step1 #-}
+    step1 _ (DropIntervalInit st)
+        | not (d > 0) = return $ Skip $ DropIntervalYield st
+        | d >= maxInterval = return $ Skip $ DropIntervalDropAll st
+        | otherwise = do
+            now <- liftIO $ getTime Monotonic
+            let i = toRelTime64 (NanoSecond64 (round (d * 1000000000)))
+            return $ Skip $ DropIntervalDrop (addToAbsTime64 now i) st
+    step1 gst (DropIntervalDrop end st) = do
+        r <- step gst st
+        case r of
+            Yield x s -> do
+                now <- liftIO $ getTime Monotonic
+                return
+                    $ if now >= end
+                      then Yield x (DropIntervalYield s)
+                      else Skip (DropIntervalDrop end s)
+            Skip s -> return $ Skip (DropIntervalDrop end s)
+            Stop -> return Stop
+    step1 gst (DropIntervalDropAll st) = do
+        r <- step gst st
+        return
+            $ case r of
+                Yield _ s -> Skip (DropIntervalDropAll s)
+                Skip s -> Skip (DropIntervalDropAll s)
+                Stop -> Stop
+    step1 gst (DropIntervalYield st) = do
+        r <- step gst st
+        return
+            $ case r of
+                Yield x s -> Yield x (DropIntervalYield s)
+                Skip s -> Skip (DropIntervalYield s)
+                Stop -> Stop
 
 -- | Drop time interval @i@ seconds at the end of the stream.
 --
