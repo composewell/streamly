@@ -50,7 +50,7 @@ length (MutByteArray src#) = do
 
 -- | Join two null terminated cstrings, the null byte of the first string is
 -- overwritten. Does not check the destination length or source length.
--- Destination must have enough space to accomodate src.
+-- Destination must have enough space to accommodate src.
 --
 -- Returns the offset of the null byte.
 --

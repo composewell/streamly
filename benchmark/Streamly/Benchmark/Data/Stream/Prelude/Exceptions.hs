@@ -231,7 +231,7 @@ takeInterval :: Double -> Int -> IO ()
 takeInterval i value = withStream value $ drain . Stream.takeInterval i
 
 -- Inspection testing is disabled for takeInterval
--- Enable it when looking at it throughly
+-- Enable it when looking at it thoroughly
 #ifdef INSPECTION
 -- inspect $ hasNoType 'takeInterval ''SPEC
 -- inspect $ hasNoTypeClasses 'takeInterval
@@ -243,7 +243,7 @@ dropInterval :: Double -> Int -> IO ()
 dropInterval i value = withStream value $ drain . Stream.dropInterval i
 
 -- Inspection testing is disabled for dropInterval
--- Enable it when looking at it throughly
+-- Enable it when looking at it thoroughly
 #ifdef INSPECTION
 -- inspect $ hasNoTypeClasses 'dropInterval
 -- inspect $ 'dropInterval `hasNoType` ''D.Step

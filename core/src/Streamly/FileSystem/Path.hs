@@ -29,7 +29,7 @@
 -- from an explicit or implicit file system root is called a rooted path or an
 -- anchored path. For example, @\/usr\/bin@ is a rooted path with @/@ as an
 -- explicit root directory. Similarly, @.\/bin@ is a rooted path with the
--- current directoy \".\" as an implicit root. A path that is not rooted is
+-- current directory \".\" as an implicit root. A path that is not rooted is
 -- called an unrooted path or unanchored path; for example, @local\/bin@ is an
 -- unrooted path.
 --

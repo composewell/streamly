@@ -82,7 +82,7 @@ module Streamly.Internal.FileSystem.Handle
     -- include disks, files, memory devices and exclude terminals, pipes,
     -- sockets and fifos.
 
-    -- We can also generate the request pattern using a funciton.
+    -- We can also generate the request pattern using a function.
     --
     -- , readIndex
     -- , readFrom -- read from a given position to the end of file
@@ -448,7 +448,7 @@ writeChunks h = FL.drainMapM (putChunk h)
 -- | @writeChunksWith bufsize handle@ writes a stream of arrays
 -- to @handle@ after coalescing the adjacent arrays in chunks of @bufsize@.
 -- We never split an array, if a single array is bigger than the specified size
--- it emitted as it is. Multiple arrays are coalesed as long as the total size
+-- it emitted as it is. Multiple arrays are coalesced as long as the total size
 -- remains below the specified size.
 --
 {-# INLINE writeChunksWith #-}

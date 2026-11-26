@@ -390,7 +390,7 @@ sepBy1 value = withStreamK value $ \xs -> do
         x <- p
         fmap (x :) $ AP.many (sep >> p)
 
--- O(n) heap beacuse of accumulation of the list in strict IO monad?
+-- O(n) heap because of accumulation of the list in strict IO monad?
 o_n_heap_serial :: Int -> [(SpaceComplexity, Benchmark)]
 o_n_heap_serial value =
     [
@@ -412,7 +412,7 @@ o_n_heap_serial value =
     , (HeapO_n, benchIO "monad16" $ monad16 value)
     ]
 
--- O(n) heap beacuse of accumulation of the list in strict IO monad?
+-- O(n) heap because of accumulation of the list in strict IO monad?
 o_1_space_recursive :: Int -> [(SpaceComplexity, Benchmark)]
 o_1_space_recursive value =
     [ (SpaceO_1, benchIO "one (recursive)" $ one value)

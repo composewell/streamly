@@ -484,7 +484,7 @@ data PackPathsState =
 -- The first argument specifies the initial output buffer size in bytes, if the
 -- size is close to the block size it may be rounded to the block size. The
 -- buffer is grown further only if even one path can not fit into it. The fold
--- terminates when no more space is left in the buffer to accomodate more
+-- terminates when no more space is left in the buffer to accommodate more
 -- paths.
 {-# INLINE packPathsEndBy #-}
 packPathsEndBy ::

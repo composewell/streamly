@@ -1716,7 +1716,7 @@ scanWith isMany
 scan :: Monad m => Fold m a b -> Fold m b c -> Fold m a c
 scan = scanWith False
 
--- XXX This does not fuse beacuse of the recursive step. Need to investigate.
+-- XXX This does not fuse because of the recursive step. Need to investigate.
 --
 -- | Scan the input of a 'Fold' to change it in a stateful manner using another
 -- 'Fold'. The scan restarts with a fresh state if the fold terminates.
@@ -1793,7 +1793,7 @@ scanlWith isMany
 scanl :: Monad m => Scanl m a b -> Fold m b c -> Fold m a c
 scanl = scanlWith False
 
--- XXX This does not fuse beacuse of the recursive step. Need to investigate.
+-- XXX This does not fuse because of the recursive step. Need to investigate.
 
 -- | Scan the input of a 'Fold' to change it in a stateful manner using a
 -- 'Scanl'. The scan restarts with a fresh state if it terminates.

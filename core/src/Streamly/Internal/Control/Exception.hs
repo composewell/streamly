@@ -17,7 +17,7 @@ module Streamly.Internal.Control.Exception
     , verifyM
 
     -- * Resource Management
-    -- | Exception safe, thread safe resource managment operations, similar to
+    -- | Exception safe, thread safe resource management operations, similar to
     -- but more powerful than the @bracket@ and @finally@ operations available
     -- in the base package.
     --
@@ -194,7 +194,7 @@ releaser ref =
 
 -- | @withAcquireIO action@ runs the given @action@, providing it with a
 -- an 'AcquireIO' reference called @ref@ as argument. @ref@ is used for resource
--- acquisition or hook registeration within the scope of @action@. An @acquire
+-- acquisition or hook registration within the scope of @action@. An @acquire
 -- ref alloc free@ call can be used within @action@ any number of times to
 -- acquire resources that are automatically freed when the scope of @action@
 -- ends or if an exception occurs at any time. @alloc@ is a function supplied

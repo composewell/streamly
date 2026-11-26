@@ -909,7 +909,7 @@ demuxKvToMap = demuxKvToContainer
 -- done then initial would set a flag in the state to ignore the input or
 -- return an error.
 
--- XXX Use a Refold m k a b so that we can make the fold key specifc.
+-- XXX Use a Refold m k a b so that we can make the fold key specific.
 -- XXX Is using a function (a -> k) better than using the input (k,a)?
 
 {-# DEPRECATED classifyGeneric "Use classifyScanGeneric instead" #-}

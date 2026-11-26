@@ -176,7 +176,7 @@ data OS = Windows | Posix deriving Eq
 -- functions can work on Array Word8/Word16/Char but that may be slow.
 
 -- XXX Windows is supported only on little endian machines so generally we do
--- not need covnersion from LE to BE format unless we want to manipulate
+-- not need conversion from LE to BE format unless we want to manipulate
 -- windows paths on big-endian machines.
 
 -- | Unsafe, may tructate to shorter word types, can only be used safely for
@@ -367,7 +367,7 @@ isRelativeCurDir os a
 -- separators. Such a path is relative to current drive root. Note that
 -- "\\/share/x" is treated as "C:/share/x" because UNC or share name starts
 -- with EXACTLY two separators, more than two separators are just a sequence of
--- separators which can be collpased into a single separator.
+-- separators which can be collapsed into a single separator.
 isRelativeCurDriveRoot :: (Unbox a, Integral a) => Array a -> Bool
 isRelativeCurDriveRoot a
     | len == 0 = False -- empty path should not occur
@@ -712,7 +712,7 @@ splitRoot Windows arr
 -- Split path
 ------------------------------------------------------------------------------
 
--- | Raw split an array on path separartor word using a filter to filter out
+-- | Raw split an array on path separator word using a filter to filter out
 -- some splits.
 {-# INLINE splitWithFilter #-}
 splitWithFilter
@@ -1963,7 +1963,7 @@ normalise decoder os eqCfg@EqCfg{..} p
 
 -- | Return the longest common, non-empty, prefix of two paths. Path prefix is
 -- compared using normalization. Dot dot components are not collapsed because
--- of symlink possiblities.
+-- of symlink possibilities.
 --
 -- The result, if present, is a valid path that is a prefix of both inputs.
 -- Returns 'Nothing' if there is no common prefix or if the common prefix is empty.

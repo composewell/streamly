@@ -458,7 +458,7 @@ writeChunks h = FL.drainMapM (liftIO . putChunk h)
 
 -- | @writeChunksWith bufsize socket@ writes a stream of arrays to
 -- @socket@ after coalescing the adjacent arrays in chunks of @bufsize@.
--- Multiple arrays are coalesed as long as the total size remains below the
+-- Multiple arrays are coalesced as long as the total size remains below the
 -- specified size.  It never splits an array, if a single array is bigger than
 -- the specified size it emitted as it is.
 --

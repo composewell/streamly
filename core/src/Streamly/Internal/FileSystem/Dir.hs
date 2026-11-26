@@ -26,7 +26,7 @@ module Streamly.Internal.FileSystem.Dir
     -- , readAttrs
 
     -- recursive read requires us to read the attributes of the children to
-    -- determine if something is a dirctory or not. Therefore, it may be a good
+    -- determine if something is a directory or not. Therefore, it may be a good
     -- idea to have a low level routine that also spits out the attributes of
     -- the files, we get that for free. We can also add a filter/pattern/parser
     -- on the names of the children that we want to read.

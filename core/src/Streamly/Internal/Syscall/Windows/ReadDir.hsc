@@ -171,7 +171,7 @@ foreign import ccall unsafe "wchar.h wcslen" c_wcslen_pinned
 -- This is defined here and not in Path module because wcslen is a platform
 -- specific function and uses 32-bit wide chars on posix and 16-bit wide chars
 -- on Windows. We cannot have it in WindowsPath module because that module is
--- plaform agnostic and works on Posix as well.
+-- platform agnostic and works on Posix as well.
 --
 {-# INLINE appendW16CString #-}
 appendW16CString :: WindowsPath -> Ptr CWchar -> IO WindowsPath

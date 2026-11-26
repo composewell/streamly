@@ -48,7 +48,7 @@
 --
 -- The Path module contains purely path manipulation code. WindowsPath and
 -- PosixPath have different type of handling but both the modules are available
--- in all plaforms, therefore, you can manipulate Windows paths on Posix and
+-- in all platforms, therefore, you can manipulate Windows paths on Posix and
 -- vice-versa. Because of this the operations that require platform specific IO
 -- system calls are placed in the PathIO module which is available only on the
 -- current platform for which the library is built.

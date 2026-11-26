@@ -293,7 +293,7 @@ common threading-options
 
 -- We need optimization options here to optimize internal (non-inlined)
 -- versions of functions. Also, we have some benchmarking inspection tests
--- part of the library when built with --benchmarks flag. Thos tests fail
+-- part of the library when built with --benchmarks flag. Those tests fail
 -- if we do not use optimization options here. It was observed that due to
 -- -O2 here some concurrent/nested benchmarks improved and others regressed.
 -- We can investigate a bit more here why the regression occurred.

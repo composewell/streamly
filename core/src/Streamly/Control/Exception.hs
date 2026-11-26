@@ -8,7 +8,7 @@
 -- Stability   : released
 -- Portability : GHC
 --
--- Exception handling and resource managment operations complementing
+-- Exception handling and resource management operations complementing
 -- the "Control.Exception" module in base package.
 
 module Streamly.Control.Exception
@@ -20,7 +20,7 @@ module Streamly.Control.Exception
     -- $setup
     --
     -- * Resource Management
-    -- | Exception safe, thread safe resource managment operations, similar to
+    -- | Exception safe, thread safe resource management operations, similar to
     -- but more powerful than the @bracket@ and @finally@ operations available
     -- in the base package.
     --
