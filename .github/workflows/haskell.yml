@@ -306,32 +306,37 @@ jobs:
               CABAL_PROJECT=cabal.project
             ignore_error: false
 
-          #- name: ci
-          #  runner: ubuntu-latest
-          #  command: hlint
-          #  # WARNING! cannot use # comments inside pack_options.
-          #  pack_options: >-
-          #    HLINT_VERSION=3.6.1
-          #    HLINT_OPTIONS="lint"
-          #    HLINT_TARGETS="src"
-          #  ignore_error: false
+          # The name is part of the cache key, packcheck uses a cached
+          # hlint binary of any version. Change the name along with
+          # HLINT_VERSION. The trailing spaces check runs in this job.
+          - name: hlint-3.10
+            runner: ubuntu-latest
+            command: hlint
+            # WARNING! cannot use # comments inside pack_options.
+            pack_options: >-
+              HLINT_VERSION=3.10
+              HLINT_OPTIONS="lint"
+              HLINT_TARGETS="core/src src"
+            ignore_error: false
 
-          # NOTE: need to expose other-modules in cabal to doctest those
-          #- name: docspec
-          #  runner: ubuntu-latest
-          #  command: cabal
-          #  ghc_version: 9.12.4
-          #  # WARNING! cannot use # comments inside pack_options.
-          #  pack_options: >-
-          #    DISABLE_SDIST_BUILD="y"
-          #    DISABLE_TEST="y"
-          #    DISABLE_BENCH="y"
-          #    DISABLE_DOCS="y"
-          #    ENABLE_DOCSPEC="y"
-          #   DOCSPEC_URL=https://github.com/phadej/cabal-extras/releases/download/cabal-docspec-0.0.0.20250606/cabal-docspec-0.0.0.20250606-x86_64-linux.xz
-          #    DOCSPEC_OPTIONS="--timeout 60 --check-properties --property-variables xs"
-          #    CABAL_PROJECT="cabal.project.doctest"
-          #  ignore_error: false
+          # other-modules are changed to exposed-modules before the build
+          # so that docspec checks them too.
+          - name: docspec
+            runner: ubuntu-latest
+            command: cabal
+            ghc_version: 9.14.1
+            # WARNING! cannot use # comments inside pack_options.
+            pack_options: >-
+              DISABLE_SDIST_BUILD="y"
+              DISABLE_TEST="y"
+              DISABLE_BENCH="y"
+              DISABLE_DOCS="y"
+              DISABLE_DIST_CHECKS="y"
+              ENABLE_DOCSPEC="y"
+              DOCSPEC_URL=https://github.com/phadej/cabal-extras/releases/download/cabal-docspec-0.0.0.20250606/cabal-docspec-0.0.0.20250606-x86_64-linux.xz
+              DOCSPEC_OPTIONS="--timeout 60 --check-properties --property-variables xs"
+              CABAL_PROJECT="cabal.project.doctest"
+            ignore_error: false
 
           # - name: 8.10.7-coverage
           #   ghc_version: 8.10.7
@@ -367,6 +372,20 @@ jobs:
         #Set-MpPreference -DisableRealtimeMonitoring $true
 
     - uses: actions/checkout@v4
+
+    - name: Check trailing spaces
+      if: matrix.command == 'hlint'
+      run: |
+        if git grep -n ' $' -- '*.hs'; then
+          echo "Trailing spaces found in the files above."
+          exit 1
+        fi
+
+    - name: Expose other-modules for docspec
+      if: matrix.name == 'docspec'
+      run: |
+        sed -i 's/other-modules:/exposed-modules:/g' streamly.cabal
+        sed -i 's/other-modules:/exposed-modules:/g' core/streamly-core.cabal
 
     # The macOS image may ship Command Line Tools newer than the default
     # Xcode (e.g. CLT 27.0 with Xcode 26.6). Linking against the CLT SDK then
