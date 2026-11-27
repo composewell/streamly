@@ -19,6 +19,7 @@ module Streamly.Internal.Data.Stream.Time
 
     -- * Trimming
     , takeInterval
+    , takeInterval_
     , takeLastInterval
     , dropInterval
     , dropLastInterval
@@ -59,14 +60,19 @@ where
 
 #include "inline.hs"
 
-import Control.Exception (assert)
+import Control.Concurrent (ThreadId, forkIOWithUnmask, killThread, yield)
+import Control.Exception (assert, mask_)
+import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Heap (Entry(..))
 import Data.Int (Int64)
+import Data.IORef (IORef, mkWeakIORef, newIORef, readIORef, writeIORef)
 import Data.Kind (Type)
 import Data.Map (Map)
 import Data.Maybe (isJust, isNothing)
 import Data.Proxy (Proxy(..))
+import Fusion.Plugin.Types (Fuse(..))
+import System.Mem.Weak (deRefWeak)
 import Streamly.Data.Fold (Fold)
 import Streamly.Data.Array (Unbox)
 import Streamly.Internal.Data.Array (Array)
@@ -202,6 +208,75 @@ takeInterval d xs
                 [ fmap Just xs
                 , Stream.fromEffect (Stream.sleep d >> return Nothing)
                 ]
+
+{-# ANN type TakeIntervalState Fuse #-}
+data TakeIntervalState s
+    = TakeIntervalInit s
+    | TakeIntervalRun !Int !(IORef Bool) !ThreadId s
+
+-- | Like 'takeInterval' but faster, with a weaker guarantee about the time at
+-- which the stream ends, and without requiring 'MonadAsync'.
+--
+-- An element is yielded if the evaluation generating it starts before the end
+-- of the interval, whenever it finishes. The evaluation of the stream is not
+-- interrupted at the end of the interval: if it blocks, the stream does not
+-- end until it returns.
+--
+-- The stream is evaluated in the thread of the consumer. Another thread is
+-- forked only to keep the time. It ends at the end of the interval, or when
+-- the stream ends if that happens earlier. If the stream is abandoned before
+-- it ends, the thread is killed when the stream is garbage collected.
+--
+-- /Pre-release/
+{-# INLINE takeInterval_ #-}
+takeInterval_ :: MonadIO m => Double -> Stream m a -> Stream m a
+takeInterval_ d (Stream.Stream step state) =
+    Stream.Stream step1 (TakeIntervalInit state)
+
+    where
+
+    -- The timer thread gets to run only when the thread evaluating the stream
+    -- yields the CPU, which a fused loop that does not allocate never does on
+    -- its own. So we yield explicitly, once in this many steps.
+    yieldCount :: Int
+    yieldCount = 1000
+
+    -- A one-shot timer thread sets a flag at the end of the interval, reading
+    -- the flag is cheaper than reading the clock for each element.
+    --
+    -- The timer thread holds only a weak reference to the flag, so that the
+    -- flag becomes unreachable when the stream is abandoned, and its finalizer
+    -- kills the thread. Asynchronous exceptions are masked until the finalizer
+    -- is installed, otherwise the thread could be left without one.
+    startTimer = mask_ $ do
+        ref <- newIORef False
+        weak <- mkWeakIORef ref (return ())
+        tid <- forkIOWithUnmask $ \unmask -> unmask $ do
+            Stream.sleep d
+            deRefWeak weak >>= mapM_ (`writeIORef` True)
+        _ <- mkWeakIORef ref (killThread tid)
+        return (ref, tid)
+
+    {-# INLINE_LATE step1 #-}
+    step1 _ (TakeIntervalInit st)
+        | not (d > 0) = return Stop
+        | otherwise = do
+            (ref, tid) <- liftIO startTimer
+            -- Let the timer thread start, the interval begins now.
+            liftIO yield
+            return $ Skip $ TakeIntervalRun yieldCount ref tid st
+    step1 gst (TakeIntervalRun n ref tid st) = do
+        when (n <= 0) $ liftIO yield
+        expired <- liftIO $ readIORef ref
+        if expired
+        then return Stop
+        else do
+            let n1 = if n <= 0 then yieldCount else n - 1
+            r <- step gst st
+            case r of
+                Yield x s -> return $ Yield x (TakeIntervalRun n1 ref tid s)
+                Skip s -> return $ Skip (TakeIntervalRun n1 ref tid s)
+                Stop -> liftIO (killThread tid) >> return Stop
 
 -- | Take time interval @i@ seconds at the end of the stream.
 --
