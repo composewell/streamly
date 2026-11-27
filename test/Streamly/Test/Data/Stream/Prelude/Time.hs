@@ -136,6 +136,43 @@ dropIntervalHuge d =
         $ Stream.dropInterval d
         $ Stream.fromList [1..10]
 
+takeInterval_Of :: Double -> IO [Int]
+takeInterval_Of d =
+    Stream.fold Fold.toList
+        $ Stream.takeInterval_ d
+        $ Stream.fromList [1..10]
+
+takeInterval_Prefix :: IO Bool
+takeInterval_Prefix = do
+    xs <-
+        Stream.fold Fold.toList
+            $ Stream.takeInterval_ shortInterval slowEnumeration
+    return $ not (null xs) && xs == [1..length xs]
+
+-- The second element is generated after the end of the interval, by an action
+-- started before it. takeInterval_ does not interrupt the action, and yields
+-- the element. No action is started after the end of the interval.
+takeInterval_Blocked :: IO [Int]
+takeInterval_Blocked =
+    Stream.fold Fold.toList
+        $ Stream.takeInterval_ shortInterval
+        $ Stream.mapM (\x -> when (x > 1) (threadDelay 300000) >> return x)
+        $ Stream.fromList [1..10]
+
+-- The loop does not allocate, so the timer thread of takeInterval_ runs only if
+-- the loop yields the CPU. A loop that never yields cannot be interrupted, so
+-- the stream is finite: if the timer thread does not run, the loop ends by
+-- itself after several seconds, having taken all the elements. The number of
+-- elements must fit in an Int of 32 bits, for the JavaScript backend.
+takeInterval_Spin :: IO Bool
+takeInterval_Spin = do
+    let total = 2000000000 :: Int
+    n <-
+        Stream.fold Fold.length
+            $ Stream.takeInterval_ shortInterval
+            $ Stream.enumerateFromTo 1 total
+    return $ n < total
+
 -- The stream is endless, so this returns only if takeInterval ends it. The
 -- elements taken must be the beginning of the stream.
 takeIntervalPrefix :: IO Bool
@@ -191,6 +228,22 @@ main = hspec
                 (takeIntervalOf nan `shouldReturn` [])
             it "takeInterval ends a blocked stream after the interval"
                 (takeIntervalBlocked `shouldReturn` Just [1])
+            it "takeInterval_ takes all the elements within the interval"
+                (takeInterval_Of longInterval `shouldReturn` [1..10])
+            it "takeInterval_ takes all the elements if the interval is infinite"
+                (takeInterval_Of (1/0) `shouldReturn` [1..10])
+            it "takeInterval_ ends the stream after the interval"
+                (takeInterval_Prefix `shouldReturn` True)
+            it "takeInterval_ takes nothing if the interval is zero"
+                (takeInterval_Of 0 `shouldReturn` [])
+            it "takeInterval_ takes nothing if the interval is negative"
+                (takeInterval_Of (-1) `shouldReturn` [])
+            it "takeInterval_ takes nothing if the interval is NaN"
+                (takeInterval_Of nan `shouldReturn` [])
+            it "takeInterval_ yields the element of an action in progress"
+                (takeInterval_Blocked `shouldReturn` [1,2])
+            it "takeInterval_ ends a loop that never yields the CPU"
+                (takeInterval_Spin `shouldReturn` True)
             it "dropInterval drops nothing if the interval is zero"
                 (dropIntervalOf 0 `shouldReturn` [1..10])
             it "dropInterval drops nothing if the interval is negative"

@@ -238,6 +238,10 @@ takeInterval i value = withStream value $ drain . Stream.takeInterval i
 -- inspect $ 'takeInterval `hasNoType` ''D.Step
 #endif
 
+{-# NOINLINE takeInterval_ #-}
+takeInterval_ :: Double -> Int -> IO ()
+takeInterval_ i value = withStream value $ drain . Stream.takeInterval_ i
+
 {-# NOINLINE dropInterval #-}
 dropInterval :: Double -> Int -> IO ()
 dropInterval i value = withStream value $ drain . Stream.dropInterval i
@@ -258,6 +262,7 @@ timeBenchmarks :: BenchEnv -> Int -> [Benchmark]
 timeBenchmarks _env size =
     [ benchIO "parTapCount 1 second" (pollCounts size)
     , benchIO "takeInterval-all" (takeInterval 10000 size)
+    , benchIO "takeInterval_-all" (takeInterval_ 10000 size)
     , benchIO "dropInterval-all" (dropInterval 10000 size)
     ]
 
