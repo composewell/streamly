@@ -34,6 +34,8 @@
 - ignore: {name: "Redundant <*", within: Stream.Expand}
 - ignore: {name: "Redundant bracket", within: Stream.Split}
 - ignore: {name: "Use isDigit", within: Streamly.Internal.Unicode.Parser}
+# "not (d > 0)" is true for NaN, "d <= 0" is not.
+- ignore: {name: "Use <=", within: Streamly.Internal.Data.Stream.Time}
 
 # Specify additional command line arguments
 #
