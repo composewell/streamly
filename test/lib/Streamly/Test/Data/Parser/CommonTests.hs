@@ -933,6 +933,64 @@ takeStartBy_ producer consumer =
 -------------------------------------------------------------------------------
 
 {-# NOINLINE mainCommon #-}
+-- When the input ends inside an element of "many", the element fails and
+-- "many" gives back the input consumed by it. A parser sequenced after "many"
+-- must then see that input.
+
+-- | A 1, then one or more elements other than 0, then a 0. Returns the
+-- elements between the 1 and the 0.
+manyElem :: P.Parser Int Identity [Int]
+manyElem =
+    P.satisfy (== 1) *> P.takeWhile1 (/= 0) FL.toList <* P.satisfy (== 0)
+
+manyElems :: P.Parser Int Identity [[Int]]
+manyElems = P.many manyElem FL.toList
+
+manyBacktrackAtEnd :: TestMode -> Spec
+manyBacktrackAtEnd ptt =
+    describe "many, input ending inside an element" $ do
+        it "many gives back the incomplete element"
+            $ parse manyElems [1,2,0,1,3]
+                `shouldBe` (Just [[2]], [1,3])
+        it "many <* eof succeeds on complete elements"
+            $ parse (manyElems <* P.eof) [1,2,0,1,3,0]
+                `shouldBe` (Just [[2],[3]], [])
+        it "many <* eof fails on an element stopped by a wrong input"
+            $ fst (parse (manyElems <* P.eof) [1,2,0,5])
+                `shouldBe` Nothing
+        it "many <* eof fails on an incomplete last element"
+            $ fst (parse (manyElems <* P.eof) [1,2,0,1,3])
+                `shouldBe` Nothing
+        it "many <* eof fails on an incomplete only element"
+            $ fst (parse (manyElems <* P.eof) [1,3])
+                `shouldBe` Nothing
+        it "many *> eof fails on an incomplete last element"
+            $ fst (parse (manyElems *> P.eof) [1,2,0,1,3])
+                `shouldBe` Nothing
+        it "many >>= eof fails on an incomplete last element"
+            $ fst (parse (manyElems >>= \xs -> xs <$ P.eof) [1,2,0,1,3])
+                `shouldBe` Nothing
+        it "<*> runs the next parser on the incomplete element"
+            $ parse ((,) <$> manyElems <*> rest) [1,2,0,1,3]
+                `shouldBe` (Just ([[2]], [1,3]), [])
+        it "*> runs the next parser on the incomplete element"
+            $ parse (manyElems *> rest) [1,2,0,1,3]
+                `shouldBe` (Just [1,3], [])
+        it ">>= runs the next parser on the incomplete element"
+            $ parse (manyElems >>= \xs -> (,) xs <$> rest) [1,2,0,1,3]
+                `shouldBe` (Just ([[2]], [1,3]), [])
+
+    where
+
+    rest = P.fromFold FL.toList
+
+    parse :: P.Parser Int Identity b -> [Int] -> (Maybe b, [Int])
+    parse p xs =
+        runParserTC ptt $ \run ->
+            case runIdentity (run p xs) of
+                (Right b, ys) -> (Just b, ys)
+                (Left _, ys) -> (Nothing, ys)
+
 mainCommon :: TestMode -> Spec
 mainCommon ptt = do
   -- This file has tests corresponding to Parser.hs source file that are common
@@ -1003,4 +1061,5 @@ mainCommon ptt = do
         prop "takeStartBy_" $ runParserTC_temp ptt takeStartBy_
 
     runParserTC_temp ptt takeProperties
+    manyBacktrackAtEnd ptt
 
